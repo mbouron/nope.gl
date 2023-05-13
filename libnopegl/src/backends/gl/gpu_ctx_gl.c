@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2019-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -23,7 +24,7 @@
 
 #include "config.h"
 
-#if defined(TARGET_IPHONE)
+#if defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
 #include <CoreVideo/CoreVideo.h>
 #endif
 
@@ -131,7 +132,72 @@ static int wrap_capture_cvpixelbuffer(struct gpu_ctx *s,
 
     return 0;
 }
+#endif
 
+#if defined(TARGET_DARWIN)
+static int wrap_capture_cvpixelbuffer(struct gpu_ctx *s,
+                                      CVPixelBufferRef buffer,
+                                      struct texture **texturep,
+                                      CVOpenGLTextureRef *cv_texturep)
+{
+    struct gpu_ctx_gl *s_priv = (struct gpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+
+    CVOpenGLTextureRef cv_texture = NULL;
+    CVOpenGLTextureCacheRef cache = ngli_glcontext_get_texture_cache(gl);
+    const size_t width = CVPixelBufferGetWidth(buffer);
+    const size_t height = CVPixelBufferGetHeight(buffer);
+
+    CVReturn cv_ret = CVOpenGLTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
+                                                                 cache,
+                                                                 buffer,
+                                                                 NULL,
+                                                                 &cv_texture);
+    if (cv_ret != kCVReturnSuccess) {
+        LOG(ERROR, "could not create CoreVideo texture from CVPixelBuffer: %d", cv_ret);
+        return NGL_ERROR_EXTERNAL;
+    }
+
+    GLuint id = CVOpenGLTextureGetName(cv_texture);
+    ngli_glBindTexture(gl, GL_TEXTURE_RECTANGLE, id);
+    ngli_glTexParameteri(gl, GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    ngli_glTexParameteri(gl, GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    ngli_glBindTexture(gl, GL_TEXTURE_RECTANGLE, 0);
+
+    struct texture *texture = ngli_texture_create(s);
+    if (!texture) {
+        CFRelease(cv_texture);
+        return NGL_ERROR_MEMORY;
+    }
+
+    const struct texture_params attachment_params = {
+        .type   = NGLI_TEXTURE_TYPE_RECTANGLE,
+        .format = NGLI_FORMAT_B8G8R8A8_UNORM,
+        .width  = width,
+        .height = height,
+        .usage  = NGLI_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT,
+    };
+
+    const struct texture_gl_wrap_params wrap_params = {
+        .params  = &attachment_params,
+        .texture = id,
+    };
+
+    int ret = ngli_texture_gl_wrap(texture, &wrap_params);
+    if (ret < 0) {
+        CFRelease(cv_texture);
+        ngli_texture_freep(&texture);
+        return ret;
+    }
+
+    *texturep = texture;
+    *cv_texturep = cv_texture;
+
+    return 0;
+}
+#endif
+
+#if defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
 static void reset_capture_cvpixelbuffer(struct gpu_ctx *s)
 {
     struct gpu_ctx_gl *s_priv = (struct gpu_ctx_gl *)s;
@@ -266,7 +332,7 @@ static int offscreen_rendertarget_init(struct gpu_ctx *s)
     }
 
     if (config->capture_buffer_type == NGL_CAPTURE_BUFFER_TYPE_COREVIDEO) {
-#if defined(TARGET_IPHONE)
+#if defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
         if (config->capture_buffer) {
             s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(config->capture_buffer);
             int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer,
@@ -279,7 +345,7 @@ static int offscreen_rendertarget_init(struct gpu_ctx *s)
                 return ret;
         }
 #else
-        LOG(ERROR, "CoreVideo capture is only supported on iOS");
+        LOG(ERROR, "CoreVideo capture is only supported on macOS and iOS");
         return NGL_ERROR_UNSUPPORTED;
 #endif
     } else if (config->capture_buffer_type == NGL_CAPTURE_BUFFER_TYPE_CPU) {
@@ -342,7 +408,7 @@ static void rendertarget_reset(struct gpu_ctx *s)
     ngli_texture_freep(&s_priv->color);
     ngli_texture_freep(&s_priv->ms_color);
     ngli_texture_freep(&s_priv->depth_stencil);
-#if defined(TARGET_IPHONE)
+#if defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
     reset_capture_cvpixelbuffer(s);
 #endif
     s_priv->capture_func = NULL;
