@@ -140,6 +140,9 @@ static int create_fbo(struct rendertarget *s, int resolve, GLuint *idp)
         case GL_TEXTURE_CUBE_MAP:
             ngli_glFramebufferTexture2D(gl, GL_FRAMEBUFFER, attachment_index++, GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer, texture_gl->id, 0);
             break;
+        case GL_TEXTURE_RECTANGLE:
+            ngli_glFramebufferTexture2D(gl, GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_RECTANGLE, texture_gl->id, 0);
+            break;
         default:
             ngli_assert(0);
         }

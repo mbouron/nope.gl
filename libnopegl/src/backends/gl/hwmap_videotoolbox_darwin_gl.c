@@ -211,7 +211,7 @@ static int vt_darwin_init(struct hwmap *hwmap, struct nmd_frame * frame)
         ngli_glBindTexture(gl, GL_TEXTURE_RECTANGLE, 0);
 
         const struct texture_params plane_params = {
-            .type             = NGLI_TEXTURE_TYPE_2D,
+            .type             = NGLI_TEXTURE_TYPE_RECTANGLE,
             .format           = vt->format_desc.planes[i].format,
             .min_filter       = params->texture_min_filter,
             .mag_filter       = params->texture_mag_filter,

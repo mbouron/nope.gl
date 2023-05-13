@@ -117,12 +117,12 @@ static void texture2d_set_sub_image(struct texture *s, const uint8_t *data, int 
 
     if (row_upload) {
         for (int y = 0; y < params->height; y++) {
-            ngli_glTexSubImage2D(gl, GL_TEXTURE_2D, 0, 0, y, params->width, 1, s_priv->format, s_priv->format_type, data);
+            ngli_glTexSubImage2D(gl, s_priv->target, 0, 0, y, params->width, 1, s_priv->format, s_priv->format_type, data);
             data += linesize * s_priv->bytes_per_pixel;
         }
         return;
     }
-    ngli_glTexSubImage2D(gl, GL_TEXTURE_2D, 0, 0, 0, params->width, params->height, s_priv->format, s_priv->format_type, data);
+    ngli_glTexSubImage2D(gl, s_priv->target, 0, 0, 0, params->width, params->height, s_priv->format, s_priv->format_type, data);
 }
 
 
@@ -220,6 +220,9 @@ static void texture_set_sub_image(struct texture *s, const uint8_t *data, int li
     case GL_TEXTURE_CUBE_MAP:
         texturecube_set_sub_image(s, data, linesize, row_upload);
         break;
+    case GL_TEXTURE_RECTANGLE:
+        texture2d_set_sub_image(s, data, linesize, row_upload);
+        break;
     }
 
     ngli_glPixelStorei(gl, GL_UNPACK_ALIGNMENT, 4);
@@ -258,6 +261,10 @@ static void texture_set_storage(struct texture *s)
         /* glTexStorage2D automatically accomodates for 6 faces when using the cubemap target */
         ngli_glTexStorage2D(gl, s_priv->target, 1, s_priv->internal_format, params->width, params->height);
         break;
+    case GL_TEXTURE_RECTANGLE: {
+        ngli_glTexStorage2D(gl, s_priv->target, 1, s_priv->internal_format, params->width, params->height);
+        break;
+    }
     }
 }
 
@@ -335,6 +342,8 @@ static int texture_init_fields(struct texture *s)
         s_priv->target = GL_TEXTURE_3D;
     else if (params->type == NGLI_TEXTURE_TYPE_CUBE)
         s_priv->target = GL_TEXTURE_CUBE_MAP;
+    else if (params->type == NGLI_TEXTURE_TYPE_RECTANGLE)
+        s_priv->target = GL_TEXTURE_RECTANGLE;
     else
         ngli_assert(0);
 
