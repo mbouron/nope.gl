@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2018-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -36,6 +37,7 @@ struct nsgl_priv {
     NSOpenGLContext *handle;
     NSView *view;
     CFBundleRef framework;
+    CVOpenGLTextureCacheRef texture_cache;
 };
 
 static int nsgl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window, uintptr_t other)
@@ -113,6 +115,17 @@ static int nsgl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window,
         }
 
         [nsgl->handle setView:nsgl->view];
+    }
+
+    CVReturn err = CVOpenGLTextureCacheCreate(kCFAllocatorDefault,
+                                              NULL,
+                                              nsgl->handle.CGLContextObj,
+                                              nsgl->pixel_format.CGLPixelFormatObj,
+                                              NULL,
+                                              &nsgl->texture_cache);
+    if (err != noErr) {
+        LOG(ERROR, "could not create CoreVideo texture cache: 0x%x", err);
+        return NGL_ERROR_EXTERNAL_ERROR;
     }
 
     return 0;
@@ -194,6 +207,12 @@ static int nsgl_set_swap_interval(struct glcontext *ctx, int interval)
     return 0;
 }
 
+static void *nsgl_get_texture_cache(struct glcontext *ctx)
+{
+    struct nsgl_priv *nsgl = ctx->priv_data;
+    return nsgl->texture_cache;
+}
+
 static void *nsgl_get_proc_address(struct glcontext *ctx, const char *name)
 {
     struct nsgl_priv *nsgl = ctx->priv_data;
@@ -237,6 +256,11 @@ static void nsgl_uninit_external(struct glcontext *ctx)
 
     if (nsgl->framework)
         CFRelease(nsgl->framework);
+
+    if (nsgl->texture_cache) {
+        CVOpenGLTextureCacheFlush(nsgl->texture_cache, 0);
+        CVOpenGLTextureCacheRelease(nsgl->texture_cache);
+    }
 }
 
 const struct glcontext_class ngli_glcontext_nsgl_class = {
@@ -246,6 +270,7 @@ const struct glcontext_class ngli_glcontext_nsgl_class = {
     .make_current = nsgl_make_current,
     .swap_buffers = nsgl_swap_buffers,
     .set_swap_interval = nsgl_set_swap_interval,
+    .get_texture_cache = nsgl_get_texture_cache,
     .get_proc_address = nsgl_get_proc_address,
     .get_handle = nsgl_get_handle,
     .priv_size = sizeof(struct nsgl_priv),
@@ -255,6 +280,7 @@ const struct glcontext_class ngli_glcontext_nsgl_external_class = {
     .init = nsgl_init_external,
     .uninit = nsgl_uninit_external,
     .make_current = nsgl_make_current,
+    .get_texture_cache = nsgl_get_texture_cache,
     .get_proc_address = nsgl_get_proc_address,
     .get_handle = nsgl_get_handle,
     .priv_size = sizeof(struct nsgl_priv),
