@@ -27,6 +27,7 @@
 #include <CoreVideo/CoreVideo.h>
 #endif
 
+#include "bind_group_gl.h"
 #include "buffer_gl.h"
 #include "gpu_ctx.h"
 #include "gpu_ctx_gl.h"
@@ -968,6 +969,14 @@ static int gl_get_preferred_depth_stencil_format(struct gpu_ctx *s)
     return NGLI_FORMAT_D24_UNORM_S8_UINT;
 }
 
+static void gl_set_bindgroup(struct gpu_ctx *s, struct bindgroup *bindgroup)
+{
+    struct gpu_ctx_gl *s_priv = (struct gpu_ctx_gl *)s;
+    s_priv->current_bindgroup = bindgroup;
+    ngli_bindgroup_gl_bind(bindgroup);
+    
+}
+
 static void gl_set_pipeline(struct gpu_ctx *s, struct pipeline *pipeline)
 {
     struct gpu_ctx_gl *s_priv = (struct gpu_ctx_gl *)s;
@@ -1048,6 +1057,8 @@ const struct gpu_ctx_class ngli_gpu_ctx_##cls_suffix = {                        
     .get_preferred_depth_format         = gl_get_preferred_depth_format,         \
     .get_preferred_depth_stencil_format = gl_get_preferred_depth_stencil_format, \
                                                                                  \
+    .set_bindgroup                       = gl_set_bindgroup,                     \
+                                                                                 \
     .set_pipeline                       = gl_set_pipeline,                       \
     .draw                               = gl_draw,                               \
     .draw_indexed                       = gl_draw_indexed,                       \
@@ -1063,10 +1074,18 @@ const struct gpu_ctx_class ngli_gpu_ctx_##cls_suffix = {                        
     .buffer_unmap                       = ngli_buffer_gl_unmap,                  \
     .buffer_freep                       = ngli_buffer_gl_freep,                  \
                                                                                  \
+    .bindgroup_layout_create = ngli_bindgroup_layout_gl_create,                \
+    .bindgroup_layout_init = ngli_bindgroup_layout_gl_init,                    \
+    .bindgroup_layout_freep = ngli_bindgroup_layout_gl_freep,                  \
+                                                                                 \
+    .bindgroup_create = ngli_bindgroup_gl_create,                              \
+    .bindgroup_init = ngli_bindgroup_gl_init,                                  \
+    .bindgroup_set_texture = ngli_bindgroup_gl_set_texture,                    \
+    .bindgroup_set_buffer = ngli_bindgroup_gl_set_buffer,                      \
+    .bindgroup_freep = ngli_bindgroup_gl_freep,                                \
+                                                                                 \
     .pipeline_create                    = ngli_pipeline_gl_create,               \
     .pipeline_init                      = ngli_pipeline_gl_init,                 \
-    .pipeline_update_texture            = ngli_pipeline_gl_update_texture,       \
-    .pipeline_update_buffer             = ngli_pipeline_gl_update_buffer,        \
     .pipeline_freep                     = ngli_pipeline_gl_freep,                \
                                                                                  \
     .program_create                     = ngli_program_gl_create,                \

@@ -28,6 +28,7 @@
 #include <CoreVideo/CoreVideo.h>
 #endif
 
+#include "bind_group.h"
 #include "nopegl.h"
 #include "glstate.h"
 #include "graphicstate.h"
@@ -47,6 +48,7 @@ struct gpu_ctx_gl {
     struct glstate glstate;
     struct rendertarget *current_rt;
     struct pipeline *current_pipeline;
+    struct bindgroup *current_bindgroup;
     const struct buffer **vertex_buffers;
     const struct buffer *index_buffer;
     int index_format;

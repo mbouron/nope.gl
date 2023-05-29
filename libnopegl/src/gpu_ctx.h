@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 
+#include "bind_group.h"
 #include "buffer.h"
 #include "gpu_limits.h"
 #include "nopegl.h"
@@ -77,6 +78,7 @@ struct gpu_ctx_class {
     void (*set_index_buffer)(struct gpu_ctx *s, const struct buffer *buffer, int format);
 
     void (*set_pipeline)(struct gpu_ctx *s, struct pipeline *pipeline);
+    void (*set_bindgroup)(struct gpu_ctx *s, struct bindgroup *bind_group);
     void (*draw)(struct gpu_ctx *s, int nb_vertices, int nb_instances);
     void (*draw_indexed)(struct gpu_ctx *s, int nb_indices, int nb_instances);
     void (*dispatch)(struct gpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z);
@@ -87,6 +89,16 @@ struct gpu_ctx_class {
     int (*buffer_map)(struct buffer *s, size_t size, size_t offset, void **datap);
     void (*buffer_unmap)(struct buffer *s);
     void (*buffer_freep)(struct buffer **sp);
+
+    struct bindgroup_layout *(*bindgroup_layout_create)(struct gpu_ctx *gpu_ctx);
+    int (*bindgroup_layout_init)(struct bindgroup_layout *s, const struct bindgroup_layout_params *params);
+    void (*bindgroup_layout_freep)(struct bindgroup_layout **sp);
+
+    struct bindgroup *(*bindgroup_create)(struct gpu_ctx *gpu_ctx);
+    int (*bindgroup_init)(struct bindgroup *s, const struct bindgroup_params *params);
+    int (*bindgroup_set_texture)(struct bindgroup *s, int32_t index, const struct texture *texture);
+    int (*bindgroup_set_buffer)(struct bindgroup *s, int32_t index, const struct buffer *buffer, size_t offset, size_t size);
+    void (*bindgroup_freep)(struct bindgroup **sp);
 
     struct pipeline *(*pipeline_create)(struct gpu_ctx *ctx);
     int (*pipeline_init)(struct pipeline *s, const struct pipeline_params *params);
@@ -154,6 +166,7 @@ int ngli_gpu_ctx_get_preferred_depth_format(struct gpu_ctx *s);
 int ngli_gpu_ctx_get_preferred_depth_stencil_format(struct gpu_ctx *s);
 
 void ngli_gpu_ctx_set_pipeline(struct gpu_ctx *s, struct pipeline *pipeline);
+void ngli_gpu_ctx_set_bindgroup(struct gpu_ctx *s, struct bindgroup *bind_group);
 void ngli_gpu_ctx_draw(struct gpu_ctx *s, int nb_vertices, int nb_instances);
 void ngli_gpu_ctx_draw_indexed(struct gpu_ctx *s, int nb_indices, int nb_instances);
 void ngli_gpu_ctx_dispatch(struct gpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z);

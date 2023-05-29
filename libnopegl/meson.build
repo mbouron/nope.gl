@@ -146,6 +146,7 @@ lib_src = files(
   'src/animation.c',
   'src/api.c',
   'src/atlas.c',
+  'src/bind_group.c',
   'src/blending.c',
   'src/block.c',
   'src/bstr.c',
@@ -358,6 +359,7 @@ gbackends_cfg = {
   'gl': {
     'src': files(
       'src/backends/gl/api_gl.c',
+      'src/backends/gl/bind_group_gl.c',
       'src/backends/gl/buffer_gl.c',
       'src/backends/gl/format_gl.c',
       'src/backends/gl/gpu_ctx_gl.c',
@@ -431,6 +433,7 @@ gbackends_cfg = {
   'vk': {
     'src': files(
       'src/backends/vk/api_vk.c',
+      'src/backends/vk/bind_group_vk.c',
       'src/backends/vk/buffer_vk.c',
       'src/backends/vk/command_vk.c',
       'src/backends/vk/format_vk.c',

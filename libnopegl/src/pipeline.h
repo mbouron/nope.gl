@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 
+#include "bind_group.h"
 #include "buffer.h"
 #include "darray.h"
 #include "graphicstate.h"
@@ -33,31 +34,8 @@
 
 struct gpu_ctx;
 
-enum {
-    NGLI_ACCESS_UNDEFINED,
-    NGLI_ACCESS_READ_BIT,
-    NGLI_ACCESS_WRITE_BIT,
-    NGLI_ACCESS_READ_WRITE,
-    NGLI_ACCESS_NB
-};
-
-NGLI_STATIC_ASSERT(texture_access, (NGLI_ACCESS_READ_BIT | NGLI_ACCESS_WRITE_BIT) == NGLI_ACCESS_READ_WRITE);
-
-struct pipeline_texture_desc {
-    char name[MAX_ID_LEN];
-    int type;
-    int binding;
-    int access;
-    int stage;
-};
-
-struct pipeline_buffer_desc {
-    char name[MAX_ID_LEN];
-    int type;
-    int binding;
-    int access;
-    int stage;
-};
+#define pipeline_texture_desc bindgroup_layout_entry
+#define pipeline_buffer_desc bindgroup_layout_entry
 
 struct pipeline_attribute_desc {
     char name[MAX_ID_LEN];
@@ -102,6 +80,7 @@ struct pipeline_params {
     const struct pipeline_graphics graphics;
     const struct program *program;
     struct pipeline_layout layout;
+    struct bindgroup_layout *bindgroup_layout;
 };
 
 struct pipeline {
@@ -110,6 +89,7 @@ struct pipeline {
     int type;
     struct pipeline_graphics graphics;
     const struct program *program;
+    const struct bindgroup_layout *bindgroup_layout;
     struct pipeline_layout layout;
 };
 
@@ -118,10 +98,6 @@ void ngli_pipeline_layout_reset(struct pipeline_layout *layout);
 
 struct pipeline *ngli_pipeline_create(struct gpu_ctx *gpu_ctx);
 int ngli_pipeline_init(struct pipeline *s, const struct pipeline_params *params);
-int ngli_pipeline_set_resources(struct pipeline *s, const struct pipeline_resources *resources);
-int ngli_pipeline_update_texture(struct pipeline *s, int32_t index, const struct texture *texture);
-int ngli_pipeline_update_buffer(struct pipeline *s, int32_t index, const struct buffer *buffer, size_t offset, size_t size);
-
 void ngli_pipeline_freep(struct pipeline **sp);
 
 #endif

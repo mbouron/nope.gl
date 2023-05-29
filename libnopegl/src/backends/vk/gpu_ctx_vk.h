@@ -84,6 +84,7 @@ struct gpu_ctx_vk {
 
     struct rendertarget *current_rt;
     struct pipeline *current_pipeline;
+    struct bindgroup *current_bindgroup;
 
     int32_t viewport[4];
     int32_t scissor[4];

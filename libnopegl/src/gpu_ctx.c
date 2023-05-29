@@ -216,6 +216,11 @@ void ngli_gpu_ctx_set_pipeline(struct gpu_ctx *s, struct pipeline *pipeline)
     s->cls->set_pipeline(s, pipeline);
 }
 
+void ngli_gpu_ctx_set_bindgroup(struct gpu_ctx *s, struct bindgroup *bind_group)
+{
+    s->cls->set_bindgroup(s, bind_group);
+}
+
 void ngli_gpu_ctx_draw(struct gpu_ctx *s, int nb_vertices, int nb_instances)
 {
     s->cls->draw(s, nb_vertices, nb_instances);
