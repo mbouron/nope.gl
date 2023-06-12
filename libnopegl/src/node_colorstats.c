@@ -221,7 +221,7 @@ static int init_computes(struct ngl_node *node)
         .stage    = NGLI_PROGRAM_SHADER_COMP,
         .writable = 1,
         .block    = &s->blk.block,
-        .buffer   = s->blk.buffer,
+        //.buffer   = s->blk.buffer,
     };
 
     int ret;
@@ -355,8 +355,15 @@ static int colorstats_update(struct ngl_node *node, double t)
      */
     const struct texture_priv *texture_priv = o->texture_node->priv_data;
     const int32_t source_w = texture_priv->image.params.width;
-    if (s->blk.buffer->size == 0)
-        return alloc_block_buffer(node, source_w);
+    if (s->blk.buffer->size == 0) {
+        ret = alloc_block_buffer(node, source_w);
+        if (ret < 0)
+            return ret;
+        ngli_pipeline_compat_update_buffer(s->pipeline_compat_init, 0, s->blk.buffer, 0, 0);
+        ngli_pipeline_compat_update_buffer(s->pipeline_compat_sumscale, 0, s->blk.buffer, 0, 0);
+        ngli_pipeline_compat_update_buffer(s->pipeline_compat_waveform, 0, s->blk.buffer, 0, 0);
+        return 0;
+    }
 
     /* Stream size change event */
     if (s->length_minus1 != source_w - 1) {

@@ -159,13 +159,12 @@ int ngli_pipeline_compat_init(struct pipeline_compat *s, const struct pipeline_c
     for (size_t i = 0; i < pipeline_resources->nb_buffers; i++) {
         struct buffer *buffer = pipeline_resources->buffers[i];
         if (buffer)
-            ngli_bindgroup_set_buffer(s->bindgroup, (int32_t)0, buffer, 0, 0);
+            ngli_bindgroup_set_buffer(s->bindgroup, (int32_t)i, buffer, 0, 0);
     }
 
     for (size_t i = 0; i < pipeline_resources->nb_textures; i++) {
         struct texture *texture = pipeline_resources->textures[i];
-        if (texture)
-            ngli_bindgroup_set_texture(s->bindgroup, (int32_t)0, texture);
+        ngli_bindgroup_set_texture(s->bindgroup, (int32_t)i, texture);
     }
 
     pipeline_params->bindgroup_layout = s->bindgroup_layout;

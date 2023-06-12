@@ -32,7 +32,7 @@ struct texture_binding_vk {
     const struct texture *texture;
     int use_ycbcr_sampler;
     struct ycbcr_sampler_vk *ycbcr_sampler;
-    uint32_t update_desc_flags;
+    uint32_t update_desc;
 };
 
 struct buffer_binding_vk {
@@ -40,7 +40,7 @@ struct buffer_binding_vk {
     const struct buffer *buffer;
     size_t offset;
     size_t size;
-    uint32_t update_desc_flags;
+    uint32_t update_desc;
 };
 
 struct bindgroup_layout *ngli_bindgroup_layout_vk_create(struct gpu_ctx *gpu_ctx)
@@ -161,7 +161,7 @@ static VkResult create_desc_set_layout_bindings(struct bindgroup_layout *s)
         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .poolSizeCount = nb_desc_pool_sizes,
         .pPoolSizes    = desc_pool_sizes,
-        .maxSets       = gpu_ctx_vk->nb_in_flight_frames,
+        .maxSets       = 256,
     };
 
     res = vkCreateDescriptorPool(vk->device, &descriptor_pool_create_info, NULL, &s_priv->desc_pool);
@@ -199,8 +199,17 @@ void ngli_bindgroup_layout_vk_freep(struct bindgroup_layout **sp)
     struct bindgroup_layout *s = *sp;
     if (!s)
         return;
+
     ngli_free(s->texture_entries);
     ngli_free(s->buffer_entries);
+
+    struct bindgroup_layout_vk *s_priv = (struct bindgroup_layout_vk *)s;
+    const struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
+    const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    vkResetDescriptorPool(vk->device, s_priv->desc_pool, 0);
+    vkDestroyDescriptorPool(vk->device, s_priv->desc_pool, NULL);
+    vkDestroyDescriptorSetLayout(vk->device, s_priv->desc_set_layout, NULL);
+    
     ngli_freep(sp);
 }
 
@@ -213,80 +222,78 @@ struct bindgroup *ngli_bindgroup_vk_create(struct gpu_ctx *gpu_ctx)
     return (struct bindgroup *)s;
 }
 
-static VkResult create_desc_sets(struct bindgroup *s)
+static int get_available_descriptor_set(struct bindgroup *s)
 {
-    const struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
-    const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct bindgroup_vk *s_priv = (struct bindgroup_vk *)s;
-    const struct bindgroup_layout_vk *layout_vk = (const struct bindgroup_layout_vk *)s->layout;
-
-    VkDescriptorSetLayout *desc_set_layouts = ngli_calloc(gpu_ctx_vk->nb_in_flight_frames, sizeof(*desc_set_layouts));
-    if (!desc_set_layouts)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-    for (uint32_t i = 0; i < gpu_ctx_vk->nb_in_flight_frames; i++)
-        desc_set_layouts[i] = layout_vk->desc_set_layout;
-
-    const VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
-        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = layout_vk->desc_pool,
-        .descriptorSetCount = gpu_ctx_vk->nb_in_flight_frames,
-        .pSetLayouts        = desc_set_layouts
-    };
-
-    s_priv->desc_sets = ngli_calloc(gpu_ctx_vk->nb_in_flight_frames, sizeof(*s_priv->desc_sets));
-    if (!s_priv->desc_sets) {
-        ngli_free(desc_set_layouts);
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    VkResult res = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, s_priv->desc_sets);
-    if (res != VK_SUCCESS) {
-        ngli_free(desc_set_layouts);
-        return res;
-    }
-
-    ngli_free(desc_set_layouts);
-    return VK_SUCCESS;
+    
 }
 
 int ngli_bindgroup_vk_init(struct bindgroup *s, const struct bindgroup_params *params)
 {
+    const struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
+    const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct bindgroup_vk *s_priv = (struct bindgroup_vk *)s;
 
     s->layout = params->layout;
+    const struct bindgroup_layout_vk *layout_vk = (const struct bindgroup_layout_vk *)s->layout;
 
     ngli_darray_init(&s_priv->texture_bindings, sizeof(struct texture_binding_vk), 0);
     ngli_darray_init(&s_priv->buffer_bindings, sizeof(struct buffer_binding_vk), 0);
 
-    VkResult res = create_desc_sets(s);
-    if (res != VK_SUCCESS)
-        return ngli_vk_res2ret(res);
+    const VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = layout_vk->desc_pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &layout_vk->desc_set_layout,
+    };
+
+    VkResult res = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, &s_priv->desc_set);
+    if (res != VK_SUCCESS) {
+        return res;
+    }
 
     const struct bindgroup_layout *layout = s->layout;
     for (size_t i = 0; i < layout->nb_buffer_entries; i++) {
         const struct pipeline_buffer_desc *desc = &layout->buffer_entries[i];
 
-        const struct buffer_binding_vk buffer_binding = {
+        const struct buffer_binding_vk binding = {
             .layout_entry = *desc,
         };
-        if (!ngli_darray_push(&s_priv->buffer_bindings, &buffer_binding))
+        if (!ngli_darray_push(&s_priv->buffer_bindings, &binding))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     for (size_t i = 0; i < layout->nb_texture_entries; i++) {
         const struct pipeline_texture_desc *desc = &layout->texture_entries[i];
-
-        const struct texture_binding_vk texture_binding = {
-            .layout_entry = *desc,
-        };
-        if (!ngli_darray_push(&s_priv->texture_bindings, &texture_binding))
+        const struct texture_binding_vk binding = {.layout_entry = *desc,};
+        if (!ngli_darray_push(&s_priv->texture_bindings, &binding))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
+
+    #if 0
+    for (size_t i = 0; i < layout->nb_buffer_entries; i++) {
+        const struct buffer_binding *binding = &params->buffer_bindings[i];;
+        if (!binding)
+            continue;
+        int ret = ngli_bindgroup_set_buffer(s, (int32_t)i, binding->buffer, binding->offset, binding->size);
+        if (ret < 0)
+            return ret;
+    }
+
+    for (size_t i = 0; i < layout->nb_texture_entries; i++) {
+        const struct texture_binding *binding = &params->texture_bindings[i];;
+        if (!binding)
+            continue;
+        int ret = ngli_bindgroup_set_texture(s, (int32_t)i, binding->texture);
+        if (ret < 0)
+            return ret;
+    }
+#endif
 
     return 0;
 }
 
+#include "log.h"
 int ngli_bindgroup_vk_set_texture(struct bindgroup *s, int32_t index, const struct texture *texture)
 {
     struct bindgroup_vk *s_priv = (struct bindgroup_vk *)s;
@@ -297,8 +304,9 @@ int ngli_bindgroup_vk_set_texture(struct bindgroup *s, int32_t index, const stru
     ngli_assert(texture_binding);
 
     texture_binding->texture = texture ? texture : gpu_ctx_vk->dummy_texture;
-    texture_binding->update_desc_flags = ~0;
+    texture_binding->update_desc = 1;
 
+    #if 0
     if (texture) {
         struct texture_vk *texture_vk = (struct texture_vk *)texture;
         #if 0
@@ -342,7 +350,7 @@ int ngli_bindgroup_vk_set_texture(struct bindgroup *s, int32_t index, const stru
     const struct bindgroup_layout_entry *layout_entry = &binding->layout_entry;
     const VkWriteDescriptorSet write_descriptor_set = {
         .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet           = s_priv->desc_sets[gpu_ctx_vk->cur_frame_index],
+        .dstSet           = s_priv->desc_sets[0],
         .dstBinding       = layout_entry->binding,
         .dstArrayElement  = 0,
         .descriptorType   = get_vk_descriptor_type(layout_entry->type),
@@ -351,6 +359,7 @@ int ngli_bindgroup_vk_set_texture(struct bindgroup *s, int32_t index, const stru
     };
     vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
 
+#endif
     return 0;
 }
 
@@ -366,38 +375,82 @@ int ngli_bindgroup_vk_set_buffer(struct bindgroup *s, int32_t index, const struc
     ngli_assert(buffer_binding);
     ngli_assert(buffer);
 
-    LOG(ERROR, "%zd %zd", buffer_binding->offset, offset);
+    LOG(ERROR, "%p %d %zd %zd ", s, index, buffer_binding->offset, offset);
     buffer_binding->buffer = buffer;
     buffer_binding->offset = offset;
     buffer_binding->size = size;
-    buffer_binding->update_desc_flags = ~0;
+    buffer_binding->update_desc = 1;
 
-    struct buffer_binding_vk *buffer_bindings = ngli_darray_data(&s_priv->buffer_bindings);
-    struct buffer_binding_vk *binding = &buffer_bindings[index];
-    const struct bindgroup_layout_entry *desc = &binding->layout_entry;
-    const struct buffer_vk *buffer_vk = (struct buffer_vk *)(binding->buffer);
-    const VkDescriptorBufferInfo descriptor_buffer_info = {
-        .buffer = buffer_vk->buffer,
-        .offset = binding->offset,
-        .range  = binding->size ? binding->size : binding->buffer->size,
-    };
-    const VkWriteDescriptorSet write_descriptor_set = {
-        .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet           = s_priv->desc_sets[0],
-        .dstBinding       = desc->binding,
-        .dstArrayElement  = 0,
-        .descriptorType   = get_vk_descriptor_type(desc->type),
-        .descriptorCount  = 1,
-        .pBufferInfo      = &descriptor_buffer_info,
-        .pImageInfo       = NULL,
-        .pTexelBufferView = NULL,
-    };
-    vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
     return 0;
 }
 
 int ngli_bindgroup_vk_insert_memory_barriers(struct bindgroup *s)
 {
+    return 0;
+}
+
+int ngli_bindgroup_vk_update_descriptor_sets(struct bindgroup *s)
+{
+    struct bindgroup_vk *s_priv = (struct bindgroup_vk *)s;
+    struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    LOG(ERROR, "%p", s);
+    
+    struct texture_binding_vk *texture_bindings = ngli_darray_data(&s_priv->texture_bindings);
+    for (size_t i = 0; i < ngli_darray_count(&s_priv->texture_bindings); i++) {
+        struct texture_binding_vk *binding = &texture_bindings[i];
+        if (binding->update_desc) {
+            const struct texture_vk *texture_vk = (struct texture_vk *)binding->texture;
+            const VkDescriptorImageInfo image_info = {
+                .imageLayout = texture_vk->default_image_layout,
+                .imageView   = texture_vk->image_view,
+                .sampler     = texture_vk->sampler,
+            };
+            const struct bindgroup_layout_entry *desc = &binding->layout_entry;
+            LOG(ERROR, "vtff %d", desc->binding);
+            const VkWriteDescriptorSet write_descriptor_set = {
+                .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet           = s_priv->desc_set,
+                .dstBinding       = desc->binding,
+                .dstArrayElement  = 0,
+                .descriptorType   = get_vk_descriptor_type(desc->type),
+                .descriptorCount  = 1,
+                .pImageInfo       = &image_info,
+            };
+            vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
+            binding->update_desc = 0;
+        }
+    }
+
+    struct buffer_binding_vk *buffer_bindings = ngli_darray_data(&s_priv->buffer_bindings);
+    for (size_t i = 0; i < ngli_darray_count(&s_priv->buffer_bindings); i++) {
+        struct buffer_binding_vk *binding = &buffer_bindings[i];
+        if (binding->update_desc) {
+            const struct bindgroup_layout_entry *desc = &binding->layout_entry;
+            LOG(ERROR, "vtff buff at %d", desc->binding);
+            const struct buffer_vk *buffer_vk = (struct buffer_vk *)(binding->buffer);
+            const VkDescriptorBufferInfo descriptor_buffer_info = {
+                .buffer = buffer_vk->buffer,
+                .offset = binding->offset,
+                .range  = binding->size ? binding->size : binding->buffer->size,
+            };
+            const VkWriteDescriptorSet write_descriptor_set = {
+                .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet           = s_priv->desc_set,
+                .dstBinding       = desc->binding,
+                .dstArrayElement  = 0,
+                .descriptorType   = get_vk_descriptor_type(desc->type),
+                .descriptorCount  = 1,
+                .pBufferInfo      = &descriptor_buffer_info,
+                .pImageInfo       = NULL,
+                .pTexelBufferView = NULL,
+            };
+            vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
+            binding->update_desc = 0;
+        }
+    }
+
     return 0;
 }
 

@@ -368,37 +368,6 @@ static VkResult pipeline_compute_init(struct pipeline *s)
     return vkCreateComputePipelines(vk->device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &s_priv->pipeline);
 }
 
-static const VkShaderStageFlags stage_flag_map[NGLI_PROGRAM_SHADER_NB] = {
-    [NGLI_PROGRAM_SHADER_VERT] = VK_SHADER_STAGE_VERTEX_BIT,
-    [NGLI_PROGRAM_SHADER_FRAG] = VK_SHADER_STAGE_FRAGMENT_BIT,
-    [NGLI_PROGRAM_SHADER_COMP] = VK_SHADER_STAGE_COMPUTE_BIT,
-};
-
-static VkShaderStageFlags get_vk_stage_flags(int stage)
-{
-    return stage_flag_map[stage];
-}
-
-static const VkDescriptorType descriptor_type_map[NGLI_TYPE_NB] = {
-    [NGLI_TYPE_UNIFORM_BUFFER] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    [NGLI_TYPE_STORAGE_BUFFER] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    [NGLI_TYPE_SAMPLER_2D]     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    [NGLI_TYPE_SAMPLER_2D_ARRAY] = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    [NGLI_TYPE_SAMPLER_3D]     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    [NGLI_TYPE_SAMPLER_CUBE]   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    [NGLI_TYPE_IMAGE_2D]       = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    [NGLI_TYPE_IMAGE_2D_ARRAY] = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    [NGLI_TYPE_IMAGE_3D]       = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    [NGLI_TYPE_IMAGE_CUBE]     = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-};
-
-static VkDescriptorType get_vk_descriptor_type(int type)
-{
-    const VkDescriptorType descriptor_type = descriptor_type_map[type];
-    ngli_assert(descriptor_type);
-    return descriptor_type;
-}
-
 static VkResult create_pipeline_layout(struct pipeline *s)
 {
     struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
@@ -452,9 +421,6 @@ static void destroy_pipeline(struct pipeline *s)
     struct pipeline_vk *s_priv = (struct pipeline_vk *)s;
 
     destroy_pipeline_keep_pool(s);
-
-    vkDestroyDescriptorPool(vk->device, s_priv->desc_pool, NULL);
-    s_priv->desc_pool = VK_NULL_HANDLE;
 }
 
 struct pipeline *ngli_pipeline_vk_create(struct gpu_ctx *gpu_ctx)
@@ -468,8 +434,6 @@ struct pipeline *ngli_pipeline_vk_create(struct gpu_ctx *gpu_ctx)
 
 VkResult ngli_pipeline_vk_init(struct pipeline *s, const struct pipeline_params *params)
 {
-    struct pipeline_vk *s_priv = (struct pipeline_vk *)s;
-
     s->type     = params->type;
     s->graphics = params->graphics;
     s->program  = params->program;
@@ -493,6 +457,7 @@ static int prepare_pipeline(struct pipeline *s, VkCommandBuffer cmd_buf)
 {
     struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
     struct pipeline_vk *s_priv = (struct pipeline_vk *)s;
+    ngli_bindgroup_vk_update_descriptor_sets(gpu_ctx_vk->current_bindgroup);
 
     vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, s_priv->pipeline);
 
@@ -525,9 +490,9 @@ static int prepare_pipeline(struct pipeline *s, VkCommandBuffer cmd_buf)
 
     struct bindgroup_vk *bindgroup_vk = (struct bindgroup_vk *)gpu_ctx_vk->current_bindgroup;
     if (bindgroup_vk) {
-        if (bindgroup_vk->desc_sets[0])
+        if (bindgroup_vk->desc_set)
             vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, s_priv->pipeline_layout,
-                                    0, 1, &bindgroup_vk->desc_sets[0], 0, NULL);
+                                    0, 1, &bindgroup_vk->desc_set, 0, NULL);
     }
 
     return 0;
@@ -562,6 +527,9 @@ void ngli_pipeline_vk_dispatch(struct pipeline *s, uint32_t nb_group_x, uint32_t
     struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
     struct pipeline_vk *s_priv = (struct pipeline_vk *)s;
 
+    LOG(ERROR, "update %p", gpu_ctx_vk->current_bindgroup);
+    ngli_bindgroup_vk_update_descriptor_sets(gpu_ctx_vk->current_bindgroup);
+
     struct cmd_vk *cmd_vk = gpu_ctx_vk->cur_cmd;
     if (!cmd_vk) {
         VkResult res = ngli_cmd_vk_begin_transient(s->gpu_ctx, 0, &cmd_vk);
@@ -574,9 +542,10 @@ void ngli_pipeline_vk_dispatch(struct pipeline *s, uint32_t nb_group_x, uint32_t
 
     struct bindgroup_vk *bindgroup_vk = (struct bindgroup_vk *)gpu_ctx_vk->current_bindgroup;
     if (bindgroup_vk) {
-        if (bindgroup_vk->desc_sets[0])
-            vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, s_priv->pipeline_layout,
-                                    0, 1, &bindgroup_vk->desc_sets[0], 0, NULL);
+        if (bindgroup_vk->desc_set) {
+            vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, s_priv->pipeline_layout,
+                                    0, 1, &bindgroup_vk->desc_set, 0, NULL);
+            }
     }
 
     vkCmdDispatch(cmd_buf, nb_group_x, nb_group_y, nb_group_z);
@@ -613,10 +582,14 @@ void ngli_pipeline_vk_freep(struct pipeline **sp)
     struct pipeline_vk *s_priv = (struct pipeline_vk *)s;
 
     ngli_pipeline_layout_reset(&s->layout);
-    destroy_pipeline(s);
 
     ngli_darray_reset(&s_priv->vertex_attribute_descs);
     ngli_darray_reset(&s_priv->vertex_binding_descs);
+
+    struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    vkDestroyPipeline(vk->device, s_priv->pipeline, NULL);
+    vkDestroyPipelineLayout(vk->device, s_priv->pipeline_layout, NULL);
 
     ngli_freep(sp);
 }

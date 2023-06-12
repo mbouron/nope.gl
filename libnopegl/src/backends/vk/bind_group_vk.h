@@ -38,9 +38,11 @@ struct bindgroup_layout_vk {
 
 struct bindgroup_vk {
     struct bindgroup parent;
-    struct darray texture_bindings;   // texture_binding_vk
-    struct darray buffer_bindings;    // buffer_binding_vk
-    VkDescriptorSet *desc_sets;
+    int64_t refcount;
+    struct darray texture_bindings;   // array of texture_binding_vk
+    struct darray buffer_bindings;    // array of buffer_binding_vk
+    VkDescriptorSet desc_set;
+    struct darray desc_sets; // array of VkDescriptorSet
 };
 
 struct bindgroup_layout *ngli_bindgroup_layout_vk_create(struct gpu_ctx *gpu_ctx);
@@ -51,6 +53,7 @@ struct bindgroup *ngli_bindgroup_vk_create(struct gpu_ctx *gpu_ctx);
 int ngli_bindgroup_vk_init(struct bindgroup *s, const struct bindgroup_params *params);
 int ngli_bindgroup_vk_set_texture(struct bindgroup *s, int32_t index, const struct texture *texture);
 int ngli_bindgroup_vk_set_buffer(struct bindgroup *s, int32_t index, const struct buffer *buffer, size_t offset, size_t size);
+int ngli_bindgroup_vk_update_descriptor_sets(struct bindgroup *s);
 int ngli_bindgroup_vk_insert_memory_barriers(struct bindgroup *s);
 int ngli_bindgroup_vk_bind(struct bindgroup *s);
 void ngli_bindgroup_vk_freep(struct bindgroup **sp);

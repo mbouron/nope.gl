@@ -35,7 +35,6 @@ struct pipeline_vk {
     struct darray vertex_attribute_descs;   // array of VkVertexInputAttributeDescription
     struct darray vertex_binding_descs;     // array of VkVertexInputBindingDescription
 
-    VkDescriptorPool desc_pool;
     VkPipelineLayout pipeline_layout;
     VkPipeline pipeline;
 };

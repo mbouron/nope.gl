@@ -82,7 +82,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverity
     /* Make the Vulkan call fail if the validation layer has returned an error */
     if ((severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) &&
         (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT))
-        return VK_TRUE;
+        ngli_assert(0);
 
     return VK_FALSE;
 }
