@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023 Matthieu Bourom <matthieu.bouron@gmail.com>
  * Copyright 2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -26,6 +27,13 @@
 
 #include "darray.h"
 
+typedef void (*vk_cb_func)(void *priv);
+
+struct cb_vk {
+  vk_cb_func func;
+  void *priv;
+};
+
 struct cmd_vk {
     struct gpu_ctx *gpu_ctx;
     int type;
@@ -35,6 +43,7 @@ struct cmd_vk {
     struct darray wait_sems;
     struct darray wait_stages;
     struct darray signal_sems;
+    struct darray callbacks;
 };
 
 struct cmd_vk *ngli_cmd_vk_create(struct gpu_ctx *gpu_ctx);
@@ -42,6 +51,7 @@ void ngli_cmd_vk_freep(struct cmd_vk **sp);
 VkResult ngli_cmd_vk_init(struct cmd_vk *s, int type);
 VkResult ngli_cmd_vk_add_wait_sem(struct cmd_vk *s, VkSemaphore *sem, VkPipelineStageFlags stage);
 VkResult ngli_cmd_vk_add_signal_sem(struct cmd_vk *s, VkSemaphore *sem);
+VkResult ngli_cmd_vk_add_callback(struct cmd_vk *s, const struct cb_vk *cb);
 VkResult ngli_cmd_vk_begin(struct cmd_vk *s);
 VkResult ngli_cmd_vk_submit(struct cmd_vk *s);
 VkResult ngli_cmd_vk_wait(struct cmd_vk *s);
