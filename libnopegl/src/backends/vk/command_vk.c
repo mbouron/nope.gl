@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023 Matthieu Bourom <matthieu.bouron@gmail.com>
  * Copyright 2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -42,9 +43,16 @@ void ngli_cmd_vk_freep(struct cmd_vk **sp)
     struct gpu_ctx_vk *gpu_ctx_vk = (struct gpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
+    const struct cb_vk *callbacks = ngli_darray_data(&s->callbacks);
+        for (size_t i = 0; i < ngli_darray_count(&s->callbacks); i++) {
+            const struct cb_vk *callback = &callbacks[i];
+            callback->func(callback->priv);
+    }
+
     ngli_darray_reset(&s->wait_sems);
     ngli_darray_reset(&s->wait_stages);
     ngli_darray_reset(&s->signal_sems);
+    ngli_darray_reset(&s->callbacks);
 
     vkFreeCommandBuffers(vk->device, s->pool, 1, &s->cmd_buf);
     vkDestroyFence(vk->device, s->fence, NULL);
@@ -82,6 +90,7 @@ VkResult ngli_cmd_vk_init(struct cmd_vk *s, int type)
     ngli_darray_init(&s->wait_sems, sizeof(VkSemaphore), 0);
     ngli_darray_init(&s->wait_stages, sizeof(VkPipelineStageFlags), 0);
     ngli_darray_init(&s->signal_sems, sizeof(VkSemaphore), 0);
+    ngli_darray_init(&s->callbacks, sizeof(struct cb_vk), 0);
 
     return VK_SUCCESS;
 }
@@ -100,6 +109,14 @@ VkResult ngli_cmd_vk_add_wait_sem(struct cmd_vk *s, VkSemaphore *sem, VkPipeline
 VkResult ngli_cmd_vk_add_signal_sem(struct cmd_vk *s, VkSemaphore *sem)
 {
     if (!ngli_darray_push(&s->signal_sems, sem))
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    return VK_SUCCESS;
+}
+
+VkResult ngli_cmd_vk_add_callback(struct cmd_vk *s, const struct cb_vk *cb)
+{
+    if (!ngli_darray_push(&s->callbacks, cb))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     return VK_SUCCESS;
@@ -160,6 +177,13 @@ VkResult ngli_cmd_vk_wait(struct cmd_vk *s)
     VkResult res = vkWaitForFences(vk->device, 1, &s->fence, VK_TRUE, UINT64_MAX);
     if (res != VK_SUCCESS)
         return res;
+
+    const struct cb_vk *callbacks = ngli_darray_data(&s->callbacks);
+    for (size_t i = 0; i < ngli_darray_count(&s->callbacks); i++) {
+        const struct cb_vk *callback = &callbacks[i];
+        callback->func(callback->priv);
+    }
+    ngli_darray_clear(&s->callbacks);
 
     size_t i = 0;
     while (i < ngli_darray_count(&gpu_ctx_vk->pending_cmds)) {
