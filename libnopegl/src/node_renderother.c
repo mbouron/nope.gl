@@ -91,6 +91,7 @@ struct texture_map {
 
 struct pipeline_desc {
     struct pgcraft *crafter;
+    struct bindgroup_layout *bindgroup_layout;
     struct pipeline_compat *pipeline_compat;
     int32_t modelview_matrix_index;
     int32_t projection_matrix_index;
@@ -713,6 +714,16 @@ static int finalize_pipeline(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
+    const struct bindgroup_layout_params layout_params = ngli_pgcraft_get_pipeline_layout(desc->crafter);
+
+    desc->bindgroup_layout = ngli_bindgroup_layout_create(gpu_ctx);
+    if (!desc->bindgroup_layout)
+        return NGL_ERROR_MEMORY;
+
+    ret = ngli_bindgroup_layout_init(desc->bindgroup_layout, &layout_params);
+    if (ret < 0)
+        return ret;
+
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)
         return NGL_ERROR_MEMORY;
@@ -726,7 +737,9 @@ static int finalize_pipeline(struct ngl_node *node,
             .vertex_state = ngli_pgcraft_get_vertex_state(desc->crafter),
         },
         .program = ngli_pgcraft_get_program(desc->crafter),
-        .layout = ngli_pgcraft_get_pipeline_layout(desc->crafter),
+        .layout = {
+            .bindgroup_layout = desc->bindgroup_layout,
+        },
     };
 
     const struct pipeline_resources pipeline_resources = ngli_pgcraft_get_pipeline_resources(desc->crafter);
@@ -1225,6 +1238,7 @@ static void renderother_uninit(struct ngl_node *node, struct render_common *s)
     for (size_t i = 0; i < ngli_darray_count(&s->pipeline_descs); i++) {
         struct pipeline_desc *desc = &descs[i];
         ngli_pipeline_compat_freep(&desc->pipeline_compat);
+        ngli_bindgroup_layout_freep(&desc->bindgroup_layout);
         ngli_pgcraft_freep(&desc->crafter);
         ngli_darray_reset(&desc->uniforms);
         ngli_darray_reset(&desc->uniforms_map);

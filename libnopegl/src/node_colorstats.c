@@ -65,6 +65,7 @@ struct colorstats_priv {
     /* Init compute */
     struct {
         struct pgcraft *crafter;
+        struct bindgroup_layout *bindgroup_layout;
         struct pipeline_compat *pipeline_compat;
         int32_t wg_count;
         int32_t depth_index;
@@ -75,6 +76,7 @@ struct colorstats_priv {
     /* Waveform compute */
     struct {
         struct pgcraft *crafter;
+        struct bindgroup_layout *bindgroup_layout;
         struct pipeline_compat *pipeline_compat;
         uint32_t wg_count;
         int32_t block_index;
@@ -85,6 +87,7 @@ struct colorstats_priv {
     /* Summary-scale compute */
     struct {
         struct pgcraft *crafter;
+        struct bindgroup_layout *bindgroup_layout;
         struct pipeline_compat *pipeline_compat;
         uint32_t wg_count;
         int32_t block_index;
@@ -94,6 +97,7 @@ struct colorstats_priv {
 NGLI_STATIC_ASSERT(block_priv_first, offsetof(struct colorstats_priv, blk) == 0);
 
 static int setup_compute(struct colorstats_priv *s, struct pgcraft *crafter,
+                         struct bindgroup_layout *bindgroup_layout,
                          struct pipeline_compat *pipeline_compat,
                          const struct pgcraft_params *crafter_params)
 {
@@ -101,10 +105,18 @@ static int setup_compute(struct colorstats_priv *s, struct pgcraft *crafter,
     if (ret < 0)
         return ret;
 
+    const struct bindgroup_layout_params layout_params = ngli_pgcraft_get_pipeline_layout(crafter);
+    
+    ret = ngli_bindgroup_layout_init(bindgroup_layout, &layout_params);
+    if (ret < 0)
+        return ret;
+
     const struct pipeline_params pipeline_params = {
         .type    = NGLI_PIPELINE_TYPE_COMPUTE,
         .program = ngli_pgcraft_get_program(crafter),
-        .layout  = ngli_pgcraft_get_pipeline_layout(crafter),
+        .layout  = {
+            .bindgroup_layout = bindgroup_layout,
+    },
     };
 
     const struct pipeline_resources pipeline_resources = ngli_pgcraft_get_pipeline_resources(crafter);
@@ -136,7 +148,7 @@ static int setup_init_compute(struct colorstats_priv *s, const struct pgcraft_bl
         .workgroup_size = {s->group_size, 1, 1},
     };
 
-    int ret = setup_compute(s, s->init.crafter, s->init.pipeline_compat, &crafter_params);
+    int ret = setup_compute(s, s->init.crafter, s->init.bindgroup_layout, s->init.pipeline_compat, &crafter_params);
     if (ret < 0)
         return ret;
 
@@ -173,7 +185,7 @@ static int setup_waveform_compute(struct colorstats_priv *s, const struct pgcraf
         .workgroup_size = {s->group_size, 1, 1},
     };
 
-    int ret = setup_compute(s, s->waveform.crafter, s->waveform.pipeline_compat, &crafter_params);
+    int ret = setup_compute(s, s->waveform.crafter, s->waveform.bindgroup_layout, s->waveform.pipeline_compat, &crafter_params);
     if (ret < 0)
         return ret;
 
@@ -196,7 +208,7 @@ static int setup_sumscale_compute(struct colorstats_priv *s, const struct pgcraf
         .workgroup_size = {s->group_size, 1, 1},
     };
 
-    int ret = setup_compute(s, s->sumscale.crafter, s->sumscale.pipeline_compat, &crafter_params);
+    int ret = setup_compute(s, s->sumscale.crafter, s->sumscale.bindgroup_layout, s->sumscale.pipeline_compat, &crafter_params);
     if (ret < 0)
         return ret;
 
@@ -227,6 +239,12 @@ static int init_computes(struct ngl_node *node)
     const int max_group_size_x = limits->max_compute_work_group_size[0];
     s->group_size = max_group_size_x >= 256 ? 256 : 128;
     LOG(DEBUG, "using a workgroup size of %u", s->group_size);
+
+    s->init.bindgroup_layout     = ngli_bindgroup_layout_create(gpu_ctx);
+    s->waveform.bindgroup_layout = ngli_bindgroup_layout_create(gpu_ctx);
+    s->sumscale.bindgroup_layout = ngli_bindgroup_layout_create(gpu_ctx);
+    if (!s->init.bindgroup_layout || !s->waveform.bindgroup_layout || !s->sumscale.bindgroup_layout)
+        return NGL_ERROR_MEMORY;
 
     s->init.pipeline_compat     = ngli_pipeline_compat_create(gpu_ctx);
     s->waveform.pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
@@ -436,6 +454,9 @@ static void colorstats_uninit(struct ngl_node *node)
     ngli_pipeline_compat_freep(&s->init.pipeline_compat);
     ngli_pipeline_compat_freep(&s->waveform.pipeline_compat);
     ngli_pipeline_compat_freep(&s->sumscale.pipeline_compat);
+    ngli_bindgroup_layout_freep(&s->init.bindgroup_layout);
+    ngli_bindgroup_layout_freep(&s->waveform.bindgroup_layout);
+    ngli_bindgroup_layout_freep(&s->sumscale.bindgroup_layout);
     ngli_buffer_freep(&s->blk.buffer);
     ngli_block_reset(&s->blk.block);
 }

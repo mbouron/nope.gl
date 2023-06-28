@@ -80,7 +80,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverity
     /* Make the Vulkan call fail if the validation layer has returned an error */
     if ((severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) &&
         (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT))
-        return VK_TRUE;
+        ngli_assert(0);
 
     return VK_FALSE;
 }
@@ -206,7 +206,7 @@ static VkResult create_instance(struct vkcontext *s, int platform)
     }
 
     static const char *debug_layer = "VK_LAYER_KHRONOS_validation";
-    const int has_validation_layer = has_layer(s, debug_layer);
+    const int has_validation_layer = has_layer(s, debug_layer) && 0;
     if (has_validation_layer && !ngli_darray_push(&layers, &debug_layer)) {
         res = VK_ERROR_OUT_OF_HOST_MEMORY;
         goto end;

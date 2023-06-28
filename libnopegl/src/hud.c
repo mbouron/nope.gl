@@ -75,6 +75,7 @@ struct hud {
     struct pgcraft *crafter;
     struct texture *texture;
     struct buffer *coords;
+    struct bindgroup_layout *bindgroup_layout;
     struct pipeline_compat *pipeline_compat;
     struct graphics_state graphics_state;
 
@@ -1324,6 +1325,16 @@ int ngli_hud_init(struct hud *s)
     if (!s->pipeline_compat)
         return NGL_ERROR_MEMORY;
 
+    const struct bindgroup_layout_params layout_params = ngli_pgcraft_get_pipeline_layout(s->crafter);
+
+    s->bindgroup_layout = ngli_bindgroup_layout_create(gpu_ctx);
+    if (!s->bindgroup_layout)
+        return NGL_ERROR_MEMORY;
+
+    ret = ngli_bindgroup_layout_init(s->bindgroup_layout, &layout_params);
+    if (ret < 0)
+        return ret;
+    
     const struct pipeline_params pipeline_params = {
         .type         = NGLI_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
@@ -1333,7 +1344,9 @@ int ngli_hud_init(struct hud *s)
             .vertex_state = ngli_pgcraft_get_vertex_state(s->crafter),
         },
         .program      = ngli_pgcraft_get_program(s->crafter),
-        .layout       = ngli_pgcraft_get_pipeline_layout(s->crafter),
+        .layout       = {
+            .bindgroup_layout = s->bindgroup_layout,
+        },
     };
 
     const struct pipeline_resources pipeline_resources = ngli_pgcraft_get_pipeline_resources(s->crafter);
@@ -1415,6 +1428,7 @@ void ngli_hud_freep(struct hud **sp)
         return;
 
     ngli_pipeline_compat_freep(&s->pipeline_compat);
+    ngli_bindgroup_layout_freep(&s->bindgroup_layout);
     ngli_pgcraft_freep(&s->crafter);
     ngli_texture_freep(&s->texture);
     ngli_buffer_freep(&s->coords);

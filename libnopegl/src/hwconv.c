@@ -130,6 +130,16 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     if (!hwconv->pipeline_compat)
         return NGL_ERROR_MEMORY;
 
+    const struct bindgroup_layout_params layout_params = ngli_pgcraft_get_pipeline_layout(hwconv->crafter);
+
+    hwconv->bindgroup_layout = ngli_bindgroup_layout_create(gpu_ctx);
+    if (!hwconv->bindgroup_layout)
+        return NGL_ERROR_MEMORY;
+
+    ret = ngli_bindgroup_layout_init(hwconv->bindgroup_layout, &layout_params);
+    if (ret < 0)
+        return ret;
+    
     const struct pipeline_params pipeline_params = {
         .type         = NGLI_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
@@ -139,7 +149,9 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
             .vertex_state = ngli_pgcraft_get_vertex_state(hwconv->crafter),
         },
         .program      = ngli_pgcraft_get_program(hwconv->crafter),
-        .layout       = ngli_pgcraft_get_pipeline_layout(hwconv->crafter),
+        .layout       = {
+            .bindgroup_layout = hwconv->bindgroup_layout,
+        },
     };
 
     const struct pipeline_resources pipeline_resources = ngli_pgcraft_get_pipeline_resources(hwconv->crafter);
@@ -194,6 +206,7 @@ void ngli_hwconv_reset(struct hwconv *hwconv)
         return;
 
     ngli_pipeline_compat_freep(&hwconv->pipeline_compat);
+    ngli_bindgroup_layout_freep(&hwconv->bindgroup_layout);
     ngli_pgcraft_freep(&hwconv->crafter);
     ngli_rendertarget_freep(&hwconv->rt);
 

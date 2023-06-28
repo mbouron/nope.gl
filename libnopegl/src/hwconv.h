@@ -37,6 +37,7 @@ struct hwconv {
 
     struct rendertarget *rt;
     struct pgcraft *crafter;
+    struct bindgroup_layout *bindgroup_layout;
     struct pipeline_compat *pipeline_compat;
 };
 

@@ -66,6 +66,7 @@ struct texture_map {
 
 struct pipeline_desc {
     struct pgcraft *crafter;
+    struct bindgroup_layout *bindgroup_layout;
     struct pipeline_compat *pipeline_compat;
     int32_t modelview_matrix_index;
     int32_t projection_matrix_index;
@@ -493,16 +494,16 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
 {
     ngli_darray_init(&desc->blocks_map, sizeof(struct resource_map), 0);
 
-    struct pipeline_layout layout = ngli_pgcraft_get_pipeline_layout(desc->crafter);
+    const struct bindgroup_layout_params layout_params = ngli_pgcraft_get_pipeline_layout(desc->crafter);
 
-    for (size_t i = 0; i < layout.nb_buffer_descs; i++) {
-        const struct pipeline_resource_desc *resource = &layout.buffer_descs[i];
+    for (size_t i = 0; i < layout_params.nb_buffers; i++) {
+        const struct bindgroup_layout_entry *entry = &layout_params.buffers[i];
         const struct hmap *resources = NULL;
-        if (resource->stage == NGLI_PROGRAM_SHADER_VERT)
+        if (entry->stage == NGLI_PROGRAM_SHADER_VERT)
             resources = s->params.vert_resources;
-        else if (resource->stage == NGLI_PROGRAM_SHADER_FRAG)
+        else if (entry->stage == NGLI_PROGRAM_SHADER_FRAG)
             resources = s->params.frag_resources;
-        else if (resource->stage == NGLI_PROGRAM_SHADER_COMP)
+        else if (entry->stage == NGLI_PROGRAM_SHADER_COMP)
             resources = s->params.compute_resources;
         else
             ngli_assert(0);
@@ -510,8 +511,8 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
         if (!resources)
             continue;
 
-        const char *name = ngli_pgcraft_get_symbol_name(desc->crafter, resource->id);
-        const int32_t index = ngli_pgcraft_get_block_index(desc->crafter, name, resource->stage);
+        const char *name = ngli_pgcraft_get_symbol_name(desc->crafter, entry->id);
+        const int32_t index = ngli_pgcraft_get_block_index(desc->crafter, name, entry->stage);
 
         const struct ngl_node *node = ngli_hmap_get(resources, name);
         if (!node)
@@ -585,6 +586,16 @@ int ngli_pass_prepare(struct pass *s)
     if (ret < 0)
         return ret;
 
+    const struct bindgroup_layout_params layout_params = ngli_pgcraft_get_pipeline_layout(desc->crafter);
+
+    desc->bindgroup_layout = ngli_bindgroup_layout_create(gpu_ctx);
+    if (!desc->bindgroup_layout)
+        return NGL_ERROR_MEMORY;
+
+    ret = ngli_bindgroup_layout_init(desc->bindgroup_layout, &layout_params);
+    if (ret < 0)
+        return ret;
+
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)
         return NGL_ERROR_MEMORY;
@@ -598,7 +609,9 @@ int ngli_pass_prepare(struct pass *s)
             .vertex_state = ngli_pgcraft_get_vertex_state(desc->crafter),
         },
         .program = ngli_pgcraft_get_program(desc->crafter),
-        .layout  = ngli_pgcraft_get_pipeline_layout(desc->crafter),
+        .layout  = {
+            .bindgroup_layout = desc->bindgroup_layout,
+        },
     };
 
     const struct pipeline_resources pipeline_resources = ngli_pgcraft_get_pipeline_resources(desc->crafter);
@@ -677,6 +690,7 @@ void ngli_pass_uninit(struct pass *s)
         ngli_darray_reset(&desc->uniforms_map);
         ngli_darray_reset(&desc->blocks_map);
         ngli_darray_reset(&desc->textures_map);
+        ngli_bindgroup_layout_freep(&desc->bindgroup_layout);
     }
     ngli_darray_reset(&s->pipeline_descs);
 

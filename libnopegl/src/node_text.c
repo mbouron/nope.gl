@@ -54,6 +54,7 @@
 
 struct pipeline_desc_common {
     struct pgcraft *crafter;
+    struct bindgroup_layout *bindgroup_layout;
     struct pipeline_compat *pipeline_compat;
     int32_t modelview_matrix_index;
     int32_t projection_matrix_index;
@@ -474,6 +475,16 @@ static int init_subdesc(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
+    struct bindgroup_layout_params layout_params = ngli_pgcraft_get_pipeline_layout(desc->crafter);
+    
+    desc->bindgroup_layout = ngli_bindgroup_layout_create(gpu_ctx);
+    if (!desc->bindgroup_layout)
+        return NGL_ERROR_MEMORY;
+
+    ret = ngli_bindgroup_layout_init(desc->bindgroup_layout, &layout_params);
+    if (ret < 0)
+        return ret;
+    
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)
         return NGL_ERROR_MEMORY;
@@ -487,7 +498,9 @@ static int init_subdesc(struct ngl_node *node,
             .vertex_state = ngli_pgcraft_get_vertex_state(desc->crafter),
         },
         .program = ngli_pgcraft_get_program(desc->crafter),
-        .layout = ngli_pgcraft_get_pipeline_layout(desc->crafter),
+        .layout = {
+            .bindgroup_layout = desc->bindgroup_layout,
+        },
     };
 
     const struct pipeline_resources pipeline_resources = ngli_pgcraft_get_pipeline_resources(desc->crafter);
