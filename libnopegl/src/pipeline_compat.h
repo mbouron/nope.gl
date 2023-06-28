@@ -23,6 +23,7 @@
 #ifndef PIPELINE_COMPAT_H
 #define PIPELINE_COMPAT_H
 
+#include "bindgroup.h"
 #include "pgcraft.h"
 #include "pipeline.h"
 
@@ -30,7 +31,7 @@ struct pipeline_compat_params {
     int type; // NGLI_PIPELINE_TYPE_*
     struct pipeline_graphics graphics;
     const struct program *program;
-    struct pipeline_layout layout;
+    struct bindgroup_layout_params layout;
     const struct pipeline_resources *resources;
     const struct pgcraft_compat_info *compat_info;
 };
