@@ -173,6 +173,8 @@ struct pgcraft_compat_info {
     int32_t uindices[NGLI_PROGRAM_SHADER_NB];
 };
 
+#define pgcraft_bindgroup_info bindgroup_layout_params
+
 struct pgcraft_params {
     const char *program_label;
     const char *vert_base;
@@ -208,7 +210,7 @@ const char *ngli_pgcraft_get_symbol_name(const struct pgcraft *s, size_t id);
 struct vertex_state ngli_pgcraft_get_vertex_state(const struct pgcraft *s);
 int32_t ngli_pgcraft_get_vertex_buffer_index(const struct pgcraft *s, const char *name);
 struct program *ngli_pgcraft_get_program(const struct pgcraft *s);
-struct pipeline_layout ngli_pgcraft_get_pipeline_layout(const struct pgcraft *s);
+struct pgcraft_bindgroup_info ngli_pgcraft_get_pipeline_layout(const struct pgcraft *s);
 struct pipeline_resources ngli_pgcraft_get_pipeline_resources(const struct pgcraft *s);
 void ngli_pgcraft_freep(struct pgcraft **sp);
 

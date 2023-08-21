@@ -28,6 +28,7 @@
 #include "program_gl.h"
 #include "program_gl_utils.h"
 #include "type.h"
+#include "pgcraft.h"
 
 int ngli_program_gl_set_locations_and_bindings(struct program *s,
                                                const struct pgcraft *crafter)
@@ -59,13 +60,13 @@ int ngli_program_gl_set_locations_and_bindings(struct program *s,
     if (need_relink)
         ngli_glLinkProgram(gl, s_priv->id);
 
-    const struct pipeline_layout layout = ngli_pgcraft_get_pipeline_layout(crafter);
-    for (size_t i = 0; i < layout.nb_buffer_descs; i++) {
-        const struct pipeline_resource_desc *buffer_desc = &layout.buffer_descs[i];
-        if (buffer_desc->type != NGLI_TYPE_UNIFORM_BUFFER &&
-            buffer_desc->type != NGLI_TYPE_UNIFORM_BUFFER_DYNAMIC)
+    const struct pgcraft_bindgroup_info info = ngli_pgcraft_get_pipeline_layout(crafter);
+    for (size_t i = 0; i < info.nb_buffers; i++) {
+        const struct bindgroup_layout_entry *entry = &info.buffers[i];
+        if (entry->type != NGLI_TYPE_UNIFORM_BUFFER &&
+            entry->type != NGLI_TYPE_UNIFORM_BUFFER_DYNAMIC)
             continue;
-        const char *buffer_name = ngli_pgcraft_get_symbol_name(crafter, buffer_desc->id);
+        const char *buffer_name = ngli_pgcraft_get_symbol_name(crafter, entry->id);
         char block_name[MAX_ID_LEN];
         int len = snprintf(block_name, sizeof(block_name), "%s_block", buffer_name);
         if (len >= sizeof(block_name)) {
@@ -73,22 +74,22 @@ int ngli_program_gl_set_locations_and_bindings(struct program *s,
             return NGL_ERROR_MEMORY;
         }
         const GLuint block_index = ngli_glGetUniformBlockIndex(gl, s_priv->id, block_name);
-        ngli_glUniformBlockBinding(gl, s_priv->id, block_index, buffer_desc->binding);
+        ngli_glUniformBlockBinding(gl, s_priv->id, block_index, entry->binding);
         struct program_variable_info *info = ngli_hmap_get(s->buffer_blocks, block_name);
         if (info)
-            info->binding = buffer_desc->binding;
+            info->binding = entry->binding;
     }
 
     struct glstate *glstate = &gpu_ctx_gl->glstate;
     ngli_glstate_use_program(gl, glstate, s_priv->id);
-    for (size_t i = 0; i < layout.nb_texture_descs; i++) {
-        const struct pipeline_resource_desc *texture_desc = &layout.texture_descs[i];
-        const char *texture_name = ngli_pgcraft_get_symbol_name(crafter, texture_desc->id);
+    for (size_t i = 0; i < info.nb_textures; i++) {
+        const struct bindgroup_layout_entry *entry = &info.textures[i];
+        const char *texture_name = ngli_pgcraft_get_symbol_name(crafter, entry->id);
         const GLint location = ngli_glGetUniformLocation(gl, s_priv->id, texture_name);
-        ngli_glUniform1i(gl, location, texture_desc->binding);
+        ngli_glUniform1i(gl, location, entry->binding);
         struct program_variable_info *info = ngli_hmap_get(s->uniforms, texture_name);
         if (info)
-            info->binding = texture_desc->binding;
+            info->binding = entry->binding;
     }
 
     return 0;
