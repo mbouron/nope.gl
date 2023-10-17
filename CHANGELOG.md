@@ -18,6 +18,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_scene_ref` and `ngl_scene_unrefp` functions to respectively increment and
   decrement the reference counter of a scene
 - `GaussianBlur` node to apply a post processing gaussian blur effect to a scene
+- `FastGaussianBlur` node to apply a post processing gaussian blur effect to a
+  scene that is suitable for real time rendering on mobile devices as well as
+  providing a resolution independent blurriness parameter
 
 ### Fixed
 - Moving the split position in `ngl-diff`
