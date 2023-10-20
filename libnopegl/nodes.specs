@@ -1814,6 +1814,39 @@
       "params": [
       ]
     },
+    "GaussianBlur": {
+      "file": "src/node_gblur.c",
+      "params": [
+        {
+          "name": "source",
+          "type": "node",
+          "node_types": ["Texture2D"],
+          "flags": ["nonull"],
+          "desc": "source to use for the blur"
+        },
+        {
+          "name": "destination",
+          "type": "node",
+          "node_types": ["Texture2D"],
+          "flags": ["nonull"],
+          "desc": "destination to use for the blur"
+        },
+        {
+          "name": "bluriness",
+          "type": "f32",
+          "default": 0.030000,
+          "flags": ["node"],
+          "desc": "amount of bluriness in the range [0,1]"
+        },
+        {
+          "name": "max_kernel_size",
+          "type": "u32",
+          "default": 127,
+          "flags": ["node"],
+          "desc": "maximum kernel size to be used internally, a higher value increase the maximum blur amount at the cost of performance, must be in the range [3,127]"
+        }
+      ]
+    },
     "Geometry": {
       "file": "src/node_geometry.c",
       "params": [
