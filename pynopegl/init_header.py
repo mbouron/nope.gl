@@ -357,11 +357,11 @@ def scene(controls: Optional[Dict[str, Any]] = None, compat_specs: Optional[str]
             if scene_cfg.caps is None:
                 backends = probe_backends()
                 scene_cfg.caps = backends[scene_cfg.backend]["caps"]
-            else:
-                ref_set = set(cap.value for cap in Cap)
-                usr_set = set(scene_cfg.caps.keys())
-                if ref_set != usr_set:
-                    raise Exception("the specified capabilities set does not match the available capabilities")
+
+            ref_set = set(cap.value for cap in Cap)
+            usr_set = set(scene_cfg.caps.keys())
+            if ref_set != usr_set:
+                raise Exception("the specified capabilities set does not match the available capabilities")
 
             root = scene_func(scene_cfg, **extra_args)
             scene = Scene.from_params(root, scene_cfg.duration, scene_cfg.framerate, scene_cfg.aspect_ratio)
