@@ -8,6 +8,8 @@ for the globale releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Added
+- `RadialBlur` node to apply a post processing radial blur effect to a scene
 
 ## [2024.0] [libnopegl 0.11.0] - 2024-02-02
 ### Added

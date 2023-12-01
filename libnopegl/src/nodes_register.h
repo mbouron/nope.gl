@@ -130,6 +130,7 @@
     action(NGL_NODE_PATHKEYMOVE,            ngli_pathkeymove_class)             \
     action(NGL_NODE_PROGRAM,                ngli_program_class)                 \
     action(NGL_NODE_QUAD,                   ngli_quad_class)                    \
+    action(NGL_NODE_RADIALBLUR,             ngli_rblur_class)                   \
     action(NGL_NODE_RENDER,                 ngli_render_class)                  \
     action(NGL_NODE_RENDERCOLOR,            ngli_rendercolor_class)             \
     action(NGL_NODE_RENDERDISPLACE,         ngli_renderdisplace_class)          \
