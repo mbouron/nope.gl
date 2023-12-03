@@ -45,7 +45,7 @@ _ROOTDIR = op.abspath(op.dirname(__file__))
 _SYSTEM = "MinGW" if sysconfig.get_platform().startswith("mingw") else platform.system()
 _RENDERDOC_ID = f"renderdoc_{_SYSTEM}"
 _EXTERNAL_DEPS = dict(
-    ffmpeg=dict(
+    ffmpeg_Windows=dict(
         version="6.0",
         url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2023-03-31-12-50/ffmpeg-n@VERSION@-11-g3980415627-win64-gpl-shared-@VERSION@.zip",
         dst_file="ffmpeg-@VERSION@.zip",
@@ -69,13 +69,13 @@ _EXTERNAL_DEPS = dict(
         dst_file="opengl-registry-@VERSION@.zip",
         sha256="8e6efa8d9ec5ef1b2c735b2fc2afdfed210a3a5aa01c48e572326914e27bb221",
     ),
-    sdl2=dict(
+    sdl2_Windows=dict(
         version="2.26.5",
         url="https://github.com/libsdl-org/SDL/releases/download/release-@VERSION@/SDL2-devel-@VERSION@-VC.zip",
         dst_file="SDL2-@VERSION@.zip",
         sha256="446cf6277ff0dd4211e6dc19c1b9015210a72758f53f5034c7e4d6b60e540ecf",
     ),
-    glslang=dict(
+    glslang_Windows=dict(
         # Use the legacy master-tot Windows build until the main-tot one is
         # fixed, or until the glslang project provides Windows builds for their
         # stable releases
@@ -121,13 +121,13 @@ _EXTERNAL_DEPS = dict(
 
 def _get_external_deps(args):
     deps = ["nopemd"]
-    if _SYSTEM == "Windows":
+    if _HOST == "Windows":
         deps.append("pkgconf")
         deps.append("egl_registry")
         deps.append("opengl_registry")
-        deps.append("ffmpeg")
-        deps.append("sdl2")
-        deps.append("glslang")
+        deps.append("ffmpeg_Windows")
+        deps.append("sdl2_Windows")
+        deps.append("glslang_Windows")
         deps.append("freetype")
         deps.append("harfbuzz")
         deps.append("fribidi")
@@ -321,7 +321,7 @@ def _opengl_registry_install(cfg):
 
 
 @_block("ffmpeg-install", [])
-def _ffmpeg_install(cfg):
+def _ffmpeg_Windows_install(cfg):
     dirs = (
         ("bin", "Scripts"),
         ("lib", "Lib"),
@@ -336,7 +336,7 @@ def _ffmpeg_install(cfg):
 
 
 @_block("sdl2-install", [])
-def _sdl2_install(cfg):
+def _sdl2_Windows_install(cfg):
     dirs = (
         "lib",
         "include",
@@ -357,7 +357,7 @@ def _sdl2_install(cfg):
 
 
 @_block("glslang-install", [])
-def _glslang_install(cfg):
+def _glslang_Windows_install(cfg):
     dirs = (
         ("lib", "Lib"),
         ("include", "Include"),
@@ -775,9 +775,9 @@ class _Config:
             _nopemd_setup.prerequisites.append(_pkgconf_install)
             _nopemd_setup.prerequisites.append(_egl_registry_install)
             _nopemd_setup.prerequisites.append(_opengl_registry_install)
-            _nopemd_setup.prerequisites.append(_ffmpeg_install)
-            _nopemd_setup.prerequisites.append(_sdl2_install)
-            _nopegl_setup.prerequisites.append(_glslang_install)
+            _nopemd_setup.prerequisites.append(_ffmpeg_Windows_install)
+            _nopemd_setup.prerequisites.append(_sdl2_Windows_install)
+            _nopegl_setup.prerequisites.append(_glslang_Windows_install)
             _nopegl_setup.prerequisites.append(_freetype_install)
             _nopegl_setup.prerequisites.append(_harfbuzz_install)
             _nopegl_setup.prerequisites.append(_fribidi_install)
