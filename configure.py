@@ -43,8 +43,22 @@ from subprocess import run
 
 _ROOTDIR = op.abspath(op.dirname(__file__))
 _SYSTEM = "MinGW" if sysconfig.get_platform().startswith("mingw") else platform.system()
-_RENDERDOC_ID = f"renderdoc_{_SYSTEM}"
+_HOST_MAP = dict(
+    android="Android",
+)
+_HOST_ARCH_MAP = dict(
+    android=dict(arm="armeabi-v7a", aarch64="arm64-v8a", x86_64="x86_64"),
+)
+_HOST = _SYSTEM
+_HOST_ARCH = "x86_64"
+_RENDERDOC_ID = f"renderdoc_{_HOST}"
 _EXTERNAL_DEPS = dict(
+    ffmpeg=dict(
+        version="6.1",
+        url="https://ffmpeg.org/releases/ffmpeg-@VERSION@.tar.xz",
+        dst_file="ffmpeg-@VERSION@.tar.xz",
+        sha256="488c76e57dd9b3bee901f71d5c95eaf1db4a5a31fe46a28654e837144207c270",
+    ),
     ffmpeg_Windows=dict(
         version="6.0",
         url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2023-03-31-12-50/ffmpeg-n@VERSION@-11-g3980415627-win64-gpl-shared-@VERSION@.zip",
@@ -74,6 +88,13 @@ _EXTERNAL_DEPS = dict(
         url="https://github.com/libsdl-org/SDL/releases/download/release-@VERSION@/SDL2-devel-@VERSION@-VC.zip",
         dst_file="SDL2-@VERSION@.zip",
         sha256="446cf6277ff0dd4211e6dc19c1b9015210a72758f53f5034c7e4d6b60e540ecf",
+    ),
+    glslang=dict(
+        version="13.1.1",
+        dst_file="glslang-@VERSION@.zip",
+        dst_dir="glslang-@VERSION@",
+        url="https://github.com/KhronosGroup/glslang/archive/refs/tags/@VERSION@.tar.gz",
+        sha256="1c4d0a5a38c8aaf89a2d7e6093be734320599f5a6775b2726beeb05b0c054e66",
     ),
     glslang_Windows=dict(
         # Use the legacy master-tot Windows build until the main-tot one is
@@ -201,7 +222,7 @@ def _download_extract(dep_item):
     chksum = dep["sha256"]
     dst_file = dep.get("dst_file", op.basename(url)).replace("@VERSION@", version)
     dst_dir = dep.get("dst_dir", "").replace("@VERSION@", version)
-    dst_base = op.join(_ROOTDIR, "external")
+    dst_base = op.join(_ROOTDIR, "external", _HOST, _HOST_ARCH)
     dst_path = op.join(dst_base, dst_file)
     os.makedirs(dst_base, exist_ok=True)
 
@@ -405,11 +426,11 @@ def _nopegl_setup(cfg):
 
     extra_library_dirs = []
     extra_include_dirs = []
-    if _SYSTEM == "Windows":
+    if _HOST == "Windows":
         extra_library_dirs += [op.join(cfg.prefix, "Lib")]
         extra_include_dirs += [op.join(cfg.prefix, "Include")]
 
-    elif _SYSTEM == "Darwin":
+    elif _HOST == "Darwin":
         prefix = _get_brew_prefix()
         if prefix:
             extra_library_dirs += [op.join(prefix, "lib")]
@@ -444,7 +465,7 @@ def _pynopegl_deps_install(cfg):
 @_block("pynopegl-install", [_pynopegl_deps_install])
 def _pynopegl_install(cfg):
     ret = ["$(PIP) " + _cmd_join("-v", "install", "-e", op.join(".", "pynopegl"))]
-    if _SYSTEM != "Windows":
+    if _HOST != "Windows":
         rpath = op.join(cfg.prefix, "lib")
         ldflags = f"-Wl,-rpath,{rpath}"
         ret[0] = f"LDFLAGS={ldflags} {ret[0]}"
@@ -460,7 +481,7 @@ def _pynopegl_utils_deps_install(cfg):
     # - Pillow fails to find zlib (required to be installed by the user outside the
     #   Python virtual env)
     #
-    if _SYSTEM == "MinGW":
+    if _HOST == "MinGW":
         return ["@"]  # noop
     return ["$(PIP) " + _cmd_join("install", "-r", op.join(".", "pynopegl-utils", "requirements.txt"))]
 
@@ -544,7 +565,7 @@ def _nopegl_updateglwrappers(cfg):
 @_block("all", [_ngl_tools_install, _pynopegl_utils_install])
 def _all(cfg):
     echo = ["", "Build completed.", "", "You can now enter the venv with:"]
-    if _SYSTEM == "Windows":
+    if _HOST == "Windows":
         echo.append(op.join(cfg.bin_path, "ngli-activate.ps1"))
         return [f"@echo.{e}" for e in echo]
     else:
@@ -675,10 +696,10 @@ def _get_make_vars(cfg):
     ]
     if cfg.args.coverage:
         meson_setup += ["-Db_coverage=true"]
-    if _SYSTEM != "MinGW" and "debug" not in cfg.args.buildtype:
+    if _HOST != "MinGW" and "debug" not in cfg.args.buildtype:
         meson_setup += ["-Db_lto=true"]
 
-    if _SYSTEM == "Windows":
+    if _HOST == "Windows":
         meson_setup += ["--bindir=Scripts", "--libdir=Lib", "--includedir=Include"]
     elif op.isfile("/etc/debian_version"):
         # Workaround Debian/Ubuntu bug; see https://github.com/mesonbuild/meson/issues/5925
@@ -771,7 +792,7 @@ class _Config:
         self.pkg_config_path = op.join(self.prefix, "lib", "pkgconfig")
         self.externals = externals
 
-        if _SYSTEM == "Windows":
+        if _HOST == "Windows":
             _nopemd_setup.prerequisites.append(_pkgconf_install)
             _nopemd_setup.prerequisites.append(_egl_registry_install)
             _nopemd_setup.prerequisites.append(_opengl_registry_install)
@@ -839,7 +860,10 @@ def _build_env_scripts(cfg):
 
 
 def _run():
-    default_build_backend = "ninja" if _SYSTEM != "Windows" else "vs"
+    global _HOST
+    global _HOST_ARCH
+
+    default_build_backend = "ninja" if _HOST != "Windows" else "vs"
     parser = argparse.ArgumentParser(
         description="Create and manage a standalone nope.gl virtual environement",
     )
@@ -867,10 +891,22 @@ def _run():
         action=argparse.BooleanOptionalAction,
         help="Only download the external dependencies",
     )
+    parser.add_argument("--target", choices=("android"), default=None, help="Cross compilation target")
+    parser.add_argument(
+        "--target-arch",
+        choices=("arm", "aarch64", "x86_64"),
+        default="aarch64",
+        help="Cross compilation target architecture",
+    )
 
     args = parser.parse_args()
 
     logging.basicConfig(level="INFO")
+
+    if args.target:
+        _HOST = _HOST_MAP[args.target]
+        if args.target_arch:
+            _HOST_ARCH = _HOST_ARCH_MAP[args.target][args.target_arch]
 
     externals = _fetch_externals(args)
     if args.download_only:
@@ -894,6 +930,10 @@ def _run():
         blocks += [_coverage_html, _coverage_xml]
 
     dst_makefile = op.join(_ROOTDIR, "Makefile")
+    if args.target:
+        dst_makefile += f".{args.target}"
+        if args.target_arch:
+            dst_makefile += f".{args.target_arch}"
     logging.info("writing %s", dst_makefile)
     makefile = _get_makefile(cfg, blocks)
     with open(dst_makefile, "w") as f:
