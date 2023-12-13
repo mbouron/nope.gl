@@ -142,7 +142,13 @@ _EXTERNAL_DEPS = dict(
 
 def _get_external_deps(args):
     deps = ["nopemd"]
-    if _HOST == "Windows":
+    if _HOST == "Android":
+        deps.append("ffmpeg")
+        deps.append("glslang")
+        deps.append("freetype")
+        deps.append("harfbuzz")
+        deps.append("fribidi")
+    elif _HOST == "Windows":
         deps.append("pkgconf")
         deps.append("egl_registry")
         deps.append("opengl_registry")
@@ -284,7 +290,15 @@ def _fetch_externals(args):
 def _block(name, prerequisites=None):
     def real_decorator(block_func):
         block_func.name = name
-        block_func.prerequisites = prerequisites if prerequisites else []
+        if prerequisites is None:
+            block_func.prerequisites = []
+        elif isinstance(prerequisites, list):
+            block_func.prerequisites = prerequisites
+        elif isinstance(prerequisites) is dict:
+            if _HOST in prerequisites:
+                block_func.prerequisites = prerequisites[_HOST]
+            else:
+                block_func.prerequisites = []
         return block_func
 
     return real_decorator
@@ -341,6 +355,36 @@ def _opengl_registry_install(cfg):
     return cmds
 
 
+@_block("ffmpeg-setup", [])
+def _ffmpeg_setup(cfg):
+    dirs = (
+        ("bin", "Scripts"),
+        ("lib", "Lib"),
+        ("include", "Include"),
+    )
+    cmds = []
+    for src, dst in dirs:
+        src = op.join(cfg.externals["ffmpeg"], src, "*")
+        dst = op.join(cfg.prefix, dst)
+        cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
+    return cmds
+
+
+@_block("ffmpeg-install", [_ffmpeg_setup])
+def _ffmpeg_install(cfg):
+    dirs = (
+        ("bin", "Scripts"),
+        ("lib", "Lib"),
+        ("include", "Include"),
+    )
+    cmds = []
+    for src, dst in dirs:
+        src = op.join(cfg.externals["ffmpeg"], src, "*")
+        dst = op.join(cfg.prefix, dst)
+        cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
+    return cmds
+
+
 @_block("ffmpeg-install", [])
 def _ffmpeg_Windows_install(cfg):
     dirs = (
@@ -377,8 +421,8 @@ def _sdl2_Windows_install(cfg):
     return cmds
 
 
-@_block("glslang-install", [])
-def _glslang_Windows_install(cfg):
+@_block("glslang-setup", [])
+def _glslang_setup(cfg):
     dirs = (
         ("lib", "Lib"),
         ("include", "Include"),
@@ -391,6 +435,43 @@ def _glslang_Windows_install(cfg):
         cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
 
     return cmds
+
+
+@_block("glslang-install", [_glslang_setup])
+def _glslang_install(cfg):
+    dirs = (
+        ("lib", "Lib"),
+        ("include", "Include"),
+        ("bin", "Scripts"),
+    )
+    cmds = []
+    for src, dst in dirs:
+        src = op.join(cfg.externals["glslang"], src, "*")
+        dst = op.join(cfg.prefix, dst)
+        cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
+
+    return cmds
+
+
+@_block("glslang-install", [], hosts=[windows,android])
+def _glslang_Windows_install(cfg):
+    if _HOST == "Windows":
+        dirs = (
+            ("lib", "Lib"),
+            ("include", "Include"),
+            ("bin", "Scripts"),
+        )
+        cmds = []
+        for src, dst in dirs:
+            src = op.join(cfg.externals["glslang_Windows"], src, "*")
+            dst = op.join(cfg.prefix, dst)
+            cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
+
+        return cmds
+    else:
+        src = op.join(cfg.externals["glslang"], src, "*")
+        dst = op.join(cfg.prefix, dst)
+        return ['cmake', 'install']
 
 
 @_block("nopemd-setup")
@@ -410,7 +491,7 @@ def _renderdoc_install(cfg):
     return [f"copy {renderdoc_dll} {cfg.bin_path}"]
 
 
-@_block("nopegl-setup", [_nopemd_install])
+@_block("nopegl-setup", [_nopemd_install, _glslang_install, _fribidi_install, ])
 def _nopegl_setup(cfg):
     nopegl_opts = []
     if cfg.args.debug_opts:
@@ -501,7 +582,7 @@ def _ngl_tools_install(cfg):
     return _meson_compile_install_cmd("ngl-tools")
 
 
-@_block("freetype-setup", [_pkgconf_install])
+@_block("freetype-setup", [])
 def _freetype_setup(cfg):
     builddir = op.join("external", "freetype", "builddir")
     return ["$(MESON_SETUP) " + _cmd_join(cfg.externals["freetype"], builddir)]
@@ -523,7 +604,7 @@ def _harfbuzz_install(cfg):
     return _meson_compile_install_cmd("harfbuzz", external=True)
 
 
-@_block("fribidi-setup", [_pkgconf_install])
+@_block("fribidi-setup", [])
 def _fribidi_setup(cfg):
     builddir = op.join("external", "fribidi", "builddir")
     return ["$(MESON_SETUP) " + _cmd_join("-Ddocs=false", cfg.externals["fribidi"], builddir)]
@@ -562,7 +643,7 @@ def _nopegl_updateglwrappers(cfg):
     return _nopegl_run_target_cmd(cfg, "updateglwrappers")
 
 
-@_block("all", [_ngl_tools_install, _pynopegl_utils_install])
+@_block("all", "desktop": [_ngl_tools_install, _pynopegl_utils_install], mobile: [])
 def _all(cfg):
     echo = ["", "Build completed.", "", "You can now enter the venv with:"]
     if _HOST == "Windows":
@@ -792,8 +873,16 @@ class _Config:
         self.pkg_config_path = op.join(self.prefix, "lib", "pkgconfig")
         self.externals = externals
 
-        if _HOST == "Windows":
+        if _SYSTEM == "Windows":
             _nopemd_setup.prerequisites.append(_pkgconf_install)
+
+        if _HOST == "Android":
+            _nopemd_setup.prerequisites.append(_ffmpeg_install)
+            _nopegl_setup.prerequisites.append(_glslang_install)
+            _nopegl_setup.prerequisites.append(_freetype_install)
+            _nopegl_setup.prerequisites.append(_harfbuzz_install)
+            _nopegl_setup.prerequisites.append(_fribidi_install)
+        elif _HOST == "Windows":
             _nopemd_setup.prerequisites.append(_egl_registry_install)
             _nopemd_setup.prerequisites.append(_opengl_registry_install)
             _nopemd_setup.prerequisites.append(_ffmpeg_Windows_install)
