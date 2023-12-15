@@ -22,6 +22,7 @@
 #
 
 import argparse
+import functools
 import glob
 import hashlib
 import logging
@@ -123,9 +124,9 @@ def _is_desktop(system):
     return system in {"Linux", "MinGW", "Darwin", "Windows"}
 
 
-def _get_external_deps(args):
+def _get_external_deps(host, host_arch, args):
     deps = ["nopemd"]
-    if _SYSTEM == "Windows":
+    if host == "Windows":
         deps.append("pkgconf")
         deps.append("egl_registry")
         deps.append("opengl_registry")
@@ -136,8 +137,8 @@ def _get_external_deps(args):
         deps.append("harfbuzz")
         deps.append("fribidi")
     if "gpu_capture" in args.debug_opts:
-        if _SYSTEM not in {"Windows", "Linux"}:
-            raise Exception(f"Renderdoc is not supported on {_SYSTEM}")
+        if host not in {"Windows", "Linux"}:
+            raise Exception(f"Renderdoc is not supported on {host}")
         deps.append(_RENDERDOC_ID)
     return {dep: _EXTERNAL_DEPS[dep] for dep in deps}
 
@@ -195,7 +196,14 @@ def _rmtree(path, ignore_errors=False, onerror=None):
         shutil.rmtree(path, ignore_errors, onerror=onerror)
 
 
-def _download_extract(dep_item):
+def _get_external_dir(host, host_arch):
+    if _is_desktop(host):
+        return op.join(_ROOTDIR, "external")
+    else:
+        return op.join(_ROOTDIR, "external", host, host_arch)
+
+
+def _download_extract(host, host_arch, dep_item):
     logging.basicConfig(level="INFO")  # Needed for every process on Windows
 
     name, dep = dep_item
@@ -205,7 +213,7 @@ def _download_extract(dep_item):
     chksum = dep["sha256"]
     dst_file = dep.get("dst_file", op.basename(url)).replace("@VERSION@", version)
     dst_dir = dep.get("dst_dir", "").replace("@VERSION@", version)
-    dst_base = op.join(_ROOTDIR, "external")
+    dst_base = _get_external_dir(host, host_arch)
     dst_path = op.join(dst_base, dst_file)
     os.makedirs(dst_base, exist_ok=True)
 
@@ -258,10 +266,18 @@ def _download_extract(dep_item):
     return name, target
 
 
+def _get_host(args):
+    if args.host:
+        return (args.host, args.host_arch)
+    else:
+        return (_SYSTEM, platform.machine())
+
+
 def _fetch_externals(args):
-    dependencies = _get_external_deps(args)
+    host, host_arch = _get_host(args)
+    dependencies = _get_external_deps(host, host_arch, args)
     with Pool() as p:
-        return dict(p.map(_download_extract, dependencies.items()))
+        return dict(p.map(functools.partial(_download_extract, host, host_arch), dependencies.items()))
 
 
 def _block(name, prerequisites=None):
@@ -277,7 +293,10 @@ def _get_builddir(cfg, component, external=False):
     if external:
         return op.join(cfg.externals[component], "builddir")
 
-    return op.join("builddir", component)
+    if _is_desktop(cfg.host):
+        return op.join("builddir", component)
+    else:
+        return op.join("builddir", cfg.host, cfg.host_arch, component)
 
 
 def _meson_compile_install_cmd(cfg, component, external=False):
@@ -470,11 +489,11 @@ def _nopegl_setup(cfg):
 
     extra_library_dirs = []
     extra_include_dirs = []
-    if _SYSTEM == "Windows":
+    if cfg.host == "Windows":
         extra_library_dirs += [op.join(cfg.prefix, "Lib")]
         extra_include_dirs += [op.join(cfg.prefix, "Include")]
 
-    elif _SYSTEM == "Darwin":
+    elif cfg.host == "Darwin":
         prefix = _get_brew_prefix()
         if prefix:
             extra_library_dirs += [op.join(prefix, "lib")]
@@ -509,7 +528,7 @@ def _pynopegl_deps_install(cfg):
 @_block("pynopegl-install", [_pynopegl_deps_install])
 def _pynopegl_install(cfg):
     ret = ["$(PIP) " + _cmd_join("-v", "install", "-e", op.join(".", "pynopegl"))]
-    if _SYSTEM != "Windows":
+    if cfg.host != "Windows":
         rpath = op.join(cfg.prefix, "lib")
         ldflags = f"-Wl,-rpath,{rpath}"
         ret[0] = f"LDFLAGS={ldflags} {ret[0]}"
@@ -525,7 +544,7 @@ def _pynopegl_utils_deps_install(cfg):
     # - Pillow fails to find zlib (required to be installed by the user outside the
     #   Python virtual env)
     #
-    if _SYSTEM == "MinGW":
+    if cfg.host == "MinGW":
         return ["@"]  # noop
     return ["$(PIP) " + _cmd_join("install", "-r", op.join(".", "pynopegl-utils", "requirements.txt"))]
 
@@ -575,7 +594,7 @@ def _nopegl_updateglwrappers(cfg):
 @_block("all", [_ngl_tools_install, _pynopegl_utils_install])
 def _all(cfg):
     echo = ["", "Build completed.", "", "You can now enter the venv with:"]
-    if _SYSTEM == "Windows":
+    if cfg.host == "Windows":
         echo.append(op.join(cfg.venv_bin_path, "ngli-activate.ps1"))
         return [f"@echo.{e}" for e in echo]
     else:
@@ -706,10 +725,10 @@ def _get_make_vars(cfg):
     ]
     if cfg.args.coverage:
         meson_setup += ["-Db_coverage=true"]
-    if _SYSTEM != "MinGW" and "debug" not in cfg.args.buildtype:
+    if cfg.host != "MinGW" and "debug" not in cfg.args.buildtype:
         meson_setup += ["-Db_lto=true"]
 
-    if _SYSTEM == "Windows":
+    if cfg.host == "Windows":
         meson_setup += ["--bindir=Scripts", "--libdir=Lib", "--includedir=Include"]
     elif op.isfile("/etc/debian_version"):
         # Workaround Debian/Ubuntu bug; see https://github.com/mesonbuild/meson/issues/5925
@@ -821,10 +840,23 @@ def _get_bin_dir(system):
 class _Config:
     def __init__(self, args, externals):
         self.args = args
+
+        if args.host:
+            self.host = args.host
+            self.host_arch = args.host_arch
+        else:
+            self.host = _SYSTEM
+            self.host_arch = platform.machine()
+
         self.venv_path = op.abspath(args.venv_path)
         self.venv_bin_path = op.join(self.venv_path, _get_bin_dir(_SYSTEM))
-        self.prefix = self.venv_path
-        self.bin_path = op.join(self.prefix, _get_bin_dir(_SYSTEM))
+
+        if _is_desktop(self.host):
+            self.prefix = self.venv_path
+        else:
+            assert False
+
+        self.bin_path = op.join(self.prefix, _get_bin_dir(self.host))
         self.pkg_config_path = op.join(self.prefix, "lib", "pkgconfig")
         self.externals = externals
 
@@ -912,6 +944,13 @@ def _run():
         action=argparse.BooleanOptionalAction,
         help="Only download the external dependencies",
     )
+    parser.add_argument("--host", choices=("Android"), default=None, help="Cross compilation host machine")
+    parser.add_argument(
+        "--host-arch",
+        choices=("arm", "aarch64", "x86_64"),
+        default="aarch64",
+        help="Cross compilation host machine architecture",
+    )
 
     args = parser.parse_args()
 
@@ -939,6 +978,10 @@ def _run():
         blocks += [_coverage_html, _coverage_xml]
 
     dst_makefile = op.join(_ROOTDIR, "Makefile")
+    if args.target:
+        dst_makefile += f".{args.target}"
+        if args.target_arch:
+            dst_makefile += f".{args.target_arch}"
     logging.info("writing %s", dst_makefile)
     makefile = _get_makefile(cfg, blocks)
     with open(dst_makefile, "w") as f:
