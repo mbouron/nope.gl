@@ -966,14 +966,19 @@ def _run():
 
     blocks = [
         _all,
-        _tests,
         _clean,
-        _nopegl_updatedoc,
-        _nopegl_updatespecs,
-        _nopegl_updateglwrappers,
-        _ngl_tools_install_nosetup,
-        _htmldoc,
     ]
+
+    if _is_desktop(_HOST):
+        blocks += [
+            _tests,
+            _nopegl_updatedoc,
+            _nopegl_updatespecs,
+            _nopegl_updateglwrappers,
+            _ngl_tools_install_nosetup,
+            _htmldoc,
+        ]
+
     if args.coverage:
         blocks += [_coverage_html, _coverage_xml]
 
