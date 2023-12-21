@@ -119,6 +119,10 @@ _EXTERNAL_DEPS = dict(
 )
 
 
+def _is_desktop(system):
+    return system in {"Linux", "MinGW", "Darwin", "Windows"}
+
+
 def _get_external_deps(args):
     deps = ["nopemd"]
     if _SYSTEM == "Windows":
