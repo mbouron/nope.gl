@@ -431,6 +431,105 @@ def _opengl_registry_install(cfg):
 @_block("ffmpeg-setup", [])
 def _ffmpeg_setup(cfg):
     if cfg.host == "Android":
+        muxers = [
+            gif,
+            image2,
+            mp4,
+            mov,
+            ipod,
+        ]
+        parsers = [
+            av1,
+            mjpeg,
+            png,
+            h264,
+            mpeg4video,
+            aac,
+            flac,
+            hevc,
+            vp8,
+            vp9,
+        ]
+        bsfs = [
+            aac_adtstoasc,
+            extract_extradata,
+            h264_mp4toannexb,
+            hevc_mp4toannexb,
+            mpeg4_unpack_bframes,
+            vp9_superframe,
+        ]
+        protocols = [
+            file,
+            http,
+            https,
+            pipe,
+            fd,
+        ]
+        filters = [
+            aformat,
+            aresample,
+            asetnsamples,
+            asettb,
+            fillborders,
+            copy,
+            format,
+            fps,
+            hflip,
+            palettegen,
+            paletteuse,
+            pad,
+            settb,
+            scale,
+            transpose,
+            vflip,
+        ]
+        demuxers = [
+            "aac",
+            "aiff",
+            "concat",
+            "gif",
+            "image_jpeg_pipe",
+            "image_pgm_pipe",
+            "image_png_pipe",
+            "rawvideo",
+            "mp3",
+            "mp4",
+            "mov",
+            "wav",
+            "mpegts",
+            "flac",
+            "ogg",
+            "asf",
+            "avi",
+            "image_webp_pipe",
+            "matroska",
+        ]
+        decoders = [
+            "aac",
+            "alac",
+            "amrnb",
+            "av1_mediacodec",
+            "flac",
+            "gif",
+            "h264_mediacodec",
+            "hevc_mediacodec",
+            "mjpeg",
+            "mp3",
+            "mpeg4",
+            "opus",
+            "pcm_s16be",
+            "pcm_s16le",
+            "pcm_s24be",
+            "pcm_s24le",
+            "pgm",
+            "png",
+            "rawvideo",
+            "vorbis",
+            "vp8",
+            "vp8_mediacodec",
+            "vp9_mediacodec",
+            "webp",
+        ]
         return [
             _cmd_join(
                 "./configure",
@@ -523,16 +622,8 @@ def _glslang_setup(cfg):
 def _glslang_install(cfg):
     if cfg.host == "Android":
         cmds = [
-            _cmd_join(
-                "cmake",
-                "--build",
-                "builddir/glslang",
-            ),
-            _cmd_join(
-                "cmake",
-                "--install",
-                "builddir/glslang",
-            ),
+            _cmd_join("cmake", "--build", "builddir/glslang"),
+            _cmd_join("cmake", "--install", "builddir/glslang"),
         ]
         return cmds
     elif cfg.host == "Windows":
@@ -546,8 +637,7 @@ def _glslang_install(cfg):
             src = op.join(cfg.externals["glslang_Windows"], src, "*")
             dst = op.join(cfg.prefix, dst)
             cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
-
-    return cmds
+        return cmds
 
 
 @_block(
