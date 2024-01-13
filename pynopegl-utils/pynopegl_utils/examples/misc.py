@@ -317,8 +317,9 @@ def quaternion(cfg: ngl.SceneCfg):
     ]
 
     quat = ngl.AnimatedQuat(quat_animkf, as_mat4=True)
-    draw = ngl.DrawColor(color=(1.0, 1.0, 1.0))
+    draw = ngl.DrawColor(color=ngl.UniformColor(value=(1, 1, 1), live_id="color"))
     transform = ngl.Transform(draw, matrix=quat)
+    transform = ngl.Transform(transform, matrix=ngl.UniformMat4(live_id="matrix"))
 
     camera = ngl.Camera(transform)
     camera.set_eye(0.0, 0.0, 4.0)
@@ -418,3 +419,23 @@ def smptebars_glitch(cfg: ngl.SceneCfg):
         uv_noise_2=ngl.NoiseVec2(amplitude=0.05, frequency=freq, seed=1000 + 0xFFFF),
     )
     return draw
+
+
+@ngl.scene()
+def mojo_media_scene(cfg: ngl.SceneCfg):
+    m0 = load_media("mire")
+    cfg.duration = m0.duration
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    media_animkf = [
+        ngl.AnimKeyFrameFloat(0.0, 0.0),
+        ngl.AnimKeyFrameFloat(m0.duration, m0.duration),
+    ]
+
+    m = ngl.Media(m0.filename, time_anim=ngl.AnimatedTime(media_animkf))
+    t = ngl.Texture2D(data_src=m, min_filter="nearest", mag_filter="nearest")
+    t = ngl.Transform(t, matrix=ngl.UniformMat4(live_id="reframing_matrix"))
+    d = ngl.DrawTexture(t)
+    d = ngl.Transform(d, matrix=ngl.UniformMat4(live_id="geometry_matrix"))
+    d = ngl.TimeRangeFilter(d, 1.0, 2.0, prefetch_time=3.0)
+    return d

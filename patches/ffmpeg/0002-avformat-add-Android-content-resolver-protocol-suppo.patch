@@ -1,4 +1,4 @@
-From 4cdded89ff4f00726d086021fe0de81ebc3eca73 Mon Sep 17 00:00:00 2001
+From 24923686a6514d52d563b98be61ad77e489471fc Mon Sep 17 00:00:00 2001
 From: Matthieu Bouron <matthieu.bouron@gmail.com>
 Date: Mon, 12 Feb 2024 23:14:35 +0100
 Subject: [PATCH 2/6] avformat: add Android content resolver protocol support
@@ -6,18 +6,17 @@ Subject: [PATCH 2/6] avformat: add Android content resolver protocol support
 Handles Android content-uri starting with content://.
 ---
  configure               |   2 +
- doc/APIchanges          |   3 +
- libavcodec/jni.c        |   3 +-
+ libavcodec/jni.c        |   1 +
  libavformat/Makefile    |   1 +
- libavformat/file.c      | 157 ++++++++++++++++++++++++++++++++++++++++
+ libavformat/file.c      | 160 ++++++++++++++++++++++++++++++++++++++++
  libavformat/protocols.c |   1 +
- 6 files changed, 166 insertions(+), 1 deletion(-)
+ 5 files changed, 165 insertions(+)
 
 diff --git a/configure b/configure
-index bb5e630bad..790a1df7c8 100755
+index 2b4c4ec9a2..9ef432fddf 100755
 --- a/configure
 +++ b/configure
-@@ -3655,6 +3655,8 @@ xcbgrab_indev_suggest="libxcb_shm libxcb_shape libxcb_xfixes"
+@@ -3656,6 +3656,8 @@ xcbgrab_indev_suggest="libxcb_shm libxcb_shape libxcb_xfixes"
  xv_outdev_deps="xlib_xv xlib_x11 xlib_xext"
  
  # protocols
@@ -26,22 +25,8 @@ index bb5e630bad..790a1df7c8 100755
  async_protocol_deps="threads"
  bluray_protocol_deps="libbluray"
  ffrtmpcrypt_protocol_conflict="librtmp_protocol"
-diff --git a/doc/APIchanges b/doc/APIchanges
-index 10f6667e9e..258e953ca6 100644
---- a/doc/APIchanges
-+++ b/doc/APIchanges
-@@ -2,6 +2,9 @@ The last version increases of all libraries were on 2023-02-09
- 
- API changes, most recent first:
- 
-+2024-02-xx - xxxxxxxxxx - lavc 60.41.100 - jni.h
-+  Add av_jni_set_android_app_ctx() and av_jni_get_android_app_ctx().
-+
- 2024-02-26 - xxxxxxxxxx - lavf 60.22.101 - avformat.h
-   AV_DISPOSITION_DEPENDENT may now also be used for video streams
-   intended to be merged with other video streams for presentation.
 diff --git a/libavcodec/jni.c b/libavcodec/jni.c
-index 7d04d0a268..5a75d97f19 100644
+index cfe95bd1ec..1193c608c3 100644
 --- a/libavcodec/jni.c
 +++ b/libavcodec/jni.c
 @@ -35,6 +35,7 @@
@@ -52,20 +37,11 @@ index 7d04d0a268..5a75d97f19 100644
  static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
  
  int av_jni_set_java_vm(void *vm, void *log_ctx)
-@@ -66,7 +67,7 @@ void *av_jni_get_java_vm(void *log_ctx)
- 
- int av_jni_set_android_app_ctx(void *app_ctx, void *log_ctx)
- {
--    JNIEnv *env = avpriv_jni_get_env(c);
-+    JNIEnv *env = ff_jni_get_env(log_ctx);
-     if (!env)
-         return AVERROR(EINVAL);
- 
 diff --git a/libavformat/Makefile b/libavformat/Makefile
-index 4a380668bd..08fe98a535 100644
+index 94a949f555..44aa485029 100644
 --- a/libavformat/Makefile
 +++ b/libavformat/Makefile
-@@ -657,6 +657,7 @@ OBJS-$(CONFIG_LIBOPENMPT_DEMUXER)        += libopenmpt.o
+@@ -658,6 +658,7 @@ OBJS-$(CONFIG_LIBOPENMPT_DEMUXER)        += libopenmpt.o
  OBJS-$(CONFIG_VAPOURSYNTH_DEMUXER)       += vapoursynth.o
  
  # protocols I/O
@@ -74,7 +50,7 @@ index 4a380668bd..08fe98a535 100644
  OBJS-$(CONFIG_APPLEHTTP_PROTOCOL)        += hlsproto.o
  OBJS-$(CONFIG_BLURAY_PROTOCOL)           += bluray.o
 diff --git a/libavformat/file.c b/libavformat/file.c
-index 64df7ff6fb..1b2b69f090 100644
+index 64df7ff6fb..dd5819c06f 100644
 --- a/libavformat/file.c
 +++ b/libavformat/file.c
 @@ -40,6 +40,12 @@
@@ -112,14 +88,14 @@ index 64df7ff6fb..1b2b69f090 100644
  static const AVOption file_options[] = {
      { "truncate", "truncate existing files on write", offsetof(FileContext, trunc), AV_OPT_TYPE_BOOL, { .i64 = 1 }, 0, 1, AV_OPT_FLAG_ENCODING_PARAM },
      { "blocksize", "set I/O operation maximum block size", offsetof(FileContext, blocksize), AV_OPT_TYPE_INT, { .i64 = INT_MAX }, 1, INT_MAX, AV_OPT_FLAG_ENCODING_PARAM },
-@@ -524,3 +545,139 @@ const URLProtocol ff_fd_protocol = {
+@@ -524,3 +545,142 @@ const URLProtocol ff_fd_protocol = {
  };
  
  #endif /* CONFIG_FD_PROTOCOL */
 +
 +#if CONFIG_ANDROID_CONTENT_PROTOCOL
 +
-+struct JFields {
++typedef struct JFields {
 +    jclass uri_class;
 +    jmethodID parse_id;
 +
@@ -131,9 +107,9 @@ index 64df7ff6fb..1b2b69f090 100644
 +
 +    jclass parcel_file_descriptor_class;
 +    jmethodID detach_fd_id;
-+};
++} JFields;
 +
-+#define OFFSET(x) offsetof(struct JFields, x)
++#define OFFSET(x) offsetof(JFields, x)
 +static const struct FFJniField jfields_mapping[] = {
 +    { "android/net/Uri", NULL, NULL, FF_JNI_CLASS, OFFSET(uri_class), 1 },
 +        { "android/net/Uri", "parse", "(Ljava/lang/String;)Landroid/net/Uri;", FF_JNI_STATIC_METHOD, OFFSET(parse_id), 1 },
@@ -155,10 +131,11 @@ index 64df7ff6fb..1b2b69f090 100644
 +{
 +    FileContext *c = h->priv_data;
 +    int fd, ret;
++    struct stat st;
 +    const char *mode_str = "r";
 +
 +    JNIEnv *env;
-+    struct JFields jfields = { 0 };
++    JFields jfields = { 0 };
 +    jobject application_context = NULL;
 +    jobject url = NULL;
 +    jobject mode = NULL;
@@ -221,11 +198,13 @@ index 64df7ff6fb..1b2b69f090 100644
 +    if (ret < 0)
 +        goto done;
 +
-+#if HAVE_SETMODE
-+    setmode(fd, O_BINARY);
-+#endif
++    if (fstat(fd, &st) < 0) {
++        close(fd);
++        return AVERROR(errno);
++    }
++
 +    c->fd = fd;
-+    h->is_streamed = 0;
++    h->is_streamed = !(S_ISREG(st.st_mode) || S_ISBLK(st.st_mode));
 +
 +done:
 +    (*env)->DeleteLocalRef(env, url);

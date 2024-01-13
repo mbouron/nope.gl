@@ -1,4 +1,4 @@
-From 15533f90bc98b4cebd84b4ead2d0dd322b4f8ea7 Mon Sep 17 00:00:00 2001
+From 5efc11db0db9335742484617521a1e9db8eef0bd Mon Sep 17 00:00:00 2001
 From: Matthieu Bouron <matthieu.bouron@gmail.com>
 Date: Mon, 12 Feb 2024 23:13:09 +0100
 Subject: [PATCH 1/6] avcodec: add av_jni_{get,set}_android_app_ctx helper
@@ -6,21 +6,40 @@ Subject: [PATCH 1/6] avcodec: add av_jni_{get,set}_android_app_ctx helper
 This will allow users to pass the Android ApplicationContext which is mandatory
 to retrieve the ContentResolver responsible to resolve/open Android content-uri.
 ---
- libavcodec/jni.c | 40 ++++++++++++++++++++++++++++++++++++++++
+ doc/APIchanges   |  3 +++
+ libavcodec/jni.c | 42 ++++++++++++++++++++++++++++++++++++++++++
  libavcodec/jni.h | 17 +++++++++++++++++
- 2 files changed, 57 insertions(+)
+ 3 files changed, 62 insertions(+)
 
+diff --git a/doc/APIchanges b/doc/APIchanges
+index a44c8e4f10..ae1868047e 100644
+--- a/doc/APIchanges
++++ b/doc/APIchanges
+@@ -2,6 +2,9 @@ The last version increases of all libraries were on 2024-03-07
+ 
+ API changes, most recent first:
+ 
++2024-03-xx - xxxxxxxxxx - lavc 61.2.100 - jni.h
++  Add av_jni_set_android_app_ctx() and av_jni_get_android_app_ctx().
++
+ 2024-03-xx - xxxxxxxxxx - lavu 59.2.100 - channel_layout.h
+   Add AV_CHANNEL_LAYOUT_RETYPE_FLAG_CANONICAL.
+ 
 diff --git a/libavcodec/jni.c b/libavcodec/jni.c
-index ae6490de9d..7d04d0a268 100644
+index ae6490de9d..cfe95bd1ec 100644
 --- a/libavcodec/jni.c
 +++ b/libavcodec/jni.c
-@@ -64,6 +64,36 @@ void *av_jni_get_java_vm(void *log_ctx)
-     return vm;
+@@ -77,3 +77,45 @@ void *av_jni_get_java_vm(void *log_ctx)
  }
  
+ #endif
++
++#if defined(__ANDROID__)
++
 +int av_jni_set_android_app_ctx(void *app_ctx, void *log_ctx)
 +{
-+    JNIEnv *env = avpriv_jni_get_env(c);
++#if CONFIG_JNI
++    JNIEnv *env = ff_jni_get_env(log_ctx);
 +    if (!env)
 +        return AVERROR(EINVAL);
 +
@@ -35,10 +54,14 @@ index ae6490de9d..7d04d0a268 100644
 +    pthread_mutex_unlock(&lock);
 +
 +    return 0;
++#else
++    return AVERROR(ENOSYS);
++#endif
 +}
 +
 +void *av_jni_get_android_app_ctx(void)
 +{
++#if CONFIG_JNI
 +    void *ctx;
 +
 +    pthread_mutex_lock(&lock);
@@ -46,26 +69,12 @@ index ae6490de9d..7d04d0a268 100644
 +    pthread_mutex_unlock(&lock);
 +
 +    return ctx;
-+}
-+
- #else
- 
- int av_jni_set_java_vm(void *vm, void *log_ctx)
-@@ -76,4 +106,14 @@ void *av_jni_get_java_vm(void *log_ctx)
-     return NULL;
- }
- 
-+int av_jni_set_android_app_ctx(void *app_ctx, void *log_ctx)
-+{
-+    return AVERROR(ENOSYS);
-+}
-+
-+void *av_jni_get_android_app_ctx(void)
-+{
++#else
 +    return NULL;
++#endif
 +}
 +
- #endif
++#endif
 diff --git a/libavcodec/jni.h b/libavcodec/jni.h
 index dd99e92611..da8025f830 100644
 --- a/libavcodec/jni.h

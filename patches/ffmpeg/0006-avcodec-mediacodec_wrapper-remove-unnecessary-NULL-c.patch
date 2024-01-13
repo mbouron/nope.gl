@@ -1,4 +1,4 @@
-From 8a9693c7af6e69a6a30d65ebd23232590ce820f6 Mon Sep 17 00:00:00 2001
+From 2048440aea8139eb7ee7aebee235e8d4af3bc231 Mon Sep 17 00:00:00 2001
 From: Matthieu Bouron <matthieu.bouron@gmail.com>
 Date: Tue, 13 Feb 2024 12:15:03 +0100
 Subject: [PATCH 6/6] avcodec/mediacodec_wrapper: remove unnecessary NULL

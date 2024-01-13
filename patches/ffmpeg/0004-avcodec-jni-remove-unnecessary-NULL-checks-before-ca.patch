@@ -1,4 +1,4 @@
-From 5d922cd049658f72fe4420530ea3b394720fabbe Mon Sep 17 00:00:00 2001
+From 1d496eecc1500653616f456b8e792122a41a1617 Mon Sep 17 00:00:00 2001
 From: Matthieu Bouron <matthieu.bouron@gmail.com>
 Date: Tue, 13 Feb 2024 11:05:45 +0100
 Subject: [PATCH 4/6] avcodec/jni: remove unnecessary NULL checks before

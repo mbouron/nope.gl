@@ -1,4 +1,4 @@
-From 848e324397be0591788e356e648a35c30e9fa402 Mon Sep 17 00:00:00 2001
+From ca720e4f554d47bceb3d8c138e859f5544bc70dd Mon Sep 17 00:00:00 2001
 From: Matthieu Bouron <matthieu.bouron@gmail.com>
 Date: Tue, 13 Feb 2024 12:00:57 +0100
 Subject: [PATCH 5/6] avcodec/mediacodec_wrapper: use an OFFSET() macro where
