@@ -204,6 +204,7 @@ lib_src = files(
   'src/node_graphicconfig.c',
   'src/node_gridlayout.c',
   'src/node_group.c',
+  'src/node_hblur.c',
   'src/node_identity.c',
   'src/node_io.c',
   'src/node_eval.c',
