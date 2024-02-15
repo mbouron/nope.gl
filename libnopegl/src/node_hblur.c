@@ -39,7 +39,18 @@
 
 /* GLSL shaders */
 #include "blur_common_vert.h"
-#include "blur_radial_zoom_frag.h"
+#include "blur_hexagonal_up_down.h"
+#include "blur_hexagonal_up_down_combine.h"
+#include "blur_hexagonal_pass_3.h"
+#include "blur_hexagonal_pass_4.h"
+#include "blur_hexagonal_combine.h"
+
+
+struct down_up_data_block {
+    float offset;
+    float amount;
+    float center[2];
+};
 
 struct params_block {
     float amount;
@@ -62,35 +73,39 @@ struct hblur_priv {
     struct image *image;
     size_t image_rev;
 
-    struct rendertarget_layout pass_1_2_layout;
-    struct rtt_ctx *pass_1_2;
+    struct gpu_block data_block;
+
+    struct texture *tmp_0;
+    struct texture *tmp_1;
+    struct texture *tmp_2;
+    struct texture *tmp_3;
 
     struct {
+        struct rendertarget_layout rt_layout;
+        struct rtt_ctx *rtt_ctx;
         struct pgcraft *crafter;
         struct pipeline_compat *pl;
-    } pass_1;
+    } up_down;
 
-    /* Upsampling pass */
     struct {
+        struct rendertarget_layout rt_layout;
+        struct rtt_ctx *rtt_ctx;
         struct pgcraft *crafter;
         struct pipeline_compat *pl;
-    } pass_2;
+    } up_down_combine;
 
     struct {
+        struct rtt_ctx *rtt_ctx;
         struct pgcraft *crafter;
         struct pipeline_compat *pl;
     } pass_3;
 
     struct {
+        struct rtt_ctx *rtt_ctx;
         struct pgcraft *crafter;
         struct pipeline_compat *pl;
     } pass_4;
-
-    struct {
-        struct pgcraft *crafter;
-        struct pipeline_compat *pl;
-    } pass_5;
-
+    
     int dst_is_resizeable;
     struct rendertarget_layout dst_layout;
     struct rtt_ctx *dst_rtt_ctx;
@@ -118,6 +133,226 @@ static const struct node_param hblur_params[] = {
                           .desc=NGLI_DOCSTRING("center of the radial blur")},
     {NULL}
 };
+
+static int setup_up_down_pipeline1(struct pgcraft *crafter,
+                                   const char *name,
+                                   const char *frag_base,
+                                   struct pipeline_compat *pipeline,
+                                   const struct rendertarget_layout *layout,
+                                   struct gpu_block *block)
+{
+    const struct pgcraft_iovar vert_out_vars[] = {
+        {.name = "tex_coord", .type = NGLI_TYPE_VEC2},
+    };
+
+    const struct pgcraft_texture textures[] = {
+        {
+            .name      = "tex",
+            .type      = NGLI_PGCRAFT_SHADER_TEX_TYPE_2D,
+            .precision = NGLI_PRECISION_HIGH,
+            .stage     = NGLI_PROGRAM_SHADER_FRAG,
+        },
+    };
+
+    const struct pgcraft_block blocks[] = {
+        {
+            .name          = "data",
+            .instance_name = "",
+            .type          = NGLI_TYPE_UNIFORM_BUFFER,
+            .stage         = NGLI_PROGRAM_SHADER_FRAG,
+            .block         = &block->block,
+            .buffer        = {
+                .buffer    = block->buffer,
+                .size      = block->block_size,
+            },
+        }
+    };
+
+    const struct pgcraft_params crafter_params = {
+        .program_label    = name,
+        .vert_base        = blur_common_vert,
+        .frag_base        = frag_base,
+        .textures         = textures,
+        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .blocks           = blocks,
+        .nb_blocks        = NGLI_ARRAY_NB(blocks),
+        .vert_out_vars    = vert_out_vars,
+        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+    };
+
+    int ret = ngli_pgcraft_craft(crafter, &crafter_params);
+    if (ret < 0)
+        return ret;
+
+    const struct pipeline_compat_params params = {
+        .type         = NGLI_PIPELINE_TYPE_GRAPHICS,
+        .graphics     = {
+            .topology = NGLI_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            .state    = NGLI_GRAPHICS_STATE_DEFAULTS,
+            .rt_layout    = *layout,
+            .vertex_state = ngli_pgcraft_get_vertex_state(crafter),
+        },
+        .program      = ngli_pgcraft_get_program(crafter),
+        .layout       = ngli_pgcraft_get_pipeline_layout(crafter),
+        .resources    = ngli_pgcraft_get_pipeline_resources(crafter),
+        .compat_info  = ngli_pgcraft_get_compat_info(crafter),
+    };
+
+    ret = ngli_pipeline_compat_init(pipeline, &params);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
+static int setup_up_down_pipeline(struct pgcraft *crafter,
+                                   const char *name,
+                                   const char *frag_base,
+                                   struct pipeline_compat *pipeline,
+                                   const struct rendertarget_layout *layout,
+                                   struct gpu_block *block)
+{
+    const struct pgcraft_iovar vert_out_vars[] = {
+        {.name = "tex_coord", .type = NGLI_TYPE_VEC2},
+    };
+
+    const struct pgcraft_texture textures[] = {
+        {
+            .name      = "tex",
+            .type      = NGLI_PGCRAFT_SHADER_TEX_TYPE_2D,
+            .precision = NGLI_PRECISION_HIGH,
+            .stage     = NGLI_PROGRAM_SHADER_FRAG,
+        },
+    };
+
+    const struct pgcraft_block blocks[] = {
+        {
+            .name          = "data",
+            .instance_name = "",
+            .type          = NGLI_TYPE_UNIFORM_BUFFER,
+            .stage         = NGLI_PROGRAM_SHADER_FRAG,
+            .block         = &block->block,
+            .buffer        = {
+                .buffer    = block->buffer,
+                .size      = block->block_size,
+            },
+        }
+    };
+
+    const struct pgcraft_params crafter_params = {
+        .program_label    = name,
+        .vert_base        = blur_common_vert,
+        .frag_base        = frag_base,
+        .textures         = textures,
+        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .blocks           = blocks,
+        .nb_blocks        = NGLI_ARRAY_NB(blocks),
+        .vert_out_vars    = vert_out_vars,
+        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_frag_output   = 2,
+    };
+
+    int ret = ngli_pgcraft_craft(crafter, &crafter_params);
+    if (ret < 0)
+        return ret;
+
+    const struct pipeline_compat_params params = {
+        .type         = NGLI_PIPELINE_TYPE_GRAPHICS,
+        .graphics     = {
+            .topology = NGLI_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            .state    = NGLI_GRAPHICS_STATE_DEFAULTS,
+            .rt_layout    = *layout,
+            .vertex_state = ngli_pgcraft_get_vertex_state(crafter),
+        },
+        .program      = ngli_pgcraft_get_program(crafter),
+        .layout       = ngli_pgcraft_get_pipeline_layout(crafter),
+        .resources    = ngli_pgcraft_get_pipeline_resources(crafter),
+        .compat_info  = ngli_pgcraft_get_compat_info(crafter),
+    };
+
+    ret = ngli_pipeline_compat_init(pipeline, &params);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
+static int setup_up_down_pipeline2(struct pgcraft *crafter,
+                                   const char *name,
+                                   const char *frag_base,
+                                   struct pipeline_compat *pipeline,
+                                   const struct rendertarget_layout *layout,
+                                   struct gpu_block *block)
+{
+    const struct pgcraft_iovar vert_out_vars[] = {
+        {.name = "tex_coord", .type = NGLI_TYPE_VEC2},
+    };
+
+    const struct pgcraft_texture textures[] = {
+        {
+            .name      = "tex0",
+            .type      = NGLI_PGCRAFT_SHADER_TEX_TYPE_2D,
+            .precision = NGLI_PRECISION_HIGH,
+            .stage     = NGLI_PROGRAM_SHADER_FRAG,
+        }, {
+            .name      = "tex1",
+            .type      = NGLI_PGCRAFT_SHADER_TEX_TYPE_2D,
+            .precision = NGLI_PRECISION_HIGH,
+            .stage     = NGLI_PROGRAM_SHADER_FRAG,
+        },
+    };
+
+    const struct pgcraft_block blocks[] = {
+        {
+            .name          = "data",
+            .instance_name = "",
+            .type          = NGLI_TYPE_UNIFORM_BUFFER,
+            .stage         = NGLI_PROGRAM_SHADER_FRAG,
+            .block         = &block->block,
+            .buffer        = {
+                .buffer    = block->buffer,
+                .size      = block->block_size,
+            },
+        }
+    };
+
+    const struct pgcraft_params crafter_params = {
+        .program_label    = name,
+        .vert_base        = blur_common_vert,
+        .frag_base        = frag_base,
+        .textures         = textures,
+        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .blocks           = blocks,
+        .nb_blocks        = NGLI_ARRAY_NB(blocks),
+        .vert_out_vars    = vert_out_vars,
+        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_frag_output   = 2,
+    };
+
+    int ret = ngli_pgcraft_craft(crafter, &crafter_params);
+    if (ret < 0)
+        return ret;
+
+    const struct pipeline_compat_params params = {
+        .type         = NGLI_PIPELINE_TYPE_GRAPHICS,
+        .graphics     = {
+            .topology = NGLI_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            .state    = NGLI_GRAPHICS_STATE_DEFAULTS,
+            .rt_layout    = *layout,
+            .vertex_state = ngli_pgcraft_get_vertex_state(crafter),
+        },
+        .program      = ngli_pgcraft_get_program(crafter),
+        .layout       = ngli_pgcraft_get_pipeline_layout(crafter),
+        .resources    = ngli_pgcraft_get_pipeline_resources(crafter),
+        .compat_info  = ngli_pgcraft_get_compat_info(crafter),
+    };
+
+    ret = ngli_pipeline_compat_init(pipeline, &params);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
 
 static int hblur_init(struct ngl_node *node)
 {
@@ -165,7 +400,12 @@ static int hblur_init(struct ngl_node *node)
 
     const struct pgcraft_texture textures[] = {
         {
-            .name = "tex",
+            .name = "tex0",
+            .type = NGLI_PGCRAFT_SHADER_TEX_TYPE_2D,
+            .precision = NGLI_PRECISION_HIGH,
+            .stage = NGLI_PROGRAM_SHADER_FRAG
+        }, {
+            .name = "tex1",
             .type = NGLI_PGCRAFT_SHADER_TEX_TYPE_2D,
             .precision = NGLI_PRECISION_HIGH,
             .stage = NGLI_PROGRAM_SHADER_FRAG
@@ -189,7 +429,7 @@ static int hblur_init(struct ngl_node *node)
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/radial-blur",
         .vert_base        = blur_common_vert,
-        .frag_base        = blur_radial_zoom_frag,
+        .frag_base        = blur_hexagonal_combine_frag,
         .textures         = textures,
         .nb_textures      = NGLI_ARRAY_NB(textures),
         .blocks           = crafter_blocks,
@@ -228,11 +468,79 @@ static int hblur_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    const int32_t index = ngli_pgcraft_get_uniform_index(s->crafter, "tex_coord_matrix", NGLI_PROGRAM_SHADER_VERT);
+    const int32_t index = ngli_pgcraft_get_uniform_index(s->crafter, "tex0_coord_matrix", NGLI_PROGRAM_SHADER_VERT);
     ngli_assert(index >= 0);
 
     NGLI_ALIGNED_MAT(tmp_coord_matrix) = NGLI_MAT4_IDENTITY;
     ngli_pipeline_compat_update_uniform(s->pl_blur_r, index, tmp_coord_matrix);
+
+    s->up_down.crafter = ngli_pgcraft_create(ctx);
+    if (!s->up_down.crafter)
+        return NGL_ERROR_MEMORY;
+
+    s->up_down.pl = ngli_pipeline_compat_create(gpu_ctx);
+    if (!s->up_down.pl)
+        return NGL_ERROR_MEMORY;
+
+    const struct gpu_block_field down_up_data_block_fields[] = {
+        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, offset, NGLI_TYPE_F32, 0),
+        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, amount, NGLI_TYPE_F32, 0),
+        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, center, NGLI_TYPE_VEC2, 0),
+    };
+    const struct gpu_block_params down_up_data_block_params = {
+        .fields    = down_up_data_block_fields,
+        .nb_fields = NGLI_ARRAY_NB(down_up_data_block_fields),
+    };
+    ret = ngli_gpu_block_init(gpu_ctx, &s->data_block, &down_up_data_block_params);
+    if (ret < 0)
+        return ret;
+
+    ret = ngli_gpu_block_update(&s->data_block, 0, &(struct down_up_data_block){.offset=1.f});
+    if (ret < 0)
+        return ret;
+
+    s->up_down.rt_layout = (struct rendertarget_layout) {
+        .colors[0].format = NGLI_FORMAT_R8G8B8A8_UNORM,
+        .colors[1].format = NGLI_FORMAT_R8G8B8A8_UNORM,
+        .nb_colors = 2,
+    };
+
+    if ((ret = setup_up_down_pipeline(s->up_down.crafter, "nopegl/xxx", blur_hexagonal_up_down_frag, s->up_down.pl, &s->up_down.rt_layout, &s->data_block)) < 0)
+        return ret;
+
+    s->up_down_combine.crafter = ngli_pgcraft_create(ctx);
+    if (!s->up_down_combine.crafter)
+        return NGL_ERROR_MEMORY;
+
+    s->up_down_combine.pl = ngli_pipeline_compat_create(gpu_ctx);
+    if (!s->up_down_combine.pl)
+        return NGL_ERROR_MEMORY;
+
+    if ((ret = setup_up_down_pipeline2(s->up_down_combine.crafter, "nopegl/xxx", blur_hexagonal_up_down_combine_frag, s->up_down_combine.pl, &s->up_down.rt_layout, &s->data_block)) < 0)
+        return ret;
+
+    s->pass_3.crafter = ngli_pgcraft_create(ctx);
+    if (!s->pass_3.crafter)
+        return NGL_ERROR_MEMORY;
+
+    s->pass_3.pl = ngli_pipeline_compat_create(gpu_ctx);
+    if (!s->pass_3.pl)
+        return NGL_ERROR_MEMORY;
+
+    if ((ret = setup_up_down_pipeline1(s->pass_3.crafter, "nopegl/xxx", blur_hexagonal_pass_3_frag, s->pass_3.pl, &s->up_down.rt_layout, &s->data_block)) < 0)
+        return ret;
+
+    s->pass_4.crafter = ngli_pgcraft_create(ctx);
+    if (!s->pass_4.crafter)
+        return NGL_ERROR_MEMORY;
+
+    s->pass_4.pl = ngli_pipeline_compat_create(gpu_ctx);
+    if (!s->pass_4.pl)
+        return NGL_ERROR_MEMORY;
+
+    if ((ret = setup_up_down_pipeline1(s->pass_4.crafter, "nopegl/xxx", blur_hexagonal_pass_4_frag, s->pass_4.pl, &s->up_down.rt_layout, &s->data_block)) < 0)
+        return ret;
+
 
     return 0;
 }
@@ -252,12 +560,118 @@ static int resize(struct ngl_node *node)
     if (s->width == width && s->height == height)
         return 0;
 
+    struct texture *dst = NULL;
+    struct rtt_ctx *dst_rtt_ctx = NULL;
+
+    struct texture *tmp_0 = ngli_texture_create(ctx->gpu_ctx);
+    struct texture *tmp_1 = ngli_texture_create(ctx->gpu_ctx);
+    struct texture *tmp_2 = ngli_texture_create(ctx->gpu_ctx);
+    struct texture *tmp_3 = ngli_texture_create(ctx->gpu_ctx);
+    struct rtt_ctx *up_down_rtt_ctx = ngli_rtt_create(ctx);
+    struct rtt_ctx *up_down_combine_rtt_ctx = ngli_rtt_create(ctx);
+    struct rtt_ctx *pass_3_rtt_ctx = ngli_rtt_create(ctx);
+    struct rtt_ctx *pass_4_rtt_ctx = ngli_rtt_create(ctx);
+    if (!tmp_0 || !tmp_1 || !tmp_2 || !tmp_3 || !up_down_rtt_ctx || !up_down_combine_rtt_ctx || !pass_3_rtt_ctx || !pass_4_rtt_ctx) {
+        ret = NGL_ERROR_MEMORY;
+        goto fail;
+    }
+
+    struct texture_params texture_params = (struct texture_params) {
+        .type          = NGLI_TEXTURE_TYPE_2D,
+        .format        = src_priv->params.format,
+        .width         = width,
+        .height        = height,
+        .min_filter    = NGLI_FILTER_LINEAR,
+        .mag_filter    = NGLI_FILTER_LINEAR,
+        .wrap_s        = NGLI_WRAP_MIRRORED_REPEAT,
+        .wrap_t        = NGLI_WRAP_MIRRORED_REPEAT,
+        .usage         = NGLI_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT |
+                         NGLI_TEXTURE_USAGE_SAMPLED_BIT,
+    };
+
+    ret = ngli_texture_init(tmp_0, &texture_params);
+    if (ret < 0)
+        goto fail;
+
+    ret = ngli_texture_init(tmp_1, &texture_params);
+    if (ret < 0)
+        goto fail;
+
+    ret = ngli_texture_init(tmp_2, &texture_params);
+    if (ret < 0)
+        goto fail;
+
+    ret = ngli_texture_init(tmp_3, &texture_params);
+    if (ret < 0)
+        goto fail;
+
+    struct rtt_params up_down_rtt_params = {
+        .width = width,
+        .height = height,
+        .nb_colors = 2,
+        .colors[0] = {
+            .attachment = tmp_0,
+            .store_op = NGLI_STORE_OP_STORE
+        },
+        .colors[1] = {
+            .attachment = tmp_1,
+            .store_op = NGLI_STORE_OP_STORE
+        },
+    };
+
+    ret = ngli_rtt_init(up_down_rtt_ctx, &up_down_rtt_params);
+    if (ret < 0)
+        goto fail;
+
+    struct rtt_params up_down_combine_rtt_params = {
+        .width = width,
+        .height = height,
+        .nb_colors = 2,
+        .colors[0] = {
+            .attachment = tmp_2,
+            .store_op = NGLI_STORE_OP_STORE
+        },
+        .colors[1] = {
+            .attachment = tmp_3,
+            .store_op = NGLI_STORE_OP_STORE
+        },
+    };
+
+    ret = ngli_rtt_init(up_down_combine_rtt_ctx, &up_down_combine_rtt_params);
+    if (ret < 0)
+        goto fail;
+
+    struct rtt_params pass_3_rtt_params = {
+        .width = width,
+        .height = height,
+        .nb_colors = 1,
+        .colors[0] = {
+            .attachment = tmp_0,
+            .store_op = NGLI_STORE_OP_STORE
+        },
+    };
+
+    ret = ngli_rtt_init(pass_3_rtt_ctx, &pass_3_rtt_params);
+    if (ret < 0)
+        goto fail;
+    
+    struct rtt_params pass_4_rtt_params = {
+        .width = width,
+        .height = height,
+        .nb_colors = 1,
+        .colors[0] = {
+            .attachment = tmp_1,
+            .store_op = NGLI_STORE_OP_STORE
+        },
+    };
+
+    ret = ngli_rtt_init(pass_4_rtt_ctx, &pass_4_rtt_params);
+    if (ret < 0)
+        goto fail;
+
     /* Assert that the destination texture format does not change */
     struct texture_priv *dst_priv = o->destination->priv_data;
     ngli_assert(dst_priv->params.format == s->dst_layout.colors[0].format);
-
-    struct texture *dst = NULL;
-    struct rtt_ctx *dst_rtt_ctx = NULL;
 
     dst = dst_priv->texture;
     if (s->dst_is_resizeable) {
@@ -308,6 +722,29 @@ static int resize(struct ngl_node *node)
     ngli_rtt_freep(&s->dst_rtt_ctx);
     s->dst_rtt_ctx = dst_rtt_ctx;
 
+    ngli_rtt_freep(&s->up_down.rtt_ctx);
+    s->up_down.rtt_ctx = up_down_rtt_ctx;
+
+    ngli_texture_freep(&s->tmp_0);
+    s->tmp_0 = tmp_0;
+
+    ngli_texture_freep(&s->tmp_1);
+    s->tmp_1 = tmp_1;
+
+    ngli_texture_freep(&s->tmp_2);
+    s->tmp_2 = tmp_2;
+
+    ngli_texture_freep(&s->tmp_3);
+    s->tmp_3 = tmp_3;
+
+    ngli_rtt_freep(&s->up_down_combine.rtt_ctx);
+    s->up_down_combine.rtt_ctx = up_down_combine_rtt_ctx;
+
+    ngli_rtt_freep(&s->pass_3.rtt_ctx);
+    s->pass_3.rtt_ctx = pass_3_rtt_ctx;
+    ngli_rtt_freep(&s->pass_4.rtt_ctx);
+    s->pass_4.rtt_ctx = pass_4_rtt_ctx;
+
     s->width = width;
     s->height = height;
 
@@ -317,6 +754,15 @@ fail:
     ngli_rtt_freep(&dst_rtt_ctx);
     if (s->dst_is_resizeable)
         ngli_texture_freep(&dst);
+
+    ngli_rtt_freep(&up_down_rtt_ctx);
+    ngli_texture_freep(&tmp_0);
+    ngli_texture_freep(&tmp_1);
+    ngli_texture_freep(&tmp_2);
+    ngli_texture_freep(&tmp_3);
+    ngli_rtt_freep(&up_down_combine_rtt_ctx);
+    ngli_rtt_freep(&pass_3_rtt_ctx);
+    ngli_rtt_freep(&pass_4_rtt_ctx);
 
     LOG(ERROR, "failed to resize blur: %dx%d", width, height);
     return ret;
@@ -338,18 +784,49 @@ static void hblur_draw(struct ngl_node *node)
 
     const float *center = (float *)ngli_node_get_data_ptr(o->center_node, &o->center);
 
+    ngli_rtt_begin(s->up_down.rtt_ctx);
+    ngli_gpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
+    ctx->render_pass_started = 1;
+    if (s->image_rev != s->image->rev) {
+        ngli_pipeline_compat_update_image(s->up_down.pl, 0, s->image);
+        s->image_rev = s->image->rev;
+    }
+    ngli_pipeline_compat_draw(s->up_down.pl, 3, 1);
+    ngli_rtt_end(s->up_down.rtt_ctx);
+
     ngli_gpu_block_update(&s->blur_params, 0, &(struct params_block) {
         .amount      = amount,
         .center      = {center[0], center[1]},
     });
 
+
+    ngli_rtt_begin(s->up_down_combine.rtt_ctx);
+    ngli_gpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
+    ctx->render_pass_started = 1;
+    ngli_pipeline_compat_update_texture(s->up_down_combine.pl, 0, s->tmp_0);
+    ngli_pipeline_compat_update_texture(s->up_down_combine.pl, 1, s->tmp_1);
+    ngli_pipeline_compat_draw(s->up_down_combine.pl, 3, 1);
+    ngli_rtt_end(s->up_down_combine.rtt_ctx);
+
+    ngli_rtt_begin(s->pass_3.rtt_ctx);
+    ngli_gpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
+    ctx->render_pass_started = 1;
+    ngli_pipeline_compat_update_texture(s->pass_3.pl, 0, s->tmp_2);
+    ngli_pipeline_compat_draw(s->pass_3.pl, 3, 1);
+    ngli_rtt_end(s->pass_3.rtt_ctx);
+
+    ngli_rtt_begin(s->pass_4.rtt_ctx);
+    ngli_gpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
+    ctx->render_pass_started = 1;
+    ngli_pipeline_compat_update_texture(s->pass_4.pl, 0, s->tmp_3);
+    ngli_pipeline_compat_draw(s->pass_4.pl, 3, 1);
+    ngli_rtt_end(s->pass_4.rtt_ctx);
+
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngli_gpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     ctx->render_pass_started = 1;
-    if (s->image_rev != s->image->rev) {
-        ngli_pipeline_compat_update_image(s->pl_blur_r, 0, s->image);
-        s->image_rev = s->image->rev;
-    }
+    ngli_pipeline_compat_update_texture(s->pl_blur_r, 0, s->tmp_0);
+    ngli_pipeline_compat_update_texture(s->pl_blur_r, 1, s->tmp_1);
     ngli_pipeline_compat_draw(s->pl_blur_r, 3, 1);
     ngli_rtt_end(s->dst_rtt_ctx);
 

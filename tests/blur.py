@@ -19,6 +19,7 @@
 # under the License.
 #
 
+from pynopegl_utils.misc import load_media
 from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
 
 import pynopegl as ngl
@@ -78,6 +79,35 @@ def blur_radial_zoom(cfg: ngl.SceneCfg):
     noise_texture = ngl.Texture2D(data_src=noise)
     blurred_texture = ngl.Texture2D()
     blur = ngl.RadialBlur(
+        source=noise_texture,
+        destination=blurred_texture,
+        amount=ngl.AnimatedFloat(
+            [
+                ngl.AnimKeyFrameFloat(0, 0),
+                ngl.AnimKeyFrameFloat(cfg.duration, 1),
+            ]
+        ),
+        center=ngl.UniformVec2(value=(0.5, 0.5), live_id="center"),
+    )
+    return ngl.Group(children=(blur, ngl.RenderTexture(blurred_texture)))
+
+
+@test_fingerprint(width=256, height=256, keyframes=10, tolerance=1)
+@ngl.scene()
+def blur_hexagonal(cfg: ngl.SceneCfg):
+    cfg.aspect_ratio = (1, 1)
+    cfg.duration = 10
+    mi = load_media(cfg, "panda")
+
+    noise = ngl.RenderNoise(type="blocky", octaves=3, scale=(9, 9))
+    group = ngl.Group()
+    color = ngl.RenderColor(
+        color=(1.0, 1.0, 1.0), geometry=ngl.Quad(corner=(0, 0, 0), width=(0.1, 0.0, 0.0), height=(0.0, 0.1, 0.0))
+    )
+    group.add_children(color)
+    noise_texture = ngl.Texture2D(data_src=group, clear_color=(0, 0, 0, 1))
+    blurred_texture = ngl.Texture2D()
+    blur = ngl.HexagonalBlur(
         source=noise_texture,
         destination=blurred_texture,
         amount=ngl.AnimatedFloat(
