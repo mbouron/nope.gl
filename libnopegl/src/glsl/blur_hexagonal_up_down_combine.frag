@@ -27,7 +27,6 @@ void main()
     highp vec4 c0 = texture(tex0, tex_coord);
     ngl_out_color[0] = c0;
 
-    highp vec4 c1 = texture(tex1, tex_coord);
 
     #if 0
     highp vec2 size = vec2(textureSize(tex0, 0));
@@ -42,5 +41,6 @@ void main()
     color /= float(nb_samples);
     ngl_out_color[1] = mix(vec4(ngli_linear2srgb(color.rgb), color.a), c1, 0.1);
     #endif
+    highp vec4 c1 = texture(tex1, tex_coord);
     ngl_out_color[1] = (c0 + c1) / 2.0;
 }

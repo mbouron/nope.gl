@@ -52,11 +52,6 @@ struct down_up_data_block {
     float center[2];
 };
 
-struct params_block {
-    float amount;
-    float center[2];
-};
-
 struct hblur_opts {
     struct ngl_node *source;
     struct ngl_node *destination;
@@ -110,7 +105,6 @@ struct hblur_priv {
     struct rendertarget_layout dst_layout;
     struct rtt_ctx *dst_rtt_ctx;
 
-    struct gpu_block blur_params;
     struct pgcraft *crafter;
     struct pipeline_compat *pl_blur_r;
 };
@@ -380,20 +374,6 @@ static int hblur_init(struct ngl_node *node)
     s->dst_layout.colors[0].format = dst_priv->params.format;
     s->dst_layout.nb_colors = 1;
 
-    const struct gpu_block_field params_fields[] = {
-        NGLI_GPU_BLOCK_FIELD(struct params_block, amount,      NGLI_TYPE_F32, 0),
-        NGLI_GPU_BLOCK_FIELD(struct params_block, center,      NGLI_TYPE_VEC2, 0),
-    };
-    const struct gpu_block_params blur_params = {
-        .count     = 1,
-        .fields    = params_fields,
-        .nb_fields = NGLI_ARRAY_NB(params_fields),
-    };
-
-    int ret = ngli_gpu_block_init(gpu_ctx, &s->blur_params, &blur_params);
-    if (ret < 0)
-        return ret;
-
     const struct pgcraft_iovar vert_out_vars[] = {
         {.name = "tex_coord", .type = NGLI_TYPE_VEC2},
     };
@@ -412,16 +392,36 @@ static int hblur_init(struct ngl_node *node)
         },
     };
 
+    const struct gpu_block_field down_up_data_block_fields[] = {
+        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, offset, NGLI_TYPE_F32, 0),
+        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, amount, NGLI_TYPE_F32, 0),
+        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, center, NGLI_TYPE_VEC2, 0),
+    };
+    const struct gpu_block_params down_up_data_block_params = {
+        .fields    = down_up_data_block_fields,
+        .nb_fields = NGLI_ARRAY_NB(down_up_data_block_fields),
+    };
+    int ret = ngli_gpu_block_init(gpu_ctx, &s->data_block, &down_up_data_block_params);
+    if (ret < 0)
+        return ret;
+
+    ret = ngli_gpu_block_update(&s->data_block, 0, &(struct down_up_data_block){
+        .offset = 1.f,
+        .amount = 1.f,
+    });
+    if (ret < 0)
+        return ret;
+
     const struct pgcraft_block crafter_blocks[] = {
         {
             .name          = "blur_params",
             .instance_name = "",
             .type          = NGLI_TYPE_UNIFORM_BUFFER,
             .stage         = NGLI_PROGRAM_SHADER_FRAG,
-            .block         = &s->blur_params.block,
+            .block         = &s->data_block.block,
             .buffer        = {
-                .buffer = s->blur_params.buffer,
-                .size   = s->blur_params.block_size,
+                .buffer = s->data_block.buffer,
+                .size   = s->data_block.block_size,
             },
         },
     };
@@ -481,23 +481,6 @@ static int hblur_init(struct ngl_node *node)
     s->up_down.pl = ngli_pipeline_compat_create(gpu_ctx);
     if (!s->up_down.pl)
         return NGL_ERROR_MEMORY;
-
-    const struct gpu_block_field down_up_data_block_fields[] = {
-        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, offset, NGLI_TYPE_F32, 0),
-        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, amount, NGLI_TYPE_F32, 0),
-        NGLI_GPU_BLOCK_FIELD(struct down_up_data_block, center, NGLI_TYPE_VEC2, 0),
-    };
-    const struct gpu_block_params down_up_data_block_params = {
-        .fields    = down_up_data_block_fields,
-        .nb_fields = NGLI_ARRAY_NB(down_up_data_block_fields),
-    };
-    ret = ngli_gpu_block_init(gpu_ctx, &s->data_block, &down_up_data_block_params);
-    if (ret < 0)
-        return ret;
-
-    ret = ngli_gpu_block_update(&s->data_block, 0, &(struct down_up_data_block){.offset=1.f});
-    if (ret < 0)
-        return ret;
 
     s->up_down.rt_layout = (struct rendertarget_layout) {
         .colors[0].format = NGLI_FORMAT_R8G8B8A8_UNORM,
@@ -794,12 +777,6 @@ static void hblur_draw(struct ngl_node *node)
     ngli_pipeline_compat_draw(s->up_down.pl, 3, 1);
     ngli_rtt_end(s->up_down.rtt_ctx);
 
-    ngli_gpu_block_update(&s->blur_params, 0, &(struct params_block) {
-        .amount      = amount,
-        .center      = {center[0], center[1]},
-    });
-
-
     ngli_rtt_begin(s->up_down_combine.rtt_ctx);
     ngli_gpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     ctx->render_pass_started = 1;
@@ -851,7 +828,7 @@ static void hblur_uninit(struct ngl_node *node)
 {
     struct hblur_priv *s = node->priv_data;
 
-    ngli_gpu_block_reset(&s->blur_params);
+    ngli_gpu_block_reset(&s->data_block);
     ngli_pipeline_compat_freep(&s->pl_blur_r);
     ngli_pgcraft_freep(&s->crafter);
 }

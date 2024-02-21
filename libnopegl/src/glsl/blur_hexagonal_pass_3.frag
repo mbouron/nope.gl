@@ -35,7 +35,5 @@ void main()
     }
     color /= float(nb_samples);
     
-    vec4 value = texture(tex, tex_coord + offset);
-    color = vec4(ngli_srgb2linear(value.rgb), value.a);
     ngl_out_color = vec4(ngli_linear2srgb(color.rgb), color.a);
 }

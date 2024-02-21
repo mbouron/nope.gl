@@ -26,5 +26,5 @@ void main()
 {
     highp vec4 c0 = texture(tex0, tex_coord);
     highp vec4 c1 = texture(tex1, tex_coord);
-    ngl_out_color = mix(c0, c1, 0.000001);
+    ngl_out_color = mix(c0, c1, 1.0 - 0.000001);
 }

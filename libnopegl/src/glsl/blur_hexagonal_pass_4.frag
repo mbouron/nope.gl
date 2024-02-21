@@ -26,7 +26,7 @@ void main()
 {
     highp vec4 color = vec4(0.0);
     highp vec2 size = vec2(textureSize(tex, 0));
-    highp vec2 direction = normalize(vec2(1.0, 0.57777777));
+    highp vec2 direction = normalize(vec2(1.0, -0.57777777));
     int nb_samples = 32;
     for (int i = 0; i < nb_samples; i++) {
         highp vec2 offset = direction * float(i) / size;
@@ -34,5 +34,7 @@ void main()
         color += vec4(ngli_srgb2linear(value.rgb), value.a);
     }
     color /= float(nb_samples);
+        //highp vec4 value = texture(tex, tex_coord + offset);
+        //color = vec4(ngli_srgb2linear(value.rgb), value.a);
     ngl_out_color = vec4(ngli_linear2srgb(color.rgb), color.a);
 }
