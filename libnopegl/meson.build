@@ -677,6 +677,7 @@ shaders = {
   'blur_upsample.frag': 'blur_upsample_frag.h',
   'blur_interpolate.frag': 'blur_interpolate_frag.h',
   'blur_radial_zoom.frag': 'blur_radial_zoom_frag.h',
+  'blur_hexagonal.vert': 'blur_hexagonal_vert.h',
   'blur_hexagonal_up_down.frag': 'blur_hexagonal_up_down.h',
   'blur_hexagonal_up_down_combine.frag': 'blur_hexagonal_up_down_combine.h',
   'blur_hexagonal_pass_3.frag': 'blur_hexagonal_pass_3.h',

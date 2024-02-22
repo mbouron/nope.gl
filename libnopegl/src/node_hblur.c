@@ -38,7 +38,7 @@
 #include "utils.h"
 
 /* GLSL shaders */
-#include "blur_common_vert.h"
+#include "blur_hexagonal_vert.h"
 #include "blur_hexagonal_up_down.h"
 #include "blur_hexagonal_up_down_combine.h"
 #include "blur_hexagonal_pass_3.h"
@@ -164,7 +164,7 @@ static int setup_up_down_pipeline1(struct pgcraft *crafter,
 
     const struct pgcraft_params crafter_params = {
         .program_label    = name,
-        .vert_base        = blur_common_vert,
+        .vert_base        = blur_hexagonal_vert,
         .frag_base        = frag_base,
         .textures         = textures,
         .nb_textures      = NGLI_ARRAY_NB(textures),
@@ -235,7 +235,7 @@ static int setup_up_down_pipeline(struct pgcraft *crafter,
 
     const struct pgcraft_params crafter_params = {
         .program_label    = name,
-        .vert_base        = blur_common_vert,
+        .vert_base        = blur_hexagonal_vert,
         .frag_base        = frag_base,
         .textures         = textures,
         .nb_textures      = NGLI_ARRAY_NB(textures),
@@ -312,7 +312,7 @@ static int setup_up_down_pipeline2(struct pgcraft *crafter,
 
     const struct pgcraft_params crafter_params = {
         .program_label    = name,
-        .vert_base        = blur_common_vert,
+        .vert_base        = blur_hexagonal_vert,
         .frag_base        = frag_base,
         .textures         = textures,
         .nb_textures      = NGLI_ARRAY_NB(textures),
@@ -428,7 +428,7 @@ static int hblur_init(struct ngl_node *node)
 
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/radial-blur",
-        .vert_base        = blur_common_vert,
+        .vert_base        = blur_hexagonal_vert,
         .frag_base        = blur_hexagonal_combine_frag,
         .textures         = textures,
         .nb_textures      = NGLI_ARRAY_NB(textures),
