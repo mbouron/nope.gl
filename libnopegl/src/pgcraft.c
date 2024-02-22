@@ -776,6 +776,10 @@ static void set_glsl_header(struct pgcraft *s, struct bstr *b, const struct pgcr
             ngli_bstr_printf(b, "#extension %s : require\n", features[i].extension);
     }
 
+    const int origin_top_left = (config->backend == NGL_BACKEND_VULKAN) ? 1 : 0;
+    ngli_bstr_printf(b, "#define ngli_coord_origin_top_left %d\n", origin_top_left);
+    ngli_bstr_printf(b, "#define ngli_uv_coord_origin_top_left %d\n", origin_top_left);
+
     ngli_bstr_print(b, "\n");
 }
 
