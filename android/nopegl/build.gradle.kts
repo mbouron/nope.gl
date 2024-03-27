@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    id("nopegl-nodes")
 }
 
 android {
@@ -60,6 +61,11 @@ android {
         getByName("test") {
             assets {
                 srcDirs("src/androidTest/assets")
+            }
+        }
+        getByName("main") {
+            java {
+                srcDir("src/shared/java")
             }
         }
     }

@@ -7,7 +7,7 @@ import android.content.pm.ProviderInfo
 import android.test.mock.MockContentResolver
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,7 +29,7 @@ class MockContext(private val contentResolver: ContentResolver, base: Context?) 
 
 @RunWith(AndroidJUnit4::class)
 class NopeGLTest {
-    private fun createContext(backend: Int) : NGLContext {
+    private fun createContext(backend: Int): NGLContext {
         val config = NGLConfig()
         config.backend = backend
         config.offscreen = true
@@ -79,7 +79,7 @@ class NopeGLTest {
         offscreenCtx(Config.BACKEND_VULKAN)
     }
 
-    private fun checkAsset(applicationContext: Context, name: String) : Boolean {
+    private fun checkAsset(applicationContext: Context, name: String): Boolean {
         return File(getAssetPath(applicationContext, name)).exists()
     }
 
@@ -88,14 +88,14 @@ class NopeGLTest {
         inputStream.copyTo(FileOutputStream(getAssetPath(applicationContext, name)))
     }
 
-    private fun getAssetPath(applicationContext: Context, name : String) : String {
+    private fun getAssetPath(applicationContext: Context, name: String): String {
         return applicationContext.cacheDir!!.path + "/" + name
     }
 
     @Before
     fun initAssets() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        if (!checkAsset(context,"cat.mp4"))
+        if (!checkAsset(context, "cat.mp4"))
             copyAsset(context, "cat.mp4")
     }
 
@@ -115,7 +115,8 @@ class NopeGLTest {
         val fakeCtx = MockContext(contentResolver, appContext)
         NGLContext.nativeInit(fakeCtx)
 
-        val scene = NGLScene("""
+        val scene = NGLScene(
+            """
             # Nope.GL v0.11.0
             # duration=403Z9000000000000
             # aspect_ratio=320/240
@@ -125,8 +126,9 @@ class NopeGLTest {
             Quad
             Dtex texture:2 geometry:1
         """.trimIndent().format(
-            NGLContentProvider.AUTHORITY,
-            getAssetPath(appContext,"cat.mp4"))
+                NGLContentProvider.AUTHORITY,
+                getAssetPath(appContext, "cat.mp4")
+            )
         )
         val ctx = createContext(Config.BACKEND_OPENGLES)
         ctx.setScene(scene)
@@ -141,11 +143,74 @@ class NopeGLTest {
     }
 
     @Test
+    fun craftMediaScene() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+
+        val providerInfo = ProviderInfo()
+        providerInfo.authority = NGLContentProvider.AUTHORITY
+
+        val contentProvider = NGLContentProvider()
+        contentProvider.attachInfo(appContext, providerInfo)
+
+        val contentResolver = MockContentResolver(appContext)
+        contentResolver.addProvider(NGLContentProvider.AUTHORITY, contentProvider)
+
+        val fakeCtx = MockContext(contentResolver, appContext)
+        NGLContext.nativeInit(fakeCtx)
+
+        val duration = 403.9
+        val keyFrames = listOf(
+            AnimKeyFrameFloat(0.0, 0.0),
+            AnimKeyFrameFloat(duration, duration),
+        )
+        val mediaNode = Media(
+            filename = "content://%s/medias%s".format(
+                NGLContentProvider.AUTHORITY,
+                getAssetPath(appContext, "cat.mp4")
+            ),
+            timeAnim = AnimatedTime(keyFrames),
+        )
+        val texture2DNode =
+            Texture2D(dataSrc = mediaNode, minFilter = Filter.Nearest, magFilter = Filter.Nearest)
+        val transform = Transform(
+            child = texture2DNode,
+            matrix = NodeOrValue.node(UniformMat4(liveId = "reframing_matrix"))
+        )
+        val draw = DrawTexture(transform)
+        val transform2 = Transform(
+            child = draw,
+            matrix = NodeOrValue.node(UniformMat4(liveId = "geometry_matrix"))
+        )
+        val timeRangeFilter = TimeRangeFilter(
+            child = transform2,
+            start = 1.0,
+            end = 2.0,
+            prefetchTime = 3.0,
+        )
+
+
+        val scene = NGLScene(rootNode = timeRangeFilter, duration = duration)
+        val ctx = createContext(Config.BACKEND_OPENGLES)
+        ctx.setScene(scene)
+        var i = 0
+        val nbFrames = 10
+        while (i < nbFrames) {
+            ctx.draw(i * 1.0 / 60.0)
+            i++
+        }
+
+        ctx.finalize()
+
+        println(scene.serialize())
+    }
+
+    @Test
     fun liveControls() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         NGLContext.nativeInit(appContext)
 
-        val scene = NGLScene("""
+        val scene = NGLScene(
+            """
             # Nope.GL v0.11.0
             # duration=402Z4000000000000
             # aspect_ratio=16/9
@@ -163,18 +228,21 @@ class NopeGLTest {
             UnM4 live_id:matrix
             Trfm child:2 matrix:!1
             Cmra child:1 eye:0z0,0z0,81z0 center:0z0,0z0,0z0 perspective:84z340000,7Fz638E39 clipping:7Fz0,82z200000 label:quaternion
-        """.trimIndent())
-        var color = scene.getLiveControl("color")!!
-        var ret = color.setVec3("value", floatArrayOf(1f, 1f, 1f))
+        """.trimIndent()
+        )
+        val color = scene.getLiveControl("color")!!
+        var ret = color.setVec3("value", Vec3(1f, 1f, 1f))
         assertEquals(ret, true)
 
-        var matrix = scene.getLiveControl("matrix")!!
-        ret = matrix.setMat4("value", floatArrayOf(
-            1f, 0f, 0f, 0f,
-            0f, 1f, 0f, 0f,
-            0f, 0f, 1f, 0f,
-            0f, 0f, 1f, 1f,
-        ))
+        val matrix = scene.getLiveControl("matrix")!!
+        ret = matrix.setMat4(
+            "value", floatArrayOf(
+                1f, 0f, 0f, 0f,
+                0f, 1f, 0f, 0f,
+                0f, 0f, 1f, 0f,
+                0f, 0f, 1f, 1f,
+            )
+        )
         assertEquals(ret, true)
     }
 

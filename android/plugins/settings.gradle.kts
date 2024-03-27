@@ -10,9 +10,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        gradlePluginPortal()
     }
 }
 
-rootProject.name = "nopegl-android"
-include(":nopegl")
-includeBuild("plugins")
+include(":nopegl-nodes")
