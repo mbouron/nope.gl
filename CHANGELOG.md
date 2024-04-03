@@ -33,6 +33,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_error_to_string()` to convert error codes to string messages
 - `ngl_node_param_swap_elem` to swap elements within a list
 - `Group.children` can be live re-ordered
+- `ngl_update()` to trigger graph updates without producing frames
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges
