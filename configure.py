@@ -572,6 +572,7 @@ def _ffmpeg_setup(cfg):
     ]
     parsers = [
         "aac",
+        "amr",
         "av1",
         "flac",
         "h264",
@@ -614,6 +615,7 @@ def _ffmpeg_setup(cfg):
     demuxers = [
         "aac",
         "aiff",
+        "amr",
         "avi",
         "flac",
         "gif",
@@ -632,9 +634,7 @@ def _ffmpeg_setup(cfg):
         "wav",
     ]
     decoders = [
-        "aac",
         "alac",
-        "amrnb",
         "flac",
         "gif",
         "mjpeg",
@@ -648,6 +648,7 @@ def _ffmpeg_setup(cfg):
         "rawvideo",
         "vorbis",
         "vp8",
+        "vp9",
         "webp",
     ]
     encoders = ["mjpeg", "png", "aac"]
@@ -661,6 +662,9 @@ def _ffmpeg_setup(cfg):
     extra_args = []
     if cfg.host == "Android":
         decoders += [
+            "aac_mediacodec",
+            "amrnb_mediacodec",
+            "amrwb_mediacodec",
             "av1_mediacodec",
             "h264_mediacodec",
             "hevc_mediacodec",
@@ -676,6 +680,9 @@ def _ffmpeg_setup(cfg):
             f"--cc={cfg.android_ndk_bin}{os.sep}{cfg.android_compiler}-clang",
         ]
     elif cfg.host == "iOS":
+        decoders += [
+            "aac_at",
+        ]
         extra_cflags += f"-arch {cfg.ios_abi} -mios-version-min={cfg.ios_version}"
         extra_ldflags += f"-arch {cfg.ios_abi} -mios-version-min={cfg.ios_version}"
         extra_args += [

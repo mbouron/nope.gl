@@ -1,0 +1,919 @@
+From 88d09b5a155a03c95b990bcbbd63f8749bbc2f55 Mon Sep 17 00:00:00 2001
+From: Matthieu Bouron <matthieu.bouron@gmail.com>
+Date: Mon, 20 May 2024 16:30:21 +0200
+Subject: [PATCH] avcodec: add Mediacodec audio decoders support
+
+---
+ configure                         |  14 ++
+ libavcodec/Makefile               |   7 +
+ libavcodec/allcodecs.c            |   7 +
+ libavcodec/mediacodecdec.c        | 219 ++++++++++++++++++-
+ libavcodec/mediacodecdec_common.c | 345 +++++++++++++++++++++++++++---
+ libavcodec/mediacodecdec_common.h |   3 +-
+ 6 files changed, 558 insertions(+), 37 deletions(-)
+
+diff --git a/configure b/configure
+index 4f5353f84b..15ee322bce 100755
+--- a/configure
++++ b/configure
+@@ -3302,13 +3302,21 @@ amf_deps_any="libdl LoadLibrary"
+ nvenc_deps="ffnvcodec"
+ nvenc_deps_any="libdl LoadLibrary"
+ 
++aac_mediacodec_decoder_deps="mediacodec"
++aac_mediacodec_decoder_select="aac_adtstoasc_bsf aac_parser"
+ aac_mf_encoder_deps="mediafoundation"
+ ac3_mf_encoder_deps="mediafoundation"
++amrnb_mediacodec_decoder_deps="mediacodec"
++amrnb_mediacodec_decoder_select="amr_parser"
++amrwb_mediacodec_decoder_deps="mediacodec"
++amrwb_mediacodec_decoder_select="amr_parser"
+ av1_cuvid_decoder_deps="cuvid CUVIDAV1PICPARAMS"
+ av1_mediacodec_decoder_deps="mediacodec"
+ av1_mediacodec_encoder_deps="mediacodec"
+ av1_nvenc_encoder_deps="nvenc NV_ENC_PIC_PARAMS_AV1"
+ av1_nvenc_encoder_select="atsc_a53"
++flac_mediacodec_decoder_deps="mediacodec"
++flac_mediacodec_decoder_select="flac_parser"
+ h263_v4l2m2m_decoder_deps="v4l2_m2m h263_v4l2_m2m"
+ h263_v4l2m2m_encoder_deps="v4l2_m2m h263_v4l2_m2m"
+ h264_amf_encoder_deps="amf"
+@@ -3357,6 +3365,8 @@ mjpeg_qsv_encoder_select="qsvenc"
+ mjpeg_vaapi_encoder_deps="VAEncPictureParameterBufferJPEG"
+ mjpeg_vaapi_encoder_select="cbs_jpeg jpegtables vaapi_encode"
+ mp3_mf_encoder_deps="mediafoundation"
++mp3_mediacodec_decoder_deps="mediacodec"
++mp3_mediacodec_decoder_select="mpegaudioheader"
+ mpeg1_cuvid_decoder_deps="cuvid"
+ mpeg1_v4l2m2m_decoder_deps="v4l2_m2m mpeg1_v4l2_m2m"
+ mpeg2_cuvid_decoder_deps="cuvid"
+@@ -3373,10 +3383,14 @@ mpeg4_mmal_decoder_deps="mmal"
+ mpeg4_omx_encoder_deps="omx"
+ mpeg4_v4l2m2m_decoder_deps="v4l2_m2m mpeg4_v4l2_m2m"
+ mpeg4_v4l2m2m_encoder_deps="v4l2_m2m mpeg4_v4l2_m2m"
++opus_mediacodec_decoder_deps="mediacodec"
++opus_mediacodec_decoder_select="opus_parser"
+ vc1_cuvid_decoder_deps="cuvid"
+ vc1_mmal_decoder_deps="mmal"
+ vc1_qsv_decoder_select="qsvdec"
+ vc1_v4l2m2m_decoder_deps="v4l2_m2m vc1_v4l2_m2m"
++vorbis_mediacodec_decoder_deps="mediacodec"
++vorbis_mediacodec_decoder_select="vorbis_parser"
+ vp8_cuvid_decoder_deps="cuvid"
+ vp8_mediacodec_decoder_deps="mediacodec"
+ vp8_mediacodec_encoder_deps="mediacodec"
+diff --git a/libavcodec/Makefile b/libavcodec/Makefile
+index 113adb22d5..39a130ff19 100644
+--- a/libavcodec/Makefile
++++ b/libavcodec/Makefile
+@@ -193,6 +193,7 @@ OBJS-$(CONFIG_AAC_ENCODER)             += aacenc.o aaccoder.o aacenctab.o    \
+                                           aacenc_pred.o \
+                                           psymodel.o kbdwin.o \
+                                           mpeg4audio_sample_rates.o
++OBJS-$(CONFIG_AAC_MEDIACODEC_DECODER)  += mediacodecdec.o
+ OBJS-$(CONFIG_AAC_MF_ENCODER)          += mfenc.o mf_utils.o
+ OBJS-$(CONFIG_AASC_DECODER)            += aasc.o msrledec.o
+ OBJS-$(CONFIG_AC3_DECODER)             += ac3dec_float.o ac3dec_data.o ac3.o \
+@@ -219,6 +220,8 @@ OBJS-$(CONFIG_AMRWB_DECODER)           += amrwbdec.o celp_filters.o   \
+                                           celp_math.o acelp_filters.o \
+                                           acelp_vectors.o             \
+                                           acelp_pitch_delay.o
++OBJS-$(CONFIG_AMRNB_MEDIACODEC_DECODER) += mediacodecdec.o
++OBJS-$(CONFIG_AMRWB_MEDIACODEC_DECODER) += mediacodecdec.o
+ OBJS-$(CONFIG_AMV_ENCODER)             += mjpegenc.o mjpegenc_common.o
+ OBJS-$(CONFIG_ANM_DECODER)             += anm.o
+ OBJS-$(CONFIG_ANULL_DECODER)           += null.o
+@@ -366,6 +369,7 @@ OBJS-$(CONFIG_FIC_DECODER)             += fic.o
+ OBJS-$(CONFIG_FITS_DECODER)            += fitsdec.o fits.o
+ OBJS-$(CONFIG_FITS_ENCODER)            += fitsenc.o
+ OBJS-$(CONFIG_FLAC_DECODER)            += flacdec.o flacdata.o flacdsp.o flac.o
++OBJS-$(CONFIG_FLAC_MEDIACODEC_DECODER) += mediacodecdec.o
+ OBJS-$(CONFIG_FLAC_ENCODER)            += flacenc.o flacdata.o flacencdsp.o
+ OBJS-$(CONFIG_FLASHSV_DECODER)         += flashsv.o
+ OBJS-$(CONFIG_FLASHSV_ENCODER)         += flashsvenc.o
+@@ -521,6 +525,7 @@ OBJS-$(CONFIG_MP2FIXED_ENCODER)        += mpegaudioenc_fixed.o mpegaudio.o \
+                                           mpegaudiotabs.o
+ OBJS-$(CONFIG_MP2FLOAT_DECODER)        += mpegaudiodec_float.o
+ OBJS-$(CONFIG_MP3_DECODER)             += mpegaudiodec_fixed.o
++OBJS-$(CONFIG_MP3_MEDIACODEC_DECODER)  += mediacodecdec.o
+ OBJS-$(CONFIG_MP3_MF_ENCODER)          += mfenc.o mf_utils.o
+ OBJS-$(CONFIG_MP3ADU_DECODER)          += mpegaudiodec_fixed.o
+ OBJS-$(CONFIG_MP3ADUFLOAT_DECODER)     += mpegaudiodec_float.o
+@@ -581,6 +586,7 @@ OBJS-$(CONFIG_OPUS_DECODER)            += opusdec.o opusdec_celt.o opus_celt.o \
+                                           opusdsp.o opus_parse.o opus_rc.o
+ OBJS-$(CONFIG_OPUS_ENCODER)            += opusenc.o opusenc_psy.o opus_celt.o \
+                                           opus_pvq.o opus_rc.o opustab.o
++OBJS-$(CONFIG_OPUS_MEDIACODEC_DECODER) += mediacodecdec.o
+ OBJS-$(CONFIG_OSQ_DECODER)             += osq.o
+ OBJS-$(CONFIG_PAF_AUDIO_DECODER)       += pafaudio.o
+ OBJS-$(CONFIG_PAF_VIDEO_DECODER)       += pafvideo.o
+@@ -768,6 +774,7 @@ OBJS-$(CONFIG_VORBIS_DECODER)          += vorbisdec.o vorbisdsp.o vorbis.o \
+                                           vorbis_data.o
+ OBJS-$(CONFIG_VORBIS_ENCODER)          += vorbisenc.o vorbis.o \
+                                           vorbis_data.o
++OBJS-$(CONFIG_VORBIS_MEDIACODEC_DECODER) += mediacodecdec.o
+ OBJS-$(CONFIG_VP3_DECODER)             += vp3.o jpegquanttables.o
+ OBJS-$(CONFIG_VP5_DECODER)             += vp5.o vp56.o vp56data.o vpx_rac.o
+ OBJS-$(CONFIG_VP6_DECODER)             += vp6.o vp56.o vp56data.o \
+diff --git a/libavcodec/allcodecs.c b/libavcodec/allcodecs.c
+index 2386b450a6..8d936e3adb 100644
+--- a/libavcodec/allcodecs.c
++++ b/libavcodec/allcodecs.c
+@@ -828,8 +828,11 @@ extern const FFCodec ff_idf_decoder;
+ 
+ /* external libraries, that shouldn't be used by default if one of the
+  * above is available */
++extern const FFCodec ff_aac_mediacodec_decoder;
+ extern const FFCodec ff_aac_mf_encoder;
+ extern const FFCodec ff_ac3_mf_encoder;
++extern const FFCodec ff_amrnb_mediacodec_decoder;
++extern const FFCodec ff_amrwb_mediacodec_decoder;
+ extern const FFCodec ff_h263_v4l2m2m_encoder;
+ extern const FFCodec ff_libaom_av1_decoder;
+ /* hwaccel hooks only, so prefer external decoders */
+@@ -842,6 +845,7 @@ extern const FFCodec ff_av1_qsv_decoder;
+ extern const FFCodec ff_av1_qsv_encoder;
+ extern const FFCodec ff_av1_amf_encoder;
+ extern const FFCodec ff_av1_vaapi_encoder;
++extern const FFCodec ff_flac_mediacodec_decoder;
+ extern const FFCodec ff_libopenh264_encoder;
+ extern const FFCodec ff_libopenh264_decoder;
+ extern const FFCodec ff_h264_amf_encoder;
+@@ -868,6 +872,7 @@ extern const FFCodec ff_mjpeg_cuvid_decoder;
+ extern const FFCodec ff_mjpeg_qsv_encoder;
+ extern const FFCodec ff_mjpeg_qsv_decoder;
+ extern const FFCodec ff_mjpeg_vaapi_encoder;
++extern const FFCodec ff_mp3_mediacodec_decoder;
+ extern const FFCodec ff_mp3_mf_encoder;
+ extern const FFCodec ff_mpeg1_cuvid_decoder;
+ extern const FFCodec ff_mpeg2_cuvid_decoder;
+@@ -878,8 +883,10 @@ extern const FFCodec ff_mpeg4_mediacodec_decoder;
+ extern const FFCodec ff_mpeg4_mediacodec_encoder;
+ extern const FFCodec ff_mpeg4_omx_encoder;
+ extern const FFCodec ff_mpeg4_v4l2m2m_encoder;
++extern const FFCodec ff_opus_mediacodec_decoder;
+ extern const FFCodec ff_prores_videotoolbox_encoder;
+ extern const FFCodec ff_vc1_cuvid_decoder;
++extern const FFCodec ff_vorbis_mediacodec_decoder;
+ extern const FFCodec ff_vp8_cuvid_decoder;
+ extern const FFCodec ff_vp8_mediacodec_decoder;
+ extern const FFCodec ff_vp8_mediacodec_encoder;
+diff --git a/libavcodec/mediacodecdec.c b/libavcodec/mediacodecdec.c
+index b8587289a2..513bd85173 100644
+--- a/libavcodec/mediacodecdec.c
++++ b/libavcodec/mediacodecdec.c
+@@ -35,6 +35,7 @@
+ #include "avcodec.h"
+ #include "codec_internal.h"
+ #include "decode.h"
++#include "flac_parse.h"
+ #include "h264_parse.h"
+ #include "h264_ps.h"
+ #include "hevc_parse.h"
+@@ -43,6 +44,7 @@
+ #include "jni.h"
+ #include "mediacodec_wrapper.h"
+ #include "mediacodecdec_common.h"
++#include "xiph.h"
+ 
+ typedef struct MediaCodecH264DecContext {
+ 
+@@ -286,11 +288,87 @@ done:
+ }
+ #endif
+ 
++#if CONFIG_FLAC_MEDIACODEC_DECODER
++static int flac_set_extradata(AVCodecContext *avctx, FFAMediaFormat *format)
++{
++    uint8_t *streaminfo;
++    uint8_t buffer[42];
++
++    if (!avctx->extradata) {
++        return 0;
++    }
++
++    if (!ff_flac_is_extradata_valid(avctx, &streaminfo))
++        return AVERROR_INVALIDDATA;
++
++    buffer[0] = 'f';
++    buffer[1] = 'L';
++    buffer[2] = 'a';
++    buffer[3] = 'C';
++    buffer[4] = 0x80;
++    buffer[5] = 0;
++    buffer[6] = 0;
++    buffer[7] = 0x22;
++    memcpy(buffer + 8, streaminfo, 34);
++
++    /* csd-0: fLaC + streaminfo */
++    ff_AMediaFormat_setBuffer(format, "csd-0", buffer, 42);
++
++    return 0;
++}
++#endif
++
++#if CONFIG_OPUS_MEDIACODEC_DECODER
++static int opus_set_extradata(AVCodecContext *avctx, FFAMediaFormat *format)
++{
++    if (!avctx->extradata_size) {
++        return 0;
++    }
++
++    if (avctx->extradata_size < 19) {
++        return AVERROR_INVALIDDATA;
++    }
++
++    ff_AMediaFormat_setBuffer(format, "csd-0", avctx->extradata, 19);
++
++    return 0;
++}
++#endif
++
++#if CONFIG_VORBIS_MEDIACODEC_DECODER
++static int vorbis_set_extradata(AVCodecContext *avctx, FFAMediaFormat *format)
++{
++    int ret;
++    const uint8_t *header_start[3];
++    int header_len[3];
++
++    if (!avctx->extradata) {
++        return 0;
++    }
++
++    ret = avpriv_split_xiph_headers(avctx->extradata, avctx->extradata_size, 30, header_start, header_len);
++    if (ret < 0) {
++        av_log(avctx, AV_LOG_ERROR, "Could not parse extradata\n");
++        return ret;
++    }
++
++    /* csd-0: identification header, csd-1: setup header */
++    ff_AMediaFormat_setBuffer(format, "csd-0", header_start[0], header_len[0]);
++    ff_AMediaFormat_setBuffer(format, "csd-1", header_start[2], header_len[2]);
++
++    return 0;
++}
++#endif
++
+ #if CONFIG_MPEG2_MEDIACODEC_DECODER || \
+     CONFIG_MPEG4_MEDIACODEC_DECODER || \
+     CONFIG_VP8_MEDIACODEC_DECODER   || \
+     CONFIG_VP9_MEDIACODEC_DECODER   || \
+-    CONFIG_AV1_MEDIACODEC_DECODER
++    CONFIG_AV1_MEDIACODEC_DECODER   || \
++    CONFIG_AAC_MEDIACODEC_DECODER   || \
++    CONFIG_AMRNB_MEDIACODEC_DECODER || \
++    CONFIG_AMRWB_MEDIACODEC_DECODER || \
++    CONFIG_MP3_MEDIACODEC_DECODER
+ static int common_set_extradata(AVCodecContext *avctx, FFAMediaFormat *format)
+ {
+     int ret = 0;
+@@ -386,14 +464,83 @@ static av_cold int mediacodec_decode_init(AVCodecContext *avctx)
+         if (ret < 0)
+             goto done;
+         break;
++#endif
++#if CONFIG_AAC_MEDIACODEC_DECODER
++    case AV_CODEC_ID_AAC:
++        codec_mime = "audio/mp4a-latm";
++
++        ret = common_set_extradata(avctx, format);
++        if (ret < 0)
++            goto done;
++        break;
++#endif
++#if CONFIG_AMRNB_MEDIACODEC_DECODER
++    case AV_CODEC_ID_AMR_NB:
++        codec_mime = "audio/3gpp";
++
++        ret = common_set_extradata(avctx, format);
++        if (ret < 0)
++            goto done;
++        break;
++#endif
++#if CONFIG_AMRWB_MEDIACODEC_DECODER
++    case AV_CODEC_ID_AMR_WB:
++        codec_mime = "audio/amr-wb";
++
++        ret = common_set_extradata(avctx, format);
++        if (ret < 0)
++            goto done;
++        break;
++#endif
++#if CONFIG_FLAC_MEDIACODEC_DECODER
++    case AV_CODEC_ID_FLAC:
++        codec_mime = "audio/flac";
++
++        ret = flac_set_extradata(avctx, format);
++        if (ret < 0)
++            goto done;
++        break;
++#endif
++#if CONFIG_MP3_MEDIACODEC_DECODER
++    case AV_CODEC_ID_MP3:
++        codec_mime = "audio/mpeg";
++
++        ret = common_set_extradata(avctx, format);
++        if (ret < 0)
++            goto done;
++        break;
++#endif
++#if CONFIG_OPUS_MEDIACODEC_DECODER
++    case AV_CODEC_ID_OPUS:
++        codec_mime = "audio/opus";
++
++        ret = opus_set_extradata(avctx, format);
++        if (ret < 0)
++            goto done;
++        break;
++#endif
++#if CONFIG_VORBIS_MEDIACODEC_DECODER
++    case AV_CODEC_ID_VORBIS:
++        codec_mime = "audio/vorbis";
++
++        ret = vorbis_set_extradata(avctx, format);
++        if (ret < 0)
++            goto done;
++        break;
+ #endif
+     default:
+         av_assert0(0);
+     }
+ 
+     ff_AMediaFormat_setString(format, "mime", codec_mime);
+-    ff_AMediaFormat_setInt32(format, "width", avctx->width);
+-    ff_AMediaFormat_setInt32(format, "height", avctx->height);
++
++    if (avctx->codec_type == AVMEDIA_TYPE_VIDEO) {
++        ff_AMediaFormat_setInt32(format, "width", avctx->width);
++        ff_AMediaFormat_setInt32(format, "height", avctx->height);
++    } else {
++        ff_AMediaFormat_setInt32(format, "channel-count", avctx->ch_layout.nb_channels);
++        ff_AMediaFormat_setInt32(format, "sample-rate", avctx->sample_rate);
++    }
+ 
+     s->ctx = av_mallocz(sizeof(*s->ctx));
+     if (!s->ctx) {
+@@ -482,7 +629,7 @@ static int mediacodec_receive_frame(AVCodecContext *avctx, AVFrame *frame)
+ 
+         /* try to flush any buffered packet data */
+         if (s->buffered_pkt.size > 0) {
+-            ret = ff_mediacodec_dec_send(avctx, s->ctx, &s->buffered_pkt, false);
++            ret = ff_mediacodec_dec_send(avctx, s->ctx, &s->buffered_pkt, false, false);
+             if (ret >= 0) {
+                 s->buffered_pkt.size -= ret;
+                 s->buffered_pkt.data += ret;
+@@ -509,7 +656,7 @@ static int mediacodec_receive_frame(AVCodecContext *avctx, AVFrame *frame)
+         ret = ff_decode_get_packet(avctx, &s->buffered_pkt);
+         if (ret == AVERROR_EOF) {
+             AVPacket null_pkt = { 0 };
+-            ret = ff_mediacodec_dec_send(avctx, s->ctx, &null_pkt, true);
++            ret = ff_mediacodec_dec_send(avctx, s->ctx, &null_pkt, true, false);
+             if (ret < 0)
+                 return ret;
+             return ff_mediacodec_dec_receive(avctx, s->ctx, frame, true);
+@@ -610,3 +757,65 @@ DECLARE_MEDIACODEC_VDEC(vp9, "VP9", AV_CODEC_ID_VP9, NULL)
+ #if CONFIG_AV1_MEDIACODEC_DECODER
+ DECLARE_MEDIACODEC_VDEC(av1, "AV1", AV_CODEC_ID_AV1, NULL)
+ #endif
++
++#define AD AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_DECODING_PARAM
++static const AVOption ff_mediacodec_adec_options[] = {
++    { "ndk_codec", "Use MediaCodec from NDK",
++                   OFFSET(use_ndk_codec), AV_OPT_TYPE_BOOL, {.i64 = -1}, -1, 1, AD },
++    { NULL }
++};
++
++#define DECLARE_MEDIACODEC_ACLASS(short_name)                   \
++static const AVClass ff_##short_name##_mediacodec_dec_class = { \
++    .class_name = #short_name "_mediacodec",                    \
++    .item_name  = av_default_item_name,                         \
++    .option     = ff_mediacodec_adec_options,                   \
++    .version    = LIBAVUTIL_VERSION_INT,                        \
++};
++
++#define DECLARE_MEDIACODEC_ADEC(short_name, full_name, codec_id, bsf)                          \
++DECLARE_MEDIACODEC_VCLASS(short_name)                                                          \
++const FFCodec ff_ ## short_name ## _mediacodec_decoder = {                                     \
++    .p.name         = #short_name "_mediacodec",                                               \
++    CODEC_LONG_NAME(full_name " Android MediaCodec decoder"),                                  \
++    .p.type         = AVMEDIA_TYPE_AUDIO,                                                      \
++    .p.id           = codec_id,                                                                \
++    .p.priv_class   = &ff_##short_name##_mediacodec_dec_class,                                 \
++    .priv_data_size = sizeof(MediaCodecH264DecContext),                                        \
++    .init           = mediacodec_decode_init,                                                  \
++    FF_CODEC_RECEIVE_FRAME_CB(mediacodec_receive_frame),                                       \
++    .flush          = mediacodec_decode_flush,                                                 \
++    .close          = mediacodec_decode_close,                                                 \
++    .p.capabilities = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_HARDWARE,                              \
++    .caps_internal  = FF_CODEC_CAP_NOT_INIT_THREADSAFE,                                        \
++    .bsfs           = bsf,                                                                     \
++    .p.wrapper_name = "mediacodec",                                                            \
++};                                                                                             \
++
++#if CONFIG_AAC_MEDIACODEC_DECODER
++DECLARE_MEDIACODEC_ADEC(aac, "AAC", AV_CODEC_ID_AAC, "aac_adtstoasc")
++#endif
++
++#if CONFIG_AMRNB_MEDIACODEC_DECODER
++DECLARE_MEDIACODEC_ADEC(amrnb, "AMR-NB", AV_CODEC_ID_AMR_NB, NULL)
++#endif
++
++#if CONFIG_AMRWB_MEDIACODEC_DECODER
++DECLARE_MEDIACODEC_ADEC(amrwb, "AMR-WB", AV_CODEC_ID_AMR_WB, NULL)
++#endif
++
++#if CONFIG_FLAC_MEDIACODEC_DECODER
++DECLARE_MEDIACODEC_ADEC(flac, "FLAC", AV_CODEC_ID_FLAC, NULL)
++#endif
++
++#if CONFIG_MP3_MEDIACODEC_DECODER
++DECLARE_MEDIACODEC_ADEC(mp3, "MP3", AV_CODEC_ID_MP3, NULL)
++#endif
++
++#if CONFIG_OPUS_MEDIACODEC_DECODER
++DECLARE_MEDIACODEC_ADEC(opus, "OPUS", AV_CODEC_ID_OPUS, NULL)
++#endif
++
++#if CONFIG_VORBIS_MEDIACODEC_DECODER
++DECLARE_MEDIACODEC_ADEC(vorbis, "VORBIS", AV_CODEC_ID_VORBIS, NULL)
++#endif
+diff --git a/libavcodec/mediacodecdec_common.c b/libavcodec/mediacodecdec_common.c
+index d6f91e6e89..9130490e9e 100644
+--- a/libavcodec/mediacodecdec_common.c
++++ b/libavcodec/mediacodecdec_common.c
+@@ -23,6 +23,7 @@
+ #include <string.h>
+ #include <sys/types.h>
+ 
++#include "libavutil/avassert.h"
+ #include "libavutil/common.h"
+ #include "libavutil/hwcontext_mediacodec.h"
+ #include "libavutil/mem.h"
+@@ -30,6 +31,7 @@
+ #include "libavutil/pixfmt.h"
+ #include "libavutil/time.h"
+ #include "libavutil/timestamp.h"
++#include "libavutil/channel_layout.h"
+ 
+ #include "avcodec.h"
+ #include "decode.h"
+@@ -85,6 +87,110 @@
+ #define OUTPUT_DEQUEUE_TIMEOUT_US 8000
+ #define OUTPUT_DEQUEUE_BLOCK_TIMEOUT_US 1000000
+ 
++enum {
++    ENCODING_PCM_16BIT        = 0x00000002,
++    ENCODING_PCM_8BIT         = 0x00000003,
++    ENCODING_PCM_FLOAT        = 0x00000004,
++    ENCODING_PCM_24BIT_PACKED = 0x00000015,
++    ENCODING_PCM_32BIT        = 0x00000016,
++};
++
++static const struct {
++
++    int pcm_format;
++    enum AVSampleFormat sample_format;
++
++} sample_formats[] = {
++
++    { ENCODING_PCM_16BIT,        AV_SAMPLE_FMT_S16 },
++    { ENCODING_PCM_8BIT,         AV_SAMPLE_FMT_U8  },
++    { ENCODING_PCM_FLOAT,        AV_SAMPLE_FMT_FLT },
++    { ENCODING_PCM_24BIT_PACKED, AV_SAMPLE_FMT_S32 },
++    { ENCODING_PCM_32BIT,        AV_SAMPLE_FMT_S32 },
++    { 0 }
++};
++
++static enum AVSampleFormat mcdec_map_pcm_format(AVCodecContext *avctx,
++                                               MediaCodecDecContext *s,
++                                               int pcm_format)
++{
++    int i;
++    enum AVSampleFormat ret = AV_SAMPLE_FMT_NONE;
++
++    for (i = 0; i < FF_ARRAY_ELEMS(sample_formats); i++) {
++        if (sample_formats[i].pcm_format == pcm_format) {
++            return sample_formats[i].sample_format;
++        }
++    }
++
++    av_log(avctx, AV_LOG_ERROR, "Output sample format 0x%x (value=%d) is not supported\n",
++           pcm_format, pcm_format);
++
++    return ret;
++}
++
++enum
++{
++  CHANNEL_OUT_FRONT_LEFT                 = 0x4,
++  CHANNEL_OUT_FRONT_RIGHT                = 0x8,
++  CHANNEL_OUT_FRONT_CENTER               = 0x10,
++  CHANNEL_OUT_LOW_FREQUENCY              = 0x20,
++  CHANNEL_OUT_BACK_LEFT                  = 0x40,
++  CHANNEL_OUT_BACK_RIGHT                 = 0x80,
++  CHANNEL_OUT_FRONT_LEFT_OF_CENTER       = 0x100,
++  CHANNEL_OUT_FRONT_RIGHT_OF_CENTER      = 0x200,
++  CHANNEL_OUT_BACK_CENTER                = 0x400,
++  CHANNEL_OUT_SIDE_LEFT                  = 0x800,
++  CHANNEL_OUT_SIDE_RIGHT                 = 0x1000,
++  CHANNEL_OUT_TOP_CENTER                 = 0x2000,
++  CHANNEL_OUT_TOP_FRONT_LEFT             = 0x4000,
++  CHANNEL_OUT_TOP_FRONT_CENTER           = 0x8000,
++  CHANNEL_OUT_TOP_FRONT_RIGHT            = 0x10000,
++  CHANNEL_OUT_TOP_BACK_LEFT              = 0x20000,
++  CHANNEL_OUT_TOP_BACK_CENTER            = 0x40000,
++  CHANNEL_OUT_TOP_BACK_RIGHT             = 0x80000,
++};
++
++static const struct {
++
++    int mask;
++    uint64_t layout;
++
++} channel_masks[] = {
++    { CHANNEL_OUT_FRONT_LEFT,            AV_CH_FRONT_LEFT },
++    { CHANNEL_OUT_FRONT_RIGHT,           AV_CH_FRONT_RIGHT },
++    { CHANNEL_OUT_FRONT_CENTER,          AV_CH_FRONT_CENTER },
++    { CHANNEL_OUT_LOW_FREQUENCY,         AV_CH_LOW_FREQUENCY },
++    { CHANNEL_OUT_BACK_LEFT,             AV_CH_BACK_LEFT },
++    { CHANNEL_OUT_BACK_RIGHT,            AV_CH_BACK_RIGHT },
++    { CHANNEL_OUT_FRONT_LEFT_OF_CENTER,  AV_CH_FRONT_LEFT_OF_CENTER },
++    { CHANNEL_OUT_FRONT_RIGHT_OF_CENTER, AV_CH_FRONT_RIGHT_OF_CENTER },
++    { CHANNEL_OUT_BACK_CENTER,           AV_CH_BACK_CENTER },
++    { CHANNEL_OUT_SIDE_LEFT,             AV_CH_SIDE_LEFT },
++    { CHANNEL_OUT_SIDE_RIGHT,            AV_CH_SIDE_RIGHT },
++    { CHANNEL_OUT_TOP_CENTER,            AV_CH_TOP_CENTER },
++    { CHANNEL_OUT_TOP_FRONT_LEFT,        AV_CH_TOP_FRONT_LEFT },
++    { CHANNEL_OUT_TOP_FRONT_CENTER,      AV_CH_TOP_FRONT_CENTER },
++    { CHANNEL_OUT_TOP_FRONT_RIGHT,       AV_CH_TOP_FRONT_RIGHT },
++    { CHANNEL_OUT_TOP_BACK_LEFT,         AV_CH_TOP_BACK_LEFT },
++    { CHANNEL_OUT_TOP_BACK_CENTER,       AV_CH_TOP_BACK_CENTER },
++    { CHANNEL_OUT_TOP_BACK_RIGHT,        AV_CH_TOP_BACK_RIGHT },
++};
++
++static uint64_t mcdec_map_channel_mask(AVCodecContext *avctx,
++                                       int channel_mask)
++{
++    int i;
++    uint64_t channel_layout = 0;
++
++    for (i = 0; i < FF_ARRAY_ELEMS(channel_masks); i++) {
++        if (channel_mask & channel_masks[i].mask)
++            channel_layout |= channel_masks[i].layout;
++    }
++
++    return channel_layout;
++}
++
+ enum {
+     COLOR_FormatYUV420Planar                              = 0x13,
+     COLOR_FormatYUV420SemiPlanar                          = 0x15,
+@@ -265,13 +371,77 @@ fail:
+     return ret;
+ }
+ 
+-static int mediacodec_wrap_sw_buffer(AVCodecContext *avctx,
+-                                  MediaCodecDecContext *s,
+-                                  uint8_t *data,
+-                                  size_t size,
+-                                  ssize_t index,
+-                                  FFAMediaCodecBufferInfo *info,
+-                                  AVFrame *frame)
++static int mediacodec_wrap_sw_audio_buffer(AVCodecContext *avctx,
++                                           MediaCodecDecContext *s,
++                                           uint8_t *data,
++                                           size_t size,
++                                           ssize_t index,
++                                           FFAMediaCodecBufferInfo *info,
++                                           AVFrame *frame)
++{
++    int ret = 0;
++    int status = 0;
++    const int sample_size = av_get_bytes_per_sample(avctx->sample_fmt);
++    if (!sample_size) {
++        av_log(avctx, AV_LOG_ERROR, "Could not get bytes per sample\n");
++        goto done;
++    }
++
++    frame->format = avctx->sample_fmt;
++    frame->sample_rate = avctx->sample_rate;
++    frame->nb_samples = info->size / (sample_size * avctx->ch_layout.nb_channels);
++
++    ret = av_channel_layout_copy(&frame->ch_layout, &avctx->ch_layout);
++    if (ret < 0) {
++        av_log(avctx, AV_LOG_ERROR, "Could not copy channel layout\n");
++        goto done;
++    }
++
++    /* MediaCodec buffers needs to be copied to our own refcounted buffers
++     * because the flush command invalidates all input and output buffers.
++     */
++    if ((ret = ff_get_buffer(avctx, frame, 0)) < 0) {
++        av_log(avctx, AV_LOG_ERROR, "Could not allocate buffer\n");
++        goto done;
++    }
++
++    /* Override frame->pts as ff_get_buffer will override its value based
++     * on the last avpacket received which is not in sync with the frame:
++     *   * N avpackets can be pushed before 1 frame is actually returned
++     *   * 0-sized avpackets are pushed to flush remaining frames at EOS */
++    if (avctx->pkt_timebase.num && avctx->pkt_timebase.den) {
++        frame->pts = av_rescale_q(info->presentationTimeUs,
++                                      AV_TIME_BASE_Q,
++                                      avctx->pkt_timebase);
++    } else {
++        frame->pts = info->presentationTimeUs;
++    }
++    frame->pkt_dts = AV_NOPTS_VALUE;
++
++    av_log(avctx, AV_LOG_TRACE,
++           "Frame: format=%d channels=%d sample_rate=%d nb_samples=%d",
++           avctx->sample_fmt, avctx->ch_layout.nb_channels, avctx->sample_rate, frame->nb_samples);
++
++    memcpy(frame->data[0], data, info->size);
++
++    ret = 0;
++done:
++    status = ff_AMediaCodec_releaseOutputBuffer(s->codec, index, 0);
++    if (status < 0) {
++        av_log(avctx, AV_LOG_ERROR, "Failed to release output buffer\n");
++        ret = AVERROR_EXTERNAL;
++    }
++
++    return ret;
++}
++
++static int mediacodec_wrap_sw_video_buffer(AVCodecContext *avctx,
++                                           MediaCodecDecContext *s,
++                                           uint8_t *data,
++                                           size_t size,
++                                           ssize_t index,
++                                           FFAMediaCodecBufferInfo *info,
++                                           AVFrame *frame)
+ {
+     int ret = 0;
+     int status = 0;
+@@ -343,6 +513,22 @@ done:
+     return ret;
+ }
+ 
++static int mediacodec_wrap_sw_buffer(AVCodecContext *avctx,
++                                     MediaCodecDecContext *s,
++                                     uint8_t *data,
++                                     size_t size,
++                                     ssize_t index,
++                                     FFAMediaCodecBufferInfo *info,
++                                     AVFrame *frame)
++{
++    if (avctx->codec_type == AVMEDIA_TYPE_AUDIO)
++        return mediacodec_wrap_sw_audio_buffer(avctx, s, data, size, index, info, frame);
++    else if (avctx->codec_type == AVMEDIA_TYPE_VIDEO)
++        return mediacodec_wrap_sw_video_buffer(avctx, s, data, size, index, info, frame);
++    else
++        av_assert0(0);
++}
++
+ #define AMEDIAFORMAT_GET_INT32(name, key, mandatory) do {                              \
+     int32_t value = 0;                                                                 \
+     if (ff_AMediaFormat_getInt32(s->format, key, &value)) {                            \
+@@ -354,7 +540,7 @@ done:
+     }                                                                                  \
+ } while (0)                                                                            \
+ 
+-static int mediacodec_dec_parse_format(AVCodecContext *avctx, MediaCodecDecContext *s)
++static int mediacodec_dec_parse_video_format(AVCodecContext *avctx, MediaCodecDecContext *s)
+ {
+     int ret = 0;
+     int width = 0;
+@@ -463,6 +649,63 @@ fail:
+     return ret;
+ }
+ 
++static int mediacodec_dec_parse_audio_format(AVCodecContext *avctx, MediaCodecDecContext *s)
++{
++    int ret = 0;
++    int sample_rate = 0;
++    int channel_count = 0;
++    int channel_mask = 0;
++    int pcm_encoding = 0;
++    char *format = NULL;
++
++    if (!s->format) {
++        av_log(avctx, AV_LOG_ERROR, "Output MediaFormat is not set\n");
++        return AVERROR(EINVAL);
++    }
++
++    format = ff_AMediaFormat_toString(s->format);
++    if (!format) {
++        return AVERROR_EXTERNAL;
++    }
++    av_log(avctx, AV_LOG_DEBUG, "Parsing MediaFormat %s\n", format);
++
++    /* Mandatory fields */
++    AMEDIAFORMAT_GET_INT32(channel_count, "channel-count", 1);
++    AMEDIAFORMAT_GET_INT32(sample_rate,   "sample-rate",   1);
++
++    AMEDIAFORMAT_GET_INT32(pcm_encoding, "pcm-encoding", 0);
++    if (pcm_encoding)
++        avctx->sample_fmt  = mcdec_map_pcm_format(avctx, s, pcm_encoding);
++    else
++        avctx->sample_fmt = AV_SAMPLE_FMT_S16;
++
++    avctx->sample_rate = sample_rate;
++
++    AMEDIAFORMAT_GET_INT32(channel_mask, "channel-mask", 0);
++    if (channel_mask)
++        av_channel_layout_from_mask(&avctx->ch_layout, mcdec_map_channel_mask(avctx, channel_mask));
++    else
++        av_channel_layout_default(&avctx->ch_layout, channel_count);
++
++    av_log(avctx, AV_LOG_INFO,
++        "Output parameters channel-count=%d channel-layout=%x sample-rate=%d\n",
++        channel_count, channel_mask, sample_rate);
++
++fail:
++    av_freep(&format);
++    return ret;
++}
++
++static int mediacodec_dec_parse_format(AVCodecContext *avctx, MediaCodecDecContext *s)
++{
++    if (avctx->codec_type == AVMEDIA_TYPE_AUDIO)
++        return mediacodec_dec_parse_audio_format(avctx, s);
++    else if (avctx->codec_type == AVMEDIA_TYPE_VIDEO)
++        return mediacodec_dec_parse_video_format(avctx, s);
++    else
++        av_assert0(0);
++}
++
+ static int mediacodec_dec_flush_codec(AVCodecContext *avctx, MediaCodecDecContext *s)
+ {
+     FFAMediaCodec *codec = s->codec;
+@@ -486,11 +729,9 @@ static int mediacodec_dec_flush_codec(AVCodecContext *avctx, MediaCodecDecContex
+     return 0;
+ }
+ 
+-int ff_mediacodec_dec_init(AVCodecContext *avctx, MediaCodecDecContext *s,
+-                           const char *mime, FFAMediaFormat *format)
++static int mediacodec_dec_get_video_codec(AVCodecContext *avctx, MediaCodecDecContext *s,
++                                          const char *mime, FFAMediaFormat *format)
+ {
+-    int ret = 0;
+-    int status;
+     int profile;
+ 
+     enum AVPixelFormat pix_fmt;
+@@ -499,12 +740,6 @@ int ff_mediacodec_dec_init(AVCodecContext *avctx, MediaCodecDecContext *s,
+         AV_PIX_FMT_NONE,
+     };
+ 
+-    s->avctx = avctx;
+-    atomic_init(&s->refcount, 1);
+-    atomic_init(&s->hw_buffer_count, 0);
+-    atomic_init(&s->serial, 1);
+-    s->current_input_buffer = -1;
+-
+     pix_fmt = ff_get_format(avctx, pix_fmts);
+     if (pix_fmt == AV_PIX_FMT_MEDIACODEC) {
+         AVMediaCodecContext *user_ctx = avctx->hwaccel_context;
+@@ -536,8 +771,7 @@ int ff_mediacodec_dec_init(AVCodecContext *avctx, MediaCodecDecContext *s,
+         // getCodecNameByType() can fail due to missing JVM, while NDK
+         // mediacodec can be used without JVM.
+         if (!s->use_ndk_codec) {
+-            ret = AVERROR_EXTERNAL;
+-            goto fail;
++            return AVERROR_EXTERNAL;
+         }
+         av_log(avctx, AV_LOG_INFO, "Failed to getCodecNameByType\n");
+     } else {
+@@ -556,10 +790,51 @@ int ff_mediacodec_dec_init(AVCodecContext *avctx, MediaCodecDecContext *s,
+     }
+     if (!s->codec) {
+         av_log(avctx, AV_LOG_ERROR, "Failed to create media decoder for type %s and name %s\n", mime, s->codec_name);
+-        ret = AVERROR_EXTERNAL;
+-        goto fail;
++        return AVERROR_EXTERNAL;
+     }
+ 
++    return 0;
++}
++
++static int mediacodec_dec_get_audio_codec(AVCodecContext *avctx, MediaCodecDecContext *s,
++                                          const char *mime, FFAMediaFormat *format)
++{
++    s->codec = ff_AMediaCodec_createDecoderByType(mime, s->use_ndk_codec);
++    if (!s->codec) {
++        av_log(avctx, AV_LOG_ERROR, "Failed to create media decoder for mime %s\n", mime);
++        return AVERROR_EXTERNAL;
++    }
++
++    s->codec_name = ff_AMediaCodec_getName(s->codec);
++    if (!s->codec_name) {
++        av_log(avctx, AV_LOG_ERROR, "Failed to get codec name");
++        return AVERROR_EXTERNAL;
++    }
++
++    return 0;
++}
++
++int ff_mediacodec_dec_init(AVCodecContext *avctx, MediaCodecDecContext *s,
++                           const char *mime, FFAMediaFormat *format)
++{
++    int ret;
++    int status;
++
++    s->avctx = avctx;
++    atomic_init(&s->refcount, 1);
++    atomic_init(&s->hw_buffer_count, 0);
++    atomic_init(&s->serial, 1);
++    s->current_input_buffer = -1;
++
++    if (avctx->codec_type == AVMEDIA_TYPE_AUDIO)
++        ret = mediacodec_dec_get_audio_codec(avctx, s, mime, format);
++    else if (avctx->codec_type == AVMEDIA_TYPE_VIDEO)
++        ret = mediacodec_dec_get_video_codec(avctx, s, mime, format);
++    else
++        av_assert0(0);
++    if (ret < 0)
++        goto fail;
++
+     status = ff_AMediaCodec_configure(s->codec, format, s->surface, NULL, 0);
+     if (status < 0) {
+         char *desc = ff_AMediaFormat_toString(format);
+@@ -583,12 +858,14 @@ int ff_mediacodec_dec_init(AVCodecContext *avctx, MediaCodecDecContext *s,
+         goto fail;
+     }
+ 
+-    s->format = ff_AMediaCodec_getOutputFormat(s->codec);
+-    if (s->format) {
+-        if ((ret = mediacodec_dec_parse_format(avctx, s)) < 0) {
+-            av_log(avctx, AV_LOG_ERROR,
+-                "Failed to configure context\n");
+-            goto fail;
++    if (avctx->codec_type == AVMEDIA_TYPE_VIDEO) {
++        s->format = ff_AMediaCodec_getOutputFormat(s->codec);
++        if (s->format) {
++            if ((ret = mediacodec_dec_parse_format(avctx, s)) < 0) {
++                av_log(avctx, AV_LOG_ERROR,
++                    "Failed to configure context\n");
++                goto fail;
++            }
+         }
+     }
+ 
+@@ -603,8 +880,9 @@ fail:
+ }
+ 
+ int ff_mediacodec_dec_send(AVCodecContext *avctx, MediaCodecDecContext *s,
+-                           AVPacket *pkt, bool wait)
++                           AVPacket *pkt, bool wait, bool codec_config)
+ {
++    uint32_t flags = 0;
+     int offset = 0;
+     int need_draining = 0;
+     uint8_t *data;
+@@ -659,8 +937,11 @@ int ff_mediacodec_dec_send(AVCodecContext *avctx, MediaCodecDecContext *s,
+             pts = av_rescale_q(pts, avctx->pkt_timebase, AV_TIME_BASE_Q);
+         }
+ 
++        if (pts < 0)
++            pts = 0;
++
+         if (need_draining) {
+-            uint32_t flags = ff_AMediaCodec_getBufferFlagEndOfStream(codec);
++            flags = ff_AMediaCodec_getBufferFlagEndOfStream(codec);
+ 
+             av_log(avctx, AV_LOG_DEBUG, "Sending End Of Stream signal\n");
+ 
+@@ -677,11 +958,13 @@ int ff_mediacodec_dec_send(AVCodecContext *avctx, MediaCodecDecContext *s,
+             return 0;
+         }
+ 
++        flags = codec_config ? ff_AMediaCodec_getBufferFlagCodecConfig(codec) : 0;
++
+         size = FFMIN(pkt->size - offset, size);
+         memcpy(data, pkt->data + offset, size);
+         offset += size;
+ 
+-        status = ff_AMediaCodec_queueInputBuffer(codec, index, 0, size, pts, 0);
++        status = ff_AMediaCodec_queueInputBuffer(codec, index, 0, size, pts, flags);
+         if (status < 0) {
+             av_log(avctx, AV_LOG_ERROR, "Failed to queue input buffer (status = %d)\n", status);
+             return AVERROR_EXTERNAL;
+diff --git a/libavcodec/mediacodecdec_common.h b/libavcodec/mediacodecdec_common.h
+index 0ab29036bd..e270f70c18 100644
+--- a/libavcodec/mediacodecdec_common.h
++++ b/libavcodec/mediacodecdec_common.h
+@@ -81,7 +81,8 @@ int ff_mediacodec_dec_init(AVCodecContext *avctx,
+ int ff_mediacodec_dec_send(AVCodecContext *avctx,
+                            MediaCodecDecContext *s,
+                            AVPacket *pkt,
+-                           bool wait);
++                           bool wait,
++                           bool codec_config);
+ 
+ int ff_mediacodec_dec_receive(AVCodecContext *avctx,
+                               MediaCodecDecContext *s,
+-- 
+2.39.3 (Apple Git-146)
+
