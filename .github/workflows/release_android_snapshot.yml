@@ -1,0 +1,39 @@
+name: Release Android snapshots
+on:
+  push:
+    branches:
+      - mojo
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt -y update
+          sudo apt -y install meson ninja-build nasm pkg-config
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Android
+        uses: android-actions/setup-android@00854ea68c109d98c75d956347303bf7c45b0277 # v3
+
+      - name: Install NDK
+        run: sdkmanager --install "ndk;26.1.10909125"
+      
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@417ae3ccd767c252f5661f1ace9f835f9654f2b5 # v3.1.0
+
+      - name: Release library
+        run: ./android/release.sh
+        env:
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/26.1.10909125
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
