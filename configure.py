@@ -689,6 +689,9 @@ def _ffmpeg_setup(cfg):
             f"--sysroot={cfg.ios_sdk}",
         ]
 
+    if cfg.args.build_id:
+        extra_ldflags += " -Wl,--build-id"
+
     return [
         f"cd {builddir} && "
         + _cmd_join(
@@ -1370,6 +1373,8 @@ class _Config:
             env["PKG_CONFIG_ALLOW_SYSTEM_LIBS"] = "1"
             env["PKG_CONFIG_ALLOW_SYSTEM_CFLAGS"] = "1"
             env["CMAKE_PREFIX_PATH"] = op.join(self.prefix, "cmake")
+        if self.args.build_id:
+            env["LDFLAGS"] = "-Wl,--build-id"
         return env
 
 
@@ -1451,6 +1456,11 @@ def _run():
         choices=_CPU_FAMILIES,
         default="aarch64",
         help="Cross compilation host machine architecture",
+    )
+    parser.add_argument(
+        "--build-id",
+        action=argparse.BooleanOptionalAction,
+        help="Enable GNU build IDs",
     )
 
     args = parser.parse_args()
