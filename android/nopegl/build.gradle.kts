@@ -1,9 +1,48 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("nopegl-nodes")
+    `maven-publish`
+}
+
+afterEvaluate {
+    val url = "https://github.com/Archery-Inc/nope.gl"
+    val gitUrl = "https://github.com/Archery-Inc/nope.gl.git"
+    val version = rootProject.file("../VERSION").readText().trim()
+    publishing {
+        publications {
+            register<MavenPublication>("release") {
+
+                groupId = "org.nopeforge.nopegl"
+                artifactId = "android"
+                this.version = System.getenv("RELEASE_TAG_NAME") ?: ("$version-SNAPSHOT")
+                pom {
+                    name = artifactId
+                    description = "Android bindings for nope.gl"
+                    this.url = url
+                    scm {
+                        connection = gitUrl
+                        developerConnection = gitUrl
+                        this.url = url
+                    }
+                }
+                from(components["release"])
+            }
+        }
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                setUrl("https://maven.pkg.github.com/Archery-Inc/nope.gl")
+                credentials {
+                    val githubUsername: String? by project
+                    val githubToken: String? by project
+                    username = githubUsername ?: System.getenv("GITHUB_ACTOR")
+                    password = githubToken ?: System.getenv("GITHUB_TOKEN")
+                }
+            }
+        }
+    }
+
 }
 
 android {
@@ -82,6 +121,14 @@ android {
     }
     // Add dependency for MockContentResolver
     useLibrary("android.test.mock")
+
+    publishing {
+        multipleVariants("release") {
+            allVariants()
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
 }
 
 dependencies {
