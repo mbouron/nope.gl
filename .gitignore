@@ -1,4 +1,5 @@
 /Makefile
+/Makefile.*
 appimage
 builddir
 external
