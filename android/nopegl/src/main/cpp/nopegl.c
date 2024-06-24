@@ -486,7 +486,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetDict(JNIEnv *e
     assert(key_str);
     assert(name_str);
 
-    int ret = ngl_node_param_set_dict(node, key_str, name, value_node);
+    int ret = ngl_node_param_set_dict(node, key_str, name_str, value_node);
 
     (*env)->ReleaseStringUTFChars(env, key, key_str);
     (*env)->ReleaseStringUTFChars(env, name, name_str);
