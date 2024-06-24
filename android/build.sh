@@ -14,7 +14,7 @@ debug_opts=""
 case $opt in
     "debug")
         buildtype="debug"
-        debug_opts="gl vk meme scene"
+        debug_opts="gl vk mem scene"
         graddle_rule="assembleDebug"
     ;;
     "release")
@@ -40,7 +40,7 @@ fi
 
 archs="arm aarch64 x86_64"
 for arch in $archs; do
-    python configure.py --buildtype "$buildtype" -d "$debug_opts" --build-id --host Android --host-arch "$arch"
+    python configure.py --buildtype "$buildtype" -d $debug_opts --build-id --host Android --host-arch "$arch"
     make -f "Makefile.Android.$arch"
 done
 
