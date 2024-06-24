@@ -419,14 +419,14 @@ DECLARE_SET_TYPE_FUNC(struct ngl_node *, Long, node)
     {                                                                                               \
         struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;                           \
         const char *key_str   = (*env)->GetStringUTFChars(env, key, 0);                             \
-        const char *flags_str = (*env)->GetStringUTFChars(env, value, 0);                           \
+        const char *value_str = (*env)->GetStringUTFChars(env, value, 0);                           \
         assert(key_str);                                                                            \
-        assert(flags_str);                                                                          \
+        assert(value_str);                                                                          \
                                                                                                     \
-        int ret = ngl_node_param_set_##name(node, key_str, flags_str);                              \
+        int ret = ngl_node_param_set_##name(node, key_str, value_str);                              \
                                                                                                     \
         (*env)->ReleaseStringUTFChars(env, key, key_str);                                           \
-        (*env)->ReleaseStringUTFChars(env, value, flags_str);                                       \
+        (*env)->ReleaseStringUTFChars(env, value, value_str);                                       \
                                                                                                     \
         return ret;                                                                                 \
     }
