@@ -739,7 +739,6 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeInitFromString(
     jmethodID set_id = (*env)->GetMethodID(env, cls, "setFields", "(DIIII)V");
 
     const struct ngl_scene_params *p = ngl_scene_get_params(s);
-    __android_log_print(ANDROID_LOG_ERROR, "XXX", "duration=%f", p->duration);
     (*env)->CallVoidMethod(env, thiz, set_id, p->duration, p->framerate[0], p->framerate[1], p->aspect_ratio[0], p->aspect_ratio[1]);
 
     return (jlong)s;
