@@ -376,10 +376,11 @@ def scene(controls: Optional[Dict[str, Any]] = None, compat_specs: Optional[str]
             if scene_cfg.backend == Backend.AUTO:
                 scene_cfg.backend = next(k for k, v in get_backends().items() if v["is_default"])
 
-            # Provide the capabilities of the selected backend
+            # Provide the capabilities of the selected backend if available
             if scene_cfg.caps is None:
                 backends = probe_backends()
-                scene_cfg.caps = backends[scene_cfg.backend]["caps"]
+                if scene_cfg.backend in backends:
+                    scene_cfg.caps = backends[scene_cfg.backend]["caps"]
             else:
                 ref_set = set(cap.value for cap in Cap)
                 usr_set = set(scene_cfg.caps.keys())
