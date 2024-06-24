@@ -241,4 +241,43 @@ class NopeGLTest {
         )
         assertEquals(ret, true)
     }
+
+    @Test
+    fun customShaders() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val vertex = """
+void main() {
+    ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+    var_tex0_coord = (tex0_coord_matrix * vec4(ngl_uvcoord, 0.0, 1.0)).xy;
+}
+"""
+        val fragment = """
+void main() {
+    ngl_out_color = ngl_texvideo(tex0, var_tex0_coord);
+}
+"""
+
+        val filename = "content://%s/medias%s".format(
+            NGLContentProvider.AUTHORITY,
+            getAssetPath(appContext, "cat.mp4")
+        )
+        val media = NGLMedia(filename)
+        val texture = NGLTexture2D(dataSrc = media)
+        val quad = NGLQuad(NGLVec3(-1f, -1f, 0f), NGLVec3(2f, 0f, 0f), NGLVec3(0f, 2f, 0f))
+        val program = NGLProgram(vertex = vertex, fragment = fragment)
+        program.setVertOutVars(mapOf("var_tex0_coord" to NGLIOVec2()))
+        val draw = NGLDraw(quad, program)
+        draw.setFragResources(mapOf("tex0" to texture))
+        val scene = NGLScene(rootNode = draw, duration = 2.0)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
+            setScene(scene)
+        }
+
+        val ret = ctx.draw(0.0)
+        assertEquals(ret, 0)
+
+        ctx.finalize()
+    }
 }
