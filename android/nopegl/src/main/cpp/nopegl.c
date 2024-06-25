@@ -44,6 +44,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 
 static void av_android_log(void *arg, int level, const char *fmt, va_list vl)
 {
+    int current_level = av_log_get_level();
+    if (level > current_level)
+        return;
     static const int levels[] = {
         [AV_LOG_TRACE]   = ANDROID_LOG_VERBOSE,
         [AV_LOG_VERBOSE] = ANDROID_LOG_VERBOSE,
