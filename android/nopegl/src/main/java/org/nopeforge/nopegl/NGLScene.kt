@@ -59,6 +59,8 @@ class NGLScene {
         val ret = nativeAddLiveControls(nativePtr)
         if (ret < 0)
             throw Exception()
+
+        setFields(duration, frameRate.num, frameRate.den, aspectRatio.num, aspectRatio.den)
     }
 
     private fun setFields(duration : Double, frameRateNum : Int, framerateDen: Int, aspectRatioNum: Int, aspectRatioDen: Int) {
