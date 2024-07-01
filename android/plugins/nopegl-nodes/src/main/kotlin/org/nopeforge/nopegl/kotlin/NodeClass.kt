@@ -21,15 +21,9 @@
 
 package org.nopeforge.nopegl.kotlin
 
-import com.squareup.kotlinpoet.ClassName
-import com.squareup.kotlinpoet.CodeBlock
-import com.squareup.kotlinpoet.FileSpec
-import com.squareup.kotlinpoet.FunSpec
-import com.squareup.kotlinpoet.ParameterSpec
+import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
-import com.squareup.kotlinpoet.TypeSpec
-import com.squareup.kotlinpoet.asClassName
-import com.squareup.kotlinpoet.asTypeName
+import org.gradle.caching.MapBasedBuildCacheService
 import org.nopeforge.nopegl.NGLData
 import org.nopeforge.nopegl.NGLIVec2
 import org.nopeforge.nopegl.NGLIVec3
@@ -131,30 +125,77 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                             parameter.name,
                             param.nullable,
                             param.canBeNode
-                        )?.let {
+                        ).let {
                             add(it)
                         }
                     }
                 }
                 .build()
-        ).addFunctions(parameterSpecs.mapNotNull { (param, parameter) ->
-            kotlinSetCall(
-                param.type,
-                param.name,
-                parameter.name,
-                false,
-                param.canBeNode
-            )?.let { setCall ->
-                FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
-                    .addParameter(
-                        parameter
-                            .toBuilder(type = parameter.type.copy(nullable = false))
-                            .defaultValue(null)
-                            .build()
-                    )
-                    .addCode(setCall)
-                    .build()
-            }
+        ).addFunctions(parameterSpecs.flatMap { (param, parameter) ->
+            val block = kotlinSetCall(
+                typeName = param.type,
+                name = param.name,
+                kotlinName = parameter.name,
+                nullable = false,
+                canBeNode = param.canBeNode
+            )
+            listOfNotNull(
+                block.let { setCall ->
+                    FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
+                        .addParameter(
+                            parameter
+                                .toBuilder(type = parameter.type.copy(nullable = false))
+                                .defaultValue(null)
+                                .build()
+                        )
+                        .addCode(setCall)
+                        .build()
+                },
+                when (param.type) {
+                    TypeName.NodeDict -> {
+                        block.let { setCall ->
+                            FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
+                                .addParameter(
+                                    ParameterSpec
+                                        .builder(
+                                            "pairs",
+                                            Pair::class.asTypeName().parameterizedBy(
+                                                String::class.asTypeName(),
+                                                NGLNode::class.asTypeName()
+                                            ),
+                                            KModifier.VARARG
+                                        )
+                                        .build()
+                                )
+                                .addCode(CodeBlock.builder()
+                                    .addStatement("val ${parameter.name} = pairs.toMap()")
+                                    .add(setCall)
+                                    .build())
+                                .build()
+                        }
+                    }
+                    TypeName.NodeList -> {
+                        block.let { setCall ->
+                            FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
+                                .addParameter(
+                                    ParameterSpec
+                                        .builder(
+                                            "nodes",
+                                            NGLNode::class.asTypeName(),
+                                            KModifier.VARARG
+                                        )
+                                        .build()
+                                )
+                                .addCode(CodeBlock.builder()
+                                    .addStatement("val ${parameter.name} = nodes.toList()")
+                                    .add(setCall)
+                                    .build())
+                                .build()
+                        }
+                    }
+                    else -> null
+                },
+            )
         })
         .build()
 }
@@ -165,7 +206,7 @@ private fun kotlinSetCall(
     kotlinName: String,
     nullable: Boolean,
     canBeNode: Boolean,
-): CodeBlock? {
+): CodeBlock {
     val propertyAccessor = if (canBeNode) {
         "$kotlinName.${NGLNodeOrValue.Value<*>::value.name}"
     } else {
@@ -216,7 +257,7 @@ private fun kotlinSetCall(
             name
         )
     }
-    return setBlock?.let {
+    return setBlock.let {
         val block = CodeBlock.builder().apply {
             if (canBeNode) {
                 beginControlFlow("when ($kotlinName) {")
@@ -294,16 +335,14 @@ private fun NodeClass.Parameter.toKotlinParameter(choiceEnums: Map<String, Choic
         TypeName.Rational -> NGLRational::class.asTypeName()
     }
 
-    return ParameterSpec.builder(
-        parameterName, if (canBeNode) {
-            NGLNodeOrValue::class.asTypeName().parameterizedBy(typeName)
-        } else {
-            typeName
-        }.copy(nullable = nullable)
-    ).apply {
+    val type = if (canBeNode) {
+        NGLNodeOrValue::class.asTypeName().parameterizedBy(typeName)
+    } else {
+        typeName
+    }
+    return ParameterSpec.builder(parameterName, type.copy(nullable = nullable)).apply {
         if (nullable) {
             defaultValue("null")
         }
     }.build()
 }
-
