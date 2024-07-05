@@ -178,6 +178,7 @@ static const struct {
     {"height",        JNI_TYPE_INT,         OFFSET(height)         },
     {"samples",       JNI_TYPE_INT,         OFFSET(samples)        },
     {"swapInterval",  JNI_TYPE_INT,         OFFSET(swap_interval)  },
+    {"disableDepth",  JNI_TYPE_INT,         OFFSET(disable_depth)  },
     {"setSurfacePts", JNI_TYPE_BOOL,        OFFSET(set_surface_pts)},
     {"clearColor",    JNI_TYPE_FLOAT_ARRAY, OFFSET(clear_color)    },
     {"captureBuffer", JNI_TYPE_BYTE_BUFFER, OFFSET(capture_buffer) },

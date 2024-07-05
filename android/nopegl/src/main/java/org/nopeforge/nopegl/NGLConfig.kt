@@ -39,6 +39,8 @@ class NGLConfig {
     @JvmField
     var swapInterval : Int = -1
     @JvmField
+    var disableDepth : Int = 0
+    @JvmField
     var setSurfacePts : Boolean = false
     @JvmField
     var clearColor: FloatArray = FloatArray(4)
