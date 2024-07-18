@@ -26,13 +26,13 @@ class MockContext(private val contentResolver: ContentResolver, base: Context?) 
 @RunWith(AndroidJUnit4::class)
 class NopeGLTest {
     private fun createContext(backend: Int): NGLContext {
-        val config = NGLConfig()
-        config.backend = backend
-        config.offscreen = true
-        config.width = 256
-        config.height = 256
-        config.clearColor = floatArrayOf(1.0F, 1.0F, 0.0F, 1.0F)
-
+        val config = NGLConfig.Builder
+            .setBackend(backend)
+            .setOffscreen(true)
+            .setWidth(256)
+            .setHeight(256)
+            .setClearColor(floatArrayOf(1.0F, 1.0F, 0.0F, 1.0F))
+            .build()
         val ctx = NGLContext()
         val ret = ctx.configure(config)
         assertEquals(ret, 0)
@@ -166,8 +166,11 @@ class NopeGLTest {
             ),
             timeAnim = NGLAnimatedTime(keyFrames),
         )
-        val texture2DNode =
-            NGLTexture2D(dataSrc = mediaNode, minFilter = NGLFilter.Nearest, magFilter = NGLFilter.Nearest)
+        val texture2DNode = NGLTexture2D(
+            dataSrc = mediaNode,
+            minFilter = NGLFilter.Nearest,
+            magFilter = NGLFilter.Nearest
+        )
         val transform = NGLTransform(
             child = texture2DNode,
             matrix = NGLNodeOrValue.node(NGLUniformMat4(liveId = "reframing_matrix"))

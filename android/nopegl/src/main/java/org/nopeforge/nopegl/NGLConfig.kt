@@ -23,33 +23,139 @@ package org.nopeforge.nopegl
 
 import java.nio.ByteBuffer
 
-class NGLConfig {
+class NGLConfig(
     @JvmField
-    var backend : Int = 0
+    val backend: Int = 0,
     @JvmField
-    var window: Long = 0
+    val window: Long = 0,
     @JvmField
-    var offscreen : Boolean = false
+    val offscreen: Boolean = false,
     @JvmField
-    var width : Int = 0
+    val width: Int = 0,
     @JvmField
-    var height : Int = 0
+    val height: Int = 0,
     @JvmField
-    var samples : Int = 0
+    val samples: Int = 0,
     @JvmField
-    var swapInterval : Int = -1
+    val swapInterval: Int = -1,
     @JvmField
-    var disableDepth : Int = 0
+    val disableDepth: Int = 0,
     @JvmField
-    var setSurfacePts : Boolean = false
+    val setSurfacePts: Boolean = false,
     @JvmField
-    var clearColor: FloatArray = FloatArray(4)
+    val clearColor: FloatArray = FloatArray(4),
     @JvmField
-    var captureBuffer: ByteBuffer? = null
+    val captureBuffer: ByteBuffer? = null,
     @JvmField
-    var hud : Boolean = false
+    val hud: Boolean = false,
     @JvmField
-    var hudScale : Int = 1
+    val hudScale: Int = 1,
+) {
+
+    object Builder {
+        private var backend: Int = 0
+        private var window: Long = 0
+        private var offscreen: Boolean = false
+        private var width: Int = 0
+        private var height: Int = 0
+        private var samples: Int = 0
+        private var swapInterval: Int = -1
+        private var disableDepth: Int = 0
+        private var setSurfacePts: Boolean = false
+        private var clearColor: FloatArray = FloatArray(4)
+        private var captureBuffer: ByteBuffer? = null
+        private var hud: Boolean = false
+        private var hudScale: Int = 1
+
+        fun setBackend(backend: Int): Builder {
+            this.backend = backend
+            return this
+        }
+
+        fun setWindow(window: Long): Builder {
+            this.window = window
+            return this
+        }
+
+        fun setOffscreen(offscreen: Boolean): Builder {
+            this.offscreen = offscreen
+            return this
+        }
+
+        fun setWidth(width: Int): Builder {
+            this.width = width
+            return this
+        }
+
+        fun setHeight(height: Int): Builder {
+            this.height = height
+            return this
+        }
+
+        fun setSamples(samples: Int): Builder {
+            this.samples = samples
+            return this
+        }
+
+        fun setSwapInterval(swapInterval: Int): Builder {
+            this.swapInterval = swapInterval
+            return this
+        }
+
+        fun setDisableDepth(disableDepth: Int): Builder {
+            this.disableDepth = disableDepth
+            return this
+        }
+
+        fun setSetSurfacePts(setSurfacePts: Boolean): Builder {
+            this.setSurfacePts = setSurfacePts
+            return this
+        }
+
+        fun setClearColor(clearColor: FloatArray): Builder {
+            this.clearColor = clearColor
+            return this
+        }
+
+        fun setClearColor(r: Float, g: Float, b: Float, a: Float): Builder {
+            this.clearColor = floatArrayOf(r, g, b, a)
+            return this
+        }
+
+        fun setCaptureBuffer(captureBuffer: ByteBuffer?): Builder {
+            this.captureBuffer = captureBuffer
+            return this
+        }
+
+        fun setHud(hud: Boolean): Builder {
+            this.hud = hud
+            return this
+        }
+
+        fun setHudScale(hudScale: Int): Builder {
+            this.hudScale = hudScale
+            return this
+        }
+
+        fun build(): NGLConfig {
+            val config = NGLConfig(
+                backend = backend,
+                window = window,
+                offscreen = offscreen,
+                width = width,
+                height = height,
+                samples = samples,
+                swapInterval = swapInterval,
+                disableDepth = disableDepth,
+                setSurfacePts = setSurfacePts,
+                clearColor = clearColor,
+                captureBuffer = captureBuffer,
+                hud = hud,
+                hudScale = hudScale,
+            )
+            return config
+        }
+    }
 
     companion object {
         const val BACKEND_AUTO = 0

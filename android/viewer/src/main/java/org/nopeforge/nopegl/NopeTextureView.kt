@@ -29,7 +29,6 @@ import android.os.Message
 import android.view.Choreographer
 import android.view.Surface
 import android.view.TextureView
-import timber.log.Timber
 
 
 class NopeTextureView(
@@ -166,12 +165,12 @@ class NopeTextureView(
         nativeWindow = NGLContext.createNativeWindow(Surface(surfaceTexture))
 
         ctx = NGLContext().apply {
-            val config = NGLConfig().apply {
-                window = nativeWindow
-                backend = NGLConfig.BACKEND_OPENGLES
-                clearColor = floatArrayOf(0f, 0f, 0f, 1f)
-                swapInterval = -1
-            }
+            val config = NGLConfig.Builder
+                .setWindow(nativeWindow)
+                .setBackend(NGLConfig.BACKEND_OPENGLES)
+                .setClearColor(0f, 0f, 0f, 1f)
+                .setSwapInterval(-1)
+                .build()
             configure(config)
         }
     }
