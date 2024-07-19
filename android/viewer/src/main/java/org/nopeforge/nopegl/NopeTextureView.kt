@@ -165,7 +165,7 @@ class NopeTextureView(
         nativeWindow = NGLContext.createNativeWindow(Surface(surfaceTexture))
 
         ctx = NGLContext().apply {
-            val config = NGLConfig.Builder
+            val config = NGLConfig.Builder()
                 .setWindow(nativeWindow)
                 .setBackend(NGLConfig.BACKEND_OPENGLES)
                 .setClearColor(0f, 0f, 0f, 1f)

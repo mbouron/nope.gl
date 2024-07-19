@@ -52,7 +52,7 @@ class NGLConfig(
     val hudScale: Int = 1,
 ) {
 
-    object Builder {
+    class Builder {
         private var backend: Int = 0
         private var window: Long = 0
         private var offscreen: Boolean = false

@@ -26,7 +26,7 @@ class MockContext(private val contentResolver: ContentResolver, base: Context?) 
 @RunWith(AndroidJUnit4::class)
 class NopeGLTest {
     private fun createContext(backend: Int): NGLContext {
-        val config = NGLConfig.Builder
+        val config = NGLConfig.Builder()
             .setBackend(backend)
             .setOffscreen(true)
             .setWidth(256)
