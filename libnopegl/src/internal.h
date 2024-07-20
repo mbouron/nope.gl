@@ -328,7 +328,10 @@ struct media_priv {
     struct nmd_ctx *player;
     struct nmd_frame *frame;
     size_t nb_parents;
+    double start_time;
+    double end_time;
     int prefetched;
+    int invalidated;
 
 #if defined(TARGET_ANDROID)
     struct android_surface *android_surface;
