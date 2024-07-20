@@ -70,31 +70,35 @@ static const struct param_choices easing_choices = {
 
 #define OFFSET(x) offsetof(struct animkeyframe_opts, x)
 
-#define ANIMKEYFRAME_PARAMS(id, value_data_key, value_data_type, value_data_field)                      \
-static const struct node_param animkeyframe##id##_params[] = {                                          \
-    {"time",                 NGLI_PARAM_TYPE_F64, OFFSET(time),                                         \
-                             .desc=NGLI_DOCSTRING("the time key point in seconds")},                    \
-    {#value_data_key,        value_data_type, OFFSET(value_data_field),                                 \
-                             .desc=NGLI_DOCSTRING("the " #value_data_key " at time `time`")},           \
-    {"easing",               NGLI_PARAM_TYPE_SELECT,  OFFSET(easing), {.i32=EASING_LINEAR},             \
-                             .choices=&easing_choices,                                                  \
-                             .desc=NGLI_DOCSTRING("easing interpolation from previous key frame")},     \
-    {"easing_args",          NGLI_PARAM_TYPE_F64LIST, OFFSET(args),                                     \
-                             .desc=NGLI_DOCSTRING("a list of arguments some easings may use")},         \
-    {"easing_start_offset",  NGLI_PARAM_TYPE_F64, OFFSET(offsets[0]), {.f64=0},                         \
-                             .desc=NGLI_DOCSTRING("starting offset of the truncation of the easing")},  \
-    {"easing_end_offset",    NGLI_PARAM_TYPE_F64, OFFSET(offsets[1]), {.f64=1},                         \
-                             .desc=NGLI_DOCSTRING("ending offset of the truncation of the easing")},    \
-    {NULL}                                                                                              \
+#define ANIMKEYFRAME_PARAMS(id, value_data_key, value_data_type, value_data_field, value_key_flags, time_key_flags) \
+static const struct node_param animkeyframe##id##_params[] = {                                                      \
+    {"time",                 NGLI_PARAM_TYPE_F64, OFFSET(time),                                                     \
+                             .flags=time_key_flags,                                                                 \
+                             .desc=NGLI_DOCSTRING("the time key point in seconds")},                                \
+    {#value_data_key,        value_data_type, OFFSET(value_data_field),                                             \
+                             .flags=value_key_flags,                                                                \
+                             .desc=NGLI_DOCSTRING("the " #value_data_key " at time `time`")},                       \
+    {"easing",               NGLI_PARAM_TYPE_SELECT,  OFFSET(easing), {.i32=EASING_LINEAR},                         \
+                             .choices=&easing_choices,                                                              \
+                             .desc=NGLI_DOCSTRING("easing interpolation from previous key frame")},                 \
+    {"easing_args",          NGLI_PARAM_TYPE_F64LIST, OFFSET(args),                                                 \
+                             .desc=NGLI_DOCSTRING("a list of arguments some easings may use")},                     \
+    {"easing_start_offset",  NGLI_PARAM_TYPE_F64, OFFSET(offsets[0]), {.f64=0},                                     \
+                             .desc=NGLI_DOCSTRING("starting offset of the truncation of the easing")},              \
+    {"easing_end_offset",    NGLI_PARAM_TYPE_F64, OFFSET(offsets[1]), {.f64=1},                                     \
+                             .desc=NGLI_DOCSTRING("ending offset of the truncation of the easing")},                \
+    {NULL}                                                                                                          \
 }
 
-ANIMKEYFRAME_PARAMS(float, value, NGLI_PARAM_TYPE_F64, scalar);
-ANIMKEYFRAME_PARAMS(vec2,  value, NGLI_PARAM_TYPE_VEC2, value);
-ANIMKEYFRAME_PARAMS(vec3,  value, NGLI_PARAM_TYPE_VEC3, value);
-ANIMKEYFRAME_PARAMS(vec4,  value, NGLI_PARAM_TYPE_VEC4, value);
-ANIMKEYFRAME_PARAMS(quat,  quat,  NGLI_PARAM_TYPE_VEC4, value);
-ANIMKEYFRAME_PARAMS(color, color, NGLI_PARAM_TYPE_VEC3, value);
-ANIMKEYFRAME_PARAMS(buffer, data, NGLI_PARAM_TYPE_DATA, data);
+#define L NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE
+
+ANIMKEYFRAME_PARAMS(float, value, NGLI_PARAM_TYPE_F64, scalar, L, L);
+ANIMKEYFRAME_PARAMS(vec2,  value, NGLI_PARAM_TYPE_VEC2, value, 0, 0);
+ANIMKEYFRAME_PARAMS(vec3,  value, NGLI_PARAM_TYPE_VEC3, value, 0, 0);
+ANIMKEYFRAME_PARAMS(vec4,  value, NGLI_PARAM_TYPE_VEC4, value, 0, 0);
+ANIMKEYFRAME_PARAMS(quat,  quat,  NGLI_PARAM_TYPE_VEC4, value, 0, 0);
+ANIMKEYFRAME_PARAMS(color, color, NGLI_PARAM_TYPE_VEC3, value, 0, 0);
+ANIMKEYFRAME_PARAMS(buffer, data, NGLI_PARAM_TYPE_DATA, data,  0, 0);
 
 #define TRANSFORM_IN(f, x)     f(x, args_nb, args)
 #define TRANSFORM_OUT(f, x)    (1.0 - TRANSFORM_IN(f, 1.0 - (x)))
