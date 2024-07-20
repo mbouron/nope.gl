@@ -436,6 +436,46 @@ static int animation_update(struct ngl_node *node, double t)
 #define animatedpath_update  animation_update
 #define animatedcolor_update animation_update
 
+static int animatedtime_invalidate(struct ngl_node *node)
+{
+    const struct variable_opts *o = node->opts;
+
+    // Sanitize updated keyframes
+    double prev_time = -DBL_MAX;
+    for (size_t i = 1; i < o->nb_animkf; i++) {
+        struct animkeyframe_opts *kf = o->animkf[i]->opts;
+
+        if (kf->time < prev_time) {
+            LOG(WARNING, "key frames must be monotonically increasing: %g < %g, clamping",
+                kf->time, prev_time);
+            kf->time = prev_time;
+        }
+        prev_time = kf->time;
+    }
+
+    // Sanitize updated keyframes times
+    prev_time = 0.0;
+    for (size_t i = 0; i < o->nb_animkf; i++) {
+        struct animkeyframe_opts *kf = o->animkf[i]->opts;
+        if (kf->scalar < prev_time) {
+            LOG(WARNING, "times must be positive and monotonically increasing: %g < %g, clamping",
+                kf->scalar, prev_time);
+            kf->scalar = prev_time;
+        }
+        prev_time = kf->scalar;
+    }
+    return 0;
+}
+
+#define animatedtime_invalidate  animatedtime_invalidate
+#define animatedfloat_invalidate NULL
+#define animatedvec2_invalidate  NULL
+#define animatedvec3_invalidate  NULL
+#define animatedvec4_invalidate  NULL
+#define animatedpath_invalidate  NULL
+#define animatedcolor_invalidate NULL
+#define animatedquat_invalidate  NULL
+
 static int animatedquat_update(struct ngl_node *node, double t)
 {
     struct animated_priv *s = node->priv_data;
@@ -455,6 +495,7 @@ const struct node_class ngli_animated##type##_class = {         \
     .name      = class_name,                                    \
     .init      = animated##type##_init,                         \
     .update    = animated##type##_update,                       \
+    .invalidate = animated##type##_invalidate,                  \
     .opts_size = sizeof(struct variable_opts),                  \
     .priv_size = sizeof(struct animated_priv),                  \
     .params    = animated##type##_params,                       \

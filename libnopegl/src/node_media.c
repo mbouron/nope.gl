@@ -19,6 +19,7 @@
  * under the License.
  */
 
+#include <float.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -201,6 +202,27 @@ static void reset_android_surface(struct android_surface_compat *surface)
 }
 #endif
 
+static void get_start_end_time(struct ngl_node *node, double *start, double *end)
+{
+    const struct media_opts *o = node->opts;
+
+    *start = -DBL_MAX;
+    *end   = -DBL_MAX;
+
+    struct ngl_node *anim_node = o->anim;
+    if (anim_node) {
+        const struct variable_opts *anim = anim_node->opts;
+        if (anim->nb_animkf) {
+            const struct animkeyframe_opts *kf0 = anim->animkf[0]->opts;
+            *start = kf0->scalar;
+            if (anim->nb_animkf > 1) {
+                const struct animkeyframe_opts *kfn = anim->animkf[anim->nb_animkf - 1]->opts;
+                *end = kfn->scalar;
+            }
+        }
+    }
+}
+
 static int media_init(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
@@ -212,24 +234,13 @@ static int media_init(struct ngl_node *node)
 
     nmd_set_log_callback(s->player, node->opts, callback_nopemd_log);
 
-    struct ngl_node *anim_node = o->anim;
-    if (anim_node) {
-        const struct variable_opts *anim = anim_node->opts;
+    get_start_end_time(node, &s->start_time, &s->end_time);
 
-        // Set the media time boundaries using the time remapping animation
-        if (anim->nb_animkf) {
-            const struct animkeyframe_opts *kf0 = anim->animkf[0]->opts;
-            const double initial_seek = kf0->scalar;
+    if (s->start_time != -DBL_MAX)
+        nmd_set_option(s->player, "start_time", s->start_time);
 
-            nmd_set_option(s->player, "start_time", initial_seek);
-
-            if (anim->nb_animkf > 1) {
-                const struct animkeyframe_opts *kfn = anim->animkf[anim->nb_animkf - 1]->opts;
-                const double last_time = kfn->scalar;
-                nmd_set_option(s->player, "end_time", last_time);
-            }
-        }
-    }
+    if (s->end_time != -DBL_MAX)
+        nmd_set_option(s->player, "end_time", s->end_time);
 
     if (o->max_nb_packets) nmd_set_option(s->player, "max_nb_packets", o->max_nb_packets);
     if (o->max_nb_frames)  nmd_set_option(s->player, "max_nb_frames",  o->max_nb_frames);
@@ -313,12 +324,21 @@ static const char *get_nmd_ret_name(int nmd_err)
     }
 }
 
+static int media_reinit(struct ngl_node *node);
+
 static int media_update(struct ngl_node *node, double t)
 {
     struct media_priv *s = node->priv_data;
     const struct media_opts *o = node->opts;
     struct ngl_node *anim_node = o->anim;
     double media_time = t;
+
+    if (s->invalidated) {
+        int ret = media_reinit(node);
+        if (ret < 0)
+            return ret;
+        s->invalidated = 0;
+    }
 
     if (anim_node) {
         struct variable_info *anim = anim_node->priv_data;
@@ -378,7 +398,7 @@ static void media_uninit(struct ngl_node *node)
 #endif
 }
 
-static int filename_changed(struct ngl_node *node)
+static int media_reinit(struct ngl_node *node)
 {
     const int prefetched = node->state == NGLI_NODE_STATE_READY;
 
@@ -398,12 +418,37 @@ static int filename_changed(struct ngl_node *node)
     return 0;
 }
 
+static int filename_changed(struct ngl_node *node)
+{
+    return media_reinit(node);
+}
+
+static int media_invalidate(struct ngl_node *node)
+{
+    struct media_priv *s = node->priv_data;
+
+    double start_time;
+    double end_time;
+    get_start_end_time(node, &start_time, &end_time);
+
+    if (start_time == -DBL_MAX && end_time == -DBL_MAX)
+        return 0;
+
+    if (start_time == s->start_time && end_time == s->end_time)
+        return 0;
+
+    s->invalidated = true;
+
+    return 0;
+}
+
 const struct node_class ngli_media_class = {
     .id        = NGL_NODE_MEDIA,
     .name      = "Media",
     .init      = media_init,
     .prefetch  = media_prefetch,
     .update    = media_update,
+    .invalidate = media_invalidate,
     .release   = media_release,
     .uninit    = media_uninit,
     .opts_size = sizeof(struct media_opts),
