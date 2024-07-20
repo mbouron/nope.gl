@@ -605,6 +605,7 @@ def _ffmpeg_setup(cfg):
         "format",
         "fps",
         "hflip",
+        "loudnorm",
         "palettegen",
         "paletteuse",
         "scale",
