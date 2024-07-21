@@ -26,7 +26,7 @@ afterEvaluate {
                         this.url = url
                     }
                 }
-                from(components["release"])
+                from(components["default"])
             }
         }
         repositories {
@@ -42,7 +42,6 @@ afterEvaluate {
             }
         }
     }
-
 }
 
 android {
@@ -123,7 +122,7 @@ android {
     useLibrary("android.test.mock")
 
     publishing {
-        multipleVariants("release") {
+        multipleVariants {
             allVariants()
             withSourcesJar()
             withJavadocJar()
