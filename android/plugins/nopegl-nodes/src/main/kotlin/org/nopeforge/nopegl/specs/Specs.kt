@@ -139,6 +139,7 @@ data class ParamSpec(
 ) {
     val nullable: Boolean = !flags.contains(FlagSpec.NonNull)
     val canBeNode: Boolean = flags.contains(FlagSpec.Node)
+    val mutable: Boolean = flags.contains(FlagSpec.Live)
 }
 
 @Serializable

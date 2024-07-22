@@ -58,6 +58,7 @@ data class NodeClass(
         val choicesType: String?,
         val nullable: Boolean,
         val canBeNode: Boolean,
+        val mutable: Boolean,
     )
 
     companion object {
@@ -79,7 +80,8 @@ data class NodeClass(
                         description = it.desc,
                         choicesType = it.choicesType,
                         nullable = it.nullable,
-                        canBeNode = it.canBeNode
+                        canBeNode = it.canBeNode,
+                        mutable = it.mutable,
                     )
                 }
             )
@@ -104,7 +106,7 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                 .addStatement(if (sourceFile == null) "" else "file: $sourceFile")
                 .apply {
                     parameters.forEach {
-                        addStatement("@param ${it.parameterName} ${it.description}")
+                        addStatement("@param ${it.parameterName} ${it.description} (mutable: ${it.mutable})")
                     }
                 }
                 .build()
