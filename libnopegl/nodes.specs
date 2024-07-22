@@ -4333,21 +4333,21 @@
           "name": "start",
           "type": "f64",
           "default": 0.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "start time (included) for the scene to be drawn"
         },
         {
           "name": "end",
           "type": "f64",
           "default": -1.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "end time (excluded) for the scene to be drawn, a negative value implies forever"
         },
         {
           "name": "render_time",
           "type": "f64",
           "default": -1.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "chosen time to draw for a \"once\" mode, negative to ignore"
         },
         {

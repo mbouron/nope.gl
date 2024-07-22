@@ -41,20 +41,45 @@ struct timerangefilter_priv {
     int drawme;
 };
 
+static int update_params(struct ngl_node *node);
+
 #define OFFSET(x) offsetof(struct timerangefilter_opts, x)
 static const struct node_param timerangefilter_params[] = {
     {"child", NGLI_PARAM_TYPE_NODE, OFFSET(child), .flags=NGLI_PARAM_FLAG_NON_NULL,
               .desc=NGLI_DOCSTRING("time filtered scene")},
     {"start",         NGLI_PARAM_TYPE_F64, OFFSET(start_time),
+                      .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+                      .update_func=update_params,
                       .desc=NGLI_DOCSTRING("start time (included) for the scene to be drawn")},
     {"end",           NGLI_PARAM_TYPE_F64, OFFSET(end_time), {.f64=-1.0},
+                      .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+                      .update_func=update_params,
                       .desc=NGLI_DOCSTRING("end time (excluded) for the scene to be drawn, a negative value implies forever")},
     {"render_time",   NGLI_PARAM_TYPE_F64, OFFSET(render_time), {.f64=-1.0},
+                      .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+                      .update_func=update_params,
                       .desc=NGLI_DOCSTRING("chosen time to draw for a \"once\" mode, negative to ignore")},
     {"prefetch_time", NGLI_PARAM_TYPE_F64, OFFSET(prefetch_time), {.f64=1.0},
                       .desc=NGLI_DOCSTRING("`child` is prefetched `prefetch_time` seconds in advance")},
     {NULL}
 };
+
+static int update_params(struct ngl_node *node)
+{
+    struct timerangefilter_opts *o = node->opts;
+
+    if (o->start_time < 0.0) {
+        LOG(WARNING, "start time cannot be negative, clamping");
+        o->start_time = 0;
+    }
+
+    if (o->end_time >= 0.0 && o->end_time < o->start_time) {
+        LOG(ERROR, "end time must be after start time, clamping");
+        o->end_time = o->start_time;
+    }
+
+    return 0;
+}
 
 static int timerangefilter_init(struct ngl_node *node)
 {
