@@ -189,9 +189,9 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
     } else {
         if (text_ratio < box_ratio) {
             ratio_w = text_ratio / box_ratio;
-            ratio_h = 1.0;
+            ratio_h = 1.0f;
         } else {
-            ratio_w = 1.0;
+            ratio_w = 1.0f;
             ratio_h = box_ratio / text_ratio;
         }
     }
