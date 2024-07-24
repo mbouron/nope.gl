@@ -198,14 +198,14 @@ cdef extern from "nopegl.h":
     int ngl_resize(ngl_ctx *s, int32_t width, int32_t height)
     int ngl_get_viewport(ngl_ctx *s, int32_t *viewport)
     int ngl_set_capture_buffer(ngl_ctx *s, void *capture_buffer)
-    int ngl_set_scene(ngl_ctx *s, ngl_scene *scene)
+    int ngl_set_scene(ngl_ctx *s, ngl_scene *scene) nogil
     int ngl_update(ngl_ctx *s, double t) nogil
     int ngl_draw(ngl_ctx *s, double t) nogil
     char *ngl_dot(ngl_ctx *s, double t) nogil
     int ngl_livectls_get(ngl_scene *scene, size_t *nb_livectlsp, ngl_livectl **livectlsp)
     void ngl_livectls_freep(ngl_livectl **livectlsp)
     int ngl_get_nodes_intersecting_point(ngl_ctx *s, const float *point, size_t *nb_nodesp, ngl_node ***nodesp)
-    void ngl_freep(ngl_ctx **ss)
+    void ngl_freep(ngl_ctx **ss) nogil
 
     int ngl_easing_evaluate(const char *name, const double *args, size_t nb_args,
                             const double *offsets, double t, double *v)
@@ -802,7 +802,9 @@ cdef class Context:
         if scene is not None:
             ptr = scene.cptr
             c_scene = <ngl_scene *>ptr
-        return ngl_set_scene(self.ctx, c_scene)
+        with nogil:
+            ret = ngl_set_scene(self.ctx, c_scene)
+        return ret
 
     def update(self, double t):
         with nogil:
@@ -847,7 +849,8 @@ cdef class Context:
         return node_list
 
     def __dealloc__(self):
-        ngl_freep(&self.ctx)
+        with nogil:
+            ngl_freep(&self.ctx)
 
     def gl_wrap_framebuffer(self, uint32_t framebuffer):
         return ngl_gl_wrap_framebuffer(self.ctx, framebuffer)
