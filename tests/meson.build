@@ -398,6 +398,10 @@ foreach backend : backends
       'arabic_shaping',
       'bidi_arabic_english',
       'vertical_japanese',
+      'wrapping_disabled',
+      'wrapping_left',
+      'wrapping_center',
+      'wrapping_right',
     ]
   endif
 

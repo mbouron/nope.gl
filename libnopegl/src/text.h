@@ -88,6 +88,7 @@ struct text_config {
     int32_t dpi;
     int32_t padding;
     enum text_scale_mode scale_mode;
+    int wrap;
     float font_scale;
     enum text_valign valign;
     enum text_halign halign;

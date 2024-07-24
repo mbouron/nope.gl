@@ -20,6 +20,9 @@
  */
 
 #include "config.h"
+#include "gpu_ctx.h"
+#include <stddef.h>
+#include <stdint.h>
 
 #if HAVE_TEXT_LIBRARIES
 #include <hb.h>
@@ -750,6 +753,68 @@ static int register_chars(struct text *text, const char *str, struct darray *cha
     return 0;
 }
 
+static void wrap_lines(struct text *text, const char *str, const struct darray *runs_array, const struct hmap *glyph_index)
+{
+    const int is_vertical = text->config.writing_mode == NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB ? 0 : 1;
+
+    const struct viewport viewport = ngli_gpu_ctx_get_viewport(text->ctx->gpu_ctx);
+    float max_size = 0;
+
+    if (is_vertical) {
+        max_size = text->config.box.h * (float)viewport.height;
+    } else {
+        max_size = text->config.box.w * (float)viewport.width;
+    }
+    hb_position_t current_pos = 0;
+
+    struct text_run *runs = ngli_darray_data(runs_array);
+    struct  text_run* previous_word_break = NULL;
+    for (size_t i = 0; i < ngli_darray_count(runs_array); i++) {
+        struct text_run *run = &runs[i];
+        const size_t len = hb_buffer_get_length(run->buffer);
+
+        for (size_t j = 0; j < len; j++) {
+            const hb_glyph_position_t *pos = &run->glyph_positions[j];
+            hb_position_t character_advance = 0;
+            if (is_vertical) {
+                character_advance = pos->y_advance;
+            } else {
+                character_advance = pos->x_advance;
+            }
+
+            if (run->type == RUN_TYPE_LINEBREAK) {
+                current_pos = 0;
+                continue;
+            } else if (run->type == RUN_TYPE_WORDSEP) {
+                previous_word_break = run;
+            }
+
+            const hb_codepoint_t glyph_id = run->glyph_infos[j].codepoint;
+            const char glyph_uid[] = GLYPH_UID_STRING(run->face_id, glyph_id);
+            const struct glyph *glyph = ngli_hmap_get_str(glyph_index, glyph_uid);
+            if (glyph) {
+                float character_pos = 0;
+                float character_size = 0;
+                if (is_vertical) {
+                    character_pos = NGLI_I26D6_TO_F32(current_pos + glyph->bearing_y + pos->y_offset);
+                    character_size = NGLI_I26D6_TO_F32(glyph->height);
+                } else {
+                    character_pos = NGLI_I26D6_TO_F32(current_pos + glyph->bearing_x + pos->x_offset);
+                    character_size = NGLI_I26D6_TO_F32(glyph->width);
+                }
+                if (character_pos + character_size > max_size) {
+                    // overflowing we need to wrap the current word to the next line
+                    if (previous_word_break) {
+                        previous_word_break->type = RUN_TYPE_LINEBREAK;
+                        current_pos = 0;
+                    }
+                }
+            }
+            current_pos += character_advance;
+        }
+    }
+}
+
 static int text_external_set_string(struct text *text, const char *str, struct darray *chars_dst)
 {
     struct text_external *s = text->priv_data;
@@ -789,6 +854,9 @@ static int text_external_set_string(struct text *text, const char *str, struct d
         goto end;
     text->atlas_texture = ngli_distmap_get_texture(s->distmap);
 
+    if (text->config.wrap) {
+        wrap_lines(text, str, &runs_array, glyph_index);
+    }
     ret = register_chars(text, str, chars_dst, &runs_array, glyph_index);
     if (ret < 0)
         goto end;

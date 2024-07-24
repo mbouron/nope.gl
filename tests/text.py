@@ -154,6 +154,70 @@ def text_fixed(cfg: ngl.SceneCfg):
         font_scale=4.5,
     )
 
+@test_fingerprint(width=640, height=480, tolerance=1)
+@ngl.scene()
+def text_wrapping_disabled(cfg: ngl.SceneCfg):
+    cfg.aspect_ratio = (4, 3)
+    cfg.duration = 1
+    return ngl.Text(
+        text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+        scale_mode="fixed",
+        font_scale=1.0,
+        wrap=False,
+        halign="left",
+        pt_size=48,
+        font_faces=[ngl.FontFace((_LATIN_FONT).as_posix())],
+        dpi=300,
+    )
+
+@test_fingerprint(width=640, height=480, tolerance=1)
+@ngl.scene()
+def text_wrapping_left(cfg: ngl.SceneCfg):
+    cfg.aspect_ratio = (4, 3)
+    cfg.duration = 1
+    return ngl.Text(
+        text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+        scale_mode="fixed",
+        font_scale=1.0,
+        halign="left",
+        pt_size=48,
+        wrap=True,
+        font_faces=[ngl.FontFace((_LATIN_FONT).as_posix())],
+        dpi=300,
+    )
+
+
+@test_fingerprint(width=640, height=480, tolerance=1)
+@ngl.scene()
+def text_wrapping_center(cfg: ngl.SceneCfg):
+    cfg.aspect_ratio = (4, 3)
+    cfg.duration = 1
+    return ngl.Text(
+        text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+        scale_mode="fixed",
+        halign="center",
+        pt_size=48,
+        wrap=True,
+        font_faces=[ngl.FontFace((_LATIN_FONT).as_posix())],
+        dpi=300,
+    )
+
+
+@test_fingerprint(width=640, height=480, tolerance=1)
+@ngl.scene()
+def text_wrapping_right(cfg: ngl.SceneCfg):
+    cfg.aspect_ratio = (4, 3)
+    cfg.duration = 1
+    return ngl.Text(
+        text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+        scale_mode="fixed",
+        halign="right",
+        pt_size=48,
+        wrap=True,
+        font_faces=[ngl.FontFace((_LATIN_FONT).as_posix())],
+        dpi=300,
+    )
+
 
 @test_fingerprint(width=640, height=480, tolerance=1, keyframes=5)
 @ngl.scene()

@@ -26,6 +26,7 @@
 #include "internal.h"
 #include "darray.h"
 #include "gpu_ctx.h"
+#include "params.h"
 #include "pgcraft.h"
 #include "pipeline_compat.h"
 #include "text.h"
@@ -91,6 +92,7 @@ struct text_opts {
     int32_t dpi;
     float font_scale;
     int scale_mode;
+    int wrap;
     struct ngl_node **effect_nodes;
     size_t nb_effect_nodes;
     int valign, halign;
@@ -204,6 +206,8 @@ static const struct node_param text_params[] = {
     {"scale_mode",   NGLI_PARAM_TYPE_SELECT, OFFSET(scale_mode), {.i32=NGLI_TEXT_SCALE_MODE_AUTO},
                      .choices=&scale_mode_choices,
                      .desc=NGLI_DOCSTRING("scaling behaviour for the characters")},
+    {"wrap",         NGLI_PARAM_TYPE_BOOL, OFFSET(wrap), {.i32=0},
+                     .desc=NGLI_DOCSTRING("wrap text to fit the box")},
     {"effects",      NGLI_PARAM_TYPE_NODELIST, OFFSET(effect_nodes),
                      .node_types=(const uint32_t[]){NGL_NODE_TEXTEFFECT, NGLI_NODE_NONE},
                      .desc=NGLI_DOCSTRING("stack of effects")},
@@ -385,6 +389,7 @@ static int text_init(struct ngl_node *node)
         .dpi = o->dpi,
         .padding = o->padding,
         .scale_mode = o->scale_mode,
+        .wrap = o->wrap,
         .font_scale = o->font_scale,
         .valign = o->valign,
         .halign = o->halign,

@@ -3777,6 +3777,13 @@
           "desc": "scaling behaviour for the characters"
         },
         {
+          "name": "wrap",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "wrap text to fit the box"
+        },
+        {
           "name": "effects",
           "type": "node_list",
           "node_types": ["TextEffect"],
