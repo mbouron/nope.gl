@@ -141,6 +141,7 @@ void ngli_mat4_from_quat(float * restrict dst, const float *quat, const float *a
 void ngli_mat4_translate(float * restrict dst, float x, float y, float z);
 void ngli_mat4_scale(float * restrict dst, float x, float y, float z, const float *anchor);
 void ngli_mat4_skew(float * restrict dst, float x, float y, float z, const float *axis, const float *anchor);
+void ngli_mat4_abs(float *dst, const float *m);
 
 /* Arch specific versions */
 

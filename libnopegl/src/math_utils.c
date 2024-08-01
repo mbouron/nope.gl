@@ -516,6 +516,18 @@ void ngli_mat4_skew(float * restrict dst, float x, float y, float z, const float
     dst[15] = 1.f;
 }
 
+void ngli_mat4_abs(float *dst, const float *m)
+{
+    NGLI_ALIGNED_MAT(tmp);
+
+    ngli_vec4_abs(tmp, m);
+    ngli_vec4_abs(tmp + 4, m + 4);
+    ngli_vec4_abs(tmp + 8, m + 8);
+    ngli_vec4_abs(tmp + 12, m + 12);
+
+    memcpy(dst, tmp, sizeof(tmp));
+}
+
 #define COS_ALPHA_THRESHOLD 0.9995f
 
 void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, float t)
