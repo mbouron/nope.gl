@@ -62,6 +62,11 @@ void ngli_vec##n##_norm(float *dst, const float *v)                     \
     const float r[] = NGLI_VEC##n##_SCALE(v, l);                        \
     memcpy(dst, r, sizeof(r));                                          \
 }                                                                       \
+                                                                        \
+int ngli_vec##n##_is_zero(const float *v)                               \
+{                                                                       \
+    return !memcmp(v, zero_vec, n * sizeof(*v));                        \
+}                                                                       \
 
 DECLARE_BASE_VEC_FUNCS(2)
 DECLARE_BASE_VEC_FUNCS(3)
