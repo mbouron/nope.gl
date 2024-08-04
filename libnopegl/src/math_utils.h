@@ -68,6 +68,10 @@
 #define NGLI_VEC3_DOT(a, b) ((a)[0] * (b)[0] + (a)[1] * (b)[1] + (a)[2] * (b)[2])
 #define NGLI_VEC4_DOT(a, b) ((a)[0] * (b)[0] + (a)[1] * (b)[1] + (a)[2] * (b)[2] + (a)[3] * (b)[3])
 
+#define NGLI_VEC2_LENGTH(v) (sqrtf((v)[0] * (v)[0] + (v)[1] * (v)[1]))
+#define NGLI_VEC3_LENGTH(v) (sqrtf((v)[0] * (v)[0] + (v)[1] * (v)[1] + (v)[2] * (v)[2]))
+#define NGLI_VEC4_LENGTH(v) (sqrtf((v)[0] * (v)[0] + (v)[1] * (v)[1] + (v)[2] * (v)[2] + (v)[3] * (v)[3]))
+
 void ngli_vec2_add(float *dst, const float *v1, const float *v2);
 void ngli_vec2_sub(float *dst, const float *v1, const float *v2);
 void ngli_vec2_neg(float *dst, const float *v);
