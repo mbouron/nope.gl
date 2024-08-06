@@ -232,6 +232,9 @@ class Node(_Node):
     def get_label(self):
         return self._get_label()
 
+    def get_bounding_box(self):
+        return self._get_bounding_box()
+
 
 class Scene(_ngl.Scene):
     @classmethod

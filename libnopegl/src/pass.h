@@ -23,7 +23,9 @@
 #define PASS_H
 
 #include <stdint.h>
+
 #include "darray.h"
+#include "internal.h"
 #include "pgcraft.h"
 #include "pipeline.h"
 

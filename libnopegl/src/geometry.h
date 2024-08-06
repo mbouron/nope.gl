@@ -1,4 +1,5 @@
 /*
+ * Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2021-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -24,6 +25,7 @@
 
 #include <stdint.h>
 
+#include "aabb.h"
 #include "internal.h"
 
 struct gpu_ctx;
@@ -42,6 +44,8 @@ struct geometry {
     struct buffer_layout uvcoords_layout;
     struct buffer_layout normals_layout;
     struct buffer_layout indices_layout;
+
+    struct aabb aabb;
 
     int topology;
 

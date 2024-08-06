@@ -1,4 +1,5 @@
 /*
+ * Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Nope Forge
  * Copyright 2021-2022 GoPro Inc.
  * Copyright 2021-2024 Clément Bœsch <u pkh.me>
@@ -31,6 +32,7 @@
 #include "gpu_ctx.h"
 #include "internal.h"
 #include "log.h"
+#include "math_utils.h"
 #include "memory.h"
 #include "pgcraft.h"
 #include "pipeline_compat.h"
@@ -116,9 +118,11 @@ struct draw_common_opts {
     struct ngl_node *geometry;
     struct ngl_node **filters;
     size_t nb_filters;
+    int compute_bounds;
 };
 
 struct draw_common {
+    struct draw_info draw_info;
     uint32_t helpers;
     void (*draw)(struct draw_common *s, struct pipeline_compat *pl_compat);
     struct filterschain *filterschain;
@@ -276,6 +280,8 @@ struct drawwaveform_priv {
     {"filters",  NGLI_PARAM_TYPE_NODELIST, OFFSET(common.filters),                                                   \
                  .node_types=FILTERS_TYPES_LIST,                                                                     \
                  .desc=NGLI_DOCSTRING("filter chain to apply on top of this source")},                               \
+    {"compute_bounds", NGLI_PARAM_TYPE_BOOL, OFFSET(common.compute_bounds),                                          \
+                       .desc=NGLI_DOCSTRING("enable bounding box computation")},                                     \
 
 #define OFFSET(x) offsetof(struct drawcolor_opts, x)
 static const struct node_param drawcolor_params[] = {
@@ -582,6 +588,8 @@ static int init(struct ngl_node *node,
 {
     struct ngl_ctx *ctx = node->ctx;
     struct gpu_ctx *gpu_ctx = ctx->gpu_ctx;
+
+    s->draw_info.compute_bounds = o->compute_bounds;
 
     ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
     ngli_darray_set_free_func(&s->pipeline_descs, reset_pipeline_desc, NULL);
@@ -1409,10 +1417,33 @@ static void drawother_draw(struct ngl_node *node, struct draw_common *s, const s
     ngli_pipeline_compat_update_uniform(pl_compat, desc->modelview_matrix_index, modelview_matrix);
     ngli_pipeline_compat_update_uniform(pl_compat, desc->projection_matrix_index, projection_matrix);
 
+    const struct viewport viewport = ngli_gpu_ctx_get_viewport(ctx->gpu_ctx);
     if (desc->aspect_index >= 0) {
-        const struct viewport viewport = ngli_gpu_ctx_get_viewport(ctx->gpu_ctx);
         const float aspect = (float)viewport.width / (float)viewport.height;
         ngli_pipeline_compat_update_uniform(pl_compat, desc->aspect_index, &aspect);
+    }
+
+    struct draw_info *draw_info = &s->draw_info;
+    if (draw_info->compute_bounds) {
+        const struct aabb *aabb = &s->geometry->aabb;
+
+        draw_info->aabb = *aabb;
+
+        const float w_2 = (float)viewport.width * 0.5f;
+        const float h_2 = (float)viewport.height * 0.5f;
+        const NGLI_ALIGNED_MAT(viewport_matrix) = {
+            w_2, 0.f, 0.f, 0.f,
+            0.f, h_2, 0.f, 0.f,
+            0.f, 0.f, 1.f, 0.f,
+            w_2, h_2, 0.f, 1.f
+        };
+        NGLI_ALIGNED_MAT(transform) = NGLI_MAT4_IDENTITY;
+        ngli_gpu_ctx_transform_projection_matrix_inv(ctx->gpu_ctx, transform);
+        ngli_mat4_mul(transform, transform, projection_matrix);
+        ngli_mat4_mul(transform, transform, modelview_matrix);
+        ngli_mat4_mul(transform, viewport_matrix, transform);
+
+        draw_info->screen_aabb = ngli_aabb_apply_projection(aabb, transform);
     }
 
     const struct uniform_map *uniform_map = ngli_darray_data(&desc->uniforms_map);

@@ -85,6 +85,7 @@ struct drawpath_opts {
 };
 
 struct drawpath_priv {
+    struct draw_info draw_info;
     struct distmap *distmap;
     struct path *path;
     struct darray pipeline_descs;

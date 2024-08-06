@@ -1888,6 +1888,13 @@
           "choices": "blend_preset",
           "flags": [],
           "desc": "define how this node and the current frame buffer are blended together"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -1929,6 +1936,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -1970,6 +1984,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -2054,6 +2075,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -2144,6 +2172,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -2186,6 +2221,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -2234,6 +2276,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -2318,6 +2367,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -2456,6 +2512,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -2498,6 +2561,13 @@
           "node_types": ["FilterAlpha", "FilterColorMap", "FilterContrast", "FilterExposure", "FilterInverseAlpha", "FilterLinear2sRGB", "FilterOpacity", "FilterPremult", "FilterSaturation", "FilterSelector", "FilterSRGB2Linear"],
           "flags": [],
           "desc": "filter chain to apply on top of this source"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },
@@ -3831,6 +3901,13 @@
           "choices": "writing_mode",
           "flags": [],
           "desc": "direction flow per character and line"
+        },
+        {
+          "name": "compute_bounds",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "enable bounding box computation"
         }
       ]
     },

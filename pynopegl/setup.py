@@ -104,7 +104,8 @@ class _WrapperGenerator:
     def generate(self):
         classes = self._declare_classes()
         livectl_info = self._livectl_info()
-        return classes + "\n\n" + livectl_info
+        node_info = self._node_info()
+        return classes + "\n\n" + livectl_info + "\n\n" + node_info
 
     @classmethod
     def _get_combined_type(cls, node_types, wrap_into_union=True):
@@ -381,6 +382,18 @@ class _WrapperGenerator:
 
         livectl_info = textwrap.indent("\n".join(info_entries), " " * 4)
         return "_ngl.LIVECTL_INFO.update({\n" + livectl_info + "\n})\n"
+
+    def _node_info(self):
+        info_entries = []
+        for class_name, _ in self._specs["nodes"].items():
+            if class_name[0] == "_":
+                continue
+
+            type_id = self._get_type_id(class_name)
+            info_entries.append(f"{type_id}: {class_name},")
+
+        livectl_info = textwrap.indent("\n".join(info_entries), " " * 4)
+        return "_ngl.NODE_INFO.update({\n" + livectl_info + "\n})\n"
 
 
 class CommandUtils:

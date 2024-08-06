@@ -38,6 +38,10 @@ cdef extern from "nopegl.h":
 
     cdef struct ngl_node
 
+    cdef struct ngl_bounding_box:
+        float center[2]
+        float extent[2]
+
     ngl_node *ngl_node_create(uint32_t type)
     ngl_node *ngl_node_ref(ngl_node *node)
     void ngl_node_unrefp(ngl_node **nodep)
@@ -68,6 +72,7 @@ cdef extern from "nopegl.h":
     int ngl_anim_evaluate(ngl_node *anim, void *dst, double t)
     int ngl_node_get_type(ngl_node *node, uint32_t *type)
     int ngl_node_get_label(ngl_node *node, const char **label)
+    int ngl_node_get_bounding_box(ngl_node *node, ngl_bounding_box *box)
 
     cdef int NGL_PLATFORM_AUTO
     cdef int NGL_PLATFORM_XLIB
@@ -192,6 +197,7 @@ cdef extern from "nopegl.h":
     char *ngl_dot(ngl_ctx *s, double t) nogil
     int ngl_livectls_get(ngl_scene *scene, size_t *nb_livectlsp, ngl_livectl **livectlsp)
     void ngl_livectls_freep(ngl_livectl **livectlsp)
+    int ngl_get_nodes_intersecting_point(ngl_ctx *s, const float *point, size_t *nb_nodesp, ngl_node ***nodesp)
     void ngl_freep(ngl_ctx **ss)
 
     int ngl_easing_evaluate(const char *name, const double *args, size_t nb_args,
@@ -252,6 +258,8 @@ cdef _ret_pystr(char *s):
 include "nodes_def.pyx"
 
 log_set_min_level = ngl_log_set_min_level
+
+NODE_INFO = {}  # Filled dynamically by the Python side
 
 
 cdef class _Node:
@@ -407,6 +415,17 @@ cdef class _Node:
         if ret < 0:
             raise Exception("Failed to get node label")
         return str(label)
+
+    def _get_bounding_box(self):
+        cdef ngl_bounding_box box
+        cdef int ret = ngl_node_get_bounding_box(self.ctx, &box)
+        if ret < 0:
+            raise Exception("Failed to get node bounding box")
+        bounding_box = {
+            "center": (box.center[0], box.center[1]),
+            "extent": (box.extent[0], box.extent[1]),
+        }
+        return bounding_box
 
 
 ANIM_EVALUATE, ANIM_DERIVATE, ANIM_SOLVE = range(3)
@@ -779,6 +798,32 @@ cdef class Context:
         with nogil:
             s = ngl_dot(self.ctx, t)
         return _ret_pystr(s) if s else None
+
+    def get_nodes_intersecting_point(self, point):
+        cdef size_t nb_nodes = 0
+        cdef ngl_node **nodes = NULL
+        cdef ngl_node *node = NULL
+        cdef uint32_t node_type = 0
+
+        cdef float p[2]
+        p[0] = point[0]
+        p[1] = point[1]
+
+        cdef int ret = ngl_get_nodes_intersecting_point(self.ctx, p, &nb_nodes, &nodes)
+        if ret < 0:
+            raise Exception(f"Error getting nodes intersecting point (point[0], point[1])")
+
+        node_list = []
+        for i in range(nb_nodes):
+            node = nodes[i]
+            node_type = 0;
+            ret = ngl_node_get_type(node, &node_type)
+            if (ret < 0):
+                continue
+            py_cls = NODE_INFO[node_type]
+            py_node = py_cls(ctx=<uintptr_t>node)
+            node_list.append(py_node)
+        return node_list
 
     def __dealloc__(self):
         ngl_freep(&self.ctx)

@@ -43,6 +43,7 @@
 #include FT_OUTLINE_H
 #endif
 
+#include "aabb.h"
 #include "animation.h"
 #include "block.h"
 #include "drawutils.h"
@@ -118,6 +119,13 @@ struct ngl_ctx {
      * (root).
      */
     struct darray activitycheck_nodes;
+
+    /*
+     * Array of nodes that have a bounding box and that are candidate to
+     * spatial queries.
+     */
+    struct darray bounding_box_nodes;
+    struct darray intersecting_nodes;
 
     struct hmap *text_builtin_atlasses; // struct text_builtin_atlas
 #if HAVE_TEXT_LIBRARIES
@@ -272,6 +280,12 @@ struct block_info {
 void ngli_node_block_extend_usage(struct ngl_node *node, int usage);
 size_t ngli_node_block_get_cpu_size(struct ngl_node *node);
 size_t ngli_node_block_get_gpu_size(struct ngl_node *node);
+
+struct draw_info {
+    int compute_bounds;
+    NGLI_ATTR_ALIGNED struct aabb aabb;
+    NGLI_ATTR_ALIGNED struct aabb screen_aabb;
+};
 
 struct program_opts {
     const char *vertex;

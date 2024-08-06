@@ -419,6 +419,18 @@ int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t)
     return 0;
 }
 
+static int has_bounding_box(const struct ngl_node *node)
+{
+    if (node->cls->category != NGLI_NODE_CATEGORY_DRAW)
+        return 0;
+
+    const struct draw_info *draw_info = node->priv_data;
+    if (!draw_info->compute_bounds)
+        return 0;
+
+    return 1;
+}
+
 int ngli_node_update(struct ngl_node *node, double t)
 {
     ngli_assert(node->state == STATE_READY);
@@ -477,6 +489,9 @@ void ngli_node_draw(struct ngl_node *node)
         node->cls->draw(node);
         node->draw_count++;
     }
+
+    if (has_bounding_box(node))
+        ngli_darray_push(&node->ctx->bounding_box_nodes, &node);
 }
 
 const struct node_param *ngli_node_param_find(const struct ngl_node *node, const char *key,
@@ -744,6 +759,23 @@ int ngl_node_get_label(struct ngl_node *node, const char **label)
         return NGL_ERROR_INVALID_ARG;
 
     *label = node->label;
+
+    return 0;
+}
+
+NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding_box *box)
+{
+    if (!node)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (!has_bounding_box(node))
+        return NGL_ERROR_INVALID_ARG;
+
+    const struct draw_info *info = node->priv_data;
+
+    memset(box, 0, sizeof(*box));
+    memcpy(box->center, info->screen_aabb.center, sizeof(box->center));
+    memcpy(box->extent, info->screen_aabb.extent, sizeof(box->extent));
 
     return 0;
 }

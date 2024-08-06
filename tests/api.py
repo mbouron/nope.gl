@@ -32,6 +32,7 @@ from collections import namedtuple
 from pathlib import Path
 
 from pynopegl_utils.misc import get_backend, load_media
+from pynopegl_utils.toolbox.colors import COLORS
 from pynopegl_utils.toolbox.grid import autogrid_simple
 
 import pynopegl as ngl
@@ -740,6 +741,10 @@ def api_update_with_timeranges(width=320, height=240):
 
     assert ctx.draw(0.0) == 0
     assert initial_hash == hashlib.md5(capture_buffer).hexdigest()
+
+
+def is_close(a, b):
+    return a >= (b - 1) and a <= (b + 1)
 
 
 def api_disable_depth(width=320, height=240):

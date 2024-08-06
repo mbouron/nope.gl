@@ -663,6 +663,30 @@ int ngli_pass_exec(struct pass *s)
         ngli_pipeline_compat_update_uniform(pipeline_compat, desc->normal_matrix_index, normal_matrix);
     }
 
+    struct draw_info *draw_info = s->params.node->priv_data;
+    if (draw_info && draw_info->compute_bounds) {
+        const struct geometry *geometry = s->params.geometry;
+        const struct aabb *aabb = &geometry->aabb;
+
+        draw_info->aabb = *aabb;
+
+        const float w_2 = (float)viewport.width * 0.5f;
+        const float h_2 = (float)viewport.height * 0.5f;
+        const NGLI_ALIGNED_MAT(viewport_matrix) = {
+            w_2, 0.f, 0.f, 0.f,
+            0.f, h_2, 0.f, 0.f,
+            0.f, 0.f, 1.f, 0.f,
+            w_2, h_2, 0.f, 1.f
+        };
+        NGLI_ALIGNED_MAT(transform) = NGLI_MAT4_IDENTITY;
+        ngli_gpu_ctx_transform_projection_matrix_inv(ctx->gpu_ctx, transform);
+        ngli_mat4_mul(transform, transform, projection_matrix);
+        ngli_mat4_mul(transform, transform, modelview_matrix);
+        ngli_mat4_mul(transform, viewport_matrix, transform);
+
+        draw_info->screen_aabb = ngli_aabb_apply_projection(aabb, transform);
+    }
+
     const struct uniform_map *uniform_map = ngli_darray_data(&desc->uniforms_map);
     for (size_t i = 0; i < ngli_darray_count(&desc->uniforms_map); i++)
         ngli_pipeline_compat_update_uniform(pipeline_compat, uniform_map[i].index, uniform_map[i].data);

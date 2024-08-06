@@ -20,12 +20,15 @@
  * under the License.
  */
 
+#include <float.h>
 #include <stddef.h>
 #include <string.h>
 
+#include "aabb.h"
 #include "internal.h"
 #include "darray.h"
 #include "gpu_ctx.h"
+#include "math_utils.h"
 #include "params.h"
 #include "pgcraft.h"
 #include "pipeline_compat.h"
@@ -97,9 +100,13 @@ struct text_opts {
     size_t nb_effect_nodes;
     int valign, halign;
     int writing_mode;
+    int compute_bounds;
 };
 
 struct text_priv {
+    struct draw_info draw_info;
+    struct aabb aabb;
+
     /* characters */
     struct text *text_ctx;
     struct buffer *transforms;
@@ -222,6 +229,8 @@ static const struct node_param text_params[] = {
     {"writing_mode", NGLI_PARAM_TYPE_SELECT, OFFSET(writing_mode), {.i32=NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB},
                      .choices=&writing_mode_choices,
                      .desc=NGLI_DOCSTRING("direction flow per character and line")},
+    {"compute_bounds", NGLI_PARAM_TYPE_BOOL, OFFSET(compute_bounds),
+                       .desc=NGLI_DOCSTRING("enable bounding box computation")},
     {NULL}
 };
 
@@ -373,10 +382,28 @@ static int init_bounding_box_geometry(struct ngl_node *node)
     return 0;
 }
 
+static void init_bounding_box(struct ngl_node *node)
+{
+    struct text_priv *s = node->priv_data;
+    const struct text_opts *o = node->opts;
+    struct draw_info *draw_info = &s->draw_info;
+
+    draw_info->compute_bounds = o->compute_bounds;
+
+    const float half_width = o->box[2] / 2.0f;
+    const float half_height = o->box[3] / 2.0f;
+    s->aabb = (struct aabb) {
+        .center = {o->box[0] + half_width, o->box[1] + half_height, 0.0f, 1.0f},
+        .extent = {half_width, half_height},
+    };
+}
+
 static int text_init(struct ngl_node *node)
 {
     struct text_priv *s = node->priv_data;
     const struct text_opts *o = node->opts;
+
+    init_bounding_box(node);
 
     s->viewport = ngli_gpu_ctx_get_viewport(node->ctx->gpu_ctx);
 
@@ -661,6 +688,47 @@ static int text_prepare(struct ngl_node *node)
     return 0;
 }
 
+static int update_aabb(struct ngl_node *node, double t)
+{
+    struct text_priv *s = node->priv_data;
+    struct text *text = s->text_ctx;
+
+    struct draw_info *draw_info = node->priv_data;
+    if (!draw_info->compute_bounds)
+        return 0;
+
+    const size_t count = ngli_darray_count(&text->chars);
+    if (count == 0)
+        return 0;
+
+    NGLI_ALIGNED_VEC(min) = { FLT_MAX,  FLT_MAX, 0.f, 1.f};
+    NGLI_ALIGNED_VEC(max) = {-FLT_MAX, -FLT_MAX, 0.f, 1.f};
+
+    const float *pos = text->data_ptrs.pos_size;
+    for (size_t i = 0; i < count; i++) {
+        const float bottom_left[] = {pos[0], pos[1]};
+        min[0] = NGLI_MIN(min[0], bottom_left[0]);
+        min[1] = NGLI_MIN(min[1], bottom_left[1]);
+        max[0] = NGLI_MAX(max[0], bottom_left[0]);
+        max[1] = NGLI_MAX(max[1], bottom_left[1]);
+
+        const float top_right[] = {pos[0] + pos[2], pos[1] + pos[3]};
+        min[0] = NGLI_MIN(min[0], top_right[0]);
+        min[1] = NGLI_MIN(min[1], top_right[1]);
+        max[0] = NGLI_MAX(max[0], top_right[0]);
+        max[1] = NGLI_MAX(max[1], top_right[1]);
+
+        pos += 4;
+    }
+
+    s->aabb = (struct aabb) {
+        .center = {(min[0] + max[0]) / 2.f, (min[1] + max[1]) / 2.f, 0.f, 1.f},
+        .extent = {(max[0] - min[0]) / 2.f, (max[1] - min[1]) / 2.f, 0.f, 1.f},
+    };
+
+    return 0;
+}
+
 static int text_update(struct ngl_node *node, double t)
 {
     struct text_priv *s = node->priv_data;
@@ -703,6 +771,10 @@ static int text_update(struct ngl_node *node, double t)
     if (ret < 0)
         return ret;
 
+    ret = update_aabb(node, t);
+    if (ret < 0)
+        return ret;
+
     return 0;
 }
 
@@ -717,6 +789,29 @@ static void text_draw(struct ngl_node *node)
 
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
     struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
+
+    struct draw_info *draw_info = &s->draw_info;
+    if (draw_info->compute_bounds) {
+        const struct viewport viewport = ngli_gpu_ctx_get_viewport(ctx->gpu_ctx);
+
+        draw_info->aabb = s->aabb;
+
+        const float w_2 = (float)viewport.width * 0.5f;
+        const float h_2 = (float)viewport.height * 0.5f;
+        const NGLI_ALIGNED_MAT(viewport_matrix) = {
+            w_2, 0.f, 0.f, 0.f,
+            0.f, h_2, 0.f, 0.f,
+            0.f, 0.f, 1.f, 0.f,
+            w_2, h_2, 0.f, 1.f
+        };
+        NGLI_ALIGNED_MAT(transform) = NGLI_MAT4_IDENTITY;
+        ngli_gpu_ctx_transform_projection_matrix_inv(ctx->gpu_ctx, transform);
+        ngli_mat4_mul(transform, transform, projection_matrix);
+        ngli_mat4_mul(transform, transform, modelview_matrix);
+        ngli_mat4_mul(transform, viewport_matrix, transform);
+
+        draw_info->screen_aabb = ngli_aabb_apply_projection(&draw_info->aabb, transform);
+    }
 
     if (!ctx->render_pass_started) {
         struct gpu_ctx *gpu_ctx = ctx->gpu_ctx;

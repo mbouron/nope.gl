@@ -1036,6 +1036,32 @@ NGL_API int ngl_node_get_type(struct ngl_node *node, uint32_t *type);
 NGL_API int ngl_node_get_label(struct ngl_node *node, const char **label);
 
 /**
+ * Bounding box
+ */
+
+struct ngl_bounding_box {
+    float center[2];
+    float extent[2];
+};
+
+NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding_box *box);
+
+/**
+ * Return the nodes intersecting the specificed point
+ *
+ * @param s            pointer to the configured nope.gl context
+ * @param point        2 floats defining a point (x, y)
+ * @param nb_nodesp    a pointer to an integer set to the number of nodes
+ * @param nodesp       a pointer to an array of nodes. The array is allocated
+ *                     by ngl_get_nodes_intersecting_point() and has a size of
+ *                     nb_nodesp. The array remains valid until the next draw call.
+ * @return             0 on success, NGL_ERROR_* (< 0) on error
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_get_nodes_intersecting_point(struct ngl_ctx *s, const float *point, size_t *nb_nodesp, struct ngl_node ***nodesp);
+
+/**
  * OpenGL
  */
 

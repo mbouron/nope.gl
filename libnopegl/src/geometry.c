@@ -1,4 +1,5 @@
 /*
+ * Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2021-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,6 +20,7 @@
  * under the License.
  */
 
+#include "aabb.h"
 #include "format.h"
 #include "geometry.h"
 #include "log.h"
@@ -83,6 +85,7 @@ int ngli_geometry_set_vertices(struct geometry *s, size_t n, const float *vertic
 {
     ngli_assert(!(s->buffer_ownership & OWN_VERTICES));
     s->buffer_ownership |= OWN_VERTICES;
+    s->aabb = ngli_aabb_from_vertices(vertices, n);
     return gen_vec3(s, &s->vertices_buffer, &s->vertices_layout, n, vertices);
 }
 

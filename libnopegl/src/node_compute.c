@@ -40,6 +40,7 @@ struct compute_opts {
 };
 
 struct compute_priv {
+    struct draw_info draw_info;
     struct pass pass;
 };
 

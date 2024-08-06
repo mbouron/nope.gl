@@ -45,9 +45,11 @@ struct draw_opts {
     struct hmap *instance_attributes;
     int32_t nb_instances;
     int blending;
+    int compute_bounds;
 };
 
 struct draw_priv {
+    struct draw_info draw_info;
     struct pass pass;
 };
 
@@ -165,6 +167,8 @@ static const struct node_param render_params[] = {
     {"blending", NGLI_PARAM_TYPE_SELECT, OFFSET(blending),
                  .choices=&ngli_blending_choices,
                  .desc=NGLI_DOCSTRING("define how this node and the current frame buffer are blended together")},
+    {"compute_bounds", NGLI_PARAM_TYPE_BOOL, OFFSET(compute_bounds),
+                       .desc=NGLI_DOCSTRING("enable bounding box computation")},
     {NULL}
 };
 
@@ -241,6 +245,9 @@ static int render_init(struct ngl_node *node)
     int ret = check_params(node);
     if (ret < 0)
         return ret;
+
+    struct draw_info *draw_info = node->priv_data;
+    draw_info->compute_bounds = o->compute_bounds;
 
     const struct program_priv *program_priv = o->program->priv_data;
     const struct program_opts *program_opts = o->program->opts;
