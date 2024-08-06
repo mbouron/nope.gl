@@ -580,6 +580,24 @@ NGL_API int ngl_node_param_set_vec3(struct ngl_node *node, const char *key, cons
 NGL_API int ngl_node_param_set_vec4(struct ngl_node *node, const char *key, const float *value);
 
 /**
+ * Get the node type
+ *
+ * @param node         node to get the type from
+ * @param type         returned node type (any of NGL_NODE_*)
+ * @return             0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_get_type(struct ngl_node *node, uint32_t *type);
+
+/**
+ * Get the node label
+ *
+ * @param node         node to get the label from
+ * @param label        returned node label
+ * @return             0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_get_label(struct ngl_node *node, const char **label);
+
+/**
  * Live controls
  */
 

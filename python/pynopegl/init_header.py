@@ -226,6 +226,12 @@ class Node(_Node):
     def _set_rational(self, param_name, ratio):
         return self._param_set_rational(param_name, ratio[0], ratio[1])
 
+    def get_type(self):
+        return self._get_type()
+
+    def get_label(self):
+        return self._get_label()
+
 
 class Scene(_ngl.Scene):
     @classmethod
