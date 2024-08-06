@@ -722,6 +722,26 @@ int ngl_node_param_set_dict(struct ngl_node *node, const char *key, const char *
     FORWARD_TO_PARAM(dict, name, value);
 }
 
+int ngl_node_get_type(struct ngl_node *node, uint32_t *type)
+{
+    if (!node)
+        return NGL_ERROR_INVALID_ARG;
+
+    *type = node->cls->id;
+
+    return 0;
+}
+
+int ngl_node_get_label(struct ngl_node *node, const char **label)
+{
+    if (!node)
+        return NGL_ERROR_INVALID_ARG;
+
+    *label = node->label;
+
+    return 0;
+}
+
 struct ngl_node *ngl_node_ref(struct ngl_node *node)
 {
     node->refcount++;
