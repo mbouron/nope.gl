@@ -66,6 +66,8 @@ cdef extern from "nopegl.h":
     int ngl_node_param_set_vec3(ngl_node *node, const char *key, const float *value)
     int ngl_node_param_set_vec4(ngl_node *node, const char *key, const float *value)
     int ngl_anim_evaluate(ngl_node *anim, void *dst, double t)
+    int ngl_node_get_type(ngl_node *node, uint32_t *type)
+    int ngl_node_get_label(ngl_node *node, const char **label)
 
     cdef int NGL_PLATFORM_AUTO
     cdef int NGL_PLATFORM_XLIB
@@ -391,6 +393,20 @@ cdef class _Node:
         ret = ngl_node_param_add_f64s(self.ctx, key, nb_f64s, f64s_c)
         free(f64s_c)
         return ret
+
+    def _get_type(self):
+        cdef uint32_t type = 0
+        cdef int ret = ngl_node_get_type(self.ctx, &type)
+        if ret < 0:
+            raise Exception("Failed to get node type")
+        return type
+
+    def _get_label(self):
+        cdef const char *label = NULL
+        cdef int ret = ngl_node_get_label(self.ctx, &label)
+        if ret < 0:
+            raise Exception("Failed to get node label")
+        return str(label)
 
 
 ANIM_EVALUATE, ANIM_DERIVATE, ANIM_SOLVE = range(3)
