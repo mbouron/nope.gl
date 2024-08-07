@@ -204,6 +204,44 @@ class NopeGLTest {
     }
 
     @Test
+    fun nodeLabel() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val duration = 10.0
+        val label = "color-label"
+        val draw = NGLDrawColor(label = label)
+        val group = NGLGroup(listOf(draw))
+
+        val scene = NGLScene(rootNode = group, duration = duration)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
+            setScene(scene)
+        }
+        assertEquals(label, draw.getLabel())
+
+        ctx.finalize()
+    }
+
+    @Test
+    fun nodeType() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val duration = 10.0
+        val draw = NGLDrawColor()
+        val group = NGLGroup(listOf(draw))
+
+        val scene = NGLScene(rootNode = group, duration = duration)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
+            setScene(scene)
+        }
+        assertEquals(NGLNodeType.DRAWCOLOR, draw.getType())
+        assertEquals(NGLNodeType.GROUP, group.getType())
+
+        ctx.finalize()
+    }
+
+    @Test
     fun liveControls() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         NGLContext.init(appContext)

@@ -23,14 +23,13 @@ package org.nopeforge.nopegl.kotlin
 
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
-import org.gradle.caching.MapBasedBuildCacheService
 import org.nopeforge.nopegl.NGLData
 import org.nopeforge.nopegl.NGLIVec2
 import org.nopeforge.nopegl.NGLIVec3
 import org.nopeforge.nopegl.NGLIVec4
 import org.nopeforge.nopegl.NGLMat4
-import org.nopeforge.nopegl.NGLNodeOrValue
 import org.nopeforge.nopegl.NGLNode
+import org.nopeforge.nopegl.NGLNodeOrValue
 import org.nopeforge.nopegl.NGLNodeType
 import org.nopeforge.nopegl.NGLRational
 import org.nopeforge.nopegl.NGLUVec2
@@ -59,7 +58,22 @@ data class NodeClass(
         val nullable: Boolean,
         val canBeNode: Boolean,
         val mutable: Boolean,
-    )
+        val addSetter: Boolean = true,
+    ) {
+        companion object {
+            val Label = Parameter(
+                parameterName = "label",
+                name = "label",
+                type = TypeName.Str,
+                description = "label of the node",
+                choicesType = null,
+                nullable = true,
+                canBeNode = false,
+                mutable = false,
+                addSetter = false
+            )
+        }
+    }
 
     companion object {
         fun from(name: String, spec: NodeSpec, packageName: String): NodeClass {
@@ -83,7 +97,7 @@ data class NodeClass(
                         canBeNode = it.canBeNode,
                         mutable = it.mutable,
                     )
-                }
+                } + Parameter.Label
             )
         }
     }
@@ -133,72 +147,79 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                     }
                 }
                 .build()
-        ).addFunctions(parameterSpecs.flatMap { (param, parameter) ->
-            val block = kotlinSetCall(
-                typeName = param.type,
-                name = param.name,
-                kotlinName = parameter.name,
-                nullable = false,
-                canBeNode = param.canBeNode
-            )
-            listOfNotNull(
-                block.let { setCall ->
-                    FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
-                        .addParameter(
-                            parameter
-                                .toBuilder(type = parameter.type.copy(nullable = false))
-                                .defaultValue(null)
-                                .build()
-                        )
-                        .addCode(setCall)
-                        .build()
-                },
-                when (param.type) {
-                    TypeName.NodeDict -> {
-                        block.let { setCall ->
-                            FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
-                                .addParameter(
-                                    ParameterSpec
-                                        .builder(
-                                            "pairs",
-                                            Pair::class.asTypeName().parameterizedBy(
-                                                String::class.asTypeName(),
-                                                NGLNode::class.asTypeName()
-                                            ),
-                                            KModifier.VARARG
-                                        )
-                                        .build()
-                                )
-                                .addCode(CodeBlock.builder()
-                                    .addStatement("val ${parameter.name} = pairs.toMap()")
-                                    .add(setCall)
-                                    .build())
-                                .build()
+        ).addFunctions(parameterSpecs.filter { it.key.addSetter }
+            .flatMap { (param, parameter) ->
+                val block = kotlinSetCall(
+                    typeName = param.type,
+                    name = param.name,
+                    kotlinName = parameter.name,
+                    nullable = false,
+                    canBeNode = param.canBeNode
+                )
+                listOfNotNull(
+                    block.let { setCall ->
+                        FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
+                            .addParameter(
+                                parameter
+                                    .toBuilder(type = parameter.type.copy(nullable = false))
+                                    .defaultValue(null)
+                                    .build()
+                            )
+                            .addCode(setCall)
+                            .build()
+                    },
+                    when (param.type) {
+                        TypeName.NodeDict -> {
+                            block.let { setCall ->
+                                FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
+                                    .addParameter(
+                                        ParameterSpec
+                                            .builder(
+                                                "pairs",
+                                                Pair::class.asTypeName().parameterizedBy(
+                                                    String::class.asTypeName(),
+                                                    NGLNode::class.asTypeName()
+                                                ),
+                                                KModifier.VARARG
+                                            )
+                                            .build()
+                                    )
+                                    .addCode(
+                                        CodeBlock.builder()
+                                            .addStatement("val ${parameter.name} = pairs.toMap()")
+                                            .add(setCall)
+                                            .build()
+                                    )
+                                    .build()
+                            }
                         }
-                    }
-                    TypeName.NodeList -> {
-                        block.let { setCall ->
-                            FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
-                                .addParameter(
-                                    ParameterSpec
-                                        .builder(
-                                            "nodes",
-                                            NGLNode::class.asTypeName(),
-                                            KModifier.VARARG
-                                        )
-                                        .build()
-                                )
-                                .addCode(CodeBlock.builder()
-                                    .addStatement("val ${parameter.name} = nodes.toList()")
-                                    .add(setCall)
-                                    .build())
-                                .build()
+
+                        TypeName.NodeList -> {
+                            block.let { setCall ->
+                                FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
+                                    .addParameter(
+                                        ParameterSpec
+                                            .builder(
+                                                "nodes",
+                                                NGLNode::class.asTypeName(),
+                                                KModifier.VARARG
+                                            )
+                                            .build()
+                                    )
+                                    .addCode(
+                                        CodeBlock.builder()
+                                            .addStatement("val ${parameter.name} = nodes.toList()")
+                                            .add(setCall)
+                                            .build()
+                                    )
+                                    .build()
+                            }
                         }
-                    }
-                    else -> null
-                },
-            )
-        })
+
+                        else -> null
+                    },
+                )
+            })
         .build()
 }
 
@@ -237,13 +258,23 @@ private fun kotlinSetCall(
             name
         )
 
-        TypeName.NodeList -> CodeBlock.of("${NGLNode::addNodes.name}(%S, $propertyAccessor)\n", name)
-        TypeName.F64List -> CodeBlock.of("${NGLNode::addDoubles.name}(%S, $propertyAccessor)\n", name)
+        TypeName.NodeList -> CodeBlock.of(
+            "${NGLNode::addNodes.name}(%S, $propertyAccessor)\n",
+            name
+        )
+
+        TypeName.F64List -> CodeBlock.of(
+            "${NGLNode::addDoubles.name}(%S, $propertyAccessor)\n",
+            name
+        )
 
         TypeName.NodeDict -> {
             CodeBlock.builder()
                 .beginControlFlow("$propertyAccessor.forEach { (key, value) ->")
-                .addStatement("${NGLNode::setDict.name}(%S, key, value.${NGLNode::nativePtr.name})", name)
+                .addStatement(
+                    "${NGLNode::setDict.name}(%S, key, value.${NGLNode::nativePtr.name})",
+                    name
+                )
                 .endControlFlow()
                 .build()
         }

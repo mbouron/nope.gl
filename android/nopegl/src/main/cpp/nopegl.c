@@ -357,6 +357,26 @@ JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeUnref(JNIEnv *env
     ngl_node_unrefp(&node);
 }
 
+JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetLabel(JNIEnv *env, jobject thiz, jlong native_ptr)
+{
+    const char *label     = NULL;
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+
+    ngl_node_get_label(node, &label);
+
+    return (*env)->NewStringUTF(env, label);
+}
+
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetType(JNIEnv *env, jobject thiz, jlong native_ptr)
+{
+    uint32_t type;
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+
+    ngl_node_get_type(node, &type);
+
+    return (jint)type;
+}
+
 #define DECLARE_SET_VEC_FUNC(ctype, jtype, name, count)                                                 \
     static jint set_##name(JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jfloatArray array) \
     {                                                                                                   \

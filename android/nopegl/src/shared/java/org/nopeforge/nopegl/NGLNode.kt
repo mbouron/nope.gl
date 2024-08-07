@@ -47,6 +47,14 @@ open class NGLNode(
         setString("label", label)
     }
 
+    fun getLabel(): String {
+        return nativeGetLabel(nativePtr)
+    }
+
+    fun getType(): NGLNodeType {
+        return NGLNodeType.values().first { it.type == nativeGetType(nativePtr) }
+    }
+
     fun setBoolean(key: String, value: Boolean): Boolean {
         return nativeSetBoolean(nativePtr, key, value) == 0
     }
@@ -149,6 +157,8 @@ open class NGLNode(
         return nativeSetVec4(nativePtr, key, value.array) == 0
     }
 
+    private external fun nativeGetLabel(nativePtr: Long): String
+    private external fun nativeGetType(nativePtr: Long): Int
     private external fun nativeRef(nativePtr: Long)
     private external fun nativeUnref(nativePtr: Long)
     private external fun nativeSetBoolean(nativePtr: Long, key: String, value: Boolean): Int
@@ -362,7 +372,7 @@ enum class NGLNodeType(val type: Int) {
     GRAPHICCONFIG(fourCharacters('G', 'r', 'C', 'f')),
     GRIDLAYOUT(fourCharacters('G', 'r', 'd', 'L')),
     GROUP(fourCharacters('G', 'r', 'p', ' ')),
-    HEXAGONALBLUR(fourCharacters('H','G','B','l')),
+    HEXAGONALBLUR(fourCharacters('H', 'G', 'B', 'l')),
     IDENTITY(fourCharacters('I', 'd', ' ', ' ')),
     IOINT(fourCharacters('I', 'O', 'i', '1')),
     IOIVEC2(fourCharacters('I', 'O', 'i', '2')),
