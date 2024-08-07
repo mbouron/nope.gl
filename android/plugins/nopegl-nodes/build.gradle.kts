@@ -32,10 +32,10 @@ gradlePlugin {
 }
 
 dependencies {
-    testImplementation("org.jetbrains.kotlin:kotlin-test")
-    implementation("com.squareup:kotlinpoet:1.16.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-    implementation("com.android.tools.build:gradle:8.2.0")
+    testImplementation(libs.kotlin.test)
+    implementation(libs.kotlinpoet)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.android.gradle)
 }
 
 tasks.test {
