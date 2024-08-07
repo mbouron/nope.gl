@@ -4,3 +4,4 @@ appimage
 builddir
 external
 venv/
+__pycache__/
