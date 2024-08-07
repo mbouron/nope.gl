@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ProviderInfo
+import android.graphics.PointF
 import android.test.mock.MockContentResolver
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -14,6 +15,7 @@ import org.junit.runner.RunWith
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
+import kotlin.math.abs
 
 
 class MockContext(private val contentResolver: ContentResolver, base: Context?) :
@@ -218,6 +220,73 @@ class NopeGLTest {
             setScene(scene)
         }
         assertEquals(label, draw.getLabel())
+
+        ctx.finalize()
+    }
+
+    @Test
+    fun boundingBox() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val duration = 10.0
+        val boundsColor = NGLDrawColor(computeBounds = true)
+        val noBoundsColor = NGLDrawColor(computeBounds = false)
+        val scale = NGLScale(
+            child = boundsColor,
+            factors = NGLNodeOrValue.node(
+                NGLAnimatedVec3(
+                    listOf(
+                        NGLAnimKeyFrameVec3(0.0, NGLVec3(1f, 1f, 1f)),
+                        NGLAnimKeyFrameVec3(5.0, NGLVec3(0.5f, 0.5f, 0.5f)),
+                    )
+                )
+            )
+        )
+        val translate= NGLTranslate(
+            child = scale,
+            vector = NGLNodeOrValue.node(
+                NGLAnimatedVec3(
+                    listOf(
+                        NGLAnimKeyFrameVec3(5.0, NGLVec3(0f, 0f, 0f)),
+                        NGLAnimKeyFrameVec3(10.0, NGLVec3(1f, 1f, 0f)),
+                    )
+                )
+            )
+        )
+        val group = NGLGroup(listOf(translate, noBoundsColor))
+
+        val scene = NGLScene(rootNode = group, duration = duration)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
+            setScene(scene)
+        }
+
+        assertEquals(boundsColor.getBoundingBox(), BoundingBox(0f, 0f, 0f, 0f))
+        assertEquals(null, noBoundsColor.getBoundingBox())
+        assertEquals(null, group.getBoundingBox())
+
+        fun checkBoundingBox(ctx: NGLContext, node: NGLNode, time: Double, expectedBoundingBox: BoundingBox) {
+            ctx.draw(time)
+            val boundingBox = node.getBoundingBox()!!
+            val label = node.getLabel()
+            assertEquals(expectedBoundingBox, boundingBox)
+            for (x in 0..255) {
+                for (y in 0..255) {
+                    val nodes = ctx.getIntersectingNodes(PointF(x.toFloat(), y.toFloat()))
+                    if (abs(boundingBox.centerX - x) <= boundingBox.extentWidth &&
+                        abs(boundingBox.centerY - y) <= boundingBox.extentHeight) {
+                        assertEquals(nodes.size, 1)
+                        assertEquals(label, nodes[0].getLabel())
+                    } else {
+                        assertEquals(nodes.size, 0)
+                    }
+                }
+            }
+        }
+
+        checkBoundingBox(ctx, boundsColor, 0.0, BoundingBox(128f, 128f, 128f, 128f))
+        checkBoundingBox(ctx, boundsColor, 5.0, BoundingBox(128f, 128f, 64f, 64f))
+        checkBoundingBox(ctx, boundsColor, 10.0, BoundingBox(256f, 256f, 64f, 64f))
 
         ctx.finalize()
     }

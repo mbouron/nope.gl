@@ -262,6 +262,34 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeCreate(JNIEnv
     return (jlong)ctx;
 }
 
+JNIEXPORT JNIEXPORT jlongArray JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeIntersectingNodes(JNIEnv *env,
+                                                                                                    jobject thiz,
+                                                                                                    jlong native_ptr,
+                                                                                                    jfloat x,
+                                                                                                    jfloat y)
+{
+    const float point[2] = {x, y};
+
+    size_t size             = 0;
+    struct ngl_node **nodes = NULL;
+
+    int result = ngl_get_nodes_intersecting_point((struct ngl_ctx *)native_ptr, point, &size, &nodes);
+    if (result < 0)
+        return NULL;
+
+    jlongArray array = (*env)->NewLongArray(env, size);
+    if (!array)
+        return NULL;
+
+    for (size_t i = 0; i < size; i++) {
+        struct ngl_node *node = nodes[i];
+        jlong nativePtr       = (jlong)(uintptr_t)node;
+        (*env)->SetLongArrayRegion(env, array, i, 1, &nativePtr);
+    }
+
+    return array;
+}
+
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeConfigure(JNIEnv *env,
                                                                             jclass type,
                                                                             jlong native_ptr,
@@ -375,6 +403,29 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetType(JNIEnv *e
     ngl_node_get_type(node, &type);
 
     return (jint)type;
+}
+
+JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetBoundingBox(JNIEnv *env,
+                                                                                     jobject thiz,
+                                                                                     jlong native_ptr)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+
+    struct ngl_bounding_box bbox;
+    int result = ngl_node_get_bounding_box(node, &bbox);
+    if (result < 0)
+        return NULL;
+
+    jfloatArray array = (*env)->NewFloatArray(env, 4);
+    if (!array)
+        return NULL;
+
+    (*env)->SetFloatArrayRegion(env, array, 0, 1, &bbox.center[0]);
+    (*env)->SetFloatArrayRegion(env, array, 1, 1, &bbox.center[1]);
+    (*env)->SetFloatArrayRegion(env, array, 2, 1, &bbox.extent[0]);
+    (*env)->SetFloatArrayRegion(env, array, 3, 1, &bbox.extent[1]);
+
+    return array;
 }
 
 #define DECLARE_SET_VEC_FUNC(ctype, jtype, name, count)                                                 \

@@ -11,6 +11,11 @@ if [ ! -f "configure.py" ]; then
     exit 1
 fi
 
+local="false"
+if [ "$1" = "local" ]; then
+    local="true"
+fi
+
 archs="arm aarch64 x86_64"
 for arch in $archs; do
     python configure.py --buildtype "debug" --build-id --host Android --host-arch "$arch"
@@ -20,5 +25,9 @@ done
 export NGL_ANDROID_ENV="$base_dir/Android/"
 (
     cd android
-    ./gradlew publish
+    if [ "$local" = "true" ]; then
+        ./gradlew publishToMavenLocal
+    else
+      ./gradlew publish
+    fi
 )

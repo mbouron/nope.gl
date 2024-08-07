@@ -22,6 +22,7 @@
 package org.nopeforge.nopegl
 
 import android.content.Context
+import android.graphics.PointF
 import android.view.Surface
 import java.nio.ByteBuffer
 
@@ -58,9 +59,17 @@ class NGLContext {
     fun update(time: Double): Int {
         return nativeUpdate(nativePtr, time)
     }
-    fun setCaptureBuffer(buffer : ByteBuffer) : Int {
+
+    fun setCaptureBuffer(buffer: ByteBuffer): Int {
         captureBuffer = buffer
         return nativeSetCaptureBuffer(nativePtr, buffer)
+    }
+
+    fun getIntersectingNodes(point: PointF): List<NGLNode> {
+        val pointers = nativeIntersectingNodes(nativePtr, point.x, point.y)
+            ?.toList()
+            .orEmpty()
+        return pointers.map { pointer -> NGLNode(pointer, false) }
     }
 
     fun release() {
@@ -99,8 +108,8 @@ class NGLContext {
 
         @JvmStatic
         fun createNativeWindow(surface: Surface?): Long {
-           return nativeCreateNativeWindow(surface)
-       }
+            return nativeCreateNativeWindow(surface)
+        }
 
         @JvmStatic
         fun releaseNativeWindow(nativePtr: Long) {
@@ -109,8 +118,10 @@ class NGLContext {
 
         @JvmStatic
         private external fun nativeInit(context: Context?, logLevel: String)
+
         @JvmStatic
         private external fun nativeCreateNativeWindow(surface: Any?): Long
+
         @JvmStatic
         private external fun nativeReleaseNativeWindow(nativePtr: Long)
     }
@@ -122,10 +133,11 @@ class NGLContext {
     /* Context */
     private external fun nativeCreate(): Long
     private external fun nativeConfigure(nativePtr: Long, config: NGLConfig): Int
-    private external fun nativeResize(nativePtr: Long, width: Int, height: Int, ): Int
+    private external fun nativeResize(nativePtr: Long, width: Int, height: Int): Int
     private external fun nativeDraw(nativePtr: Long, time: Double): Int
 
     private external fun nativeUpdate(nativePtr: Long, time: Double): Int
-    private external fun nativeSetCaptureBuffer(nativePtr: Long, buffer: ByteBuffer) : Int
+    private external fun nativeSetCaptureBuffer(nativePtr: Long, buffer: ByteBuffer): Int
     private external fun nativeRelease(nativePtr: Long)
+    private external fun nativeIntersectingNodes(nativePtr: Long, x: Float, y: Float): LongArray?
 }
