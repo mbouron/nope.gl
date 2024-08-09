@@ -116,8 +116,8 @@ void ngli_vec3_normalvec(float *dst, const float *a, const float *b, const float
 
 void ngli_vec4_lerp(float *dst, const float *v1, const float *v2, float c)
 {
-    const float a[4] = {NGLI_ARG_VEC4(v1)};
-    const float b[4] = {NGLI_ARG_VEC4(v2)};
+    const NGLI_ALIGNED_VEC(a) = {NGLI_ARG_VEC4(v1)};
+    const NGLI_ALIGNED_VEC(b) = {NGLI_ARG_VEC4(v2)};
     dst[0] = NGLI_MIX_F32(a[0], b[0], c);
     dst[1] = NGLI_MIX_F32(a[1], b[1], c);
     dst[2] = NGLI_MIX_F32(a[2], b[2], c);
@@ -126,13 +126,13 @@ void ngli_vec4_lerp(float *dst, const float *v1, const float *v2, float c)
 
 void ngli_vec4_perspective_div(float *dst, float *v)
 {
-    float r[] = {v[0] / v[3], v[1] / v[3], v[2] / v[3], v[3] / v[3]};
+    NGLI_ALIGNED_VEC(r) = {v[0] / v[3], v[1] / v[3], v[2] / v[3], v[3] / v[3]};
     memcpy(dst, r, sizeof(r));
 }
 
 void ngli_vec4_init(float *dst, float x, float y, float z, float w)
 {
-    float r[] = {x, y, z, w};
+    NGLI_ALIGNED_VEC(r) = {x, y, z, w};
     memcpy(dst, r, sizeof(r));
 }
 
@@ -300,7 +300,7 @@ void ngli_mat4_mul_c(float *dst, const float *m1, const float *m2)
 
 void ngli_mat4_mul_vec4_c(float *dst, const float *m, const float *v)
 {
-    float tmp[4];
+    NGLI_ALIGNED_VEC(tmp);
 
     tmp[0] = m[ 0]*v[0] + m[ 4]*v[1] + m[ 8]*v[2] + m[12]*v[3];
     tmp[1] = m[ 1]*v[0] + m[ 5]*v[1] + m[ 9]*v[2] + m[13]*v[3];
@@ -519,7 +519,7 @@ void ngli_mat4_skew(float * restrict dst, float x, float y, float z, const float
 
 void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, float t)
 {
-    float tmp_q1[4];
+    NGLI_ALIGNED_VEC(tmp_q1);
     const float *tmp_q1p = q1;
 
     float cos_alpha = ngli_vec4_dot(q1, q2);
@@ -541,13 +541,13 @@ void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, flo
     const float alpha = acosf(cos_alpha);
     const float theta = alpha * t;
 
-    float tmp[4];
+    NGLI_ALIGNED_VEC(tmp);
     ngli_vec4_scale(tmp, tmp_q1p, cos_alpha);
     ngli_vec4_sub(tmp, q2, tmp);
     ngli_vec4_norm(tmp, tmp);
 
-    float tmp1[4];
-    float tmp2[4];
+    NGLI_ALIGNED_VEC(tmp1);
+    NGLI_ALIGNED_VEC(tmp2);
     ngli_vec4_scale(tmp1, tmp_q1p, cosf(theta));
     ngli_vec4_scale(tmp2, tmp, sinf(theta));
     ngli_vec4_add(dst, tmp1, tmp2);
