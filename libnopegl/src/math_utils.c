@@ -20,6 +20,7 @@
  * under the License.
  */
 
+#include <float.h>
 #include <string.h>
 #include <math.h>
 
@@ -191,7 +192,7 @@ void ngli_mat3_inverse(float *dst, const float *m)
     float a[3*3];
     float det = ngli_mat3_determinant(m);
 
-    if (det == 0.f) {
+    if (fabsf(det) < FLT_EPSILON) {
         memcpy(dst, m, 3 * 3 * sizeof(*m));
         return;
     }
@@ -244,7 +245,7 @@ void ngli_mat4_inverse(float *dst, const float *m)
     const float det_p3 = m[4] * x15 - m[5] * x13 + m[6] * x12;
 
     float det = m[0] * det_p0 - m[1] * det_p1 + m[2] * det_p2 - m[3] * det_p3;
-    if (det == 0.f) {
+    if (fabsf(det) < FLT_EPSILON) {
         memcpy(dst, m, 4 * 4 * sizeof(*dst));
         return;
     }
