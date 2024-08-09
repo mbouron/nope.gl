@@ -112,6 +112,7 @@ float ngli_vec4_length(const float *v);
 void ngli_vec4_mul(float *dst, const float *v1, const float *v2);
 void ngli_vec4_lerp(float *dst, const float *v1, const float *v2, float c);
 void ngli_vec4_perspective_div(float *dst, float *v);
+void ngli_vec4_init(float *dst, float x, float y, float z, float w);
 
 void ngli_mat3_from_mat4(float *dst, const float *m);
 void ngli_mat3_mul_scalar(float *dst, const float *m, float s);

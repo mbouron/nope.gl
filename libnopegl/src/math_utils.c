@@ -130,6 +130,12 @@ void ngli_vec4_perspective_div(float *dst, float *v)
     memcpy(dst, r, sizeof(r));
 }
 
+void ngli_vec4_init(float *dst, float x, float y, float z, float w)
+{
+    float r[] = {x, y, z, w};
+    memcpy(dst, r, sizeof(r));
+}
+
 void ngli_mat3_from_mat4(float *dst, const float *m)
 {
     memcpy(dst,     m,     3 * sizeof(*m));
