@@ -173,6 +173,11 @@ void ngli_gpu_ctx_transform_projection_matrix(struct gpu_ctx *s, float *dst)
     s->cls->transform_projection_matrix(s, dst);
 }
 
+void ngli_gpu_ctx_transform_projection_matrix_inv(struct gpu_ctx *s, float *dst)
+{
+    s->cls->transform_projection_matrix_inv(s, dst);
+}
+
 void ngli_gpu_ctx_begin_render_pass(struct gpu_ctx *s, struct rendertarget *rt)
 {
     ngli_assert(rt);

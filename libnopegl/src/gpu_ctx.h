@@ -67,6 +67,7 @@ struct gpu_ctx_class {
 
     int (*transform_cull_mode)(struct gpu_ctx *s, int cull_mode);
     void (*transform_projection_matrix)(struct gpu_ctx *s, float *dst);
+    void (*transform_projection_matrix_inv)(struct gpu_ctx *s, float *dst);
     void (*get_rendertarget_uvcoord_matrix)(struct gpu_ctx *s, float *dst);
 
     struct rendertarget *(*get_default_rendertarget)(struct gpu_ctx *s, int load_op);
@@ -169,6 +170,7 @@ void ngli_gpu_ctx_freep(struct gpu_ctx **sp);
 
 int ngli_gpu_ctx_transform_cull_mode(struct gpu_ctx *s, int cull_mode);
 void ngli_gpu_ctx_transform_projection_matrix(struct gpu_ctx *s, float *dst);
+void ngli_gpu_ctx_transform_projection_matrix_inv(struct gpu_ctx *s, float *dst);
 void ngli_gpu_ctx_get_rendertarget_uvcoord_matrix(struct gpu_ctx *s, float *dst);
 
 struct rendertarget *ngli_gpu_ctx_get_default_rendertarget(struct gpu_ctx *s, int load_op);

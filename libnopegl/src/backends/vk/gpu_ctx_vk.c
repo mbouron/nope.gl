@@ -1247,6 +1247,17 @@ static void vk_transform_projection_matrix(struct gpu_ctx *s, float *dst)
     ngli_mat4_mul(dst, matrix, dst);
 }
 
+static void vk_transform_projection_matrix_inv(struct gpu_ctx *s, float *dst)
+{
+    static const NGLI_ALIGNED_MAT(matrix) = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f,-1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 2.0f, 0.0f,
+        0.0f, 0.0f,-1.0f, 1.0f,
+    };
+    ngli_mat4_mul(dst, matrix, dst);
+}
+
 static void vk_get_rendertarget_uvcoord_matrix(struct gpu_ctx *s, float *dst)
 {
     static const NGLI_ALIGNED_MAT(matrix) = NGLI_MAT4_IDENTITY;
@@ -1469,6 +1480,7 @@ const struct gpu_ctx_class ngli_gpu_ctx_vk = {
 
     .transform_cull_mode                = vk_transform_cull_mode,
     .transform_projection_matrix        = vk_transform_projection_matrix,
+    .transform_projection_matrix_inv    = vk_transform_projection_matrix_inv,
     .get_rendertarget_uvcoord_matrix    = vk_get_rendertarget_uvcoord_matrix,
 
     .get_default_rendertarget           = vk_get_default_rendertarget,

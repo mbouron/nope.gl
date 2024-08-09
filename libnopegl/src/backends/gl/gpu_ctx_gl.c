@@ -888,6 +888,10 @@ static void gl_transform_projection_matrix(struct gpu_ctx *s, float *dst)
 {
 }
 
+static void gl_transform_projection_matrix_inv(struct gpu_ctx *s, float *dst)
+{
+}
+
 static void gl_get_rendertarget_uvcoord_matrix(struct gpu_ctx *s, float *dst)
 {
     static const NGLI_ALIGNED_MAT(matrix) = {
@@ -1009,6 +1013,7 @@ const struct gpu_ctx_class ngli_gpu_ctx_##cls_suffix = {                        
                                                                                  \
     .transform_cull_mode                = gl_transform_cull_mode,                \
     .transform_projection_matrix        = gl_transform_projection_matrix,        \
+    .transform_projection_matrix_inv    = gl_transform_projection_matrix_inv,    \
     .get_rendertarget_uvcoord_matrix    = gl_get_rendertarget_uvcoord_matrix,    \
                                                                                  \
     .get_default_rendertarget           = gl_get_default_rendertarget,           \
