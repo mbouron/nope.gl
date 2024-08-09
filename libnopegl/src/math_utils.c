@@ -431,51 +431,42 @@ void ngli_mat4_rotate(float * restrict dst, float angle, float *axis, const floa
 
 void ngli_mat4_from_quat(float * restrict dst, const float *q, const float *anchor)
 {
-    float tmp[4];
-    const float *tmpp = q;
+    NGLI_ALIGNED_VEC(tmp) = {NGLI_ARG_VEC4(q)};
 
     float length = ngli_vec4_length(q);
     if (length > 1.0) {
         ngli_vec4_norm(tmp, q);
-        tmpp = tmp;
     }
 
-    const float x2  = tmpp[0] + tmpp[0];
-    const float y2  = tmpp[1] + tmpp[1];
-    const float z2  = tmpp[2] + tmpp[2];
+    const float x  = tmp[0];
+    const float y  = tmp[1];
+    const float z  = tmp[2];
+    const float w  = tmp[3];
 
-    const float yy2 = tmpp[1] * y2;
-    const float xy2 = tmpp[0] * y2;
-    const float xz2 = tmpp[0] * z2;
-    const float yz2 = tmpp[1] * z2;
-    const float zz2 = tmpp[2] * z2;
-    const float wz2 = tmpp[3] * z2;
-    const float wy2 = tmpp[3] * y2;
-    const float wx2 = tmpp[3] * x2;
-    const float xx2 = tmpp[0] * x2;
+    const float x2  = x + x;
+    const float y2  = y + y;
+    const float z2  = z + z;
 
-    dst[ 0] = -yy2 - zz2 + 1.0f;
-    dst[ 1] =  xy2 + wz2;
-    dst[ 2] =  xz2 - wy2;
-    dst[ 3] =  0.0f;
-    dst[ 4] =  xy2 - wz2;
-    dst[ 5] = -xx2 - zz2 + 1.0f;
-    dst[ 6] =  yz2 + wx2;
-    dst[ 7] =  0.0f;
-    dst[ 8] =  xz2 + wy2;
-    dst[ 9] =  yz2 - wx2;
-    dst[10] = -xx2 - yy2 + 1.0f;
-    dst[11] =  0.0f;
+    const float yy2 = y * y2;
+    const float xy2 = x * y2;
+    const float xz2 = x * z2;
+    const float yz2 = y * z2;
+    const float zz2 = z * z2;
+    const float wz2 = w * z2;
+    const float wy2 = w * y2;
+    const float wx2 = w * x2;
+    const float xx2 = x * x2;
+
+    ngli_vec4_init(dst + 0, 1.0f - yy2 - zz2,        xy2 + wz2,        xz2 - wy2, 0.0f);
+    ngli_vec4_init(dst + 4,        xy2 - wz2, 1.0f - xx2 - zz2,        yz2 + wx2, 0.0f);
+    ngli_vec4_init(dst + 8,        xz2 + wy2,        yz2 - wx2, 1.0f - xx2 - yy2, 0.0f);
+    ngli_vec4_init(dst + 12,            0.0f,             0.0f,             0.0f, 1.0f);
+
     if (anchor) {
         dst[12] = anchor[0] - anchor[0]*dst[0] - anchor[1]*dst[4] - anchor[2]*dst[ 8];
         dst[13] = anchor[1] - anchor[0]*dst[1] - anchor[1]*dst[5] - anchor[2]*dst[ 9];
         dst[14] = anchor[2] - anchor[0]*dst[2] - anchor[1]*dst[6] - anchor[2]*dst[10];
-    } else {
-        dst[12] = 0.0f;
-        dst[13] = 0.0f;
-        dst[14] = 0.0f;
     }
-    dst[15] =  1.0f;
 }
 
 void ngli_mat4_translate(float * restrict dst, float x, float y, float z)
