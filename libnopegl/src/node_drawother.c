@@ -56,6 +56,7 @@
 #include "source_noise_vert.h"
 #include "source_texture_frag.h"
 #include "source_texture_vert.h"
+#include "source_texture_discard_frag.h"
 #include "source_waveform_frag.h"
 #include "source_waveform_vert.h"
 
@@ -226,6 +227,7 @@ struct drawmask_priv {
 
 struct drawtexture_opts {
     struct ngl_node *texture_node;
+    int wrap;
     struct render_common_opts common;
 };
 
@@ -470,12 +472,27 @@ static const struct node_param drawnoise_params[] = {
 };
 #undef OFFSET
 
+#define TEXTURE_WRAP_DEFAULT 0
+#define TEXTURE_WRAP_DISCARD 1
+
+const struct param_choices texture_wrap_choices = {
+    .name = "drawtexture_wrap",
+    .consts = {
+        {"default", TEXTURE_WRAP_DEFAULT, .desc=NGLI_DOCSTRING("use texture wrap parameters")},
+        {"discard", TEXTURE_WRAP_DISCARD, .desc=NGLI_DOCSTRING("discard fragment if coordinates are outside texture boundaries")},
+        {NULL}
+    }
+};
+
 #define OFFSET(x) offsetof(struct drawtexture_opts, x)
 static const struct node_param drawtexture_params[] = {
     {"texture",  NGLI_PARAM_TYPE_NODE, OFFSET(texture_node),
                  .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
                  .flags=NGLI_PARAM_FLAG_NON_NULL,
                  .desc=NGLI_DOCSTRING("texture to render")},
+    {"wrap",     NGLI_PARAM_TYPE_SELECT, OFFSET(wrap),
+                 .choices=&texture_wrap_choices,
+                 .desc=NGLI_DOCSTRING("texture wrap behaviour")},
     COMMON_PARAMS
     {NULL}
 };
@@ -749,7 +766,8 @@ static int drawtexture_init(struct ngl_node *node)
     if (!ngli_darray_push(&s->common.draw_resources, &texture_node))
         return NGL_ERROR_MEMORY;
 
-    return init(node, &s->common, &o->common, "source_texture", source_texture_frag);
+    const char *base_frag = o->wrap == TEXTURE_WRAP_DISCARD ? source_texture_discard_frag : source_texture_frag;
+    return init(node, &s->common, &o->common, "source_texture", base_frag);
 }
 
 static int drawwaveform_init(struct ngl_node *node)

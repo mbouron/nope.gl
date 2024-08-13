@@ -720,6 +720,7 @@ shaders = {
   'source_noise.vert': 'source_noise_vert.h',
   'source_texture.frag': 'source_texture_frag.h',
   'source_texture.vert': 'source_texture_vert.h',
+  'source_texture_discard.frag': 'source_texture_discard_frag.h',
   'source_waveform.frag': 'source_waveform_frag.h',
   'source_waveform.vert': 'source_waveform_vert.h',
   'text_bg.frag': 'text_bg_frag.h',
