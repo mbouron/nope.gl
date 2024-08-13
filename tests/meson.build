@@ -440,6 +440,7 @@ foreach backend : backends
     'cubemap',
     'cubemap_mipmap',
     'reframing',
+    'reframing_wrap_discard',
     'masking',
   ]
 

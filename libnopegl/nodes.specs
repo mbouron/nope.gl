@@ -388,6 +388,16 @@
         "desc": "perlin noise"
       }
     ],
+    "drawtexture_wrap": [
+      {
+        "name": "default",
+        "desc": "use texture wrap parameters"
+      },
+      {
+        "name": "discard",
+        "desc": "discard fragment if coordinates are outside texture boundaries"
+      }
+    ],
     "selector_component": [
       {
         "name": "lightness",
@@ -2416,6 +2426,14 @@
           "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
           "flags": ["nonull"],
           "desc": "texture to render"
+        },
+        {
+          "name": "wrap",
+          "type": "select",
+          "default": "default",
+          "choices": "drawtexture_wrap",
+          "flags": [],
+          "desc": "texture wrap behaviour"
         },
         {
           "name": "blending",
