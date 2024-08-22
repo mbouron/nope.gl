@@ -832,7 +832,7 @@ int ngl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
     return s->api_impl->set_scene(s, scene);
 }
 
-int ngli_prepare_draw(struct ngl_ctx *s, double t)
+int ngl_update(struct ngl_ctx *s, double t)
 {
     if (!s->configured) {
         LOG(ERROR, "context must be configured before updating");
@@ -840,11 +840,6 @@ int ngli_prepare_draw(struct ngl_ctx *s, double t)
     }
 
     return s->api_impl->prepare_draw(s, t);
-}
-
-int ngl_update(struct ngl_ctx *s, double t)
-{
-    return ngli_prepare_draw(s, t);
 }
 
 int ngl_draw(struct ngl_ctx *s, double t)

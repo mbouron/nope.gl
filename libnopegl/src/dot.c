@@ -464,7 +464,7 @@ end:
 
 char *ngl_dot(struct ngl_ctx *s, double t)
 {
-    int ret = ngli_prepare_draw(s, t);
+    int ret = ngl_update(s, t);
     if (ret < 0)
         return NULL;
     return ngli_scene_dot(s->scene);
