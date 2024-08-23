@@ -255,11 +255,20 @@ void ngli_node_get_renderpass_info(const struct ngl_node *node, struct renderpas
 static int rtt_prepare(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
-    struct rnode *rnode = ctx->rnode_pos;
+    struct rnode *rnode_pos = ctx->rnode_pos;
     struct rtt_priv *s = node->priv_data;
 
+    struct rnode *rnode = ngli_rnode_add_child(rnode_pos);
+    if (!rnode)
+        return NGL_ERROR_MEMORY;
+
     rnode->rendertarget_layout = s->layout;
-    return ngli_node_prepare_children(node);
+
+    ctx->rnode_pos = rnode;
+    int ret = ngli_node_prepare_children(node);
+    ctx->rnode_pos = rnode_pos;
+
+    return ret;
 }
 
 static int rtt_prefetch(struct ngl_node *node)
@@ -461,9 +470,14 @@ static void rtt_draw(struct ngl_node *node)
             return;
     }
 
+    struct rnode *rnode_pos = ctx->rnode_pos;
+    ctx->rnode_pos = ngli_darray_get(&rnode_pos->children, 0);
+
     ngli_rtt_begin(s->rtt_ctx);
     ngli_node_draw(o->child);
     ngli_rtt_end(s->rtt_ctx);
+
+    ctx->rnode_pos = rnode_pos;
 
     if (!o->forward_transforms) {
         ngli_darray_pop(&ctx->modelview_matrix_stack);
