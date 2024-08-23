@@ -667,16 +667,22 @@ static int texture2d_init(struct ngl_node *node)
 static int texture2d_prepare(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
-    struct rnode *rnode = ctx->rnode_pos;
+    struct rnode *rnode_pos = ctx->rnode_pos;
     struct texture_priv *s = node->priv_data;
 
     if (!s->rtt)
         return 0;
+    struct rnode *rnode = ngli_rnode_add_child(rnode_pos);
+    if (!rnode)
+        return NGL_ERROR_MEMORY;
 
     rnode->rendertarget_layout = s->rendertarget_layout;
-    return ngli_node_prepare_children(node);
 
-    return 0;
+    ctx->rnode_pos = rnode;
+    int ret = ngli_node_prepare_children(node);
+    ctx->rnode_pos = rnode_pos;
+
+    return ret;
 }
 
 static int texture2d_array_init(struct ngl_node *node)
