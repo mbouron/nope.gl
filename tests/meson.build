@@ -311,6 +311,7 @@ foreach backend : backends
     'mipmap',
     'mipmap_resizeable',
     'sample_depth',
+    'shared_subgraph_implicit',
     'clear_attachment_with_timeranges',
   ]
 

@@ -577,9 +577,14 @@ static void texture_draw(struct ngl_node *node)
             return;
     }
 
+    struct rnode *rnode_pos = ctx->rnode_pos;
+    ctx->rnode_pos = ngli_darray_get(&rnode_pos->children, 0);
+
     ngli_rtt_begin(s->rtt_ctx);
     ngli_node_draw(o->data_src);
     ngli_rtt_end(s->rtt_ctx);
+
+    ctx->rnode_pos = rnode_pos;
 
     if (!o->forward_transforms) {
         ngli_darray_pop(&ctx->modelview_matrix_stack);
@@ -672,6 +677,7 @@ static int texture2d_prepare(struct ngl_node *node)
 
     if (!s->rtt)
         return 0;
+
     struct rnode *rnode = ngli_rnode_add_child(rnode_pos);
     if (!rnode)
         return NGL_ERROR_MEMORY;
