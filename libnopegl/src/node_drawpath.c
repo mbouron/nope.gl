@@ -227,7 +227,8 @@ static int init_desc(struct ngl_node *node, struct drawpath_priv *s,
     struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
     if (!desc)
         return NGL_ERROR_MEMORY;
-    rnode->id = ngli_darray_count(&s->pipeline_descs) - 1;
+    rnode->draw_index = ngli_darray_count(&s->pipeline_descs) - 1;
+    rnode->draw_node = node;
 
     ngli_darray_init(&desc->uniforms, sizeof(struct pgcraft_uniform), 0);
     ngli_darray_init(&desc->uniforms_map, sizeof(struct uniform_map), 0);
@@ -274,7 +275,7 @@ static int finalize_pipeline(struct ngl_node *node,
     struct gpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct rnode *rnode = ctx->rnode_pos;
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[rnode->id];
+    struct pipeline_desc *desc = &descs[rnode->draw_index];
 
     struct graphics_state state = rnode->graphics_state;
     int ret = ngli_blending_apply_preset(&state, NGLI_BLENDING_SRC_OVER);
@@ -363,7 +364,7 @@ static int drawpath_prepare(struct ngl_node *node)
     };
 
     const struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    const struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    const struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/path",
         .vert_base        = path_vert,
@@ -384,7 +385,7 @@ static void drawpath_draw(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct drawpath_priv *s = node->priv_data;
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);

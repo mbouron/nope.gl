@@ -644,7 +644,9 @@ static int text_prepare(struct ngl_node *node)
     struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
     if (!desc)
         return NGL_ERROR_MEMORY;
-    ctx->rnode_pos->id = ngli_darray_count(&s->pipeline_descs) - 1;
+
+    ctx->rnode_pos->draw_node = node;
+    ctx->rnode_pos->draw_index = ngli_darray_count(&s->pipeline_descs) - 1;
 
     int ret = bg_prepare(node, &desc->bg);
     if (ret < 0)
@@ -705,7 +707,7 @@ static void text_draw(struct ngl_node *node)
     const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
 
     if (!ctx->render_pass_started) {
         struct gpu_ctx *gpu_ctx = ctx->gpu_ctx;

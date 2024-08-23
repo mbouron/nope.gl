@@ -767,7 +767,9 @@ static int init_desc(struct ngl_node *node, struct render_common *s,
     struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
     if (!desc)
         return NGL_ERROR_MEMORY;
-    rnode->id = ngli_darray_count(&s->pipeline_descs) - 1;
+
+    rnode->draw_node = node;
+    rnode->draw_index = ngli_darray_count(&s->pipeline_descs) - 1;
 
     ngli_darray_init(&desc->uniforms, sizeof(struct pgcraft_uniform), 0);
     ngli_darray_init(&desc->uniforms_map, sizeof(struct uniform_map), 0);
@@ -844,7 +846,7 @@ static int finalize_pipeline(struct ngl_node *node,
     struct gpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct rnode *rnode = ctx->rnode_pos;
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[rnode->id];
+    struct pipeline_desc *desc = &descs[rnode->draw_index];
 
     struct graphics_state state = rnode->graphics_state;
     int ret = ngli_blending_apply_preset(&state, o->blending);
@@ -918,7 +920,7 @@ static int drawcolor_prepare(struct ngl_node *node)
     };
 
     const struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    const struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->id];
+    const struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawcolor",
@@ -984,7 +986,7 @@ static int drawdisplace_prepare(struct ngl_node *node)
     };
 
     struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawdisplace",
@@ -1034,7 +1036,7 @@ static int drawgradient_prepare(struct ngl_node *node)
     };
 
     const struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    const struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->id];
+    const struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawgradient",
@@ -1078,7 +1080,7 @@ static int drawgradient4_prepare(struct ngl_node *node)
     };
 
     const struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    const struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->id];
+    const struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawgradient4",
@@ -1122,7 +1124,7 @@ static int drawhistogram_prepare(struct ngl_node *node)
     };
 
     struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawhistogram",
@@ -1205,7 +1207,7 @@ static int drawmask_prepare(struct ngl_node *node)
     };
 
     struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawmask",
@@ -1257,7 +1259,7 @@ static int drawnoise_prepare(struct ngl_node *node)
     };
 
     struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawnoise",
@@ -1311,7 +1313,7 @@ static int drawtexture_prepare(struct ngl_node *node)
     };
 
     struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawtexture",
@@ -1361,7 +1363,7 @@ static int drawwaveform_prepare(struct ngl_node *node)
     };
 
     struct pipeline_desc *descs = ngli_darray_data(&c->pipeline_descs);
-    struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[node->ctx->rnode_pos->draw_index];
     const struct pgcraft_attribute attributes[] = {c->position_attr, c->uvcoord_attr};
     const struct pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawwaveform",
@@ -1398,7 +1400,7 @@ static void drawother_draw(struct ngl_node *node, struct render_common *s, const
 
     struct ngl_ctx *ctx = node->ctx;
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);

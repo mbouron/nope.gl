@@ -1,4 +1,5 @@
 /*
+ * Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2020-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -27,10 +28,11 @@
 #include "rendertarget.h"
 
 struct rnode {
-    size_t id;
     struct graphics_state graphics_state;
     struct rendertarget_layout rendertarget_layout;
     struct darray children;
+    struct ngl_node *draw_node;
+    size_t draw_index;
 };
 
 void ngli_rnode_init(struct rnode *s);

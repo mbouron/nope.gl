@@ -507,7 +507,7 @@ int ngli_pass_prepare(struct pass *s)
     struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
     if (!desc)
         return NGL_ERROR_MEMORY;
-    ctx->rnode_pos->id = ngli_darray_count(&s->pipeline_descs) - 1;
+    ctx->rnode_pos->draw_index = ngli_darray_count(&s->pipeline_descs) - 1;
 
     desc->crafter = ngli_pgcraft_create(ctx);
     if (!desc->crafter)
@@ -635,7 +635,7 @@ int ngli_pass_exec(struct pass *s)
     struct ngl_ctx *ctx = s->ctx;
     const struct pass_params *params = &s->params;
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &descs[ctx->rnode_pos->draw_index];
     struct pipeline_compat *pipeline_compat = desc->pipeline_compat;
 
     const float *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
