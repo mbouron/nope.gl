@@ -47,6 +47,7 @@ cdef extern from "nopegl.h":
     void ngl_node_unrefp(ngl_node **nodep)
     int ngl_node_param_add_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_add_f64s(ngl_node *node, const char *key, size_t nb_f64s, double *f64s)
+    int ngl_node_param_move_elem(ngl_node *node, const char *key, size_t from_, size_t to)
     int ngl_node_param_set_bool(ngl_node *node, const char *key, int value)
     int ngl_node_param_set_data(ngl_node *node, const char *key, size_t size, const void *data)
     int ngl_node_param_set_dict(ngl_node *node, const char *key, const char *name, ngl_node *value)
@@ -401,6 +402,9 @@ cdef class _Node:
         ret = ngl_node_param_add_f64s(self.ctx, key, nb_f64s, f64s_c)
         free(f64s_c)
         return ret
+
+    def _param_move_elem(self, const char *key, size_t from_, size_t to):
+        return ngl_node_param_move_elem(self.ctx, key, from_, to)
 
     def _get_type(self):
         cdef uint32_t type = 0
