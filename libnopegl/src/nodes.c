@@ -530,6 +530,37 @@ int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
     return param_add(node, key, nb_f64s, f64s);
 }
 
+int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
+                             size_t from, size_t to)
+{
+    uint8_t *base_ptr;
+    const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
+    if (!par)
+        return NGL_ERROR_NOT_FOUND;
+
+    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
+        LOG(ERROR, "%s.%s can not be live extended", node->label, key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    int ret = ngli_params_swap_elem(base_ptr, par, from, to);
+    if (ret < 0) {
+        LOG(ERROR, "unable to add elements to %s.%s", node->label, key);
+        return ret;
+    }
+
+    if (!node->ctx)
+        return ret;
+
+    if (par->update_func)
+        ret = par->update_func(node);
+
+    if (par->swap_func)
+        ret = par->swap_func(node, from, to);
+
+    return ret;
+}
+
 int ngli_node_invalidate_branch(struct ngl_node *node)
 {
     node->visit_time = -1.;

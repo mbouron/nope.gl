@@ -165,6 +165,7 @@ struct node_param {
     const char *desc;
     const struct param_choices *choices;
     int (*update_func)(struct ngl_node *node);
+    int (*swap_func)(struct ngl_node *node, size_t from, size_t to);
 };
 
 int ngli_params_get_select_val(const struct param_const *consts, const char *s, int *dst);
@@ -199,6 +200,7 @@ int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
 int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par, size_t nb_nodes, struct ngl_node **nodes);
 int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par, size_t nb_f64s, const double *f64s);
 int ngli_params_add(uint8_t *base_ptr, const struct node_param *par, size_t nb_elems, void *elems);
+int ngli_params_swap_elem(uint8_t *base_ptr, const struct node_param *par, size_t from, size_t to);
 void ngli_params_free(uint8_t *base_ptr, const struct node_param *params);
 
 #endif

@@ -186,6 +186,26 @@ class _WrapperGenerator:
             return f"set_{param_name}(self, {param_name}: Tuple[int, int])"
         assert False
 
+    @classmethod
+    def _get_extra_methods(cls, param):
+        param_name = param["name"]
+        param_type = param["type"]
+
+        methods = []
+        if param_type == "node_list":
+            code = textwrap.dedent(
+                f"""
+                def swap_{param_name}(self, from_, to):
+                    ret = self._param_swap_elem("{param_name}", from_, to)
+                    if ret < 0:
+                        raise Exception("Failed to move child")
+                    return ret
+                """
+            )
+            # code = textwrap.indent(code, " " * 4)
+            methods.append(code)
+        return methods
+
     def _get_class_setters(self, params):
         setters = []
         for param in params:
@@ -206,6 +226,10 @@ class _WrapperGenerator:
             desc = textwrap.indent(desc, " " * 4)
 
             setters.append(f"\ndef {prototype} -> int:\n{desc}\n    return {setter_code}\n")
+
+            code = self._get_extra_methods(param)
+            setters += code
+
         return "".join(setters)
 
     @classmethod

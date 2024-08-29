@@ -1006,6 +1006,51 @@ int ngli_params_add(uint8_t *base_ptr, const struct node_param *par,
     return ret;
 }
 
+static int ngli_params_move_node(uint8_t *dstp, const struct node_param *par,
+                                 size_t from, size_t to)
+{
+    struct ngl_node **elems = *(struct ngl_node***)(dstp);
+    const size_t nb_elems = *(size_t *)(dstp + sizeof(struct ngl_node **));
+
+    if (from >= nb_elems)
+        return NGL_ERROR_INVALID_ARG;
+
+    NGLI_SWAP(struct ngl_node *, elems[from], elems[to]);
+
+    return 0;
+}
+
+static int ngli_params_move_f64(uint8_t *dstp, const struct node_param *par,
+                                size_t from, size_t to)
+{
+    double *elems = *(double**)(dstp);
+    const size_t nb_elems = *(size_t *)(dstp + sizeof(double *));
+
+    if (from >= nb_elems)
+        return NGL_ERROR_INVALID_ARG;
+
+    NGLI_SWAP(double, elems[from], elems[to]);
+
+    return 0;
+}
+
+int ngli_params_swap_elem(uint8_t *base_ptr, const struct node_param *par,
+                          size_t from, size_t to)
+{
+    LOG(VERBOSE, "move item from %zu to %zu within %s", from, to, par->key);
+
+    int ret = 0;
+    uint8_t *dstp = base_ptr + par->offset;
+    switch (par->type) {
+    case NGLI_PARAM_TYPE_NODELIST: ret = ngli_params_move_node(dstp, par, from, to); break;
+    case NGLI_PARAM_TYPE_F64LIST:  ret = ngli_params_move_f64(dstp, par, from, to);  break;
+    default:
+        LOG(ERROR, "parameter %s is not a list", par->key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    return ret;
+}
+
 void ngli_params_free(uint8_t *base_ptr, const struct node_param *params)
 {
     if (!params)
