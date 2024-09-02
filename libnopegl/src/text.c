@@ -274,8 +274,8 @@ void ngli_text_refresh_geometry_data(struct text *s)
     const struct text_data_pointers defaults_ptr = get_chr_data_pointers(s->chars_data_default, nb_chars);
     set_geometry_data(s, defaults_ptr);
 
-    for (size_t i = 0; i < nb_chars; i++) memcpy(s->data_ptrs.pos_size,     defaults_ptr.pos_size,     nb_chars * 4 * sizeof(float));
-    for (size_t i = 0; i < nb_chars; i++) memcpy(s->data_ptrs.atlas_coords, defaults_ptr.atlas_coords, nb_chars * 4 * sizeof(float));
+    memcpy(s->data_ptrs.pos_size,     defaults_ptr.pos_size,     nb_chars * 4 * sizeof(float));
+    memcpy(s->data_ptrs.atlas_coords, defaults_ptr.atlas_coords, nb_chars * 4 * sizeof(float));
 }
 
 static int set_value_from_node(float *dst, struct ngl_node *node, double t)
