@@ -27,6 +27,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `DrawTexture.wrap` parameter to select texture wrap behaviour
 - `ngl_node_param_swap_elem()` to allow users to swap/re-order elements within
   a list parameter
+- `Group.children` can be live re-ordered
 
 ### Changed
 - `Text.font_files` text-based parameter is replaced with `Text.font_faces` node

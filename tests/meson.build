@@ -236,6 +236,7 @@ foreach backend : backends
   ]
 
   tests_live = [
+    'group_reorder',
     'media_change',
   ]
   foreach test_name : live_names

@@ -23,6 +23,7 @@ import textwrap
 
 from pynopegl_utils.misc import load_media
 from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
+from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
 from pynopegl_utils.tests.cuepoints_utils import get_points_nodes
 from pynopegl_utils.tests.data import (
     LAYOUTS,
@@ -37,6 +38,55 @@ from pynopegl_utils.toolbox.colors import COLORS
 import pynopegl as ngl
 
 _SHARED_UNIFORM_CUEPOINTS = dict((("0", (-0.5, -0.5)), ("1", (0.5, 0.5))))
+
+
+def _get_group_reorder_function():
+    origin = (-1, -1)
+    colors = [
+        COLORS.white,
+        COLORS.orange,
+        COLORS.sgreen,
+        COLORS.rose,
+    ]
+    offset = 2.0 / len(colors)
+    draws = []
+    for i, color in enumerate(colors):
+        coord = (
+            origin[0] + (i + 0.5) * offset,
+            origin[1] + (i + 0.5) * offset,
+            0.0,
+        )
+        quad = ngl.Quad()
+        draw = ngl.DrawColor(color, geometry=quad)
+        draw = ngl.Translate(draw, vector=coord)
+        draws += [draw]
+    group = ngl.Group(children=draws)
+
+    def _reoder_group(t_id: int):
+        if t_id == 1:
+            group.swap_children(0, 3)
+            group.swap_children(1, 2)
+        elif t_id == 2:
+            group.swap_children(0, 3)
+            group.swap_children(1, 2)
+
+    @test_fingerprint(
+        width=128,
+        height=128,
+        tolerance=1,
+        exercise_serialization=False,
+        keyframes_callback=_reoder_group,
+        keyframes=[0.0, 1.0, 2.0],
+    )
+    @ngl.scene()
+    def live_group_reorder_func(cfg: ngl.SceneCfg):
+        cfg.aspect_ratio = (1, 1)
+        return group
+
+    return live_group_reorder_func
+
+
+live_group_reorder = _get_group_reorder_function()
 
 
 def _get_live_shared_uniform_scene(cfg: ngl.SceneCfg, color, debug_positions):
