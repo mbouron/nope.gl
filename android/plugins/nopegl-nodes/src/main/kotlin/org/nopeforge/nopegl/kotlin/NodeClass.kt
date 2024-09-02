@@ -156,45 +156,47 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                     nullable = false,
                     canBeNode = param.canBeNode
                 )
-                listOfNotNull(
-                    block.let { setCall ->
-                        FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
-                            .addParameter(
-                                parameter
-                                    .toBuilder(type = parameter.type.copy(nullable = false))
-                                    .defaultValue(null)
-                                    .build()
-                            )
-                            .addCode(setCall)
-                            .build()
-                    },
-                    when (param.type) {
-                        TypeName.NodeDict -> {
-                            block.let { setCall ->
-                                FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
-                                    .addParameter(
-                                        ParameterSpec
-                                            .builder(
-                                                "pairs",
-                                                Pair::class.asTypeName().parameterizedBy(
-                                                    String::class.asTypeName(),
-                                                    NGLNode::class.asTypeName()
-                                                ),
-                                                KModifier.VARARG
-                                            )
-                                            .build()
-                                    )
-                                    .addCode(
-                                        CodeBlock.builder()
-                                            .addStatement("val ${parameter.name} = pairs.toMap()")
-                                            .add(setCall)
-                                            .build()
-                                    )
-                                    .build()
-                            }
-                        }
+                val defaultFunction = block.let { setCall ->
+                    FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
+                        .addParameter(
+                            parameter
+                                .toBuilder(type = parameter.type.copy(nullable = false))
+                                .defaultValue(null)
+                                .build()
+                        )
+                        .addCode(setCall)
+                        .build()
+                }
 
-                        TypeName.NodeList -> {
+                when (param.type) {
+                    TypeName.NodeDict -> {
+                        listOf(defaultFunction, block.let { setCall ->
+                            FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
+                                .addParameter(
+                                    ParameterSpec
+                                        .builder(
+                                            "pairs",
+                                            Pair::class.asTypeName().parameterizedBy(
+                                                String::class.asTypeName(),
+                                                NGLNode::class.asTypeName()
+                                            ),
+                                            KModifier.VARARG
+                                        )
+                                        .build()
+                                )
+                                .addCode(
+                                    CodeBlock.builder()
+                                        .addStatement("val ${parameter.name} = pairs.toMap()")
+                                        .add(setCall)
+                                        .build()
+                                )
+                                .build()
+                        })
+                    }
+
+                    TypeName.NodeList -> {
+                        listOf(
+                            defaultFunction,
                             block.let { setCall ->
                                 FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
                                     .addParameter(
@@ -213,12 +215,40 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                                             .build()
                                     )
                                     .build()
-                            }
-                        }
+                            },
+                            FunSpec.builder("move${param.parameterName.toCamelCase(true)}")
+                                .addParameter(
+                                    ParameterSpec
+                                        .builder(
+                                            "from",
+                                            Int::class.asTypeName(),
+                                        )
+                                        .build()
+                                )
+                                .addParameter(
+                                    ParameterSpec
+                                        .builder(
+                                            "to",
+                                            Int::class.asTypeName(),
+                                        )
+                                        .build()
+                                )
+                                .addCode(
+                                    CodeBlock.builder()
+                                        .add(
+                                            CodeBlock.of(
+                                                "${NGLNode::swapElement.name}(%S, from, to)\n",
+                                                param.parameterName
+                                            )
+                                        )
+                                        .build()
+                                )
+                                .build()
+                        )
+                    }
 
-                        else -> null
-                    },
-                )
+                    else -> listOf(defaultFunction)
+                }
             })
         .build()
 }

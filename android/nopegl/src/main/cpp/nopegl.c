@@ -611,6 +611,25 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddDoubles(JNIEnv
     return ret;
 }
 
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSwapElement(JNIEnv *env,
+                                                                           jobject thiz,
+                                                                           jlong native_ptr,
+                                                                           jstring key,
+                                                                           jint from,
+                                                                           jint to)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+
+    const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
+    assert(key_str);
+
+    int ret = ngl_node_param_swap_elem(node, key_str, from, to);
+
+    (*env)->ReleaseStringUTFChars(env, key, key_str);
+
+    return ret;
+}
+
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetFlags(JNIEnv *env,
                                                                         jobject thiz,
                                                                         jlong native_ptr,

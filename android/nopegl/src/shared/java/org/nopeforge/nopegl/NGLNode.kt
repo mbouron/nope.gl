@@ -123,6 +123,10 @@ open class NGLNode(
         return nativeAddNodes(nativePtr, key, nodes.size, nodePointers) == 0
     }
 
+    fun swapElement(key: String, from: Int, to: Int) {
+        return nativeSwapElement(nativePtr, key, from, to)
+    }
+
     fun setRational(key: String, rational: NGLRational): Boolean {
         return nativeSetRational(
             nativePtr = nativePtr,
@@ -190,7 +194,7 @@ open class NGLNode(
         count: Int,
         values: DoubleArray,
     ): Int
-
+    private external fun nativeSwapElement(nativePtr: Long, key: String, from: Int, to: Int)
     private external fun nativeSetFlags(nativePtr: Long, key: String, value: String): Int
     private external fun nativeSetInt(nativePtr: Long, key: String, value: Int): Int
     private external fun nativeSetIVec2(nativePtr: Long, key: String, value: IntArray): Int
