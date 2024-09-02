@@ -235,6 +235,7 @@ foreach backend : backends
   ]
 
   tests_live = [
+    'group_reorder',
     'media_change',
     'timerangefilter_update',
   ]
