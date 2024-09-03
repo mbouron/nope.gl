@@ -128,8 +128,12 @@ void ngli_vec4_lerp(float *dst, const float *v1, const float *v2, float c)
 
 void ngli_vec4_perspective_div(float *dst, float *v)
 {
-    NGLI_ALIGNED_VEC(r) = {v[0] / v[3], v[1] / v[3], v[2] / v[3], v[3] / v[3]};
-    memcpy(dst, r, sizeof(r));
+    const float w = v[3];
+    if (fabsf(w) < FLT_EPSILON)
+        return;
+
+    const float w_inv = 1.0f / w;
+    ngli_vec4_scale(dst, v, w_inv);
 }
 
 void ngli_vec4_init(float *dst, float x, float y, float z, float w)
