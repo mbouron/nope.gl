@@ -20,6 +20,7 @@
  */
 
 #include <float.h>
+#include <math.h>
 #include <string.h>
 
 #include "aabb.h"
@@ -169,4 +170,21 @@ int ngli_aabb_intersect_aabb(const struct aabb *aabb1, const struct aabb *aabb2)
     return (c[0] <= r[0] &&
             c[1] <= r[2] &&
             c[2] <= r[2]);
+}
+
+int ngli_aabb_intersect_ray(const struct aabb *aabb, const struct ray *ray)
+{
+    NGLI_ALIGNED_VEC(min);
+    NGLI_ALIGNED_VEC(max);
+    ngli_aabb_get_min_max(aabb, min, max);
+
+    float tmin = 0.0f, tmax = INFINITY;
+    for (int d = 0; d < 3; ++d) {
+        const float t1 = (min[d] - ray->origin[d]) * ray->direction_inv[d];
+        const float t2 = (max[d] - ray->origin[d]) * ray->direction_inv[d];
+
+        tmin = NGLI_MIN(NGLI_MAX(t1, tmin), NGLI_MAX(t2, tmin));
+        tmax = NGLI_MAX(NGLI_MIN(t1, tmax), NGLI_MIN(t2, tmax));
+    }
+    return tmin <= tmax;
 }

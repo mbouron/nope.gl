@@ -26,6 +26,12 @@
 
 #include "utils.h"
 
+struct ray {
+    NGLI_ALIGNED_VEC(origin);
+    NGLI_ALIGNED_VEC(direction);
+    NGLI_ALIGNED_VEC(direction_inv);
+};
+
 struct aabb {
     NGLI_ALIGNED_VEC(center);
     NGLI_ALIGNED_VEC(extent);
@@ -37,5 +43,6 @@ struct aabb ngli_aabb_apply_transform(const struct aabb *aabb, const float *m);
 struct aabb ngli_aabb_apply_projection(const struct aabb *aabb, const float *m);
 int ngli_aabb_intersect_point(const struct aabb *aabb, const float *p);
 int ngli_aabb_intersect_aabb(const struct aabb *aabb1, const struct aabb *aabb2);
+int ngli_aabb_intersect_ray(const struct aabb *aabb, const struct ray *ray);
 
 #endif
