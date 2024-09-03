@@ -533,19 +533,17 @@ void ngli_mat4_abs(float *dst, const float *m)
 
 void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, float t)
 {
-    NGLI_ALIGNED_VEC(tmp_q1);
-    const float *tmp_q1p = q1;
+    NGLI_ALIGNED_VEC(tmp_q1) = {NGLI_ARG_VEC4(q1)};
 
     float cos_alpha = ngli_vec4_dot(q1, q2);
 
     if (cos_alpha < 0.0f) {
         cos_alpha = -cos_alpha;
-        ngli_vec4_neg(tmp_q1, q1);
-        tmp_q1p = tmp_q1;
+        ngli_vec4_neg(tmp_q1, tmp_q1);
     }
 
     if (cos_alpha > COS_ALPHA_THRESHOLD) {
-        ngli_vec4_lerp(dst, tmp_q1p, q2, t);
+        ngli_vec4_lerp(dst, tmp_q1, q2, t);
         ngli_vec4_norm(dst, dst);
         return;
     }
@@ -556,13 +554,13 @@ void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, flo
     const float theta = alpha * t;
 
     NGLI_ALIGNED_VEC(tmp);
-    ngli_vec4_scale(tmp, tmp_q1p, cos_alpha);
+    ngli_vec4_scale(tmp, tmp_q1, cos_alpha);
     ngli_vec4_sub(tmp, q2, tmp);
     ngli_vec4_norm(tmp, tmp);
 
     NGLI_ALIGNED_VEC(tmp1);
     NGLI_ALIGNED_VEC(tmp2);
-    ngli_vec4_scale(tmp1, tmp_q1p, cosf(theta));
+    ngli_vec4_scale(tmp1, tmp_q1, cosf(theta));
     ngli_vec4_scale(tmp2, tmp, sinf(theta));
     ngli_vec4_add(dst, tmp1, tmp2);
 }
