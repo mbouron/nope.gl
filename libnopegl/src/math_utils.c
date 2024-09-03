@@ -533,6 +533,117 @@ void ngli_mat4_abs(float *dst, const float *m)
     memcpy(dst, tmp, sizeof(tmp));
 }
 
+float ngli_quat_length(const float *q)
+{
+    return sqrtf(ngli_quat_length_squared(q));
+}
+
+float ngli_quat_length_squared(const float *q)
+{
+    return q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+}
+
+void ngli_quat_norm(float *dst, const float *q)
+{
+    const float l = ngli_quat_length(q);
+    if (fabs(l) < FLT_EPSILON) {
+        memcpy(dst, q, 4 * sizeof(*q));
+        return;
+    }
+    const float inv_l = 1.0f / l;
+
+    ngli_vec4_scale(dst, q, inv_l);
+}
+
+void ngli_quat_conjugate(float *dst, const float *q)
+{
+    NGLI_ALIGNED_VEC(r) = {-q[0], -q[1], -q[2], q[3]};
+    memcpy(dst, r, sizeof(r));
+}
+
+void ngli_quat_inverse(float *dst, const float *q)
+{
+    const float l = ngli_quat_length_squared(q);
+    if (fabsf(l) < FLT_EPSILON) {
+        memcpy(dst, q, 4 * sizeof(*q));
+        return;
+    }
+    const float inv_l = 1.0f / l;
+
+    NGLI_ALIGNED_VEC(r) = {-q[0] * inv_l, -q[1] * inv_l, -q[2] * inv_l, q[3] * inv_l};
+    memcpy(dst, r, sizeof(r));
+}
+
+void ngli_quat_from_mat4(float *dst, const float *m)
+{
+    const float x = NGLI_MAT4_GET_VALUE(m, 0, 0);
+    const float y = NGLI_MAT4_GET_VALUE(m, 1, 1);
+    const float z = NGLI_MAT4_GET_VALUE(m, 2, 2);
+
+    NGLI_ALIGNED_VEC(tmp) = {
+        0.5f * sqrtf(NGLI_MAX(1.0f + x - y - z, 0.f)), // x
+        0.5f * sqrtf(NGLI_MAX(1.0f - x + y - z, 0.f)), // y
+        0.5f * sqrtf(NGLI_MAX(1.0f - x - y + z, 0.f)), // z
+        0.5f * sqrtf(NGLI_MAX(1.0f + x + y + z, 0.f)), // w
+    };
+
+    if (NGLI_MAT4_GET_VALUE(m, 2, 1) > NGLI_MAT4_GET_VALUE(m, 1, 2))
+        tmp[0] = -tmp[0];
+
+    if (NGLI_MAT4_GET_VALUE(m, 0, 2) > NGLI_MAT4_GET_VALUE(m, 2, 0))
+        tmp[1] = -tmp[1];
+
+    if (NGLI_MAT4_GET_VALUE(m, 1, 0) > NGLI_MAT4_GET_VALUE(m, 0, 1))
+        tmp[2] = -tmp[2];
+
+    memcpy(dst, tmp, sizeof(tmp));
+}
+
+void ngli_quat_to_radians(const float *q, float *r)
+{
+    NGLI_ALIGNED_VEC(sq);
+    ngli_vec4_mul(sq, q, q);
+
+    r[0] = atan2f(2 * (q[0] * q[3] - q[1] * q[2]), (sq[3] - sq[0] - sq[1] + sq[2]));
+    r[1] = asinf(NGLI_CLAMP(2 * (q[0] * q[2] + q[1] * q[3]), -1.0f, 1.0f));
+    r[2] = atan2f(2 * (q[2] * q[3] - q[0] * q[1]), (sq[3] + sq[0] - sq[1] - sq[2]));
+}
+
+void ngli_quat_to_angles(const float *q, float *r)
+{
+    ngli_quat_to_radians(q, r);
+
+    ngli_vec4_scale(r, r, (360.f / TAU_F32));
+}
+
+void ngli_quat_from_radians(float *dst, const float *r)
+{
+    const float cos_x = cosf(r[0] * 0.5f);
+    const float sin_x = sinf(r[0] * 0.5f);
+
+    const float cos_y = cosf(r[1] * 0.5f);
+    const float sin_y = sinf(r[1] * 0.5f);
+
+    const float cos_z = cosf(r[2] * 0.5f);
+    const float sin_z = sinf(r[2] * 0.5f);
+
+    const NGLI_ALIGNED_VEC(tmp) = {
+        sin_x * cos_y * cos_z + cos_x * sin_y * sin_z,
+        cos_x * sin_y * cos_z - sin_x * cos_y * sin_z,
+        cos_x * cos_y * sin_z + sin_x * sin_y * cos_z,
+        cos_x * cos_y * cos_z - sin_x * sin_y * sin_z,
+    };
+    memcpy(dst, tmp, sizeof(tmp));
+}
+
+void ngli_quat_from_angles(float *dst, const float *a)
+{
+    NGLI_ALIGNED_VEC(r);
+    ngli_vec4_scale(r, a, TAU_F32 / 360.f);
+
+    ngli_quat_from_radians(dst, r);
+}
+
 #define COS_ALPHA_THRESHOLD 0.9995f
 
 void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, float t)

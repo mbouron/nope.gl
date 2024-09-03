@@ -24,6 +24,7 @@
 #define MATH_UTILS_H
 
 #include "config.h"
+#include "utils.h"
 
 #define PI_F32 3.14159265358979323846f
 #define PI_F64 3.14159265358979323846
@@ -128,6 +129,8 @@ void ngli_mat3_inverse(float *dst, const float *m);
                             0.0f, 0.0f, 1.0f, 0.0f, \
                             0.0f, 0.0f, 0.0f, 1.0f} \
 
+#define NGLI_MAT4_GET_VALUE(m, row, col) ((m)[(row) * 4 + (col)])
+
 void ngli_mat4_identity(float *dst);
 float ngli_mat4_determinant(const float *m);
 void ngli_mat4_inverse(float *dst, const float *m);
@@ -163,6 +166,16 @@ void ngli_mat4_mul_vec4_sse(float *dst, const float *m, const float *v);
 
 #define NGLI_QUAT_IDENTITY {0.0f, 0.0f, 0.0f, 1.0f}
 
+float ngli_quat_length(const float *q);
+float ngli_quat_length_squared(const float *q);
+void ngli_quat_norm(float *dst, const float *q);
+void ngli_quat_conjugate(float *dst, const float *q);
+void ngli_quat_inverse(float *dst, const float *q);
+void ngli_quat_from_mat4(float *dst, const float *m);
+void ngli_quat_to_radians(const float *q, float *r);
+void ngli_quat_to_angles(const float *q, float *a);
+void ngli_quat_from_radians(float *dst, const float *r);
+void ngli_quat_from_angles(float *dst, const float *a);
 void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, float t);
 
 #endif
