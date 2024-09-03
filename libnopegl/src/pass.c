@@ -678,13 +678,13 @@ int ngli_pass_exec(struct pass *s)
             0.f, 0.f, 1.f, 0.f,
             w_2, h_2, 0.f, 1.f
         };
-        NGLI_ALIGNED_MAT(transform) = NGLI_MAT4_IDENTITY;
-        ngli_gpu_ctx_transform_projection_matrix_inv(ctx->gpu_ctx, transform);
-        ngli_mat4_mul(transform, transform, projection_matrix);
-        ngli_mat4_mul(transform, transform, modelview_matrix);
-        ngli_mat4_mul(transform, viewport_matrix, transform);
+        NGLI_ALIGNED_MAT(transform_matrix) = NGLI_MAT4_IDENTITY;
+        ngli_gpu_ctx_transform_projection_matrix_inv(ctx->gpu_ctx, transform_matrix);
+        ngli_mat4_mul(transform_matrix, transform_matrix, projection_matrix);
+        ngli_mat4_mul(transform_matrix, transform_matrix, modelview_matrix);
+        ngli_mat4_mul(transform_matrix, viewport_matrix, transform_matrix);
 
-        draw_info->screen_aabb = ngli_aabb_apply_projection(aabb, transform);
+        draw_info->screen_aabb = ngli_aabb_apply_projection(aabb, transform_matrix);
     }
 
     const struct uniform_map *uniform_map = ngli_darray_data(&desc->uniforms_map);
