@@ -1034,7 +1034,7 @@ static int ngli_params_move_f64(uint8_t *dstp, const struct node_param *par,
     return 0;
 }
 
-int ngli_params_move_elem(uint8_t *base_ptr, const struct node_param *par,
+int ngli_params_swap_elem(uint8_t *base_ptr, const struct node_param *par,
                           size_t from, size_t to)
 {
     LOG(VERBOSE, "move item from %zu to %zu within %s", from, to, par->key);

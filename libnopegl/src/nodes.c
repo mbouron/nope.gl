@@ -551,7 +551,7 @@ int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
     return param_add(node, key, nb_f64s, f64s);
 }
 
-int ngl_node_param_move_elem(struct ngl_node *node, const char *key,
+int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
                              size_t from, size_t to)
 {
     uint8_t *base_ptr;
@@ -564,7 +564,7 @@ int ngl_node_param_move_elem(struct ngl_node *node, const char *key,
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    int ret = ngli_params_move_elem(base_ptr, par, from, to);
+    int ret = ngli_params_swap_elem(base_ptr, par, from, to);
     if (ret < 0) {
         LOG(ERROR, "unable to add elements to %s.%s", node->label, key);
         return ret;
@@ -576,8 +576,8 @@ int ngl_node_param_move_elem(struct ngl_node *node, const char *key,
     if (par->update_func)
         ret = par->update_func(node);
 
-    if (par->move_func)
-        ret = par->move_func(node, from, to);
+    if (par->swap_func)
+        ret = par->swap_func(node, from, to);
 
     return ret;
 }

@@ -540,16 +540,16 @@ NGL_API int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
                                     size_t nb_f64s, double *f64s);
 
 /**
- * Move an element within a list-based parameter of an allocated node.
+ * Swap elements within a list-based parameter of an allocated node.
  *
  * @param node      pointer to the target node
  * @param key       string identifying the parameter
- * @param from      index of the element to move
- * @param to        new index of the element
+ * @param from      index of one element to be swapped
+ * @param to        index of the other element to be swapped
  *
  * @return 0 on success, NGL_ERROR_* (< 0) on error
  */
-NGL_API int ngl_node_param_move_elem(struct ngl_node *node, const char *key,
+NGL_API int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
                                      size_t from, size_t to);
 
 /**

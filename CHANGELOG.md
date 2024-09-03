@@ -25,8 +25,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `DrawMask` node to facilitate alpha masking with textures
 - `Text.wrap` parameter to enable text wrapping inside of `Text.box`
 - `DrawTexture.wrap` parameter to select texture wrap behaviour
-- `ngl_node_param_move_elem()` to allow users to re-order elem within a list
-  parameter
+- `ngl_node_param_swap_elem()` to allow users to swap/re-order elements within
+  a list parameter
 
 ### Changed
 - `Text.font_files` text-based parameter is replaced with `Text.font_faces` node

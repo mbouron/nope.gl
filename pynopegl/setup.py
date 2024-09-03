@@ -197,8 +197,8 @@ class _WrapperGenerator:
         if param_type == "node_list":
             code = textwrap.dedent(
                 f"""
-                def move_{param_name}(self, from_, to):
-                    ret = self._param_move_elem("{param_name}", from_, to)
+                def swap_{param_name}(self, from_, to):
+                    ret = self._param_swap_elem("{param_name}", from_, to)
                     if ret < 0:
                         raise Exception("Failed to move child")
                     return ret
