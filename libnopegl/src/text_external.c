@@ -761,9 +761,9 @@ static void wrap_lines(struct text *text, const char *str, const struct darray *
     float max_size = 0;
 
     if (is_vertical) {
-        max_size = text->config.box.h * (float)viewport.height;
+        max_size = text->config.box.h * (float)viewport.height / (float) text->config.font_scale;
     } else {
-        max_size = text->config.box.w * (float)viewport.width;
+        max_size = text->config.box.w * (float)viewport.width / (float) text->config.font_scale;
     }
     hb_position_t current_pos = 0;
 
