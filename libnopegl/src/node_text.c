@@ -202,6 +202,8 @@ static const struct node_param text_params[] = {
     {"dpi",          NGLI_PARAM_TYPE_I32, OFFSET(dpi), {.i32=96},
                      .desc=NGLI_DOCSTRING("resolution (dot per inch)")},
     {"font_scale",   NGLI_PARAM_TYPE_F32, OFFSET(font_scale), {.f32=1.f},
+                     .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+                     .update_func=set_live_changed,
                      .desc=NGLI_DOCSTRING("scaling of the font")},
     {"scale_mode",   NGLI_PARAM_TYPE_SELECT, OFFSET(scale_mode), {.i32=NGLI_TEXT_SCALE_MODE_AUTO},
                      .choices=&scale_mode_choices,
@@ -665,13 +667,20 @@ static int text_update(struct ngl_node *node, double t)
     const struct text_opts *o = node->opts;
 
     if (s->live_changed) {
+        s->text_ctx->config.font_scale = o->font_scale;
+        const struct viewport viewport = ngli_gpu_ctx_get_viewport(node->ctx->gpu_ctx);
+        memcpy(&s->viewport, &viewport, sizeof(viewport));
+        ngli_text_refresh_geometry_data(s->text_ctx);
+        int ret = refresh_pipeline_data(node);
+        if (ret < 0)
+          return ret;
         const struct text_effects_defaults defaults = {
             .color = {NGLI_ARG_VEC3(o->fg_color)},
             .opacity = o->fg_opacity,
         };
         ngli_text_update_effects_defaults(s->text_ctx, &defaults);
 
-        int ret = update_text_content(node);
+        ret = update_text_content(node);
         if (ret < 0)
             return ret;
         s->live_changed = 0;

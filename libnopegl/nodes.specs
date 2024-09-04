@@ -3783,7 +3783,7 @@
           "name": "font_scale",
           "type": "f32",
           "default": 1.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "scaling of the font"
         },
         {
