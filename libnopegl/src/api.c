@@ -863,12 +863,18 @@ NGL_API int ngl_get_nodes_intersecting_point(struct ngl_ctx *s, const float *poi
 
     ngli_darray_clear(&s->intersecting_nodes);
 
-    NGLI_ALIGNED_VEC(p) = {point[0], point[1], 0.f, 1.f};
     struct ngl_node **bounding_box_nodes = ngli_darray_data(&s->bounding_box_nodes);
     for (size_t i = 0; i < ngli_darray_count(&s->bounding_box_nodes); i++) {
         struct ngl_node *bounding_box_node = bounding_box_nodes[i];
         struct draw_info *draw_info = bounding_box_node->priv_data;
-        int intersect = ngli_aabb_intersect_point(&draw_info->screen_aabb, p);
+        const struct viewport *viewport = &draw_info->viewport;
+        const NGLI_ALIGNED_VEC(normalized_point) = {
+            2.0f * (point[0] - (float)viewport->x) / (float)viewport->width - 1.0f,
+            2.0f * (point[1] - (float)viewport->y) / (float)viewport->height - 1.0f,
+            0.f,
+            1.f
+        };
+        int intersect = ngli_aabb_intersect_point(&draw_info->screen_aabb, normalized_point);
         if (intersect) {
             if (!ngli_darray_push(&s->intersecting_nodes, &bounding_box_node))
                 return NGL_ERROR_MEMORY;

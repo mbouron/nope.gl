@@ -808,6 +808,13 @@ NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding
     memcpy(box->center, info->screen_aabb.center, sizeof(box->center));
     memcpy(box->extent, info->screen_aabb.extent, sizeof(box->extent));
 
+    const struct viewport *viewport = &info->viewport;
+
+    box->center[0] = (box->center[0] * 0.5f + 0.5f) * (float)viewport->width + (float)viewport->x;
+    box->center[1] = (box->center[1] * 0.5f + 0.5f) * (float)viewport->height + (float)viewport->y;
+    box->extent[0] = box->extent[0] * (float)viewport->width / 2.0f;
+    box->extent[1] = box->extent[1] * (float)viewport->height / 2.0f;
+
     return 0;
 }
 

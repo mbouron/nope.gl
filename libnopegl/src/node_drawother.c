@@ -1428,20 +1428,12 @@ static void drawother_draw(struct ngl_node *node, struct draw_common *s, const s
         const struct aabb *aabb = &s->geometry->aabb;
 
         draw_info->aabb = *aabb;
+        draw_info->viewport = viewport;
 
-        const float w_2 = (float)viewport.width * 0.5f;
-        const float h_2 = (float)viewport.height * 0.5f;
-        const NGLI_ALIGNED_MAT(viewport_matrix) = {
-            w_2, 0.f, 0.f, 0.f,
-            0.f, h_2, 0.f, 0.f,
-            0.f, 0.f, 1.f, 0.f,
-            w_2, h_2, 0.f, 1.f
-        };
         NGLI_ALIGNED_MAT(transform_matrix) = NGLI_MAT4_IDENTITY;
         ngli_gpu_ctx_transform_projection_matrix_inv(ctx->gpu_ctx, transform_matrix);
         ngli_mat4_mul(transform_matrix, transform_matrix, projection_matrix);
         ngli_mat4_mul(transform_matrix, transform_matrix, modelview_matrix);
-        ngli_mat4_mul(transform_matrix, viewport_matrix, transform_matrix);
 
         draw_info->screen_aabb = ngli_aabb_apply_projection(aabb, transform_matrix);
     }

@@ -47,6 +47,7 @@
 #include "animation.h"
 #include "block.h"
 #include "drawutils.h"
+#include "gpu_ctx.h"
 #include "graphics_state.h"
 #include "hmap.h"
 #include "hud.h"
@@ -284,6 +285,9 @@ size_t ngli_node_block_get_gpu_size(struct ngl_node *node);
 struct draw_info {
     int compute_bounds;
     NGLI_ATTR_ALIGNED struct aabb aabb;
+
+    struct viewport viewport;
+
     NGLI_ATTR_ALIGNED struct aabb screen_aabb;
 };
 
