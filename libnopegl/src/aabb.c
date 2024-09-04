@@ -147,6 +147,191 @@ struct aabb ngli_aabb_apply_projection(const struct aabb *aabb, const float *m)
     return trf_aabb;
 }
 
+struct point {
+    float x, y;
+};
+
+static float vec2_dot(struct point a, struct point b)
+{
+    return a.x * b.x + a.y * b.y;
+}
+
+static struct point vec2_sub(struct point a, struct point b)
+{
+    return (struct point){a.x - b.x, a.y - b.y};
+}
+
+static float vec2_cross(struct point a, struct point b)
+{
+    return a.x * b.y - a.y * b.x;
+}
+
+static float vec2_length_squared(struct point v)
+{
+    return v.x * v.x + v.y * v.y;
+}
+
+static struct point vec2_norm(struct point v)
+{
+    float len = sqrtf(vec2_length_squared(v));
+    return (struct point){v.x / len, v.y / len};
+}
+
+static int compare_points(const void* a, const void* b)
+{
+    struct point* p1 = (struct point*)a;
+    struct point* p2 = (struct point*)b;
+    if (p1->x != p2->x)
+        return (p1->x < p2->x) ? -1 : 1;
+    return (p1->y < p2->y) ? -1 : 1;
+}
+
+/*
+ * Compute convex hull using Graham scan algorithm
+ *
+ * Adapted from https://en.wikipedia.org/wiki/Graham_scan
+ */
+static float ccw(struct point a, struct point b, struct point c)
+{
+    return vec2_cross(vec2_sub(a, b), vec2_sub(c, b));
+}
+
+static void compute_convex_hull(struct point* points, int nb_points, struct point* hull_points, int *nb_hull_points)
+{
+    qsort(points, nb_points, sizeof(struct point), compare_points);
+
+    int k = 0;
+    for (int i = 0; i < nb_points; i++) {
+        while (k >= 2 && ccw(hull_points[k - 1], hull_points[k - 2], points[i]) <= 0) {
+            k--;
+        }
+        hull_points[k++] = points[i];
+    }
+
+    for (int i = nb_points - 2, t = k + 1; i >= 0; i--) {
+        while (k >= t && ccw(hull_points[k - 1], hull_points[k - 2], points[i]) <= 0) {
+            k--;
+        }
+        hull_points[k++] = points[i];
+    }
+
+    *nb_hull_points = k - 1;
+}
+
+/*
+ * Compute minimal oriented bounding box from a convex hull using the rotating
+ * caliper algorithm
+ *
+ * Adapted from https://en.wikipedia.org/wiki/Rotating_calipers
+ */
+static struct obb2d compute_obb_from_points(struct point* points, int nb_points)
+{
+    struct obb2d obb = {0};
+    float min_area = FLT_MAX;
+
+    for (int i = 0; i < nb_points; i++) {
+        struct point edge = vec2_sub(points[(i + 1) % nb_points], points[i]);
+        struct point edge_normalized = vec2_norm(edge);
+        struct point r[] = {
+            {edge_normalized.x, -edge_normalized.y},
+            {edge_normalized.y,  edge_normalized.x},
+        };
+
+        struct point min = {FLT_MAX, FLT_MAX};
+        struct point max = {-FLT_MAX, -FLT_MAX};
+
+        for (int j = 0; j < nb_points; j++) {
+            struct point rt[] = {
+                {r[0].x, r[1].x},
+                {r[0].y, r[1].y},
+            };
+
+            float rp[] = {
+                vec2_dot(points[j], rt[0]),
+                vec2_dot(points[j], rt[1]),
+            };
+
+            min.x = fminf(min.x, rp[0]);
+            min.y = fminf(min.y, rp[1]);
+            max.x = fmaxf(max.x, rp[0]);
+            max.y = fmaxf(max.y, rp[1]);
+        }
+
+        const float width = max.y - min.y;
+        const float height = max.x - min.x;
+        const float area = width * height;
+
+        if (area < min_area) {
+            min_area = area;
+
+            const struct point box[] = {
+                {min.x, min.y},
+                {min.x, max.y},
+                {max.x, max.y},
+                {max.x, min.y},
+            };
+
+            const struct point ps[] = {
+                {vec2_dot(box[0], r[0]), vec2_dot(box[0], r[1])},
+                {vec2_dot(box[1], r[0]), vec2_dot(box[1], r[1])},
+                {vec2_dot(box[2], r[0]), vec2_dot(box[2], r[1])},
+                {vec2_dot(box[3], r[0]), vec2_dot(box[3], r[1])},
+            };
+
+            obb = (struct obb2d) {
+                .aabb = {
+                    .center = {
+                        ps[0].x * 0.5f + ps[2].x * 0.5f,
+                        ps[0].y * 0.5f + ps[2].y * 0.5f,
+                    },
+                    .extent = {
+                        width * 0.5f,
+                        height * 0.5f
+                    },
+                },
+                .rotation = NGLI_RAD2DEG(atan2f(edge.x, edge.y)),
+            };
+        }
+    }
+
+    return obb;
+}
+
+struct obb2d ngli_aabb_to_obb2d(const struct aabb *aabb, const float *m)
+{
+    const float *c = aabb->center;
+    const float *e = aabb->extent;
+    NGLI_ATTR_ALIGNED float corners[8 * 4] = {
+        c[0] - e[0], c[1] - e[1], c[2] - e[2], 1.0f,
+        c[0] + e[0], c[1] - e[1], c[2] - e[2], 1.0f,
+        c[0] - e[0], c[1] + e[1], c[2] - e[2], 1.0f,
+        c[0] + e[0], c[1] + e[1], c[2] - e[2], 1.0f,
+        c[0] - e[0], c[1] - e[1], c[2] + e[2], 1.0f,
+        c[0] + e[0], c[1] - e[1], c[2] + e[2], 1.0f,
+        c[0] - e[0], c[1] + e[1], c[2] + e[2], 1.0f,
+        c[0] + e[0], c[1] + e[1], c[2] + e[2], 1.0f,
+    };
+
+    float *corner = corners;
+    for (int i = 0; i < 8; i++) {
+        ngli_mat4_mul_vec4(corner, m, corner);
+        corner += 4;
+    }
+
+    struct point points[8] = {0};
+    corner = corners;
+    for (int i = 0; i < 8; i++) {
+        points[i].x = corner[0];
+        points[i].y = corner[1];
+        corner += 4;
+    }
+
+    struct point hull_points[8] = {0};
+    int nb_hull_points = 0;
+    compute_convex_hull(points, NGLI_ARRAY_NB(points), hull_points, &nb_hull_points);
+    return compute_obb_from_points(hull_points, nb_hull_points);
+}
+
 int ngli_aabb_intersect_point(const struct aabb *aabb, const float *p)
 {
     NGLI_ALIGNED_VEC(d);

@@ -678,6 +678,7 @@ int ngli_pass_exec(struct pass *s)
         memcpy(draw_info->transform_matrix, transform_matrix, sizeof(transform_matrix));
 
         draw_info->screen_aabb = ngli_aabb_apply_projection(aabb, transform_matrix);
+        draw_info->screen_obb_computed = 0;
     }
 
     const struct uniform_map *uniform_map = ngli_darray_data(&desc->uniforms_map);

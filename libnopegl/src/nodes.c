@@ -28,6 +28,7 @@
 #include "log.h"
 #include "nopegl.h"
 #include "internal.h"
+#include "math_utils.h"
 #include "memory.h"
 #include "params.h"
 #include "utils.h"
@@ -814,6 +815,54 @@ NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding
     box->center[1] = (box->center[1] * 0.5f + 0.5f) * (float)viewport->height + (float)viewport->y;
     box->extent[0] = box->extent[0] * (float)viewport->width / 2.0f;
     box->extent[1] = box->extent[1] * (float)viewport->height / 2.0f;
+
+    return 0;
+}
+
+int ngli_node_compute_oriented_bounding_box(struct ngl_node *node)
+{
+    struct draw_info *info = node->priv_data;
+
+    if (info->screen_obb_computed)
+        return 0;
+
+    const float w_2 = (float)info->viewport.width * 0.5f;
+    const float h_2 = (float)info->viewport.height * 0.5f;
+    const NGLI_ALIGNED_MAT(viewport_matrix) = {
+        w_2, 0.f, 0.f, 0.f,
+        0.f, h_2, 0.f, 0.f,
+        0.f, 0.f, 1.f, 0.f,
+        w_2, h_2, 0.f, 1.f,
+    };
+
+    NGLI_ALIGNED_MAT(transform_matrix);
+    ngli_mat4_mul(transform_matrix, viewport_matrix, info->transform_matrix);
+
+    info->screen_obb = ngli_aabb_to_obb2d(&info->aabb, transform_matrix);
+    info->screen_obb_computed = 1;
+
+    return 0;
+}
+
+NGL_API int ngl_node_get_oriented_bounding_box(struct ngl_node *node, struct ngl_oriented_bounding_box *box)
+{
+    if (!node)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (!has_bounding_box(node))
+        return NGL_ERROR_INVALID_ARG;
+
+    int ret = ngli_node_compute_oriented_bounding_box(node);
+    if (ret < 0)
+        return ret;
+
+    const struct draw_info *info = node->priv_data;
+    const struct obb2d *obb = &info->screen_obb;
+
+    memset(box, 0, sizeof(*box));
+    memcpy(box->center, obb->aabb.center, sizeof(box->center));
+    memcpy(box->extent, obb->aabb.extent, sizeof(box->extent));
+    box->rotation = obb->rotation;
 
     return 0;
 }

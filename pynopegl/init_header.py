@@ -235,6 +235,9 @@ class Node(_Node):
     def get_bounding_box(self):
         return self._get_bounding_box()
 
+    def get_oriented_bounding_box(self):
+        return self._get_oriented_bounding_box()
+
 
 class Scene(_ngl.Scene):
     @classmethod

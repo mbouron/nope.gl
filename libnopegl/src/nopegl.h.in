@@ -1059,6 +1059,14 @@ struct ngl_bounding_box {
 
 NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding_box *box);
 
+struct ngl_oriented_bounding_box {
+    float center[2];
+    float extent[2];
+    float rotation;
+};
+
+NGL_API int ngl_node_get_oriented_bounding_box(struct ngl_node *node, struct ngl_oriented_bounding_box *box);
+
 /**
  * Return the nodes intersecting the specificed point
  *

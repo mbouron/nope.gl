@@ -37,12 +37,19 @@ struct aabb {
     NGLI_ALIGNED_VEC(extent);
 };
 
+struct obb2d {
+    struct aabb aabb;
+    float rotation;
+};
+
 struct aabb ngli_aabb_from_vertices(const float *vertices, size_t nb_vertices);
 void ngli_aabb_get_min_max(const struct aabb *aabb, float *min, float *max);
 struct aabb ngli_aabb_apply_transform(const struct aabb *aabb, const float *m);
 struct aabb ngli_aabb_apply_projection(const struct aabb *aabb, const float *m);
+struct obb2d ngli_aabb_to_obb2d(const struct aabb *aabb, const float *m);
 int ngli_aabb_intersect_point(const struct aabb *aabb, const float *p);
 int ngli_aabb_intersect_aabb(const struct aabb *aabb1, const struct aabb *aabb2);
 int ngli_aabb_intersect_ray(const struct aabb *aabb, const struct ray *ray);
+
 
 #endif

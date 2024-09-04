@@ -42,6 +42,11 @@ cdef extern from "nopegl.h":
         float center[2]
         float extent[2]
 
+    cdef struct ngl_oriented_bounding_box:
+        float center[2]
+        float extent[2]
+        float rotation
+
     ngl_node *ngl_node_create(uint32_t type)
     ngl_node *ngl_node_ref(ngl_node *node)
     void ngl_node_unrefp(ngl_node **nodep)
@@ -74,6 +79,7 @@ cdef extern from "nopegl.h":
     int ngl_node_get_type(ngl_node *node, uint32_t *type)
     int ngl_node_get_label(ngl_node *node, const char **label)
     int ngl_node_get_bounding_box(ngl_node *node, ngl_bounding_box *box)
+    int ngl_node_get_oriented_bounding_box(ngl_node *node, ngl_oriented_bounding_box *box)
 
     cdef int NGL_PLATFORM_AUTO
     cdef int NGL_PLATFORM_XLIB
@@ -431,6 +437,17 @@ cdef class _Node:
         }
         return bounding_box
 
+    def _get_oriented_bounding_box(self):
+        cdef ngl_oriented_bounding_box box
+        cdef int ret = ngl_node_get_oriented_bounding_box(self.ctx, &box)
+        if ret < 0:
+            raise Exception("Failed to get node oriented bounding box")
+        bounding_box = {
+            "center": (box.center[0], box.center[1]),
+            "extent": (box.extent[0], box.extent[1]),
+            "rotation": box.rotation,
+        }
+        return bounding_box
 
 ANIM_EVALUATE, ANIM_DERIVATE, ANIM_SOLVE = range(3)
 

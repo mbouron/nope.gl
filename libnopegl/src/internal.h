@@ -54,6 +54,7 @@
 #include "hwconv.h"
 #include "hwmap.h"
 #include "image.h"
+#include "math_utils.h"
 #include "nopegl.h"
 #include "params.h"
 #include "pgcache.h"
@@ -290,7 +291,11 @@ struct draw_info {
     NGLI_ALIGNED_MAT(transform_matrix);
 
     NGLI_ATTR_ALIGNED struct aabb screen_aabb;
+    NGLI_ATTR_ALIGNED struct obb2d screen_obb;
+    int screen_obb_computed;
 };
+
+int ngli_node_compute_oriented_bounding_box(struct ngl_node *node);
 
 struct program_opts {
     const char *vertex;

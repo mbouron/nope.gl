@@ -856,6 +856,76 @@ int ngl_draw(struct ngl_ctx *s, double t)
     return s->api_impl->draw(s, t);
 }
 
+#if 1
+NGL_API int ngl_get_nodes_intersecting_point(struct ngl_ctx *s, const float *point, size_t *nb_nodesp, struct ngl_node ***nodesp)
+{
+
+    *nb_nodesp = 0;
+    *nodesp = NULL;
+
+    ngli_darray_clear(&s->intersecting_nodes);
+
+    struct ngl_node **bounding_box_nodes = ngli_darray_data(&s->bounding_box_nodes);
+    for (size_t i = 0; i < ngli_darray_count(&s->bounding_box_nodes); i++) {
+        struct ngl_node *bounding_box_node = bounding_box_nodes[i];
+        struct draw_info *draw_info = bounding_box_node->priv_data;
+        const struct viewport *viewport = &draw_info->viewport;
+        const NGLI_ALIGNED_VEC(normalized_point) = {
+            2.0f * (point[0] - (float)viewport->x) / (float)viewport->width - 1.0f,
+            2.0f * (point[1] - (float)viewport->y) / (float)viewport->height - 1.0f,
+            0.f,
+            1.f
+        };
+        int intersect = ngli_aabb_intersect_point(&draw_info->screen_aabb, normalized_point);
+        if (!intersect)
+            continue;
+
+        int ret = ngli_node_compute_oriented_bounding_box(bounding_box_node);
+        if (ret < 0)
+            continue;
+
+        NGLI_ALIGNED_MAT(rotation_matrix);
+        ngli_mat4_inverse(rotation_matrix, draw_info->transform_matrix);
+
+        const NGLI_ALIGNED_VEC(directions[]) = {
+            {0.0f, 0.0f, -1.0f, 0.0f},
+            {0.0f, 0.0f,  1.0f, 0.0f},
+        };
+        for (size_t j = 0; j < NGLI_ARRAY_NB(directions); j++) {
+            NGLI_ALIGNED_VEC(point_a) = {NGLI_ARG_VEC4(normalized_point)};
+            NGLI_ALIGNED_VEC(point_b) = NGLI_VEC4_ADD(point_a, directions[j]);
+
+            ngli_mat4_mul_vec4(point_a, rotation_matrix, point_a);
+            ngli_mat4_mul_vec4(point_b, rotation_matrix, point_b);
+
+            NGLI_ALIGNED_VEC(direction) = NGLI_VEC4_SUB(point_b, point_a);
+            ngli_vec4_norm(direction, direction);
+
+            struct ray ray = {
+                .origin    = {NGLI_ARG_VEC4(point_a)},
+                .direction = {NGLI_ARG_VEC4(direction)},
+            };
+
+            ray.direction_inv[0] = 1.0f / ray.direction[0];
+            ray.direction_inv[1] = 1.0f / ray.direction[1];
+            ray.direction_inv[2] = 1.0f / ray.direction[2];
+            ray.direction_inv[3] = 1.0f / ray.direction[3];
+
+            intersect = ngli_aabb_intersect_ray(&draw_info->aabb, &ray);
+            if (intersect) {
+                if (!ngli_darray_push(&s->intersecting_nodes, &bounding_box_node))
+                    return NGL_ERROR_MEMORY;
+                break;
+            }
+        }
+    }
+
+    *nodesp = ngli_darray_data(&s->intersecting_nodes);
+    *nb_nodesp = ngli_darray_count(&s->intersecting_nodes);
+
+    return 0;
+}
+#else
 NGL_API int ngl_get_nodes_intersecting_point(struct ngl_ctx *s, const float *point, size_t *nb_nodesp, struct ngl_node ***nodesp)
 {
     *nb_nodesp = 0;
@@ -886,6 +956,7 @@ NGL_API int ngl_get_nodes_intersecting_point(struct ngl_ctx *s, const float *poi
 
     return 0;
 }
+#endif
 
 int ngl_gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer)
 {
