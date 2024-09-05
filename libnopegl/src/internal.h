@@ -287,6 +287,7 @@ struct draw_info {
     NGLI_ATTR_ALIGNED struct aabb aabb;
 
     struct viewport viewport;
+    NGLI_ALIGNED_MAT(transform_matrix);
 
     NGLI_ATTR_ALIGNED struct aabb screen_aabb;
 };

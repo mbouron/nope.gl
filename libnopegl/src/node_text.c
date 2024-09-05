@@ -801,6 +801,7 @@ static void text_draw(struct ngl_node *node)
         ngli_gpu_ctx_transform_projection_matrix_inv(ctx->gpu_ctx, transform_matrix);
         ngli_mat4_mul(transform_matrix, transform_matrix, projection_matrix);
         ngli_mat4_mul(transform_matrix, transform_matrix, modelview_matrix);
+        memcpy(draw_info->transform_matrix, transform_matrix, sizeof(transform_matrix));
 
         draw_info->screen_aabb = ngli_aabb_apply_projection(&draw_info->aabb, transform_matrix);
     }
