@@ -216,7 +216,7 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                                     )
                                     .build()
                             },
-                            FunSpec.builder("move${param.parameterName.toCamelCase(true)}")
+                            FunSpec.builder("swap${param.parameterName.toCamelCase(true)}")
                                 .addParameter(
                                     ParameterSpec
                                         .builder(
