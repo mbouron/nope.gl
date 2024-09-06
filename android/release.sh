@@ -12,7 +12,9 @@ if [ ! -f "configure.py" ]; then
 fi
 
 local="false"
-if [ "$1" = "local" ]; then
+if [ "$#" -lt 1 ]; then
+    local="false"
+elif [ "$1" = "local" ]; then
     local="true"
 fi
 
