@@ -3026,7 +3026,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "flags": [],
+          "flags": ["live"],
           "desc": "a set of scenes"
         }
       ]
