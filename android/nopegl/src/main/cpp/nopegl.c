@@ -429,6 +429,30 @@ JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetBoundin
     return array;
 }
 
+JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetOrientedBoundingBox(JNIEnv *env,
+                                                                                             jobject thiz,
+                                                                                             jlong native_ptr)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+
+    struct ngl_oriented_bounding_box obb;
+    int result = ngl_node_get_oriented_bounding_box(node, &obb);
+    if (result < 0)
+        return NULL;
+
+    jfloatArray array = (*env)->NewFloatArray(env, 7);
+    if (!array)
+        return NULL;
+
+    (*env)->SetFloatArrayRegion(env, array, 0, 1, &obb.center[0]);
+    (*env)->SetFloatArrayRegion(env, array, 1, 1, &obb.center[1]);
+    (*env)->SetFloatArrayRegion(env, array, 2, 1, &obb.extent[0]);
+    (*env)->SetFloatArrayRegion(env, array, 3, 1, &obb.extent[1]);
+    (*env)->SetFloatArrayRegion(env, array, 4, 1, &obb.rotation);
+
+    return array;
+}
+
 #define DECLARE_SET_VEC_FUNC(ctype, jtype, name, count)                                                 \
     static jint set_##name(JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jfloatArray array) \
     {                                                                                                   \

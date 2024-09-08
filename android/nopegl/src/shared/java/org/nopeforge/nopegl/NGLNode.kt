@@ -66,6 +66,18 @@ open class NGLNode(
         )
     }
 
+    fun getOrientedBoundingBox(): OrientedBoundingBox? {
+        val nativeOrientedBoundingBox = nativeGetOrientedBoundingBox(nativePtr) ?: return null
+
+        return OrientedBoundingBox(
+            centerX = nativeOrientedBoundingBox[0],
+            centerY = nativeOrientedBoundingBox[1],
+            extentWidth = nativeOrientedBoundingBox[2],
+            extentHeight = nativeOrientedBoundingBox[3],
+            rotation = nativeOrientedBoundingBox[4],
+        )
+    }
+
     fun setBoolean(key: String, value: Boolean): Boolean {
         return nativeSetBoolean(nativePtr, key, value) == 0
     }
@@ -175,6 +187,7 @@ open class NGLNode(
     private external fun nativeGetLabel(nativePtr: Long): String
     private external fun nativeGetType(nativePtr: Long): Int
     private external fun nativeGetBoundingBox(nativePtr: Long): FloatArray?
+    private external fun nativeGetOrientedBoundingBox(nativePtr: Long): FloatArray?
     private external fun nativeRef(nativePtr: Long)
     private external fun nativeUnref(nativePtr: Long)
     private external fun nativeSetBoolean(nativePtr: Long, key: String, value: Boolean): Int
