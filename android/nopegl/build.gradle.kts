@@ -131,6 +131,8 @@ android {
 }
 
 dependencies {
+    implementation(platform(libs.coroutines.bom))
+    implementation(libs.coroutines)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

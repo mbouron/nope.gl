@@ -35,6 +35,8 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 kotlinpoet = { module = "com.squareup:kotlinpoet", version.ref = "kotlinpoet" }
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
+coroutines-bom = "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.8.1"
+coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core" }
 
 [plugins]
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

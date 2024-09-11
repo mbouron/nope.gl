@@ -19,6 +19,7 @@
  * under the License.
  */
 
+#include "nopemd.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -916,4 +917,91 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeCreateScene(JNI
     }
 
     return (jlong)(uintptr_t)scene;
+}
+
+struct player {
+    struct nmd_ctx *context;
+    jobject surface;
+};
+
+JNIEXPORT jlong JNICALL Java_org_nopeforge_nopemd_Player_nativeInit(JNIEnv *env,
+                                                                    jclass clazz,
+                                                                    jstring filename_,
+                                                                    jobject surface_)
+{
+    jobject surface      = (*env)->NewGlobalRef(env, surface_);
+    if (surface == NULL) {
+        return 0;
+    }
+    const char *filename = (*env)->GetStringUTFChars(env, filename_, 0);
+    if (filename == NULL) {
+        return 0;
+    }
+    struct nmd_ctx *context = nmd_create(filename);
+    if (context == NULL) {
+        (*env)->ReleaseStringUTFChars(env, filename_, filename);
+        return 0;
+    }
+    struct player *player = calloc(1,sizeof(*player));
+    if (player == NULL) {
+        nmd_freep(&context);
+        (*env)->ReleaseStringUTFChars(env, filename_, filename);
+        return 0;
+    }
+    player->context = context;
+    player->surface = surface;
+
+    nmd_set_option(context, "max_nb_packets", 1);
+    nmd_set_option(context, "max_nb_frames", 1);
+    nmd_set_option(context, "max_nb_sink", 1);
+    nmd_set_option(context, "auto_hwaccel", 1);
+    nmd_set_option(context, "opaque", &surface);
+
+    (*env)->ReleaseStringUTFChars(env, filename_, filename);
+    return (jlong)(uintptr_t)player;
+}
+
+JNIEXPORT void JNICALL Java_org_nopeforge_nopemd_Player_nativeStop(JNIEnv *env, jclass clazz, jlong ptr)
+{
+    struct player *player = (struct player *)(uintptr_t)ptr;
+    nmd_stop(player->context);
+}
+
+JNIEXPORT int JNICALL Java_org_nopeforge_nopemd_Player_nativeStart(JNIEnv *env, jclass clazz, jlong ptr)
+{
+    struct player *player = (struct player *)(uintptr_t)ptr;
+    struct nmd_ctx* context = player->context;
+    return nmd_start(context);
+}
+
+JNIEXPORT int JNICALL Java_org_nopeforge_nopemd_Player_nativeSeek(JNIEnv *env,
+                                                                   jclass clazz,
+                                                                   jlong ptr,
+                                                                   jdouble position)
+{
+    struct player *player = (struct player *)(uintptr_t)ptr;
+    return nmd_seek(player->context, position);
+}
+
+JNIEXPORT int JNICALL Java_org_nopeforge_nopemd_Player_nativeDraw(JNIEnv *env,
+                                                                   jclass clazz,
+                                                                   jlong ptr,
+                                                                   jdouble position)
+{
+    struct player *player = (struct player *)(uintptr_t)ptr;
+    struct nmd_frame *frame;
+    int ret = nmd_get_frame(player->context, position, &frame);
+    if (ret == NMD_RET_SUCCESS) {
+        ret = nmd_mc_frame_render_and_releasep(&frame);
+    } else if (ret == NMD_RET_UNCHANGED) {
+        ret = NMD_RET_SUCCESS;
+    }
+    return ret;
+}
+
+JNIEXPORT void JNICALL Java_org_nopeforge_nopemd_Player_nativeRelease(JNIEnv *env, jclass clazz, jlong ptr) {
+    struct player *player = (struct player *)(uintptr_t)ptr;
+    nmd_freep(&player->context);
+    (*env)->DeleteGlobalRef(env, player->surface);
+    free(player);
 }
