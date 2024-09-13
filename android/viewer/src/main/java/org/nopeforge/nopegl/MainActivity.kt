@@ -32,57 +32,30 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
-import androidx.compose.material3.Slider
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
+import org.nopeforge.nopegl.components.Player
+import org.nopeforge.nopegl.components.rememberEngineRenderer
 import timber.log.Timber
 import java.io.File
-import kotlin.time.Duration.Companion.seconds
 
 class MainActivity : ComponentActivity() {
 
     private var receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (!Environment.isExternalStorageManager()) {
-                    Timber.e("Could not update scene: missing permission")
-                    val uri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")
-                    startActivity(
-                        Intent(
-                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                            uri
-                        )
-                    )
-                    return
-                }
+                if (requestPermission()) return
             }
 
             val scenePath = intent.getStringExtra("scene")
@@ -100,11 +73,12 @@ class MainActivity : ComponentActivity() {
 
     private var scene: NGLScene? by mutableStateOf(null)
 
-    override fun onStart() {
-        super.onStart()
+    override fun onResume() {
+        super.onResume()
         val intentFilter = IntentFilter()
         intentFilter.addAction("scene_update")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (requestPermission()) return
             registerReceiver(receiver, intentFilter, RECEIVER_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
@@ -112,122 +86,59 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun requestPermission(): Boolean {
+        if (!Environment.isExternalStorageManager()) {
+            Timber.e("Could not update scene: missing permission")
+            val uri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    uri
+                )
+            )
+            return true
+        }
+        return false
+    }
+
+    override fun onPause() {
         unregisterReceiver(receiver)
+        super.onPause()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        NGLContext.init(this)
         super.onCreate(savedInstanceState)
 
         Timber.plant(Timber.DebugTree())
         setContent {
-            NGLPlayer(scene)
-        }
-    }
-}
+            MaterialTheme {
 
-@Composable
-fun NGLPlayer(scene: NGLScene?, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    var time by remember { mutableFloatStateOf(0f) }
-    var duration by remember { mutableFloatStateOf(0f) }
-    var isPlaying by remember { mutableStateOf(false) }
-
-    val texture = remember {
-        NopeTextureView(context)
-    }
-    DisposableEffect(texture) {
-        onDispose {
-            texture.release()
-        }
-    }
-    LaunchedEffect(scene) {
-        texture.setScene(scene)
-        duration = scene?.duration?.toFloat() ?: 0f
-        if (scene != null) {
-            texture.start()
-            isPlaying = true
-        } else {
-            texture.stop()
-            isPlaying = false
-        }
-    }
-    LaunchedEffect(texture, isPlaying) {
-        if (isPlaying) {
-            texture.start()
-        } else {
-            texture.pause()
-        }
-        withContext(Dispatchers.Default) {
-            while (isPlaying && isActive) {
-                withContext(Dispatchers.Main) {
-                    time = texture.getTime().toFloat()
-                }
-                delay(1.seconds / 60.0)
-            }
-        }
-    }
-
-    Column(modifier.fillMaxSize()) {
-        AndroidView(
-            modifier = Modifier.weight(1f, true),
-            factory = { texture }
-        )
-        Spacer(Modifier.size(16.dp))
-        Column(
-            modifier = Modifier
-                .wrapContentHeight(Alignment.Bottom)
-                .padding(horizontal = 16.dp)
-        ) {
-            Column {
-                Slider(
-                    value = time,
-                    valueRange = 0f..duration,
-                    onValueChange = {
-                        val playing = isPlaying
-                        texture.pause()
-                        texture.seek(it.toDouble())
-                        if (playing) {
-                            texture.start()
-                        }
-                    }
+                var isPlaying by remember { mutableStateOf(true) }
+                val renderer = rememberEngineRenderer(
+                    scene = scene,
+                    onSceneLoaded = {
+                        Timber.d("Scene loaded")
+                    },
+                    playWhenReady = isPlaying,
+                    onIsPlayingChanged = { isPlaying = it }
                 )
-            }
-            Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                IconToggleButton(
-                    checked = isPlaying,
-                    onCheckedChange = { isPlaying = it },
+                scene?.let { scene ->
+                    Player(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(vertical = 16.dp),
+                        scene = scene,
+                        renderer = renderer,
+                        isPlaying = isPlaying,
+                        onIsPlayingCheckedChanged = { isPlaying = it }
+                    )
+                } ?: Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    if (isPlaying) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_pause),
-                            contentDescription = "Pause"
-                        )
-                    } else {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_play),
-                            contentDescription = "Play"
-                        )
-                    }
-                }
-                IconButton(onClick = { texture.step(-1) }) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_prev),
-                        contentDescription = "Step backward"
-                    )
-                }
-                IconButton(onClick = { texture.step(1) }) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_next),
-                        contentDescription = "Step forward"
-                    )
-                }
-                IconButton(onClick = { texture.stop() }) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_stop),
-                        contentDescription = "Stop"
-                    )
+                    Text("No scene loaded", style = MaterialTheme.typography.titleMedium)
                 }
             }
         }

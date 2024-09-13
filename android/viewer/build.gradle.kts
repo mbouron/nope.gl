@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    implementation(libs.compose.constraintlayout)
     implementation(libs.timber)
     implementation(project(":nopegl"))
     testImplementation(libs.junit)
