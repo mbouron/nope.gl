@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.Slider
@@ -152,6 +153,7 @@ internal fun Player(
                 renderer.seek(newPosition)
             },
             onProgressChangeFinished = { isSeeking = false },
+            onStep = { step -> renderer.step(step) },
         )
     }
 }
@@ -165,6 +167,7 @@ fun PlaybackControls(
     onProgressChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     onProgressChangeFinished: () -> Unit = {},
+    onStep: (step: Int) -> Unit = {},
 ) {
     Row(
         modifier = modifier,
@@ -182,6 +185,24 @@ fun PlaybackControls(
             }
             Icon(
                 painter = painter,
+                contentDescription = null,
+            )
+        }
+        IconButton(
+            modifier = Modifier.size(48.dp),
+            onClick = { onStep(-1) }
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_prev),
+                contentDescription = null,
+            )
+        }
+        IconButton(
+            modifier = Modifier.size(48.dp),
+            onClick = { onStep(1) }
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_next),
                 contentDescription = null,
             )
         }
