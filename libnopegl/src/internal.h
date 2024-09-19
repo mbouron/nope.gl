@@ -47,6 +47,7 @@
 #include "rnode.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
+#include "utils/job_queue.h"
 #include "utils/pthread_compat.h"
 #include "utils/refcount.h"
 

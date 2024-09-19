@@ -259,6 +259,7 @@ lib_src = files(
   'src/utils/error.c',
   'src/utils/file.c',
   'src/utils/hmap.c',
+  'src/utils/job_queue.c',
   'src/utils/memory.c',
   'src/utils/refcount.c',
   'src/utils/string.c',
