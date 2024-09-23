@@ -81,6 +81,7 @@ fun nodeType(name: String): NGLNodeType? {
         "ColorStats" -> NGLNodeType.COLORSTATS
         "Compute" -> NGLNodeType.COMPUTE
         "ComputeProgram" -> NGLNodeType.COMPUTEPROGRAM
+        "CustomTexture" -> NGLNodeType.CUSTOMTEXTURE
         "Draw" -> NGLNodeType.DRAW
         "DrawColor" -> NGLNodeType.DRAWCOLOR
         "DrawDisplace" -> NGLNodeType.DRAWDISPLACE

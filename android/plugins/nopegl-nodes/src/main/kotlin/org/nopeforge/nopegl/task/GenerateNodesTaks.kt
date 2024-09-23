@@ -9,7 +9,6 @@ import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.OutputDirectory
-import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
@@ -42,7 +41,7 @@ internal abstract class GenerateNodesTask : DefaultTask() {
             ChoiceEnum.from(name, choiceSpecs, PACKAGE_NAME)
         }
         val nodeClasses = specs.nodes
-            .filterKeys { !it.startsWith("_") }
+            .filterKeys { !it.startsWith("_") && it !in IGNORED_NODES }
             .mapValues { (name, nodeSpec) ->
                 NodeClass.from(name, nodeSpec, PACKAGE_NAME)
             }
@@ -50,5 +49,9 @@ internal abstract class GenerateNodesTask : DefaultTask() {
         choices.values.map { it.toFileSpec() }
             .plus(nodeClasses.values.map { it.toFileSpec(choices) })
             .forEach { it.writeTo(outputDirectory.get().asFile) }
+    }
+
+    companion object {
+        val IGNORED_NODES = setOf("CustomTexture")
     }
 }

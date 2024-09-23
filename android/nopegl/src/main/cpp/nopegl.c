@@ -1029,3 +1029,197 @@ JNIEXPORT void JNICALL Java_org_nopeforge_nopemd_Player_nativeRelease(JNIEnv *en
     (*env)->DeleteGlobalRef(env, player->surface);
     free(player);
 }
+
+static JNIEnv *get_jni_env(void)
+{
+    JavaVM *java_vm = ngl_jni_get_java_vm();
+    assert(java_vm);
+
+    JNIEnv *env = NULL;
+    int ret = (*java_vm)->GetEnv(java_vm, (void **)&env, JNI_VERSION_1_6);
+    assert(ret == JNI_OK);
+
+    return env;
+}
+
+struct custom_texture_ctx {
+    struct ngl_node *node;
+    jobject object;
+    jmethodID init;
+    jmethodID prepare;
+    jmethodID prefetch;
+    jmethodID update;
+    jmethodID draw;
+    jmethodID release;
+    jmethodID uninit;
+};
+
+static int custom_texture_init(void *reversed, void *user_data)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = get_jni_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->init);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return NGL_ERROR_EXTERNAL;
+    }
+    return 0;
+}
+
+static int custom_texture_prepare(void *reversed, void *user_data)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = get_jni_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->prepare);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return NGL_ERROR_EXTERNAL;
+    }
+    return 0;
+}
+
+static int custom_texture_prefetch(void *reversed, void *user_data)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = get_jni_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->prefetch);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return NGL_ERROR_EXTERNAL;
+    }
+    return 0;
+}
+
+static int custom_texture_update(void *reversed, void *user_data, double t)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = get_jni_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->update, t);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return NGL_ERROR_EXTERNAL;
+    }
+    return 0;
+}
+
+void custom_texture_draw(void *reversed, void *user_data)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = get_jni_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->draw);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return;
+    }
+}
+
+void custom_texture_release(void *reversed, void *user_data)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = get_jni_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->release);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return;
+    }
+}
+
+void custom_texture_uninit(void *reversed, void *user_data)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = get_jni_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->uninit);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return;
+    }
+}
+
+static struct ngl_node_funcs custom_texture_funcs = {
+    .init = custom_texture_init,
+    .prepare = custom_texture_prepare,
+    .prefetch = custom_texture_prefetch,
+    .update = custom_texture_update,
+    .draw = custom_texture_draw,
+    .release = custom_texture_release,
+    .uninit = custom_texture_uninit,
+};
+
+static void custom_texture_ctx_destroy(JNIEnv *env, struct custom_texture_ctx *ctx)
+{
+    ngl_node_unrefp(&ctx->node);
+
+    (*env)->DeleteGlobalRef(env, ctx->object);
+    ctx->object = NULL;
+
+    free(ctx);
+}
+
+JNIEXPORT jlong JNICALL
+Java_org_nopeforge_nopegl_NGLCustomTexture_nativeCustomTextureCreate(JNIEnv *env, jobject thiz, jlong native_ptr)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+
+    struct custom_texture_ctx *ctx = calloc(1, sizeof(*ctx));
+    if (!ctx)
+        return 0;
+
+    ctx->node = ngl_node_ref(node);
+    if (!ctx->node)
+        goto fail;
+
+    ctx->object = (*env)->NewGlobalRef(env, thiz);
+    if (!ctx->object)
+        goto fail;
+
+    jclass cls = (*env)->GetObjectClass(env, ctx->object);
+    ctx->init = (*env)->GetMethodID(env, cls, "init", "()V");
+    ctx->prepare = (*env)->GetMethodID(env, cls, "prepare", "()V");
+    ctx->prefetch = (*env)->GetMethodID(env, cls, "prefetch", "()V");
+    ctx->update = (*env)->GetMethodID(env, cls, "update", "(D)V");
+    ctx->draw = (*env)->GetMethodID(env, cls, "draw", "()V");
+    ctx->release = (*env)->GetMethodID(env, cls, "release", "()V");
+    ctx->uninit = (*env)->GetMethodID(env, cls, "uninit", "()V");
+
+    int ret = ngl_node_set_funcs(node, ctx, &custom_texture_funcs);
+    if (ret < 0)
+        goto fail;
+
+    return (jlong)(uintptr_t)ctx;
+
+fail:
+    custom_texture_ctx_destroy(env, ctx);
+
+    return NGL_ERROR_MEMORY;
+}
+
+JNIEXPORT jint JNICALL
+Java_org_nopeforge_nopegl_NGLCustomTexture_nativeCustomTextureSetTextureInfo(JNIEnv *env, jobject thiz,
+                                                                             jlong native_context_ptr,
+                                                                             jint texture, jint target,
+                                                                             jint width, jint height)
+{
+    struct custom_texture_ctx *ctx = (struct custom_texture_ctx *)(uintptr_t)native_context_ptr;
+
+    if (texture) {
+        struct ngl_custom_texture_info info = {
+                .backend = NGL_BACKEND_OPENGLES,
+                .backend_texture_info = &(struct ngl_custom_texture_info_gl) {
+                    .texture = texture,
+                    .target = target,
+                },
+                .width = width,
+                .height = height,
+        };
+        return ngl_custom_texture_set_texture_info(ctx->node, &info);
+    } else {
+        return ngl_custom_texture_set_texture_info(ctx->node, NULL);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_org_nopeforge_nopegl_NGLCustomTexture_nativeCustomTextureRelease(JNIEnv *env, jobject thiz, jlong native_context_ptr)
+{
+    struct custom_texture_ctx *ctx = (struct custom_texture_ctx *)(uintptr_t)native_context_ptr;
+    custom_texture_ctx_destroy(env, ctx);
+}

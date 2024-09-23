@@ -147,6 +147,10 @@ static int register_texture(struct pass *s, const char *name, struct ngl_node *t
             const struct resourceprops_opts *resprops = resprops_node->opts;
             as_image = resprops->as_image;
             if (as_image) {
+                if (texture->cls->id == NGL_NODE_CUSTOMTEXTURE) {
+                    LOG(ERROR, "custom textures do not support being used as images");
+                    return NGL_ERROR_UNSUPPORTED;
+                }
                 /* Disable direct rendering when using image load/store */
                 texture_info->supported_image_layouts = 1 << NGLI_IMAGE_LAYOUT_DEFAULT;
                 texture_info->params.usage |= NGLI_TEXTURE_USAGE_STORAGE_BIT;

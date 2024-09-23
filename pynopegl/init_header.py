@@ -1,4 +1,5 @@
 #
+# Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2022 GoPro Inc.
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -445,3 +446,12 @@ scene.Bool = namedtuple("Bool", "")
 scene.File = namedtuple("File", "filter", defaults=("",))
 scene.List = namedtuple("List", "choices")
 scene.Text = namedtuple("Text", "")
+
+
+class CustomTextureInfoGL(_ngl.CustomTextureInfoGL):
+    def __init__(self, width: int, height: int, texture: int, target: int, es: int = 0):
+        super().__init__(width, height, texture, target, es)
+
+
+class CustomTexture(_ngl.CustomTexture):
+    pass

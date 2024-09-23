@@ -61,6 +61,7 @@ enum class NGLNodeType(val type: Int) {
     COLORSTATS(fourCharacters('C', 'l', 'r', 'S')),
     COMPUTE(fourCharacters('C', 'p', 't', ' ')),
     COMPUTEPROGRAM(fourCharacters('C', 'p', 't', 'P')),
+    CUSTOMTEXTURE(fourCharacters('C', 's', 't', 'T')),
     DRAW(fourCharacters('D', 'r', 'a', 'w')),
     DRAWCOLOR(fourCharacters('D', 'c', 'l', 'r')),
     DRAWDISPLACE(fourCharacters('D', 'd', 's', 'p')),
@@ -190,5 +191,5 @@ enum class NGLNodeType(val type: Int) {
     VELOCITYFLOAT(fourCharacters('V', 'l', 'y', '1')),
     VELOCITYVEC2(fourCharacters('V', 'l', 'y', '2')),
     VELOCITYVEC3(fourCharacters('V', 'l', 'y', '3')),
-    VELOCITYVEC4(fourCharacters('V', 'l', 'y', '4'));
+    VELOCITYVEC4(fourCharacters('V', 'l', 'y', '4')),
 }

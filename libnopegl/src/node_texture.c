@@ -66,6 +66,8 @@ NGLI_STATIC_ASSERT(texture_info_is_first, offsetof(struct texture_priv, texture_
 enum pgcraft_shader_tex_type ngli_node_texture_get_pgcraft_shader_tex_type(const struct ngl_node *node)
 {
     switch (node->cls->id) {
+    case NGL_NODE_CUSTOMTEXTURE:
+        return NGLI_PGCRAFT_SHADER_TEX_TYPE_VIDEO;
     case NGL_NODE_TEXTURE2D: {
         const struct texture_opts *o = node->opts;
         if (o->data_src && o->data_src->cls->id == NGL_NODE_MEDIA)

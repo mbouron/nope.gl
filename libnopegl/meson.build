@@ -199,6 +199,7 @@ lib_src = files(
   'src/node_colorstats.c',
   'src/node_compute.c',
   'src/node_computeprogram.c',
+  'src/node_customtexture.c',
   'src/node_draw.c',
   'src/node_drawother.c',
   'src/node_drawpath.c',
