@@ -29,14 +29,13 @@
 #include "gpu_ctx.h"
 #include "gpu_limits.h"
 #include "hmap.h"
+#include "internal.h"
 #include "log.h"
 #include "node_buffer.h"
 #include "node_draw.h"
 #include "node_program.h"
 #include "nopegl.h"
-#include "internal.h"
 #include "pass.h"
-#include "topology.h"
 #include "utils.h"
 
 struct draw_opts {

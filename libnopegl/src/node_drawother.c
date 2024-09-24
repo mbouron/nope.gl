@@ -38,8 +38,6 @@
 #include "node_buffer.h"
 #include "node_draw.h"
 #include "node_texture.h"
-#include "node_block.h"
-#include "node_texture.h"
 #include "node_uniform.h"
 #include "pgcraft.h"
 #include "pipeline_compat.h"

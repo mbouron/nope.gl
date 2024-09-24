@@ -27,11 +27,11 @@
 #include "gpu_ctx.h"
 #include "gpu_limits.h"
 #include "hmap.h"
+#include "internal.h"
 #include "log.h"
 #include "node_draw.h"
 #include "node_program.h"
 #include "nopegl.h"
-#include "internal.h"
 #include "pass.h"
 #include "utils.h"
 

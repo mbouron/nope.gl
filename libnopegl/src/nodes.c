@@ -25,16 +25,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "log.h"
-#include "nopegl.h"
 #include "internal.h"
+#include "log.h"
 #include "math_utils.h"
 #include "memory.h"
 #include "node_draw.h"
+#include "nodes_register.h"
 #include "node_uniform.h"
+#include "nopegl.h"
 #include "params.h"
 #include "utils.h"
-#include "nodes_register.h"
 
 enum {
     STATE_INIT_FAILED   = -1,
