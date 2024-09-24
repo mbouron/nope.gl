@@ -33,6 +33,9 @@
 
 #include "log.h"
 #include "memory.h"
+#include "node_animkeyframe.h"
+#include "node_media.h"
+#include "node_uniform.h"
 #include "nopegl.h"
 #include "internal.h"
 

@@ -29,6 +29,7 @@
 #include "darray.h"
 #include "gpu_ctx.h"
 #include "math_utils.h"
+#include "node_draw.h"
 #include "params.h"
 #include "pgcraft.h"
 #include "pipeline_compat.h"
@@ -36,6 +37,7 @@
 #include "type.h"
 #include "topology.h"
 #include "utils.h"
+#include "format.h"
 
 /* GLSL fragments as string */
 #include "text_bg_frag.h"

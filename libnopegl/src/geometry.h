@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 #include "aabb.h"
-#include "internal.h"
+#include "buffer_layout.h"
 
 struct gpu_ctx;
 

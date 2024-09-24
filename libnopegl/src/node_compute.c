@@ -28,6 +28,8 @@
 #include "gpu_limits.h"
 #include "hmap.h"
 #include "log.h"
+#include "node_draw.h"
+#include "node_program.h"
 #include "nopegl.h"
 #include "internal.h"
 #include "pass.h"

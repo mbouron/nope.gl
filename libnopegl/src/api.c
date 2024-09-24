@@ -42,6 +42,7 @@
 #include "log.h"
 #include "math_utils.h"
 #include "memory.h"
+#include "node_draw.h"
 #include "nopegl.h"
 #include "internal.h"
 #include "pgcache.h"
