@@ -35,6 +35,13 @@
 #include <nopegl.h>
 #include <jni.h>
 
+#define CHECK(cond) do {                                                                                 \
+    if (!(cond)) {                                                                                       \
+        __android_log_print(ANDROID_LOG_FATAL, "ngl", "Assert %s @ %s:%d\n", #cond, __FILE__, __LINE__); \
+        abort();                                                                                         \
+    }                                                                                                    \
+} while (0)
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 {
     av_jni_set_java_vm(vm, NULL);
@@ -190,7 +197,7 @@ static const struct {
 static void config_init(struct ngl_config *config, JNIEnv *env, jobject config_)
 {
     jclass cls = (*env)->GetObjectClass(env, config_);
-    assert(cls);
+    CHECK(cls);
 
     for (int i = 0; i < sizeof(config_fields) / sizeof(*config_fields); i++) {
         const char *name         = config_fields[i].name;
@@ -245,7 +252,7 @@ static void config_init(struct ngl_config *config, JNIEnv *env, jobject config_)
             break;
         }
         default:
-            assert(0);
+            CHECK(0);
         }
 
         if ((*env)->ExceptionCheck(env)) {
@@ -465,7 +472,7 @@ JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetOriente
         }                                                                                               \
                                                                                                         \
         jsize length = (*env)->GetArrayLength(env, array);                                              \
-        assert(length == count);                                                                        \
+        CHECK(length == count);                                                                         \
                                                                                                         \
         ctype vec[16] = {0};                                                                            \
         (*env)->Get##jtype##ArrayRegion(env, array, 0, count, (void *)vec);                             \
@@ -520,8 +527,8 @@ DECLARE_SET_TYPE_FUNC(struct ngl_node *, Long, node)
         struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;                           \
         const char *key_str   = (*env)->GetStringUTFChars(env, key, 0);                             \
         const char *value_str = (*env)->GetStringUTFChars(env, value, 0);                           \
-        assert(key_str);                                                                            \
-        assert(value_str);                                                                          \
+        CHECK(key_str);                                                                             \
+        CHECK(value_str);                                                                           \
                                                                                                     \
         int ret = ngl_node_param_set_##name(node, key_str, value_str);                              \
                                                                                                     \
@@ -556,13 +563,13 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetData(JNIEnv *e
     struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
 
     const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
-    assert(key_str);
+    CHECK(key_str);
 
     void *data_buffer          = (*env)->GetDirectBufferAddress(env, data);
     jlong data_buffer_capacity = (*env)->GetDirectBufferCapacity(env, data);
 
-    assert(data_buffer);
-    assert(size >= 0 && size <= data_buffer_capacity);
+    CHECK(data_buffer);
+    CHECK(size >= 0 && size <= data_buffer_capacity);
 
     int ret = ngl_node_param_set_data(node, key_str, size, data_buffer);
 
@@ -583,8 +590,8 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetDict(JNIEnv *e
 
     const char *key_str  = (*env)->GetStringUTFChars(env, key, 0);
     const char *name_str = (*env)->GetStringUTFChars(env, name, 0);
-    assert(key_str);
-    assert(name_str);
+    CHECK(key_str);
+    CHECK(name_str);
 
     int ret = ngl_node_param_set_dict(node, key_str, name_str, value_node);
 
@@ -619,8 +626,8 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddDoubles(JNIEnv
     struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
     const char *key_str   = (*env)->GetStringUTFChars(env, key, 0);
     const jsize length    = (*env)->GetArrayLength(env, values);
-    assert(key_str);
-    assert(length == count);
+    CHECK(key_str);
+    CHECK(length == count);
 
     double *f64s = (*env)->GetDoubleArrayElements(env, values, NULL);
     if ((*env)->ExceptionCheck(env)) {
@@ -646,7 +653,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSwapElement(JNIEn
     struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
 
     const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
-    assert(key_str);
+    CHECK(key_str);
 
     int ret = ngl_node_param_swap_elem(node, key_str, from, to);
 
@@ -721,9 +728,9 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddNodes(JNIEnv *
 {
     struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
     const char *key_str   = (*env)->GetStringUTFChars(env, key, 0);
-    assert(key_str);
+    CHECK(key_str);
     jsize length = (*env)->GetArrayLength(env, node_pointers);
-    assert(length == count);
+    CHECK(length == count);
 
     jlong *ptrs = (*env)->GetLongArrayElements(env, node_pointers, NULL);
     if ((*env)->ExceptionCheck(env)) {
@@ -751,7 +758,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetRational(JNIEn
     struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
 
     const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
-    assert(key_str);
+    CHECK(key_str);
 
     int ret = ngl_node_param_set_rational(node, key_str, num, den);
 
@@ -1033,11 +1040,11 @@ JNIEXPORT void JNICALL Java_org_nopeforge_nopemd_Player_nativeRelease(JNIEnv *en
 static JNIEnv *get_jni_env(void)
 {
     JavaVM *java_vm = ngl_jni_get_java_vm();
-    assert(java_vm);
+    CHECK(java_vm);
 
     JNIEnv *env = NULL;
     int ret = (*java_vm)->GetEnv(java_vm, (void **)&env, JNI_VERSION_1_6);
-    assert(ret == JNI_OK);
+    CHECK(ret == JNI_OK);
 
     return env;
 }
