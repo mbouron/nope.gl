@@ -12,6 +12,7 @@ rules = "1.6.1"
 android = "8.5.1"
 kotlin = "2.0.0"
 timber = "5.0.1"
+annotationJvm = "1.8.2"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -20,6 +21,7 @@ androidx-test-rules = { module = "androidx.test:rules", version.ref = "rules" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "runner" }
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espressoCore" }
 androidx-junit = { module = "androidx.test.ext:junit", version.ref = "junitVersion" }
+androidx-graphics-core = "androidx.graphics:graphics-core:1.0.1"
 compose-activity = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 compose-bom = "androidx.compose:compose-bom:2024.06.00"
 compose-material3 = { module = "androidx.compose.material3:material3" }
@@ -38,6 +40,7 @@ kotlinpoet = { module = "com.squareup:kotlinpoet", version.ref = "kotlinpoet" }
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 coroutines-bom = "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.8.1"
 coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core" }
+androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
 
 [plugins]
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

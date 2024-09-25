@@ -133,6 +133,8 @@ android {
 dependencies {
     implementation(platform(libs.coroutines.bom))
     implementation(libs.coroutines)
+    implementation(libs.androidx.graphics.core)
+    implementation(libs.androidx.annotation.jvm)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
