@@ -278,18 +278,19 @@ JNIEXPORT JNIEXPORT jlongArray JNICALL Java_org_nopeforge_nopegl_NGLContext_nati
 {
     const float point[2] = {x, y};
 
-    size_t size             = 0;
+    size_t nb_nodes         = 0;
     struct ngl_node **nodes = NULL;
 
-    int result = ngl_get_nodes_intersecting_point((struct ngl_ctx *)native_ptr, point, &size, &nodes);
+    int result = ngl_get_nodes_intersecting_point((struct ngl_ctx *)native_ptr, point, &nb_nodes, &nodes);
     if (result < 0)
         return NULL;
 
-    jlongArray array = (*env)->NewLongArray(env, size);
+    jsize count = (jsize)nb_nodes;
+    jlongArray array = (*env)->NewLongArray(env, count);
     if (!array)
         return NULL;
 
-    for (size_t i = 0; i < size; i++) {
+    for (jsize i = 0; i < count; i++) {
         struct ngl_node *node = nodes[i];
         jlong nativePtr       = (jlong)(uintptr_t)node;
         (*env)->SetLongArrayRegion(env, array, i, 1, &nativePtr);
