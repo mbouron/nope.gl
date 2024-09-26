@@ -49,7 +49,6 @@
 #include "node_buffer.h"
 #include "node_texture.h"
 #include "nopegl.h"
-#include "pgcache.h"
 #include "pgcraft.h"
 #include "pipeline_compat.h"
 #include "topology.h"
