@@ -27,6 +27,7 @@ class Player(
                 MSG_SEEK -> onSeek(message.obj as Double)
                 MSG_DRAW -> onDraw(message.obj as Double)
                 MSG_STOP -> onStop()
+                MSG_RELEASE -> onRelease()
             }
             true
         }
@@ -54,6 +55,12 @@ class Player(
         handler.removeMessages(MSG_SEEK)
         val message = handler.obtainMessage(MSG_SEEK, time)
         handler.sendMessage(message)
+    }
+
+    fun release() {
+        handler.removeCallbacksAndMessages(null)
+        val message = handler.obtainMessage(MSG_RELEASE)
+        handler.sendMessageAtFrontOfQueue(message)
     }
 
     suspend fun draw(time: Double, blocking: Boolean) {
@@ -92,6 +99,7 @@ class Player(
         }
     }
 
+
     private fun onDraw(time: Double) {
         nativePtr?.let { context ->
             val code = nativeDraw(context, time)
@@ -99,18 +107,18 @@ class Player(
                 synchronized(lock) {
                     currentTime = time
                 }
-                drawDeferred?.complete(time)
             }
+            drawDeferred?.complete(time)
         }
     }
 
-
-    fun release() {
+    private fun onRelease() {
         nativePtr?.let { context ->
-            handlerThread.quitSafely()
-            nativeRelease(context)
+            drawDeferred?.cancel()
             nativePtr = null
+            nativeRelease(context)
         }
+        handlerThread.quit()
     }
 
     fun finalize() {
@@ -130,5 +138,6 @@ class Player(
         private const val MSG_SEEK = 0x03
         private const val MSG_DRAW = 0x04
         private const val MSG_STOP = 0x05
+        private const val MSG_RELEASE = 0x06
     }
 }
