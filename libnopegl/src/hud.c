@@ -221,7 +221,7 @@ static const struct activity_spec {
     },
     [ACTIVITY_TEXTURES] = {
         .label="Textures",
-        .node_types=(const uint32_t[]){NGL_NODE_TEXTURE2D, NGL_NODE_TEXTURE3D, NGLI_NODE_NONE},
+        .node_types=(const uint32_t[]){NGL_NODE_TEXTURE2D, NGL_NODE_TEXTURE3D, NGL_NODE_CUSTOMTEXTURE, NGLI_NODE_NONE},
     },
 };
 
