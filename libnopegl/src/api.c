@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Nope Forge
  * Copyright 2016-2022 GoPro Inc.
  *
@@ -28,6 +28,7 @@
 
 #include "config.h"
 #include "ngl_config.h"
+#include "utils/error.h"
 #include "utils/thread.h"
 #include "utils/time.h"
 
@@ -87,6 +88,11 @@ void ngl_log_set_callback(void *arg, ngl_log_callback_type callback)
 void ngl_log_set_min_level(enum ngl_log_level level)
 {
     ngli_log_set_min_level(level);
+}
+
+const char *ngl_error_to_string(int error)
+{
+  return ngli_error_to_string(error);
 }
 
 static enum ngl_platform_type get_default_platform(void)

@@ -38,6 +38,25 @@ cdef extern from "nopegl/nopegl.h":
 
     void ngl_log_set_min_level(ngl_log_level level)
 
+    cdef int NGL_ERROR_GENERIC
+    cdef int NGL_ERROR_ACCESS
+    cdef int NGL_ERROR_BUG
+    cdef int NGL_ERROR_EXTERNAL
+    cdef int NGL_ERROR_INVALID_ARG
+    cdef int NGL_ERROR_INVALID_DATA
+    cdef int NGL_ERROR_INVALID_USAGE
+    cdef int NGL_ERROR_IO
+    cdef int NGL_ERROR_LIMIT_EXCEEDED
+    cdef int NGL_ERROR_MEMORY
+    cdef int NGL_ERROR_NOT_FOUND
+    cdef int NGL_ERROR_UNSUPPORTED
+    cdef int NGL_ERROR_GRAPHICS_GENERIC
+    cdef int NGL_ERROR_GRAPHICS_LIMIT_EXCEEDED
+    cdef int NGL_ERROR_GRAPHICS_MEMORY
+    cdef int NGL_ERROR_GRAPHICS_UNSUPPORTED
+
+    const char *ngl_error_to_string(int code)
+
     cdef struct ngl_node
 
     ngl_node *ngl_node_create(uint32_t type)
@@ -266,6 +285,24 @@ include "nodes_def.pyx"
 
 log_set_min_level = ngl_log_set_min_level
 
+ERROR_GENERIC                 = NGL_ERROR_GENERIC
+ERROR_ACCESS                  = NGL_ERROR_ACCESS
+ERROR_BUG                     = NGL_ERROR_BUG
+ERROR_EXTERNAL                = NGL_ERROR_EXTERNAL
+ERROR_INVALID_ARG             = NGL_ERROR_INVALID_ARG
+ERROR_INVALID_DATA            = NGL_ERROR_INVALID_DATA
+ERROR_INVALID_USAGE           = NGL_ERROR_INVALID_USAGE
+ERROR_IO                      = NGL_ERROR_IO
+ERROR_LIMIT_EXCEEDED          = NGL_ERROR_LIMIT_EXCEEDED
+ERROR_MEMORY                  = NGL_ERROR_MEMORY
+ERROR_NOT_FOUND               = NGL_ERROR_NOT_FOUND
+ERROR_UNSUPPORTED             = NGL_ERROR_UNSUPPORTED
+ERROR_GRAPHICS_GENERIC        = NGL_ERROR_GRAPHICS_GENERIC
+ERROR_GRAPHICS_LIMIT_EXCEEDED = NGL_ERROR_GRAPHICS_LIMIT_EXCEEDED
+ERROR_GRAPHICS_MEMORY         = NGL_ERROR_GRAPHICS_MEMORY
+ERROR_GRAPHICS_UNSUPPORTED    = NGL_ERROR_GRAPHICS_UNSUPPORTED
+
+error_to_string = ngl_error_to_string
 
 cdef class _Node:
     cdef ngl_node *ctx

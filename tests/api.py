@@ -47,7 +47,7 @@ def api_backend():
     fake_backend_cls = namedtuple("FakeBackend", "value")
     fake_backend = fake_backend_cls(value=0x1234)
     ret = ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=fake_backend))
-    assert _ret_to_fourcc(ret) == "Earg"
+    assert ret == ngl.Error.INVALID_ARG
     del ctx
 
 
@@ -382,12 +382,6 @@ def api_text_live_change_with_font():
     return _api_text_live_change(font_faces=[ngl.FontFace(font_faces.as_posix())])
 
 
-def _ret_to_fourcc(ret):
-    if ret >= 0:
-        return None
-    x = -ret
-    return chr(x >> 24) + chr(x >> 16 & 0xFF) + chr(x >> 8 & 0xFF) + chr(x & 0xFF)
-
 
 def api_media_sharing_failure():
     ctx = ngl.Context()
@@ -396,7 +390,7 @@ def api_media_sharing_failure():
     m = ngl.Media("/dev/null")
     root = ngl.Group(children=[ngl.Texture2D(data_src=m), ngl.Texture2D(data_src=m)])
     scene = ngl.Scene.from_params(root)
-    assert _ret_to_fourcc(ctx.set_scene(scene)) == "Eusg"  # Usage error
+    assert ctx.set_scene(scene) == ngl.Error.INVALID_USAGE
 
 
 def api_denied_node_live_change(width=320, height=240):

@@ -480,6 +480,11 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_ERROR_GRAPHICS_UNSUPPORTED     NGLI_ERROR('G','s','u','p')    /* Unsupported graphics operation */
 
 /**
+ * Return the message associated with the specified error code.
+ */
+NGL_API const char* ngl_error_to_string(int error);
+
+/**
  * Allocate a node.
  *
  * This function does not perform any OpenGL operation.

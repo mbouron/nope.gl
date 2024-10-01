@@ -1,4 +1,5 @@
 #
+# Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2023 Nope Forge
 # Copyright 2020-2022 GoPro Inc.
 #
@@ -254,6 +255,7 @@ lib_src = files(
   'src/utils/bstr.c',
   'src/utils/crc32.c',
   'src/utils/darray.c',
+  'src/utils/error.c',
   'src/utils/file.c',
   'src/utils/hmap.c',
   'src/utils/memory.c',
@@ -713,6 +715,7 @@ utils_src = files(
   'src/utils/bstr.c',
   'src/utils/crc32.c',
   'src/utils/darray.c',
+  'src/utils/error.c',
   'src/utils/hmap.c',
   'src/utils/memory.c',
   'src/utils/string.c',

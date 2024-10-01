@@ -100,6 +100,29 @@ def log_set_min_level(level: Log):
     return _ngl.log_set_min_level(level.value)
 
 
+class Error(IntEnum):
+    GENERIC = _ngl.ERROR_GENERIC
+    ACCESS = _ngl.ERROR_ACCESS
+    BUG = _ngl.ERROR_BUG
+    EXTERNAL = _ngl.ERROR_EXTERNAL
+    INVALID_ARG = _ngl.ERROR_INVALID_ARG
+    INVALID_DATA = _ngl.ERROR_INVALID_DATA
+    INVALID_USAGE = _ngl.ERROR_INVALID_USAGE
+    IO = _ngl.ERROR_IO
+    LIMIT_EXCEEDED = _ngl.ERROR_LIMIT_EXCEEDED
+    MEMORY = _ngl.ERROR_MEMORY
+    NOT_FOUND = _ngl.ERROR_NOT_FOUND
+    UNSUPPORTED = _ngl.ERROR_UNSUPPORTED
+    GRAPHICS_GENERIC = _ngl.ERROR_GRAPHICS_GENERIC
+    GRAPHICS_LIMIT_EXCEEDED = _ngl.ERROR_GRAPHICS_LIMIT_EXCEEDED
+    GRAPHICS_MEMORY = _ngl.ERROR_GRAPHICS_MEMORY
+    GRAPHICS_UNSUPPORTED = _ngl.ERROR_GRAPHICS_UNSUPPORTED
+
+
+def error_to_string(error: Error):
+    return _ngl.error_to_string(error.value)
+
+
 class ConfigGL(_ngl.ConfigGL):
     def __init__(self, external: bool = False, external_framebuffer: int = 0):
         super().__init__(external, external_framebuffer)

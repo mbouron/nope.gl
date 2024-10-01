@@ -30,6 +30,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `DrawTexture.wrap` parameter to select texture wrap behaviour
 - `Texture.premult` parameter to premultiply ngl_texvideo() output color by its
   alpha
+- `ngl_error_to_string()` to convert error codes to string messages
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges
