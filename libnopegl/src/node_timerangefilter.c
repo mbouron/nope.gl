@@ -64,6 +64,17 @@ static const struct node_param timerangefilter_params[] = {
     {NULL}
 };
 
+static void reset_children_timings(struct ngl_node *node)
+{
+    node->visit_time = -1;
+    node->last_update_time = -1;
+    struct ngl_node **children = ngli_darray_data(&node->children);
+    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
+        struct ngl_node *child = children[i];
+        reset_children_timings(child);
+    }
+}
+
 static int update_params(struct ngl_node *node)
 {
     struct timerangefilter_opts *o = node->opts;
@@ -77,6 +88,12 @@ static int update_params(struct ngl_node *node)
         LOG(ERROR, "end time must be after start time, clamping");
         o->end_time = o->start_time;
     }
+
+    /*
+     * Ensure children are prefetched/released during the next draw if the
+     * graph time hasn't changed.
+     */
+    reset_children_timings(node);
 
     return 0;
 }
