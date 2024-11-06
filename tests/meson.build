@@ -236,6 +236,7 @@ foreach backend : backends
 
   tests_live = [
     'media_change',
+    'timerangefilter_update',
   ]
   foreach test_name : live_names
     tests_live += test_name + '_uniform'

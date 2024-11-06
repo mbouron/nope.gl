@@ -81,6 +81,29 @@ static int update_params(struct ngl_node *node)
     return 0;
 }
 
+int ngl_timerangefilter_set_range(struct ngl_node *node, double start, double end)
+{
+    if (!node)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (node->cls->id != NGL_NODE_TIMERANGEFILTER)
+        return NGL_ERROR_UNSUPPORTED;
+
+    struct timerangefilter_opts *o = node->opts;
+
+    o->start_time = start;
+    o->end_time = end;
+
+    if (!node->ctx)
+        return 0;
+
+    int ret = update_params(node);
+    if (ret < 0)
+        return ret;
+
+    return ngli_node_invalidate_branch(node);
+}
+
 static int timerangefilter_init(struct ngl_node *node)
 {
     const struct timerangefilter_opts *o = node->opts;

@@ -234,6 +234,18 @@ class _WrapperGenerator:
         )
 
     @classmethod
+    def _get_class_custom(cls, class_name):
+        if class_name == "TimeRangeFilter":
+            return textwrap.dedent(
+                f"""
+                def set_range(self, start: float, end: float) -> int:
+                    return self._timerangefilter_set_range(start, end)
+                """
+            )
+
+        return ""
+
+    @classmethod
     def _get_class_init(cls, parent_params, params, inherited):
         # Generate the code responsible for honoring all direct parameters (if
         # they are not None)
@@ -346,6 +358,7 @@ class _WrapperGenerator:
         init_code = self._get_class_init(parent_params, params, inherited)
         setters_code = self._get_class_setters(params)
         evaluate_code = self._get_class_evaluate(class_name)
+        custom_code = self._get_class_custom(class_name)
 
         class_code = f"class {class_name}({parent_class_name}):\n"
         indent = " " * 4
@@ -354,6 +367,7 @@ class _WrapperGenerator:
         class_code += textwrap.indent(init_code, indent)
         class_code += textwrap.indent(setters_code, indent)
         class_code += textwrap.indent(evaluate_code, indent)
+        class_code += textwrap.indent(custom_code, indent)
         return class_code
 
     def _declare_classes(self):
