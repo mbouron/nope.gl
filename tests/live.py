@@ -148,6 +148,41 @@ def _get_media_change_function():
 live_media_change = _get_media_change_function()
 
 
+def _get_timerangefilter_update_function():
+    draw = ngl.DrawColor(color=COLORS.orange)
+    range = ngl.TimeRangeFilter(draw, start=5.0, end=10.0)
+
+    def _update_timerange(t_id: int):
+        if t_id == 0:
+            pass
+        elif t_id == 1:
+            range.set_range(0.0, 5.0)
+        elif t_id == 2:
+            range.set_start(0.0)
+            range.set_end(15.0)
+        elif t_id == 3:
+            range.set_range(10.0, 15.0)
+
+    @test_cuepoints(
+        width=128,
+        height=128,
+        points=dict(x=(0, 0)),
+        tolerance=1,
+        exercise_serialization=False,
+        keyframes_callback=_update_timerange,
+        keyframes=[0.0, 0.0, 10.0, 15.0],
+    )
+    @ngl.scene()
+    def live_timerangefilter_update_func(cfg: ngl.SceneCfg):
+        cfg.aspect_ratio = (1, 1)
+        return range
+
+    return live_timerangefilter_update_func
+
+
+live_timerangefilter_update = _get_timerangefilter_update_function()
+
+
 def _get_live_spec():
     livechange_b = [[True], [False]]
     livechange_f = [[v] for v in gen_floats(4)[1:3]]

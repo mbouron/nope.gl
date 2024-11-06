@@ -207,6 +207,8 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_easing_solve(const char *name, const double *args, size_t nb_args,
                          const double *offsets, double v, double *t)
 
+    int ngl_timerangefilter_set_range(ngl_node *node, double start, double end)
+
 cdef extern from "nopegl/nopegl_opengl.h":
     cdef struct ngl_config_gl:
         int external
@@ -419,6 +421,9 @@ cdef class _Node:
             raise Exception("Failed to get node label")
         return str(label)
 
+
+    def _timerangefilter_set_range(self, double start, double end):
+        return ngl_timerangefilter_set_range(self.ctx, start, end)
 
 ANIM_EVALUATE, ANIM_DERIVATE, ANIM_SOLVE = range(3)
 

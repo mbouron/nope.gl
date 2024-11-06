@@ -598,6 +598,25 @@ NGL_API int ngl_node_get_type(struct ngl_node *node, uint32_t *type);
 NGL_API int ngl_node_get_label(struct ngl_node *node, const char **label);
 
 /**
+ * TimeRangeFilter
+ */
+
+/**
+ * Sets the TimeRangeFilter range
+ *
+ * This function is prefered over the generic ngl_node_param_set* API for live
+ * updates as it provides a way to validate and set the range atomically (and
+ * avoid potential clamping).
+ *
+ * @param node       pointer to the target node
+ * @param start      start of the time range
+ * @param end        end of the time range
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_timerangefilter_set_range(struct ngl_node *node, double start, double end);
+
+/**
  * Live controls
  */
 
