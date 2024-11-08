@@ -490,6 +490,17 @@ static int texture_prefetch(struct ngl_node *node)
     return 0;
 }
 
+static int texture_invalidate(struct ngl_node *node)
+{
+    const struct texture_opts *o = node->opts;
+
+    if (o->data_src && o->data_src->force_release_prefetch) {
+        node->force_release_prefetch = true;
+    }
+
+    return 0;
+}
+
 static int handle_media_frame(struct ngl_node *node)
 {
     struct texture_priv *s = node->priv_data;
@@ -854,6 +865,7 @@ const struct node_class ngli_texture2d_class = {
     .init      = texture2d_init,
     .prepare   = texture2d_prepare,
     .prefetch  = texture_prefetch,
+    .invalidate = texture_invalidate,
     .update    = texture_update,
     .draw      = texture_draw,
     .release   = texture_release,

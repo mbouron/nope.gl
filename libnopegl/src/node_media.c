@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -221,6 +222,15 @@ static void get_start_end_time(struct ngl_node *node, double *start, double *end
 static int media_init(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
+
+    ngli_fence_init(&s->release_fence);
+
+    return 0;
+}
+
+static int media_prefetch(struct ngl_node *node)
+{
+    struct media_priv *s = node->priv_data;
     const struct media_opts *o = node->opts;
 
     s->player = nmd_create(o->filename);
@@ -273,12 +283,6 @@ static int media_init(struct ngl_node *node)
     nmd_set_option(s->player, "opaque", &vaapi_ctx->va_display);
 #endif
 
-    return 0;
-}
-
-static int media_prefetch(struct ngl_node *node)
-{
-    struct media_priv *s = node->priv_data;
     nmd_start(s->player);
     return 0;
 }
@@ -319,7 +323,6 @@ static const char *get_nmd_ret_name(int nmd_err)
     }
 }
 
-static int media_reinit(struct ngl_node *node);
 
 static int media_update(struct ngl_node *node, double t)
 {
@@ -327,13 +330,6 @@ static int media_update(struct ngl_node *node, double t)
     const struct media_opts *o = node->opts;
     struct ngl_node *anim_node = o->anim;
     double media_time = t;
-
-    if (s->invalidated) {
-        int ret = media_reinit(node);
-        if (ret < 0)
-            return ret;
-        s->invalidated = 0;
-    }
 
     if (anim_node) {
         struct variable_info *anim = anim_node->priv_data;
@@ -376,46 +372,52 @@ static int media_update(struct ngl_node *node, double t)
     return 0;
 }
 
+static void release_player(void *data, void *shared_data, uint32_t thread_index)
+{
+    struct release_job *job = data;
+
+    nmd_freep(&job->player);
+
+#if defined(TARGET_ANDROID)
+    reset_android_surface(&job->android_surface);
+#endif
+}
+
 static void media_release(struct ngl_node *node)
 {
+    struct ngl_ctx *ctx = node->ctx;
     struct media_priv *s = node->priv_data;
+
     nmd_frame_releasep(&s->frame);
-    nmd_stop(s->player);
+
+    struct ngli_fence *release_fence = &s->release_fence;
+    ngli_fence_wait(release_fence);
+
+    struct release_job *release_job = &s->release_job;
+    release_job->player = s->player;
+    s->player = NULL;
+
+#if defined(TARGET_ANDROID)
+    release_job->android_surface = s->android_surface;
+    memset(&s->android_surface, 0, sizeof(s->android_surface));
+#endif
+
+    ngli_queue_add_job(&ctx->background_queue, release_job, release_fence, release_player, NULL);
 }
 
 static void media_uninit(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
-    nmd_freep(&s->player);
 
-#if defined(TARGET_ANDROID)
-    reset_android_surface(&s->android_surface);
-#endif
-}
-
-static int media_reinit(struct ngl_node *node)
-{
-    const int prefetched = node->state == NGLI_NODE_STATE_READY;
-
-    if (prefetched)
-        media_release(node);
-    media_uninit(node);
-
-    int ret = media_init(node);
-    if (ret < 0)
-        return ret;
-    if (prefetched) {
-        ret = media_prefetch(node);
-        if (ret < 0)
-            return ret;
-    }
-
-    return 0;
+    ngli_fence_wait(&s->release_fence);
+    ngli_fence_destroy(&s->release_fence);
 }
 
 static int filename_changed(struct ngl_node *node)
 {
-    return media_reinit(node);
+    node->force_release_prefetch = true;
+
+    return 0;
 }
 
 static int media_invalidate(struct ngl_node *node)
@@ -432,7 +434,7 @@ static int media_invalidate(struct ngl_node *node)
     if (start_time == s->start_time && end_time == s->end_time)
         return 0;
 
-    s->invalidated = true;
+    node->force_release_prefetch = true;
 
     return 0;
 }

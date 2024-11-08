@@ -37,13 +37,21 @@ struct android_surface_compat {
 };
 #endif
 
+struct release_job {
+    struct nmd_ctx *player;
+#if defined(TARGET_ANDROID)
+    struct android_surface_compat android_surface;
+#endif
+};
+
 struct media_priv {
     struct nmd_ctx *player;
     struct nmd_frame *frame;
     size_t nb_parents;
     double start_time;
     double end_time;
-    int invalidated;
+    struct release_job release_job;
+    struct ngli_fence release_fence;
 
 #if defined(TARGET_ANDROID)
     struct android_surface_compat android_surface;
