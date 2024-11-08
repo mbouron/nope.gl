@@ -171,6 +171,8 @@ struct ngl_node {
     enum node_state state;
     bool is_active;
 
+    bool force_release_prefetch;
+
     double visit_time;
     double last_update_time;
 

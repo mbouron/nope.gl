@@ -396,8 +396,10 @@ int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t)
     /* Release nodes starting from the parents (root) down to the children (leaves) */
     for (size_t i = 0; i < ngli_darray_count(nodes_array); i++) {
         struct ngl_node *node = nodes[ngli_darray_count(nodes_array) - i - 1];
-        if (!node->is_active)
+        if (!node->is_active || node->force_release_prefetch) {
             node_release(node);
+            node->force_release_prefetch = false;
+        }
     }
 
     /* Prefetch nodes starting from the children (leaves) up to the parents (root) */
