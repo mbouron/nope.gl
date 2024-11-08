@@ -532,6 +532,7 @@ int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
 
 static int node_invalidate_branch(struct ngl_node *node)
 {
+    node->visit_time = -1.;
     node->last_update_time = -1;
     if (node->cls->invalidate) {
         int ret = node->cls->invalidate(node);
