@@ -128,6 +128,8 @@ struct ngl_ctx {
     cmd_func_type cmd_func;
     void *cmd_arg;
     int cmd_ret;
+
+    struct ngli_queue background_queue;
 };
 
 #define NGLI_ACTION_KEEP_SCENE  0

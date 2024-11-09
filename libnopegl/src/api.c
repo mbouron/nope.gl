@@ -312,6 +312,7 @@ static int cmd_stop(struct ngl_ctx *s, void *arg)
 
 static void reset_scene(struct ngl_ctx *s, int action)
 {
+    ngli_queue_wait(&s->background_queue);
     ngli_hud_freep(&s->hud);
     if (s->scene) {
         ngli_node_detach_ctx(s->scene->params.root, s);
@@ -784,6 +785,10 @@ struct ngl_ctx *ngl_create(void)
         return NULL;
     }
 
+    int ret = ngli_queue_init(&s->background_queue, "ngl-bg-thread", 32, 1, s);
+    if (ret < 0)
+        goto fail;
+
     ngli_darray_init(&s->modelview_matrix_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&s->projection_matrix_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&s->activitycheck_nodes, sizeof(struct ngl_node *), 0);
@@ -975,6 +980,9 @@ void ngl_freep(struct ngl_ctx **ss)
         s->api_impl->reset(s, NGLI_ACTION_UNREF_SCENE);
         s->configured = 0;
     }
+
+    ngli_queue_destroy(&s->background_queue);
+
     ngli_ctx_dispatch_cmd(s, cmd_stop, NULL);
     pthread_join(s->worker_tid, NULL);
     pthread_cond_destroy(&s->cond_ctl);
