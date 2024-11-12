@@ -33,6 +33,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 typedef struct pthread_t {
     void *(*func)(void *arg);
@@ -157,6 +158,29 @@ static inline int pthread_cond_broadcast(pthread_cond_t *cond)
 static inline int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 {
     SleepConditionVariableSRW(cond, mutex, INFINITE, 0);
+    return 0;
+}
+
+static inline int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime)
+{
+    struct timespec curtime;
+    timespec_get(&curtime, TIME_UTC);
+
+    int64_t abstime_ms = abstime->tv_sec * 1000LL + abstime->tv_nsec / 1000000;
+    int64_t curtime_ms = curtime.tv_sec * 1000LL + curtime.tv_nsec / 1000000;
+    int64_t time = abstime_ms - curtime_ms;
+    if (time < 0)
+        time = 0;
+    else if (time > UINT32_MAX)
+        time = UINT32_MAX;
+
+    if (!SleepConditionVariableSRW(cond, mutex, (DWORD)time, 0)) {
+        DWORD err = GetLastError();
+        if (err == ERROR_TIMEOUT)
+            return ETIMEDOUT;
+        else
+            return EINVAL;
+    }
     return 0;
 }
 
