@@ -75,6 +75,7 @@ class NGLContext {
     }
 
     companion object {
+        private var logger: NGLLogger? = null
 
         init {
             System.loadLibrary("lcms2")
@@ -96,11 +97,31 @@ class NGLContext {
         }
 
         @JvmStatic
+        @Deprecated(
+            "Use init(context: Context?) instead. To handle logging use NGLLogger",
+            ReplaceWith("init(context, logLevel, { level, tag, message ->  })")
+        )
         fun init(
             context: Context?,
             logLevel: String = "info"
         ) {
             nativeInit(context, logLevel)
+        }
+
+        @JvmStatic
+        fun init(
+            context: Context?,
+            level: LogLevel,
+            onLog: (level: LogLevel, tag: String, message: String) -> Unit,
+        ) {
+            nativeInit(context, null)
+            logger?.release()
+            logger = NGLLogger(level, onLog)
+        }
+
+        fun release() {
+            logger?.release()
+            logger = null
         }
 
         @JvmStatic
