@@ -1096,3 +1096,100 @@ Java_org_nopeforge_nopegl_EGLHelper_nativeReleaseEGLImage(JNIEnv *env,
     EGLImageKHR egl_image = (EGLImageKHR)(uintptr_t)image;
     eglDestroyImageKHR(eglGetCurrentDisplay(), egl_image);
 }
+
+struct logger_ctx {
+    jobject object;
+    jmethodID log;
+};
+
+static void logger_log(void *arg,
+                       enum ngl_log_level level,
+                       const char *filename,
+                       int ln,
+                       const char *fn,
+                       const char *fmt, va_list vl)
+{
+    static const int levels[] = {
+        [NGL_LOG_VERBOSE] = ANDROID_LOG_VERBOSE,
+        [NGL_LOG_DEBUG]   = ANDROID_LOG_DEBUG,
+        [NGL_LOG_INFO]    = ANDROID_LOG_INFO,
+        [NGL_LOG_WARNING] = ANDROID_LOG_WARN,
+        [NGL_LOG_ERROR]   = ANDROID_LOG_ERROR,
+    };
+    const int mapped            = level >= 0 && level < FF_ARRAY_ELEMS(levels);
+    const int android_log_level = mapped ? levels[level] : ANDROID_LOG_VERBOSE;
+
+    char buf[1024];
+    vsnprintf(buf, sizeof(buf), fmt, vl);
+
+    char msg[1024];
+    snprintf(msg, sizeof(msg), "%s:%d %s: %s", filename, ln, fn, buf);
+
+    struct logger_ctx *ctx = arg;
+    JNIEnv *env = ngl_jni_get_env();
+    jstring string = (*env)->NewStringUTF(env, msg);
+    (*env)->CallVoidMethod(env, ctx->object, ctx->log, android_log_level, string);
+    (*env)->DeleteLocalRef(env, string);
+
+}
+
+static struct {
+    int level;
+    int av_log_level;
+    enum ngl_log_level ngl_log_level;
+} logger_levels_map[] = {
+    {ANDROID_LOG_DEBUG, AV_LOG_DEBUG,   NGL_LOG_VERBOSE},
+    {ANDROID_LOG_DEBUG, AV_LOG_DEBUG,   NGL_LOG_DEBUG  },
+    {ANDROID_LOG_INFO,  AV_LOG_INFO,    NGL_LOG_INFO   },
+    {ANDROID_LOG_WARN,  AV_LOG_WARNING, NGL_LOG_WARNING},
+    {ANDROID_LOG_ERROR, AV_LOG_ERROR,   NGL_LOG_ERROR  },
+};
+
+static void logger_init(struct logger_ctx *ctx, int log_level)
+{
+    int av_log_level  = AV_LOG_INFO;
+    enum ngl_log_level ngl_log_level = NGL_LOG_INFO;
+    for (size_t i = 0; i < sizeof(logger_levels_map) / sizeof(*logger_levels_map); i++) {
+        if (logger_levels_map[i].level == log_level) {
+            av_log_level  = logger_levels_map[i].av_log_level;
+            ngl_log_level = logger_levels_map[i].ngl_log_level;
+            break;
+        }
+    }
+
+    av_log_set_level(av_log_level);
+    av_log_set_callback(av_android_log);
+
+    ngl_log_set_min_level(ngl_log_level);
+    ngl_log_set_callback(ctx, logger_log);
+}
+
+
+JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLLogger_nativeInit(JNIEnv *env,
+                                                                       jobject thiz,
+                                                                       jint level)
+{
+    struct logger_ctx *ctx = calloc(1, sizeof(*ctx));
+    if (!ctx)
+        return 0;
+    ctx->object = (*env)->NewGlobalRef(env, thiz);
+    if (!ctx->object) {
+        free(ctx);
+        return 0;
+    }
+    jclass cls = (*env)->GetObjectClass(env, ctx->object);
+    ctx->log = (*env)->GetMethodID(env, cls, "log", "(ILjava/lang/String;)V");
+    logger_init(ctx, level);
+    return (jlong)(uintptr_t)ctx;
+}
+
+JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLLogger_nativeRelease(JNIEnv *env,
+                                                                         jobject thiz,
+                                                                         jlong native_ptr)
+{
+    struct logger_ctx *ctx = (struct logger_ctx *)(uintptr_t)native_ptr;
+    if (!ctx)
+        return;
+    (*env)->DeleteGlobalRef(env, ctx->object);
+    free(ctx);
+}
