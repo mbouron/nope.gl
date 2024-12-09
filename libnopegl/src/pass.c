@@ -152,6 +152,7 @@ static int register_texture(struct pass *s, const char *name, struct ngl_node *t
         .writable    = writable,
         .format      = texture_info->params.format,
         .clamp_video = texture_info->clamp_video,
+        .premult     = texture_info->premult,
         .image       = &texture_info->image,
     };
     snprintf(crafter_texture.name, sizeof(crafter_texture.name), "%s", name);

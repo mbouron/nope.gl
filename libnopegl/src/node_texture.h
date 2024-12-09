@@ -35,6 +35,7 @@ struct texture_info {
     struct ngpu_texture_params params;
     uint32_t supported_image_layouts;
     int clamp_video;
+    int premult;
     int rtt;
     struct ngpu_texture *texture;
     struct image image;

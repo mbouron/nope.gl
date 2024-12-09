@@ -796,6 +796,17 @@ static int texture_needs_clamping(const struct ngpu_pgcraft_params *params,
     return 0;
 }
 
+static int texture_needs_premultiply(const struct ngpu_pgcraft_params *params,
+                                        const char *name, size_t name_len)
+{
+    for (size_t i = 0; i < params->nb_textures; i++) {
+        const struct ngpu_pgcraft_texture *pgcraft_texture = &params->textures[i];
+        if (!strncmp(name, pgcraft_texture->name, name_len))
+            return pgcraft_texture->premult;
+    }
+    return 0;
+}
+
 static enum ngpu_pgcraft_texture_type get_texture_type(const struct ngpu_pgcraft_params *params,
                                                      const char *name, size_t name_len)
 {
@@ -889,12 +900,23 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
             return NGPU_ERROR_INVALID_ARG;
         p++;
 
+        const int premultiply = texture_needs_premultiply(params, arg0_start, arg0_len);
+
         const enum ngpu_pgcraft_texture_type texture_type = get_texture_type(params, arg0_start, arg0_len);
         if (texture_type != NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO) {
+            if (premultiply)
+                ngpu_bstr_print(dst, "ngli_premultiply(");
+
             ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
+            if (premultiply)
+                ngpu_bstr_print(dst, ")");
+
             ngpu_bstr_print(dst, p);
             return 0;
         }
+
+        if (premultiply)
+            ngpu_bstr_print(dst, "ngli_premultiply(");
 
         const int clamp = texture_needs_clamping(params, arg0_start, arg0_len);
         if (clamp)
@@ -943,6 +965,8 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
         ngpu_bstr_print(dst, ")");
         if (clamp)
             ngpu_bstr_print(dst, ", 0.0, 1.0)");
+        if (premultiply)
+            ngpu_bstr_print(dst, ")");
         ngpu_bstr_print(dst, p);
     } else {
         ngpu_assert(0);
@@ -1099,6 +1123,8 @@ static int craft_frag(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
                            "#define highp\n");
 
     ngpu_bstr_print(b, "\n");
+
+    ngpu_bstr_printf(b, "vec4 ngli_premultiply(vec4 color) { return vec4(color.rgb, 1.0) * color.a; }\n");
 
     if (s->has_in_out_layout_qualifiers) {
         const uint32_t out_location = s->next_out_locations[NGPU_PROGRAM_STAGE_FRAG]++;

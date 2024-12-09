@@ -805,6 +805,7 @@ static int drawdisplace_init(struct ngl_node *node)
             .image       = &source_info->image,
             .format      = source_info->params.format,
             .clamp_video = source_info->clamp_video,
+            .premult     = source_info->premult,
         }, {
             .name        = "displacement",
             .type        = ngli_node_texture_get_pgcraft_texture_type(o->displacement_node),
@@ -812,6 +813,7 @@ static int drawdisplace_init(struct ngl_node *node)
             .image       = &displacement_info->image,
             .format      = displacement_info->params.format,
             .clamp_video = displacement_info->clamp_video,
+            .premult     = source_info->premult,
         },
     };
 
@@ -1034,6 +1036,7 @@ static int drawmask_init(struct ngl_node *node)
             .image       = &content_info->image,
             .format      = content_info->params.format,
             .clamp_video = content_info->clamp_video,
+            .premult     = content_info->premult,
         }, {
             .name        = "mask",
             .type        = ngli_node_texture_get_pgcraft_texture_type(o->mask),
@@ -1041,6 +1044,7 @@ static int drawmask_init(struct ngl_node *node)
             .image       = &mask_info->image,
             .format      = mask_info->params.format,
             .clamp_video = mask_info->clamp_video,
+            .premult     = mask_info->premult,
         },
     };
 
@@ -1153,6 +1157,7 @@ static int drawtexture_init(struct ngl_node *node)
             .image       = &texture_info->image,
             .format      = texture_info->params.format,
             .clamp_video = texture_info->clamp_video,
+            .premult     = texture_info->premult,
         },
     };
 

@@ -44,6 +44,7 @@ struct texture_opts {
     struct ngl_node *data_src;
     int direct_rendering;
     int clamp_video;
+    int premult;
     float clear_color[4];
     int forward_transforms;
 };
@@ -263,6 +264,8 @@ static const struct node_param texture2d_params[] = {
                          .desc=NGLI_DOCSTRING("whether direct rendering is allowed or not for media playback")},
     {"clamp_video", NGLI_PARAM_TYPE_BOOL, OFFSET(clamp_video), {.i32=0},
                     .desc=NGLI_DOCSTRING("clamp ngl_texvideo() output to [0,1]")},
+    {"premult", NGLI_PARAM_TYPE_BOOL, OFFSET(premult), {.i32=0},
+                .desc=NGLI_DOCSTRING("premultiply ngl_texvideo() output color by its alpha")},
     {"clear_color", NGLI_PARAM_TYPE_VEC4, OFFSET(clear_color),
                     .desc=NGLI_DOCSTRING("color used to clear the texture when used as an implicit render target")},
     {"forward_transforms", NGLI_PARAM_TYPE_BOOL, OFFSET(forward_transforms), {.i32=0},
@@ -710,6 +713,7 @@ static int texture2d_init(struct ngl_node *node)
     i->params.format = get_preferred_format(gpu_ctx, o->requested_format);
     i->supported_image_layouts = o->direct_rendering ? NGLI_IMAGE_LAYOUT_ALL_BIT : NGLI_IMAGE_LAYOUT_DEFAULT_BIT;
     i->clamp_video = o->clamp_video;
+    i->premult = o->premult;
 
     /*
      * On Android, the frame can only be uploaded once and each subsequent
@@ -783,6 +787,7 @@ static int texture2d_array_init(struct ngl_node *node)
     i->params.type = NGPU_TEXTURE_TYPE_2D_ARRAY;
     i->params.format = get_preferred_format(gpu_ctx, o->requested_format);
     i->clamp_video = o->clamp_video;
+    i->premult = o->premult;
 
     return 0;
 }
@@ -809,6 +814,7 @@ static int texture3d_init(struct ngl_node *node)
     i->params.type = NGPU_TEXTURE_TYPE_3D;
     i->params.format = get_preferred_format(gpu_ctx, o->requested_format);
     i->clamp_video = o->clamp_video;
+    i->premult = o->premult;
 
     return 0;
 }
@@ -834,6 +840,7 @@ static int texturecube_init(struct ngl_node *node)
     i->params.type = NGPU_TEXTURE_TYPE_CUBE;
     i->params.format = get_preferred_format(gpu_ctx, o->requested_format);
     i->clamp_video = o->clamp_video;
+    i->premult = o->premult;
 
     return 0;
 }

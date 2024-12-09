@@ -4046,6 +4046,13 @@
           "desc": "clamp ngl_texvideo() output to [0,1]"
         },
         {
+          "name": "premult",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "premultiply ngl_texvideo() output color by its alpha"
+        },
+        {
           "name": "clear_color",
           "type": "vec4",
           "default": [0.000000,0.000000,0.000000,0.000000],

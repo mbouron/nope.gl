@@ -28,6 +28,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - Path and text rendering can now control the position of the outline (inner,
   centered, outer, or anything in between) through the `outline_pos` parameter
 - `DrawTexture.wrap` parameter to select texture wrap behaviour
+- `Texture.premult` parameter to premultiply ngl_texvideo() output color by its
+  alpha
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges
