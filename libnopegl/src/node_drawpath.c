@@ -47,6 +47,7 @@ struct uniform_map {
 };
 
 struct pipeline_desc {
+    uint64_t hash;
     struct pipeline_compat *pipeline_compat;
 };
 
@@ -304,22 +305,46 @@ static int drawpath_init(struct ngl_node *node)
     return 0;
 }
 
+#include "utils/xxhash.h"
+
+static uint64_t hash_pipeline_state(const struct ngpu_rendertarget_layout *rt_layout,
+                                    const struct ngpu_graphics_state *state)
+{
+    uint64_t hash = 0;
+    hash = XXH64(rt_layout, sizeof(*rt_layout), hash);
+    hash = XXH64(state, sizeof(*state), hash);
+    return hash;
+}
+
+static struct pipeline_desc *get_pipeline(struct darray *pipeline_descs,
+                                          const struct ngpu_rendertarget_layout *rt_layout,
+                                          const struct ngpu_graphics_state *state)
+{
+    const uint64_t hash = hash_pipeline_state(rt_layout, state);
+    for (size_t i = 0; i < ngli_darray_count(pipeline_descs); i++) {
+        struct pipeline_desc *desc = ngli_darray_get(pipeline_descs, i);
+        if (desc->hash == hash)
+            return desc;
+    }
+    ngli_assert(0);
+}
+
 static int drawpath_prepare(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct drawpath_priv *s = node->priv_data;
-    struct rnode *rnode = node->ctx->rnode_pos;
 
     struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
     if (!desc)
         return NGL_ERROR_MEMORY;
-    rnode->id = ngli_darray_count(&s->pipeline_descs) - 1;
 
-    struct ngpu_graphics_state state = rnode->graphics_state;
+    struct ngpu_graphics_state state = ctx->graphics_state;
     int ret = ngli_blending_apply_preset(&state, NGLI_BLENDING_SRC_OVER);
     if (ret < 0)
         return ret;
+
+    desc->hash = hash_pipeline_state(&ctx->rendertarget_layout, &state);
 
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)
@@ -330,7 +355,7 @@ static int drawpath_prepare(struct ngl_node *node)
         .graphics = {
             .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
             .state        = state,
-            .rt_layout    = rnode->rendertarget_layout,
+            .rt_layout    = ctx->rendertarget_layout,
             .vertex_state = ngpu_pgcraft_get_vertex_state(s->crafter),
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
@@ -352,7 +377,9 @@ static void drawpath_draw(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct drawpath_priv *s = node->priv_data;
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct ngpu_graphics_state state = ctx->graphics_state;
+    ngli_blending_apply_preset(&state, NGLI_BLENDING_SRC_OVER);
+    struct pipeline_desc *desc = get_pipeline(&s->pipeline_descs, &ctx->rendertarget_layout, &state);
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);

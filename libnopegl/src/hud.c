@@ -1293,8 +1293,7 @@ int ngli_hud_init(struct hud *s)
         },
     };
 
-    struct rnode *rnode = ctx->rnode_pos;
-    struct ngpu_graphics_state graphics_state = rnode->graphics_state;
+    struct ngpu_graphics_state graphics_state = ctx->graphics_state;
     graphics_state.blend = 1;
     graphics_state.blend_src_factor = NGPU_BLEND_FACTOR_SRC_ALPHA;
     graphics_state.blend_dst_factor = NGPU_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -1332,7 +1331,7 @@ int ngli_hud_init(struct hud *s)
         .graphics     = {
             .topology = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
             .state    = graphics_state,
-            .rt_layout    = rnode->rendertarget_layout,
+            .rt_layout    = ctx->rendertarget_layout,
             .vertex_state = ngpu_pgcraft_get_vertex_state(s->crafter),
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),

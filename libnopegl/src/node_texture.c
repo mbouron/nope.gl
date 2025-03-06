@@ -656,9 +656,14 @@ static void texture_draw(struct ngl_node *node)
             return;
     }
 
+    struct ngpu_rendertarget_layout prev_rt_layout = ctx->rendertarget_layout;
+    ctx->rendertarget_layout = s->rendertarget_layout;
+
     ngli_rtt_begin(s->rtt_ctx);
     ngli_node_draw(o->data_src);
     ngli_rtt_end(s->rtt_ctx);
+
+    ctx->rendertarget_layout = prev_rt_layout;
 
     if (!o->forward_transforms) {
         ngli_darray_pop(&ctx->modelview_matrix_stack);
@@ -749,16 +754,19 @@ static int texture2d_init(struct ngl_node *node)
 static int texture2d_prepare(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
-    struct rnode *rnode = ctx->rnode_pos;
     struct texture_priv *s = node->priv_data;
 
     if (!s->texture_info.rtt)
         return 0;
 
-    rnode->rendertarget_layout = s->rendertarget_layout;
-    return ngli_node_prepare_children(node);
+    struct ngpu_rendertarget_layout prev_rt_layout = ctx->rendertarget_layout;
+    ctx->rendertarget_layout = s->rendertarget_layout;
 
-    return 0;
+    int ret = ngli_node_prepare_children(node);
+
+    ctx->rendertarget_layout = prev_rt_layout;
+
+    return ret;
 }
 
 static int texture2d_array_init(struct ngl_node *node)

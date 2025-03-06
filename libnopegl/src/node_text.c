@@ -76,9 +76,36 @@ struct pipeline_desc_fg {
 };
 
 struct pipeline_desc {
+    uint64_t hash;
     struct pipeline_desc_bg bg; /* Background (bounding box) */
     struct pipeline_desc_fg fg; /* Foreground (characters) */
 };
+
+#include "utils/xxhash.h"
+
+static uint64_t hash_pipeline_state(const struct ngpu_rendertarget_layout *rt_layout,
+                                    const struct ngpu_graphics_state *state)
+{
+    uint64_t hash = 0;
+    hash = XXH64(rt_layout, sizeof(*rt_layout), hash);
+    hash = XXH64(state, sizeof(*state), hash);
+    return hash;
+}
+
+static struct pipeline_desc *get_pipeline(struct darray *pipeline_descs,
+                                          const struct ngpu_rendertarget_layout *rt_layout,
+                                          const struct ngpu_graphics_state *state)
+{
+    const uint64_t hash = hash_pipeline_state(rt_layout, state);
+    for (size_t i = 0; i < ngli_darray_count(pipeline_descs); i++) {
+        struct pipeline_desc *desc = ngli_darray_get(pipeline_descs, i);
+        if (desc->hash == hash)
+            return desc;
+    }
+    ngli_assert(0);
+}
+
+
 
 struct text_opts {
     struct livectl live;
@@ -432,7 +459,6 @@ static int init_subdesc(struct ngl_node *node,
 {
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct rnode *rnode = ctx->rnode_pos;
 
     desc->crafter = ngpu_pgcraft_create(gpu_ctx);
     if (!desc->crafter)
@@ -451,7 +477,7 @@ static int init_subdesc(struct ngl_node *node,
         .graphics      = {
             .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
             .state        = *graphics_state,
-            .rt_layout    = rnode->rendertarget_layout,
+            .rt_layout    = ctx->rendertarget_layout,
             .vertex_state = ngpu_pgcraft_get_vertex_state(desc->crafter),
         },
         .program          = ngpu_pgcraft_get_program(desc->crafter),
@@ -474,7 +500,6 @@ static int init_subdesc(struct ngl_node *node,
 static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc)
 {
     struct ngl_ctx *ctx = node->ctx;
-    struct rnode *rnode = ctx->rnode_pos;
     struct text_priv *s = node->priv_data;
     const struct text_opts *o = node->opts;
 
@@ -496,7 +521,7 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc)
     };
 
     /* This controls how the background blends onto the current framebuffer */
-    struct ngpu_graphics_state state = rnode->graphics_state;
+    struct ngpu_graphics_state state = ctx->graphics_state;
     state.blend = 1;
     state.blend_src_factor   = NGPU_BLEND_FACTOR_ONE;
     state.blend_dst_factor   = NGPU_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -526,7 +551,6 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc)
 static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc)
 {
     struct ngl_ctx *ctx = node->ctx;
-    struct rnode *rnode = ctx->rnode_pos;
     struct text_priv *s = node->priv_data;
 
     const struct ngpu_pgcraft_uniform uniforms[] = {
@@ -604,7 +628,7 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc)
     };
 
     /* This controls how the characters blend onto the background */
-    struct ngpu_graphics_state state = rnode->graphics_state;
+    struct ngpu_graphics_state state = ctx->graphics_state;
     state.blend = 1;
     state.blend_src_factor   = NGPU_BLEND_FACTOR_ONE;
     state.blend_dst_factor   = NGPU_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -659,7 +683,8 @@ static int text_prepare(struct ngl_node *node)
     struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
     if (!desc)
         return NGL_ERROR_MEMORY;
-    ctx->rnode_pos->id = ngli_darray_count(&s->pipeline_descs) - 1;
+
+    desc->hash = hash_pipeline_state(&ctx->rendertarget_layout, &ctx->graphics_state);
 
     int ret = bg_prepare(node, &desc->bg);
     if (ret < 0)
@@ -668,6 +693,7 @@ static int text_prepare(struct ngl_node *node)
     ret = fg_prepare(node, &desc->fg);
     if (ret < 0)
         return ret;
+
 
     return 0;
 }
@@ -719,8 +745,9 @@ static void text_draw(struct ngl_node *node)
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
+
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = get_pipeline(&s->pipeline_descs, &ctx->rendertarget_layout, &ctx->graphics_state);
 
     if (!ngpu_ctx_is_render_pass_active(ctx->gpu_ctx)) {
         struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;

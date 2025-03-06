@@ -68,6 +68,7 @@ struct texture_map {
 };
 
 struct pipeline_desc {
+    uint64_t hash;
     struct pipeline_compat *pipeline_compat;
     struct darray blocks_map;
     struct darray textures_map;
@@ -466,24 +467,47 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
     return 0;
 }
 
+#include "utils/xxhash.h"
+
+static uint64_t hash_pipeline_state(const struct ngpu_rendertarget_layout *rt_layout,
+                                    const struct ngpu_graphics_state *state)
+{
+    uint64_t hash = 0;
+    hash = XXH64(rt_layout, sizeof(*rt_layout), hash);
+    hash = XXH64(state, sizeof(*state), hash);
+    return hash;
+}
+
+static struct pipeline_desc *get_pipeline(struct darray *pipeline_descs,
+                                          const struct ngpu_rendertarget_layout *rt_layout,
+                                          const struct ngpu_graphics_state *state)
+{
+    const uint64_t hash = hash_pipeline_state(rt_layout, state);
+    for (size_t i = 0; i < ngli_darray_count(pipeline_descs); i++) {
+        struct pipeline_desc *desc = ngli_darray_get(pipeline_descs, i);
+        if (desc->hash == hash)
+            return desc;
+    }
+    ngli_assert(0);
+}
+
 int ngli_pass_prepare(struct pass *s)
 {
     struct ngl_ctx *ctx = s->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct rnode *rnode = ctx->rnode_pos;
 
-    const enum ngpu_format format = rnode->rendertarget_layout.depth_stencil.format;
-    if (rnode->graphics_state.depth_test && !ngpu_format_has_depth(format)) {
+    const enum ngpu_format format = ctx->rendertarget_layout.depth_stencil.format;
+    if (ctx->graphics_state.depth_test && !ngpu_format_has_depth(format)) {
         LOG(ERROR, "depth testing is not supported on rendertargets with no depth attachment");
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    if (rnode->graphics_state.stencil_test && !ngpu_format_has_stencil(format)) {
+    if (ctx->graphics_state.stencil_test && !ngpu_format_has_stencil(format)) {
         LOG(ERROR, "stencil operations are not supported on rendertargets with no stencil attachment");
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    struct ngpu_graphics_state state = rnode->graphics_state;
+    struct ngpu_graphics_state state = ctx->graphics_state;
     int ret = ngli_blending_apply_preset(&state, s->params.blending);
     if (ret < 0)
         return ret;
@@ -491,7 +515,8 @@ int ngli_pass_prepare(struct pass *s)
     struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
     if (!desc)
         return NGL_ERROR_MEMORY;
-    ctx->rnode_pos->id = ngli_darray_count(&s->pipeline_descs) - 1;
+
+    desc->hash = hash_pipeline_state(&ctx->rendertarget_layout, &state);
 
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)
@@ -502,7 +527,7 @@ int ngli_pass_prepare(struct pass *s)
         .graphics = {
             .topology     = s->topology,
             .state        = state,
-            .rt_layout    = rnode->rendertarget_layout,
+            .rt_layout    = ctx->rendertarget_layout,
             .vertex_state = ngpu_pgcraft_get_vertex_state(s->crafter),
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
@@ -618,7 +643,9 @@ int ngli_pass_exec(struct pass *s)
     struct ngl_ctx *ctx = s->ctx;
     const struct pass_params *params = &s->params;
     struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct ngpu_graphics_state state = ctx->graphics_state;
+    ngli_blending_apply_preset(&state, params->blending);
+    struct pipeline_desc *desc = get_pipeline(&s->pipeline_descs, &ctx->rendertarget_layout, &state);
     struct pipeline_compat *pipeline_compat = desc->pipeline_compat;
 
     const float *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);

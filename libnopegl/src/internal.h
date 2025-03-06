@@ -45,7 +45,6 @@
 #include "ngpu/rendertarget.h"
 #include "nopegl.h"
 #include "params.h"
-#include "rnode.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/pthread_compat.h"
@@ -83,13 +82,13 @@ struct ngl_ctx {
 
     /* Worker-only fields */
     struct ngpu_ctx *gpu_ctx;
-    struct rnode rnode;
-    struct rnode *rnode_pos;
     struct ngl_scene *scene;
     struct ngl_config config;
     struct ngl_backend backend;
     struct ngpu_viewport viewport;
     struct ngpu_scissor scissor;
+    struct ngpu_graphics_state graphics_state;
+    struct ngpu_rendertarget_layout rendertarget_layout;
     struct ngpu_rendertarget *available_rendertargets[2];
     struct ngpu_rendertarget *current_rendertarget;
     float default_modelview_matrix[16];

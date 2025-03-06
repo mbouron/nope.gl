@@ -300,12 +300,17 @@ static int graphicconfig_init(struct ngl_node *node)
 
 static int graphicconfig_prepare(struct ngl_node *node)
 {
+    struct ngl_ctx *ctx = node->ctx;
     const struct graphicconfig_opts *o = node->opts;
 
-    struct rnode *rnode = node->ctx->rnode_pos;
-    ngli_node_graphicconfig_get_state(node, &rnode->graphics_state);
+    struct ngpu_graphics_state prev_graphics_state = ctx->graphics_state;
+    ngli_node_graphicconfig_get_state(node, &ctx->graphics_state);
 
-    return ngli_node_prepare(o->child);
+    int ret = ngli_node_prepare(o->child);
+
+    ctx->graphics_state = prev_graphics_state;
+
+    return ret;
 }
 
 static void graphicconfig_draw(struct ngl_node *node)
@@ -314,16 +319,20 @@ static void graphicconfig_draw(struct ngl_node *node)
     struct graphicconfig_priv *s = node->priv_data;
     const struct graphicconfig_opts *o = node->opts;
 
-    struct ngpu_scissor prev_scissor;
+    struct ngpu_scissor prev_scissor = ctx->scissor;
     if (s->use_scissor) {
-        prev_scissor = ctx->scissor;
         ctx->scissor = s->scissor;
     }
+
+    struct ngpu_graphics_state prev_graphics_state = ctx->graphics_state;
+    ngli_node_graphicconfig_get_state(node, &ctx->graphics_state);
 
     ngli_node_draw(o->child);
 
     if (s->use_scissor)
         ctx->scissor = prev_scissor;
+
+    ctx->graphics_state = prev_graphics_state;
 }
 
 const struct node_class ngli_graphicconfig_class = {

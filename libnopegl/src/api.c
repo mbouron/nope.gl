@@ -44,7 +44,6 @@
 #include "ngpu/ctx.h"
 #include "ngpu/graphics_state.h"
 #include "nopegl.h"
-#include "rnode.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/memory.h"
@@ -229,7 +228,6 @@ static void reset_scene(struct ngl_ctx *s, int action)
         if (action == NGLI_ACTION_UNREF_SCENE)
             ngl_scene_unrefp(&s->scene);
     }
-    ngli_rnode_reset(&s->rnode);
 }
 
 static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene, uint32_t w, uint32_t h)
@@ -265,10 +263,8 @@ int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
     ngpu_ctx_wait_idle(s->gpu_ctx);
     reset_scene(s, NGLI_ACTION_UNREF_SCENE);
 
-    ngli_rnode_init(&s->rnode);
-    s->rnode_pos = &s->rnode;
-    s->rnode_pos->graphics_state = NGPU_GRAPHICS_STATE_DEFAULTS;
-    s->rnode_pos->rendertarget_layout = *ngpu_ctx_get_default_rendertarget_layout(s->gpu_ctx);
+    s->rendertarget_layout = *ngpu_ctx_get_default_rendertarget_layout(s->gpu_ctx);
+    s->graphics_state = NGPU_GRAPHICS_STATE_DEFAULTS;
 
     int ret = ngpu_ctx_begin_update(s->gpu_ctx);
     if (ret < 0)
