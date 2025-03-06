@@ -402,3 +402,14 @@ def benchmark_resources_with_compute(cfg: ngl.SceneCfg):
 def benchmark_resources_without_compute(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (4, 3)
     return _get_scene(cfg, seed=3, enable_computes=False)
+
+
+@test_fingerprint(width=256, height=256, keyframes=5, tolerance=4)
+@ngl.scene()
+def benchmark_draw_overhead(cfg: ngl.SceneCfg):
+    cfg.duration = 5
+    cfg.aspect_ratio = (0, 1)
+    draw = ngl.DrawColor(color=(1, 0.5, 0))
+    size = (10, 10)
+    children = [draw] * size[0] * size[1]
+    return ngl.GridLayout(children, size)
