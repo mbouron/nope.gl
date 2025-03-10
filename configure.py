@@ -170,6 +170,11 @@ _EXTERNAL_DEPS = dict(
         dst_file="boringssl-@VERSION@.zip",
         sha256="d7ed9c743c02469869f4bee7cb94641377b640676cb2a8a9a7955f2d07c4d8a6",
     ),
+    lcms2=dict(
+        version="2.17",
+        url="https://github.com/mm2/Little-CMS/releases/download/lcms2.17/lcms2-@VERSION@.tar.gz",
+        sha256="d11af569e42a1baa1650d20ad61d12e41af4fead4aa7964a01f93b08b53ab074",
+    ),
     ffmpeg=dict(
         version="7.1.1",
         url="https://ffmpeg.org/releases/ffmpeg-@VERSION@.tar.xz",
@@ -268,6 +273,7 @@ def _get_external_deps(args):
     host, _ = _get_host(args)
     if host == "Android":
         deps.append("boringssl")
+        deps.append("lcms2")
         deps.append("ffmpeg")
         deps.append("freetype")
         deps.append("harfbuzz")
@@ -276,6 +282,7 @@ def _get_external_deps(args):
         deps.append("moltenvk_Darwin")
     elif host == "iOS":
         deps.append("boringssl")
+        deps.append("lcms2")
         deps.append("ffmpeg")
         deps.append("moltenvk_iOS")
         deps.append("freetype")
@@ -557,7 +564,18 @@ def _boringssl_install(cfg):
     return cmds
 
 
-@_block("ffmpeg-setup", {"Android": [_boringssl_install], "iOS": [_boringssl_install]})
+@_block("lcms2-setup")
+def _lcms2_setup(cfg):
+    builddir = _get_builddir(cfg, "lcms2")
+    return ["$(MESON_SETUP) " + _cmd_join(cfg.externals["lcms2"], builddir)]
+
+
+@_block("lcms2-install", [_lcms2_setup])
+def _lcms2_install(cfg):
+    return _meson_compile_install_cmd(cfg, "lcms2")
+
+
+@_block("ffmpeg-setup", {"Android": [_boringssl_install, _lcms2_install], "iOS": [_boringssl_install, _lcms2_install]})
 def _ffmpeg_setup(cfg):
     muxers = [
         "gif",
@@ -674,6 +692,7 @@ def _ffmpeg_setup(cfg):
             "--enable-jni",
             "--enable-mediacodec",
             "--target-os=android",
+            "--pkg-config=pkg-config",
             f"--cross-prefix={cfg.android_ndk_bin}{op.sep}llvm-",
             f"--cc={cfg.android_ndk_bin}{os.sep}{cfg.android_compiler}-clang",
         ]
@@ -686,6 +705,7 @@ def _ffmpeg_setup(cfg):
         extra_args += [
             "--enable-videotoolbox",
             "--target-os=darwin",
+            "--pkg-config=pkg-config",
             f"--sysroot={cfg.ios_sdk}",
         ]
 
@@ -705,6 +725,7 @@ def _ffmpeg_setup(cfg):
             "--enable-swresample",
             "--enable-zlib",
             "--enable-openssl",
+            "--enable-lcms2",
             "--enable-filter=%s" % ",".join(filters),
             "--enable-bsf=%s" % ",".join(bsfs),
             "--enable-encoder=%s" % ",".join(encoders),
