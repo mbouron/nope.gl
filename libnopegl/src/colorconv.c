@@ -25,6 +25,8 @@
 
 #include "log.h"
 #include "colorconv.h"
+#include "math_utils.h"
+#include "utils/utils.h"
 
 enum {
     COLORMATRIX_UNDEFINED,
@@ -153,6 +155,227 @@ int ngli_colorconv_get_ycbcr_to_rgb_color_matrix(float *dst, const struct color_
     dst[15 /* A */] = 1;
 
     return 0;
+}
+
+struct cie_xy {
+    float x, y;
+};
+
+struct raw_primaries {
+    struct cie_xy red, green, blue, white;
+};
+
+/* CIE standard illuminant series */
+#define CIE_D65 {0.3127f, 0.3290f}
+#define CIE_C   {0.3100f, 0.3160f}
+#define CIE_E   {1.0f/3.0f, 1.0f/3.0f}
+#define DCI     {0.3140f, 0.3510f}
+
+/*
+ * References:
+ * https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.470-6-199811-S!!PDF-E.pdf
+ * https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.601-7-201103-I!!PDF-E.pdf
+ * https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.709-5-200204-I!!PDF-E.pdf
+ * https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2020-0-201208-I!!PDF-E.pdf
+ */
+static const struct raw_primaries primaries_map[] = {
+    /* Default to BT709 */
+    [NMD_COL_PRI_RESERVED0] = {
+        .red   = {0.640f, 0.330f},
+        .green = {0.300f, 0.600f},
+        .blue  = {0.150f, 0.060f},
+        .white = CIE_D65,
+    },
+    [NMD_COL_PRI_BT709] = {
+        .red   = {0.640f, 0.330f},
+        .green = {0.300f, 0.600f},
+        .blue  = {0.150f, 0.060f},
+        .white = CIE_D65,
+    },
+    /* Default to BT709 */
+    [NMD_COL_PRI_UNSPECIFIED] = {
+        .red   = {0.640f, 0.330f},
+        .green = {0.300f, 0.600f},
+        .blue  = {0.150f, 0.060f},
+        .white = CIE_D65,
+    },
+    /* Default to BT709 */
+    [NMD_COL_PRI_RESERVED] = {
+        .red   = {0.640f, 0.330f},
+        .green = {0.300f, 0.600f},
+        .blue  = {0.150f, 0.060f},
+        .white = CIE_D65,
+    },
+    [NMD_COL_PRI_BT470M] = {
+        .red   = {0.670f, 0.330f},
+        .green = {0.210f, 0.710f},
+        .blue  = {0.140f, 0.080f},
+        .white = CIE_C,
+    },
+    [NMD_COL_PRI_BT470BG] = {
+        .red   = {0.640f, 0.330f},
+        .green = {0.290f, 0.600f},
+        .blue  = {0.150f, 0.060f},
+        .white = CIE_D65,
+    },
+    [NMD_COL_PRI_SMPTE170M] = {
+        .red   = {0.630f, 0.340f},
+        .green = {0.310f, 0.595f},
+        .blue  = {0.155f, 0.070f},
+        .white = CIE_D65,
+    },
+    [NMD_COL_PRI_SMPTE240M] = {
+        .red   = {0.630f, 0.340f},
+        .green = {0.310f, 0.595f},
+        .blue  = {0.155f, 0.070f},
+        .white = CIE_D65,
+    },
+    [NMD_COL_PRI_FILM] = {
+        .red   = {0.681f, 0.319f},
+        .green = {0.243f, 0.692f},
+        .blue  = {0.145f, 0.049f},
+        .white = CIE_C,
+    },
+    [NMD_COL_PRI_BT2020] = {
+        .red   = {0.708f, 0.292f},
+        .green = {0.170f, 0.797f},
+        .blue  = {0.131f, 0.046f},
+        .white = CIE_D65,
+    },
+    [NMD_COL_PRI_SMPTE428] = {
+        .red   = {0.7347f, 0.2653f},
+        .green = {0.2738f, 0.7174f},
+        .blue  = {0.1666f, 0.0089f},
+        .white = CIE_E,
+    },
+    [NMD_COL_PRI_SMPTE431] = {
+        .red   = {0.680f, 0.320f},
+        .green = {0.265f, 0.690f},
+        .blue  = {0.150f, 0.060f},
+        .white = DCI,
+    },
+    [NMD_COL_PRI_SMPTE432] = {
+        .red   = {0.680f, 0.320f},
+        .green = {0.265f, 0.690f},
+        .blue  = {0.150f, 0.060f},
+        .white = CIE_D65,
+    },
+    [NMD_COL_PRI_JEDEC_P22] = {
+        .red   = {0.630f, 0.340f},
+        .green = {0.295f, 0.605f},
+        .blue  = {0.155f, 0.077f},
+        .white = CIE_D65,
+    },
+};
+
+static const struct raw_primaries *get_primaries(int primaries)
+{
+    ngli_assert(primaries >= 0 && primaries < NGLI_ARRAY_NB(primaries_map));
+    return &primaries_map[primaries];
+}
+
+static float cie_X(struct cie_xy xy)
+{
+    return xy.x / xy.y;
+}
+
+static float cie_Z(struct cie_xy xy)
+{
+    return (1 - xy.x - xy.y) / xy.y;
+}
+
+/*
+ * Compute the RGB → XYZ matrix as described here:
+ * http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+ */
+static void get_rgb2xyz_matrix(float *dst, const struct raw_primaries *prim)
+{
+    float S[3], X[4], Z[4];
+
+    X[0] = cie_X(prim->red);
+    X[1] = cie_X(prim->green);
+    X[2] = cie_X(prim->blue);
+    X[3] = cie_X(prim->white);
+
+    Z[0] = cie_Z(prim->red);
+    Z[1] = cie_Z(prim->green);
+    Z[2] = cie_Z(prim->blue);
+    Z[3] = cie_Z(prim->white);
+
+    NGLI_ALIGNED_MAT(tmp) = NGLI_MAT4_IDENTITY;
+
+    // S = XYZ^-1 * W
+    for (int i = 0; i < 3; i++) {
+        tmp[0 + i] = X[i];
+        tmp[4 + i] = 1;
+        tmp[8 + i] = Z[i];
+    }
+
+    ngli_mat4_inverse(tmp, tmp);
+
+    for (int i = 0; i < 3; i++)
+        S[i] = tmp[4 * i + 0] * X[3] + tmp[4 * i + 1] * 1 + tmp[4 * i + 2] * Z[3];
+
+    // M = [Sc * XYZc]
+    for (int i = 0; i < 3; i++) {
+        tmp[0 + i] = S[i] * X[i];
+        tmp[4 + i] = S[i] * 1;
+        tmp[8 + i] = S[i] * Z[i];
+    }
+
+    memcpy(dst, tmp, sizeof(tmp));
+}
+
+/*
+ * Compute the XYZ → RGB matrix by inverting the corresponding RGB → XYZ matrix.
+ */
+static void get_xyz2rgb_matrix(float *dst, const struct raw_primaries *prim)
+{
+    get_rgb2xyz_matrix(dst, prim);
+    ngli_mat4_inverse(dst, dst);
+}
+
+/*
+ * Compute the RGB → RGB transformation matrix, converting from one set of
+ * primaries to another, see:
+ * http://www.brucelindbloom.com/index.html?Math.html
+ */
+static int get_mapping_color_matrix(float *dst, int src_primaries, int dst_primaries)
+{
+    static const NGLI_ALIGNED_MAT(identity) = NGLI_MAT4_IDENTITY;
+
+    if (src_primaries == dst_primaries) {
+        memcpy(dst, identity, sizeof(identity));
+    }
+
+    // XYZ → RGB matrix
+    const struct raw_primaries *dst_raw_primaries = get_primaries(dst_primaries);
+    NGLI_ALIGNED_MAT(xyz2rgb_matrix) = NGLI_MAT4_IDENTITY;
+    get_xyz2rgb_matrix(xyz2rgb_matrix, dst_raw_primaries);
+
+    // RGB → XYZ matrix
+    const struct raw_primaries *src_raw_primaries = get_primaries(src_primaries);
+    NGLI_ALIGNED_MAT(rgb2xyz_matrix) = NGLI_MAT4_IDENTITY;
+    get_rgb2xyz_matrix(rgb2xyz_matrix, src_raw_primaries);
+
+    ngli_mat4_mul(dst, xyz2rgb_matrix, rgb2xyz_matrix);
+
+    return 0;
+}
+
+void ngli_colorconv_get_mapping_color_matrix(float *dst, const struct color_info *info, int dst_primaries)
+{
+    static const NGLI_ALIGNED_MAT(identity) = NGLI_MAT4_IDENTITY;
+
+    // Only set the mapping color matrix if the transfer function is unspecified, BT709 or sRGB
+    if (info->transfer != NMD_COL_TRC_UNSPECIFIED &&
+        info->transfer != NMD_COL_TRC_BT709 &&
+        info->transfer != NMD_COL_TRC_IEC61966_2_1) {
+        memcpy(dst, identity, sizeof(identity));
+        return;
+    }
+
+    get_mapping_color_matrix(dst, info->primaries, dst_primaries);
 }
 
 const struct param_choices ngli_colorconv_colorspace_choices = {

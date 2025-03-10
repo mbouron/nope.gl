@@ -321,6 +321,7 @@ static const char * const texture_info_suffixes[NGPU_INFO_FIELD_NB] = {
     [NGPU_INFO_FIELD_SAMPLING_MODE]     = "_sampling_mode",
     [NGPU_INFO_FIELD_COORDINATE_MATRIX] = "_coord_matrix",
     [NGPU_INFO_FIELD_COLOR_MATRIX]      = "_color_matrix",
+    [NGPU_INFO_FIELD_MAPPING_COLOR_MATRIX] = "_mapping_color_matrix",
     [NGPU_INFO_FIELD_DIMENSIONS]        = "_dimensions",
     [NGPU_INFO_FIELD_TIMESTAMP]         = "_ts",
     [NGPU_INFO_FIELD_SAMPLER_0]         = "",
@@ -337,6 +338,7 @@ static const enum ngpu_type texture_types_map[NGPU_PGCRAFT_TEXTURE_TYPE_NB][NGPU
         [NGPU_INFO_FIELD_DIMENSIONS]        = NGPU_TYPE_VEC2,
         [NGPU_INFO_FIELD_TIMESTAMP]         = NGPU_TYPE_F32,
         [NGPU_INFO_FIELD_COLOR_MATRIX]      = NGPU_TYPE_MAT4,
+        [NGPU_INFO_FIELD_MAPPING_COLOR_MATRIX] = NGPU_TYPE_MAT4,
         [NGPU_INFO_FIELD_SAMPLING_MODE]     = NGPU_TYPE_I32,
         [NGPU_INFO_FIELD_SAMPLER_0]         = NGPU_TYPE_SAMPLER_2D,
         [NGPU_INFO_FIELD_SAMPLER_1]         = NGPU_TYPE_SAMPLER_2D,
@@ -923,6 +925,7 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
             ngpu_bstr_print(dst, "clamp(");
 
         ngpu_bstr_print(dst, "(");
+        ngpu_bstr_print(dst, "(");
 
         if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
             ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_MEDIACODEC);
@@ -961,6 +964,8 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
                              ARG_FMT(arg0), ARG_FMT(coords));
 
         ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
+
+        ngpu_bstr_printf(dst, ") * %.*s_mapping_color_matrix", ARG_FMT(arg0));
 
         ngpu_bstr_print(dst, ")");
         if (clamp)

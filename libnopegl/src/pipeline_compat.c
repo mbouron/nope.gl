@@ -392,6 +392,7 @@ void ngli_pipeline_compat_update_image(struct pipeline_compat *s, int32_t index,
 
     ngli_pipeline_compat_update_uniform(s, fields[NGPU_INFO_FIELD_COORDINATE_MATRIX].index, image->coordinates_matrix);
     ngli_pipeline_compat_update_uniform(s, fields[NGPU_INFO_FIELD_COLOR_MATRIX].index, image->color_matrix);
+    ngli_pipeline_compat_update_uniform(s, fields[NGPU_INFO_FIELD_MAPPING_COLOR_MATRIX].index, image->mapping_color_matrix);
     ngli_pipeline_compat_update_uniform(s, fields[NGPU_INFO_FIELD_TIMESTAMP].index, &image->ts);
 
     if (image->params.layout) {

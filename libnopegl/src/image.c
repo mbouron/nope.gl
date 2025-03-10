@@ -62,6 +62,7 @@ void ngli_image_init(struct image *s, const struct image_params *params, struct 
         params->layout == NGLI_IMAGE_LAYOUT_YUV) {
         ngli_colorconv_get_ycbcr_to_rgb_color_matrix(s->color_matrix, &params->color_info, params->color_scale);
     }
+    ngli_colorconv_get_mapping_color_matrix(s->mapping_color_matrix, &params->color_info, NMD_COL_PRI_BT709);
 }
 
 void ngli_image_reset(struct image *s)

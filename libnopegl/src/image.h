@@ -79,6 +79,7 @@ struct image {
     void *samplers[4];
     size_t nb_planes;
     NGLI_ALIGNED_MAT(color_matrix);
+    NGLI_ALIGNED_MAT(mapping_color_matrix);
     /* mutable fields after initialization */
     NGLI_ALIGNED_MAT(coordinates_matrix);
     float ts;
