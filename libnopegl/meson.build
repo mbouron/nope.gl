@@ -254,6 +254,7 @@ lib_src = files(
   'src/text_external.c',
   'src/transforms.c',
   'src/utils/bstr.c',
+  'src/utils/conic.c',
   'src/utils/crc32.c',
   'src/utils/darray.c',
   'src/utils/error.c',
