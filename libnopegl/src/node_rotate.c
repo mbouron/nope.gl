@@ -1,4 +1,5 @@
 /*
+ * Copyright 2025 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,7 +21,6 @@
  */
 
 #include <stddef.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "internal.h"
@@ -36,57 +36,73 @@ struct rotate_opts {
     struct ngl_node *angle_node;
     float angle;
     float axis[3];
+    struct ngl_node *anchor_node;
     float anchor[3];
 };
 
 struct rotate_priv {
     struct transform trf;
     float normed_axis[3];
-    const float *anchor;
+    int animated;
+    float *angle_ptr;
+    float *anchor_ptr;
 };
 
-static void update_trf_matrix(struct ngl_node *node, float deg_angle)
+static void update_trf_matrix(struct ngl_node *node)
 {
     struct rotate_priv *s = node->priv_data;
     struct transform *trf = &s->trf;
 
-    const float angle = NGLI_DEG2RAD(deg_angle);
-    ngli_mat4_rotate(trf->matrix, angle, s->normed_axis, s->anchor);
+    const float angle = NGLI_DEG2RAD(*s->angle_ptr);
+    ngli_mat4_rotate(trf->matrix, angle, s->normed_axis, s->anchor_ptr);
 }
 
 static int rotate_init(struct ngl_node *node)
 {
     struct rotate_priv *s = node->priv_data;
     const struct rotate_opts *o = node->opts;
+
     if (ngli_vec3_is_zero(o->axis)) {
         LOG(ERROR, "(0.0, 0.0, 0.0) is not a valid axis");
         return NGL_ERROR_INVALID_ARG;
     }
-    if (!ngli_vec3_is_zero(o->anchor))
-        s->anchor = o->anchor;
     ngli_vec3_norm(s->normed_axis, o->axis);
-    if (!o->angle_node)
-        update_trf_matrix(node, o->angle);
+
+    s->angle_ptr = ngli_node_get_data_ptr(o->angle_node, (void *)&o->angle);
+    s->anchor_ptr = ngli_node_get_data_ptr(o->anchor_node, (void *)o->anchor);
+
+    update_trf_matrix(node);
+
     s->trf.child = o->child;
     return 0;
 }
 
 static int update_angle(struct ngl_node *node)
 {
-    const struct rotate_opts *o = node->opts;
-    update_trf_matrix(node, o->angle);
+    update_trf_matrix(node);
+    return 0;
+}
+
+static int update_anchor(struct ngl_node *node)
+{
+    update_trf_matrix(node);
     return 0;
 }
 
 static int rotate_update(struct ngl_node *node, double t)
 {
     const struct rotate_opts *o = node->opts;
+    int update_trf = 0;
     if (o->angle_node) {
-        int ret = ngli_node_update(o->angle_node, t);
-        if (ret < 0)
-            return ret;
-        struct variable_info *angle = o->angle_node->priv_data;
-        update_trf_matrix(node, *(float *)angle->data);
+        update_trf = 1;
+        ngli_node_update(o->angle_node, t);
+    }
+    if (o->anchor_node) {
+        update_trf = 1;
+        ngli_node_update(o->anchor_node, t);
+    }
+    if (update_trf) {
+        update_trf_matrix(node);
     }
     return ngli_node_update(o->child, t);
 }
@@ -102,8 +118,10 @@ static const struct node_param rotate_params[] = {
                .desc=NGLI_DOCSTRING("rotation angle in degrees")},
     {"axis",   NGLI_PARAM_TYPE_VEC3, OFFSET(axis),   {.vec={0.0f, 0.0f, 1.0f}},
                .desc=NGLI_DOCSTRING("rotation axis")},
-    {"anchor", NGLI_PARAM_TYPE_VEC3, OFFSET(anchor), {.vec={0.0f, 0.0f, 0.0f}},
-               .desc=NGLI_DOCSTRING("vector to the center point of the rotation")},
+    {"anchor", NGLI_PARAM_TYPE_VEC3, OFFSET(anchor_node), {.vec={0.0f, 0.0f, 0.0f}},
+               .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+               .desc=NGLI_DOCSTRING("vector to the center point of the rotation"),
+               .update_func=update_anchor},
     {NULL}
 };
 

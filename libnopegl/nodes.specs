@@ -3548,7 +3548,7 @@
           "name": "anchor",
           "type": "vec3",
           "default": [0.000000,0.000000,0.000000],
-          "flags": [],
+          "flags": ["live", "node"],
           "desc": "vector to the center point of the rotation"
         }
       ]
