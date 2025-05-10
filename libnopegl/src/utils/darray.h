@@ -58,6 +58,16 @@ static inline size_t ngli_darray_count(const struct darray *darray)
     return darray->count;
 }
 
+static inline size_t ngli_darray_capacity(const struct darray *darray)
+{
+    return darray->capacity;
+}
+
+static inline size_t ngli_darray_element_size(const struct darray *darray)
+{
+    return darray->element_size;
+}
+
 static inline void *ngli_darray_data(const struct darray *darray)
 {
     return (void *)darray->data;
