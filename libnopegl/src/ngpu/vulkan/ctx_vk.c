@@ -87,7 +87,7 @@ static void destroy_dummy_texture(struct ngpu_ctx *s)
     ngpu_texture_freep(&s_priv->dummy_texture);
 }
 
-static VkResult create_texture(struct ngpu_ctx *s, enum ngpu_format format, int32_t samples, uint32_t usage, struct ngpu_texture **texturep)
+static VkResult create_texture(struct ngpu_ctx *s, enum ngpu_format format, uint32_t samples, uint32_t usage, struct ngpu_texture **texturep)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
@@ -129,8 +129,8 @@ static VkResult create_rendertarget(struct ngpu_ctx *s,
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     const struct ngpu_rendertarget_params params = {
-        .width = config->width,
-        .height = config->height,
+        .width = (uint32_t)config->width,
+        .height = (uint32_t)config->height,
         .nb_colors = 1,
         .colors[0] = {
             .attachment     = color,
@@ -173,6 +173,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
                            ? NGPU_FORMAT_R8G8B8A8_UNORM
                            : ngpu_format_vk_to_ngl(s_priv->surface_format.format);
     const enum ngpu_format ds_format = vk->preferred_depth_stencil_format;
+    const uint32_t samples = (uint32_t)config->samples;
 
     const uint32_t nb_images = config->offscreen ? s->nb_in_flight_frames : s_priv->nb_images;
     for (uint32_t i = 0; i < nb_images; i++) {
@@ -213,7 +214,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         }
 
         struct ngpu_texture *depth_stencil = NULL;
-        VkResult res = create_texture(s, ds_format, config->samples, DEPTH_USAGE, &depth_stencil);
+        VkResult res = create_texture(s, ds_format, samples, DEPTH_USAGE, &depth_stencil);
         if (res != VK_SUCCESS)
             return res;
 
@@ -223,8 +224,8 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         }
 
         struct ngpu_texture *ms_color = NULL;
-        if (config->samples) {
-            res = create_texture(s, color_format, config->samples, COLOR_USAGE, &ms_color);
+        if (samples) {
+            res = create_texture(s, color_format, samples, COLOR_USAGE, &ms_color);
             if (res != VK_SUCCESS)
                 return res;
 
@@ -764,11 +765,11 @@ static struct ngpu_ctx *vk_create(const struct ngl_config *config)
     return (struct ngpu_ctx *)s;
 }
 
-static int32_t get_max_supported_samples(const VkPhysicalDeviceLimits *limits)
+static uint32_t get_max_supported_samples(const VkPhysicalDeviceLimits *limits)
 {
-    const int32_t max_color_samples = ngli_vk_samples_to_ngl(limits->framebufferColorSampleCounts);
-    const int32_t max_depth_samples = ngli_vk_samples_to_ngl(limits->framebufferDepthSampleCounts);
-    const int32_t max_stencil_samples = ngli_vk_samples_to_ngl(limits->framebufferStencilSampleCounts);
+    const uint32_t max_color_samples = ngli_vk_samples_to_ngl(limits->framebufferColorSampleCounts);
+    const uint32_t max_depth_samples = ngli_vk_samples_to_ngl(limits->framebufferDepthSampleCounts);
+    const uint32_t max_stencil_samples = ngli_vk_samples_to_ngl(limits->framebufferStencilSampleCounts);
     return NGLI_MIN(max_color_samples, NGLI_MIN(max_depth_samples, max_stencil_samples));
 }
 
@@ -950,18 +951,19 @@ static int vk_init(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngli_vk_res2ret(res);
 
+    const uint32_t samples = (uint32_t)config->samples;
     if (config->offscreen) {
-        s_priv->default_rt_layout.samples               = config->samples;
+        s_priv->default_rt_layout.samples               = samples;
         s_priv->default_rt_layout.nb_colors             = 1;
         s_priv->default_rt_layout.colors[0].format      = NGPU_FORMAT_R8G8B8A8_UNORM;
-        s_priv->default_rt_layout.colors[0].resolve     = config->samples > 0 ? 1 : 0;
+        s_priv->default_rt_layout.colors[0].resolve     = samples > 0 ? 1 : 0;
         s_priv->default_rt_layout.depth_stencil.format  = vk->preferred_depth_stencil_format;
         s_priv->default_rt_layout.depth_stencil.resolve = 0;
     } else {
-        s_priv->default_rt_layout.samples               = config->samples;
+        s_priv->default_rt_layout.samples               = samples;
         s_priv->default_rt_layout.nb_colors             = 1;
         s_priv->default_rt_layout.colors[0].format      = ngpu_format_vk_to_ngl(s_priv->surface_format.format);
-        s_priv->default_rt_layout.colors[0].resolve     = config->samples > 0 ? 1 : 0;
+        s_priv->default_rt_layout.colors[0].resolve     = samples > 0 ? 1 : 0;
         s_priv->default_rt_layout.depth_stencil.format  = vk->preferred_depth_stencil_format;
         s_priv->default_rt_layout.depth_stencil.resolve = 0;
     }
@@ -969,7 +971,7 @@ static int vk_init(struct ngpu_ctx *s)
     return 0;
 }
 
-static int vk_resize(struct ngpu_ctx *s, int32_t width, int32_t height)
+static int vk_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 {
     const struct ngl_config *config = &s->config;
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
@@ -1272,7 +1274,7 @@ static const struct ngpu_rendertarget_layout *vk_get_default_rendertarget_layout
     return &s_priv->default_rt_layout;
 }
 
-static void vk_get_default_rendertarget_size(struct ngpu_ctx *s, int32_t *width, int32_t *height)
+static void vk_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width, uint32_t *height)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     *width = s_priv->width;
@@ -1403,8 +1405,8 @@ static void vk_set_scissor(struct ngpu_ctx *s, const struct ngpu_scissor *scisso
     struct ngpu_rendertarget *rt = s->rendertarget;
 
     const VkRect2D sc = {
-        .offset.x      = scissor->x,
-        .offset.y      = NGLI_MAX(rt->height - scissor->y - scissor->height, 0),
+        .offset.x      = (int32_t)scissor->x,
+        .offset.y      = (int32_t)NGLI_MAX(rt->height - scissor->y - scissor->height, 0),
         .extent.width  = scissor->width,
         .extent.height = scissor->height,
     };

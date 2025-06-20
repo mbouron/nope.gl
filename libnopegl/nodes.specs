@@ -3948,14 +3948,14 @@
         },
         {
           "name": "width",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "width of the texture"
         },
         {
           "name": "height",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "height of the texture"
@@ -4049,21 +4049,21 @@
         },
         {
           "name": "width",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "width of the texture"
         },
         {
           "name": "height",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "height of the texture"
         },
         {
           "name": "depth",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "depth of the texture"
@@ -4138,21 +4138,21 @@
         },
         {
           "name": "width",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "width of the texture"
         },
         {
           "name": "height",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "height of the texture"
         },
         {
           "name": "depth",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "depth of the texture"
@@ -4227,7 +4227,7 @@
         },
         {
           "name": "size",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "width and height of the texture"
@@ -4301,7 +4301,7 @@
         },
         {
           "name": "layer",
-          "type": "i32",
+          "type": "u32",
           "default": 0,
           "flags": [],
           "desc": "texture layer used for the view"

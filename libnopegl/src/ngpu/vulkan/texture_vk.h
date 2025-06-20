@@ -42,8 +42,8 @@ struct ngpu_texture_vk {
     struct ngpu_texture parent;
     VkFormat format;
     size_t bytes_per_pixel;
-    int array_layers;
-    int mipmap_levels;
+    uint32_t array_layers;
+    uint32_t mipmap_levels;
     VkImage image;
     int wrapped_image;
     VkImageLayout default_image_layout;

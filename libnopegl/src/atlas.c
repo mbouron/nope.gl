@@ -19,6 +19,8 @@
  * under the License.
  */
 
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+
 #include <math.h>
 #include <string.h>
 
