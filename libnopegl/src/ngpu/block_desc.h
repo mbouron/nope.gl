@@ -61,6 +61,7 @@ struct ngpu_block_desc {
     struct ngpu_ctx *gpu_ctx;
     enum ngpu_block_layout layout;
     struct darray fields; // block_field
+    size_t array_count;
     size_t size;
 };
 

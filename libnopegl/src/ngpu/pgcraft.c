@@ -557,6 +557,19 @@ static const char *glsl_layout_str_map[NGPU_BLOCK_NB_LAYOUTS] = {
     [NGPU_BLOCK_LAYOUT_STD430] = "std430",
 };
 
+static void inject_block_fields(struct ngpu_pgcraft *s, struct bstr *b,
+                                const struct ngpu_block_desc *block)
+{
+    const struct ngpu_block_field *field_info = ngli_darray_data(&block->fields);
+    for (size_t i = 0; i < ngli_darray_count(&block->fields); i++) {
+        const struct ngpu_block_field *fi = &field_info[i];
+        const char *type = get_glsl_type(fi->type);
+        const char *precision = get_precision_qualifier(s, fi->type, fi->precision, "");
+        const char *array_suffix = GET_ARRAY_SUFFIX(fi->count);
+        ngli_bstr_printf(b, "    %s %s %s%s;\n", precision, type, fi->name, array_suffix);
+    }
+}
+
 static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
                         const struct ngpu_pgcraft_block *named_block)
 {
@@ -572,6 +585,12 @@ static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
     };
 
     const struct ngpu_block_desc *block = named_block->block;
+    if (block->array_count > 0) {
+        ngli_bstr_printf(b, "struct %s_struct {\n", named_block->name);
+        inject_block_fields(s, b, block);
+        ngli_bstr_print(b, "};\n");
+    }
+
     const char *layout = glsl_layout_str_map[block->layout];
     if (s->has_explicit_bindings) {
         ngli_bstr_printf(b, "layout(%s,binding=%u)", layout, layout_entry.binding);
@@ -584,13 +603,11 @@ static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
 
     const char *keyword = get_glsl_type(named_block->type);
     ngli_bstr_printf(b, " %s %s_block {\n", keyword, named_block->name);
-    const struct ngpu_block_field *field_info = ngli_darray_data(&block->fields);
-    for (size_t i = 0; i < ngli_darray_count(&block->fields); i++) {
-        const struct ngpu_block_field *fi = &field_info[i];
-        const char *type = get_glsl_type(fi->type);
-        const char *precision = get_precision_qualifier(s, fi->type, fi->precision, "");
-        const char *array_suffix = GET_ARRAY_SUFFIX(fi->count);
-        ngli_bstr_printf(b, "    %s %s %s%s;\n", precision, type, fi->name, array_suffix);
+    if (block->array_count > 0) {
+        const char *array_name =  named_block->instance_name ? "element" : named_block->name;
+        ngli_bstr_printf(b, "    %s_struct %ss[%zu];\n", named_block->name,  array_name, block->array_count);
+    } else {
+        inject_block_fields(s, b, block);
     }
     const char *instance_name = named_block->instance_name ? named_block->instance_name : named_block->name;
     ngli_bstr_printf(b, "} %s;\n", instance_name);
