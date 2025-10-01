@@ -252,6 +252,7 @@ lib_src = files(
   'src/pass.c',
   'src/path.c',
   'src/pipeline_compat.c',
+  'src/pipeline_map.c',
   'src/precision.c',
   'src/rtt.c',
   'src/scene.c',

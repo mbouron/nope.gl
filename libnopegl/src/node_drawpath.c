@@ -34,7 +34,9 @@
 #include "nopegl.h"
 #include "path.h"
 #include "pipeline_compat.h"
+#include "pipeline_map.h"
 #include "ngpu/pgcraft.h"
+#include "utils/memory.h"
 #include "utils/utils.h"
 
 /* GLSL fragments as string */
@@ -47,7 +49,6 @@ struct uniform_map {
 };
 
 struct pipeline_desc {
-    uint64_t hash;
     struct pipeline_compat *pipeline_compat;
 };
 
@@ -88,7 +89,7 @@ struct drawpath_priv {
     int projection_matrix_index;
     int vertices_index;
     int coords_index;
-    struct darray pipeline_descs;
+    struct hmap *pipeline_map;
 };
 
 #define OFFSET(x) offsetof(struct drawpath_opts, x)
@@ -165,7 +166,9 @@ static int drawpath_init(struct ngl_node *node)
     struct drawpath_priv *s = node->priv_data;
     const struct drawpath_opts *o = node->opts;
 
-    ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
+    s->pipeline_map = ngli_pipeline_map_create();
+    if (!s->pipeline_map)
+        return NGL_ERROR_MEMORY;
 
     s->distmap = ngli_distmap_create(node->ctx);
     if (!s->distmap)
@@ -305,50 +308,35 @@ static int drawpath_init(struct ngl_node *node)
     return 0;
 }
 
-#include "utils/xxhash.h"
-
-static uint64_t hash_pipeline_state(const struct ngpu_rendertarget_layout *rt_layout,
-                                    const struct ngpu_graphics_state *state)
-{
-    uint64_t hash = 0;
-    hash = XXH64(rt_layout, sizeof(*rt_layout), hash);
-    hash = XXH64(state, sizeof(*state), hash);
-    return hash;
-}
-
-static struct pipeline_desc *get_pipeline(struct darray *pipeline_descs,
-                                          const struct ngpu_rendertarget_layout *rt_layout,
-                                          const struct ngpu_graphics_state *state)
-{
-    const uint64_t hash = hash_pipeline_state(rt_layout, state);
-    for (size_t i = 0; i < ngli_darray_count(pipeline_descs); i++) {
-        struct pipeline_desc *desc = ngli_darray_get(pipeline_descs, i);
-        if (desc->hash == hash)
-            return desc;
-    }
-    ngli_assert(0);
-}
-
 static int drawpath_prepare(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct drawpath_priv *s = node->priv_data;
 
-    struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
-
     struct ngpu_graphics_state state = ctx->graphics_state;
     int ret = ngli_blending_apply_preset(&state, NGLI_BLENDING_SRC_OVER);
     if (ret < 0)
         return ret;
 
-    desc->hash = hash_pipeline_state(&ctx->rendertarget_layout, &state);
+    const struct pipeline_map_key key = {
+        .graphics_state = &state,
+        .rendertarget_layout = &ctx->rendertarget_layout,
+    };
+
+    struct pipeline_desc *desc = ngli_pipeline_map_get(s->pipeline_map, &key);
+    if (desc)
+        return 0;
+
+    desc = ngli_calloc(1, sizeof(*desc));
+    if (!desc)
+        return NGL_ERROR_MEMORY;
 
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!desc->pipeline_compat)
+    if (!desc->pipeline_compat) {
+        ngli_freep(&desc);
         return NGL_ERROR_MEMORY;
+    }
 
     const struct pipeline_compat_params params = {
         .type = NGPU_PIPELINE_TYPE_GRAPHICS,
@@ -366,8 +354,17 @@ static int drawpath_prepare(struct ngl_node *node)
     };
 
     ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
-    if (ret < 0)
+    if (ret < 0) {
+        ngli_pipeline_compat_freep(&desc->pipeline_compat);
+        ngli_freep(&desc);
         return ret;
+    }
+
+    if (!ngli_pipeline_map_set(s->pipeline_map, &key, desc)) {
+        ngli_pipeline_compat_freep(&desc->pipeline_compat);
+        ngli_freep(&desc);
+        return NGL_ERROR_MEMORY;
+    }
 
     return 0;
 }
@@ -376,10 +373,16 @@ static void drawpath_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct drawpath_priv *s = node->priv_data;
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
     struct ngpu_graphics_state state = ctx->graphics_state;
     ngli_blending_apply_preset(&state, NGLI_BLENDING_SRC_OVER);
-    struct pipeline_desc *desc = get_pipeline(&s->pipeline_descs, &ctx->rendertarget_layout, &state);
+
+    const struct pipeline_map_key key = {
+        .graphics_state = &state,
+        .rendertarget_layout = &ctx->rendertarget_layout,
+    };
+
+    struct pipeline_desc *desc = ngli_pipeline_map_get(s->pipeline_map, &key);
+    ngli_assert(desc);
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
@@ -406,20 +409,27 @@ static void drawpath_draw(struct ngl_node *node)
     ngli_pipeline_compat_draw(desc->pipeline_compat, 4, 1, 0);
 }
 
+static void free_pipeline_desc(void *user_arg, void *data)
+{
+    struct pipeline_desc *desc = data;
+    ngli_pipeline_compat_freep(&desc->pipeline_compat);
+    ngli_freep(&desc);
+}
+
 static void drawpath_uninit(struct ngl_node *node)
 {
     struct drawpath_priv *s = node->priv_data;
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    for (size_t i = 0; i < ngli_darray_count(&s->pipeline_descs); i++) {
-        struct pipeline_desc *desc = &descs[i];
-        ngli_pipeline_compat_freep(&desc->pipeline_compat);
+    if (s->pipeline_map) {
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(s->pipeline_map, entry)))
+            free_pipeline_desc(NULL, entry->data);
+        ngli_pipeline_map_freep(&s->pipeline_map);
     }
     ngli_darray_reset(&s->uniforms);
     ngli_darray_reset(&s->uniforms_map);
     ngpu_pgcraft_freep(&s->crafter);
     ngli_distmap_freep(&s->distmap);
     ngli_path_freep(&s->path);
-    ngli_darray_reset(&s->pipeline_descs);
 }
 
 const struct node_class ngli_drawpath_class = {

@@ -77,7 +77,7 @@ struct pass {
     int32_t normal_matrix_index;
     int32_t resolution_index;
     struct darray uniforms_map;
-    struct darray pipeline_descs;
+    struct hmap *pipeline_map;
 };
 
 int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params *params);

@@ -31,9 +31,11 @@
 #include "ngpu/type.h"
 #include "params.h"
 #include "pipeline_compat.h"
+#include "pipeline_map.h"
 #include "text.h"
 #include "utils/darray.h"
 #include "utils/utils.h"
+#include "utils/memory.h"
 
 /* GLSL fragments as string */
 #include "text_bg_frag.h"
@@ -76,36 +78,9 @@ struct pipeline_desc_fg {
 };
 
 struct pipeline_desc {
-    uint64_t hash;
     struct pipeline_desc_bg bg; /* Background (bounding box) */
     struct pipeline_desc_fg fg; /* Foreground (characters) */
 };
-
-#include "utils/xxhash.h"
-
-static uint64_t hash_pipeline_state(const struct ngpu_rendertarget_layout *rt_layout,
-                                    const struct ngpu_graphics_state *state)
-{
-    uint64_t hash = 0;
-    hash = XXH64(rt_layout, sizeof(*rt_layout), hash);
-    hash = XXH64(state, sizeof(*state), hash);
-    return hash;
-}
-
-static struct pipeline_desc *get_pipeline(struct darray *pipeline_descs,
-                                          const struct ngpu_rendertarget_layout *rt_layout,
-                                          const struct ngpu_graphics_state *state)
-{
-    const uint64_t hash = hash_pipeline_state(rt_layout, state);
-    for (size_t i = 0; i < ngli_darray_count(pipeline_descs); i++) {
-        struct pipeline_desc *desc = ngli_darray_get(pipeline_descs, i);
-        if (desc->hash == hash)
-            return desc;
-    }
-    ngli_assert(0);
-}
-
-
 
 struct text_opts {
     struct livectl live;
@@ -144,7 +119,7 @@ struct text_priv {
     /* background box */
     struct ngpu_buffer *bg_vertices;
 
-    struct darray pipeline_descs;
+    struct hmap *pipeline_map;
     int live_changed;
     struct ngpu_viewport viewport;
 };
@@ -307,28 +282,27 @@ static int refresh_pipeline_data(struct ngl_node *node)
             (ret = ngpu_buffer_init(s->outline_positions, text_nbchr * sizeof(float), DYNAMIC_VERTEX_USAGE_FLAGS)) < 0)
             return ret;
 
-        struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-        for (size_t i = 0; i < ngli_darray_count(&s->pipeline_descs); i++) {
-            struct pipeline_desc_fg *desc_fg = &descs[i].fg;
-            struct pipeline_desc_common *desc = &desc_fg->common;
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(s->pipeline_map, entry))) {
+            struct pipeline_desc *desc = entry->data;
+            struct pipeline_desc_fg *desc_fg = &desc->fg;
 
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->vertices_index,       s->vertices);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->atlas_coords_index,   s->atlas_coords);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->user_transform_index, s->user_transforms);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->color_index,          s->colors);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->outline_index,        s->outlines);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->glow_index,           s->glows);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->blur_index,           s->blurs);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->outline_pos_index,    s->outline_positions);
+            ngli_pipeline_compat_update_vertex_buffer(desc_fg->common.pipeline_compat, desc_fg->vertices_index,       s->vertices);
+            ngli_pipeline_compat_update_vertex_buffer(desc_fg->common.pipeline_compat, desc_fg->atlas_coords_index,   s->atlas_coords);
+            ngli_pipeline_compat_update_vertex_buffer(desc_fg->common.pipeline_compat, desc_fg->user_transform_index, s->user_transforms);
+            ngli_pipeline_compat_update_vertex_buffer(desc_fg->common.pipeline_compat, desc_fg->color_index,          s->colors);
+            ngli_pipeline_compat_update_vertex_buffer(desc_fg->common.pipeline_compat, desc_fg->outline_index,        s->outlines);
+            ngli_pipeline_compat_update_vertex_buffer(desc_fg->common.pipeline_compat, desc_fg->glow_index,           s->glows);
+            ngli_pipeline_compat_update_vertex_buffer(desc_fg->common.pipeline_compat, desc_fg->blur_index,           s->blurs);
+            ngli_pipeline_compat_update_vertex_buffer(desc_fg->common.pipeline_compat, desc_fg->outline_pos_index,    s->outline_positions);
         }
     }
 
     if (text->cls->flags & NGLI_TEXT_FLAG_MUTABLE_ATLAS) {
-        struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-        for (size_t i = 0; i < ngli_darray_count(&s->pipeline_descs); i++) {
-            struct pipeline_desc_fg *desc_fg = &descs[i].fg;
-            struct pipeline_desc_common *desc = &desc_fg->common;
-            ret = ngli_pipeline_compat_update_texture(desc->pipeline_compat, 0, text->atlas_texture);
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(s->pipeline_map, entry))) {
+            struct pipeline_desc *desc = entry->data;
+            ret = ngli_pipeline_compat_update_texture(desc->fg.common.pipeline_compat, 0, text->atlas_texture);
             if (ret < 0)
                 return ret;
         }
@@ -411,6 +385,10 @@ static int text_init(struct ngl_node *node)
 
     s->viewport = node->ctx->viewport;
 
+    s->pipeline_map = ngli_pipeline_map_create();
+    if (!s->pipeline_map)
+        return NGL_ERROR_MEMORY;
+
     s->text_ctx = ngli_text_create(node->ctx);
     if (!s->text_ctx)
         return NGL_ERROR_MEMORY;
@@ -438,8 +416,6 @@ static int text_init(struct ngl_node *node)
     int ret = ngli_text_init(s->text_ctx, &config);
     if (ret < 0)
         return ret;
-
-    ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
 
     ret = init_bounding_box_geometry(node);
     if (ret < 0)
@@ -680,20 +656,41 @@ static int text_prepare(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct text_priv *s = node->priv_data;
 
-    struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
+    const struct pipeline_map_key key = {
+        .graphics_state = &ctx->graphics_state,
+        .rendertarget_layout = &ctx->rendertarget_layout,
+    };
+
+    struct pipeline_desc *desc = ngli_pipeline_map_get(s->pipeline_map, &key);
+    if (desc)
+        return 0;
+
+    desc = ngli_calloc(1, sizeof(*desc));
     if (!desc)
         return NGL_ERROR_MEMORY;
 
-    desc->hash = hash_pipeline_state(&ctx->rendertarget_layout, &ctx->graphics_state);
-
     int ret = bg_prepare(node, &desc->bg);
-    if (ret < 0)
+    if (ret < 0) {
+        ngli_freep(&desc);
         return ret;
+    }
 
     ret = fg_prepare(node, &desc->fg);
-    if (ret < 0)
+    if (ret < 0) {
+        ngli_pipeline_compat_freep(&desc->bg.common.pipeline_compat);
+        ngpu_pgcraft_freep(&desc->bg.common.crafter);
+        ngli_freep(&desc);
         return ret;
+    }
 
+    if (!ngli_pipeline_map_set(s->pipeline_map, &key, desc)) {
+        ngli_pipeline_compat_freep(&desc->bg.common.pipeline_compat);
+        ngli_pipeline_compat_freep(&desc->fg.common.pipeline_compat);
+        ngpu_pgcraft_freep(&desc->bg.common.crafter);
+        ngpu_pgcraft_freep(&desc->fg.common.crafter);
+        ngli_freep(&desc);
+        return NGL_ERROR_MEMORY;
+    }
 
     return 0;
 }
@@ -745,9 +742,13 @@ static void text_draw(struct ngl_node *node)
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
+    const struct pipeline_map_key key = {
+        .graphics_state = &ctx->graphics_state,
+        .rendertarget_layout = &ctx->rendertarget_layout,
+    };
 
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = get_pipeline(&s->pipeline_descs, &ctx->rendertarget_layout, &ctx->graphics_state);
+    struct pipeline_desc *desc = ngli_pipeline_map_get(s->pipeline_map, &key);
+    ngli_assert(desc);
 
     if (!ngpu_ctx_is_render_pass_active(ctx->gpu_ctx)) {
         struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
@@ -774,18 +775,25 @@ static void text_draw(struct ngl_node *node)
     }
 }
 
+static void free_pipeline_desc(void *user_arg, void *data)
+{
+    struct pipeline_desc *desc = data;
+    ngli_pipeline_compat_freep(&desc->bg.common.pipeline_compat);
+    ngli_pipeline_compat_freep(&desc->fg.common.pipeline_compat);
+    ngpu_pgcraft_freep(&desc->bg.common.crafter);
+    ngpu_pgcraft_freep(&desc->fg.common.crafter);
+    ngli_freep(&desc);
+}
+
 static void text_uninit(struct ngl_node *node)
 {
     struct text_priv *s = node->priv_data;
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    for (size_t i = 0; i < ngli_darray_count(&s->pipeline_descs); i++) {
-        struct pipeline_desc *desc = &descs[i];
-        ngli_pipeline_compat_freep(&desc->bg.common.pipeline_compat);
-        ngli_pipeline_compat_freep(&desc->fg.common.pipeline_compat);
-        ngpu_pgcraft_freep(&desc->bg.common.crafter);
-        ngpu_pgcraft_freep(&desc->fg.common.crafter);
+    if (s->pipeline_map) {
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(s->pipeline_map, entry)))
+            free_pipeline_desc(NULL, entry->data);
+        ngli_pipeline_map_freep(&s->pipeline_map);
     }
-    ngli_darray_reset(&s->pipeline_descs);
     ngpu_buffer_freep(&s->bg_vertices);
     destroy_characters_resources(s);
     ngli_text_freep(&s->text_ctx);

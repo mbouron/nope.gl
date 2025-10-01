@@ -46,9 +46,11 @@
 #include "nopegl.h"
 #include "pass.h"
 #include "pipeline_compat.h"
+#include "pipeline_map.h"
 #include "ngpu/pgcraft.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
+#include "utils/memory.h"
 #include "utils/utils.h"
 
 struct uniform_map {
@@ -68,7 +70,6 @@ struct texture_map {
 };
 
 struct pipeline_desc {
-    uint64_t hash;
     struct pipeline_compat *pipeline_compat;
     struct darray blocks_map;
     struct darray textures_map;
@@ -467,30 +468,6 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
     return 0;
 }
 
-#include "utils/xxhash.h"
-
-static uint64_t hash_pipeline_state(const struct ngpu_rendertarget_layout *rt_layout,
-                                    const struct ngpu_graphics_state *state)
-{
-    uint64_t hash = 0;
-    hash = XXH64(rt_layout, sizeof(*rt_layout), hash);
-    hash = XXH64(state, sizeof(*state), hash);
-    return hash;
-}
-
-static struct pipeline_desc *get_pipeline(struct darray *pipeline_descs,
-                                          const struct ngpu_rendertarget_layout *rt_layout,
-                                          const struct ngpu_graphics_state *state)
-{
-    const uint64_t hash = hash_pipeline_state(rt_layout, state);
-    for (size_t i = 0; i < ngli_darray_count(pipeline_descs); i++) {
-        struct pipeline_desc *desc = ngli_darray_get(pipeline_descs, i);
-        if (desc->hash == hash)
-            return desc;
-    }
-    ngli_assert(0);
-}
-
 int ngli_pass_prepare(struct pass *s)
 {
     struct ngl_ctx *ctx = s->ctx;
@@ -512,15 +489,24 @@ int ngli_pass_prepare(struct pass *s)
     if (ret < 0)
         return ret;
 
-    struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
+    const struct pipeline_map_key key = {
+        .graphics_state = &state,
+        .rendertarget_layout = &ctx->rendertarget_layout,
+    };
+
+    struct pipeline_desc *desc = ngli_pipeline_map_get(s->pipeline_map, &key);
+    if (desc)
+        return 0;
+
+    desc = ngli_calloc(1, sizeof(*desc));
     if (!desc)
         return NGL_ERROR_MEMORY;
 
-    desc->hash = hash_pipeline_state(&ctx->rendertarget_layout, &state);
-
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!desc->pipeline_compat)
+    if (!desc->pipeline_compat) {
+        ngli_freep(&desc);
         return NGL_ERROR_MEMORY;
+    }
 
     const struct pipeline_compat_params params = {
         .type = s->pipeline_type,
@@ -537,19 +523,39 @@ int ngli_pass_prepare(struct pass *s)
         .compat_info      = ngpu_pgcraft_get_compat_info(s->crafter),
     };
     ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
-    if (ret < 0)
+    if (ret < 0) {
+        ngli_pipeline_compat_freep(&desc->pipeline_compat);
+        ngli_freep(&desc);
         return ret;
+    }
 
     ret = build_blocks_map(s, desc);
-    if (ret < 0)
+    if (ret < 0) {
+        ngli_darray_reset(&desc->blocks_map);
+        ngli_pipeline_compat_freep(&desc->pipeline_compat);
+        ngli_freep(&desc);
         return ret;
+    }
 
     ngli_darray_init(&desc->textures_map, sizeof(struct texture_map), 0);
     const struct ngpu_pgcraft_compat_info *info = ngpu_pgcraft_get_compat_info(s->crafter);
     for (size_t i = 0; i < info->nb_texture_infos; i++) {
         const struct texture_map map = {.image = info->images[i], .image_rev = SIZE_MAX};
-        if (!ngli_darray_push(&desc->textures_map, &map))
+        if (!ngli_darray_push(&desc->textures_map, &map)) {
+            ngli_darray_reset(&desc->textures_map);
+            ngli_darray_reset(&desc->blocks_map);
+            ngli_pipeline_compat_freep(&desc->pipeline_compat);
+            ngli_freep(&desc);
             return NGL_ERROR_MEMORY;
+        }
+    }
+
+    if (!ngli_pipeline_map_set(s->pipeline_map, &key, desc)) {
+        ngli_darray_reset(&desc->textures_map);
+        ngli_darray_reset(&desc->blocks_map);
+        ngli_pipeline_compat_freep(&desc->pipeline_compat);
+        ngli_freep(&desc);
+        return NGL_ERROR_MEMORY;
     }
 
     return 0;
@@ -564,7 +570,10 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
     ngli_darray_init(&s->crafter_textures, sizeof(struct ngpu_pgcraft_texture), 0);
     ngli_darray_init(&s->crafter_uniforms, sizeof(struct ngpu_pgcraft_uniform), 0);
     ngli_darray_init(&s->crafter_blocks, sizeof(struct ngpu_pgcraft_block), 0);
-    ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
+
+    s->pipeline_map = ngli_pipeline_map_create();
+    if (!s->pipeline_map)
+        return NGL_ERROR_MEMORY;
 
     int ret = register_builtin_uniforms(s);
     if (ret < 0)
@@ -614,19 +623,26 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
     return 0;
 }
 
+static void free_pipeline_desc(void *user_arg, void *data)
+{
+    struct pipeline_desc *desc = data;
+    ngli_pipeline_compat_freep(&desc->pipeline_compat);
+    ngli_darray_reset(&desc->blocks_map);
+    ngli_darray_reset(&desc->textures_map);
+    ngli_freep(&desc);
+}
+
 void ngli_pass_uninit(struct pass *s)
 {
     if (!s->ctx)
         return;
 
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    for (size_t i = 0; i < ngli_darray_count(&s->pipeline_descs); i++) {
-        struct pipeline_desc *desc = &descs[i];
-        ngli_pipeline_compat_freep(&desc->pipeline_compat);
-        ngli_darray_reset(&desc->blocks_map);
-        ngli_darray_reset(&desc->textures_map);
+    if (s->pipeline_map) {
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(s->pipeline_map, entry)))
+            free_pipeline_desc(NULL, entry->data);
+        ngli_pipeline_map_freep(&s->pipeline_map);
     }
-    ngli_darray_reset(&s->pipeline_descs);
 
     ngpu_pgcraft_freep(&s->crafter);
     ngli_darray_reset(&s->uniforms_map);
@@ -642,10 +658,16 @@ int ngli_pass_exec(struct pass *s)
 {
     struct ngl_ctx *ctx = s->ctx;
     const struct pass_params *params = &s->params;
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
     struct ngpu_graphics_state state = ctx->graphics_state;
     ngli_blending_apply_preset(&state, params->blending);
-    struct pipeline_desc *desc = get_pipeline(&s->pipeline_descs, &ctx->rendertarget_layout, &state);
+
+    const struct pipeline_map_key key = {
+        .graphics_state = &state,
+        .rendertarget_layout = &ctx->rendertarget_layout,
+    };
+
+    struct pipeline_desc *desc = ngli_pipeline_map_get(s->pipeline_map, &key);
+    ngli_assert(desc);
     struct pipeline_compat *pipeline_compat = desc->pipeline_compat;
 
     const float *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
