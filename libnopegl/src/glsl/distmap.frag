@@ -24,6 +24,8 @@
 
 #define close_to_zero(x) (abs(x) < 1e-4) /* XXX too small value leads to float instabilities in many computations */
 
+bool isfinite(highp float x) { return (floatBitsToUint(x) & 0x7f800000u) != 0x7f800000u; }
+
 #define LARGE_FLOAT 1e38
 
 vec2 poly2(float a, float b, float c, vec2 t)          { return  (a * t + b) * t + c; }
@@ -322,28 +324,24 @@ Roots aberth_ehrlich_5(float a, float b, float c, float d, float e, float f)
     return roots;
 }
 
-/* Linear: f(x)=ax+b */
-Roots root_find1(float a, float b)
-{
-    if (close_to_zero(a))
-        return Roots(0u, float[5](0.0, 0.0, 0.0, 0.0, 0.0));
-    return Roots(1u, float[5](-b / a, 0.0, 0.0, 0.0, 0.0));
-}
-
 /* Quadratic: f(x)=ax²+bx+c */
 Roots root_find2(float a, float b, float c)
 {
-    if (close_to_zero(a))
-        return root_find1(b, c);
-
-    float m = -b / (2.0 * a);
-    float delta = m*m - c / a;
-    if (close_to_zero(delta))
-        return Roots(1u, float[5](m, 0.0, 0.0, 0.0, 0.0));
-    if (delta < 0.0)
-        return Roots(0u, float[5](0.0, 0.0, 0.0, 0.0, 0.0));
-    float z = sqrt(delta);
-    return Roots(2u, float[5](m-z, m+z, 0.0, 0.0, 0.0));
+    Roots r; r.count = 0u;
+    float d = b*b - 4.*a*c;
+    if (d < 0.)
+        return r;
+    if (d == 0.) {
+        float rz = -.5 * b / a;
+        if (isfinite(rz)) r.values[r.count++] = rz;
+        return r;
+    }
+    float h = sqrt(d);
+    float q = -.5 * (b + (b > 0. ? h : -h));
+    float r0 = q/a, r1 = c/q;
+    if (isfinite(r0)) r.values[r.count++] = r0;
+    if (isfinite(r1)) r.values[r.count++] = r1;
+    return r;
 }
 
 /* Cubic: f(x)=ax³+bx²+cx+d */
