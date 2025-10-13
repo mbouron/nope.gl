@@ -133,6 +133,32 @@ vec2 c_poly3(float a, float b, float c, float d,                   vec2 x) { ret
 vec2 c_poly4(float a, float b, float c, float d, float e,          vec2 x) { return c_mul(c_poly3(a, b, c, d,    x), x) + vec2(e, 0.0); }
 vec2 c_poly5(float a, float b, float c, float d, float e, float f, vec2 x) { return c_mul(c_poly4(a, b, c, d, e, x), x) + vec2(f, 0.0); }
 
+// Complex polynomial evaluation (y) divided by their derivatives (q) using
+// Horner's method in one pass
+vec2 c_poly3d2(float a, float b, float c, float d, vec2 x) {
+    vec2 y =       a*x  + vec2(b, 0), q =       a*x  + y;
+         y = c_mul(y,x) + vec2(c, 0); q = c_mul(q,x) + y;
+         y = c_mul(y,x) + vec2(d, 0);
+    return c_div(y, q);
+}
+
+vec2 c_poly4d3(float a, float b, float c, float d, float e, vec2 x) {
+    vec2 y =       a*x  + vec2(b, 0), q =       a*x  + y;
+         y = c_mul(y,x) + vec2(c, 0); q = c_mul(q,x) + y;
+         y = c_mul(y,x) + vec2(d, 0); q = c_mul(q,x) + y;
+         y = c_mul(y,x) + vec2(e, 0);
+    return c_div(y, q);
+}
+
+vec2 c_poly5d4(float a, float b, float c, float d, float e, float f, vec2 x) {
+    vec2 y =       a*x  + vec2(b, 0), q =       a*x  + y;
+         y = c_mul(y,x) + vec2(c, 0); q = c_mul(q,x) + y;
+         y = c_mul(y,x) + vec2(d, 0); q = c_mul(q,x) + y;
+         y = c_mul(y,x) + vec2(e, 0); q = c_mul(q,x) + y;
+         y = c_mul(y,x) + vec2(f, 0);
+    return c_div(y, q);
+}
+
 vec2 sum_of_inv(vec2 z0, vec2 z1, vec2 z2, vec2 z3, vec2 z4) { return c_inv(z0 - z1) + c_inv(z0 - z2) + c_inv(z0 - z3) + c_inv(z0 - z4); }
 vec2 sum_of_inv(vec2 z0, vec2 z1, vec2 z2, vec2 z3)          { return c_inv(z0 - z1) + c_inv(z0 - z2) + c_inv(z0 - z3); }
 vec2 sum_of_inv(vec2 z0, vec2 z1, vec2 z2)                   { return c_inv(z0 - z1) + c_inv(z0 - z2); }
@@ -164,13 +190,10 @@ Roots aberth_ehrlich_3(float a, float b, float c, float d)
     vec2 prv1 = r * K3_1;
     vec2 prv2 = r * K3_2;
 
-    float da = 3.0 * a;
-    float db = 2.0 * b;
-
     for (int m = 0; m < 16; m++) {
-        vec2 d0 = c_div(c_poly3(a, b, c, d, prv0), c_poly2(da, db, c, prv0));
-        vec2 d1 = c_div(c_poly3(a, b, c, d, prv1), c_poly2(da, db, c, prv1));
-        vec2 d2 = c_div(c_poly3(a, b, c, d, prv2), c_poly2(da, db, c, prv2));
+        vec2 d0 = c_poly3d2(a, b, c, d, prv0);
+        vec2 d1 = c_poly3d2(a, b, c, d, prv1);
+        vec2 d2 = c_poly3d2(a, b, c, d, prv2);
 
         vec2 off0 = c_div(d0, vec2(1.0, 0.0) - c_mul(d0, sum_of_inv(prv0, prv1, prv2)));
         vec2 off1 = c_div(d1, vec2(1.0, 0.0) - c_mul(d1, sum_of_inv(prv1, prv0, prv2)));
@@ -211,15 +234,11 @@ Roots aberth_ehrlich_4(float a, float b, float c, float d, float e)
     vec2 prv2 = r * K4_2;
     vec2 prv3 = r * K4_3;
 
-    float da = 4.0 * a;
-    float db = 3.0 * b;
-    float dc = 2.0 * c;
-
     for (int m = 0; m < 16; m++) {
-        vec2 d0 = c_div(c_poly4(a, b, c, d, e, prv0), c_poly3(da, db, dc, d, prv0));
-        vec2 d1 = c_div(c_poly4(a, b, c, d, e, prv1), c_poly3(da, db, dc, d, prv1));
-        vec2 d2 = c_div(c_poly4(a, b, c, d, e, prv2), c_poly3(da, db, dc, d, prv2));
-        vec2 d3 = c_div(c_poly4(a, b, c, d, e, prv3), c_poly3(da, db, dc, d, prv3));
+        vec2 d0 = c_poly4d3(a, b, c, d, e, prv0);
+        vec2 d1 = c_poly4d3(a, b, c, d, e, prv1);
+        vec2 d2 = c_poly4d3(a, b, c, d, e, prv2);
+        vec2 d3 = c_poly4d3(a, b, c, d, e, prv3);
 
         vec2 off0 = c_div(d0, vec2(1.0, 0.0) - c_mul(d0, sum_of_inv(prv0, prv1, prv2, prv3)));
         vec2 off1 = c_div(d1, vec2(1.0, 0.0) - c_mul(d1, sum_of_inv(prv1, prv0, prv2, prv3)));
@@ -271,17 +290,12 @@ Roots aberth_ehrlich_5(float a, float b, float c, float d, float e, float f)
     vec2 prv3 = r * K5_3;
     vec2 prv4 = r * K5_4;
 
-    float da = 5.0 * a;
-    float db = 4.0 * b;
-    float dc = 3.0 * c;
-    float dd = 2.0 * d;
-
     for (int m = 0; m < 16; m++) {
-        vec2 d0 = c_div(c_poly5(a, b, c, d, e, f, prv0), c_poly4(da, db, dc, dd, e, prv0));
-        vec2 d1 = c_div(c_poly5(a, b, c, d, e, f, prv1), c_poly4(da, db, dc, dd, e, prv1));
-        vec2 d2 = c_div(c_poly5(a, b, c, d, e, f, prv2), c_poly4(da, db, dc, dd, e, prv2));
-        vec2 d3 = c_div(c_poly5(a, b, c, d, e, f, prv3), c_poly4(da, db, dc, dd, e, prv3));
-        vec2 d4 = c_div(c_poly5(a, b, c, d, e, f, prv4), c_poly4(da, db, dc, dd, e, prv4));
+        vec2 d0 = c_poly5d4(a, b, c, d, e, f, prv0);
+        vec2 d1 = c_poly5d4(a, b, c, d, e, f, prv1);
+        vec2 d2 = c_poly5d4(a, b, c, d, e, f, prv2);
+        vec2 d3 = c_poly5d4(a, b, c, d, e, f, prv3);
+        vec2 d4 = c_poly5d4(a, b, c, d, e, f, prv4);
 
         vec2 off0 = c_div(d0, vec2(1.0, 0.0) - c_mul(d0, sum_of_inv(prv0, prv1, prv2, prv3, prv4)));
         vec2 off1 = c_div(d1, vec2(1.0, 0.0) - c_mul(d1, sum_of_inv(prv1, prv0, prv2, prv3, prv4)));
