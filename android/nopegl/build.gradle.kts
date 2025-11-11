@@ -48,7 +48,7 @@ afterEvaluate {
 
 android {
     namespace = "org.nopeforge.nopegl"
-    compileSdk = 34
+    compileSdk = 36
     ndkVersion = "28.1.13356709"
     defaultConfig {
         minSdk = 29
