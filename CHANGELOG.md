@@ -36,6 +36,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_update()` to trigger graph updates without producing frames
 - `ngl_jni_get_env()` to attach and get a JNI environment from any thread
 - `CustomTexture` node which allows implementing custom rendering logic
+- Android binding and viewer
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges

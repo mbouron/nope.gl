@@ -362,6 +362,8 @@ class _WrapperGenerator:
             parent_class_name = "Node"  # inherit from native Cython node
             parent_params = []
             class_name = "_CommonNode"
+        elif class_name == "CustomTexture":
+            return ""
         elif inherit:
             parent_class_name = data
             parent_params = specs["nodes"][parent_class_name]["params"] + specs["nodes"]["_Node"]["params"]
