@@ -1,0 +1,48 @@
+[versions]
+activityCompose = "1.9.3"
+coreKtx = "1.13.1"
+junit = "4.13.2"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+kotlinpoet = "1.16.0"
+kotlinxSerializationJson = "1.6.3"
+lifecycleRuntimeKtx = "2.8.6"
+runner = "1.6.2"
+rules = "1.6.1"
+android = "8.10.1"
+kotlin = "2.0.20"
+timber = "5.0.1"
+annotationJvm = "1.9.0"
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-test-rules = { module = "androidx.test:rules", version.ref = "rules" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "runner" }
+androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espressoCore" }
+androidx-junit = { module = "androidx.test.ext:junit", version.ref = "junitVersion" }
+compose-activity = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+compose-bom = "androidx.compose:compose-bom:2024.10.00"
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-constraintlayout = "androidx.constraintlayout:constraintlayout-compose:1.0.1"
+android-gradle = { module = "com.android.tools.build:gradle", version = "8.2.2" }
+junit = { module = "junit:junit", version.ref = "junit" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+kotlinpoet = { module = "com.squareup:kotlinpoet", version.ref = "kotlinpoet" }
+timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
+coroutines-bom = "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.8.1"
+coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core" }
+androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
+
+[plugins]
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+android-library = { id = "com.android.library", version.ref = "android" }
+android-application = { id = "com.android.application", version.ref = "android" }
