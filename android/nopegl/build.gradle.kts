@@ -68,7 +68,6 @@ android {
                     "-Wlogical-op",
                     "-Wundef",
                     "-Wconversion",
-                    "-Wno-sign-conversion",
                     "-fno-math-errno",
                 )
                 arguments("-DANDROID_STL=c++_shared")

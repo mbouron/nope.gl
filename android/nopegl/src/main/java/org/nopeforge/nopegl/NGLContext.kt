@@ -22,7 +22,6 @@
 package org.nopeforge.nopegl
 
 import android.content.Context
-import android.graphics.PointF
 import android.view.Surface
 import java.nio.ByteBuffer
 
@@ -48,12 +47,7 @@ class NGLContext {
         return nativeSetScene(nativePtr, scene.nativePtr)
     }
 
-    @Deprecated("Use resetScene(clear: Boolean) instead", ReplaceWith("resetScene(true)"))
-    fun resetScene(): Int {
-        return resetScene(true)
-    }
-
-    fun resetScene(clear: Boolean): Int {
+    fun resetScene(clear: Boolean = true): Int {
         return nativeResetScene(nativePtr, clear)
     }
 
@@ -61,20 +55,9 @@ class NGLContext {
         return nativeDraw(nativePtr, time)
     }
 
-    fun update(time: Double): Int {
-        return nativeUpdate(nativePtr, time)
-    }
-
     fun setCaptureBuffer(buffer: ByteBuffer): Int {
         captureBuffer = buffer
         return nativeSetCaptureBuffer(nativePtr, buffer)
-    }
-
-    fun getIntersectingNodes(point: PointF): List<NGLNode> {
-        val pointers = nativeIntersectingNodes(nativePtr, point.x, point.y)
-            ?.toList()
-            .orEmpty()
-        return pointers.map { pointer -> NGLNode(pointer, false) }
     }
 
     fun release() {
@@ -85,10 +68,8 @@ class NGLContext {
     }
 
     companion object {
-        private var logger: NGLLogger? = null
 
         init {
-            System.loadLibrary("lcms2")
             System.loadLibrary("avutil")
             System.loadLibrary("avcodec")
             System.loadLibrary("avformat")
@@ -106,28 +87,11 @@ class NGLContext {
         }
 
         @JvmStatic
-        @Deprecated(
-            "Use init(context: Context?) instead. To handle logging use NGLLogger",
-            ReplaceWith("init(context, logLevel, { level, tag, message ->  })")
-        )
-        fun init(context: Context?, logLevel: String = "info") {
-            nativeInit(context, logLevel)
-        }
-
-        @JvmStatic
         fun init(
             context: Context?,
-            level: LogLevel,
-            onLog: (level: LogLevel, tag: String, message: String) -> Unit,
+            logLevel: String = "info"
         ) {
-            nativeInit(context, null)
-            logger?.release()
-            logger = NGLLogger(level, onLog)
-        }
-
-        fun release() {
-            logger?.release()
-            logger = null
+            nativeInit(context, logLevel)
         }
 
         @JvmStatic
@@ -160,8 +124,6 @@ class NGLContext {
     private external fun nativeResize(nativePtr: Long, width: Int, height: Int): Int
     private external fun nativeDraw(nativePtr: Long, time: Double): Int
 
-    private external fun nativeUpdate(nativePtr: Long, time: Double): Int
     private external fun nativeSetCaptureBuffer(nativePtr: Long, buffer: ByteBuffer): Int
     private external fun nativeRelease(nativePtr: Long)
-    private external fun nativeIntersectingNodes(nativePtr: Long, x: Float, y: Float): LongArray?
 }

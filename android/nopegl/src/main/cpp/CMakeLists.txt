@@ -29,7 +29,6 @@ set(NGL_LIBS
         freetype
         fribidi
         harfbuzz
-        lcms2
         )
 
 foreach(LIB ${NGL_LIBS})

@@ -22,7 +22,6 @@
 
 package org.nopeforge.nopegl.engine
 
-import android.graphics.PointF
 import android.graphics.SurfaceTexture
 import android.os.HandlerThread
 import android.os.Looper
@@ -38,7 +37,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.nopeforge.nopegl.NGLConfig
 import org.nopeforge.nopegl.NGLContext
-import org.nopeforge.nopegl.NGLNode
 import org.nopeforge.nopegl.NGLRational
 import org.nopeforge.nopegl.NGLScene
 import timber.log.Timber
@@ -224,10 +222,6 @@ class EngineRenderer {
         handler.removeMessages(MSG_REFRESH_DURATION)
         handler.sendMessage(handler.obtainMessage(MSG_REFRESH_DURATION))
         draw()
-    }
-
-    fun intersect(point: PointF): List<NGLNode> {
-        return engine?.getIntersectingNodes(point).orEmpty()
     }
 
     private fun draw(time: Duration = this.time) {

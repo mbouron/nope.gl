@@ -30,20 +30,9 @@
 #include <android/native_window_jni.h>
 #include <media/NdkImageReader.h>
 
-#define GL_GLEXT_PROTOTYPES
-#define EGL_EGLEXT_PROTOTYPES
-
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-
 #include <libavutil/log.h>
 #include <libavcodec/jni.h>
 
-#include <android/hardware_buffer_jni.h>
-
-#include <nopemd.h>
 #include <nopegl/nopegl.h>
 
 #define CHECK(cond) do {                                                                                 \
@@ -201,7 +190,6 @@ static const struct {
     {"height",        JNI_TYPE_INT,         OFFSET(height)         },
     {"samples",       JNI_TYPE_INT,         OFFSET(samples)        },
     {"swapInterval",  JNI_TYPE_INT,         OFFSET(swap_interval)  },
-    {"disableDepth",  JNI_TYPE_BOOL,        OFFSET(disable_depth)  },
     {"setSurfacePts", JNI_TYPE_BOOL,        OFFSET(set_surface_pts)},
     {"clearColor",    JNI_TYPE_FLOAT_ARRAY, OFFSET(clear_color)    },
     {"captureBuffer", JNI_TYPE_BYTE_BUFFER, OFFSET(capture_buffer) },
@@ -286,36 +274,6 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeCreate(JNIEnv
     return (jlong)ctx;
 }
 
-JNIEXPORT JNIEXPORT jlongArray JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeIntersectingNodes(JNIEnv *env,
-                                                                                                    jobject thiz,
-                                                                                                    jlong native_ptr,
-                                                                                                    jfloat x,
-                                                                                                    jfloat y)
-{
-    const float point[2] = {x, y};
-
-    size_t nb_nodes         = 0;
-    struct ngl_node **nodes = NULL;
-
-    struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
-    int result = ngl_get_nodes_intersecting_point(ctx, point, &nb_nodes, &nodes);
-    if (result < 0)
-        return NULL;
-
-    jsize count = (jsize)nb_nodes;
-    jlongArray array = (*env)->NewLongArray(env, count);
-    if (!array)
-        return NULL;
-
-    for (jsize i = 0; i < count; i++) {
-        struct ngl_node *node = nodes[i];
-        jlong nativePtr       = (jlong)(uintptr_t)node;
-        (*env)->SetLongArrayRegion(env, array, i, 1, &nativePtr);
-    }
-
-    return array;
-}
-
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeConfigure(JNIEnv *env,
                                                                             jclass type,
                                                                             jlong native_ptr,
@@ -354,15 +312,6 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeDraw(JNIEnv *e
 {
     struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
     return ngl_draw(ctx, time);
-}
-
-JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeUpdate(JNIEnv *env,
-                                                                         jobject thiz,
-                                                                         jlong native_ptr,
-                                                                         jdouble time)
-{
-    struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
-    return ngl_update(ctx, time);
 }
 
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeSetCaptureBuffer(JNIEnv *env,
@@ -411,73 +360,6 @@ JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeUnref(JNIEnv *env
     struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
 
     ngl_node_unrefp(&node);
-}
-
-JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetLabel(JNIEnv *env, jobject thiz, jlong native_ptr)
-{
-    const char *label     = NULL;
-    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
-
-    ngl_node_get_label(node, &label);
-
-    return (*env)->NewStringUTF(env, label);
-}
-
-JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetType(JNIEnv *env, jobject thiz, jlong native_ptr)
-{
-    uint32_t type;
-    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
-
-    ngl_node_get_type(node, &type);
-
-    return (jint)type;
-}
-
-JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetBoundingBox(JNIEnv *env,
-                                                                                     jobject thiz,
-                                                                                     jlong native_ptr)
-{
-    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
-
-    struct ngl_bounding_box bbox;
-    int result = ngl_node_get_bounding_box(node, &bbox);
-    if (result < 0)
-        return NULL;
-
-    jfloatArray array = (*env)->NewFloatArray(env, 4);
-    if (!array)
-        return NULL;
-
-    (*env)->SetFloatArrayRegion(env, array, 0, 1, &bbox.center[0]);
-    (*env)->SetFloatArrayRegion(env, array, 1, 1, &bbox.center[1]);
-    (*env)->SetFloatArrayRegion(env, array, 2, 1, &bbox.extent[0]);
-    (*env)->SetFloatArrayRegion(env, array, 3, 1, &bbox.extent[1]);
-
-    return array;
-}
-
-JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetOrientedBoundingBox(JNIEnv *env,
-                                                                                             jobject thiz,
-                                                                                             jlong native_ptr)
-{
-    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
-
-    struct ngl_oriented_bounding_box obb;
-    int result = ngl_node_get_oriented_bounding_box(node, &obb);
-    if (result < 0)
-        return NULL;
-
-    jfloatArray array = (*env)->NewFloatArray(env, 7);
-    if (!array)
-        return NULL;
-
-    (*env)->SetFloatArrayRegion(env, array, 0, 1, &obb.center[0]);
-    (*env)->SetFloatArrayRegion(env, array, 1, 1, &obb.center[1]);
-    (*env)->SetFloatArrayRegion(env, array, 2, 1, &obb.extent[0]);
-    (*env)->SetFloatArrayRegion(env, array, 3, 1, &obb.extent[1]);
-    (*env)->SetFloatArrayRegion(env, array, 4, 1, &obb.rotation);
-
-    return array;
 }
 
 #define DECLARE_SET_VEC_FUNC(ctype, jtype, name, count)                                                 \
@@ -663,25 +545,6 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddDoubles(JNIEnv
     return ret;
 }
 
-JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSwapElement(JNIEnv *env,
-                                                                           jobject thiz,
-                                                                           jlong native_ptr,
-                                                                           jstring key,
-                                                                           jint from,
-                                                                           jint to)
-{
-    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
-
-    const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
-    CHECK(key_str);
-
-    int ret = ngl_node_param_swap_elem(node, key_str, from, to);
-
-    (*env)->ReleaseStringUTFChars(env, key, key_str);
-
-    return ret;
-}
-
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetFlags(JNIEnv *env,
                                                                         jobject thiz,
                                                                         jlong native_ptr,
@@ -779,23 +642,12 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddNodes(JNIEnv *
     return ret;
 }
 
-JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeTimeRangeFilterUpdate(JNIEnv *env,
-                                                                                     jobject thiz,
-                                                                                     jlong native_ptr,
-                                                                                     jdouble start_time,
-                                                                                     jdouble end_time)
-{
-    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
-    return ngl_timerangefilter_set_range(node, start_time, end_time);
-}
-
-
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetRational(JNIEnv *env,
-                                                                           jobject thiz,
-                                                                           jlong native_ptr,
-                                                                           jstring key,
-                                                                           jint num,
-                                                                           jint den)
+                                                 jobject thiz,
+                                                 jlong native_ptr,
+                                                 jstring key,
+                                                 jint num,
+                                                 jint den)
 {
     struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
 
@@ -968,12 +820,6 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeCreate(JNIEnv *e
     return (jlong)(uintptr_t)ngl_node_create(type);
 }
 
-JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLError_nativeGetMessage(JNIEnv *env, jclass clazz, jint code)
-{
-    const char *str = ngl_error_to_string(code);
-    return (*env)->NewStringUTF(env, str);
-}
-
 JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeCreateScene(JNIEnv *env,
                                                                              jclass clazz,
                                                                              jlong node_ptr,
@@ -1005,436 +851,4 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeCreateScene(JNI
     }
 
     return (jlong)(uintptr_t)scene;
-}
-
-struct player {
-    struct nmd_ctx *context;
-    jobject surface;
-};
-
-JNIEXPORT jlong JNICALL Java_org_nopeforge_nopemd_Player_nativeInit(JNIEnv *env,
-                                                                    jclass clazz,
-                                                                    jstring filename_,
-                                                                    jobject surface_)
-{
-    jobject surface      = (*env)->NewGlobalRef(env, surface_);
-    if (surface == NULL) {
-        return 0;
-    }
-    const char *filename = (*env)->GetStringUTFChars(env, filename_, 0);
-    if (filename == NULL) {
-        return 0;
-    }
-    struct nmd_ctx *context = nmd_create(filename);
-    if (context == NULL) {
-        (*env)->ReleaseStringUTFChars(env, filename_, filename);
-        return 0;
-    }
-    struct player *player = calloc(1,sizeof(*player));
-    if (player == NULL) {
-        nmd_freep(&context);
-        (*env)->ReleaseStringUTFChars(env, filename_, filename);
-        return 0;
-    }
-    player->context = context;
-    player->surface = surface;
-
-    nmd_set_option(context, "max_nb_packets", 1);
-    nmd_set_option(context, "max_nb_frames", 1);
-    nmd_set_option(context, "max_nb_sink", 1);
-    nmd_set_option(context, "auto_hwaccel", 1);
-    nmd_set_option(context, "opaque", &surface);
-
-    (*env)->ReleaseStringUTFChars(env, filename_, filename);
-    return (jlong)(uintptr_t)player;
-}
-
-JNIEXPORT void JNICALL Java_org_nopeforge_nopemd_Player_nativeStop(JNIEnv *env, jclass clazz, jlong ptr)
-{
-    struct player *player = (struct player *)(uintptr_t)ptr;
-    nmd_stop(player->context);
-}
-
-JNIEXPORT int JNICALL Java_org_nopeforge_nopemd_Player_nativeStart(JNIEnv *env, jclass clazz, jlong ptr)
-{
-    struct player *player = (struct player *)(uintptr_t)ptr;
-    struct nmd_ctx* context = player->context;
-    return nmd_start(context);
-}
-
-JNIEXPORT int JNICALL Java_org_nopeforge_nopemd_Player_nativeSeek(JNIEnv *env,
-                                                                   jclass clazz,
-                                                                   jlong ptr,
-                                                                   jdouble position)
-{
-    struct player *player = (struct player *)(uintptr_t)ptr;
-    return nmd_seek(player->context, position);
-}
-
-JNIEXPORT int JNICALL Java_org_nopeforge_nopemd_Player_nativeDraw(JNIEnv *env,
-                                                                   jclass clazz,
-                                                                   jlong ptr,
-                                                                   jdouble position)
-{
-    struct player *player = (struct player *)(uintptr_t)ptr;
-    struct nmd_frame *frame;
-    int ret = nmd_get_frame(player->context, position, &frame);
-    if (ret == NMD_RET_SUCCESS) {
-        if (frame->pix_fmt == NMD_PIXFMT_MEDIACODEC) {
-            ret = nmd_mc_frame_render_and_releasep(&frame);
-        } else {
-            __android_log_print(ANDROID_LOG_WARN, "ngl", "Unsupported frame type: %d", frame->pix_fmt);
-            nmd_frame_releasep(&frame);
-        }
-    } else if (ret == NMD_RET_UNCHANGED) {
-        ret = NMD_RET_SUCCESS;
-    }
-    return ret;
-}
-
-JNIEXPORT void JNICALL Java_org_nopeforge_nopemd_Player_nativeRelease(JNIEnv *env, jclass clazz, jlong ptr) {
-    struct player *player = (struct player *)(uintptr_t)ptr;
-    nmd_freep(&player->context);
-    (*env)->DeleteGlobalRef(env, player->surface);
-    free(player);
-}
-
-struct custom_texture_ctx {
-    struct ngl_node *node;
-    jobject object;
-    jmethodID init;
-    jmethodID prepare;
-    jmethodID prefetch;
-    jmethodID update;
-    jmethodID draw;
-    jmethodID release;
-    jmethodID uninit;
-};
-
-static int custom_texture_init(void *reversed, void *user_data)
-{
-    struct custom_texture_ctx *ctx = user_data;
-    JNIEnv *env = ngl_jni_get_env();
-    (*env)->CallVoidMethod(env, ctx->object, ctx->init);
-    if ((*env)->ExceptionCheck(env)) {
-        ((*env)->ExceptionClear(env));
-        return NGL_ERROR_EXTERNAL;
-    }
-    return 0;
-}
-
-static int custom_texture_prepare(void *reversed, void *user_data)
-{
-    struct custom_texture_ctx *ctx = user_data;
-    JNIEnv *env = ngl_jni_get_env();
-    (*env)->CallVoidMethod(env, ctx->object, ctx->prepare);
-    if ((*env)->ExceptionCheck(env)) {
-        ((*env)->ExceptionClear(env));
-        return NGL_ERROR_EXTERNAL;
-    }
-    return 0;
-}
-
-static int custom_texture_prefetch(void *reversed, void *user_data)
-{
-    struct custom_texture_ctx *ctx = user_data;
-    JNIEnv *env = ngl_jni_get_env();
-    (*env)->CallVoidMethod(env, ctx->object, ctx->prefetch);
-    if ((*env)->ExceptionCheck(env)) {
-        ((*env)->ExceptionClear(env));
-        return NGL_ERROR_EXTERNAL;
-    }
-    return 0;
-}
-
-static int custom_texture_update(void *reversed, void *user_data, double t)
-{
-    struct custom_texture_ctx *ctx = user_data;
-    JNIEnv *env = ngl_jni_get_env();
-    (*env)->CallVoidMethod(env, ctx->object, ctx->update, t);
-    if ((*env)->ExceptionCheck(env)) {
-        ((*env)->ExceptionClear(env));
-        return NGL_ERROR_EXTERNAL;
-    }
-    return 0;
-}
-
-void custom_texture_draw(void *reversed, void *user_data)
-{
-    struct custom_texture_ctx *ctx = user_data;
-    JNIEnv *env = ngl_jni_get_env();
-    (*env)->CallVoidMethod(env, ctx->object, ctx->draw);
-    if ((*env)->ExceptionCheck(env)) {
-        ((*env)->ExceptionClear(env));
-        return;
-    }
-}
-
-void custom_texture_release(void *reversed, void *user_data)
-{
-    struct custom_texture_ctx *ctx = user_data;
-    JNIEnv *env = ngl_jni_get_env();
-    (*env)->CallVoidMethod(env, ctx->object, ctx->release);
-    if ((*env)->ExceptionCheck(env)) {
-        ((*env)->ExceptionClear(env));
-        return;
-    }
-}
-
-void custom_texture_uninit(void *reversed, void *user_data)
-{
-    struct custom_texture_ctx *ctx = user_data;
-    JNIEnv *env = ngl_jni_get_env();
-    (*env)->CallVoidMethod(env, ctx->object, ctx->uninit);
-    if ((*env)->ExceptionCheck(env)) {
-        ((*env)->ExceptionClear(env));
-        return;
-    }
-}
-
-void custom_texture_free(void *reversed, void *user_data)
-{
-    struct custom_texture_ctx *ctx = user_data;
-    JNIEnv *env = ngl_jni_get_env();
-
-    (*env)->DeleteGlobalRef(env, ctx->object);
-    ctx->object = NULL;
-
-    free(ctx);
-}
-
-static struct ngl_node_funcs custom_texture_funcs = {
-    .init = custom_texture_init,
-    .prepare = custom_texture_prepare,
-    .prefetch = custom_texture_prefetch,
-    .update = custom_texture_update,
-    .draw = custom_texture_draw,
-    .release = custom_texture_release,
-    .uninit = custom_texture_uninit,
-    .free = custom_texture_free,
-};
-
-JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLCustomTexture_nativeCreate(JNIEnv *env,
-                                                                                jobject object,
-                                                                                jlong native_ptr,
-                                                                                jobject listener)
-{
-    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
-
-    struct custom_texture_ctx *ctx = calloc(1, sizeof(*ctx));
-    if (!ctx)
-        return 0;
-
-    // We *must* *not* reference the CustomTexture node here. The memory of the custom_texture_ctx
-    // structure is handed to nope.gl and will have the same lifetime as the C node.
-    ctx->node = node;
-
-    // On the other hand, we *must* take a reference of the Java Callback object as it will be used
-    // during the lifetime of the C node.
-    ctx->object = (*env)->NewGlobalRef(env, listener);
-    if (!ctx->object)
-        goto fail;
-
-    jclass cls = (*env)->GetObjectClass(env, ctx->object);
-    ctx->init = (*env)->GetMethodID(env, cls, "init", "()V");
-    ctx->prepare = (*env)->GetMethodID(env, cls, "prepare", "()V");
-    ctx->prefetch = (*env)->GetMethodID(env, cls, "prefetch", "()V");
-    ctx->update = (*env)->GetMethodID(env, cls, "update", "(D)V");
-    ctx->draw = (*env)->GetMethodID(env, cls, "draw", "()V");
-    ctx->release = (*env)->GetMethodID(env, cls, "release", "()V");
-    ctx->uninit = (*env)->GetMethodID(env, cls, "uninit", "()V");
-
-    int ret = ngl_node_set_funcs(node, ctx, &custom_texture_funcs);
-    if (ret < 0)
-        goto fail;
-
-    return (jlong)(uintptr_t)ctx;
-
-fail:
-
-    (*env)->DeleteGlobalRef(env, ctx->object);
-    ctx->object = NULL;
-
-    free(ctx);
-
-    return 0;
-}
-
-
-JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLCustomTexture_00024Callback_nativeSetTextureInfo(JNIEnv *env,
-                                                                                                     jobject object,
-                                                                                                     jlong native_context_ptr,
-                                                                                                     jint texture,
-                                                                                                     jint target,
-                                                                                                     jint width,
-                                                                                                     jint height)
-{
-    struct custom_texture_ctx *ctx = (struct custom_texture_ctx *)(uintptr_t)native_context_ptr;
-
-    if (texture) {
-        struct ngl_custom_texture_info info = {
-                .backend = NGL_BACKEND_OPENGLES,
-                .backend_texture_info = &(struct ngl_custom_texture_info_gl) {
-                    .texture = texture,
-                    .target = target,
-                },
-                .width = width,
-                .height = height,
-        };
-        return ngl_custom_texture_set_texture_info(ctx->node, &info);
-    } else {
-        return ngl_custom_texture_set_texture_info(ctx->node, NULL);
-    }
-}
-
-struct logger_ctx {
-    jobject object;
-    jmethodID log;
-};
-
-__attribute__((__format__(__printf__, 6, 0)))
-static void logger_log(void *arg,
-                       enum ngl_log_level level,
-                       const char *filename,
-                       int ln,
-                       const char *fn,
-                       const char *fmt, va_list vl)
-{
-    static const int levels[] = {
-        [NGL_LOG_VERBOSE] = ANDROID_LOG_VERBOSE,
-        [NGL_LOG_DEBUG]   = ANDROID_LOG_DEBUG,
-        [NGL_LOG_INFO]    = ANDROID_LOG_INFO,
-        [NGL_LOG_WARNING] = ANDROID_LOG_WARN,
-        [NGL_LOG_ERROR]   = ANDROID_LOG_ERROR,
-    };
-    const int mapped            = level >= 0 && level < FF_ARRAY_ELEMS(levels);
-    const int android_log_level = mapped ? levels[level] : ANDROID_LOG_VERBOSE;
-
-    char buf[1024];
-    vsnprintf(buf, sizeof(buf), fmt, vl);
-
-    char msg[1024];
-    snprintf(msg, sizeof(msg), "%s:%d %s: %s", filename, ln, fn, buf);
-
-    struct logger_ctx *ctx = arg;
-    JNIEnv *env = ngl_jni_get_env();
-    jstring string = (*env)->NewStringUTF(env, msg);
-    (*env)->CallVoidMethod(env, ctx->object, ctx->log, android_log_level, string);
-    (*env)->DeleteLocalRef(env, string);
-
-}
-
-static struct {
-    int level;
-    int av_log_level;
-    int ngl_log_level;
-} logger_levels_map[] = {
-    {ANDROID_LOG_DEBUG, AV_LOG_DEBUG,   NGL_LOG_VERBOSE},
-    {ANDROID_LOG_DEBUG, AV_LOG_DEBUG,   NGL_LOG_DEBUG  },
-    {ANDROID_LOG_INFO,  AV_LOG_INFO,    NGL_LOG_INFO   },
-    {ANDROID_LOG_WARN,  AV_LOG_WARNING, NGL_LOG_WARNING},
-    {ANDROID_LOG_ERROR, AV_LOG_ERROR,   NGL_LOG_ERROR  },
-};
-
-static void logger_init(struct logger_ctx *ctx, int log_level)
-{
-    int av_log_level  = AV_LOG_INFO;
-    int ngl_log_level = NGL_LOG_INFO;
-    for (size_t i = 0; i < sizeof(logger_levels_map) / sizeof(*logger_levels_map); i++) {
-        if (logger_levels_map[i].level == log_level) {
-            av_log_level  = log_levels[i].av_log_level;
-            ngl_log_level = log_levels[i].ngl_log_level;
-            break;
-        }
-    }
-
-    av_log_set_level(av_log_level);
-    av_log_set_callback(av_android_log);
-
-    ngl_log_set_min_level(ngl_log_level);
-    ngl_log_set_callback(ctx, logger_log);
-}
-
-
-JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLLogger_nativeInit(JNIEnv *env,
-                                                                       jobject thiz,
-                                                                       jint level)
-{
-    struct logger_ctx *ctx = calloc(1, sizeof(*ctx));
-    if (!ctx)
-        return 0;
-    ctx->object = (*env)->NewGlobalRef(env, thiz);
-    if (!ctx->object) {
-        free(ctx);
-        return 0;
-    }
-    jclass cls = (*env)->GetObjectClass(env, ctx->object);
-    ctx->log = (*env)->GetMethodID(env, cls, "log", "(ILjava/lang/String;)V");
-    logger_init(ctx, level);
-    return (jlong)(uintptr_t)ctx;
-}
-
-JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLLogger_nativeRelease(JNIEnv *env,
-                                                                         jobject thiz,
-                                                                         jlong native_ptr)
-{
-    struct logger_ctx *ctx = (struct logger_ctx *)(uintptr_t)native_ptr;
-    if (!ctx)
-        return;
-    (*env)->DeleteGlobalRef(env, ctx->object);
-    free(ctx);
-}
-
-
-JNIEXPORT jlong JNICALL
-Java_org_nopeforge_nopegl_EGLHelper_nativeCreateEGLImage(JNIEnv *env,
-                                                         jobject thiz,
-                                                         jobject hardware_buffer)
-{
-    AHardwareBuffer *buffer = AHardwareBuffer_fromHardwareBuffer(env, hardware_buffer);
-    if (!buffer) {
-        return 0;
-    }
-
-    EGLClientBuffer egl_buffer = eglGetNativeClientBufferANDROID(buffer);
-    if (!egl_buffer) {
-        return 0;
-    }
-
-    static const EGLint attrs[] = {
-        EGL_IMAGE_PRESERVED_KHR,
-        EGL_TRUE,
-        EGL_NONE,
-    };
-
-    EGLImage egl_image = eglCreateImageKHR(
-        eglGetCurrentDisplay(),
-        EGL_NO_CONTEXT,
-        EGL_NATIVE_BUFFER_ANDROID,
-        egl_buffer,
-        attrs);
-    if (!egl_image) {
-        return 0;
-    }
-
-    return (jlong)(uintptr_t)egl_image;
-}
-
-JNIEXPORT void JNICALL
-Java_org_nopeforge_nopegl_EGLHelper_nativeUploadEGLImage(JNIEnv *env,
-                                                         jobject thiz,
-                                                         jlong egl_image,
-                                                         jint texture)
-{
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture);
-    glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, (EGLImageKHR)(uintptr_t)egl_image);
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
-}
-
-JNIEXPORT void JNICALL
-Java_org_nopeforge_nopegl_EGLHelper_nativeReleaseEGLImage(JNIEnv *env,
-                                                          jobject thiz,
-                                                          jlong image) {
-    EGLImageKHR egl_image = (EGLImageKHR)(uintptr_t)image;
-    eglDestroyImageKHR(eglGetCurrentDisplay(), egl_image);
 }
