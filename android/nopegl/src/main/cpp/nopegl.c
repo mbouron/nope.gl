@@ -85,7 +85,7 @@ static void ngl_android_log(void *arg,
         [NGL_LOG_WARNING] = ANDROID_LOG_WARN,
         [NGL_LOG_ERROR]   = ANDROID_LOG_ERROR,
     };
-    const int mapped            = level >= 0 && level < FF_ARRAY_ELEMS(levels);
+    const int mapped            = level < FF_ARRAY_ELEMS(levels);
     const int android_log_level = mapped ? levels[level] : ANDROID_LOG_VERBOSE;
     char buf[1024];
     vsnprintf(buf, sizeof(buf), fmt, vl);
@@ -181,7 +181,7 @@ const char *jni_type_str[] = {
 static const struct {
     const char *name;
     enum jni_type type;
-    int offset;
+    size_t offset;
 } config_fields[] = {
     {"backend",       JNI_TYPE_INT,         OFFSET(backend)        },
     {"window",        JNI_TYPE_PTR,         OFFSET(window)         },
@@ -302,7 +302,7 @@ Java_org_nopeforge_nopegl_NGLContext_nativeResize(JNIEnv *env, jclass type, jlon
 {
     struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
 
-    return ngl_resize(ctx, width, height);
+    return ngl_resize(ctx, (uint32_t)width, (uint32_t)height);
 }
 
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeDraw(JNIEnv *env,
@@ -538,7 +538,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddDoubles(JNIEnv
         return -1;
     }
 
-    int ret = ngl_node_param_add_f64s(node, key_str, count, f64s);
+    int ret = ngl_node_param_add_f64s(node, key_str, (size_t)count, f64s);
 
     (*env)->ReleaseDoubleArrayElements(env, values, f64s, JNI_ABORT);
     (*env)->ReleaseStringUTFChars(env, key, key_str);
@@ -622,7 +622,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddNodes(JNIEnv *
         return -1;
     }
 
-    struct ngl_node **nodes = calloc(count, sizeof(*nodes));
+    struct ngl_node **nodes = calloc((size_t)count, sizeof(*nodes));
     if (!nodes) {
         (*env)->ReleaseStringUTFChars(env, key, key_str);
         (*env)->ReleaseLongArrayElements(env, node_pointers, ptrs, JNI_ABORT);
@@ -632,7 +632,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddNodes(JNIEnv *
     for (jsize i = 0; i < count; i++)
         nodes[i] = (struct ngl_node *)(uintptr_t)ptrs[i];
 
-    int ret = ngl_node_param_add_nodes(node, key_str, count, nodes);
+    int ret = ngl_node_param_add_nodes(node, key_str, (size_t)count, nodes);
 
     free(nodes);
 
@@ -682,7 +682,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetString(JNIEnv 
 JNIEXPORT jint JNICALL
 Java_org_nopeforge_nopegl_NGLNode_nativeSetUInt(JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jint value)
 {
-    return set_u32(env, thiz, native_ptr, key, value);
+    return set_u32(env, thiz, native_ptr, key, (uint32_t)value);
 }
 
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetUVec2(JNIEnv *env,
@@ -817,7 +817,7 @@ JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeDot(JNIEnv *e
 
 JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeCreate(JNIEnv *env, jclass clazz, jint type)
 {
-    return (jlong)(uintptr_t)ngl_node_create(type);
+    return (jlong)(uintptr_t)ngl_node_create((uint32_t)type);
 }
 
 JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeCreateScene(JNIEnv *env,

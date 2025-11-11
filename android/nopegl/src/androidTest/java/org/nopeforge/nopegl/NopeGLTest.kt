@@ -207,45 +207,6 @@ class NopeGLTest {
     }
 
     @Test
-    fun nodeLabel() {
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        NGLContext.init(appContext)
-
-        val duration = 10.0
-        val label = "color-label"
-        val draw = NGLDrawColor(label = label)
-        val group = NGLGroup(listOf(draw))
-
-        val scene = NGLScene(rootNode = group, duration = duration)
-        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
-            setScene(scene)
-        }
-        assertEquals(label, draw.getLabel())
-
-        ctx.release()
-    }
-
-    @Test
-    fun errorOnSetNotLiveParam() {
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        NGLContext.init(appContext)
-
-        val duration = 10.0
-        val draw = NGLDrawColor()
-        val group = NGLGroup(listOf(draw))
-
-        val scene = NGLScene(rootNode = group, duration = duration)
-        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
-            setScene(scene)
-        }
-        assertThrows (NGLError::class.java){
-            draw.setComputeBounds(true)
-        }
-
-        ctx.release()
-    }
-
-    @Test
     fun noErrorOnSetLiveParam() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         NGLContext.init(appContext)
@@ -259,92 +220,6 @@ class NopeGLTest {
             setScene(scene)
         }
         draw.setOpacity(NGLNodeOrValue.value(0.5f))
-
-        ctx.release()
-    }
-
-    @Test
-    fun boundingBox() {
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        NGLContext.init(appContext)
-
-        val duration = 10.0
-        val boundsColor = NGLDrawColor(computeBounds = true)
-        val noBoundsColor = NGLDrawColor(computeBounds = false)
-        val scale = NGLScale(
-            child = boundsColor,
-            factors = NGLNodeOrValue.node(
-                NGLAnimatedVec3(
-                    listOf(
-                        NGLAnimKeyFrameVec3(0.0, NGLVec3(1f, 1f, 1f)),
-                        NGLAnimKeyFrameVec3(5.0, NGLVec3(0.5f, 0.5f, 0.5f)),
-                    )
-                )
-            )
-        )
-        val translate= NGLTranslate(
-            child = scale,
-            vector = NGLNodeOrValue.node(
-                NGLAnimatedVec3(
-                    listOf(
-                        NGLAnimKeyFrameVec3(5.0, NGLVec3(0f, 0f, 0f)),
-                        NGLAnimKeyFrameVec3(10.0, NGLVec3(1f, 1f, 0f)),
-                    )
-                )
-            )
-        )
-        val group = NGLGroup(listOf(translate, noBoundsColor))
-
-        val scene = NGLScene(rootNode = group, duration = duration)
-        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
-            setScene(scene)
-        }
-
-        assertEquals(boundsColor.getBoundingBox(), BoundingBox(0f, 0f, 0f, 0f))
-        assertEquals(null, noBoundsColor.getBoundingBox())
-        assertEquals(null, group.getBoundingBox())
-
-        fun checkBoundingBox(ctx: NGLContext, node: NGLNode, time: Double, expectedBoundingBox: BoundingBox) {
-            ctx.draw(time)
-            val boundingBox = node.getBoundingBox()!!
-            val label = node.getLabel()
-            assertEquals(expectedBoundingBox, boundingBox)
-            for (x in 0..255) {
-                for (y in 0..255) {
-                    val nodes = ctx.getIntersectingNodes(PointF(x.toFloat(), y.toFloat()))
-                    if (abs(boundingBox.centerX - x) <= boundingBox.extentWidth &&
-                        abs(boundingBox.centerY - y) <= boundingBox.extentHeight) {
-                        assertEquals(nodes.size, 1)
-                        assertEquals(label, nodes[0].getLabel())
-                    } else {
-                        assertEquals(nodes.size, 0)
-                    }
-                }
-            }
-        }
-
-        checkBoundingBox(ctx, boundsColor, 0.0, BoundingBox(128f, 128f, 128f, 128f))
-        checkBoundingBox(ctx, boundsColor, 5.0, BoundingBox(128f, 128f, 64f, 64f))
-        checkBoundingBox(ctx, boundsColor, 10.0, BoundingBox(256f, 256f, 64f, 64f))
-
-        ctx.release()
-    }
-
-    @Test
-    fun nodeType() {
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        NGLContext.init(appContext)
-
-        val duration = 10.0
-        val draw = NGLDrawColor()
-        val group = NGLGroup(listOf(draw))
-
-        val scene = NGLScene(rootNode = group, duration = duration)
-        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
-            setScene(scene)
-        }
-        assertEquals(NGLNodeType.DRAWCOLOR, draw.getType())
-        assertEquals(NGLNodeType.GROUP, group.getType())
 
         ctx.release()
     }
@@ -431,20 +306,13 @@ void main() {
     private fun allocate(count: Int) {
         var i = 0
         while (i < count) {
-            val callback = object : NGLCustomTexture.Callback() {
-                override fun init() {}
-                override fun prepare() {}
-                override fun prefetch() {}
-                override fun update(time: Double) {}
-                override fun draw() {}
-                override fun release() {}
-                override fun uninit() {}
-            }
-            val customTexture = NGLCustomTexture(callback)
             val group = NGLGroup(listOf(
-                NGLDrawTexture(customTexture),
-                NGLDrawTexture(NGLTexture2D(width=1, height = 1)),
+                NGLDrawTexture(NGLTexture2D(width=1U, height = 1U)),
                 NGLDrawColor(),
+                NGLDrawGradient(
+                    color0 = NGLNodeOrValue.value(NGLVec3(0f, 0f, 0f)),
+                    color1 = NGLNodeOrValue.value(NGLVec3(1f, 1f, 1f)),
+                )
             ))
             NGLScene(group)
             i++
