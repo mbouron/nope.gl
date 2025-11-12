@@ -66,7 +66,6 @@ import androidx.constraintlayout.compose.layoutId
 import org.nopeforge.nopegl.NGLScene
 import org.nopeforge.nopegl.R
 import org.nopeforge.nopegl.engine.EngineRenderer
-import org.nopeforge.nopegl.engine.seek
 import org.nopeforge.nopegl.engine.toFloat
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds

@@ -154,7 +154,8 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
     }
 
     for (size_t i = 0; i < NGLI_ARRAY_NB(shaders); i++)
-        gl->funcs.DeleteShader(shaders[i].id);
+        if (shaders[i].id != 0)
+            gl->funcs.DeleteShader(shaders[i].id);
 
     return 0;
 

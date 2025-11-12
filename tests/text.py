@@ -33,7 +33,13 @@ _LATIN_FONT = _FONT_DIR / "Quicksand-Medium.ttf"
 
 def _text(cfg: ngl.SceneCfg, **params):
     cfg.aspect_ratio = (1, 1)
-    return ngl.Text("This\nis\nnope.gl", font_scale=0.7, padding=8, **params)
+    return ngl.Text(
+        "This\nis\nnope.gl",
+        font_scale=0.7,
+        padding=8,
+        # font_faces=[ngl.FontFace(p.as_posix()) for p in [_LATIN_FONT, _ARABIC_FONT]],
+        **params
+    )
 
 
 @test_fingerprint(width=320, height=320, tolerance=1)
