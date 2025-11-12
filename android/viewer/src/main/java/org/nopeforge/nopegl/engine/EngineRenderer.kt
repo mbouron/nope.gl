@@ -1,6 +1,5 @@
 /*
  * Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
- * Copyright 2024 Satyan Jacquens <satyan@mojo.video>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -300,6 +299,7 @@ class EngineRenderer {
     }
 
     private fun onStep(step: Int) {
+        if (!isReady()) return
         onPause()
         clock.step(step)
     }
@@ -332,8 +332,8 @@ class EngineRenderer {
     }
 
     private fun onRelease(sync: CountDownLatch) {
-        updateState(State.Released)
         reset()
+        updateState(State.Released)
         sync.countDown()
     }
 
@@ -359,7 +359,7 @@ class EngineRenderer {
 
     private fun onDispose() {
         reset()
-        updateState(EngineRenderer.State.Disposed)
+        updateState(State.Disposed)
     }
 
     private fun updateState(newState: State) {
@@ -375,6 +375,8 @@ class EngineRenderer {
     inner class Handler(looper: Looper) : android.os.Handler(looper) {
 
         override fun handleMessage(msg: Message) {
+            if (state == State.Disposed) return
+
             when (msg.what) {
                 MSG_INIT -> {
                     val surface = msg.obj as? Surface
@@ -384,7 +386,6 @@ class EngineRenderer {
                         onInit(surface)
                     }
                 }
-
                 MSG_START -> onStart()
                 MSG_PAUSE -> onPause()
                 MSG_STOP -> onStop()
@@ -394,8 +395,8 @@ class EngineRenderer {
                 MSG_DRAW -> onDrawFrame(msg.obj as Duration)
                 MSG_RELEASE -> onRelease(msg.obj as CountDownLatch)
                 MSG_SEEK -> onSeek(msg.obj as Double)
-                MSG_DISPOSE -> onDispose()
                 MSG_REFRESH_DURATION -> onRefreshDuration()
+                MSG_DISPOSE -> onDispose()
             }
         }
     }
