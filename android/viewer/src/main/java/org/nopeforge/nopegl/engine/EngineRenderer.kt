@@ -338,7 +338,7 @@ class EngineRenderer {
     }
 
     private fun reset() {
-        clock.pause()
+        clock.stop()
         position = Duration.INFINITE
         engine?.resetScene()
         engine?.release()
@@ -355,6 +355,11 @@ class EngineRenderer {
 
     private fun onRefreshDuration() {
         clock.duration = scene?.duration?.seconds ?: Duration.ZERO
+    }
+
+    private fun onDispose() {
+        reset()
+        updateState(EngineRenderer.State.Disposed)
     }
 
     private fun updateState(newState: State) {
@@ -389,6 +394,7 @@ class EngineRenderer {
                 MSG_DRAW -> onDrawFrame(msg.obj as Duration)
                 MSG_RELEASE -> onRelease(msg.obj as CountDownLatch)
                 MSG_SEEK -> onSeek(msg.obj as Double)
+                MSG_DISPOSE -> onDispose()
                 MSG_REFRESH_DURATION -> onRefreshDuration()
             }
         }
