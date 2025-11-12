@@ -54,11 +54,8 @@ class EngineRenderer {
         }
     }
     private var scene: NGLScene? = null
-    private val handlerThread = HandlerThread("Engine")
-    private val handler: Handler = handlerThread.let { thread ->
-        thread.start()
-        Handler(thread.looper)
-    }
+    private val thread = HandlerThread("Engine").apply { start() }
+    private val handler: Handler = Handler(thread.looper)
 
     val time: Duration
         get() = clock.time
@@ -268,9 +265,7 @@ class EngineRenderer {
             Timber.d("Set scene (${mark.elapsedNow()})")
             require(result == 0) { "Failed to set scene" }
         }
-        val mark = TimeSource.Monotonic.markNow()
         onDrawFrame(time.toDouble(DurationUnit.SECONDS))
-        Timber.d("Draw frame (${mark.elapsedNow()})")
         val elapsed = timeMark.elapsedNow()
         Timber.d("Scene loaded ($elapsed)")
         if (playWhenReady) {

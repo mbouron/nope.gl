@@ -25,7 +25,7 @@ import pynopegl as ngl
 
 @ngl.scene(controls=dict(shape=ngl.scene.List(choices=["triangle", "square", "circle"])))
 def demo(cfg: ngl.SceneCfg, shape="square"):
-    cfg.aspect_ratio = (1, 1)
+    cfg.aspect_ratio = (9, 16)
     cfg.duration = 3
 
     if shape == "triangle":

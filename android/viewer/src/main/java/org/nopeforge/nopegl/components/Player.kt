@@ -21,16 +21,28 @@
 
 package org.nopeforge.nopegl.components
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -40,8 +52,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
@@ -60,8 +72,6 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-private val Shape = RoundedCornerShape(16.dp)
-
 private object Refs {
     const val ENGINE = "engine"
     const val CONTROLS = "controls"
@@ -72,18 +82,19 @@ private fun constraintSet(centerEngine: Boolean) = ConstraintSet {
     val controls = createRefFor(Refs.CONTROLS)
     constrain(engine) {
         linkTo(start = parent.start, end = parent.end)
-        linkTo(top = parent.top, bottom = parent.bottom, bias = if (centerEngine) 0.5f else 0f)
+        if (centerEngine) {
+            linkTo(top = parent.top, bottom = controls.top, bias = 0.5f)
+        } else {
+            top.linkTo(parent.top)
+        }
         width = Dimension.fillToConstraints
         height = Dimension.wrapContent
     }
     constrain(controls) {
         linkTo(start = parent.start, end = parent.end)
+        top.linkTo(engine.bottom)
+        bottom.linkTo(parent.bottom)
         width = Dimension.fillToConstraints
-        if (centerEngine) {
-            bottom.linkTo(parent.bottom)
-        } else {
-            bottom.linkTo(engine.bottom)
-        }
     }
 }
 
@@ -112,6 +123,7 @@ internal fun Player(
     var engineSize by remember { mutableStateOf(Size.Zero) }
     var centerEngine by remember { mutableStateOf(false) }
     val constraintSet = remember(centerEngine) { constraintSet(centerEngine) }
+
     ConstraintLayout(
         modifier = modifier,
         constraintSet = constraintSet,
@@ -126,13 +138,11 @@ internal fun Player(
                     val ratio = height / parentHeight.toFloat()
                     centerEngine = ratio < 0.9f
                 }
-                .padding(vertical = 6.dp, horizontal = 3.dp)
                 .onSizeChanged { engineSize = it.toSize() }
                 .aspectRatio(
                     ratio = scene.aspectRatio.toFloat(),
                     matchHeightConstraintsFirst = true
                 )
-                .clip(Shape)
         )
         val duration = remember(scene) { scene.duration.seconds.inWholeMilliseconds.toFloat() }
         PlaybackControls(
@@ -156,6 +166,14 @@ internal fun Player(
     }
 }
 
+private fun formatTime(milliseconds: Float): String {
+    val totalSeconds = (milliseconds / 1000).toInt()
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaybackControls(
     isPlaying: Boolean,
@@ -167,49 +185,121 @@ fun PlaybackControls(
     onProgressChangeFinished: () -> Unit = {},
     onStep: (step: Int) -> Unit = {},
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        IconToggleButton(
-            modifier = Modifier.size(48.dp),
-            checked = isPlaying,
-            onCheckedChange = onIsPlayingCheckedChanged,
-        ) {
-            val painter = if (isPlaying) {
-                painterResource(id = R.drawable.ic_pause)
-            } else {
-                painterResource(id = R.drawable.ic_play)
+            // Progress bar with time labels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = formatTime(progress),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.width(40.dp)
+                )
+                Slider(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp),
+                    value = progress,
+                    valueRange = progressRange,
+                    onValueChange = onProgressChange,
+                    onValueChangeFinished = onProgressChangeFinished,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+                    ),
+                    track = { sliderState ->
+                        SliderDefaults.Track(
+                            sliderState = sliderState,
+                            modifier = Modifier.height(3.dp),
+                            thumbTrackGapSize = 0.dp,
+                            trackInsideCornerSize = 0.dp,
+                            drawStopIndicator = null,
+                        )
+                    },
+                    thumb = {
+                        SliderDefaults.Thumb(
+                            interactionSource = remember { MutableInteractionSource() },
+                            modifier = Modifier.size(12.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                            )
+                        )
+                    }
+                )
+                Text(
+                    text = formatTime(progressRange.endInclusive),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.width(40.dp)
+                )
             }
-            Icon(
-                painter = painter,
-                contentDescription = null,
-            )
-        }
-        IconButton(
-            modifier = Modifier.size(48.dp),
-            onClick = { onStep(-1) }
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_prev),
-                contentDescription = null,
-            )
-        }
-        IconButton(
-            modifier = Modifier.size(48.dp),
-            onClick = { onStep(1) }
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_next),
-                contentDescription = null,
-            )
-        }
-        Slider(
-            modifier = Modifier.weight(1f),
-            value = progress,
-            valueRange = progressRange,
-            onValueChange = onProgressChange,
-            onValueChangeFinished = onProgressChangeFinished,
-        )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Playback control buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    modifier = Modifier.size(48.dp),
+                    onClick = { onStep(-1) }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_prev),
+                        contentDescription = "Previous frame",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    IconToggleButton(
+                        modifier = Modifier.size(56.dp),
+                        checked = isPlaying,
+                        onCheckedChange = onIsPlayingCheckedChanged,
+                    ) {
+                        val painter = if (isPlaying) {
+                            painterResource(id = R.drawable.ic_pause)
+                        } else {
+                            painterResource(id = R.drawable.ic_play)
+                        }
+                        Icon(
+                            painter = painter,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    modifier = Modifier.size(48.dp),
+                    onClick = { onStep(1) }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_next),
+                        contentDescription = "Next frame",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
     }
 }
