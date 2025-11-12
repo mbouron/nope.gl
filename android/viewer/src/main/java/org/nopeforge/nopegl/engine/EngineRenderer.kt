@@ -279,7 +279,7 @@ class EngineRenderer {
         onDrawFrame(time)
         val elapsed = timeMark.elapsedNow()
         playbackCallbacks.onEach { it.onSceneChanged(loadedScene, elapsed) }
-        updateState(EngineRenderer.State.Ready)
+        updateState(State.Ready)
         if (playWhenReady) {
             onStart()
         }
@@ -304,20 +304,20 @@ class EngineRenderer {
         clock.step(step)
     }
 
-    private fun onDrawFrame(newPosition: Duration) {
+    private fun onDrawFrame(position: Duration) {
         val engine = engine ?: return
-        engine.draw(newPosition.toDouble(DurationUnit.SECONDS))
-        if (newPosition != position) {
-            playbackCallbacks.onEach { it.onPositionChanged(newPosition) }
+        engine.draw(position.toDouble(DurationUnit.SECONDS))
+        if (position != this.position) {
+            playbackCallbacks.onEach { it.onPositionChanged(position) }
         }
-        position = newPosition
+        this.position = position
     }
 
-    private fun onSeek(time: Duration) {
+    private fun onSeek(position: Duration) {
         if (!isReady()) return
         val scene = scene ?: return
         val fps = scene.frameRate.toDouble()
-        clock.seek(nextFramePosition(time, fps))
+        clock.seek(nextFramePosition(position, fps))
     }
 
     private fun nextFramePosition(time: Duration, fps: Double): Duration {
