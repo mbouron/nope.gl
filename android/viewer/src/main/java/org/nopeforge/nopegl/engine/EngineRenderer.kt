@@ -394,7 +394,7 @@ class EngineRenderer {
                 MSG_RESIZE -> onResize(msg.arg1, msg.arg2)
                 MSG_DRAW -> onDrawFrame(msg.obj as Duration)
                 MSG_RELEASE -> onRelease(msg.obj as CountDownLatch)
-                MSG_SEEK -> onSeek(msg.obj as Double)
+                MSG_SEEK -> onSeek(msg.obj as Duration)
                 MSG_REFRESH_DURATION -> onRefreshDuration()
                 MSG_DISPOSE -> onDispose()
             }

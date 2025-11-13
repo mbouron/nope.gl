@@ -52,6 +52,8 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
 
+    private var scene: NGLScene? by mutableStateOf(null)
+
     private var receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -70,8 +72,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    private var scene: NGLScene? by mutableStateOf(null)
 
     override fun onResume() {
         super.onResume()
@@ -118,9 +118,6 @@ class MainActivity : ComponentActivity() {
                 var isPlaying by remember { mutableStateOf(true) }
                 val renderer = rememberEngineRenderer(
                     scene = scene,
-                    onSceneLoaded = {
-                        Timber.d("Scene loaded")
-                    },
                     playWhenReady = isPlaying,
                     onIsPlayingChanged = { isPlaying = it }
                 )
