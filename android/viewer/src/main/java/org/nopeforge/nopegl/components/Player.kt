@@ -21,19 +21,19 @@
 
 package org.nopeforge.nopegl.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,7 +42,6 @@ import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -53,23 +52,17 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toSize
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.ConstraintSet
 import androidx.constraintlayout.compose.Dimension
-import androidx.constraintlayout.compose.MotionScene
 import androidx.constraintlayout.compose.layoutId
 import org.nopeforge.nopegl.NGLScene
 import org.nopeforge.nopegl.R
 import org.nopeforge.nopegl.engine.EngineRenderer
-import org.nopeforge.nopegl.engine.toFloat
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -79,18 +72,14 @@ private object Refs {
     const val CONTROLS = "controls"
 }
 
-private fun constraintSet(centerEngine: Boolean) = ConstraintSet {
+private fun constraintSet() = ConstraintSet {
     val engine = createRefFor(Refs.ENGINE)
     val controls = createRefFor(Refs.CONTROLS)
     constrain(engine) {
         linkTo(start = parent.start, end = parent.end)
-        if (centerEngine) {
-            linkTo(top = parent.top, bottom = controls.top, bias = 0.5f)
-        } else {
-            top.linkTo(parent.top)
-        }
+        top.linkTo(parent.top)
         width = Dimension.fillToConstraints
-        height = Dimension.wrapContent
+        height = Dimension.percent(0.7f)
     }
     constrain(controls) {
         linkTo(start = parent.start, end = parent.end)
@@ -122,29 +111,17 @@ internal fun Player(
             renderer.removePlaybackCallback(callback)
         }
     }
-    var engineSize by remember { mutableStateOf(Size.Zero) }
-    var centerEngine by remember { mutableStateOf(false) }
-    val constraintSet = remember(centerEngine) { constraintSet(centerEngine) }
+    val constraintSet = remember { constraintSet() }
 
     ConstraintLayout(
-        modifier = modifier,
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.background),
         constraintSet = constraintSet,
     ) {
         Engine(
             renderer = renderer,
             modifier = Modifier
                 .layoutId(Refs.ENGINE)
-                .onGloballyPositioned { coordinates ->
-                    val height = coordinates.size.height
-                    val parentHeight = coordinates.parentLayoutCoordinates?.size?.height ?: height
-                    val ratio = height / parentHeight.toFloat()
-                    centerEngine = ratio < 0.9f
-                }
-                .onSizeChanged { engineSize = it.toSize() }
-                .aspectRatio(
-                    ratio = scene.aspectRatio.toFloat(),
-                    matchHeightConstraintsFirst = true
-                )
         )
         val duration = remember(scene) { scene.duration.seconds.inWholeMilliseconds.toFloat() }
         PlaybackControls(
@@ -164,6 +141,7 @@ internal fun Player(
             },
             onProgressChangeFinished = { isSeeking = false },
             onStep = { step -> renderer.step(step) },
+            onStop = { renderer.stop() },
         )
     }
 }
@@ -172,7 +150,7 @@ private fun formatTime(milliseconds: Float): String {
     val totalSeconds = (milliseconds / 1000).toInt()
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
+    return "%d:%02d:%03d".format(minutes, seconds, (milliseconds % 1000).toInt())
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -186,11 +164,12 @@ fun PlaybackControls(
     modifier: Modifier = Modifier,
     onProgressChangeFinished: () -> Unit = {},
     onStep: (step: Int) -> Unit = {},
+    onStop: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .background(MaterialTheme.colorScheme.background)
     ) {
             // Progress bar with time labels
             Row(
@@ -200,21 +179,21 @@ fun PlaybackControls(
                 Text(
                     text = formatTime(progress),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.width(40.dp)
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.width(60.dp)
                 )
                 Slider(
                     modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp),
+                        .weight(1f),
                     value = progress,
                     valueRange = progressRange,
                     onValueChange = onProgressChange,
                     onValueChangeFinished = onProgressChangeFinished,
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                     ),
                     track = { sliderState ->
                         SliderDefaults.Track(
@@ -228,18 +207,23 @@ fun PlaybackControls(
                     thumb = {
                         SliderDefaults.Thumb(
                             interactionSource = remember { MutableInteractionSource() },
-                            modifier = Modifier.size(12.dp),
+                            modifier = Modifier
+                                .padding(0.dp)
+                                .size(16.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape),
                             colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                            )
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                            ),
+                            thumbSize = DpSize(2.dp, 2.dp),
                         )
                     }
                 )
                 Text(
                     text = formatTime(progressRange.endInclusive),
+                    modifier = Modifier.width(60.dp),
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.width(40.dp)
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
 
@@ -258,35 +242,29 @@ fun PlaybackControls(
                     Icon(
                         painter = painterResource(id = R.drawable.ic_prev),
                         contentDescription = "Previous frame",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(28.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(56.dp)
+                IconToggleButton(
+                    modifier = Modifier.size(48.dp),
+                    checked = isPlaying,
+                    onCheckedChange = onIsPlayingCheckedChanged,
                 ) {
-                    IconToggleButton(
-                        modifier = Modifier.size(56.dp),
-                        checked = isPlaying,
-                        onCheckedChange = onIsPlayingCheckedChanged,
-                    ) {
-                        val painter = if (isPlaying) {
-                            painterResource(id = R.drawable.ic_pause)
-                        } else {
-                            painterResource(id = R.drawable.ic_play)
-                        }
-                        Icon(
-                            painter = painter,
-                            contentDescription = if (isPlaying) "Pause" else "Play",
-                            tint = Color.White,
-                            modifier = Modifier.size(32.dp)
-                        )
+                    val painter = if (isPlaying) {
+                        painterResource(id = R.drawable.ic_pause)
+                    } else {
+                        painterResource(id = R.drawable.ic_play)
                     }
+                    Icon(
+                        painter = painter,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(28.dp)
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -298,7 +276,21 @@ fun PlaybackControls(
                     Icon(
                         painter = painterResource(id = R.drawable.ic_next),
                         contentDescription = "Next frame",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    modifier = Modifier.size(48.dp),
+                    onClick = onStop
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_stop),
+                        contentDescription = "Stop",
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -310,6 +302,15 @@ fun PlaybackControls(
 @Preview
 @Composable
 private fun PlayerPreview() {
-    Box(modifier = Modifier.size(320.dp, 240.dp)) {
-    }
+    PlaybackControls(
+        isPlaying = true,
+        onIsPlayingCheckedChanged = {},
+        progress = 100f,
+        progressRange = 0f..100f,
+        onProgressChange = {},
+        onProgressChangeFinished = {},
+        onStep = {},
+        onStop = {},
+        modifier = Modifier.fillMaxWidth()
+    )
 }

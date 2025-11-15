@@ -36,7 +36,6 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,10 +44,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import defaultScene
 import org.nopeforge.nopegl.components.Player
 import org.nopeforge.nopegl.components.rememberEngineRenderer
+import org.nopeforge.nopegl.ui.theme.NopeGLTheme
 import timber.log.Timber
 import java.io.File
+import androidx.core.net.toUri
 
 class MainActivity : ComponentActivity() {
 
@@ -90,7 +92,7 @@ class MainActivity : ComponentActivity() {
     private fun requestPermission(): Boolean {
         if (!Environment.isExternalStorageManager()) {
             Timber.e("Could not update scene: missing permission")
-            val uri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")
+            val uri = "package:${BuildConfig.APPLICATION_ID}".toUri()
             startActivity(
                 Intent(
                     Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
@@ -113,30 +115,22 @@ class MainActivity : ComponentActivity() {
 
         Timber.plant(Timber.DebugTree())
         setContent {
-            MaterialTheme {
-
+            NopeGLTheme {
+                val defaultScene = defaultScene()
                 var isPlaying by remember { mutableStateOf(true) }
                 val renderer = rememberEngineRenderer(
-                    scene = scene,
+                    scene = scene ?: defaultScene,
                     playWhenReady = isPlaying,
                     onIsPlayingChanged = { isPlaying = it }
                 )
-                scene?.let { scene ->
-                    Player(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(vertical = 16.dp),
-                        scene = scene,
-                        renderer = renderer,
-                        isPlaying = isPlaying,
-                        onIsPlayingCheckedChanged = { isPlaying = it }
-                    )
-                } ?: Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No scene loaded", style = MaterialTheme.typography.titleMedium)
-                }
+                Player(
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    scene = scene ?: defaultScene,
+                    renderer = renderer,
+                    isPlaying = isPlaying,
+                    onIsPlayingCheckedChanged = { isPlaying = it }
+                )
             }
         }
     }
