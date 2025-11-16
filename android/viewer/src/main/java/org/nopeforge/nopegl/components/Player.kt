@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Satyan Jacquens <satyan@mojo.video>
+ * Copyright 2025 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -24,7 +24,6 @@ package org.nopeforge.nopegl.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -79,13 +78,13 @@ private fun constraintSet() = ConstraintSet {
         linkTo(start = parent.start, end = parent.end)
         top.linkTo(parent.top)
         width = Dimension.fillToConstraints
-        height = Dimension.percent(0.7f)
+        height = Dimension.percent(0.8f)
     }
     constrain(controls) {
         linkTo(start = parent.start, end = parent.end)
         top.linkTo(engine.bottom)
-        bottom.linkTo(parent.bottom)
         width = Dimension.fillToConstraints
+        height = Dimension.wrapContent
     }
 }
 
@@ -146,11 +145,12 @@ internal fun Player(
     }
 }
 
-private fun formatTime(milliseconds: Float): String {
-    val totalSeconds = (milliseconds / 1000).toInt()
-    val minutes = totalSeconds / 60
+private fun formatTime(timeInMs: Float): String {
+    val totalSeconds = (timeInMs / 1000).toInt()
+    val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
-    return "%d:%02d:%03d".format(minutes, seconds, (milliseconds % 1000).toInt())
+    val millis = (timeInMs % 1000).toInt()
+    return "%d:%02d.%03d".format(minutes, seconds, millis)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -171,7 +171,6 @@ fun PlaybackControls(
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
     ) {
-            // Progress bar with time labels
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -227,16 +226,13 @@ fun PlaybackControls(
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Playback control buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(36.dp),
                     onClick = { onStep(-1) }
                 ) {
                     Icon(
@@ -250,7 +246,7 @@ fun PlaybackControls(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 IconToggleButton(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(36.dp),
                     checked = isPlaying,
                     onCheckedChange = onIsPlayingCheckedChanged,
                 ) {
@@ -270,7 +266,7 @@ fun PlaybackControls(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 IconButton(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(36.dp),
                     onClick = { onStep(1) }
                 ) {
                     Icon(
@@ -284,7 +280,7 @@ fun PlaybackControls(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 IconButton(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(36.dp),
                     onClick = onStop
                 ) {
                     Icon(
@@ -305,8 +301,8 @@ private fun PlayerPreview() {
     PlaybackControls(
         isPlaying = true,
         onIsPlayingCheckedChanged = {},
-        progress = 100f,
-        progressRange = 0f..100f,
+        progress = 15000f,
+        progressRange = 0f..30000f,
         onProgressChange = {},
         onProgressChangeFinished = {},
         onStep = {},
