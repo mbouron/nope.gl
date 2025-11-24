@@ -144,10 +144,6 @@ cdef extern from "nopegl/nopegl.h":
 
     cdef struct ngl_ctx
 
-    cdef struct ngl_config_gl:
-        int external
-        uint32_t external_framebuffer
-
     cdef struct ngl_config:
         ngl_platform_type platform
         ngl_backend_type backend
@@ -208,6 +204,11 @@ cdef extern from "nopegl/nopegl.h":
                             const double *offsets, double t, double *v)
     int ngl_easing_solve(const char *name, const double *args, size_t nb_args,
                          const double *offsets, double v, double *t)
+
+cdef extern from "nopegl/nopegl_opengl.h":
+    cdef struct ngl_config_gl:
+        int external
+        uint32_t external_framebuffer
 
     int ngl_gl_wrap_framebuffer(ngl_ctx *s, uint32_t framebuffer)
 

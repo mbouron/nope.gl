@@ -44,6 +44,8 @@
 #include "ngpu/ctx.h"
 #include "ngpu/graphics_state.h"
 #include "nopegl.h"
+#include "nopegl_android.h"
+#include "nopegl_opengl.h"
 #include "rnode.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"

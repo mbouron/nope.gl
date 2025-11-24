@@ -28,6 +28,10 @@
 #include "utils/memory.h"
 #include "utils/string.h"
 
+#if defined(BACKEND_GL) || defined(BACKEND_GLES)
+#include "nopegl_opengl.h"
+#endif
+
 int ngli_config_set_debug_defaults(struct ngl_config *config)
 {
     switch (config->backend) {
@@ -55,6 +59,7 @@ int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src)
     }
 
     if (src->backend_config) {
+#if defined(BACKEND_GL) || defined(BACKEND_GLES)
         if (src->backend == NGL_BACKEND_OPENGL ||
             src->backend == NGL_BACKEND_OPENGLES) {
             const size_t size = sizeof(struct ngl_config_gl);
@@ -63,14 +68,17 @@ int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src)
                 ngli_freep(&tmp.hud_export_filename);
                 return NGL_ERROR_MEMORY;
             }
-        } else {
-            ngli_freep(&tmp.hud_export_filename);
-            LOG(ERROR, "backend_config %p is not supported by backend %u",
-                src->backend_config, src->backend);
-            return NGL_ERROR_UNSUPPORTED;
+            goto done;
         }
+#endif
+
+        ngli_freep(&tmp.hud_export_filename);
+        LOG(ERROR, "backend_config %p is not supported by backend %u",
+            src->backend_config, src->backend);
+        return NGL_ERROR_UNSUPPORTED;
     }
 
+done:
     *dst = tmp;
 
     return 0;

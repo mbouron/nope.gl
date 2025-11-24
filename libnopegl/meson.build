@@ -792,7 +792,11 @@ lib_header = configure_file(
   output: 'nopegl.h',
   configuration: conf_data
 )
-install_headers(lib_header, subdir: 'nopegl')
+install_headers(
+  lib_header,
+  'src/nopegl_opengl.h',
+  subdir: 'nopegl'
+)
 
 pkg = import('pkgconfig')
 pkg_extra_cflags = []
