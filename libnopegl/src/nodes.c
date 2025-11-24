@@ -530,7 +530,7 @@ int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
     return param_add(node, key, nb_f64s, f64s);
 }
 
-static int node_invalidate_branch(struct ngl_node *node)
+int ngli_node_invalidate_branch(struct ngl_node *node)
 {
     node->visit_time = -1.;
     node->last_update_time = -1;
@@ -541,7 +541,7 @@ static int node_invalidate_branch(struct ngl_node *node)
     }
     struct ngl_node **parents = ngli_darray_data(&node->parents);
     for (size_t i = 0; i < ngli_darray_count(&node->parents); i++) {
-        int ret = node_invalidate_branch(parents[i]);
+        int ret = ngli_node_invalidate_branch(parents[i]);
         if (ret < 0)
             return ret;
     }
@@ -584,7 +584,7 @@ static int node_param_update(struct ngl_node *node, const struct node_param *par
             return ret;
     }
 
-    return node_invalidate_branch(node);
+    return ngli_node_invalidate_branch(node);
 }
 
 #define FORWARD_TO_PARAM(type, ...)                                     \
