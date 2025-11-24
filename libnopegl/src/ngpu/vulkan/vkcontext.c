@@ -43,7 +43,7 @@
 #include "ngpu/format.h"
 #include "ngpu/vulkan/vkcontext.h"
 #include "ngpu/vulkan/vkutils.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"

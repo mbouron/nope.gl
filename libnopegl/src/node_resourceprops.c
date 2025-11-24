@@ -25,7 +25,7 @@
 #include "log.h"
 #include "ngpu/ctx.h"
 #include "node_resourceprops.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "precision.h"
 
 #define OFFSET(x) offsetof(struct resourceprops_opts, x)

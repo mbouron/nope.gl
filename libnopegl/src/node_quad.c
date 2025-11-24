@@ -27,7 +27,7 @@
 #include "internal.h"
 #include "math_utils.h"
 #include "ngpu/ctx.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/utils.h"
 
 struct quad_opts {

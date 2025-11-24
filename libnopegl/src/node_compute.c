@@ -29,7 +29,7 @@
 #include "ngpu/ctx.h"
 #include "ngpu/limits.h"
 #include "node_program.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "pass.h"
 #include "utils/hmap.h"
 #include "utils/utils.h"

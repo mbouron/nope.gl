@@ -28,7 +28,7 @@
 
 #include "config.h"
 #include "ngpu/format.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 #define VK_FUNC(name) PFN_vk##name
 #define VK_DECLARE_FUNC(name) VK_FUNC(name) name

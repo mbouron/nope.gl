@@ -31,7 +31,7 @@
 
 #include "config.h"
 
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 #ifdef __GNUC__
 # ifdef TARGET_MINGW_W64

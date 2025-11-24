@@ -43,7 +43,7 @@
 #include "hud.h"
 #include "ngpu/ctx.h"
 #include "ngpu/rendertarget.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "params.h"
 #include "rnode.h"
 #include "utils/darray.h"

@@ -25,7 +25,8 @@
 
 #include "jni_utils.h"
 #include "log.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
+#include "nopegl/nopegl_android.h"
 #include "utils/bstr.h"
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"

@@ -30,7 +30,7 @@
 #include "node_block.h"
 #include "node_buffer.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/memory.h"
 
 static const struct param_choices layout_choices = {

@@ -23,7 +23,7 @@
 #include <string.h>
 
 #include "internal.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/bstr.h"
 #include "utils/hmap.h"
 #include "utils/memory.h"

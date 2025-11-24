@@ -37,7 +37,7 @@
 #include "ngpu/opengl/egl.h"
 #include "ngpu/opengl/glincludes.h"
 #include "ngpu/opengl/texture_gl.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/utils.h"
 
 #ifndef DRM_FORMAT_MOD_INVALID

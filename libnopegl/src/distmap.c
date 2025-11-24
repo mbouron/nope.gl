@@ -37,7 +37,7 @@
 #include "ngpu/rendertarget.h"
 #include "ngpu/texture.h"
 #include "ngpu/type.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline_compat.h"
 #include "ngpu/pgcraft.h"

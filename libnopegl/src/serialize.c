@@ -24,7 +24,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"

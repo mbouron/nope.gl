@@ -33,7 +33,7 @@
 #include "ngpu/type.h"
 #include "node_block.h"
 #include "node_buffer.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/memory.h"
 #include "utils/file.h"
 #include "utils/utils.h"

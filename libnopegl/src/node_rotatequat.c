@@ -27,7 +27,7 @@
 #include "math_utils.h"
 #include "node_transform.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "transforms.h"
 
 struct rotatequat_opts {

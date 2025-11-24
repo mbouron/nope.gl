@@ -32,7 +32,7 @@
 #include "node_animkeyframe.h"
 #include "node_uniform.h"
 #include "node_velocity.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "path.h"
 
 #define OFFSET(x) offsetof(struct variable_opts, x)

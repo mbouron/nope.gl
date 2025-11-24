@@ -24,7 +24,7 @@
 #include "ngpu/buffer.h"
 #include "ngpu/format.h"
 #include "ngpu/type.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 

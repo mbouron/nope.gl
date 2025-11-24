@@ -25,6 +25,7 @@
 #include "android_utils.h"
 #include "jni_utils.h"
 #include "log.h"
+#include "nopegl/nopegl_android.h"
 
 jclass ngli_android_find_application_class(JNIEnv *env, const char *name)
 {

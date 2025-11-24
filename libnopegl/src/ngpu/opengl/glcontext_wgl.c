@@ -30,7 +30,7 @@
 
 #include "config.h"
 #include "glcontext.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "log.h"
 
 #define WGL_COLORSPACE_EXT 0x309D

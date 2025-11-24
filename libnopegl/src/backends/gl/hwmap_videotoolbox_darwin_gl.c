@@ -37,7 +37,7 @@
 #include "ngpu/opengl/ctx_gl.h"
 #include "ngpu/opengl/glincludes.h"
 #include "ngpu/opengl/texture_gl.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 struct format_desc {
     enum image_layout layout;

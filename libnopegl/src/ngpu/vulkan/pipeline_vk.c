@@ -28,7 +28,7 @@
 #include "ctx_vk.h"
 #include "format_vk.h"
 #include "log.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "pipeline_vk.h"
 #include "program_vk.h"
 #include "rendertarget_vk.h"

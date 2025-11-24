@@ -28,7 +28,7 @@
 
 #include "hwconv.h"
 #include "image.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 #define HWMAP_FLAG_FRAME_OWNER (1U << 0)
 

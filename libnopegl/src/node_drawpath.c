@@ -31,7 +31,7 @@
 #include "ngpu/texture.h"
 #include "ngpu/type.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline_compat.h"
 #include "ngpu/pgcraft.h"

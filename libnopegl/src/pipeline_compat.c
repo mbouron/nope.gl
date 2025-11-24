@@ -26,7 +26,7 @@
 #include "ngpu/bindgroup.h"
 #include "ngpu/ctx.h"
 #include "ngpu/limits.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
 #include "utils/darray.h"
 #include "utils/memory.h"

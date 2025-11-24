@@ -35,7 +35,7 @@
 #include "node_animkeyframe.h"
 #include "node_media.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/memory.h"
 
 #if defined(TARGET_ANDROID)

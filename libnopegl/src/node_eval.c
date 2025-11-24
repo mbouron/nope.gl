@@ -28,7 +28,7 @@
 #include "log.h"
 #include "ngpu/type.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/hmap.h"
 
 struct eval_opts {

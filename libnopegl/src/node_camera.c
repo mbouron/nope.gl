@@ -28,7 +28,7 @@
 #include "math_utils.h"
 #include "ngpu/ctx.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "transforms.h"
 
 struct camera_opts {

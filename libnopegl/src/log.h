@@ -22,7 +22,7 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/utils.h"
 
 #ifndef __PRETTY_FUNCTION__

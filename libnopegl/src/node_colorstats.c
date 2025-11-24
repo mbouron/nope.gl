@@ -27,7 +27,7 @@
 #include "ngpu/limits.h"
 #include "node_block.h"
 #include "node_texture.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
 #include "ngpu/block_desc.h"
 #include "ngpu/type.h"

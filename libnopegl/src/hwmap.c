@@ -30,7 +30,7 @@
 #include "log.h"
 #include "ngpu/ctx.h"
 #include "ngpu/format.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/memory.h"
 
 extern const struct hwmap_class ngli_hwmap_common_class;

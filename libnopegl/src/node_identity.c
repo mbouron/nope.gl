@@ -25,7 +25,7 @@
 #include "internal.h"
 #include "math_utils.h"
 #include "node_transform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 struct identity_priv {
     struct transform trf;

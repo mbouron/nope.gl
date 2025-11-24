@@ -22,7 +22,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "internal.h"
 
 struct group_opts {

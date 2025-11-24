@@ -29,7 +29,7 @@
 #include "glslang_utils.h"
 #include "log.h"
 #include "ngpu/program.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"
 

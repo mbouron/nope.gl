@@ -152,7 +152,7 @@ add_project_arguments(project_args, language: 'c')
 # See https://github.com/mesonbuild/meson/issues/7940
 add_project_arguments(project_args, language: 'c', native: true)
 
-inc_dir = include_directories('src')
+inc_dir = include_directories('src', 'src/include')
 
 #
 # Library main configuration
@@ -295,6 +295,7 @@ hosts_cfg = {
   'android': {
     'libs': ['android'],
     'src': files(
+      'src/api_android.c',
       'src/jni_utils.c',
       'src/android_ctx.c',
       'src/android_utils.c',
@@ -787,12 +788,7 @@ libnopegl = library(
   gnu_symbol_visibility: 'hidden',
   include_directories: inc_dir,
 )
-lib_header = configure_file(
-  input: files('src/nopegl.h.in'),
-  output: 'nopegl.h',
-  configuration: conf_data
-)
-install_headers(lib_header, subdir: 'nopegl')
+subdir('src/include/nopegl')
 
 pkg = import('pkgconfig')
 pkg_extra_cflags = []

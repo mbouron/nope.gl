@@ -43,7 +43,7 @@
 #include "node_resourceprops.h"
 #include "node_texture.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "pass.h"
 #include "pipeline_compat.h"
 #include "ngpu/pgcraft.h"

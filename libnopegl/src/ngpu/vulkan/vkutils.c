@@ -20,7 +20,7 @@
  */
 
 #include "vkutils.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/utils.h"
 
 const char *ngli_vk_res2str(VkResult res)

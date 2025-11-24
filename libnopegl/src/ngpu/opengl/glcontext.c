@@ -29,7 +29,7 @@
 #include "glincludes.h"
 #include "log.h"
 #include "ngpu/limits.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/bstr.h"
 #include "utils/memory.h"
 #include "utils/utils.h"

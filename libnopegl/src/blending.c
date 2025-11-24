@@ -19,7 +19,7 @@
  * under the License.
  */
 
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "blending.h"
 #include "params.h"
 

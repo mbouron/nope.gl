@@ -23,7 +23,7 @@
 #ifndef NGL_CONFIG_H
 #define NGL_CONFIG_H
 
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 int ngli_config_set_debug_defaults(struct ngl_config *config);
 int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src);
