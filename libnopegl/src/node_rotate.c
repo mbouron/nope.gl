@@ -20,6 +20,7 @@
  * under the License.
  */
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -92,13 +93,13 @@ static int update_anchor(struct ngl_node *node)
 static int rotate_update(struct ngl_node *node, double t)
 {
     const struct rotate_opts *o = node->opts;
-    int update_trf = 0;
+    bool update_trf = false;
     if (o->angle_node) {
-        update_trf = 1;
+        update_trf = true;
         ngli_node_update(o->angle_node, t);
     }
     if (o->anchor_node) {
-        update_trf = 1;
+        update_trf = true;
         ngli_node_update(o->anchor_node, t);
     }
     if (update_trf) {
