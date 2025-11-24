@@ -69,6 +69,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_config.{width,height,samples}` and `ngl_resize()` arguments are now unsigned
 - Platform-specific APIs have been moved to dedicated headers:
   `nopegl/nopegl_android.h`, `nopegl/nopegl_opengl.h`
+- Android-specific APIs are now only available on Android
 
 ### Removed
 - `Text.aspect_ratio` and `DrawPath.aspect_ratio`, they now match the scene

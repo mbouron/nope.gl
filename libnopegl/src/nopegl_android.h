@@ -22,6 +22,9 @@
 #ifndef NOPEGL_ANDROID_H
 #define NOPEGL_ANDROID_H
 
+#include <jni.h>
+#include <nopegl/nopegl.h>
+
 /**
  * Set a Java virtual machine that will be used to retrieve the JNI
  * environment.
@@ -30,7 +33,7 @@
  *
  * @return 0 on success, NGL_ERROR_* (< 0) on error
  */
-NGL_API int ngl_jni_set_java_vm(void *vm);
+NGL_API int ngl_jni_set_java_vm(JavaVM *vm);
 
 /**
  * Get the Java virtual machine pointer that has been set with
@@ -38,7 +41,7 @@ NGL_API int ngl_jni_set_java_vm(void *vm);
  *
  * @return a pointer to the Java virtual machine or NULL if none has been set
  */
-NGL_API void *ngl_jni_get_java_vm(void);
+NGL_API JavaVM *ngl_jni_get_java_vm(void);
 
 /**
  * Set the Android application context.
@@ -46,7 +49,7 @@ NGL_API void *ngl_jni_get_java_vm(void);
  * @param application_context   JNI global reference of the Android application
  *                              context
  */
-NGL_API int ngl_android_set_application_context(void *application_context);
+NGL_API int ngl_android_set_application_context(jobject *application_context);
 
 /**
  * Get the Android application context that has been set with
@@ -55,6 +58,6 @@ NGL_API int ngl_android_set_application_context(void *application_context);
  * @return a pointer to the JNI global reference of the Android application
  *         context or NULL if none has been set
  */
-NGL_API void *ngl_android_get_application_context(void);
+NGL_API jobject *ngl_android_get_application_context(void);
 
 #endif

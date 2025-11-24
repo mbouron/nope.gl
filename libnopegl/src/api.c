@@ -31,12 +31,6 @@
 #include "utils/thread.h"
 #include "utils/time.h"
 
-#if defined(TARGET_ANDROID)
-#include <jni.h>
-
-#include "jni_utils.h"
-#endif
-
 #include "distmap.h"
 #include "internal.h"
 #include "log.h"
@@ -44,7 +38,6 @@
 #include "ngpu/ctx.h"
 #include "ngpu/graphics_state.h"
 #include "nopegl.h"
-#include "nopegl_android.h"
 #include "nopegl_opengl.h"
 #include "rnode.h"
 #include "utils/darray.h"
@@ -897,92 +890,3 @@ void ngl_freep(struct ngl_ctx **ss)
     ngli_darray_reset(&s->activitycheck_nodes);
     ngli_freep(ss);
 }
-
-#if defined(TARGET_ANDROID)
-static void *java_vm;
-static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-
-int ngl_jni_set_java_vm(void *vm)
-{
-    int ret = 0;
-
-    pthread_mutex_lock(&lock);
-    if (java_vm == NULL) {
-        java_vm = vm;
-    } else if (java_vm != vm) {
-        ret = -1;
-        LOG(ERROR, "a Java virtual machine has already been set");
-    }
-    pthread_mutex_unlock(&lock);
-
-    return ret;
-}
-
-void *ngl_jni_get_java_vm(void)
-{
-    void *vm;
-
-    pthread_mutex_lock(&lock);
-    vm = java_vm;
-    pthread_mutex_unlock(&lock);
-
-    return vm;
-}
-
-static void *android_application_context;
-
-int ngl_android_set_application_context(void *application_context)
-{
-    JNIEnv *env;
-
-    env = ngli_jni_get_env();
-    if (!env)
-        return NGL_ERROR_EXTERNAL;
-
-    pthread_mutex_lock(&lock);
-
-    if (android_application_context) {
-        (*env)->DeleteGlobalRef(env, android_application_context);
-        android_application_context = NULL;
-    }
-
-    if (application_context)
-        android_application_context = (*env)->NewGlobalRef(env, application_context);
-
-    pthread_mutex_unlock(&lock);
-
-    return 0;
-}
-
-void *ngl_android_get_application_context(void)
-{
-    void *context;
-
-    pthread_mutex_lock(&lock);
-    context = android_application_context;
-    pthread_mutex_unlock(&lock);
-
-    return context;
-}
-
-#else
-int ngl_jni_set_java_vm(void *vm)
-{
-    return NGL_ERROR_UNSUPPORTED;
-}
-
-void *ngl_jni_get_java_vm(void)
-{
-    return NULL;
-}
-
-int ngl_android_set_application_context(void *application_context)
-{
-    return NGL_ERROR_UNSUPPORTED;
-}
-
-void *ngl_android_get_application_context(void)
-{
-    return NULL;
-}
-#endif

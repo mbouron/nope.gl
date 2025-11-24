@@ -295,6 +295,7 @@ hosts_cfg = {
   'android': {
     'libs': ['android'],
     'src': files(
+      'src/api_android.c',
       'src/jni_utils.c',
       'src/android_ctx.c',
       'src/android_utils.c',
