@@ -24,7 +24,7 @@
 #include "internal.h"
 #include "node_io.h"
 #include "node_program.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "ngpu/pgcraft.h"
 #include "utils/darray.h"
 

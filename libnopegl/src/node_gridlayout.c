@@ -27,7 +27,7 @@
 #include "internal.h"
 #include "log.h"
 #include "node_transform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/darray.h"
 #include "transforms.h"
 #include "utils/utils.h"

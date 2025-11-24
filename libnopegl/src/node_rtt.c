@@ -36,7 +36,7 @@
 #include "node_rtt.h"
 #include "node_texture.h"
 #include "node_textureview.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "rtt.h"
 #include "utils/utils.h"
 

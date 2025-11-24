@@ -44,7 +44,7 @@
 #include "glcontext.h"
 #include "log.h"
 #include "ngpu/format.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/utils.h"
 
 #define EGL_PLATFORM_DEVICE_EXT 0x313F

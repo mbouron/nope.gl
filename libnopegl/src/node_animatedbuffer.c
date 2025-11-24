@@ -30,7 +30,7 @@
 #include "ngpu/type.h"
 #include "node_animkeyframe.h"
 #include "node_buffer.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/memory.h"
 
 struct animatedbuffer_opts {

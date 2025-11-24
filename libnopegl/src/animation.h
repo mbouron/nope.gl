@@ -22,7 +22,7 @@
 #ifndef ANIMATION_H
 #define ANIMATION_H
 
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 struct animkeyframe_opts;
 

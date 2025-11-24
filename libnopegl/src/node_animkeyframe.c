@@ -29,7 +29,7 @@
 #include "log.h"
 #include "math_utils.h"
 #include "node_animkeyframe.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "params.h"
 #include "utils/bstr.h"
 #include "utils/utils.h"

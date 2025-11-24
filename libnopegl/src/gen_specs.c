@@ -23,7 +23,7 @@
 
 #include "internal.h"
 #include "nodes_register.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "params.h"
 #include "utils/hmap.h"
 #include "utils/string.h"

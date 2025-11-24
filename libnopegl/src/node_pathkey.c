@@ -24,7 +24,7 @@
 
 #include "internal.h"
 #include "node_pathkey.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/bstr.h"
 
 #define OFFSET_MOVE(x) offsetof(struct pathkey_move_opts, x)

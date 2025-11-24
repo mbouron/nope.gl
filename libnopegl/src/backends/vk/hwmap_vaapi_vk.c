@@ -39,7 +39,7 @@
 #include "ngpu/vulkan/format_vk.h"
 #include "ngpu/vulkan/texture_vk.h"
 #include "ngpu/vulkan/vkutils.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/utils.h"
 
 struct format_desc {

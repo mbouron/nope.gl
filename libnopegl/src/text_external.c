@@ -33,7 +33,7 @@
 #include "internal.h"
 #include "log.h"
 #include "node_text.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "path.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"

@@ -29,7 +29,7 @@
 #include "format_gl.h"
 #include "glfunctions.h"
 #include "ngpu/limits.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 struct glcontext_class;
 

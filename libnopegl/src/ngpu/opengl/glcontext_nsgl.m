@@ -29,7 +29,7 @@
 
 #include "glcontext.h"
 #include "log.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 struct nsgl_priv {
     NSOpenGLPixelFormat *pixel_format;

@@ -29,7 +29,7 @@
 #include "log.h"
 #include "node_buffer.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "ngpu/type.h"
 
 struct streamed_opts {

@@ -30,7 +30,7 @@
 #include "buffer.h"
 #include "graphics_state.h"
 #include "limits.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "pgcache.h"
 #include "pipeline.h"
 #include "rendertarget.h"

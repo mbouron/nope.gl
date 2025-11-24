@@ -29,7 +29,7 @@
 #include "ngpu/type.h"
 #include "node_colorkey.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "ngpu/pgcraft.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"

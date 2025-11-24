@@ -25,7 +25,7 @@
 #include "internal.h"
 #include "log.h"
 #include "node_buffer.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "path.h"
 
 struct smoothpath_opts {

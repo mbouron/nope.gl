@@ -23,7 +23,7 @@
 
 #include "internal.h"
 #include "node_io.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "params.h"
 #include "precision.h"
 #include "ngpu/type.h"

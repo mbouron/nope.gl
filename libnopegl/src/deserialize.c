@@ -26,7 +26,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "params.h"
 #include "utils/darray.h"
 #include "utils/memory.h"

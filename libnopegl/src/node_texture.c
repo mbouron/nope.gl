@@ -37,7 +37,7 @@
 #include "node_media.h"
 #include "node_rtt.h"
 #include "node_texture.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "rtt.h"
 
 struct texture_opts {

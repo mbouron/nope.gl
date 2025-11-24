@@ -26,7 +26,7 @@
 #include "internal.h"
 #include "log.h"
 #include "node_uniform.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "params.h"
 #include "utils/bstr.h"
 #include "utils/hmap.h"

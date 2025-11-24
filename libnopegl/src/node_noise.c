@@ -25,7 +25,7 @@
 #include "internal.h"
 #include "node_uniform.h"
 #include "noise.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "ngpu/type.h"
 
 struct noise_opts {

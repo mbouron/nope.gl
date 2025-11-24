@@ -46,7 +46,7 @@
 #include "ngpu/vulkan/vkutils.h"
 #include "ngpu/format.h"
 #include "ngpu/type.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 struct format_desc {
     enum image_layout layout;

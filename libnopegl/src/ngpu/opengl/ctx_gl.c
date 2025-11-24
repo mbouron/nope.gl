@@ -37,6 +37,7 @@
 #include "math_utils.h"
 #include "ngpu/ctx.h"
 #include "ngpu/format.h"
+#include "nopegl/nopegl_opengl.h"
 #include "pipeline_gl.h"
 #include "program_gl.h"
 #include "rendertarget_gl.h"

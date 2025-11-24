@@ -24,7 +24,7 @@
 
 #include "box.h"
 #include "ngpu/texture.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/darray.h"
 
 #define NGLI_I32_TO_I26D6(x) ((x) * (1 << 6))     // convert i32 to 26.6 fixed point

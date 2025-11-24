@@ -24,7 +24,7 @@
 
 #include "internal.h"
 #include "node_colorkey.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 #define OFFSET(x) offsetof(struct colorkey_opts, x)
 static const struct node_param colorkey_params[] = {

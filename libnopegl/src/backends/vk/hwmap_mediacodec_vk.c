@@ -40,7 +40,7 @@
 #include "ngpu/vulkan/vkcontext.h"
 #include "ngpu/vulkan/vkutils.h"
 #include "ngpu/vulkan/ycbcr_sampler_vk.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 struct hwmap_mc {
     struct android_image *android_image;

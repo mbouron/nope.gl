@@ -24,7 +24,7 @@
 #include <string.h>
 
 #include "log.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "internal.h"
 #include "params.h"
 

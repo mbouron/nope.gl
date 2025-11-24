@@ -25,7 +25,7 @@
 
 #include "internal.h"
 #include "node_pathkey.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "path.h"
 
 struct path_opts {

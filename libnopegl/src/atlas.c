@@ -27,7 +27,7 @@
 #include "log.h"
 #include "ngpu/format.h"
 #include "ngpu/texture.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"

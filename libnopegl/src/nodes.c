@@ -29,7 +29,7 @@
 #include "log.h"
 #include "node_uniform.h"
 #include "nodes_register.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 #include "params.h"
 #include "utils/memory.h"
 #include "utils/string.h"

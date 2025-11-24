@@ -30,7 +30,7 @@
 #include "log.h"
 #include "math_utils.h"
 #include "ngpu/format.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 struct hwmap_common {
     int32_t width;

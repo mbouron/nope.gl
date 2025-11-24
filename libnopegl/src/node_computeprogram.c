@@ -26,7 +26,7 @@
 #include "ngpu/ctx.h"
 #include "ngpu/limits.h"
 #include "node_program.h"
-#include "nopegl.h"
+#include "nopegl/nopegl.h"
 
 #define OFFSET(x) offsetof(struct program_opts, x)
 static const struct node_param computeprogram_params[] = {
