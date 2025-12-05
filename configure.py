@@ -1334,7 +1334,7 @@ class _Config:
             self.prefix = self.venv_path
         elif self.host == "Android":
             self.android_abi = _ANDROID_ABI_MAP[args.host_arch]
-            self.prefix = op.join(op.abspath(self.host), self.android_abi)
+            self.prefix = op.join(op.abspath(f"build-{self.host.lower()}"), self.android_abi)
         elif self.host == "iOS":
             self.ios_abi = _IOS_ABI_MAP[args.host_arch]
             self.ios_platform = "iphoneos"
@@ -1350,7 +1350,7 @@ class _Config:
                 text=True,
                 check=True,
             ).stdout.strip()
-            self.prefix = op.join(op.abspath(self.host), self.host_arch)
+            self.prefix = op.join(op.abspath(f"build-{self.host.lower()}"), self.host_arch)
         else:
             assert False
 
