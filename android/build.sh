@@ -74,7 +74,7 @@ for arch in $archs; do
     make -f "Makefile.Android.$arch"
 done
 
-export NGL_ANDROID_ENV="$base_dir/Android/"
+export NGL_ANDROID_ENV="$base_dir/build-android/"
 (
     cd android
     ./gradlew $gradle_rule
