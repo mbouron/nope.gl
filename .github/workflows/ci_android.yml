@@ -32,3 +32,31 @@ jobs:
         make -f Makefile.Android.${{ matrix.arch }}
         . venv/bin/ngli-activate
         meson test -C builddir/Android/${{ matrix.arch }}/libnopegl
+
+  android-binding:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: 17
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        cache-read-only: ${{ github.ref != 'refs/heads/staging' }}
+
+    - name: Install dependencies
+      run: |
+        sudo apt -y update
+        sudo apt -y install ninja-build nasm
+
+    - name: Build
+      run: |
+        android/build.sh
