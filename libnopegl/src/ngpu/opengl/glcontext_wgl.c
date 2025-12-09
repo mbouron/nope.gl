@@ -214,7 +214,7 @@ static int wgl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window, 
 
     HGLRC shared_context = (HGLRC)other;
 
-    if (ctx->backend == NGL_BACKEND_OPENGL) {
+    if (ctx->backend == NGPU_BACKEND_OPENGL) {
         const int flags = ctx->debug ? WGL_CONTEXT_DEBUG_BIT_ARB : 0;
         const int context_attributes[] = {
             WGL_CONTEXT_MAJOR_VERSION_ARB, 1,
@@ -224,7 +224,7 @@ static int wgl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window, 
             0
         };
         wgl->rendering_context = wgl->CreateContextAttribsARB(wgl->device_context, shared_context, context_attributes);
-    } else if (ctx->backend == NGL_BACKEND_OPENGLES) {
+    } else if (ctx->backend == NGPU_BACKEND_OPENGLES) {
         const char *extensions = wgl->GetExtensionsStringARB(wgl->device_context);
         if (!ngli_glcontext_check_extension("WGL_EXT_create_context_es2_profile", extensions) &&
             !ngli_glcontext_check_extension("WGL_EXT_create_context_es_profile", extensions)) {

@@ -26,9 +26,8 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_android.h>
 
-#include "config.h"
+#include "ngpu/ctx.h"
 #include "ngpu/format.h"
-#include "nopegl/nopegl.h"
 
 #define VK_FUNC(name) PFN_vk##name
 #define VK_DECLARE_FUNC(name) VK_FUNC(name) name
@@ -91,7 +90,7 @@ struct vkcontext {
 };
 
 struct vkcontext *ngli_vkcontext_create(void);
-VkResult ngli_vkcontext_init(struct vkcontext *s, const struct ngl_config *config);
+VkResult ngli_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params);
 void *ngli_vkcontext_get_proc_addr(struct vkcontext *s, const char *name);
 int ngli_vkcontext_has_extension(const struct vkcontext *s, const char *name, int device);
 VkFormat ngli_vkcontext_find_supported_format(struct vkcontext *s, const VkFormat *formats,
