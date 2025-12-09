@@ -133,14 +133,14 @@ static int exec_hwconv(struct hwmap *hwmap)
     return 0;
 }
 
-static const struct hwmap_class **get_backend_hwmap_classes(enum ngl_backend_type backend)
+static const struct hwmap_class **get_backend_hwmap_classes(enum ngpu_backend_type backend)
 {
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
-    if (backend == NGL_BACKEND_OPENGL || backend == NGL_BACKEND_OPENGLES)
+    if (backend == NGPU_BACKEND_OPENGL || backend == NGPU_BACKEND_OPENGLES)
         return ngli_hwmap_gl_classes;
 #endif
 #ifdef BACKEND_VK
-    if (backend == NGL_BACKEND_VULKAN)
+    if (backend == NGPU_BACKEND_VULKAN)
         return ngli_hwmap_vk_classes;
 #endif
     return NULL;
@@ -160,7 +160,7 @@ static int is_image_layout_supported(const struct hwmap_class **classes, enum im
     return 0;
 }
 
-int ngli_hwmap_is_image_layout_supported(enum ngl_backend_type backend, enum image_layout image_layout)
+int ngli_hwmap_is_image_layout_supported(enum ngpu_backend_type backend, enum image_layout image_layout)
 {
     static const struct hwmap_class *default_hwmap_classes[] = {&ngli_hwmap_common_class, NULL};
     const struct hwmap_class **extra_hwmap_classes = get_backend_hwmap_classes(backend);
@@ -175,8 +175,8 @@ int ngli_hwmap_init(struct hwmap *hwmap, struct ngl_ctx *ctx, const struct hwmap
     hwmap->params = *params;
     hwmap->pix_fmt = NMD_PIXFMT_NONE;
 
-    const struct ngl_config *config = &ctx->config;
-    hwmap->hwmap_classes = get_backend_hwmap_classes(config->backend);
+    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
+    hwmap->hwmap_classes = get_backend_hwmap_classes(gpu_ctx->params.backend);
 
     return 0;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2019-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -30,14 +30,36 @@
 #include "buffer.h"
 #include "graphics_state.h"
 #include "limits.h"
-#include "nopegl/nopegl.h"
 #include "pgcache.h"
 #include "pipeline.h"
 #include "rendertarget.h"
 #include "texture.h"
 
-const char *ngli_backend_get_string_id(enum ngl_backend_type backend);
-const char *ngli_backend_get_full_name(enum ngl_backend_type backend);
+enum ngpu_platform_type {
+    NGPU_PLATFORM_XLIB,
+    NGPU_PLATFORM_WAYLAND,
+    NGPU_PLATFORM_ANDROID,
+    NGPU_PLATFORM_MACOS,
+    NGPU_PLATFORM_IOS,
+    NGPU_PLATFORM_WINDOWS,
+    NGPU_PLATFORM_MAX_ENUM = 0x7FFFFFFF
+};
+
+enum ngpu_backend_type {
+    NGPU_BACKEND_OPENGL,
+    NGPU_BACKEND_OPENGLES,
+    NGPU_BACKEND_VULKAN,
+    NGPU_BACKEND_MAX_ENUM = 0x7FFFFFFF
+};
+
+enum ngpu_capture_buffer_type {
+    NGPU_CAPTURE_BUFFER_TYPE_CPU,
+    NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO,
+    NGPU_CAPTURE_BUFFER_TYPE_MAX_ENUM = 0x7FFFFFFF
+};
+
+const char *ngpu_backend_get_string_id(enum ngpu_backend_type backend);
+const char *ngpu_backend_get_full_name(enum ngpu_backend_type backend);
 
 struct ngpu_viewport {
     float x, y, width, height;
@@ -56,10 +78,60 @@ int ngpu_viewport_is_valid(const struct ngpu_viewport *viewport);
 #define NGPU_FEATURE_BUFFER_MAP_PERSISTENT             (1U << 4)
 #define NGPU_FEATURE_DEPTH_STENCIL_RESOLVE             (1U << 5)
 
+struct ngpu_ctx_params {
+    enum ngpu_platform_type platform;  /* Platform-specific identifier */
+
+    enum ngpu_backend_type backend;   /* Rendering backend */
+
+    void *backend_params; /* Optional backend specific parameters (any of ngpu_ctx_params_*
+                             depending on the selected backend) */
+
+    uintptr_t display; /* A native display handle */
+
+    uintptr_t window;  /* A native window handle */
+
+    int swap_interval; /* Specifies the minimum number of video frames that are
+                          displayed before a buffer swap will occur. -1 can be
+                          used to use the default system implementation value.
+                          This option is only honored on Linux, macOS, and
+                          Android (iOS does not provide swap interval control).
+                          */
+
+    int offscreen; /* Whether the rendering should happen offscreen or not.
+                      This field is ignored if the context is external. */
+
+    uint32_t width; /* Graphics context width, mandatory for offscreen rendering */
+
+    uint32_t height; /* Graphics context height, mandatory for offscreen rendering */
+
+    uint32_t samples;     /* Number of samples used for multisample anti-aliasing */
+
+    int set_surface_pts; /* Whether pts should be set to the surface or not (Android only).
+                            Unsupported with offscreen rendering. */
+
+    float clear_color[4]; /* Clear color (red, green, blue, alpha) */
+
+    void *capture_buffer; /* An optional pointer to a capture buffer.
+                             - If the capture buffer type is CPU, the user
+                               allocated size of the specified buffer must be of
+                               at least width * height * 4 bytes (RGBA)
+                             - If the capture buffer type is COREVIDEO, the
+                               specified pointer must reference a CVPixelBuffer */
+
+    enum ngpu_capture_buffer_type capture_buffer_type;
+
+    int debug; /* Enable graphics context debugging */
+
+    int timer_queries; /* Enable graphics context timer queries */
+};
+
+int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_params *src);
+void ngpu_ctx_params_reset(struct ngpu_ctx_params *params);
+
 struct ngpu_ctx_class {
     uint32_t id;
 
-    struct ngpu_ctx *(*create)(const struct ngl_config *config);
+    struct ngpu_ctx *(*create)(const struct ngpu_ctx_params *params);
     int (*init)(struct ngpu_ctx *s);
     int (*resize)(struct ngpu_ctx *s, uint32_t width, uint32_t height);
     int (*set_capture_buffer)(struct ngpu_ctx *s, void *capture_buffer);
@@ -139,7 +211,7 @@ struct ngpu_ctx_class {
 };
 
 struct ngpu_ctx {
-    struct ngl_config config;
+    struct ngpu_ctx_params params;
     const struct ngpu_ctx_class *cls;
 
     int version;
@@ -166,7 +238,7 @@ struct ngpu_ctx {
     enum ngpu_format index_format;
 };
 
-struct ngpu_ctx *ngpu_ctx_create(const struct ngl_config *config);
+struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params);
 int ngpu_ctx_init(struct ngpu_ctx *s);
 int ngpu_ctx_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height);
 int ngpu_ctx_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer);
