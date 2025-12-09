@@ -75,7 +75,7 @@ static int eagl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window,
 {
     struct eagl_priv *eagl = ctx->priv_data;
 
-    if (ctx->backend != NGL_BACKEND_OPENGLES) {
+    if (ctx->backend != NGPU_BACKEND_OPENGLES) {
         LOG(ERROR, "unsupported backend: %d, only OpenGLES is supported by EAGL", ctx->backend);
         return NGL_ERROR_UNSUPPORTED;
     }
@@ -133,7 +133,7 @@ static int eagl_init_external(struct glcontext *ctx, uintptr_t display, uintptr_
 {
     struct eagl_priv *eagl = ctx->priv_data;
 
-    if (ctx->backend != NGL_BACKEND_OPENGLES) {
+    if (ctx->backend != NGPU_BACKEND_OPENGLES) {
         LOG(ERROR, "unsupported backend: %d, only OpenGLES is supported by EAGL", ctx->backend);
         return NGL_ERROR_UNSUPPORTED;
     }

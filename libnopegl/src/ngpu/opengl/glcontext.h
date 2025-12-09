@@ -28,14 +28,14 @@
 #include "feature_gl.h"
 #include "format_gl.h"
 #include "glfunctions.h"
+#include "ngpu/ctx.h"
 #include "ngpu/limits.h"
-#include "nopegl/nopegl.h"
 
 struct glcontext_class;
 
 struct glcontext_params {
-    enum ngl_platform_type platform;
-    enum ngl_backend_type backend;
+    enum ngpu_platform_type platform;
+    enum ngpu_backend_type backend;
     int external;
     uintptr_t display;
     uintptr_t window;
@@ -54,8 +54,8 @@ struct glcontext {
     void *priv_data;
 
     /* User options */
-    enum ngl_platform_type platform;
-    enum ngl_backend_type backend;
+    enum ngpu_platform_type platform;
+    enum ngpu_backend_type backend;
     int external;
     int offscreen;
     uint32_t width;

@@ -45,6 +45,10 @@
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"
 
+#if defined(BACKEND_GL) || defined(BACKEND_GLES)
+#include "ngpu/opengl/ctx_gl.h"
+#endif
+
 #if defined(HAVE_VAAPI)
 #include "vaapi_ctx.h"
 #endif
@@ -101,6 +105,92 @@ static enum ngl_platform_type get_default_platform(void)
 #else
     NGLI_STATIC_ASSERT(0, "no default platform");
 #endif
+}
+
+static enum ngpu_platform_type ngl_platform_to_ngpu(enum ngl_platform_type platform)
+{
+    switch (platform) {
+    case NGL_PLATFORM_XLIB:    return NGPU_PLATFORM_XLIB;
+    case NGL_PLATFORM_ANDROID: return NGPU_PLATFORM_ANDROID;
+    case NGL_PLATFORM_MACOS:   return NGPU_PLATFORM_MACOS;
+    case NGL_PLATFORM_IOS:     return NGPU_PLATFORM_IOS;
+    case NGL_PLATFORM_WINDOWS: return NGPU_PLATFORM_WINDOWS;
+    case NGL_PLATFORM_WAYLAND: return NGPU_PLATFORM_WAYLAND;
+    default: ngli_assert(0);
+    }
+}
+
+static enum ngpu_backend_type ngl_backend_type_to_ngpu(enum ngl_backend_type backend_type)
+{
+    switch (backend_type) {
+    case NGL_BACKEND_OPENGL:   return NGPU_BACKEND_OPENGL;
+    case NGL_BACKEND_OPENGLES: return NGPU_BACKEND_OPENGLES;
+    case NGL_BACKEND_VULKAN:   return NGPU_BACKEND_VULKAN;
+    default: ngli_assert(0);
+    }
+}
+
+static enum ngl_backend_type ngpu_backend_type_to_ngl(enum ngpu_backend_type backend_type)
+{
+    switch (backend_type) {
+    case NGPU_BACKEND_OPENGL:   return NGL_BACKEND_OPENGL;
+    case NGPU_BACKEND_OPENGLES: return NGL_BACKEND_OPENGLES;
+    case NGPU_BACKEND_VULKAN:   return NGL_BACKEND_VULKAN;
+    default: ngli_assert(0);
+    }
+}
+
+static enum ngpu_capture_buffer_type ngl_capture_buffer_type_to_ngpu(enum ngl_capture_buffer_type type)
+{
+    switch (type) {
+    case NGL_CAPTURE_BUFFER_TYPE_CPU:       return NGPU_CAPTURE_BUFFER_TYPE_CPU;
+    case NGL_CAPTURE_BUFFER_TYPE_COREVIDEO: return NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO;
+    default: ngli_assert(0);
+    }
+}
+
+static struct ngpu_ctx *gpu_ctx_create_from_config(const struct ngl_config *config)
+{
+    struct ngpu_ctx_params params = {
+        .platform             = ngl_platform_to_ngpu(config->platform),
+        .backend              = ngl_backend_type_to_ngpu(config->backend),
+        .display              = config->display,
+        .window               = config->window,
+        .swap_interval        = config->swap_interval,
+        .offscreen            = config->offscreen,
+        .width                = config->width,
+        .height               = config->height,
+        .samples              = config->samples,
+        .set_surface_pts      = config->set_surface_pts,
+        .capture_buffer       = config->capture_buffer,
+        .capture_buffer_type  = ngl_capture_buffer_type_to_ngpu(config->capture_buffer_type),
+        .debug                = config->debug,
+        .timer_queries        = config->hud,
+    };
+    memcpy(params.clear_color, config->clear_color, sizeof(params.clear_color));
+
+    switch (config->backend) {
+#if defined(BACKEND_GL) || defined(BACKEND_GLES)
+    case NGL_BACKEND_OPENGL:
+    case NGL_BACKEND_OPENGLES: {
+        const struct ngl_config_gl *config_gl = config->backend_config;
+        struct ngpu_ctx_params_gl backend_params = {0};
+        if (config->backend_config) {
+            backend_params.external = config_gl->external;
+            backend_params.external_framebuffer = config_gl->external_framebuffer;
+            params.backend_params = &backend_params;
+        }
+        return ngpu_ctx_create(&params);
+    }
+#endif
+#if defined(BACKEND_VK)
+    case NGL_BACKEND_VULKAN: {
+        return ngpu_ctx_create(&params);
+    }
+#endif
+    default:
+        return NULL;
+    }
 }
 
 static enum ngl_platform_type get_platform(enum ngl_platform_type platform_type)
@@ -174,14 +264,15 @@ static int load_caps(struct ngl_backend *backend, const struct ngpu_ctx *gpu_ctx
 
 static int backend_init(struct ngl_backend *backend, struct ngpu_ctx *gpu_ctx)
 {
-    struct ngl_config *config = &gpu_ctx->config;
+    struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 
     ngli_assert(gpu_ctx->cls);
 
-    backend->id         = config->backend;
-    backend->string_id  = ngli_backend_get_string_id(config->backend);
-    backend->name       = ngli_backend_get_full_name(config->backend);
-    backend->is_default = config->backend == DEFAULT_BACKEND;
+    const enum ngl_backend_type backend_id = ngpu_backend_type_to_ngl(ctx_params->backend);
+    backend->id         = backend_id;
+    backend->string_id  = ngpu_backend_get_string_id(ctx_params->backend);
+    backend->name       = ngpu_backend_get_full_name(ctx_params->backend);
+    backend->is_default = backend_id == DEFAULT_BACKEND;
 
     /* If GPU context is not initialized, return early */
     if (!gpu_ctx->version)
@@ -356,7 +447,7 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
     if (ret < 0)
         return ret;
 
-    s->gpu_ctx = ngpu_ctx_create(&s->config);
+    s->gpu_ctx = gpu_ctx_create_from_config(&s->config);
     if (!s->gpu_ctx) {
         ngli_config_reset(&s->config);
         return NGL_ERROR_MEMORY;
@@ -594,7 +685,7 @@ static int backend_probe(struct ngl_backend *backend, const struct ngl_config *c
 {
     int ret = 0;
 
-    struct ngpu_ctx *gpu_ctx = ngpu_ctx_create(config);
+    struct ngpu_ctx *gpu_ctx = gpu_ctx_create_from_config(config);
     if (!gpu_ctx)
         return NGL_ERROR_MEMORY;
 
@@ -748,7 +839,7 @@ int ngl_configure(struct ngl_ctx *s, const struct ngl_config *user_config)
     s->api_impl = api_map[config.backend];
     if (!s->api_impl) {
         LOG(ERROR, "backend \"%s\" not available with this build",
-            ngli_backend_get_string_id(config.backend));
+            ngpu_backend_get_string_id(ngl_backend_type_to_ngpu(config.backend)));
         return NGL_ERROR_UNSUPPORTED;
     }
 

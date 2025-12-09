@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2019-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -24,29 +24,30 @@
 
 #include "ctx.h"
 #include "log.h"
-#include "ngl_config.h"
 #include "rendertarget.h"
 #include "utils/memory.h"
 
-const char *ngli_backend_get_string_id(enum ngl_backend_type backend)
+#if defined(BACKEND_GL) || defined(BACKEND_GLES)
+#include "ngpu/opengl/ctx_gl.h"
+#endif
+
+const char *ngpu_backend_get_string_id(enum ngpu_backend_type backend)
 {
     switch (backend) {
-    case NGL_BACKEND_AUTO:     return "auto";
-    case NGL_BACKEND_OPENGL:   return "opengl";
-    case NGL_BACKEND_OPENGLES: return "opengles";
-    case NGL_BACKEND_VULKAN:   return "vulkan";
-    default:                   return "unknown";
+    case NGPU_BACKEND_OPENGL:   return "opengl";
+    case NGPU_BACKEND_OPENGLES: return "opengles";
+    case NGPU_BACKEND_VULKAN:   return "vulkan";
+    default:                    return "unknown";
     }
 }
 
-const char *ngli_backend_get_full_name(enum ngl_backend_type backend)
+const char *ngpu_backend_get_full_name(enum ngpu_backend_type backend)
 {
     switch (backend) {
-    case NGL_BACKEND_AUTO:     return "Auto";
-    case NGL_BACKEND_OPENGL:   return "OpenGL";
-    case NGL_BACKEND_OPENGLES: return "OpenGL ES";
-    case NGL_BACKEND_VULKAN:   return "Vulkan";
-    default:                   return "Unknown";
+    case NGPU_BACKEND_OPENGL:   return "OpenGL";
+    case NGPU_BACKEND_OPENGLES: return "OpenGL ES";
+    case NGPU_BACKEND_VULKAN:   return "Vulkan";
+    default:                    return "Unknown";
     }
 }
 
@@ -59,43 +60,82 @@ extern const struct ngpu_ctx_class ngpu_ctx_gl;
 extern const struct ngpu_ctx_class ngpu_ctx_gles;
 extern const struct ngpu_ctx_class ngpu_ctx_vk;
 
-static const struct ngpu_ctx_class *backend_map[NGL_BACKEND_NB] = {
+static const struct ngpu_ctx_class *ctx_classes[] = {
 #ifdef BACKEND_GL
-    [NGL_BACKEND_OPENGL] = &ngpu_ctx_gl,
+    &ngpu_ctx_gl,
 #endif
 #ifdef BACKEND_GLES
-    [NGL_BACKEND_OPENGLES] = &ngpu_ctx_gles,
+    &ngpu_ctx_gles,
 #endif
 #ifdef BACKEND_VK
-    [NGL_BACKEND_VULKAN] = &ngpu_ctx_vk,
+    &ngpu_ctx_vk,
 #endif
+    NULL,
 };
 
-struct ngpu_ctx *ngpu_ctx_create(const struct ngl_config *config)
+static const struct ngpu_ctx_class *get_ctx_class(enum ngpu_backend_type backend)
 {
-    if (config->backend < 0 ||
-        config->backend >= NGLI_ARRAY_NB(backend_map)) {
-        LOG(ERROR, "unknown backend %u", config->backend);
-        return NULL;
+    for (size_t i = 0; ctx_classes[i]; i++) {
+        if (ctx_classes[i]->id == backend)
+            return ctx_classes[i];
     }
-    if (!backend_map[config->backend]) {
-        LOG(ERROR, "backend \"%s\" not available with this build",
-            ngli_backend_get_string_id(config->backend));
+    return NULL;
+}
+
+int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_params *src)
+{
+    struct ngpu_ctx_params tmp = *src;
+
+    if (src->backend_params) {
+#if defined(BACKEND_GL) || defined(BACKEND_GLES)
+        if (src->backend == NGPU_BACKEND_OPENGL ||
+            src->backend == NGPU_BACKEND_OPENGLES) {
+            const size_t size = sizeof(struct ngpu_ctx_params_gl);
+            tmp.backend_params = ngli_memdup(src->backend_params, size);
+            if (!tmp.backend_params) {
+                return NGL_ERROR_MEMORY;
+            }
+            goto done;
+            }
+#endif
+
+        LOG(ERROR, "backend_params %p is not supported by backend %u",
+            src->backend_params, src->backend);
+        return NGL_ERROR_UNSUPPORTED;
+    }
+
+    done:
+        *dst = tmp;
+
+    return 0;
+}
+
+void ngpu_ctx_params_reset(struct ngpu_ctx_params *params)
+{
+    ngli_freep(&params->backend_params);
+    memset(params, 0, sizeof(*params));
+}
+struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params)
+{
+    const struct ngpu_ctx_class *cls = get_ctx_class(params->backend);
+    if (!cls) {
+        LOG(ERROR, "backend \"%s\" (%x) not available with this build",
+            ngpu_backend_get_string_id(params->backend),
+            params->backend);
         return NULL;
     }
 
-    struct ngl_config ctx_config = {0};
-    int ret = ngli_config_copy(&ctx_config, config);
+    struct ngpu_ctx_params ctx_params = {0};
+    int ret = ngpu_ctx_params_copy(&ctx_params, params);
     if (ret < 0)
         return NULL;
 
-    const struct ngpu_ctx_class *cls = backend_map[config->backend];
-    struct ngpu_ctx *s = cls->create(config);
+    struct ngpu_ctx *s = cls->create(params);
     if (!s) {
-        ngli_config_reset(&ctx_config);
+        ngpu_ctx_params_reset(&ctx_params);
         return NULL;
     }
-    s->config = ctx_config;
+    s->params = ctx_params;
     s->cls = cls;
     return s;
 }
@@ -181,7 +221,7 @@ void ngpu_ctx_freep(struct ngpu_ctx **sp)
     ngpu_pgcache_freep(&s->program_cache);
     s->cls->destroy(s);
 
-    ngli_config_reset(&s->config);
+    ngpu_ctx_params_reset(&s->params);
     ngli_freep(sp);
 }
 

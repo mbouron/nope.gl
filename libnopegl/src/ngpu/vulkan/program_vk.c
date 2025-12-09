@@ -63,7 +63,7 @@ int ngpu_program_vk_init(struct ngpu_program *s, const struct ngpu_program_param
 
         void *data = NULL;
         size_t size = 0;
-        int ret = ngli_glslang_compile(shaders[i].stage, shaders[i].src, s->gpu_ctx->config.debug, &data, &size);
+        int ret = ngli_glslang_compile(shaders[i].stage, shaders[i].src, s->gpu_ctx->params.debug, &data, &size);
         if (ret < 0) {
             char *s_with_numbers = ngli_numbered_lines(shaders[i].src);
             if (s_with_numbers) {
