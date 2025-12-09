@@ -122,24 +122,24 @@ static VkResult create_rendertarget(struct ngpu_ctx *s,
                                     enum ngpu_load_op load_op,
                                     struct ngpu_rendertarget **rendertargetp)
 {
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
 
     struct ngpu_rendertarget *rendertarget = ngpu_rendertarget_create(s);
     if (!rendertarget)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     const struct ngpu_rendertarget_params params = {
-        .width = (uint32_t)config->width,
-        .height = (uint32_t)config->height,
+        .width = (uint32_t)ctx_params->width,
+        .height = (uint32_t)ctx_params->height,
         .nb_colors = 1,
         .colors[0] = {
             .attachment     = color,
             .resolve_target = resolve_color,
             .load_op        = load_op,
-            .clear_value[0] = config->clear_color[0],
-            .clear_value[1] = config->clear_color[1],
-            .clear_value[2] = config->clear_color[2],
-            .clear_value[3] = config->clear_color[3],
+            .clear_value[0] = ctx_params->clear_color[0],
+            .clear_value[1] = ctx_params->clear_color[1],
+            .clear_value[2] = ctx_params->clear_color[2],
+            .clear_value[3] = ctx_params->clear_color[3],
             .store_op       = NGPU_STORE_OP_STORE,
         },
         .depth_stencil = {
@@ -167,17 +167,17 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
 
-    const enum ngpu_format color_format = config->offscreen
+    const enum ngpu_format color_format = ctx_params->offscreen
                            ? NGPU_FORMAT_R8G8B8A8_UNORM
                            : ngpu_format_vk_to_ngl(s_priv->surface_format.format);
     const enum ngpu_format ds_format = vk->preferred_depth_stencil_format;
 
-    const uint32_t nb_images = config->offscreen ? s->nb_in_flight_frames : s_priv->nb_images;
+    const uint32_t nb_images = ctx_params->offscreen ? s->nb_in_flight_frames : s_priv->nb_images;
     for (uint32_t i = 0; i < nb_images; i++) {
         struct ngpu_texture *color = NULL;
-        if (config->offscreen) {
+        if (ctx_params->offscreen) {
             VkResult res = create_texture(s, color_format, 0, COLOR_USAGE, &color);
             if (res != VK_SUCCESS)
                 return res;
@@ -213,7 +213,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         }
 
         struct ngpu_texture *depth_stencil = NULL;
-        VkResult res = create_texture(s, ds_format, config->samples, DEPTH_USAGE, &depth_stencil);
+        VkResult res = create_texture(s, ds_format, ctx_params->samples, DEPTH_USAGE, &depth_stencil);
         if (res != VK_SUCCESS)
             return res;
 
@@ -223,8 +223,8 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         }
 
         struct ngpu_texture *ms_color = NULL;
-        if (config->samples) {
-            res = create_texture(s, color_format, config->samples, COLOR_USAGE, &ms_color);
+        if (ctx_params->samples) {
+            res = create_texture(s, color_format, ctx_params->samples, COLOR_USAGE, &ms_color);
             if (res != VK_SUCCESS)
                 return res;
 
@@ -258,7 +258,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         }
     }
 
-    if (config->offscreen) {
+    if (ctx_params->offscreen) {
         s_priv->capture_buffer = ngpu_buffer_create(s);
         if (!s_priv->capture_buffer)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -523,7 +523,7 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
-    struct ngl_config *config = &s->config;
+    struct ngpu_ctx_params *ctx_params = &s->params;
 
     VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, vk->surface, &s_priv->surface_caps);
     if (res != VK_SUCCESS)
@@ -534,11 +534,11 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
         return res;
 
     const VkSurfaceCapabilitiesKHR caps = s_priv->surface_caps;
-    s_priv->present_mode = select_swapchain_present_mode(vk, config->swap_interval);
+    s_priv->present_mode = select_swapchain_present_mode(vk, ctx_params->swap_interval);
     s_priv->width  = NGLI_CLAMP(s_priv->width,  caps.minImageExtent.width,  caps.maxImageExtent.width),
     s_priv->height = NGLI_CLAMP(s_priv->height, caps.minImageExtent.height, caps.maxImageExtent.height),
-    config->width = s_priv->width;
-    config->height = s_priv->height;
+    ctx_params->width = s_priv->width;
+    ctx_params->height = s_priv->height;
     LOG(DEBUG, "current extent: %ux%u", s_priv->width, s_priv->height);
 
     uint32_t img_count = caps.minImageCount + 1;
@@ -696,7 +696,7 @@ static VkResult swapchain_acquire_image(struct ngpu_ctx *s, uint32_t *image_inde
 
 static VkResult swapchain_present_buffer(struct ngpu_ctx *s, double t)
 {
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
 
@@ -721,7 +721,7 @@ static VkResult swapchain_present_buffer(struct ngpu_ctx *s, double t)
         .pTimes = &present_time,
     };
 
-    if (config->set_surface_pts) {
+    if (ctx_params->set_surface_pts) {
         /*
          * On first frame, compute the presentation time offset based on
          * ngli_gettime_relative() result converted to ns. This is mandatory as
@@ -756,7 +756,7 @@ static VkResult swapchain_present_buffer(struct ngpu_ctx *s, double t)
     return VK_SUCCESS;
 }
 
-static struct ngpu_ctx *vk_create(const struct ngl_config *config)
+static struct ngpu_ctx *vk_create(const struct ngpu_ctx_params *params)
 {
     struct ngpu_ctx_vk *s = ngli_calloc(1, sizeof(*s));
     if (!s)
@@ -796,17 +796,17 @@ static void free_rendertarget(void *user_arg, void *data)
 
 static int vk_init(struct ngpu_ctx *s)
 {
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
-    if (config->offscreen) {
-        if (config->width <= 0 || config->height <= 0) {
+    if (ctx_params->offscreen) {
+        if (ctx_params->width <= 0 || ctx_params->height <= 0) {
             LOG(ERROR, "could not create offscreen context with invalid dimensions (%ux%u)",
-                config->width, config->height);
+                ctx_params->width, ctx_params->height);
             return NGL_ERROR_INVALID_ARG;
         }
     } else {
-        if (config->capture_buffer) {
+        if (ctx_params->capture_buffer) {
             LOG(ERROR, "capture_buffer is not supported by onscreen context");
             return NGL_ERROR_INVALID_ARG;
         }
@@ -848,7 +848,7 @@ static int vk_init(struct ngpu_ctx *s)
     if (!s_priv->vkcontext)
         return NGL_ERROR_MEMORY;
 
-    VkResult res = ngli_vkcontext_init(s_priv->vkcontext, config);
+    VkResult res = ngli_vkcontext_init(s_priv->vkcontext, ctx_params);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "unable to initialize Vulkan context: %s", ngli_vk_res2str(res));
         /*
@@ -904,15 +904,15 @@ static int vk_init(struct ngpu_ctx *s)
     s->limits.min_uniform_block_offset_alignment = limits->minUniformBufferOffsetAlignment;
     s->limits.min_storage_block_offset_alignment = limits->minStorageBufferOffsetAlignment;
 
-    if (config->set_surface_pts &&
+    if (ctx_params->set_surface_pts &&
         !ngli_vkcontext_has_extension(vk, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME, 1)) {
         LOG(ERROR, "context does not support setting surface pts: %s is not supported",
             VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
-    s_priv->width = config->width;
-    s_priv->height = config->height;
+    s_priv->width = ctx_params->width;
+    s_priv->height = ctx_params->height;
     s->nb_in_flight_frames = 2;
 
     int ret = ngli_glslang_init();
@@ -935,8 +935,8 @@ static int vk_init(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngli_vk_res2ret(res);
 
-    if (config->offscreen) {
-        if (config->capture_buffer_type != NGL_CAPTURE_BUFFER_TYPE_CPU) {
+    if (ctx_params->offscreen) {
+        if (ctx_params->capture_buffer_type != NGPU_CAPTURE_BUFFER_TYPE_CPU) {
             LOG(ERROR, "unsupported capture buffer type");
             return NGL_ERROR_UNSUPPORTED;
         }
@@ -950,18 +950,18 @@ static int vk_init(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngli_vk_res2ret(res);
 
-    if (config->offscreen) {
-        s_priv->default_rt_layout.samples               = config->samples;
+    if (ctx_params->offscreen) {
+        s_priv->default_rt_layout.samples               = ctx_params->samples;
         s_priv->default_rt_layout.nb_colors             = 1;
         s_priv->default_rt_layout.colors[0].format      = NGPU_FORMAT_R8G8B8A8_UNORM;
-        s_priv->default_rt_layout.colors[0].resolve     = config->samples > 0 ? 1 : 0;
+        s_priv->default_rt_layout.colors[0].resolve     = ctx_params->samples > 0 ? 1 : 0;
         s_priv->default_rt_layout.depth_stencil.format  = vk->preferred_depth_stencil_format;
         s_priv->default_rt_layout.depth_stencil.resolve = 0;
     } else {
-        s_priv->default_rt_layout.samples               = config->samples;
+        s_priv->default_rt_layout.samples               = ctx_params->samples;
         s_priv->default_rt_layout.nb_colors             = 1;
         s_priv->default_rt_layout.colors[0].format      = ngpu_format_vk_to_ngl(s_priv->surface_format.format);
-        s_priv->default_rt_layout.colors[0].resolve     = config->samples > 0 ? 1 : 0;
+        s_priv->default_rt_layout.colors[0].resolve     = ctx_params->samples > 0 ? 1 : 0;
         s_priv->default_rt_layout.depth_stencil.format  = vk->preferred_depth_stencil_format;
         s_priv->default_rt_layout.depth_stencil.resolve = 0;
     }
@@ -971,10 +971,10 @@ static int vk_init(struct ngpu_ctx *s)
 
 static int vk_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 {
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
-    if (config->offscreen) {
+    if (ctx_params->offscreen) {
         LOG(ERROR, "resize operation is not supported by offscreen context");
         return NGL_ERROR_UNSUPPORTED;
     }
@@ -988,14 +988,14 @@ static int vk_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 
 static int vk_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 {
-    struct ngl_config *config = &s->config;
+    struct ngpu_ctx_params *ctx_params = &s->params;
 
-    if (!config->offscreen) {
+    if (!ctx_params->offscreen) {
         LOG(ERROR, "capture_buffer is not supported by onscreen context");
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    config->capture_buffer = capture_buffer;
+    ctx_params->capture_buffer = capture_buffer;
     return 0;
 }
 
@@ -1067,7 +1067,7 @@ static int vk_end_update(struct ngpu_ctx *s)
 static int vk_begin_draw(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
 
     s_priv->cur_cmd_buffer = s_priv->cmd_buffers[s->current_frame_index];
     VkResult res = ngpu_cmd_buffer_vk_wait(s_priv->cur_cmd_buffer);
@@ -1082,7 +1082,7 @@ static int vk_begin_draw(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngli_vk_res2ret(res);
 
-    if (config->offscreen) {
+    if (ctx_params->offscreen) {
         struct ngpu_rendertarget **rts = ngli_darray_data(&s_priv->rts);
         s_priv->default_rt = rts[s->current_frame_index];
 
@@ -1104,7 +1104,7 @@ static int vk_begin_draw(struct ngpu_ctx *s)
         s_priv->default_rt_load->height = s_priv->height;
     }
 
-    if (config->hud) {
+    if (ctx_params->time) {
         vkCmdResetQueryPool(s_priv->cur_cmd_buffer->cmd_buf, s_priv->query_pool, 0, 2);
         vkCmdWriteTimestamp(s_priv->cur_cmd_buffer->cmd_buf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s_priv->query_pool, 0);
     }
@@ -1116,9 +1116,9 @@ static int vk_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
 
-    if (!config->hud)
+    if (!ctx_params->time)
         return NGL_ERROR_INVALID_USAGE;
 
     ngli_assert(s_priv->cur_cmd_buffer->cmd_buf);
@@ -1150,11 +1150,11 @@ static int vk_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 
 static int vk_end_draw(struct ngpu_ctx *s, double t)
 {
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
-    if (config->offscreen) {
-        if (config->capture_buffer) {
+    if (ctx_params->offscreen) {
+        if (ctx_params->capture_buffer) {
             struct ngpu_texture **colors = ngli_darray_data(&s_priv->colors);
             struct ngpu_texture *color = colors[s->current_frame_index];
             ngpu_texture_vk_copy_to_buffer(color, s_priv->capture_buffer);
@@ -1167,7 +1167,7 @@ static int vk_end_draw(struct ngpu_ctx *s, double t)
             if (res != VK_SUCCESS)
                 return ngli_vk_res2ret(res);
 
-            memcpy(config->capture_buffer, s_priv->mapped_data, s_priv->capture_buffer_size);
+            memcpy(ctx_params->capture_buffer, s_priv->mapped_data, s_priv->capture_buffer_size);
         } else {
             VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
             if (res != VK_SUCCESS)
@@ -1510,7 +1510,7 @@ static void vk_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *bu
 }
 
 const struct ngpu_ctx_class ngpu_ctx_vk = {
-    .id                                 = NGL_BACKEND_VULKAN,
+    .id                                 = NGPU_BACKEND_VULKAN,
     .create                             = vk_create,
     .init                               = vk_init,
     .resize                             = vk_resize,

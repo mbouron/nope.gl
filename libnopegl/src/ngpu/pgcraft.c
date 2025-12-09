@@ -386,15 +386,15 @@ static const enum ngpu_type texture_types_map[NGPU_PGCRAFT_TEXTURE_TYPE_NB][NGPU
 static int is_type_supported(struct ngpu_pgcraft *s, enum ngpu_type type)
 {
     const struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngl_config *config = &gpu_ctx->config;
+    const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 
     switch(type) {
     case NGPU_TYPE_SAMPLER_2D_RECT:
-        return ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_RECTANGLE) ||
-               ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_NV12_RECTANGLE);
+        return ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_RECTANGLE) ||
+               ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_NV12_RECTANGLE);
     case NGPU_TYPE_SAMPLER_EXTERNAL_OES:
     case NGPU_TYPE_SAMPLER_EXTERNAL_2D_Y2Y_EXT:
-        return ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_MEDIACODEC);
+        return ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_MEDIACODEC);
     default:
         return 1;
     }
@@ -745,7 +745,7 @@ static int params_have_images(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_
 static void set_glsl_header(struct ngpu_pgcraft *s, struct bstr *b, const struct ngpu_pgcraft_params *params, enum ngpu_program_stage stage)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngl_config *config = &gpu_ctx->config;
+    const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 
     ngli_bstr_printf(b, "#version %d%s\n", s->glsl_version, s->glsl_version_suffix);
 
@@ -762,20 +762,20 @@ static void set_glsl_header(struct ngpu_pgcraft *s, struct bstr *b, const struct
         int required;
     } features[] = {
         /* OpenGL */
-        {NGL_BACKEND_OPENGL, "GL_ARB_shading_language_420pack",       420, s->has_explicit_bindings},
-        {NGL_BACKEND_OPENGL, "GL_ARB_shader_image_load_store",        420, require_image_feature},
-        {NGL_BACKEND_OPENGL, "GL_ARB_shader_image_size",              430, require_image_feature},
-        {NGL_BACKEND_OPENGL, "GL_ARB_shader_storage_buffer_object",   430, require_ssbo_feature},
-        {NGL_BACKEND_OPENGL, "GL_ARB_compute_shader",                 430, stage == NGPU_PROGRAM_STAGE_COMP},
+        {NGPU_BACKEND_OPENGL, "GL_ARB_shading_language_420pack",       420, s->has_explicit_bindings},
+        {NGPU_BACKEND_OPENGL, "GL_ARB_shader_image_load_store",        420, require_image_feature},
+        {NGPU_BACKEND_OPENGL, "GL_ARB_shader_image_size",              430, require_image_feature},
+        {NGPU_BACKEND_OPENGL, "GL_ARB_shader_storage_buffer_object",   430, require_ssbo_feature},
+        {NGPU_BACKEND_OPENGL, "GL_ARB_compute_shader",                 430, stage == NGPU_PROGRAM_STAGE_COMP},
 
         /* OpenGLES */
 #if defined(TARGET_ANDROID)
-        {NGL_BACKEND_OPENGLES, "GL_OES_EGL_image_external_essl3", INT_MAX, require_image_external_essl3_feature},
+        {NGPU_BACKEND_OPENGLES, "GL_OES_EGL_image_external_essl3", INT_MAX, require_image_external_essl3_feature},
 #endif
     };
 
     for (size_t i = 0; i < NGLI_ARRAY_NB(features); i++) {
-        if (features[i].backend == config->backend &&
+        if (features[i].backend == ctx_params->backend &&
             features[i].glsl_version > s->glsl_version &&
             features[i].required)
             ngli_bstr_printf(b, "#extension %s : require\n", features[i].extension);
@@ -861,7 +861,7 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
                         const struct token *token, const char *p, struct bstr *dst)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngl_config *config = &gpu_ctx->config;
+    const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 
     /* Skip "ngl_XXX(" and the whitespaces */
     p += strlen(token->id);
@@ -902,12 +902,12 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
 
         ngli_bstr_print(dst, "(");
 
-        if (ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_MEDIACODEC)) {
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_MEDIACODEC)) {
             ngli_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_MEDIACODEC);
             ngli_bstr_printf(dst, "texture(%.*s_oes, %.*s) : ", ARG_FMT(arg0), ARG_FMT(coords));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_NV12_RECTANGLE)) {
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_NV12_RECTANGLE)) {
             ngli_bstr_printf(dst, " %.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_NV12_RECTANGLE);
             ngli_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)).r, "
                                                            "texture(%.*s_rect_1, (%.*s) * textureSize(%.*s_rect_1)).rg, 1.0) : ",
@@ -916,13 +916,13 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
                              ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_RECTANGLE)) {
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_RECTANGLE)) {
             ngli_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_RECTANGLE);
             ngli_bstr_printf(dst, "texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)) : ",
                              ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_NV12)) {
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_NV12)) {
             ngli_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_NV12);
             ngli_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
                                                            "texture(%.*s_1, %.*s).rg, 1.0) : ",
@@ -931,7 +931,7 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
                              ARG_FMT(arg0), ARG_FMT(coords));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_YUV)) {
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_YUV)) {
             ngli_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_YUV);
             ngli_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
                                                            "texture(%.*s_1, %.*s).r, "
@@ -942,7 +942,7 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
                              ARG_FMT(arg0), ARG_FMT(coords));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(config->backend, NGLI_IMAGE_LAYOUT_DEFAULT)) {
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_DEFAULT)) {
             ngli_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
         } else {
             LOG(WARNING, "default image layout not supported in current build");
@@ -1242,13 +1242,13 @@ static int probe_pipeline_elems(struct ngpu_pgcraft *s)
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 
-#define IS_GLSL_ES_MIN(min) (config->backend == NGL_BACKEND_OPENGLES && s->glsl_version >= (min))
-#define IS_GLSL_MIN(min)    (config->backend == NGL_BACKEND_OPENGL   && s->glsl_version >= (min))
+#define IS_GLSL_ES_MIN(min) (ctx_params->backend == NGPU_BACKEND_OPENGLES && s->glsl_version >= (min))
+#define IS_GLSL_MIN(min)    (ctx_params->backend == NGPU_BACKEND_OPENGL   && s->glsl_version >= (min))
 
 static void setup_glsl_info_gl(struct ngpu_pgcraft *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngl_config *config = &gpu_ctx->config;
+    const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
     const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
     const struct glcontext *gl = gpu_ctx_gl->glcontext;
 
@@ -1257,7 +1257,7 @@ static void setup_glsl_info_gl(struct ngpu_pgcraft *s)
 
     s->glsl_version = gpu_ctx->language_version;
 
-    if (config->backend == NGL_BACKEND_OPENGLES)
+    if (ctx_params->backend == NGPU_BACKEND_OPENGLES)
         s->glsl_version_suffix = " es";
 
     s->has_in_out_layout_qualifiers = IS_GLSL_ES_MIN(310) || IS_GLSL_MIN(410);
@@ -1300,19 +1300,19 @@ static void setup_glsl_info_vk(struct ngpu_pgcraft *s)
 static void setup_glsl_info(struct ngpu_pgcraft *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    ngli_unused const struct ngl_config *config = &gpu_ctx->config;
+    ngli_unused const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 
     s->glsl_version_suffix = "";
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
-    if (config->backend == NGL_BACKEND_OPENGL || config->backend == NGL_BACKEND_OPENGLES) {
+    if (ctx_params->backend == NGPU_BACKEND_OPENGL || ctx_params->backend == NGPU_BACKEND_OPENGLES) {
         setup_glsl_info_gl(s);
         return;
     }
 #endif
 
 #if defined(BACKEND_VK)
-    if (config->backend == NGL_BACKEND_VULKAN) {
+    if (ctx_params->backend == NGPU_BACKEND_VULKAN) {
         setup_glsl_info_vk(s);
         return;
     }
@@ -1428,9 +1428,9 @@ int ngpu_pgcraft_craft(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params 
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
     struct ngpu_ctx *gpu_ctx  = s->gpu_ctx;
-    struct ngl_config *config = &gpu_ctx->config;
-    if (config->backend == NGL_BACKEND_OPENGL ||
-        config->backend == NGL_BACKEND_OPENGLES) {
+    struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
+    if (ctx_params->backend == NGPU_BACKEND_OPENGL ||
+        ctx_params->backend == NGPU_BACKEND_OPENGLES) {
         if (!s->has_explicit_bindings) {
             /* Force locations and bindings for contexts that do not support
              * explicit locations and bindings */

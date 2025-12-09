@@ -37,7 +37,6 @@
 #include "math_utils.h"
 #include "ngpu/ctx.h"
 #include "ngpu/format.h"
-#include "nopegl/nopegl_opengl.h"
 #include "pipeline_gl.h"
 #include "program_gl.h"
 #include "rendertarget_gl.h"
@@ -53,13 +52,13 @@ static void capture_cpu(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
-    struct ngl_config *config = &s->config;
+    struct ngpu_ctx_params *params = &s->params;
     struct ngpu_rendertarget *rt = s_priv->capture_rt;
     struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)rt;
 
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, rt_gl->id);
     const GLint w = (GLint)rt->width, h = (GLint)rt->height;
-    gl->funcs.ReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, config->capture_buffer);
+    gl->funcs.ReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, params->capture_buffer);
 }
 
 static void capture_corevideo(struct ngpu_ctx *s)
@@ -155,22 +154,22 @@ static void reset_capture_cvpixelbuffer(struct ngpu_ctx *s)
 
 static int create_texture(struct ngpu_ctx *s, enum ngpu_format format, uint32_t samples, uint32_t usage, struct ngpu_texture **texturep)
 {
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
 
     struct ngpu_texture *texture = ngpu_texture_create(s);
     if (!texture)
         return NGL_ERROR_MEMORY;
 
-    const struct ngpu_texture_params params = {
+    const struct ngpu_texture_params texture_params = {
         .type    = NGPU_TEXTURE_TYPE_2D,
         .format  = format,
-        .width   = config->width,
-        .height  = config->height,
+        .width   = ctx_params->width,
+        .height  = ctx_params->height,
         .samples = samples,
         .usage   = usage,
     };
 
-    int ret = ngpu_texture_init(texture, &params);
+    int ret = ngpu_texture_init(texture, &texture_params);
     if (ret < 0) {
         ngpu_texture_freep(&texture);
         return ret;
@@ -189,25 +188,25 @@ static int create_rendertarget(struct ngpu_ctx *s,
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
-    const struct ngl_config *config = &s->config;
-    const struct ngl_config_gl *config_gl = config->backend_config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
+    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
 
     struct ngpu_rendertarget *rendertarget = ngpu_rendertarget_create(s);
     if (!rendertarget)
         return NGL_ERROR_MEMORY;
 
     const struct ngpu_rendertarget_params params = {
-        .width = config->width,
-        .height = config->height,
+        .width = ctx_params->width,
+        .height = ctx_params->height,
         .nb_colors = 1,
         .colors[0] = {
             .attachment     = color,
             .resolve_target = resolve_color,
             .load_op        = load_op,
-            .clear_value[0] = config->clear_color[0],
-            .clear_value[1] = config->clear_color[1],
-            .clear_value[2] = config->clear_color[2],
-            .clear_value[3] = config->clear_color[3],
+            .clear_value[0] = ctx_params->clear_color[0],
+            .clear_value[1] = ctx_params->clear_color[1],
+            .clear_value[2] = ctx_params->clear_color[2],
+            .clear_value[3] = ctx_params->clear_color[3],
             .store_op       = NGPU_STORE_OP_STORE,
         },
         .depth_stencil = {
@@ -221,9 +220,9 @@ static int create_rendertarget(struct ngpu_ctx *s,
     if (color) {
         ret = ngpu_rendertarget_init(rendertarget, &params);
     } else {
-        const int external = config_gl ? config_gl->external : 0;
+        const int external = ctx_params_gl ? ctx_params_gl->external : 0;
         const GLuint default_fbo_id = ngli_glcontext_get_default_framebuffer(gl);
-        const GLuint fbo_id = external ? config_gl->external_framebuffer : default_fbo_id;
+        const GLuint fbo_id = external ? ctx_params_gl->external_framebuffer : default_fbo_id;
         ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, fbo_id);
     }
     if (ret < 0) {
@@ -241,9 +240,9 @@ static int create_rendertarget(struct ngpu_ctx *s,
 static int offscreen_rendertarget_init(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-    struct ngl_config *config = &s->config;
+    struct ngpu_ctx_params *ctx_params = &s->params;
 
-    if (config->capture_buffer_type == NGL_CAPTURE_BUFFER_TYPE_COREVIDEO) {
+    if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO) {
 #if defined(TARGET_IPHONE)
         if (config->capture_buffer) {
             s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(config->capture_buffer);
@@ -260,12 +259,12 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
         LOG(ERROR, "CoreVideo capture is only supported on iOS");
         return NGL_ERROR_UNSUPPORTED;
 #endif
-    } else if (config->capture_buffer_type == NGL_CAPTURE_BUFFER_TYPE_CPU) {
+    } else if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_CPU) {
         int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
         if (ret < 0)
             return ret;
     } else {
-        LOG(ERROR, "unsupported capture buffer type: %u", config->capture_buffer_type);
+        LOG(ERROR, "unsupported capture buffer type: %u", ctx_params->capture_buffer_type);
         return NGL_ERROR_UNSUPPORTED;
     }
 
@@ -278,13 +277,13 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
     if (ret < 0)
         return ret;
 
-    if (config->samples) {
-        ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, config->samples, COLOR_USAGE, &s_priv->ms_color);
+    if (ctx_params->samples) {
+        ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, ctx_params->samples, COLOR_USAGE, &s_priv->ms_color);
         if (ret < 0)
             return ret;
     }
 
-    ret = create_texture(s, NGPU_FORMAT_D24_UNORM_S8_UINT, config->samples, DEPTH_USAGE, &s_priv->depth_stencil);
+    ret = create_texture(s, NGPU_FORMAT_D24_UNORM_S8_UINT, ctx_params->samples, DEPTH_USAGE, &s_priv->depth_stencil);
     if (ret < 0)
         return ret;
 
@@ -299,10 +298,10 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
         return ret;
 
     static const capture_func_type capture_func_map[] = {
-        [NGL_CAPTURE_BUFFER_TYPE_CPU]       = capture_cpu,
-        [NGL_CAPTURE_BUFFER_TYPE_COREVIDEO] = capture_corevideo,
+        [NGPU_CAPTURE_BUFFER_TYPE_CPU]       = capture_cpu,
+        [NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO] = capture_corevideo,
     };
-    s_priv->capture_func = capture_func_map[config->capture_buffer_type];
+    s_priv->capture_func = capture_func_map[ctx_params->capture_buffer_type];
 
     return 0;
 }
@@ -382,7 +381,7 @@ static void timer_reset(struct ngpu_ctx *s)
         s_priv->glDeleteQueries(2, s_priv->queries);
 }
 
-static struct ngpu_ctx *gl_create(const struct ngl_config *config)
+static struct ngpu_ctx *gl_create(const struct ngpu_ctx_params *params)
 {
     struct ngpu_ctx_gl *s = ngli_calloc(1, sizeof(*s));
     if (!s)
@@ -549,29 +548,29 @@ static void destroy_command_buffers(struct ngpu_ctx *s)
 static int gl_init(struct ngpu_ctx *s)
 {
     int ret;
-    struct ngl_config *config = &s->config;
-    const struct ngl_config_gl *config_gl = config->backend_config;
+    struct ngpu_ctx_params *ctx_params = &s->params;
+    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
 
-    const int external = config_gl ? config_gl->external : 0;
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
     if (external) {
-        if (config->width <= 0 || config->height <= 0) {
+        if (ctx_params->width <= 0 || ctx_params->height <= 0) {
             LOG(ERROR, "could not create external context with invalid dimensions (%ux%u)",
-                config->width, config->height);
+                ctx_params->width, ctx_params->height);
             return NGL_ERROR_INVALID_ARG;
         }
-        if (config->capture_buffer) {
+        if (ctx_params->capture_buffer) {
             LOG(ERROR, "capture_buffer is not supported by external context");
             return NGL_ERROR_INVALID_ARG;
         }
-    } else if (config->offscreen) {
-        if (config->width <= 0 || config->height <= 0) {
+    } else if (ctx_params->offscreen) {
+        if (ctx_params->width <= 0 || ctx_params->height <= 0) {
             LOG(ERROR, "could not create offscreen context with invalid dimensions (%ux%u)",
-                config->width, config->height);
+                ctx_params->width, ctx_params->height);
             return NGL_ERROR_INVALID_ARG;
         }
     } else {
-        if (config->capture_buffer) {
+        if (ctx_params->capture_buffer) {
             LOG(ERROR, "capture_buffer is not supported by onscreen context");
             return NGL_ERROR_INVALID_ARG;
         }
@@ -596,17 +595,17 @@ static int gl_init(struct ngpu_ctx *s)
 #endif
 
     const struct glcontext_params params = {
-        .platform      = config->platform,
-        .backend       = config->backend,
+        .platform      = ctx_params->platform,
+        .backend       = ctx_params->backend,
         .external      = external,
-        .display       = config->display,
-        .window        = config->window,
-        .swap_interval = config->swap_interval,
-        .offscreen     = config->offscreen,
-        .width         = config->width,
-        .height        = config->height,
-        .samples       = config->samples,
-        .debug         = config->debug,
+        .display       = ctx_params->display,
+        .window        = ctx_params->window,
+        .swap_interval = ctx_params->swap_interval,
+        .offscreen     = ctx_params->offscreen,
+        .width         = ctx_params->width,
+        .height        = ctx_params->height,
+        .samples       = ctx_params->samples,
+        .debug         = ctx_params->debug,
     };
 
     s_priv->glcontext = ngli_glcontext_create(&params);
@@ -629,13 +628,13 @@ static int gl_init(struct ngpu_ctx *s)
 #endif
 
     if (external) {
-        ret = ngpu_ctx_gl_wrap_framebuffer(s, config_gl->external_framebuffer);
+        ret = ngpu_ctx_gl_wrap_framebuffer(s, ctx_params_gl->external_framebuffer);
     } else if (gl->offscreen) {
         ret = offscreen_rendertarget_init(s);
     } else {
         /* Sync context config dimensions with glcontext (swapchain) dimensions */
-        config->width = gl->width;
-        config->height = gl->height;
+        ctx_params->width = gl->width;
+        ctx_params->height = gl->height;
         ret = onscreen_rendertarget_init(s);
     }
     if (ret < 0)
@@ -666,28 +665,28 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
-    struct ngl_config *config = &s->config;
-    struct ngl_config_gl *config_gl = config->backend_config;
-    const int external = config_gl ? config_gl->external : 0;
+    struct ngpu_ctx_params *ctx_params = &s->params;
+    struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
 
     if (external) {
-        config->width = width;
-        config->height = height;
-    } else if (!config->offscreen) {
+        ctx_params->width = width;
+        ctx_params->height = height;
+    } else if (!ctx_params->offscreen) {
         int ret = ngli_glcontext_resize(gl, width, height);
         if (ret < 0)
             return ret;
-        config->width = gl->width;
-        config->height = gl->height;
+        ctx_params->width = gl->width;
+        ctx_params->height = gl->height;
     } else {
         LOG(ERROR, "resize operation is not supported by offscreen context");
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    s_priv->default_rt->width = config->width;
-    s_priv->default_rt->height = config->height;
-    s_priv->default_rt_load->width = config->width;
-    s_priv->default_rt_load->height = config->height;
+    s_priv->default_rt->width = ctx_params->width;
+    s_priv->default_rt->height = ctx_params->height;
+    s_priv->default_rt_load->width = ctx_params->width;
+    s_priv->default_rt_load->height = ctx_params->height;
 
     if (!external) {
         /*
@@ -741,21 +740,21 @@ static int update_capture_cvpixelbuffer(struct ngpu_ctx *s, CVPixelBufferRef cap
 
 static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 {
-    struct ngl_config *config = &s->config;
-    const struct ngl_config_gl *config_gl = config->backend_config;
-    const int external = config_gl ? config_gl->external : 0;
+    struct ngpu_ctx_params *ctx_params = &s->params;
+    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
 
     if (external) {
         LOG(ERROR, "capture_buffer is not supported by external context");
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    if (!config->offscreen) {
+    if (!ctx_params->offscreen) {
         LOG(ERROR, "capture_buffer is not supported by onscreen context");
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    if (config->capture_buffer_type == NGL_CAPTURE_BUFFER_TYPE_COREVIDEO) {
+    if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO) {
 #if defined(TARGET_IPHONE)
         int ret = update_capture_cvpixelbuffer(s, capture_buffer);
         if (ret < 0)
@@ -765,7 +764,7 @@ static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 #endif
     }
 
-    config->capture_buffer = capture_buffer;
+    ctx_params->capture_buffer = capture_buffer;
 
     return 0;
 }
@@ -793,12 +792,12 @@ void ngpu_ctx_gl_reset_state(struct ngpu_ctx *s)
 
 int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
 {
-    struct ngl_config *config = &s->config;
-    struct ngl_config_gl *config_gl = config->backend_config;
+    struct ngpu_ctx_params *ctx_params = &s->params;
+    struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
 
-    const int external = config_gl ? config_gl->external : 0;
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
     if (!external) {
         LOG(ERROR, "wrapping external OpenGL framebuffers is not supported by context");
         return NGL_ERROR_UNSUPPORTED;
@@ -810,7 +809,7 @@ int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
     const GLenum target = GL_DRAW_FRAMEBUFFER;
     gl->funcs.BindFramebuffer(target, fbo);
 
-    const int es = config->backend == NGL_BACKEND_OPENGLES;
+    const int es = ctx_params->backend == NGPU_BACKEND_OPENGLES;
     const GLenum default_color_attachment = es ? GL_BACK : GL_FRONT_LEFT;
     const GLenum color_attachment   = fbo ? GL_COLOR_ATTACHMENT0  : default_color_attachment;
     const GLenum depth_attachment   = fbo ? GL_DEPTH_ATTACHMENT   : GL_DEPTH;
@@ -860,7 +859,7 @@ int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
                                    NGPU_LOAD_OP_LOAD, &s_priv->default_rt_load)) < 0)
         return ret;
 
-    config_gl->external_framebuffer = fbo;
+    ctx_params_gl->external_framebuffer = fbo;
 
     return 0;
 }
@@ -895,9 +894,9 @@ static int gl_end_update(struct ngpu_ctx *s)
 static int gl_begin_draw(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-    const struct ngl_config *config = &s->config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
 
-    if (config->hud)
+    if (ctx_params->time)
 #if defined(TARGET_DARWIN)
         s_priv->glBeginQuery(GL_TIME_ELAPSED, s_priv->queries[0]);
 #else
@@ -946,23 +945,23 @@ static int gl_end_draw(struct ngpu_ctx *s, double t)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
-    const struct ngl_config *config = &s->config;
-    const struct ngl_config_gl *config_gl = config->backend_config;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
+    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
 
     int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer);
     if (ret < 0)
         return ret;
 
-    if (s_priv->capture_func && config->capture_buffer) {
+    if (s_priv->capture_func && ctx_params->capture_buffer) {
         blit_vflip(s, s_priv->default_rt, s_priv->capture_rt);
         s_priv->capture_func(s);
     }
 
     ret = ngli_glcontext_check_gl_error(gl, __func__);
 
-    const int external = config_gl ? config_gl->external : 0;
-    if (!external && !config->offscreen) {
-        if (config->set_surface_pts)
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
+    if (!external && !ctx_params->offscreen) {
+        if (ctx_params->set_surface_pts)
             ngli_glcontext_set_surface_pts(gl, t);
 
         ngli_glcontext_swap_buffers(gl);
@@ -975,8 +974,8 @@ static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
 
-    const struct ngl_config *config = &s->config;
-    if (!config->hud)
+    const struct ngpu_ctx_params *ctx_params = &s->params;
+    if (!ctx_params->time)
         return NGL_ERROR_INVALID_USAGE;
 
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
@@ -1076,8 +1075,8 @@ static const struct ngpu_rendertarget_layout *gl_get_default_rendertarget_layout
 
 static void gl_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width, uint32_t *height)
 {
-    *width = s->config.width;
-    *height = s->config.height;
+    *width = s->params.width;
+    *height = s->params.height;
 }
 
 static void gl_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
@@ -1343,8 +1342,8 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
 }                                                                                \
 
 #ifdef BACKEND_GL
-DECLARE_GPU_CTX_CLASS(gl,   NGL_BACKEND_OPENGL);
+DECLARE_GPU_CTX_CLASS(gl,   NGPU_BACKEND_OPENGL);
 #endif
 #ifdef BACKEND_GLES
-DECLARE_GPU_CTX_CLASS(gles, NGL_BACKEND_OPENGLES);
+DECLARE_GPU_CTX_CLASS(gles, NGPU_BACKEND_OPENGLES);
 #endif
