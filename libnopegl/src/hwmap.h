@@ -28,7 +28,7 @@
 
 #include "hwconv.h"
 #include "image.h"
-#include "nopegl/nopegl.h"
+#include "ngpu/ctx.h"
 
 #define HWMAP_FLAG_FRAME_OWNER (1U << 0)
 
@@ -74,7 +74,7 @@ struct hwmap_class {
     void (*uninit)(struct hwmap *hwmap);
 };
 
-int ngli_hwmap_is_image_layout_supported(enum ngl_backend_type backend, enum image_layout image_layout);
+int ngli_hwmap_is_image_layout_supported(enum ngpu_backend_type backend, enum image_layout image_layout);
 
 int ngli_hwmap_init(struct hwmap *hwmap, struct ngl_ctx *ctx, const struct hwmap_params *params);
 int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct image *image);

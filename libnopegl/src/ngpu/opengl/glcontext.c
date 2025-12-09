@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -29,7 +29,7 @@
 #include "glincludes.h"
 #include "log.h"
 #include "ngpu/limits.h"
-#include "nopegl/nopegl.h"
+#include "ngpu/ctx.h"
 #include "utils/bstr.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -97,18 +97,17 @@ static const struct {
 };
 
 static const int platform_to_glplatform[] = {
-    [NGL_PLATFORM_XLIB]    = GLPLATFORM_EGL,
-    [NGL_PLATFORM_ANDROID] = GLPLATFORM_EGL,
-    [NGL_PLATFORM_MACOS]   = GLPLATFORM_NSGL,
-    [NGL_PLATFORM_IOS]     = GLPLATFORM_EAGL,
-    [NGL_PLATFORM_WINDOWS] = GLPLATFORM_WGL,
-    [NGL_PLATFORM_WAYLAND] = GLPLATFORM_EGL,
+    [NGPU_PLATFORM_XLIB]    = GLPLATFORM_EGL,
+    [NGPU_PLATFORM_ANDROID] = GLPLATFORM_EGL,
+    [NGPU_PLATFORM_MACOS]   = GLPLATFORM_NSGL,
+    [NGPU_PLATFORM_IOS]     = GLPLATFORM_EAGL,
+    [NGPU_PLATFORM_WINDOWS] = GLPLATFORM_WGL,
+    [NGPU_PLATFORM_WAYLAND] = GLPLATFORM_EGL,
 };
 
 static const char * const backend_names[] = {
-    [NGL_BACKEND_AUTO]     = "NGL_BACKEND_AUTO",
-    [NGL_BACKEND_OPENGL]   = "NGL_BACKEND_OPENGL",
-    [NGL_BACKEND_OPENGLES] = "NGL_BACKEND_OPENGLES",
+    [NGPU_BACKEND_OPENGL]   = "NGPU_BACKEND_OPENGL",
+    [NGPU_BACKEND_OPENGLES] = "NGPU_BACKEND_OPENGLES",
 };
 
 static int glcontext_load_functions(struct glcontext *glcontext)
@@ -143,17 +142,17 @@ static int glcontext_probe_version(struct glcontext *glcontext)
 
     const char *es_prefix = "OpenGL ES";
     const int es = !strncmp(es_prefix, gl_version, strlen(es_prefix));
-    const int backend = es ? NGL_BACKEND_OPENGLES : NGL_BACKEND_OPENGL;
+    const int backend = es ? NGPU_BACKEND_OPENGLES : NGPU_BACKEND_OPENGL;
     if (glcontext->backend != backend) {
         LOG(ERROR, "OpenGL context (%s) does not match requested backend (%s)",
             backend_names[backend], backend_names[glcontext->backend]);
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    if (glcontext->backend == NGL_BACKEND_OPENGL) {
+    if (glcontext->backend == NGPU_BACKEND_OPENGL) {
         glcontext->funcs.GetIntegerv(GL_MAJOR_VERSION, &major_version);
         glcontext->funcs.GetIntegerv(GL_MINOR_VERSION, &minor_version);
-    } else if (glcontext->backend == NGL_BACKEND_OPENGLES) {
+    } else if (glcontext->backend == NGPU_BACKEND_OPENGLES) {
         int ret = sscanf(gl_version,
                          "OpenGL ES %d.%d",
                          &major_version,
@@ -169,7 +168,7 @@ static int glcontext_probe_version(struct glcontext *glcontext)
     LOG(INFO, "OpenGL version: %d.%d %s",
         major_version,
         minor_version,
-        glcontext->backend == NGL_BACKEND_OPENGLES ? "ES " : "");
+        glcontext->backend == NGPU_BACKEND_OPENGLES ? "ES " : "");
 
     const char *renderer = (const char *)glcontext->funcs.GetString(GL_RENDERER);
     if (!renderer) {
@@ -187,10 +186,10 @@ static int glcontext_probe_version(struct glcontext *glcontext)
 
     glcontext->version = major_version * 100 + minor_version * 10;
 
-    if (glcontext->backend == NGL_BACKEND_OPENGL && glcontext->version < 330) {
+    if (glcontext->backend == NGPU_BACKEND_OPENGL && glcontext->version < 330) {
         LOG(ERROR, "nope.gl only supports OpenGL >= 3.3");
         return NGL_ERROR_UNSUPPORTED;
-    } else if (glcontext->backend == NGL_BACKEND_OPENGLES && glcontext->version < 300) {
+    } else if (glcontext->backend == NGPU_BACKEND_OPENGLES && glcontext->version < 300) {
         LOG(ERROR, "nope.gl only supports OpenGL ES >= 3.0");
         return NGL_ERROR_UNSUPPORTED;
     }
@@ -200,7 +199,7 @@ static int glcontext_probe_version(struct glcontext *glcontext)
 
 static int glcontext_probe_glsl_version(struct glcontext *glcontext)
 {
-    if (glcontext->backend == NGL_BACKEND_OPENGL) {
+    if (glcontext->backend == NGPU_BACKEND_OPENGL) {
         const char *glsl_version = (const char *)glcontext->funcs.GetString(GL_SHADING_LANGUAGE_VERSION);
         if (!glsl_version) {
             LOG(ERROR, "could not get GLSL version");
@@ -215,7 +214,7 @@ static int glcontext_probe_glsl_version(struct glcontext *glcontext)
             return NGL_ERROR_BUG;
         }
         glcontext->glsl_version = major_version * 100 + minor_version;
-    } else if (glcontext->backend == NGL_BACKEND_OPENGLES) {
+    } else if (glcontext->backend == NGPU_BACKEND_OPENGLES) {
         glcontext->glsl_version = glcontext->version;
     } else {
         ngli_assert(0);
@@ -247,7 +246,7 @@ static int glcontext_check_extensions(struct glcontext *glcontext,
     if (!extensions || !*extensions)
         return 0;
 
-    if (glcontext->backend == NGL_BACKEND_OPENGLES) {
+    if (glcontext->backend == NGPU_BACKEND_OPENGLES) {
         const char *gl_extensions = (const char *)glcontext->funcs.GetString(GL_EXTENSIONS);
         while (*extensions) {
             if (!ngli_glcontext_check_extension(*extensions, gl_extensions))
@@ -255,7 +254,7 @@ static int glcontext_check_extensions(struct glcontext *glcontext,
 
             extensions++;
         }
-    } else if (glcontext->backend == NGL_BACKEND_OPENGL) {
+    } else if (glcontext->backend == NGPU_BACKEND_OPENGL) {
         while (*extensions) {
             if (!glcontext_check_extension(*extensions, glcontext))
                 return 0;
@@ -289,7 +288,7 @@ static int glcontext_check_functions(struct glcontext *glcontext,
 
 static int glcontext_probe_extensions(struct glcontext *glcontext)
 {
-    const int es = glcontext->backend == NGL_BACKEND_OPENGLES;
+    const int es = glcontext->backend == NGPU_BACKEND_OPENGLES;
     struct bstr *features_str = ngli_bstr_create();
 
     if (!features_str)
@@ -345,7 +344,7 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
      * macOS and iOS OpenGL drivers pass gl_VertexID and gl_InstanceID as
      * standard attributes and forget to count them in GL_MAX_VERTEX_ATTRIBS.
      */
-    if (glcontext->platform == NGL_PLATFORM_MACOS || glcontext->platform == NGL_PLATFORM_IOS)
+    if (glcontext->platform == NGPU_PLATFORM_MACOS || glcontext->platform == NGPU_PLATFORM_IOS)
         limits->max_vertex_attributes -= 2;
     GET(GL_MAX_TEXTURE_IMAGE_UNITS, &limits->max_texture_image_units);
     GET(GL_MAX_TEXTURE_SIZE, &limits->max_texture_dimension_1d);
@@ -547,7 +546,7 @@ struct glcontext *ngli_glcontext_create(const struct glcontext_params *params)
     if (ret < 0)
         goto fail;
 
-    if (glcontext->backend == NGL_BACKEND_OPENGL) {
+    if (glcontext->backend == NGPU_BACKEND_OPENGL) {
         glcontext->funcs.Enable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
         glcontext->funcs.Enable(GL_FRAMEBUFFER_SRGB);
     }

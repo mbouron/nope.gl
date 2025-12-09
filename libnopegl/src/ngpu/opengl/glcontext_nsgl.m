@@ -42,7 +42,7 @@ static int nsgl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window,
 {
     struct nsgl_priv *nsgl = ctx->priv_data;
 
-    if (ctx->backend != NGL_BACKEND_OPENGL) {
+    if (ctx->backend != NGPU_BACKEND_OPENGL) {
         LOG(ERROR, "unsupported backend: %d, only OpenGL is supported by NSGL", ctx->backend);
         return NGL_ERROR_UNSUPPORTED;
     }
@@ -122,7 +122,7 @@ static int nsgl_init_external(struct glcontext *ctx, uintptr_t display, uintptr_
 {
     struct nsgl_priv *nsgl = ctx->priv_data;
 
-    if (ctx->backend != NGL_BACKEND_OPENGL) {
+    if (ctx->backend != NGPU_BACKEND_OPENGL) {
         LOG(ERROR, "unsupported backend: %d, only OpenGL is supported by NSGL", ctx->backend);
         return NGL_ERROR_UNSUPPORTED;
     }
