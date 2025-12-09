@@ -40,10 +40,10 @@
 #include <vulkan/vulkan.h>
 
 #include "log.h"
+#include "ngpu/ctx.h"
 #include "ngpu/format.h"
 #include "ngpu/vulkan/vkcontext.h"
 #include "ngpu/vulkan/vkutils.h"
-#include "nopegl/nopegl.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -96,15 +96,15 @@ static int has_layer(struct vkcontext *s, const char *name)
 }
 
 static const char *platform_ext_names[] = {
-    [NGL_PLATFORM_XLIB]    = "VK_KHR_xlib_surface",
-    [NGL_PLATFORM_ANDROID] = "VK_KHR_android_surface",
-    [NGL_PLATFORM_MACOS]   = "VK_MVK_macos_surface",
-    [NGL_PLATFORM_IOS]     = "VK_MVK_ios_surface",
-    [NGL_PLATFORM_WINDOWS] = "VK_KHR_win32_surface",
-    [NGL_PLATFORM_WAYLAND] = "VK_KHR_wayland_surface",
+    [NGPU_PLATFORM_XLIB]    = "VK_KHR_xlib_surface",
+    [NGPU_PLATFORM_ANDROID] = "VK_KHR_android_surface",
+    [NGPU_PLATFORM_MACOS]   = "VK_MVK_macos_surface",
+    [NGPU_PLATFORM_IOS]     = "VK_MVK_ios_surface",
+    [NGPU_PLATFORM_WINDOWS] = "VK_KHR_win32_surface",
+    [NGPU_PLATFORM_WAYLAND] = "VK_KHR_wayland_surface",
 };
 
-static VkResult create_instance(struct vkcontext *s, enum ngl_platform_type platform, int debug)
+static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type platform, int debug)
 {
     s->api_version = VK_API_VERSION_1_0;
 
@@ -267,18 +267,18 @@ end:
     return res;
 }
 
-static VkResult create_window_surface(struct vkcontext *s, const struct ngl_config *config)
+static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
 {
-    if (config->offscreen)
+    if (params->offscreen)
         return VK_SUCCESS;
 
-    if (!config->window)
+    if (!params->window)
         return VK_ERROR_UNKNOWN;
 
-    const enum ngl_platform_type platform = config->platform;
-    if (platform == NGL_PLATFORM_XLIB) {
+    const enum ngpu_platform_type platform = params->platform;
+    if (platform == NGPU_PLATFORM_XLIB) {
 #if defined(TARGET_LINUX)
-        s->x11_display = (Display *)config->display;
+        s->x11_display = (Display *)params->display;
         if (!s->x11_display) {
             s->x11_display = XOpenDisplay(NULL);
             if (!s->x11_display) {
@@ -291,7 +291,7 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngl_conf
         const VkXlibSurfaceCreateInfoKHR surface_create_info = {
             .sType  = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
             .dpy    = s->x11_display,
-            .window = config->window,
+            .window = params->window,
         };
 
         VK_LOAD_FUNC(s->instance, CreateXlibSurfaceKHR);
@@ -305,11 +305,11 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngl_conf
 #else
         return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
-    } else if (platform == NGL_PLATFORM_ANDROID) {
+    } else if (platform == NGPU_PLATFORM_ANDROID) {
 #if defined(TARGET_ANDROID)
         const VkAndroidSurfaceCreateInfoKHR surface_create_info = {
             .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
-            .window = (struct ANativeWindow *)config->window,
+            .window = (struct ANativeWindow *)params->window,
         };
 
         VK_LOAD_FUNC(s->instance, CreateAndroidSurfaceKHR);
@@ -323,9 +323,9 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngl_conf
 #else
         return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
-    } else if (platform == NGL_PLATFORM_MACOS || platform == NGL_PLATFORM_IOS) {
+    } else if (platform == NGPU_PLATFORM_MACOS || platform == NGPU_PLATFORM_IOS) {
 #if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
-        const void *view = (const void *)config->window;
+        const void *view = (const void *)params->window;
         const CAMetalLayer *layer = ngpu_window_get_metal_layer(view);
         if (!layer)
             return VK_ERROR_UNKNOWN;
@@ -344,11 +344,11 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngl_conf
         if (res != VK_SUCCESS)
             return res;
 #endif
-    } else if (platform == NGL_PLATFORM_WINDOWS) {
+    } else if (platform == NGPU_PLATFORM_WINDOWS) {
 #if defined(TARGET_WINDOWS)
         const VkWin32SurfaceCreateInfoKHR surface_create_info = {
             .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-            .hwnd = (HWND)config->window,
+            .hwnd = (HWND)params->window,
         };
 
         VK_LOAD_FUNC(s->instance, CreateWin32SurfaceKHR);
@@ -360,12 +360,12 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngl_conf
         if (res != VK_SUCCESS)
             return res;
 #endif
-    } else if (platform == NGL_PLATFORM_WAYLAND) {
+    } else if (platform == NGPU_PLATFORM_WAYLAND) {
 #if defined(HAVE_WAYLAND)
         const VkWaylandSurfaceCreateInfoKHR surface_create_info = {
             .sType   = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-            .display = (struct wl_display *)config->display,
-            .surface = (struct wl_surface *)config->window,
+            .display = (struct wl_display *)params->display,
+            .surface = (struct wl_surface *)params->window,
         };
 
         VK_LOAD_FUNC(s->instance, CreateWaylandSurfaceKHR);
@@ -386,7 +386,7 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngl_conf
     return VK_SUCCESS;
 }
 
-static VkResult enumerate_physical_devices(struct vkcontext *s, const struct ngl_config *config)
+static VkResult enumerate_physical_devices(struct vkcontext *s, const struct ngpu_ctx_params *ctx_params)
 {
     VkResult res = vkEnumeratePhysicalDevices(s->instance, &s->nb_phy_devices, NULL);
     if (res != VK_SUCCESS)
@@ -428,7 +428,7 @@ static void get_memory_property_flags_str(struct bstr *bstr, VkMemoryPropertyFla
     }
 }
 
-static VkResult select_physical_device(struct vkcontext *s, const struct ngl_config *config)
+static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ctx_params *ctx_params)
 {
     static const struct {
         const char *name;
@@ -866,25 +866,25 @@ struct vkcontext *ngli_vkcontext_create(void)
     return s;
 }
 
-VkResult ngli_vkcontext_init(struct vkcontext *s, const struct ngl_config *config)
+VkResult ngli_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params)
 {
-    VkResult res = create_instance(s, config->platform, config->debug);
+    VkResult res = create_instance(s, params->platform, params->debug);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "failed to create instance: %s", ngli_vk_res2str(res));
         return res;
     }
 
-    res = create_window_surface(s, config);
+    res = create_window_surface(s, params);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "failed to create window surface: %s", ngli_vk_res2str(res));
         return res;
     }
 
-    res = enumerate_physical_devices(s, config);
+    res = enumerate_physical_devices(s, params);
     if (res != VK_SUCCESS)
         return res;
 
-    res = select_physical_device(s, config);
+    res = select_physical_device(s, params);
     if (res != VK_SUCCESS)
         return res;
 

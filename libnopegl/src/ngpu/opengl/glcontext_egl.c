@@ -302,7 +302,7 @@ static EGLDisplay egl_get_display(struct glcontext *ctx, EGLNativeDisplayType na
 
     egl->native_display = native_display ? native_display : EGL_NO_DISPLAY;
 
-    if (ctx->platform == NGL_PLATFORM_XLIB) {
+    if (ctx->platform == NGPU_PLATFORM_XLIB) {
         if (!egl->native_display) {
             egl->native_display = XOpenDisplay(NULL);
             egl->own_native_display = egl->native_display ? 1 : 0;
@@ -315,7 +315,7 @@ static EGLDisplay egl_get_display(struct glcontext *ctx, EGLNativeDisplayType na
             }
             return egl->GetPlatformDisplay(EGL_PLATFORM_X11, egl->native_display, NULL);
         }
-    } else if (ctx->platform == NGL_PLATFORM_WAYLAND) {
+    } else if (ctx->platform == NGPU_PLATFORM_WAYLAND) {
 #if defined(HAVE_WAYLAND)
         if (!egl->native_display) {
             LOG(ERROR, "no Wayland display specified");
@@ -385,13 +385,13 @@ static int egl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window, 
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    const EGLenum api = ctx->backend == NGL_BACKEND_OPENGL ? EGL_OPENGL_API : EGL_OPENGL_ES_API;
+    const EGLenum api = ctx->backend == NGPU_BACKEND_OPENGL ? EGL_OPENGL_API : EGL_OPENGL_ES_API;
     if (!eglBindAPI(api)) {
-        LOG(ERROR, "could not bind OpenGL%s API", ctx->backend == NGL_BACKEND_OPENGL ? "" : "ES");
+        LOG(ERROR, "could not bind OpenGL%s API", ctx->backend == NGPU_BACKEND_OPENGL ? "" : "ES");
         return NGL_ERROR_EXTERNAL;
     }
 
-    const EGLint type = ctx->backend == NGL_BACKEND_OPENGL ? EGL_OPENGL_BIT : EGL_OPENGL_ES2_BIT;
+    const EGLint type = ctx->backend == NGPU_BACKEND_OPENGL ? EGL_OPENGL_BIT : EGL_OPENGL_ES2_BIT;
     EGLint surface_type = ctx->offscreen ? EGL_PBUFFER_BIT : EGL_WINDOW_BIT;
 
 try_again:;
@@ -431,7 +431,7 @@ try_again:;
     if (egl->has_create_context_ext) {
         const EGLint context_flags = ctx->debug ? EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR : 0;
 
-        if (ctx->backend == NGL_BACKEND_OPENGL) {
+        if (ctx->backend == NGPU_BACKEND_OPENGL) {
             static const struct {
                 int major;
                 int minor;
@@ -452,7 +452,7 @@ try_again:;
                 if (egl->handle)
                     break;
             }
-        } else if (ctx->backend == NGL_BACKEND_OPENGLES) {
+        } else if (ctx->backend == NGPU_BACKEND_OPENGLES) {
             const EGLint ctx_attribs[] = {
                 EGL_CONTEXT_MAJOR_VERSION_KHR, 2,
                 EGL_CONTEXT_MINOR_VERSION_KHR, 0,
@@ -493,10 +493,10 @@ try_again:;
             }
         }
     } else {
-        if (ctx->platform == NGL_PLATFORM_XLIB ||
-            ctx->platform == NGL_PLATFORM_ANDROID) {
+        if (ctx->platform == NGPU_PLATFORM_XLIB ||
+            ctx->platform == NGPU_PLATFORM_ANDROID) {
             egl->native_window = (EGLNativeWindowType)window;
-        } else if (ctx->platform == NGL_PLATFORM_WAYLAND) {
+        } else if (ctx->platform == NGPU_PLATFORM_WAYLAND) {
 #if defined(HAVE_WAYLAND)
             struct wl_surface *wl_surface = (struct wl_surface *)window;
             if (!wl_surface) {
@@ -577,10 +577,10 @@ static void egl_uninit(struct glcontext *ctx)
         eglTerminate(egl->display);
 
 #if defined(TARGET_LINUX)
-    if (ctx->platform == NGL_PLATFORM_XLIB) {
+    if (ctx->platform == NGPU_PLATFORM_XLIB) {
         if (egl->own_native_display)
             XCloseDisplay(egl->native_display);
-    } else if (ctx->platform == NGL_PLATFORM_WAYLAND) {
+    } else if (ctx->platform == NGPU_PLATFORM_WAYLAND) {
 #if defined(HAVE_WAYLAND)
         if (egl->wl_egl_window)
             wl_egl_window_destroy(egl->wl_egl_window);
@@ -608,7 +608,7 @@ static int egl_resize(struct glcontext *ctx, uint32_t width, uint32_t height)
 #endif
 
 #if defined(HAVE_WAYLAND)
-    if (ctx->platform == NGL_PLATFORM_WAYLAND)
+    if (ctx->platform == NGPU_PLATFORM_WAYLAND)
         wl_egl_window_resize(egl->wl_egl_window, (EGLint)width, (EGLint)height, 0, 0);
 #endif
 
