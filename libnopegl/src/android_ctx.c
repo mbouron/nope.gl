@@ -95,9 +95,9 @@ done:
 
 static int has_native_imagereader_api_support(struct ngpu_ctx *gpu_ctx)
 {
-    ngli_unused const struct ngl_config *config = &gpu_ctx->config;
+    ngli_unused const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 #if defined(BACKEND_GLES)
-    if (config->backend == NGL_BACKEND_OPENGLES) {
+    if (ctx_params->backend == NGPU_BACKEND_OPENGLES) {
         const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
         const struct glcontext *gl = gpu_ctx_gl->glcontext;
         const uint64_t features = NGLI_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE |
@@ -106,7 +106,7 @@ static int has_native_imagereader_api_support(struct ngpu_ctx *gpu_ctx)
     }
 #endif
 #if defined(BACKEND_VK)
-    if (config->backend == NGL_BACKEND_VULKAN) {
+    if (ctx_params->backend == NGPU_BACKEND_VULKAN) {
         const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
         const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
         static const char * const required_extensions[] = {
