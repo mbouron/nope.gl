@@ -150,7 +150,7 @@ struct ngpu_ctx {
     uint32_t nb_in_flight_frames;
     uint32_t current_frame_index;
 
-    struct ngpu_pgcache program_cache;
+    struct ngpu_pgcache *program_cache;
 
     struct ngpu_capture_ctx *gpu_capture_ctx;
     int gpu_capture;
