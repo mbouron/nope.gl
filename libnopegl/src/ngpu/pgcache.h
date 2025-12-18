@@ -24,17 +24,12 @@
 #define NGPU_PGCACHE_H
 
 #include "program.h"
-#include "utils/hmap.h"
 
-struct ngpu_pgcache {
-    struct ngpu_ctx *gpu_ctx;
-    struct hmap *graphics_cache;
-    struct hmap *compute_cache;
-};
+struct ngpu_pgcache;
 
-int ngpu_pgcache_init(struct ngpu_pgcache *s, struct ngpu_ctx *ctx);
+struct ngpu_pgcache *ngpu_pgcache_create(struct ngpu_ctx *ctx);
 int ngpu_pgcache_get_graphics_program(struct ngpu_pgcache *s, struct ngpu_program **dstp, const struct ngpu_program_params *params);
 int ngpu_pgcache_get_compute_program(struct ngpu_pgcache *s, struct ngpu_program **dstp, const struct ngpu_program_params *params);
-void ngpu_pgcache_reset(struct ngpu_pgcache *s);
+void ngpu_pgcache_freep(struct ngpu_pgcache **sp);
 
 #endif
