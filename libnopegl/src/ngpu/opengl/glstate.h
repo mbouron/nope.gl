@@ -25,7 +25,7 @@
 #define NGPU_GLSTATE_H
 
 #include "glcontext.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_graphics_state;
 

@@ -26,7 +26,7 @@
 #include "ctx_gl.h"
 #include "glincludes.h"
 #include "log.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 #include "program_gl.h"
 #include "utils/bstr.h"
 #include "utils/memory.h"

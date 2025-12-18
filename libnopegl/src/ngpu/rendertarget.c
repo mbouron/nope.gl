@@ -19,8 +19,7 @@
  * under the License.
  */
 
-#include "rendertarget.h"
-#include "ctx.h"
+#include "ngpu.h"
 
 static void rendertarget_freep(void **rendertargetp)
 {

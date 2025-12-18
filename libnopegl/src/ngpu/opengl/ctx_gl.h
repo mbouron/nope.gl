@@ -32,8 +32,7 @@
 
 #include "cmd_buffer_gl.h"
 #include "glstate.h"
-#include "ngpu/ctx.h"
-#include "ngpu/rendertarget.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_ctx_params_gl {
     /*

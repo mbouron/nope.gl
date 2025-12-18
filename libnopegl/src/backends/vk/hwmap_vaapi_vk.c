@@ -34,7 +34,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/vulkan/ctx_vk.h"
 #include "ngpu/vulkan/format_vk.h"
 #include "ngpu/vulkan/texture_vk.h"

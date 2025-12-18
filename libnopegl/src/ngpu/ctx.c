@@ -22,9 +22,9 @@
 
 #include <string.h>
 
-#include "ctx.h"
 #include "log.h"
-#include "rendertarget.h"
+#include "ngpu.h"
+#include "pgcache.h"
 #include "utils/memory.h"
 
 const char *ngpu_backend_get_string_id(enum ngpu_backend_type backend)

@@ -23,7 +23,7 @@
 #include <string.h>
 
 #include "block.h"
-#include "ctx.h"
+#include "ngpu.h"
 
 int ngpu_block_init(struct ngpu_ctx *gpu_ctx, struct ngpu_block *s, const struct ngpu_block_params *params)
 {

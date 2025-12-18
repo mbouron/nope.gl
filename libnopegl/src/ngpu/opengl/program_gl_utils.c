@@ -24,7 +24,7 @@
 
 #include "ctx_gl.h"
 #include "log.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/pgcraft.h"
 #include "pipeline_compat.h"
 #include "program_gl.h"

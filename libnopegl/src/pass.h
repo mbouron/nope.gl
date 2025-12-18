@@ -25,7 +25,7 @@
 #include <stdint.h>
 
 #include "blending.h"
-#include "ngpu/pipeline.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/pgcraft.h"
 #include "utils/darray.h"
 

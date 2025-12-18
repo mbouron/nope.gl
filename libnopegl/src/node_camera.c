@@ -26,7 +26,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "transforms.h"

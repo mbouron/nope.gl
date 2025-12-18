@@ -25,10 +25,8 @@
 
 #include "box.h"
 #include "internal.h"
-#include "ngpu/ctx.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/pgcraft.h"
-#include "ngpu/type.h"
 #include "params.h"
 #include "pipeline_compat.h"
 #include "text.h"

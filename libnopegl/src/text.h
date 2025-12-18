@@ -23,7 +23,7 @@
 #define TEXT_H
 
 #include "box.h"
-#include "ngpu/texture.h"
+#include "ngpu/ngpu.h"
 #include "nopegl/nopegl.h"
 #include "utils/darray.h"
 

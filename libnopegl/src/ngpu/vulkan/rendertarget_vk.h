@@ -25,7 +25,7 @@
 
 #include <vulkan/vulkan.h>
 
-#include "ngpu/rendertarget.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_rendertarget_vk {
     struct ngpu_rendertarget parent;

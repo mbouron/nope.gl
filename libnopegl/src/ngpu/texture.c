@@ -19,8 +19,7 @@
  * under the License.
  */
 
-#include "texture.h"
-#include "ctx.h"
+#include "ngpu.h"
 
 static void texture_freep(void **texturep)
 {

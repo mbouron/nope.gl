@@ -25,11 +25,7 @@
 #define NGPU_PGCRAFT_H
 
 #include "image.h"
-#include "ngpu/block_desc.h"
-#include "ngpu/buffer.h"
-#include "ngpu/pipeline.h"
-#include "ngpu/program.h"
-#include "ngpu/texture.h"
+#include "ngpu/ngpu.h"
 #include "precision.h"
 #include "utils/bstr.h"
 

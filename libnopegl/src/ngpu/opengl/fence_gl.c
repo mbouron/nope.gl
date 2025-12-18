@@ -22,7 +22,7 @@
 #include "ctx_gl.h"
 #include "fence_gl.h"
 #include "log.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "utils/memory.h"
 
 static void fence_freep(void **fencep)

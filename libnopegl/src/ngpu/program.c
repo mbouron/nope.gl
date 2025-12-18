@@ -19,8 +19,7 @@
  * under the License.
  */
 
-#include "program.h"
-#include "ctx.h"
+#include "ngpu.h"
 
 struct ngpu_program *ngpu_program_create(struct ngpu_ctx *gpu_ctx)
 {

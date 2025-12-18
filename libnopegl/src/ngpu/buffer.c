@@ -21,8 +21,7 @@
 
 #include <string.h>
 
-#include "buffer.h"
-#include "ctx.h"
+#include "ngpu.h"
 
 static void buffer_freep(void **bufferp)
 {

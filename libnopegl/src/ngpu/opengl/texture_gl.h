@@ -24,7 +24,7 @@
 #define NGPU_TEXTURE_GL_H
 
 #include "glincludes.h"
-#include "ngpu/texture.h"
+#include "ngpu/ngpu.h"
 
 GLint ngpu_texture_get_gl_min_filter(enum ngpu_filter min_filter, enum ngpu_mipmap_filter mipmap_filter);
 GLint ngpu_texture_get_gl_mag_filter(enum ngpu_filter mag_filter);

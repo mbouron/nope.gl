@@ -21,9 +21,7 @@
 
 #include "geometry.h"
 #include "log.h"
-#include "ngpu/buffer.h"
-#include "ngpu/format.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 #include "nopegl/nopegl.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
