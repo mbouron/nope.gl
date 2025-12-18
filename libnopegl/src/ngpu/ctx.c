@@ -106,7 +106,11 @@ int ngpu_ctx_init(struct ngpu_ctx *s)
     if (ret < 0)
         return ret;
 
-    return ngpu_pgcache_init(&s->program_cache, s);
+    s->program_cache = ngpu_pgcache_create(s);
+    if (!s->program_cache)
+        return NGL_ERROR_MEMORY;
+
+    return 0;
 }
 
 int ngpu_ctx_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
@@ -174,7 +178,7 @@ void ngpu_ctx_freep(struct ngpu_ctx **sp)
 
     struct ngpu_ctx *s = *sp;
 
-    ngpu_pgcache_reset(&s->program_cache);
+    ngpu_pgcache_freep(&s->program_cache);
     s->cls->destroy(s);
 
     ngli_config_reset(&s->config);
