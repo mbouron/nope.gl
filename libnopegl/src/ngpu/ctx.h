@@ -152,10 +152,8 @@ struct ngpu_ctx {
 
     struct ngpu_pgcache program_cache;
 
-#if DEBUG_GPU_CAPTURE
     struct ngpu_capture_ctx *gpu_capture_ctx;
     int gpu_capture;
-#endif
 
     /* State */
     struct ngpu_rendertarget *rendertarget;
