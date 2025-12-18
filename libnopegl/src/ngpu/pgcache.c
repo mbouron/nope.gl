@@ -24,7 +24,14 @@
 
 #include "pgcache.h"
 #include "utils/hmap.h"
+#include "utils/memory.h"
 #include "utils/utils.h"
+
+struct ngpu_pgcache {
+    struct ngpu_ctx *gpu_ctx;
+    struct hmap *graphics_cache;
+    struct hmap *compute_cache;
+};
 
 static void reset_cached_program(void *user_arg, void *data)
 {
@@ -38,16 +45,23 @@ static void reset_cached_frag_map(void *user_arg, void *data)
     ngli_hmap_freep(&p);
 }
 
-int ngpu_pgcache_init(struct ngpu_pgcache *s, struct ngpu_ctx *ctx)
+struct ngpu_pgcache *ngpu_pgcache_create(struct ngpu_ctx *ctx)
 {
+    struct ngpu_pgcache *s = ngli_calloc(1, sizeof(*s));
+    if (!s)
+        return NULL;
     s->gpu_ctx = ctx;
     s->graphics_cache = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
     s->compute_cache = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
     if (!s->graphics_cache || !s->compute_cache)
-        return NGL_ERROR_MEMORY;
+        goto fail;
     ngli_hmap_set_free_func(s->graphics_cache, reset_cached_frag_map, s);
     ngli_hmap_set_free_func(s->compute_cache, reset_cached_program, s);
-    return 0;
+    return s;
+
+fail:
+    ngpu_pgcache_freep(&s);
+    return NULL;
 }
 
 static int query_cache(struct ngpu_pgcache *s, struct ngpu_program **dstp,
@@ -115,9 +129,10 @@ int ngpu_pgcache_get_compute_program(struct ngpu_pgcache *s, struct ngpu_program
     return query_cache(s, dstp, s->compute_cache, params->compute, params);
 }
 
-void ngpu_pgcache_reset(struct ngpu_pgcache *s)
+void ngpu_pgcache_freep(struct ngpu_pgcache **sp)
 {
-    if (!s->gpu_ctx)
+    struct ngpu_pgcache *s = *sp;
+    if (!s)
         return;
     ngli_hmap_freep(&s->compute_cache);
     ngli_hmap_freep(&s->graphics_cache);
