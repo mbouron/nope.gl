@@ -67,12 +67,6 @@ struct ngpu_ctx_gl {
 #endif
     /* Timer */
     GLuint queries[2];
-    void (NGLI_GL_APIENTRY *glGenQueries)(GLsizei n, GLuint * ids);
-    void (NGLI_GL_APIENTRY *glDeleteQueries)(GLsizei n, const GLuint *ids);
-    void (NGLI_GL_APIENTRY *glBeginQuery)(GLenum target, GLuint id);
-    void (NGLI_GL_APIENTRY *glEndQuery)(GLenum target);
-    void (NGLI_GL_APIENTRY *glQueryCounter)(GLuint id, GLenum target);
-    void (NGLI_GL_APIENTRY *glGetQueryObjectui64v)(GLuint id, GLenum pname, GLuint64 *params);
 };
 
 int ngpu_ctx_gl_make_current(struct ngpu_ctx *s);

@@ -78,6 +78,16 @@ struct glcontext {
     /* GL functions */
     struct glfunctions funcs;
 
+    /* GL timer functions */
+    struct {
+        void (NGLI_GL_APIENTRY *GenQueries)(GLsizei n, GLuint * ids);
+        void (NGLI_GL_APIENTRY *DeleteQueries)(GLsizei n, const GLuint *ids);
+        void (NGLI_GL_APIENTRY *BeginQuery)(GLenum target, GLuint id);
+        void (NGLI_GL_APIENTRY *EndQuery)(GLenum target);
+        void (NGLI_GL_APIENTRY *QueryCounter)(GLuint id, GLenum target);
+        void (NGLI_GL_APIENTRY *GetQueryObjectui64v)(GLuint id, GLenum pname, GLuint64 *params);
+    } timer_funcs;
+
     /* GL formats */
     struct ngpu_format_gl formats[NGPU_FORMAT_NB];
 
