@@ -32,7 +32,7 @@
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/opengl/ctx_gl.h"
 #include "ngpu/opengl/egl.h"
 #include "ngpu/opengl/glincludes.h"

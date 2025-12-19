@@ -40,7 +40,7 @@
 #include "utils/memory.h"
 
 #if defined(TARGET_ANDROID)
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/opengl/texture_gl.h"
 #endif
 

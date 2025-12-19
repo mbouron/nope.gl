@@ -26,7 +26,7 @@
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "precision.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 #include "utils/string.h"
 
 #define OFFSET(x) offsetof(struct io_opts, x)

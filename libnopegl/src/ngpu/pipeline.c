@@ -22,9 +22,7 @@
 
 #include <string.h>
 
-#include "buffer.h"
-#include "ctx.h"
-#include "pipeline.h"
+#include "ngpu_internal.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 

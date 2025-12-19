@@ -22,9 +22,9 @@
 
 #include <string.h>
 
-#include "ctx.h"
 #include "log.h"
-#include "rendertarget.h"
+#include "ngpu_internal.h"
+#include "pgcache.h"
 #include "utils/memory.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)

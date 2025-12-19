@@ -24,8 +24,7 @@
 
 #include <vulkan/vulkan.h>
 
-#include "ngpu/buffer.h"
-#include "ngpu/texture.h"
+#include "ngpu/ngpu.h"
 #include "vkcontext.h"
 #include "ycbcr_sampler_vk.h"
 

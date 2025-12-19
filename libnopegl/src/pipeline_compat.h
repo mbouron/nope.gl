@@ -23,8 +23,7 @@
 #ifndef PIPELINE_COMPAT_H
 #define PIPELINE_COMPAT_H
 
-#include "ngpu/bindgroup.h"
-#include "ngpu/pipeline.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/pgcraft.h"
 
 struct pipeline_compat_params {

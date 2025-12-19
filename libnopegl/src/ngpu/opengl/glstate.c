@@ -23,7 +23,7 @@
 
 #include "glstate.h"
 #include "glcontext.h"
-#include "ngpu/graphics_state.h"
+#include "ngpu/ngpu.h"
 #include <stdlib.h>
 #include <string.h>
 

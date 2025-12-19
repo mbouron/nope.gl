@@ -25,7 +25,7 @@
 
 #include "cmd_buffer_gl.h"
 #include "glincludes.h"
-#include "ngpu/buffer.h"
+#include "ngpu/ngpu.h"
 #include "utils/darray.h"
 
 struct ngpu_buffer_gl {

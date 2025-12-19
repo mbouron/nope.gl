@@ -24,7 +24,7 @@
 #define NGPU_PIPELINE_GL_H
 
 #include "glincludes.h"
-#include "ngpu/pipeline.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_ctx;
 struct glcontext;

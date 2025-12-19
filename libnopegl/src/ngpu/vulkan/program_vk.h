@@ -24,7 +24,7 @@
 
 #include <vulkan/vulkan.h>
 
-#include "ngpu/program.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_ctx;
 

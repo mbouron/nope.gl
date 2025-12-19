@@ -30,7 +30,7 @@
 #include "android_ctx.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "utils/utils.h"
 
 #if defined(BACKEND_GLES)

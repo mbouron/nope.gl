@@ -28,7 +28,7 @@
 
 #include "glslang_utils.h"
 #include "log.h"
-#include "ngpu/program.h"
+#include "ngpu/ngpu.h"
 #include "nopegl/nopegl.h"
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"
