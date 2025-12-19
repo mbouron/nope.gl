@@ -25,7 +25,7 @@
 #include "colorconv.h"
 #include "image.h"
 #include "math_utils.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "utils/utils.h"
 
 struct color_info ngli_color_info_from_nopemd_frame(const struct nmd_frame *frame)

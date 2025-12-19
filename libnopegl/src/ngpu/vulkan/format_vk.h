@@ -27,7 +27,7 @@
 #include <stdint.h>
 #include <vulkan/vulkan.h>
 
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "vkcontext.h"
 
 VkFormat ngpu_format_ngl_to_vk(enum ngpu_format format);

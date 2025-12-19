@@ -24,7 +24,7 @@
 #define NGPU_RENDERTARGET_GL_H
 
 #include "glincludes.h"
-#include "ngpu/rendertarget.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_rendertarget_gl {
     struct ngpu_rendertarget parent;

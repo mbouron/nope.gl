@@ -27,10 +27,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/block.h"
-#include "ngpu/ctx.h"
-#include "ngpu/graphics_state.h"
-#include "ngpu/rendertarget.h"
+#include "ngpu/ngpu.h"
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"

@@ -28,8 +28,7 @@
 #include "hwmap.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ctx.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "nopegl/nopegl.h"
 #include "utils/memory.h"
 

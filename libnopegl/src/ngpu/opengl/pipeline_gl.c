@@ -27,7 +27,7 @@
 #include "ctx_gl.h"
 #include "glcontext.h"
 #include "log.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "pipeline_gl.h"
 #include "program_gl.h"
 #include "utils/memory.h"

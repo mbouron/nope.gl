@@ -26,7 +26,7 @@
 #include "filterschain.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 #include "node_colorkey.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"

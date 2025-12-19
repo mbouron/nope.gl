@@ -38,6 +38,7 @@
 #include "buffer_vk.h"
 #include "ctx_vk.h"
 #include "format_vk.h"
+#include "ngpu/ngpu_internal.h"
 #include "pipeline_vk.h"
 #include "program_vk.h"
 #include "rendertarget_vk.h"

@@ -29,7 +29,7 @@
 #include "pipeline_gl.h"
 #include "rendertarget_gl.h"
 
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "utils/memory.h"
 #include "utils/refcount.h"
 

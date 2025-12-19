@@ -24,9 +24,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/block_desc.h"
-#include "ngpu/buffer.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "node_block.h"
 #include "node_buffer.h"
 #include "node_uniform.h"

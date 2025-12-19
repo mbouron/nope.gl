@@ -20,7 +20,7 @@
  * under the License.
  */
 
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 
 /* This needs to match the GLSL type name */
 static const char * const type_map[NGPU_TYPE_NB] = {

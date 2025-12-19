@@ -28,10 +28,10 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
+#include "ngpu/ngpu.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "transforms.h"
-#include "ngpu/type.h"
 
 struct uniform_priv {
     struct variable_info var;

@@ -27,7 +27,7 @@
 #include <glslang/build_info.h>
 #include <glslang/Include/glslang_c_interface.h>
 
-#include "ngpu/program.h"
+#include "ngpu/ngpu.h"
 
 int ngli_glslang_init(void);
 int ngli_glslang_compile(enum ngpu_program_stage stage, const char *src, int debug, void **datap, size_t *sizep);
