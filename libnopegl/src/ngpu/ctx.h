@@ -129,7 +129,7 @@ int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_para
 void ngpu_ctx_params_reset(struct ngpu_ctx_params *params);
 
 struct ngpu_ctx_class {
-    uint32_t id;
+    enum ngpu_backend_type id;
 
     struct ngpu_ctx *(*create)(const struct ngpu_ctx_params *params);
     int (*init)(struct ngpu_ctx *s);
