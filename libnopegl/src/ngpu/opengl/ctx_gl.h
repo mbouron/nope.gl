@@ -43,20 +43,23 @@ typedef void (*capture_func_type)(struct ngpu_ctx *s);
 struct ngpu_ctx_gl {
     struct ngpu_ctx parent;
     struct glcontext *glcontext;
+
     struct ngpu_glstate glstate;
+
     struct ngpu_cmd_buffer_gl **update_cmd_buffers;
     struct ngpu_cmd_buffer_gl **draw_cmd_buffers;
     struct ngpu_cmd_buffer_gl *cur_cmd_buffer;
+
+    /* Default rendertargets */
     struct ngpu_rendertarget_layout default_rt_layout;
-    /* Default rendertarget with load op set to clear */
     struct ngpu_rendertarget *default_rt;
-    /* Default rendertarget with load op set to load, useful for resuming the
-     * associated renderpass (without discarding its attachments) */
     struct ngpu_rendertarget *default_rt_load;
+
     /* Offscreen render target resources */
     struct ngpu_texture *color;
     struct ngpu_texture *ms_color;
     struct ngpu_texture *depth_stencil;
+
     /* Offscreen capture callback and resources */
     capture_func_type capture_func;
     struct ngpu_rendertarget *capture_rt;
@@ -65,6 +68,7 @@ struct ngpu_ctx_gl {
     CVPixelBufferRef capture_cvbuffer;
     CVOpenGLESTextureRef capture_cvtexture;
 #endif
+
     /* Timer */
     GLuint queries[2];
 };
