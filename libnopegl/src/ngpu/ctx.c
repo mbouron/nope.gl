@@ -27,6 +27,10 @@
 #include "pgcache.h"
 #include "utils/memory.h"
 
+#if defined(BACKEND_GL) || defined(BACKEND_GLES)
+#include "ngpu/opengl/ctx_gl.h"
+#endif
+
 const char *ngpu_backend_get_string_id(enum ngpu_backend_type backend)
 {
     switch (backend) {
@@ -56,24 +60,25 @@ extern const struct ngpu_ctx_class ngpu_ctx_gl;
 extern const struct ngpu_ctx_class ngpu_ctx_gles;
 extern const struct ngpu_ctx_class ngpu_ctx_vk;
 
-#if defined(BACKEND_GL) || defined(BACKEND_GLES)
-#include "ngpu/opengl/ctx_gl.h"
-#endif
-
-static const struct ngpu_ctx_class *get_backend_class(enum ngpu_backend_type backend)
-{
+static const struct ngpu_ctx_class *ctx_classes[] = {
 #ifdef BACKEND_GL
-    if (backend == NGPU_BACKEND_OPENGL)
-        return &ngpu_ctx_gl;
+    &ngpu_ctx_gl,
 #endif
 #ifdef BACKEND_GLES
-    if (backend == NGPU_BACKEND_OPENGLES)
-        return &ngpu_ctx_gles;
+    &ngpu_ctx_gles,
 #endif
 #ifdef BACKEND_VK
-    if (backend == NGPU_BACKEND_VULKAN)
-        return &ngpu_ctx_vk;
+    &ngpu_ctx_vk,
 #endif
+    NULL,
+};
+
+static const struct ngpu_ctx_class *get_ctx_class(enum ngpu_backend_type backend)
+{
+    for (size_t i = 0; ctx_classes[i]; i++) {
+        if (ctx_classes[i]->id == backend)
+            return ctx_classes[i];
+    }
     return NULL;
 }
 
@@ -112,7 +117,7 @@ void ngpu_ctx_params_reset(struct ngpu_ctx_params *params)
 }
 struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params)
 {
-    const struct ngpu_ctx_class *cls = get_backend_class(params->backend);
+    const struct ngpu_ctx_class *cls = get_ctx_class(params->backend);
     if (!cls) {
         LOG(ERROR, "backend \"%s\" (%x) not available with this build",
             ngpu_backend_get_string_id(params->backend),
