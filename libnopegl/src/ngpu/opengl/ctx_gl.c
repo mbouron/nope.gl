@@ -338,38 +338,12 @@ static void rendertarget_reset(struct ngpu_ctx *s)
     s_priv->capture_func = NULL;
 }
 
-static void noop(const struct glcontext *gl, ...)
-{
-}
-
 static int timer_init(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
 
-    if (gl->features & NGLI_FEATURE_GL_TIMER_QUERY) {
-        s_priv->glGenQueries          = gl->funcs.GenQueries;
-        s_priv->glDeleteQueries       = gl->funcs.DeleteQueries;
-        s_priv->glBeginQuery          = gl->funcs.BeginQuery;
-        s_priv->glEndQuery            = gl->funcs.EndQuery;
-        s_priv->glQueryCounter        = gl->funcs.QueryCounter;
-        s_priv->glGetQueryObjectui64v = gl->funcs.GetQueryObjectui64v;
-    } else if (gl->features & NGLI_FEATURE_GL_EXT_DISJOINT_TIMER_QUERY) {
-        s_priv->glGenQueries          = gl->funcs.GenQueriesEXT;
-        s_priv->glDeleteQueries       = gl->funcs.DeleteQueriesEXT;
-        s_priv->glBeginQuery          = gl->funcs.BeginQueryEXT;
-        s_priv->glEndQuery            = gl->funcs.EndQueryEXT;
-        s_priv->glQueryCounter        = gl->funcs.QueryCounterEXT;
-        s_priv->glGetQueryObjectui64v = gl->funcs.GetQueryObjectui64vEXT;
-    } else {
-        s_priv->glGenQueries          = (void *)noop;
-        s_priv->glDeleteQueries       = (void *)noop;
-        s_priv->glBeginQuery          = (void *)noop;
-        s_priv->glEndQuery            = (void *)noop;
-        s_priv->glQueryCounter        = (void *)noop;
-        s_priv->glGetQueryObjectui64v = (void *)noop;
-    }
-    s_priv->glGenQueries(2, s_priv->queries);
+    gl->timer_funcs.GenQueries(2, s_priv->queries);
 
     return 0;
 }
@@ -377,9 +351,11 @@ static int timer_init(struct ngpu_ctx *s)
 static void timer_reset(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    if (!gl)
+        return;
 
-    if (s_priv->glDeleteQueries)
-        s_priv->glDeleteQueries(2, s_priv->queries);
+    gl->timer_funcs.DeleteQueries(2, s_priv->queries);
 }
 
 static struct ngpu_ctx *gl_create(const struct ngl_config *config)
@@ -895,13 +871,14 @@ static int gl_end_update(struct ngpu_ctx *s)
 static int gl_begin_draw(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    const struct glcontext *gl = s_priv->glcontext;
     const struct ngl_config *config = &s->config;
 
     if (config->hud)
 #if defined(TARGET_DARWIN)
-        s_priv->glBeginQuery(GL_TIME_ELAPSED, s_priv->queries[0]);
+        gl->timer_funcs.BeginQuery(GL_TIME_ELAPSED, s_priv->queries[0]);
 #else
-        s_priv->glQueryCounter(s_priv->queries[0], GL_TIMESTAMP);
+        gl->timer_funcs.QueryCounter(s_priv->queries[0], GL_TIMESTAMP);
 #endif
 
     s_priv->cur_cmd_buffer = s_priv->draw_cmd_buffers[s->current_frame_index];
@@ -974,6 +951,7 @@ static int gl_end_draw(struct ngpu_ctx *s, double t)
 static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
 
     const struct ngl_config *config = &s->config;
     if (!config->hud)
@@ -987,17 +965,17 @@ static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 
 #if defined(TARGET_DARWIN)
     GLuint64 time_elapsed = 0;
-    s_priv->glEndQuery(GL_TIME_ELAPSED);
-    s_priv->glGetQueryObjectui64v(s_priv->queries[0], GL_QUERY_RESULT, &time_elapsed);
+    gl->timer_funcs.EndQuery(GL_TIME_ELAPSED);
+    gl->timer_funcs.GetQueryObjectui64v(s_priv->queries[0], GL_QUERY_RESULT, &time_elapsed);
     *time = (int64_t)time_elapsed;
 #else
-    s_priv->glQueryCounter(s_priv->queries[1], GL_TIMESTAMP);
+    gl->timer_funcs.QueryCounter(s_priv->queries[1], GL_TIMESTAMP);
 
     GLuint64 start_time = 0;
-    s_priv->glGetQueryObjectui64v(s_priv->queries[0], GL_QUERY_RESULT, &start_time);
+    gl->timer_funcs.GetQueryObjectui64v(s_priv->queries[0], GL_QUERY_RESULT, &start_time);
 
     GLuint64 end_time = 0;
-    s_priv->glGetQueryObjectui64v(s_priv->queries[1], GL_QUERY_RESULT, &end_time);
+    gl->timer_funcs.GetQueryObjectui64v(s_priv->queries[1], GL_QUERY_RESULT, &end_time);
 
     *time = (int64_t)(end_time - start_time);
 #endif
