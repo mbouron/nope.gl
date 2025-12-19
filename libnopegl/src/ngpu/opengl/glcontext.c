@@ -394,6 +394,40 @@ static int glcontext_probe_formats(struct glcontext *glcontext)
     return 0;
 }
 
+static void NGLI_GL_APIENTRY GenQueriesNoop(GLsizei n, GLuint * ids) {}
+static void NGLI_GL_APIENTRY DeleteQueriesNoop(GLsizei n, const GLuint *ids) {}
+static void NGLI_GL_APIENTRY BeginQueryNoop(GLenum target, GLuint id) {}
+static void NGLI_GL_APIENTRY EndQueryNoop(GLenum target) {}
+static void NGLI_GL_APIENTRY QueryCounterNoop(GLuint id, GLenum target) {}
+static void NGLI_GL_APIENTRY GetQueryObjectui64vNoop(GLuint id, GLenum pname, GLuint64 *params) {}
+
+static int glcontext_probe_timer_functions(struct glcontext *gl)
+{
+    if (gl->features & NGLI_FEATURE_GL_TIMER_QUERY) {
+        gl->timer_funcs.GenQueries          = gl->funcs.GenQueries;
+        gl->timer_funcs.DeleteQueries       = gl->funcs.DeleteQueries;
+        gl->timer_funcs.BeginQuery          = gl->funcs.BeginQuery;
+        gl->timer_funcs.EndQuery            = gl->funcs.EndQuery;
+        gl->timer_funcs.QueryCounter        = gl->funcs.QueryCounter;
+        gl->timer_funcs.GetQueryObjectui64v = gl->funcs.GetQueryObjectui64v;
+    } else if (gl->features & NGLI_FEATURE_GL_EXT_DISJOINT_TIMER_QUERY) {
+        gl->timer_funcs.GenQueries          = gl->funcs.GenQueriesEXT;
+        gl->timer_funcs.DeleteQueries       = gl->funcs.DeleteQueriesEXT;
+        gl->timer_funcs.BeginQuery          = gl->funcs.BeginQueryEXT;
+        gl->timer_funcs.EndQuery            = gl->funcs.EndQueryEXT;
+        gl->timer_funcs.QueryCounter        = gl->funcs.QueryCounterEXT;
+        gl->timer_funcs.GetQueryObjectui64v = gl->funcs.GetQueryObjectui64vEXT;
+    } else {
+        gl->timer_funcs.GenQueries          = &GenQueriesNoop;
+        gl->timer_funcs.DeleteQueries       = &DeleteQueriesNoop;
+        gl->timer_funcs.BeginQuery          = &BeginQueryNoop;
+        gl->timer_funcs.EndQuery            = &EndQueryNoop;
+        gl->timer_funcs.QueryCounter        = &QueryCounterNoop;
+        gl->timer_funcs.GetQueryObjectui64v = &GetQueryObjectui64vNoop;
+    }
+    return 0;
+}
+
 static int glcontext_check_driver(struct glcontext *glcontext)
 {
     const char *gl_version = (const char *)glcontext->funcs.GetString(GL_VERSION);
@@ -450,6 +484,10 @@ static int glcontext_load_extensions(struct glcontext *glcontext)
         return ret;
 
     ret = glcontext_probe_formats(glcontext);
+    if (ret < 0)
+        return ret;
+
+    ret = glcontext_probe_timer_functions(glcontext);
     if (ret < 0)
         return ret;
 
