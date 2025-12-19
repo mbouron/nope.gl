@@ -862,6 +862,7 @@ enum ngpu_capture_buffer_type {
     NGPU_CAPTURE_BUFFER_TYPE_MAX_ENUM = 0x7FFFFFFF
 };
 
+int ngpu_get_available_backends(size_t *backend_count, enum ngpu_backend_type *backends);
 const char *ngpu_backend_get_string_id(enum ngpu_backend_type backend);
 const char *ngpu_backend_get_full_name(enum ngpu_backend_type backend);
 

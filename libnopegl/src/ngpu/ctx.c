@@ -73,6 +73,29 @@ static const struct ngpu_ctx_class *ctx_classes[] = {
     NULL,
 };
 
+int ngpu_get_available_backends(size_t *backend_count, enum ngpu_backend_type *backends)
+{
+    if (!backend_count)
+        return NGL_ERROR_INVALID_ARG;
+
+    size_t total_count = 0;
+    for (size_t i = 0; ctx_classes[i]; i++) {
+        total_count++;
+    }
+
+    if (!backends) {
+        *backend_count = total_count;
+        return 0;
+    }
+
+    size_t wanted_count = NGLI_MIN(*backend_count, total_count);
+    for (size_t i = 0; i < wanted_count; i++) {
+        backends[i] = ctx_classes[i]->id;
+    }
+
+    return 0;
+}
+
 static const struct ngpu_ctx_class *get_ctx_class(enum ngpu_backend_type backend)
 {
     for (size_t i = 0; ctx_classes[i]; i++) {
