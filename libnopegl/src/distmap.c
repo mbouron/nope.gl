@@ -330,11 +330,11 @@ static int map_and_load_buffers_data(struct distmap *s)
     uint8_t *vert_data = NULL;
     uint8_t *frag_data = NULL;
 
-    int ret = ngpu_buffer_map(s->frag_buffer, 0, s->frag_buffer->size, (void **) &frag_data);
+    int ret = ngpu_buffer_map(s->frag_buffer, 0, NGPU_BUFFER_WHOLE_SIZE, (void **) &frag_data);
     if (ret < 0)
         goto end;
 
-    ret = ngpu_buffer_map(s->vert_buffer, 0, s->vert_buffer->size, (void **) &vert_data);
+    ret = ngpu_buffer_map(s->vert_buffer, 0, NGPU_BUFFER_WHOLE_SIZE, (void **) &vert_data);
     if (ret < 0)
         goto end;
 
