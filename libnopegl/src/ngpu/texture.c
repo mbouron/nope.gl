@@ -63,3 +63,8 @@ void ngpu_texture_freep(struct ngpu_texture **sp)
 {
     NGLI_RC_UNREFP(sp);
 }
+
+const struct ngpu_texture_params *ngpu_texture_get_params(const struct ngpu_texture *s)
+{
+    return &s->params;
+}

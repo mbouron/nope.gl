@@ -61,7 +61,7 @@ int ngpu_rendertarget_init(struct ngpu_rendertarget *s, const struct ngpu_render
     for (size_t i = 0; i < params->nb_colors; i++) {
         const struct ngpu_attachment *attachment = &params->colors[i];
         const struct ngpu_texture *texture = attachment->attachment;
-        const struct ngpu_texture_params *texture_params = &texture->params;
+        const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
         s->layout.colors[s->layout.nb_colors].format = texture_params->format;
         s->layout.colors[s->layout.nb_colors].resolve = attachment->resolve_target != NULL;
         s->layout.nb_colors++;
@@ -69,7 +69,7 @@ int ngpu_rendertarget_init(struct ngpu_rendertarget *s, const struct ngpu_render
         ngli_assert(texture_params->height == s->height);
         ngli_assert(texture_params->usage & NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT);
         if (attachment->resolve_target) {
-            const struct ngpu_texture_params *target_params = &attachment->resolve_target->params;
+            const struct ngpu_texture_params *target_params = ngpu_texture_get_params(attachment->resolve_target);
             ngli_assert(target_params->width == s->width);
             ngli_assert(target_params->height == s->height);
             ngli_assert(target_params->usage & NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT);
@@ -80,14 +80,14 @@ int ngpu_rendertarget_init(struct ngpu_rendertarget *s, const struct ngpu_render
     const struct ngpu_attachment *attachment = &params->depth_stencil;
     const struct ngpu_texture *texture = attachment->attachment;
     if (texture) {
-        const struct ngpu_texture_params *texture_params = &texture->params;
+        const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
         s->layout.depth_stencil.format = texture_params->format;
         s->layout.depth_stencil.resolve = attachment->resolve_target != NULL;
         ngli_assert(texture_params->width == s->width);
         ngli_assert(texture_params->height == s->height);
         ngli_assert(texture_params->usage & NGPU_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
         if (attachment->resolve_target) {
-            const struct ngpu_texture_params *target_params = &attachment->resolve_target->params;
+            const struct ngpu_texture_params *target_params = ngpu_texture_get_params(attachment->resolve_target);
             ngli_assert(target_params->width == s->width);
             ngli_assert(target_params->height == s->height);
             ngli_assert(target_params->usage & NGPU_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
@@ -103,4 +103,19 @@ int ngpu_rendertarget_init(struct ngpu_rendertarget *s, const struct ngpu_render
 void ngpu_rendertarget_freep(struct ngpu_rendertarget **sp)
 {
     NGLI_RC_UNREFP(sp);
+}
+
+const struct ngpu_rendertarget_layout *ngpu_rendertarget_get_layout(const struct ngpu_rendertarget *s)
+{
+    return &s->layout;
+}
+
+uint32_t ngpu_rendertarget_get_width(const struct ngpu_rendertarget *s)
+{
+    return s->width;
+}
+
+uint32_t ngpu_rendertarget_get_height(const struct ngpu_rendertarget *s)
+{
+    return s->height;
 }

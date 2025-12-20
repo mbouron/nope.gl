@@ -113,20 +113,21 @@ static int init_blocks_buffers(struct pipeline_compat *s, const struct pipeline_
                        | NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT
                        | NGPU_BUFFER_USAGE_MAP_WRITE;
 
-        if (gpu_ctx->features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT)
+        const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
+        if (features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT)
             usage |= NGPU_BUFFER_USAGE_MAP_PERSISTENT;
 
         int ret = ngpu_buffer_init(buffer, block_size, usage);
         if (ret < 0)
             return ret;
 
-        if (gpu_ctx->features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT) {
+        if (features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT) {
             ret = ngpu_buffer_map(buffer, 0, NGPU_BUFFER_WHOLE_SIZE, (void **) &s->mapped_datas[i]);
             if (ret < 0)
                 return ret;
         }
 
-        ngli_pipeline_compat_update_buffer(s, s->compat_info->uindices[i], buffer, 0, buffer->size);
+        ngli_pipeline_compat_update_buffer(s, s->compat_info->uindices[i], buffer, 0, ngpu_buffer_get_size(buffer));
     }
 
     return 0;
@@ -285,7 +286,8 @@ int ngli_pipeline_compat_update_uniform_count(struct pipeline_compat *s, int32_t
     const struct ngpu_block_field *fields = ngli_darray_data(&block->fields);
     const struct ngpu_block_field *field = &fields[field_index];
     if (value) {
-        if (!(gpu_ctx->features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT)) {
+        const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
+        if (!(features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT)) {
             int ret = map_buffer(s, stage);
             if (ret < 0)
                 return ret;
@@ -333,7 +335,7 @@ int ngli_pipeline_compat_update_texture(struct pipeline_compat *s, int32_t index
 
 int ngli_pipeline_compat_update_dynamic_offsets(struct pipeline_compat *s, const uint32_t *offsets, size_t nb_offsets)
 {
-    ngli_assert(s->bindgroup_layout->nb_dynamic_offsets == nb_offsets);
+    ngli_assert(ngpu_bindgroup_layout_get_nb_dynamic_offsets(s->bindgroup_layout) == nb_offsets);
     memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
     s->nb_dynamic_offsets = nb_offsets;
     return 0;
@@ -464,7 +466,7 @@ int ngli_pipeline_compat_update_buffer(struct pipeline_compat *s, int32_t index,
     s->buffers[index] = (struct ngpu_buffer_binding) {
         .buffer = buffer,
         .offset = offset,
-        .size   = size ? size : buffer->size,
+        .size   = size ? size : ngpu_buffer_get_size(buffer),
     };
     s->updated = 1;
     return 0;
@@ -473,13 +475,13 @@ int ngli_pipeline_compat_update_buffer(struct pipeline_compat *s, int32_t index,
 static int select_next_available_bindgroup(struct pipeline_compat *s)
 {
     /* If current bindgroup is not in use, select it */
-    if (s->cur_bindgroup->rc.count == 1)
+    if (ngpu_bindgroup_get_refcount(s->cur_bindgroup) == 1)
         return 0;
 
     /* Otherwhise, check if next bindgroup is available  */
     size_t bindgroup_index = (s->cur_bindgroup_index + 1) % ngli_darray_count(&s->bindgroups);
     struct ngpu_bindgroup *bindgroup = *(struct ngpu_bindgroup **)ngli_darray_get(&s->bindgroups, bindgroup_index);
-    if (bindgroup->rc.count == 1) {
+    if (ngpu_bindgroup_get_refcount(bindgroup) == 1) {
         s->cur_bindgroup = bindgroup;
         s->cur_bindgroup_index = bindgroup_index;
         return 0;
@@ -498,7 +500,7 @@ static int select_next_available_bindgroup(struct pipeline_compat *s)
     /* Select bindgroup and assert that it is not in use */
     s->cur_bindgroup = *(struct ngpu_bindgroup **)ngli_darray_get(&s->bindgroups, bindgroup_index);
     s->cur_bindgroup_index = bindgroup_index;
-    ngli_assert(s->cur_bindgroup->rc.count == 1);
+    ngli_assert(ngpu_bindgroup_get_refcount(s->cur_bindgroup) == 1);
 
     return 0;
 }
@@ -541,7 +543,8 @@ static int prepare_pipeline(struct pipeline_compat *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
-    if (!(gpu_ctx->features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT))
+    const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
+    if (!(features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT))
        unmap_buffers(s);
 
     int ret = prepare_bindgroup(s);

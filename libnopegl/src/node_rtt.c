@@ -123,7 +123,7 @@ static int rtt_init(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    const struct ngpu_limits *limits = &gpu_ctx->limits;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
     const struct rtt_opts *o = node->opts;
     struct rtt_priv *s = node->priv_data;
 
@@ -191,7 +191,8 @@ static int rtt_init(struct ngl_node *node)
             return NGL_ERROR_INVALID_ARG;
         }
 
-        if (!(gpu_ctx->features & NGPU_FEATURE_DEPTH_STENCIL_RESOLVE) && o->samples > 0) {
+        const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
+        if (!(features & NGPU_FEATURE_DEPTH_STENCIL_RESOLVE) && o->samples > 0) {
             LOG(ERROR, "context does not support resolving depth/stencil attachments");
             return NGL_ERROR_GRAPHICS_UNSUPPORTED;
         }
@@ -344,8 +345,8 @@ static int rtt_resize(struct ngl_node *node)
     struct rtt_priv *s = node->priv_data;
     const struct rtt_opts *o = node->opts;
 
-    const uint32_t width = ctx->current_rendertarget->width;
-    const uint32_t height = ctx->current_rendertarget->height;
+    const uint32_t width = ngpu_rendertarget_get_width(ctx->current_rendertarget);
+    const uint32_t height = ngpu_rendertarget_get_height(ctx->current_rendertarget);
     if (s->rtt_ctx) {
         uint32_t current_width, current_height;
         ngli_rtt_get_dimensions(s->rtt_ctx, &current_width, &current_height);

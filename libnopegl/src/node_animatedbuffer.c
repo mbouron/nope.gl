@@ -153,7 +153,7 @@ static int animatedbuffer_prepare(struct ngl_node *node)
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
         return ngli_node_prepare_children(node);
 
-    if (info->buffer->size)
+    if (ngpu_buffer_get_size(info->buffer))
         return 0;
 
     int ret = ngpu_buffer_init(info->buffer, info->data_size, info->usage);

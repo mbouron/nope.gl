@@ -133,6 +133,7 @@ int ngpu_bindgroup_update_texture(struct ngpu_bindgroup *s, int32_t index, const
 
     if (binding->texture) {
         const struct ngpu_texture *texture = binding->texture;
+        const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
         const struct ngpu_bindgroup_layout_entry *entry = &s->layout->textures[index];
         switch (entry->type) {
         case NGPU_TYPE_SAMPLER_2D:
@@ -142,13 +143,13 @@ int ngpu_bindgroup_update_texture(struct ngpu_bindgroup *s, int32_t index, const
         case NGPU_TYPE_SAMPLER_CUBE:
         case NGPU_TYPE_SAMPLER_EXTERNAL_OES:
         case NGPU_TYPE_SAMPLER_EXTERNAL_2D_Y2Y_EXT:
-            ngli_assert(texture->params.usage & NGPU_TEXTURE_USAGE_SAMPLED_BIT);
+            ngli_assert(texture_params->usage & NGPU_TEXTURE_USAGE_SAMPLED_BIT);
             break;
         case NGPU_TYPE_IMAGE_2D:
         case NGPU_TYPE_IMAGE_2D_ARRAY:
         case NGPU_TYPE_IMAGE_3D:
         case NGPU_TYPE_IMAGE_CUBE:
-            ngli_assert(texture->params.usage & NGPU_TEXTURE_USAGE_STORAGE_BIT);
+            ngli_assert(texture_params->usage & NGPU_TEXTURE_USAGE_STORAGE_BIT);
             break;
         default:
             ngli_assert(0);
@@ -166,24 +167,26 @@ int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const 
     ngli_assert(index >= 0 && index < s->layout->nb_buffers);
 
     if (binding->buffer) {
+        const struct ngpu_limits *limits = ngpu_ctx_get_limits(s->gpu_ctx);
         const struct ngpu_buffer *buffer = binding->buffer;
-        const size_t size = binding->size;
-        const struct ngpu_limits *limits = &s->gpu_ctx->limits;
+        const uint32_t buffer_usage = ngpu_buffer_get_usage(buffer);
+        const size_t buffer_size = ngpu_buffer_get_size(buffer);
+        const size_t binding_size = binding->size;
         const struct ngpu_bindgroup_layout_entry *entry = &s->layout->buffers[index];
         if (entry->type == NGPU_TYPE_UNIFORM_BUFFER ||
             entry->type == NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC) {
-            ngli_assert(buffer->usage & NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-            if (size > limits->max_uniform_block_size) {
+            ngli_assert(buffer_usage & NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+            if (binding_size > limits->max_uniform_block_size) {
                 LOG(ERROR, "buffer (binding=%u) size (%zu) exceeds max uniform block size (%u)",
-                    entry->binding, buffer->size, limits->max_uniform_block_size);
+                    entry->binding, buffer_size, limits->max_uniform_block_size);
                 return NGL_ERROR_GRAPHICS_LIMIT_EXCEEDED;
             }
         } else if (entry->type == NGPU_TYPE_STORAGE_BUFFER ||
                    entry->type == NGPU_TYPE_STORAGE_BUFFER_DYNAMIC) {
-            ngli_assert(buffer->usage & NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-            if (size > limits->max_storage_block_size) {
+            ngli_assert(buffer_usage & NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+            if (binding_size > limits->max_storage_block_size) {
                 LOG(ERROR, "buffer (binding=%u) size (%zu) exceeds max storage block size (%u)",
-                    entry->binding, buffer->size, limits->max_storage_block_size);
+                    entry->binding, buffer_size, limits->max_storage_block_size);
                 return NGL_ERROR_GRAPHICS_LIMIT_EXCEEDED;
             }
         } else {
@@ -197,4 +200,14 @@ int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const 
 void ngpu_bindgroup_freep(struct ngpu_bindgroup **sp)
 {
     NGLI_RC_UNREFP(sp);
+}
+
+size_t ngpu_bindgroup_layout_get_nb_dynamic_offsets(const struct ngpu_bindgroup_layout *s)
+{
+    return s->nb_dynamic_offsets;
+}
+
+size_t ngpu_bindgroup_get_refcount(const struct ngpu_bindgroup *s)
+{
+    return s->rc.count;
 }

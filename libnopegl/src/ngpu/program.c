@@ -37,3 +37,8 @@ void ngpu_program_freep(struct ngpu_program **sp)
         return;
     (*sp)->gpu_ctx->cls->program_freep(sp);
 }
+
+struct ngpu_ctx *ngpu_program_get_ctx(const struct ngpu_program *s)
+{
+    return s->gpu_ctx;
+}

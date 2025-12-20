@@ -23,7 +23,7 @@
 #define NGPU_CTX_VK_H
 
 #include "cmd_buffer_vk.h"
-#include "ngpu/ngpu.h"
+#include "ngpu/ngpu_internal.h"
 #include "vkcontext.h"
 
 struct ngpu_ctx_vk {

@@ -258,7 +258,7 @@ static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
     for (size_t i = 0; i < common->nb_planes; i++) {
         struct ngpu_texture *plane = common->planes[i];
-        struct ngpu_texture_params *params = &plane->params;
+        const struct ngpu_texture_params *params = ngpu_texture_get_params(plane);
         if (frame->linesizep[i] < 0) {
             LOG(ERROR, "invalid linesize (%d) for plane %zu", frame->linesizep[i], i);
             return NGL_ERROR_UNSUPPORTED;

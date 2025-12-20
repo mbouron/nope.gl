@@ -570,8 +570,8 @@ static int rtt_resize(struct ngl_node *node)
     struct texture_priv *s = node->priv_data;
     struct texture_info *i = node->priv_data;
 
-    const uint32_t width = ctx->current_rendertarget->width;
-    const uint32_t height = ctx->current_rendertarget->height;
+    const uint32_t width = ngpu_rendertarget_get_width(ctx->current_rendertarget);
+    const uint32_t height = ngpu_rendertarget_get_height(ctx->current_rendertarget);
     if (s->rtt_ctx) {
         uint32_t current_width, current_height;
         ngli_rtt_get_dimensions(s->rtt_ctx, &current_width, &current_height);
@@ -698,7 +698,8 @@ static int texture2d_init(struct ngl_node *node)
 
     i->params = o->params;
 
-    const uint32_t max_dimension = gpu_ctx->limits.max_texture_dimension_2d;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
+    const uint32_t max_dimension = limits->max_texture_dimension_2d;
     if (i->params.width  < 0 || i->params.width  > max_dimension ||
         i->params.height < 0 || i->params.height > max_dimension) {
         LOG(ERROR, "texture dimensions (%u,%u) are invalid or exceeds device limits (%u,%u)",
@@ -768,8 +769,9 @@ static int texture2d_array_init(struct ngl_node *node)
 
     i->params = o->params;
 
-    const uint32_t max_dimension = gpu_ctx->limits.max_texture_dimension_2d;
-    const uint32_t max_layers = gpu_ctx->limits.max_texture_array_layers;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
+    const uint32_t max_dimension = limits->max_texture_dimension_2d;
+    const uint32_t max_layers = limits->max_texture_array_layers;
     if (i->params.width  == 0 || i->params.width  > max_dimension ||
         i->params.height == 0 || i->params.height > max_dimension ||
         i->params.depth  == 0 || i->params.depth  > max_layers) {
@@ -794,7 +796,8 @@ static int texture3d_init(struct ngl_node *node)
 
     i->params = o->params;
 
-    const uint32_t max_dimension = gpu_ctx->limits.max_texture_dimension_3d;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
+    const uint32_t max_dimension = limits->max_texture_dimension_3d;
     if (i->params.width  == 0 || i->params.width  > max_dimension ||
         i->params.height == 0 || i->params.height > max_dimension ||
         i->params.depth  == 0 || i->params.depth  > max_dimension) {
@@ -820,7 +823,8 @@ static int texturecube_init(struct ngl_node *node)
     i->params = o->params;
     i->params.height = i->params.width;
 
-    const uint32_t max_dimension = gpu_ctx->limits.max_texture_dimension_cube;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
+    const uint32_t max_dimension = limits->max_texture_dimension_cube;
     if (i->params.width  == 0 || i->params.width  > max_dimension ||
         i->params.height == 0 || i->params.height > max_dimension) {
         LOG(ERROR, "texture dimensions (%u,%u) are invalid or exceeds device limits (%u,%u)",

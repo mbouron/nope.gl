@@ -166,7 +166,7 @@ static int register_block(struct pass *s, const char *name, struct ngl_node *blo
 {
     struct ngl_ctx *ctx = s->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    const struct ngpu_limits *limits = &gpu_ctx->limits;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
 
     struct block_info *block_info = block_node->priv_data;
     struct ngpu_block_desc *block = &block_info->block;
@@ -211,7 +211,7 @@ static int register_block(struct pass *s, const char *name, struct ngl_node *blo
         ngli_assert(0);
 
     const struct ngpu_buffer *buffer = block_info->buffer;
-    const size_t buffer_size = buffer ? buffer->size : 0;
+    const size_t buffer_size = buffer ? ngpu_buffer_get_size(buffer) : 0;
     struct ngpu_pgcraft_block crafter_block = {
         .type     = type,
         .stage    = stage,

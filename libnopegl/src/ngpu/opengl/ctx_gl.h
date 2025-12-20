@@ -32,7 +32,7 @@
 
 #include "cmd_buffer_gl.h"
 #include "glstate.h"
-#include "ngpu/ngpu.h"
+#include "ngpu/ngpu_internal.h"
 
 struct ngpu_ctx_params_gl {
     /*

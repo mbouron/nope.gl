@@ -27,6 +27,101 @@
 
 #include "ngpu/ngpu.h"
 
+#include "utils/refcount.h"
+#include "utils/darray.h"
+
+struct ngpu_buffer {
+    struct ngli_rc rc;
+    struct ngpu_ctx *gpu_ctx;
+    size_t size;
+    uint32_t usage;
+};
+
+NGLI_RC_CHECK_STRUCT(ngpu_buffer);
+
+struct ngpu_texture {
+    struct ngli_rc rc;
+    struct ngpu_ctx *gpu_ctx;
+    struct ngpu_texture_params params;
+};
+
+NGLI_RC_CHECK_STRUCT(ngpu_texture);
+
+struct ngpu_bindgroup_layout {
+    struct ngli_rc rc;
+    struct ngpu_ctx *gpu_ctx;
+    struct ngpu_bindgroup_layout_entry *textures;
+    size_t nb_textures;
+    struct ngpu_bindgroup_layout_entry *buffers;
+    size_t nb_buffers;
+    size_t nb_dynamic_offsets;
+};
+
+NGLI_RC_CHECK_STRUCT(ngpu_bindgroup_layout);
+
+struct ngpu_bindgroup {
+    struct ngli_rc rc;
+    struct ngpu_ctx *gpu_ctx;
+    struct ngpu_bindgroup_layout *layout;
+};
+
+NGLI_RC_CHECK_STRUCT(ngpu_bindgroup);
+
+struct ngpu_rendertarget {
+    struct ngli_rc rc;
+    struct ngpu_ctx *gpu_ctx;
+    struct ngpu_rendertarget_params params;
+    uint32_t width;
+    uint32_t height;
+    struct ngpu_rendertarget_layout layout;
+};
+
+NGLI_RC_CHECK_STRUCT(ngpu_rendertarget);
+
+struct ngpu_program {
+    struct ngpu_ctx *gpu_ctx;
+};
+
+struct ngpu_pipeline {
+    struct ngli_rc rc;
+    struct ngpu_ctx *gpu_ctx;
+
+    enum ngpu_pipeline_type type;
+    struct ngpu_pipeline_graphics graphics;
+    const struct ngpu_program *program;
+    struct ngpu_pipeline_layout layout;
+};
+
+NGLI_RC_CHECK_STRUCT(ngpu_pipeline);
+
+struct ngpu_ctx {
+    struct ngpu_ctx_params params;
+    const struct ngpu_ctx_class *cls;
+
+    int version;
+    int language_version;
+    uint64_t features;
+    struct ngpu_limits limits;
+
+    uint32_t nb_in_flight_frames;
+    uint32_t current_frame_index;
+
+    struct ngpu_pgcache *program_cache;
+
+    struct ngpu_capture_ctx *gpu_capture_ctx;
+    int gpu_capture;
+
+    /* State */
+    struct ngpu_rendertarget *rendertarget;
+    struct ngpu_pipeline *pipeline;
+    struct ngpu_bindgroup *bindgroup;
+    uint32_t dynamic_offsets[NGPU_MAX_DYNAMIC_OFFSETS];
+    size_t nb_dynamic_offsets;
+    const struct ngpu_buffer *vertex_buffers[NGPU_MAX_VERTEX_BUFFERS];
+    const struct ngpu_buffer *index_buffer;
+    enum ngpu_format index_format;
+};
+
 struct ngpu_ctx_class {
     enum ngpu_backend_type id;
 

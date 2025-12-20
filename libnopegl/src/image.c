@@ -76,7 +76,7 @@ uint64_t ngli_image_get_memory_size(const struct image *s)
     uint64_t size = 0;
     for (size_t i = 0; i < s->nb_planes; i++) {
         const struct ngpu_texture *plane = s->planes[i];
-        const struct ngpu_texture_params *params = &plane->params;
+        const struct ngpu_texture_params *params = ngpu_texture_get_params(plane);
         size += params->width
                 * params->height
                 * NGLI_MAX(params->depth, 1)

@@ -1265,7 +1265,7 @@ int ngli_hud_init(struct hud *s)
             .block         = &s->transforms_block.block_desc,
             .buffer = {
                 .buffer = s->transforms_block.buffer,
-                .size   = s->transforms_block.buffer->size,
+                .size   = ngpu_buffer_get_size(s->transforms_block.buffer),
             }
         },
     };

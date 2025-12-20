@@ -248,6 +248,31 @@ void ngpu_ctx_freep(struct ngpu_ctx **sp)
     ngli_freep(sp);
 }
 
+enum ngpu_backend_type ngpu_ctx_get_backend_type(const struct ngpu_ctx *s)
+{
+    return s->params.backend;
+}
+
+int ngpu_ctx_get_version(const struct ngpu_ctx *s)
+{
+    return s->version;
+}
+
+int ngpu_ctx_get_language_version(const struct ngpu_ctx *s)
+{
+    return s->language_version;
+}
+
+uint64_t ngpu_ctx_get_features(const struct ngpu_ctx *s)
+{
+    return s->features;
+}
+
+const struct ngpu_limits *ngpu_ctx_get_limits(const struct ngpu_ctx *s)
+{
+    return &s->limits;
+}
+
 enum ngpu_cull_mode ngpu_ctx_transform_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
 {
     return s->cls->transform_cull_mode(s, cull_mode);

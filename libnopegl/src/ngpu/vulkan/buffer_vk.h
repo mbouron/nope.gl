@@ -26,7 +26,7 @@
 #include <vulkan/vulkan.h>
 
 #include "cmd_buffer_vk.h"
-#include "ngpu/ngpu.h"
+#include "ngpu/ngpu_internal.h"
 #include "utils/darray.h"
 
 struct ngpu_buffer_vk {

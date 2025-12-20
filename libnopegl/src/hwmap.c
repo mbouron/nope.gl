@@ -118,7 +118,7 @@ static int exec_hwconv(struct hwmap *hwmap)
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct ngpu_texture *texture = hwmap->hwconv_texture;
-    const struct ngpu_texture_params *texture_params = &texture->params;
+    const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
     struct image *mapped_image = &hwmap->mapped_image;
     struct hwconv *hwconv = &hwmap->hwconv;
 
@@ -174,8 +174,8 @@ int ngli_hwmap_init(struct hwmap *hwmap, struct ngl_ctx *ctx, const struct hwmap
     hwmap->params = *params;
     hwmap->pix_fmt = NMD_PIXFMT_NONE;
 
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    hwmap->hwmap_classes = get_backend_hwmap_classes(gpu_ctx->params.backend);
+    enum ngpu_backend_type backend = ngpu_ctx_get_backend_type(ctx->gpu_ctx);
+    hwmap->hwmap_classes = get_backend_hwmap_classes(backend);
 
     return 0;
 }

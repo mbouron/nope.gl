@@ -51,7 +51,7 @@ static int computeprogram_init(struct ngl_node *node)
     }
 
     const struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    const struct ngpu_limits *limits = &gpu_ctx->limits;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
 
     if (o->workgroup_size[0] > limits->max_compute_work_group_size[0] ||
         o->workgroup_size[1] > limits->max_compute_work_group_size[1] ||

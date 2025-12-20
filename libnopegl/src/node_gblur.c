@@ -403,8 +403,8 @@ static int resize(struct ngl_node *node)
     if (s->dst_is_resizable) {
         ngpu_texture_freep(&dst_info->texture);
         dst_info->texture = dst;
-        dst_info->image.params.width = dst->params.width;
-        dst_info->image.params.height = dst->params.height;
+        dst_info->image.params.width = ngpu_texture_get_params(dst)->width;
+        dst_info->image.params.height = ngpu_texture_get_params(dst)->height;
         dst_info->image.planes[0] = dst;
         dst_info->image.rev = dst_info->image_rev++;
     }
@@ -416,8 +416,8 @@ static int resize(struct ngl_node *node)
     }
 
     const struct rtt_params rtt_params = (struct rtt_params) {
-        .width  = dst->params.width,
-        .height = dst->params.height,
+        .width  = ngpu_texture_get_params(dst)->width,
+        .height = ngpu_texture_get_params(dst)->height,
         .nb_colors = 1,
         .colors[0] = {
             .attachment = dst,

@@ -84,7 +84,8 @@ int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s)
 {
     const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 
-    if (gpu_ctx->features & NGPU_FEATURE_SOFTWARE)
+    const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
+    if (features & NGPU_FEATURE_SOFTWARE)
         return -1;
 
     if (!check_extensions(gpu_ctx))

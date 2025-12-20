@@ -55,7 +55,7 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     }
 
     struct ngpu_texture *texture = dst_image->planes[0];
-    const struct ngpu_texture_params *texture_params = &texture->params;
+    const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
 
     const struct ngpu_rendertarget_layout rt_layout = {
         .nb_colors = 1,

@@ -22,7 +22,7 @@
 #ifndef NGPU_CMD_BUFFER_GL_H
 #define NGPU_CMD_BUFFER_GL_H
 
-#include "ngpu/ngpu.h"
+#include "ngpu/ngpu_internal.h"
 
 struct ngpu_rendertarget;
 struct ngpu_bindgroup;

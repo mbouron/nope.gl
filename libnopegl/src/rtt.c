@@ -91,7 +91,7 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
 
             struct ngpu_texture_params attachment_params = {
                 .type    = NGPU_TEXTURE_TYPE_2D,
-                .format  = texture->params.format,
+                .format  = ngpu_texture_get_params(texture)->format,
                 .width   = s->params.width,
                 .height  = s->params.height,
                 .samples = s->params.samples,
@@ -138,7 +138,7 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
 
             struct ngpu_texture_params attachment_params = {
                 .type    = NGPU_TEXTURE_TYPE_2D,
-                .format  = texture->params.format,
+                .format  = ngpu_texture_get_params(texture)->format,
                 .width   = s->params.width,
                 .height  = s->params.height,
                 .samples = s->params.samples,
@@ -326,7 +326,7 @@ void ngli_rtt_end(struct rtt_ctx *s)
 
     for (size_t i = 0; i < s->params.nb_colors; i++) {
         struct ngpu_texture *texture = s->params.colors[i].attachment;
-        const struct ngpu_texture_params *texture_params = &texture->params;
+        const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
         if (texture_params->mipmap_filter != NGPU_MIPMAP_FILTER_NONE)
             ngpu_ctx_generate_texture_mipmap(gpu_ctx, texture);
     }

@@ -596,7 +596,7 @@ int ngli_distmap_finalize(struct distmap *s)
         .graphics = {
             .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
             .state        = NGPU_GRAPHICS_STATE_DEFAULTS,
-            .rt_layout    = s->rt->layout,
+            .rt_layout    = *ngpu_rendertarget_get_layout(s->rt),
             .vertex_state = ngpu_pgcraft_get_vertex_state(s->crafter),
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
