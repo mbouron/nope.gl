@@ -61,6 +61,10 @@ int ngpu_buffer_upload(struct ngpu_buffer *s, const void *data, size_t offset, s
     int ret = ngpu_buffer_wait(s);
     if (ret < 0)
         return ret;
+
+    if (size == NGPU_BUFFER_WHOLE_SIZE)
+        size = s->size;
+
     return s->gpu_ctx->cls->buffer_upload(s, data, offset, size);
 }
 
@@ -69,6 +73,10 @@ int ngpu_buffer_map(struct ngpu_buffer *s, size_t offset, size_t size, void **da
     int ret = ngpu_buffer_wait(s);
     if (ret < 0)
         return ret;
+
+    if (size == NGPU_BUFFER_WHOLE_SIZE)
+        size = s->size;
+
     return s->gpu_ctx->cls->buffer_map(s, offset, size, datap);
 }
 
