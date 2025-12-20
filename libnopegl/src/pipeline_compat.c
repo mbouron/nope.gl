@@ -75,7 +75,7 @@ static int map_buffer(struct pipeline_compat *s, enum ngpu_program_stage stage)
         return 0;
 
     struct ngpu_buffer *buffer = s->ubuffers[stage];
-    return ngpu_buffer_map(buffer, 0, buffer->size, (void **) &s->mapped_datas[stage]);
+    return ngpu_buffer_map(buffer, 0, NGPU_BUFFER_WHOLE_SIZE, (void **) &s->mapped_datas[stage]);
 }
 
 static void unmap_buffers(struct pipeline_compat *s)
@@ -123,7 +123,7 @@ static int init_blocks_buffers(struct pipeline_compat *s, const struct pipeline_
             return ret;
 
         if (gpu_ctx->features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT) {
-            ret = ngpu_buffer_map(buffer, 0, buffer->size, (void **) &s->mapped_datas[i]);
+            ret = ngpu_buffer_map(buffer, 0, NGPU_BUFFER_WHOLE_SIZE, (void **) &s->mapped_datas[i]);
             if (ret < 0)
                 return ret;
         }
