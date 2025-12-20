@@ -30,6 +30,8 @@
 
 struct ngpu_ctx;
 
+#define NGPU_BUFFER_WHOLE_SIZE SIZE_MAX
+
 enum {
     NGPU_BUFFER_USAGE_DYNAMIC_BIT        = 1 << 0,
     NGPU_BUFFER_USAGE_TRANSFER_SRC_BIT   = 1 << 1,
