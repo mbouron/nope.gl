@@ -51,7 +51,8 @@ struct ngpu_block {
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_block_desc block_desc;
     size_t block_size;
-    struct darray offsets; // array of size_t
+    size_t *offsets;
+    size_t nb_offsets;
     struct ngpu_buffer *buffer;
 };
 
