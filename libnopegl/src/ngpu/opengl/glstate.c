@@ -21,11 +21,13 @@
  * under the License.
  */
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "glstate.h"
 #include "glcontext.h"
 #include "ngpu/ngpu.h"
-#include <stdlib.h>
-#include <string.h>
+#include "utils/utils.h"
 
 static const GLenum gl_blend_factor_map[NGPU_BLEND_FACTOR_NB] = {
     [NGPU_BLEND_FACTOR_ZERO]                     = GL_ZERO,
