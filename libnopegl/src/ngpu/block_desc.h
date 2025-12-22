@@ -49,11 +49,6 @@ struct ngpu_block_field {
     enum ngpu_precision precision;
 };
 
-struct ngpu_block_field_data {
-    const void *data;
-    size_t count;
-};
-
 void ngpu_block_field_copy(const struct ngpu_block_field *fi, uint8_t *dst, const uint8_t *src);
 void ngpu_block_field_copy_count(const struct ngpu_block_field *fi, uint8_t *dst, const uint8_t *src, size_t count);
 
@@ -63,8 +58,6 @@ struct ngpu_block_desc {
     struct darray fields; // block_field
     size_t size;
 };
-
-void ngpu_block_desc_fields_copy(const struct ngpu_block_desc *s, const struct ngpu_block_field_data *src_array, uint8_t *dst);
 
 #define NGPU_BLOCK_DESC_VARIADIC_COUNT SIZE_MAX
 
