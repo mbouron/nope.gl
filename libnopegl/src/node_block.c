@@ -216,7 +216,7 @@ static int update_block_data(struct ngl_node *node, int forced)
     struct block_priv *s = node->priv_data;
     struct block_info *info = &s->blk;
     const struct block_opts *o = node->opts;
-    const struct ngpu_block_field *field_info = ngli_darray_data(&info->block.fields);
+    const struct ngpu_block_field *field_info = info->block.fields;
     for (size_t i = 0; i < o->nb_fields; i++) {
         const struct ngl_node *field_node = o->fields[i];
         const struct ngpu_block_field *fi = &field_info[i];
@@ -307,7 +307,7 @@ static int block_init(struct ngl_node *node)
         if (ret < 0)
             return ret;
 
-        const struct ngpu_block_field *fields = ngli_darray_data(&info->block.fields);
+        const struct ngpu_block_field *fields = info->block.fields;
         const struct ngpu_block_field *fi = &fields[i];
         LOG(DEBUG, "%s.field[%zu]: %s offset=%zu size=%zu stride=%zu",
             node->label, i, field_node->label, fi->offset, fi->size, fi->stride);

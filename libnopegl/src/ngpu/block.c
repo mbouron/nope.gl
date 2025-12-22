@@ -69,9 +69,9 @@ int ngpu_block_update(struct ngpu_block *s, size_t index, const void *data)
     int ret = ngpu_buffer_map(s->buffer, s->block_size * index, s->block_size, (void **) &dst);
     if (ret < 0)
         return ret;
-    const struct ngpu_block_field *fields = ngli_darray_data(&s->block_desc.fields);
+    const struct ngpu_block_field *fields = s->block_desc.fields;
     const size_t *offsets = ngli_darray_data(&s->offsets);
-    for (size_t i = 0; i < ngli_darray_count(&s->block_desc.fields); i++) {
+    for (size_t i = 0; i < s->block_desc.nb_fields; i++) {
         const struct ngpu_block_field *field = &fields[i];
         ngpu_block_field_copy_count(field, dst + field->offset, src + offsets[i], field->count);
     }
