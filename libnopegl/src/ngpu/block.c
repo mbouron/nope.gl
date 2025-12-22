@@ -23,6 +23,10 @@
 #include <string.h>
 
 #include "ngpu.h"
+#include "utils/memory.h"
+#include "utils/utils.h"
+
+#define BLOCK_OFFSETS_INITIAL_CAPACITY 8
 
 int ngpu_block_init(struct ngpu_ctx *gpu_ctx, struct ngpu_block *s, const struct ngpu_block_params *params)
 {
@@ -30,18 +34,29 @@ int ngpu_block_init(struct ngpu_ctx *gpu_ctx, struct ngpu_block *s, const struct
 
     const enum ngpu_block_layout layout = (params->layout != NGPU_BLOCK_LAYOUT_UNKNOWN) ? params->layout : NGPU_BLOCK_LAYOUT_STD140;
     ngpu_block_desc_init(gpu_ctx, &s->block_desc, layout);
-    ngli_darray_init(&s->offsets, sizeof(size_t), 0);
+    s->offsets = NULL;
+    s->nb_offsets = 0;
 
     size_t last_offset = SIZE_MAX;
     for (size_t i = 0; i < params->nb_entries; i++) {
         const struct ngpu_block_field *field = &params->entries[i].field;
+        const size_t offset = params->entries[i].offset;
         int ret = ngpu_block_desc_add_field(&s->block_desc, field->name, field->type, field->count);
         if (ret < 0)
             return ret;
 
-        size_t offset = params->entries[i].offset;
-        if (!ngli_darray_push(&s->offsets, &offset))
+        size_t *new_offsets = s->offsets;
+        if (!s->offsets) {
+            new_offsets = ngli_realloc(NULL, BLOCK_OFFSETS_INITIAL_CAPACITY, sizeof(*s->offsets));
+        } else if (s->nb_offsets >= BLOCK_OFFSETS_INITIAL_CAPACITY && NGLI_IS_POW2(s->nb_offsets)) {
+            new_offsets = ngli_realloc(s->offsets, s->nb_offsets * 2, sizeof(*s->offsets));
+        }
+        if (!new_offsets)
             return NGL_ERROR_MEMORY;
+
+        s->offsets = new_offsets;
+        s->offsets[s->nb_offsets] = offset;
+        s->nb_offsets++;
 
         ngli_assert(last_offset == SIZE_MAX || offset > last_offset);
         last_offset = offset;
@@ -69,7 +84,7 @@ int ngpu_block_update(struct ngpu_block *s, size_t index, const void *data)
     if (ret < 0)
         return ret;
     const struct ngpu_block_field *fields = s->block_desc.fields;
-    const size_t *offsets = ngli_darray_data(&s->offsets);
+    const size_t *offsets = s->offsets;
     for (size_t i = 0; i < s->block_desc.nb_fields; i++) {
         const struct ngpu_block_field *field = &fields[i];
         ngpu_block_field_copy_count(field, dst + field->offset, src + offsets[i], field->count);
@@ -82,7 +97,7 @@ int ngpu_block_update(struct ngpu_block *s, size_t index, const void *data)
 void ngpu_block_reset(struct ngpu_block *s)
 {
     ngpu_block_desc_reset(&s->block_desc);
-    ngli_darray_reset(&s->offsets);
+    ngli_freep(&s->offsets);
     ngpu_buffer_freep(&s->buffer);
     memset(s, 0, sizeof(*s));
 }
