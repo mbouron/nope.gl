@@ -33,6 +33,7 @@
 struct darray {
     uint8_t *data;
     size_t count;
+
     size_t capacity;
     size_t element_size;
     ngli_user_free_func_type user_free_func;

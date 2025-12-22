@@ -583,8 +583,8 @@ static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
 
     const char *keyword = get_glsl_type(named_block->type);
     ngli_bstr_printf(b, " %s %s_block {\n", keyword, named_block->name);
-    const struct ngpu_block_field *field_info = ngli_darray_data(&block->fields);
-    for (size_t i = 0; i < ngli_darray_count(&block->fields); i++) {
+    const struct ngpu_block_field *field_info = block->fields;
+    for (size_t i = 0; i < block->nb_fields; i++) {
         const struct ngpu_block_field *fi = &field_info[i];
         const char *type = get_glsl_type(fi->type);
         const char *precision = get_precision_qualifier(s, fi->type, fi->precision, "");
@@ -1156,9 +1156,9 @@ NGLI_STATIC_ASSERT(offsetof(struct ngpu_bindgroup_layout_entry, id) == 0, "resou
 static int32_t get_ublock_index(const struct ngpu_pgcraft *s, const char *name, enum ngpu_program_stage stage)
 {
     const struct ngpu_pgcraft_compat_info *compat_info = &s->compat_info;
-    const struct darray *fields_array = &compat_info->ublocks[stage].fields;
-    const struct ngpu_block_field *fields = ngli_darray_data(fields_array);
-    for (int32_t i = 0; i < (int32_t)ngli_darray_count(fields_array); i++)
+    const struct ngpu_block_desc *block = &compat_info->ublocks[stage];
+    const struct ngpu_block_field *fields = block->fields;
+    for (int32_t i = 0; i < (int32_t)block->nb_fields; i++)
         if (!strcmp(fields[i].name, name))
             return (int32_t)stage << 16 | i;
     return -1;

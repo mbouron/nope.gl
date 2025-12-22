@@ -740,7 +740,8 @@ void ngpu_block_field_copy_count(const struct ngpu_block_field *fi, uint8_t *dst
 struct ngpu_block_desc {
     struct ngpu_ctx *gpu_ctx;
     enum ngpu_block_layout layout;
-    struct darray fields; // block_field
+    struct ngpu_block_field *fields; // block_field
+    size_t nb_fields;
     size_t size;
 };
 
