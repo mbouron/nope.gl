@@ -256,16 +256,6 @@ void ngpu_block_field_copy(const struct ngpu_block_field *fi, uint8_t *dst, cons
     ngpu_block_field_copy_count(fi, dst, src, 0);
 }
 
-void ngpu_block_desc_fields_copy(const struct ngpu_block_desc *s, const struct ngpu_block_field_data *src_array, uint8_t *dst)
-{
-    const struct ngpu_block_field *fields = ngli_darray_data(&s->fields);
-    for (size_t i = 0; i < ngli_darray_count(&s->fields); i++) {
-        const struct ngpu_block_field_data *src = &src_array[i];
-        const struct ngpu_block_field *fi = &fields[i];
-        ngpu_block_field_copy_count(fi, dst + fi->offset, src->data, src->count);
-    }
-}
-
 void ngpu_block_desc_reset(struct ngpu_block_desc *s)
 {
     ngli_darray_reset(&s->fields);
