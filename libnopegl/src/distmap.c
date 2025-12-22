@@ -280,6 +280,21 @@ enum {
     BEZIERGROUP_COUNT_INDEX,
 };
 
+struct block_field_data {
+    const void *data;
+    size_t count;
+};
+
+static void block_desc_fields_copy(const struct ngpu_block_desc *s, const struct block_field_data *src_array, uint8_t *dst)
+{
+    const struct ngpu_block_field *fields = ngli_darray_data(&s->fields);
+    for (size_t i = 0; i < ngli_darray_count(&s->fields); i++) {
+        const struct block_field_data *src = &src_array[i];
+        const struct ngpu_block_field *fi = &fields[i];
+        ngpu_block_field_copy_count(fi, dst + fi->offset, src->data, src->count);
+    }
+}
+
 static void load_buffers_data(struct distmap *s, uint8_t *vert_data, uint8_t *frag_data)
 {
     const int32_t *bezier_counts = ngli_darray_data(&s->bezier_counts);
@@ -306,11 +321,11 @@ static void load_buffers_data(struct distmap *s, uint8_t *vert_data, uint8_t *fr
         const float coords_px[] = {-pad, -pad, (float)shape->width + pad, (float)shape->height + pad};
         const float coords[] = NGLI_VEC4_SCALE(coords_px, s->scale);
 
-        const struct ngpu_block_field_data vert_data_src[] = {
+        const struct block_field_data vert_data_src[] = {
             [VERTICES_INDEX] = {.data=vertices},
         };
 
-        const struct ngpu_block_field_data frag_data_src[] = {
+        const struct block_field_data frag_data_src[] = {
             [COORDS_INDEX]            = {.data = coords},
             [BEZIER_X_BUF_INDEX]      = {.data = bezier_x + bezier_start_idx, .count = (size_t)bezier_count},
             [BEZIER_Y_BUF_INDEX]      = {.data = bezier_y + bezier_start_idx, .count = (size_t)bezier_count},
@@ -318,9 +333,9 @@ static void load_buffers_data(struct distmap *s, uint8_t *vert_data, uint8_t *fr
             [BEZIERGROUP_COUNT_INDEX] = {.data = &beziergroup_count},
         };
 
-        ngpu_block_desc_fields_copy(&s->vert_block, vert_data_src, vert_data);
+        block_desc_fields_copy(&s->vert_block, vert_data_src, vert_data);
         vert_data += s->vert_offset;
-        ngpu_block_desc_fields_copy(&s->frag_block, frag_data_src, frag_data);
+        block_desc_fields_copy(&s->frag_block, frag_data_src, frag_data);
         frag_data += s->frag_offset;
     }
 }
