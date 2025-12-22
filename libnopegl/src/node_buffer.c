@@ -181,10 +181,9 @@ static int buffer_init_from_count(struct ngl_node *node)
     return 0;
 }
 
-static const struct ngpu_block_field *get_block_field(const struct darray *fields_array, const char *name)
+static const struct ngpu_block_field *get_block_field(const struct ngpu_block_field *fields, size_t nb_fields, const char *name)
 {
-    const struct ngpu_block_field *fields = ngli_darray_data(fields_array);
-    for (size_t i = 0; i < ngli_darray_count(fields_array); i++) {
+    for (size_t i = 0; i < nb_fields; i++) {
         const struct ngpu_block_field *field = &fields[i];
         if (!strcmp(field->name, name))
             return field;
@@ -206,7 +205,7 @@ static int buffer_init_from_block(struct ngl_node *node)
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    const struct ngpu_block_field *fi = get_block_field(&block->fields, o->block_field);
+    const struct ngpu_block_field *fi = get_block_field(block->fields, block->nb_fields, o->block_field);
     if (!fi) {
         LOG(ERROR, "field %s not found in %s", o->block_field, o->block->label);
         return NGL_ERROR_NOT_FOUND;
