@@ -39,11 +39,6 @@
 #include "nopegl/nopegl.h"
 #include "utils/memory.h"
 
-#if defined(TARGET_ANDROID)
-#include "ngpu/ctx.h"
-#include "ngpu/opengl/texture_gl.h"
-#endif
-
 struct media_opts {
     const char *filename;
     int nopemd_min_level;
