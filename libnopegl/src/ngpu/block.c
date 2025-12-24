@@ -22,7 +22,7 @@
 
 #include <string.h>
 
-#include "ngpu.h"
+#include "ngpu/ngpu.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
