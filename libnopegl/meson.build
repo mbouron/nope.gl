@@ -152,7 +152,11 @@ add_project_arguments(project_args, language: 'c')
 # See https://github.com/mesonbuild/meson/issues/7940
 add_project_arguments(project_args, language: 'c', native: true)
 
-inc_dir = include_directories('src', 'src/include')
+inc_dir = include_directories(
+  'src',
+  'src/include',
+  'src/ngpu/include',
+)
 
 #
 # Library main configuration
