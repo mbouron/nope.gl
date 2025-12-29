@@ -250,8 +250,8 @@ def gen(gl_xml, func_file):
         #ifndef GLFUNCTIONS_H
         #define GLFUNCTIONS_H
 
+        #include <stdbool.h>
         #include <stddef.h>
-        #include <stdint.h>
 
         #include "ngpu/opengl/glincludes.h"
         """
@@ -271,13 +271,11 @@ def gen(gl_xml, func_file):
 
     gldefinitions = textwrap.dedent(
         """
-        #define M (1U << 0)
-
-        static const struct gldefinition {
+        static const struct glfunction_load_info {
             const char *name;
             size_t offset;
-            uint32_t flags;
-        } gldefinitions[] = {
+            bool optional;
+        } glfunction_load_infos[] = {
         """
     )
 
@@ -309,11 +307,13 @@ def gen(gl_xml, func_file):
             "wrapper_args_specs": ", ".join(wrapper_args_specs),
             "func_args_specs": ", ".join(func_args_specs),
             "func_args": ", ".join(func_args),
-            "flags": "0" if funcname in cmds_optional else "M",
+            "optional": "true" if funcname in cmds_optional else "false",
         }
 
         glfunctions += "    %(func_ret)s (NGLI_GL_APIENTRY *%(func_name_nogl)s)(%(func_args_specs)s);\n" % data
-        gldefinitions += '    {"%(func_name)s", offsetof(struct glfunctions, %(func_name_nogl)s), %(flags)s},\n' % data
+        gldefinitions += (
+            '    {"%(func_name)s", offsetof(struct glfunctions, %(func_name_nogl)s), %(optional)s},\n' % data
+        )
 
         cmds.pop(cmds.index(funcname))
         if not cmds:
