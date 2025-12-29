@@ -855,7 +855,7 @@ gl_generated_files = custom_target(
   command: [find_program('scripts/gen-gl-wrappers.py'), '@INPUT@', '@OUTPUT@'],
   capture: false,
   input: gl_xml,
-  output: ['glfunctions.h', 'gldefinitions_data.h'],
+  output: ['glfunctions.h'],
 )
 run_target(
   'updateglwrappers',
@@ -867,7 +867,6 @@ run_target(
     # entry below.
     # See https://github.com/mesonbuild/meson/issues/7891 for more information
     gl_generated_files[0].full_path(),
-    gl_generated_files[1].full_path(),
     meson.current_source_dir() / 'src/ngpu/opengl'
   ],
   depends: gl_generated_files,

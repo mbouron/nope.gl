@@ -35,7 +35,6 @@
 #include "utils/memory.h"
 #include "utils/utils.h"
 
-#include "ngpu/opengl/gldefinitions_data.h"
 #include "ngpu/opengl/glfeatures_data.h"
 
 #ifdef HAVE_GLPLATFORM_EGL
