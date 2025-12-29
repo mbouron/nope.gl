@@ -33,7 +33,6 @@
 #include "utils/memory.h"
 #include "utils/utils.h"
 
-#include "gldefinitions_data.h"
 #include "glfeatures_data.h"
 
 #ifdef HAVE_GLPLATFORM_EGL
