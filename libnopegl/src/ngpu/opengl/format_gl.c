@@ -23,7 +23,6 @@
 
 #include <string.h>
 
-#include "feature_gl.h"
 #include "format_gl.h"
 #include "glcontext.h"
 #include "utils/utils.h"
