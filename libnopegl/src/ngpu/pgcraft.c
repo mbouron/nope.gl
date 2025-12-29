@@ -39,7 +39,6 @@
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "ngpu/opengl/ctx_gl.h"
-#include "ngpu/opengl/feature_gl.h"
 #include "ngpu/opengl/program_gl_utils.h"
 #endif
 
