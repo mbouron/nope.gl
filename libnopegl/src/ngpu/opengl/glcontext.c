@@ -112,16 +112,16 @@ static int glcontext_load_functions(struct glcontext *glcontext)
 {
     const struct glfunctions *gl = &glcontext->funcs;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(gldefinitions); i++) {
-        const struct gldefinition *gldefinition = &gldefinitions[i];
+    for (size_t i = 0; i < NGLI_ARRAY_NB(glfunction_load_infos); i++) {
+        const struct glfunction_load_info *func_load_info = &glfunction_load_infos[i];
 
-        void *func = ngli_glcontext_get_proc_address(glcontext, gldefinition->name);
-        if ((gldefinition->flags & M) && !func) {
-            LOG(ERROR, "could not find core function: %s", gldefinition->name);
+        void *func = ngli_glcontext_get_proc_address(glcontext, func_load_info->name);
+        if (!func && !func_load_info->optional) {
+            LOG(ERROR, "could not find core function: %s", func_load_info->name);
             return NGL_ERROR_NOT_FOUND;
         }
 
-        *(void **)((uintptr_t)gl + gldefinition->offset) = func;
+        *(void **)((uintptr_t)gl + func_load_info->offset) = func;
     }
 
     return 0;
