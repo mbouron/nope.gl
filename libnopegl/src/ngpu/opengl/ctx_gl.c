@@ -78,7 +78,7 @@ static int wrap_capture_cvpixelbuffer(struct ngpu_ctx *s,
     struct glcontext *gl = s_priv->glcontext;
 
     CVOpenGLESTextureRef cv_texture = NULL;
-    CVOpenGLESTextureCacheRef *cache = ngli_glcontext_get_texture_cache(gl);
+    CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
     const size_t width = CVPixelBufferGetWidth(buffer);
     const size_t height = CVPixelBufferGetHeight(buffer);
     CVReturn cv_ret = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
@@ -220,7 +220,7 @@ static int create_rendertarget(struct ngpu_ctx *s,
         ret = ngpu_rendertarget_init(rendertarget, &params);
     } else {
         const int external = ctx_params_gl ? ctx_params_gl->external : 0;
-        const GLuint default_fbo_id = ngli_glcontext_get_default_framebuffer(gl);
+        const GLuint default_fbo_id = ngpu_glcontext_get_default_framebuffer(gl);
         const GLuint fbo_id = external ? ctx_params_gl->external_framebuffer : default_fbo_id;
         ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, fbo_id);
     }
@@ -447,12 +447,12 @@ static const struct {
     uint64_t feature;
     uint64_t feature_gl;
 } feature_map[] = {
-    {NGPU_FEATURE_COMPUTE,               NGLI_FEATURE_GL_COMPUTE_SHADER_ALL},
-    {NGPU_FEATURE_SOFTWARE,              NGLI_FEATURE_GL_SOFTWARE},
-    {NGPU_FEATURE_IMAGE_LOAD_STORE,      NGLI_FEATURE_GL_SHADER_IMAGE_LOAD_STORE | NGLI_FEATURE_GL_SHADER_IMAGE_SIZE},
-    {NGPU_FEATURE_STORAGE_BUFFER,        NGLI_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT},
-    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT, NGLI_FEATURE_GL_BUFFER_STORAGE},
-    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT, NGLI_FEATURE_GL_EXT_BUFFER_STORAGE},
+    {NGPU_FEATURE_COMPUTE,               NGPU_FEATURE_GL_COMPUTE_SHADER_ALL},
+    {NGPU_FEATURE_SOFTWARE,              NGPU_FEATURE_GL_SOFTWARE},
+    {NGPU_FEATURE_IMAGE_LOAD_STORE,      NGPU_FEATURE_GL_SHADER_IMAGE_LOAD_STORE | NGPU_FEATURE_GL_SHADER_IMAGE_SIZE},
+    {NGPU_FEATURE_STORAGE_BUFFER,        NGPU_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT},
+    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT, NGPU_FEATURE_GL_BUFFER_STORAGE},
+    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT, NGPU_FEATURE_GL_EXT_BUFFER_STORAGE},
     {NGPU_FEATURE_DEPTH_STENCIL_RESOLVE, 0},
 };
 
@@ -583,13 +583,13 @@ static int gl_init(struct ngpu_ctx *s)
         .debug         = ctx_params->debug,
     };
 
-    s_priv->glcontext = ngli_glcontext_create(&params);
+    s_priv->glcontext = ngpu_glcontext_create(&params);
     if (!s_priv->glcontext)
         return NGL_ERROR_MEMORY;
 
     struct glcontext *gl = s_priv->glcontext;
 
-    if (gl->debug && (gl->features & NGLI_FEATURE_GL_KHR_DEBUG)) {
+    if (gl->debug && (gl->features & NGPU_FEATURE_GL_KHR_DEBUG)) {
         gl->funcs.Enable(GL_DEBUG_OUTPUT);
         gl->funcs.Enable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         gl->funcs.DebugMessageCallback(gl_debug_message_callback, NULL);
@@ -648,7 +648,7 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
         ctx_params->width = width;
         ctx_params->height = height;
     } else if (!ctx_params->offscreen) {
-        int ret = ngli_glcontext_resize(gl, width, height);
+        int ret = ngpu_glcontext_resize(gl, width, height);
         if (ret < 0)
             return ret;
         ctx_params->width = gl->width;
@@ -670,7 +670,7 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
         */
         struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt;
         struct ngpu_rendertarget_gl *rt_load_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt_load;
-        rt_gl->id = rt_load_gl->id = ngli_glcontext_get_default_framebuffer(gl);
+        rt_gl->id = rt_load_gl->id = ngpu_glcontext_get_default_framebuffer(gl);
     }
 
     return 0;
@@ -748,14 +748,14 @@ int ngpu_ctx_gl_make_current(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
-    return ngli_glcontext_make_current(gl, 1);
+    return ngpu_glcontext_make_current(gl, 1);
 }
 
 int ngpu_ctx_gl_release_current(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
-    return ngli_glcontext_make_current(gl, 0);
+    return ngpu_glcontext_make_current(gl, 0);
 }
 
 void ngpu_ctx_gl_reset_state(struct ngpu_ctx *s)
@@ -933,14 +933,14 @@ static int gl_end_draw(struct ngpu_ctx *s, double t)
         s_priv->capture_func(s);
     }
 
-    ret = ngli_glcontext_check_gl_error(gl, __func__);
+    ret = ngpu_glcontext_check_gl_error(gl, __func__);
 
     const int external = ctx_params_gl ? ctx_params_gl->external : 0;
     if (!external && !ctx_params->offscreen) {
         if (ctx_params->set_surface_pts)
-            ngli_glcontext_set_surface_pts(gl, t);
+            ngpu_glcontext_set_surface_pts(gl, t);
 
-        ngli_glcontext_swap_buffers(gl);
+        ngpu_glcontext_swap_buffers(gl);
     }
 
     return ret;
@@ -1007,7 +1007,7 @@ static void gl_destroy(struct ngpu_ctx *s)
         ngpu_capture_end(s->gpu_capture_ctx);
     ngpu_capture_freep(&s->gpu_capture_ctx);
 #endif
-    ngli_glcontext_freep(&s_priv->glcontext);
+    ngpu_glcontext_freep(&s_priv->glcontext);
 }
 
 static enum ngpu_cull_mode gl_transform_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
@@ -1061,7 +1061,7 @@ static void gl_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *r
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGLI_CMD_BUFFER_GL_CMD_REF(cmd_buffer, rt);
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, rt);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_BEGIN_RENDER_PASS,
@@ -1125,7 +1125,7 @@ static void gl_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGLI_CMD_BUFFER_GL_CMD_REF(cmd_buffer, texture);
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, texture);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_GENERATE_TEXTURE_MIPMAP,
@@ -1138,7 +1138,7 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGLI_CMD_BUFFER_GL_CMD_REF(cmd_buffer, bindgroup);
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, bindgroup);
 
     struct ngpu_bindgroup_gl *bindgroup_gl = (struct ngpu_bindgroup_gl *)bindgroup;
     for (size_t i = 0; i < ngli_darray_count(&bindgroup_gl->buffer_bindings); i++) {
@@ -1161,7 +1161,7 @@ static void gl_set_pipeline(struct ngpu_ctx *s, struct ngpu_pipeline *pipeline)
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGLI_CMD_BUFFER_GL_CMD_REF(cmd_buffer, pipeline);
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, pipeline);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_SET_PIPELINE,
@@ -1212,7 +1212,7 @@ static void gl_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struc
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGLI_CMD_BUFFER_GL_CMD_REF(cmd_buffer, buffer);
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, buffer);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_SET_VERTEX_BUFFER,
@@ -1226,7 +1226,7 @@ static void gl_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *bu
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGLI_CMD_BUFFER_GL_CMD_REF(cmd_buffer, buffer);
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, buffer);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_SET_INDEX_BUFFER,

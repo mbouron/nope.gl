@@ -146,7 +146,7 @@ static int egl_probe_extensions(struct glcontext *ctx)
     struct egl_priv *egl = ctx->priv_data;
 
 #if defined(TARGET_ANDROID)
-    if (ngli_glcontext_check_extension("EGL_ANDROID_presentation_time", egl->extensions)) {
+    if (ngpu_glcontext_check_extension("EGL_ANDROID_presentation_time", egl->extensions)) {
         egl->PresentationTimeANDROID = (void *)eglGetProcAddress("eglPresentationTimeANDROID");
         if (!egl->PresentationTimeANDROID) {
             LOG(ERROR, "could not retrieve eglPresentationTimeANDROID()");
@@ -154,53 +154,53 @@ static int egl_probe_extensions(struct glcontext *ctx)
         }
     }
 
-    if (ngli_glcontext_check_extension("EGL_ANDROID_get_native_client_buffer", egl->extensions)) {
+    if (ngpu_glcontext_check_extension("EGL_ANDROID_get_native_client_buffer", egl->extensions)) {
         egl->GetNativeClientBufferANDROID = (void *)eglGetProcAddress("eglGetNativeClientBufferANDROID");
         if (!egl->GetNativeClientBufferANDROID) {
             LOG(ERROR, "could not retrieve eglGetNativeClientBufferANDROID()");
             return NGL_ERROR_EXTERNAL;
         }
-        ctx->features |= NGLI_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER;
+        ctx->features |= NGPU_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER;
     }
 #endif
 
-    if (ngli_glcontext_check_extension("EGL_KHR_image_base", egl->extensions)) {
+    if (ngpu_glcontext_check_extension("EGL_KHR_image_base", egl->extensions)) {
         egl->CreateImageKHR = (void *)eglGetProcAddress("eglCreateImageKHR");
         egl->DestroyImageKHR = (void *)eglGetProcAddress("eglDestroyImageKHR");
         if (!egl->CreateImageKHR || !egl->DestroyImageKHR) {
             LOG(ERROR, "could not retrieve egl{Create,Destroy}ImageKHR()");
             return NGL_ERROR_EXTERNAL;
         }
-        ctx->features |= NGLI_FEATURE_GL_EGL_IMAGE_BASE_KHR;
+        ctx->features |= NGPU_FEATURE_GL_EGL_IMAGE_BASE_KHR;
     }
 
-    if (ngli_glcontext_check_extension("EGL_EXT_image_dma_buf_import", egl->extensions)) {
-        ctx->features |= NGLI_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT;
+    if (ngpu_glcontext_check_extension("EGL_EXT_image_dma_buf_import", egl->extensions)) {
+        ctx->features |= NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT;
     }
 
-    if (ngli_glcontext_check_extension("EGL_KHR_surfaceless_context", egl->extensions)) {
+    if (ngpu_glcontext_check_extension("EGL_KHR_surfaceless_context", egl->extensions)) {
         egl->has_surfaceless_context_ext = 1;
     }
 
-    if (ngli_glcontext_check_extension("EGL_MESA_query_driver", egl->extensions)) {
+    if (ngpu_glcontext_check_extension("EGL_MESA_query_driver", egl->extensions)) {
         egl->GetDisplayDriverName = (void *)eglGetProcAddress("eglGetDisplayDriverName");
         if (!egl->GetDisplayDriverName) {
             LOG(ERROR, "could not retrieve eglGetDisplayDriverName()");
             return NGL_ERROR_EXTERNAL;
         }
-        ctx->features |= NGLI_FEATURE_GL_EGL_MESA_QUERY_DRIVER;
+        ctx->features |= NGPU_FEATURE_GL_EGL_MESA_QUERY_DRIVER;
     }
 
-    if (ngli_glcontext_check_extension("EGL_KHR_create_context", egl->extensions)) {
+    if (ngpu_glcontext_check_extension("EGL_KHR_create_context", egl->extensions)) {
         egl->has_create_context_ext = 1;
     }
 
-    if (ngli_glcontext_check_extension("EGL_EXT_image_dma_buf_import_modifiers", egl->extensions)) {
-        ctx->features |= NGLI_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS;
+    if (ngpu_glcontext_check_extension("EGL_EXT_image_dma_buf_import_modifiers", egl->extensions)) {
+        ctx->features |= NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS;
         egl->has_image_dma_buf_import_modifiers_ext = 1;
     }
 
-    if (ngli_glcontext_check_extension("EGL_KHR_gl_colorspace", egl->extensions)) {
+    if (ngpu_glcontext_check_extension("EGL_KHR_gl_colorspace", egl->extensions)) {
         egl->has_gl_colorspace_ext = 1;
     }
 
@@ -216,7 +216,7 @@ static int egl_probe_client_extensions(struct egl_priv *egl)
         return NGL_ERROR_EXTERNAL;
     }
 
-    if (!ngli_glcontext_check_extension("EGL_EXT_platform_base", client_extensions)) {
+    if (!ngpu_glcontext_check_extension("EGL_EXT_platform_base", client_extensions)) {
         LOG(ERROR, "EGL_EXT_platform_base is not supported");
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
     }
@@ -227,20 +227,20 @@ static int egl_probe_client_extensions(struct egl_priv *egl)
         return NGL_ERROR_EXTERNAL;
     }
 
-    if (ngli_glcontext_check_extension("EGL_KHR_platform_x11", client_extensions) ||
-        ngli_glcontext_check_extension("EGL_EXT_platform_x11", client_extensions))
+    if (ngpu_glcontext_check_extension("EGL_KHR_platform_x11", client_extensions) ||
+        ngpu_glcontext_check_extension("EGL_EXT_platform_x11", client_extensions))
         egl->has_platform_x11_ext = 1;
 
-    if (ngli_glcontext_check_extension("EGL_MESA_platform_surfaceless", client_extensions))
+    if (ngpu_glcontext_check_extension("EGL_MESA_platform_surfaceless", client_extensions))
         egl->has_platform_mesa_surfaceless_ext = 1;
 
-    if (ngli_glcontext_check_extension("EGL_KHR_platform_wayland", client_extensions) ||
-        ngli_glcontext_check_extension("EGL_EXT_platform_wayland", client_extensions))
+    if (ngpu_glcontext_check_extension("EGL_KHR_platform_wayland", client_extensions) ||
+        ngpu_glcontext_check_extension("EGL_EXT_platform_wayland", client_extensions))
         egl->has_platform_wayland_ext = 1;
 
-    if ((ngli_glcontext_check_extension("EGL_EXT_device_enumeration", client_extensions) &&
-        ngli_glcontext_check_extension("EGL_EXT_platform_device", client_extensions)) ||
-        ngli_glcontext_check_extension("EGL_EXT_device_base", client_extensions)) {
+    if ((ngpu_glcontext_check_extension("EGL_EXT_device_enumeration", client_extensions) &&
+        ngpu_glcontext_check_extension("EGL_EXT_platform_device", client_extensions)) ||
+        ngpu_glcontext_check_extension("EGL_EXT_device_base", client_extensions)) {
         egl->QueryDevices = (void *)eglGetProcAddress("eglQueryDevicesEXT");
         if (!egl->QueryDevices) {
             LOG(ERROR, "could not retrieve eglQueryDevicesEXT()");
@@ -565,7 +565,7 @@ static void egl_uninit(struct glcontext *ctx)
 {
     struct egl_priv *egl = ctx->priv_data;
 
-    ngli_glcontext_make_current(ctx, 0);
+    ngpu_glcontext_make_current(ctx, 0);
 
     if (egl->surface)
         eglDestroySurface(egl->display, egl->surface);
@@ -690,7 +690,7 @@ static uintptr_t egl_get_handle(struct glcontext *ctx)
     return (uintptr_t)egl->handle;
 }
 
-const struct glcontext_class ngli_glcontext_egl_class = {
+const struct glcontext_class ngpu_glcontext_egl_class = {
     .init = egl_init,
     .uninit = egl_uninit,
     .resize = egl_resize,
@@ -704,7 +704,7 @@ const struct glcontext_class ngli_glcontext_egl_class = {
     .priv_size = sizeof(struct egl_priv),
 };
 
-const struct glcontext_class ngli_glcontext_egl_external_class = {
+const struct glcontext_class ngpu_glcontext_egl_external_class = {
     .init = egl_init_external,
     .make_current = egl_make_current,
     .get_proc_address = egl_get_proc_address,

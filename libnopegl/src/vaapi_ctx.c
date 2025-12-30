@@ -54,9 +54,9 @@ static int check_extensions(const struct ngpu_ctx *gpu_ctx)
             ctx_params->backend == NGPU_BACKEND_OPENGLES) {
         const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
         const struct glcontext *gl = gpu_ctx_gl->glcontext;
-        const uint64_t features = NGLI_FEATURE_GL_OES_EGL_IMAGE |
-                                  NGLI_FEATURE_GL_EGL_IMAGE_BASE_KHR |
-                                  NGLI_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT;
+        const uint64_t features = NGPU_FEATURE_GL_OES_EGL_IMAGE |
+                                  NGPU_FEATURE_GL_EGL_IMAGE_BASE_KHR |
+                                  NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT;
         if (NGLI_HAS_ALL_FLAGS(gl->features, features))
             return 1;
     }

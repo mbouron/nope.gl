@@ -109,7 +109,7 @@ struct ngpu_cmd_buffer_gl *ngpu_cmd_buffer_gl_create(struct ngpu_ctx *gpu_ctx);
 void ngpu_cmd_buffer_gl_freep(struct ngpu_cmd_buffer_gl **sp);
 int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s);
 
-#define NGLI_CMD_BUFFER_GL_CMD_REF(cmd, rc) ngpu_cmd_buffer_gl_ref((cmd), (struct ngli_rc *)(rc))
+#define NGPU_CMD_BUFFER_GL_CMD_REF(cmd, rc) ngpu_cmd_buffer_gl_ref((cmd), (struct ngli_rc *)(rc))
 int ngpu_cmd_buffer_gl_ref(struct ngpu_cmd_buffer_gl *s, struct ngli_rc *rc);
 int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buffer *buffer);
 

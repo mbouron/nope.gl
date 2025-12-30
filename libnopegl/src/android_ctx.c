@@ -100,8 +100,8 @@ static int has_native_imagereader_api_support(struct ngpu_ctx *gpu_ctx)
     if (ctx_params->backend == NGPU_BACKEND_OPENGLES) {
         const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
         const struct glcontext *gl = gpu_ctx_gl->glcontext;
-        const uint64_t features = NGLI_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE |
-                                  NGLI_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER;
+        const uint64_t features = NGPU_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE |
+                                  NGPU_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER;
         return (NGLI_HAS_ALL_FLAGS(gl->features, features));
     }
 #endif

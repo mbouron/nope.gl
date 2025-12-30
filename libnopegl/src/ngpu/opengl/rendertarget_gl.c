@@ -244,7 +244,7 @@ int ngpu_rendertarget_gl_init(struct ngpu_rendertarget *s)
     if (ret < 0)
         goto done;
 
-    if (gl->features & NGLI_FEATURE_GL_INVALIDATE_SUBDATA) {
+    if (gl->features & NGPU_FEATURE_GL_INVALIDATE_SUBDATA) {
         s_priv->invalidate = invalidate;
     } else {
         s_priv->invalidate = invalidate_noop;
@@ -287,7 +287,7 @@ int ngpu_rendertarget_gl_init(struct ngpu_rendertarget *s)
 done:;
     struct ngpu_rendertarget *rt = gpu_ctx->rendertarget;
     struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)rt;
-    const GLuint fbo_id = rt_gl ? rt_gl->id : ngli_glcontext_get_default_framebuffer(gl);
+    const GLuint fbo_id = rt_gl ? rt_gl->id : ngpu_glcontext_get_default_framebuffer(gl);
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, fbo_id);
 
     return ret;
@@ -326,7 +326,7 @@ void ngpu_rendertarget_gl_begin_pass(struct ngpu_rendertarget *s)
      * to request a non-sRGB format, thus we need to disable the linear -> sRGB
      * conversion (that is enabled by GL_FRAMEBUFFER_SRGB).
      */
-    if (s_priv->id == ngli_glcontext_get_default_framebuffer(gl)) {
+    if (s_priv->id == ngpu_glcontext_get_default_framebuffer(gl)) {
         gl->funcs.Disable(GL_FRAMEBUFFER_SRGB);
     }
 #endif
@@ -376,7 +376,7 @@ void ngpu_rendertarget_gl_end_pass(struct ngpu_rendertarget *s)
     }
 
 #if defined(TARGET_DARWIN)
-    if (s_priv->id == ngli_glcontext_get_default_framebuffer(gl)) {
+    if (s_priv->id == ngpu_glcontext_get_default_framebuffer(gl)) {
         gl->funcs.Enable(GL_FRAMEBUFFER_SRGB);
     }
 #endif
@@ -421,7 +421,7 @@ int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_ren
     s_priv->wrapped = 1;
     s_priv->id = id;
 
-    if (gl->features & NGLI_FEATURE_GL_INVALIDATE_SUBDATA) {
+    if (gl->features & NGPU_FEATURE_GL_INVALIDATE_SUBDATA) {
         s_priv->invalidate = invalidate;
     } else {
         s_priv->invalidate = invalidate_noop;

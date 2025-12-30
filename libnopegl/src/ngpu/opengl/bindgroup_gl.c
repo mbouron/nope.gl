@@ -83,7 +83,7 @@ static int build_texture_bindings(struct ngpu_bindgroup *s)
     }
 
     if (nb_images)
-        ngli_assert(gl->features & NGLI_FEATURE_GL_SHADER_IMAGE_LOAD_STORE);
+        ngli_assert(gl->features & NGPU_FEATURE_GL_SHADER_IMAGE_LOAD_STORE);
 
     if (nb_images > limits->max_image_units) {
         LOG(ERROR, "number of image units (%zu) exceeds device limits (%u)", nb_images, limits->max_image_units);
@@ -118,7 +118,7 @@ static int build_buffer_bindings(struct ngpu_bindgroup *s)
 
         if (type == NGPU_TYPE_STORAGE_BUFFER ||
             type == NGPU_TYPE_STORAGE_BUFFER_DYNAMIC)
-            ngli_assert(gl->features & NGLI_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT);
+            ngli_assert(gl->features & NGPU_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT);
 
         if (layout_entry->access & NGPU_ACCESS_WRITE_BIT) {
             s_priv->use_barriers = 1;
@@ -291,7 +291,7 @@ void ngpu_bindgroup_gl_bind(struct ngpu_bindgroup *s, const uint32_t *dynamic_of
                 gl->funcs.BindTexture(GL_TEXTURE_2D, 0);
                 gl->funcs.BindTexture(GL_TEXTURE_2D_ARRAY, 0);
                 gl->funcs.BindTexture(GL_TEXTURE_3D, 0);
-                if (gl->features & NGLI_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE)
+                if (gl->features & NGPU_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE)
                     gl->funcs.BindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
             }
         }

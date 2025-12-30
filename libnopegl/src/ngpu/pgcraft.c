@@ -1262,7 +1262,7 @@ static void setup_glsl_info_gl(struct ngpu_pgcraft *s)
     s->has_precision_qualifiers     = IS_GLSL_ES_MIN(100);
 
     s->has_explicit_bindings = IS_GLSL_ES_MIN(310) || IS_GLSL_MIN(420) ||
-                               (gl->features & NGLI_FEATURE_GL_SHADING_LANGUAGE_420PACK);
+                               (gl->features & NGPU_FEATURE_GL_SHADING_LANGUAGE_420PACK);
 
     /*
      * Bindings are shared across all stages. UBO, SSBO, texture and image

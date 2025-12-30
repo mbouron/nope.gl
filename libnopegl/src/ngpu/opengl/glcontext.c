@@ -53,14 +53,14 @@ enum {
     GLPLATFORM_WGL,
 };
 
-extern const struct glcontext_class ngli_glcontext_egl_class;
-extern const struct glcontext_class ngli_glcontext_egl_external_class;
-extern const struct glcontext_class ngli_glcontext_nsgl_class;
-extern const struct glcontext_class ngli_glcontext_nsgl_external_class;
-extern const struct glcontext_class ngli_glcontext_eagl_class;
-extern const struct glcontext_class ngli_glcontext_eagl_external_class;
-extern const struct glcontext_class ngli_glcontext_wgl_class;
-extern const struct glcontext_class ngli_glcontext_wgl_external_class;
+extern const struct glcontext_class ngpu_glcontext_egl_class;
+extern const struct glcontext_class ngpu_glcontext_egl_external_class;
+extern const struct glcontext_class ngpu_glcontext_nsgl_class;
+extern const struct glcontext_class ngpu_glcontext_nsgl_external_class;
+extern const struct glcontext_class ngpu_glcontext_eagl_class;
+extern const struct glcontext_class ngpu_glcontext_eagl_external_class;
+extern const struct glcontext_class ngpu_glcontext_wgl_class;
+extern const struct glcontext_class ngpu_glcontext_wgl_external_class;
 
 static const struct {
     const struct glcontext_class *cls;
@@ -68,26 +68,26 @@ static const struct {
 } glcontext_class_map[] = {
 #ifdef HAVE_GLPLATFORM_EGL
     [GLPLATFORM_EGL] = {
-        .cls = &ngli_glcontext_egl_class,
-        .external_cls = &ngli_glcontext_egl_external_class,
+        .cls = &ngpu_glcontext_egl_class,
+        .external_cls = &ngpu_glcontext_egl_external_class,
     },
 #endif
 #ifdef HAVE_GLPLATFORM_NSGL
     [GLPLATFORM_NSGL] = {
-        .cls = &ngli_glcontext_nsgl_class,
-        .external_cls = &ngli_glcontext_nsgl_external_class,
+        .cls = &ngpu_glcontext_nsgl_class,
+        .external_cls = &ngpu_glcontext_nsgl_external_class,
     },
 #endif
 #ifdef HAVE_GLPLATFORM_EAGL
     [GLPLATFORM_EAGL] = {
-        .cls = &ngli_glcontext_eagl_class,
-        .external_cls = &ngli_glcontext_eagl_external_class,
+        .cls = &ngpu_glcontext_eagl_class,
+        .external_cls = &ngpu_glcontext_eagl_external_class,
     },
 #endif
 #ifdef HAVE_GLPLATFORM_WGL
     [GLPLATFORM_WGL] = {
-        .cls = &ngli_glcontext_wgl_class,
-        .external_cls = &ngli_glcontext_wgl_external_class,
+        .cls = &ngpu_glcontext_wgl_class,
+        .external_cls = &ngpu_glcontext_wgl_external_class,
     },
 #endif
 };
@@ -119,7 +119,7 @@ static const struct glfeature {
 } glfeatures[] = {
     {
         .name           = "texture_storage",
-        .flag           = NGLI_FEATURE_GL_TEXTURE_STORAGE,
+        .flag           = NGPU_FEATURE_GL_TEXTURE_STORAGE,
         .version        = 420,
         .es_version     = 310,
         .funcs_offsets  = (const size_t[]){OFFSET(TexStorage2D),
@@ -127,7 +127,7 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "compute_shader",
-        .flag           = NGLI_FEATURE_GL_COMPUTE_SHADER,
+        .flag           = NGPU_FEATURE_GL_COMPUTE_SHADER,
         .version        = 430,
         .es_version     = 310,
         .extensions     = (const char*[]){"GL_ARB_compute_shader", NULL},
@@ -135,7 +135,7 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "program_interface_query",
-        .flag           = NGLI_FEATURE_GL_PROGRAM_INTERFACE_QUERY,
+        .flag           = NGPU_FEATURE_GL_PROGRAM_INTERFACE_QUERY,
         .version        = 430,
         .es_version     = 310,
         .extensions     = (const char*[]){"GL_ARB_program_interface_query", NULL},
@@ -147,7 +147,7 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "shader_image_load_store",
-        .flag           = NGLI_FEATURE_GL_SHADER_IMAGE_LOAD_STORE,
+        .flag           = NGPU_FEATURE_GL_SHADER_IMAGE_LOAD_STORE,
         .version        = 420,
         .es_version     = 310,
         .extensions     = (const char*[]){"GL_ARB_shader_image_load_store", NULL},
@@ -156,7 +156,7 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "shader_storage_buffer_object",
-        .flag           = NGLI_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT,
+        .flag           = NGPU_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT,
         .version        = 430,
         .es_version     = 310,
         .extensions     = (const char*[]){"GL_ARB_shader_storage_buffer_object", NULL},
@@ -165,7 +165,7 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "internalformat_query",
-        .flag           = NGLI_FEATURE_GL_INTERNALFORMAT_QUERY,
+        .flag           = NGPU_FEATURE_GL_INTERNALFORMAT_QUERY,
         .version        = 420,
         .es_version     = 300,
         .extensions     = (const char*[]){"ARB_internalformat_query", NULL},
@@ -173,12 +173,12 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "timer_query",
-        .flag           = NGLI_FEATURE_GL_TIMER_QUERY,
+        .flag           = NGPU_FEATURE_GL_TIMER_QUERY,
         .version        = 330,
         .extensions     = (const char*[]){"ARB_timer_query", NULL},
     }, {
         .name           = "ext_disjoint_timer_query",
-        .flag           = NGLI_FEATURE_GL_EXT_DISJOINT_TIMER_QUERY,
+        .flag           = NGPU_FEATURE_GL_EXT_DISJOINT_TIMER_QUERY,
         .es_extensions  = (const char*[]){"GL_EXT_disjoint_timer_query", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(BeginQueryEXT),
                                            OFFSET(EndQueryEXT),
@@ -189,7 +189,7 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "invalidate_subdata",
-        .flag           = NGLI_FEATURE_GL_INVALIDATE_SUBDATA,
+        .flag           = NGPU_FEATURE_GL_INVALIDATE_SUBDATA,
         .version        = 430,
         .es_version     = 300,
         .extensions     = (const char*[]){"GL_ARB_invalidate_subdata"},
@@ -197,7 +197,7 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "oes_egl_external_image",
-        .flag           = NGLI_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE,
+        .flag           = NGPU_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE,
         .es_extensions  = (const char*[]){"GL_OES_EGL_image_external",
                                           "GL_OES_EGL_image_external_essl3",
                                           NULL},
@@ -205,25 +205,25 @@ static const struct glfeature {
                                            SIZE_MAX}
     }, {
         .name           = "oes_egl_image",
-        .flag           = NGLI_FEATURE_GL_OES_EGL_IMAGE,
+        .flag           = NGPU_FEATURE_GL_OES_EGL_IMAGE,
         .extensions     = (const char*[]){"GL_OES_EGL_image", NULL},
         .es_extensions  = (const char*[]){"GL_OES_EGL_image", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(EGLImageTargetTexture2DOES),
                                            SIZE_MAX}
     }, {
         .name           = "ext_egl_image_storage",
-        .flag           = NGLI_FEATURE_GL_EXT_EGL_IMAGE_STORAGE,
+        .flag           = NGPU_FEATURE_GL_EXT_EGL_IMAGE_STORAGE,
         .extensions     = (const char*[]){"GL_EXT_EGL_image_storage", NULL},
         .es_extensions  = (const char*[]){"GL_EXT_EGL_image_storage", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(EGLImageTargetTexStorageEXT),
                                            SIZE_MAX}
     }, {
         .name           = "yuv_target",
-        .flag           = NGLI_FEATURE_GL_YUV_TARGET,
+        .flag           = NGPU_FEATURE_GL_YUV_TARGET,
         .es_extensions  = (const char*[]){"GL_EXT_YUV_target", NULL}
     }, {
         .name           = "khr_debug",
-        .flag           = NGLI_FEATURE_GL_KHR_DEBUG,
+        .flag           = NGPU_FEATURE_GL_KHR_DEBUG,
         .version        = 430,
         .es_version     = 320,
         .es_extensions  = (const char*[]){"GL_KHR_debug", NULL},
@@ -231,60 +231,60 @@ static const struct glfeature {
                                         SIZE_MAX}
     }, {
         .name           = "shader_image_size",
-        .flag           = NGLI_FEATURE_GL_SHADER_IMAGE_SIZE,
+        .flag           = NGPU_FEATURE_GL_SHADER_IMAGE_SIZE,
         .version        = 430,
         .es_version     = 310,
         .extensions     = (const char*[]){"GL_ARB_shader_image_size", NULL},
     }, {
         .name           = "shading_language_420pack",
-        .flag           = NGLI_FEATURE_GL_SHADING_LANGUAGE_420PACK,
+        .flag           = NGPU_FEATURE_GL_SHADING_LANGUAGE_420PACK,
         .version        = 420,
         .extensions     = (const char*[]){"GL_ARB_shading_language_420pack", NULL},
     }, {
         .name           = "color_buffer_float",
-        .flag           = NGLI_FEATURE_GL_COLOR_BUFFER_FLOAT,
+        .flag           = NGPU_FEATURE_GL_COLOR_BUFFER_FLOAT,
         .version        = 300,
         .es_version     = 320,
         .es_extensions  = (const char*[]){"EXT_color_buffer_float", NULL},
     }, {
         .name           = "color_buffer_half_float",
-        .flag           = NGLI_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT,
+        .flag           = NGPU_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT,
         .version        = 300,
         .es_version     = 320,
         .es_extensions  = (const char*[]){"EXT_color_buffer_half_float", NULL},
     }, {
         .name           = "buffer_storage",
-        .flag           = NGLI_FEATURE_GL_BUFFER_STORAGE,
+        .flag           = NGPU_FEATURE_GL_BUFFER_STORAGE,
         .version        = 440,
         .extensions     = (const char*[]){"GL_ARB_buffer_storage", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(BufferStorage),
                                            SIZE_MAX}
     }, {
         .name           = "ext_buffer_storage",
-        .flag           = NGLI_FEATURE_GL_EXT_BUFFER_STORAGE,
+        .flag           = NGPU_FEATURE_GL_EXT_BUFFER_STORAGE,
         .es_extensions  = (const char*[]){"EXT_buffer_storage", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(BufferStorageEXT),
                                            SIZE_MAX}
     }, {
         .name           = "texture_norm16",
-        .flag           = NGLI_FEATURE_GL_TEXTURE_NORM16,
+        .flag           = NGPU_FEATURE_GL_TEXTURE_NORM16,
         .version        = 300,
         .es_extensions  = (const char*[]){"EXT_texture_norm16", NULL},
     }, {
         .name           = "texture_float_linear",
-        .flag           = NGLI_FEATURE_GL_TEXTURE_FLOAT_LINEAR,
+        .flag           = NGPU_FEATURE_GL_TEXTURE_FLOAT_LINEAR,
         .version        = 300,
         .es_version     = 320,
         .es_extensions  = (const char*[]){"OES_texture_float_linear", NULL},
     }, {
         .name           = "float_blend",
-        .flag           = NGLI_FEATURE_GL_FLOAT_BLEND,
+        .flag           = NGPU_FEATURE_GL_FLOAT_BLEND,
         .version        = 300,
         .es_version     = 320,
         .es_extensions  = (const char*[]){"EXT_float_blend", NULL},
     }, {
         .name           = "viewport_array",
-        .flag           = NGLI_FEATURE_GL_VIEWPORT_ARRAY,
+        .flag           = NGPU_FEATURE_GL_VIEWPORT_ARRAY,
         .version        = 410,
         .extensions     = (const char*[]){"ARB_viewport_array", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(ViewportIndexedf),
@@ -299,7 +299,7 @@ static int glcontext_load_functions(struct glcontext *glcontext)
     for (size_t i = 0; i < NGLI_ARRAY_NB(glfunction_load_infos); i++) {
         const struct glfunction_load_info *func_load_info = &glfunction_load_infos[i];
 
-        void *func = ngli_glcontext_get_proc_address(glcontext, func_load_info->name);
+        void *func = ngpu_glcontext_get_proc_address(glcontext, func_load_info->name);
         if (!func && !func_load_info->optional) {
             LOG(ERROR, "could not find core function: %s", func_load_info->name);
             return NGL_ERROR_NOT_FOUND;
@@ -362,7 +362,7 @@ static int glcontext_probe_version(struct glcontext *glcontext)
     if (strstr(renderer, "llvmpipe") || // Mesa llvmpipe
         strstr(renderer, "softpipe") || // Mesa softpipe
         strstr(renderer, "SWR")) {      // Mesa swrast
-        glcontext->features |= NGLI_FEATURE_GL_SOFTWARE;
+        glcontext->features |= NGPU_FEATURE_GL_SOFTWARE;
         LOG(INFO, "software renderer detected");
     }
 
@@ -533,16 +533,16 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
     GET(GL_MAX_UNIFORM_BLOCK_SIZE, &limits->max_uniform_block_size);
     GET(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &limits->min_uniform_block_offset_alignment);
 
-    if (glcontext->features & NGLI_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT) {
+    if (glcontext->features & NGPU_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT) {
         GET(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, &limits->max_storage_block_size);
         GET(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &limits->min_storage_block_offset_alignment);
     }
 
-    if (glcontext->features & NGLI_FEATURE_GL_SHADER_IMAGE_LOAD_STORE) {
+    if (glcontext->features & NGPU_FEATURE_GL_SHADER_IMAGE_LOAD_STORE) {
         GET(GL_MAX_IMAGE_UNITS, &limits->max_image_units);
     }
 
-    if (glcontext->features & NGLI_FEATURE_GL_COMPUTE_SHADER) {
+    if (glcontext->features & NGPU_FEATURE_GL_COMPUTE_SHADER) {
         for (GLuint i = 0; i < (GLuint)NGLI_ARRAY_NB(limits->max_compute_work_group_count); i++) {
             GET_I(GL_MAX_COMPUTE_WORK_GROUP_COUNT, i, &limits->max_compute_work_group_count[i]);
         }
@@ -577,14 +577,14 @@ static void NGLI_GL_APIENTRY GetQueryObjectui64vNoop(GLuint id, GLenum pname, GL
 
 static int glcontext_probe_timer_functions(struct glcontext *gl)
 {
-    if (gl->features & NGLI_FEATURE_GL_TIMER_QUERY) {
+    if (gl->features & NGPU_FEATURE_GL_TIMER_QUERY) {
         gl->timer_funcs.GenQueries          = gl->funcs.GenQueries;
         gl->timer_funcs.DeleteQueries       = gl->funcs.DeleteQueries;
         gl->timer_funcs.BeginQuery          = gl->funcs.BeginQuery;
         gl->timer_funcs.EndQuery            = gl->funcs.EndQuery;
         gl->timer_funcs.QueryCounter        = gl->funcs.QueryCounter;
         gl->timer_funcs.GetQueryObjectui64v = gl->funcs.GetQueryObjectui64v;
-    } else if (gl->features & NGLI_FEATURE_GL_EXT_DISJOINT_TIMER_QUERY) {
+    } else if (gl->features & NGPU_FEATURE_GL_EXT_DISJOINT_TIMER_QUERY) {
         gl->timer_funcs.GenQueries          = gl->funcs.GenQueriesEXT;
         gl->timer_funcs.DeleteQueries       = gl->funcs.DeleteQueriesEXT;
         gl->timer_funcs.BeginQuery          = gl->funcs.BeginQueryEXT;
@@ -622,7 +622,7 @@ static int glcontext_check_driver(struct glcontext *glcontext)
     }
 
 #ifdef HAVE_GLPLATFORM_EGL
-    if (glcontext->features & NGLI_FEATURE_GL_EGL_MESA_QUERY_DRIVER) {
+    if (glcontext->features & NGPU_FEATURE_GL_EGL_MESA_QUERY_DRIVER) {
         const char *driver_name = ngli_eglGetDisplayDriverName(glcontext);
         if (driver_name) {
             LOG(INFO, "EGL driver name: %s", driver_name);
@@ -672,7 +672,7 @@ static int glcontext_load_extensions(struct glcontext *glcontext)
     return 0;
 }
 
-struct glcontext *ngli_glcontext_create(const struct glcontext_params *params)
+struct glcontext *ngpu_glcontext_create(const struct glcontext_params *params)
 {
     if (params->platform < 0 || params->platform >= NGLI_ARRAY_NB(platform_to_glplatform))
         return NULL;
@@ -713,7 +713,7 @@ struct glcontext *ngli_glcontext_create(const struct glcontext_params *params)
             goto fail;
     }
 
-    int ret = ngli_glcontext_make_current(glcontext, 1);
+    int ret = ngpu_glcontext_make_current(glcontext, 1);
     if (ret < 0)
         goto fail;
 
@@ -727,21 +727,21 @@ struct glcontext *ngli_glcontext_create(const struct glcontext_params *params)
     }
 
     if (!glcontext->external && !glcontext->offscreen) {
-        ret = ngli_glcontext_resize(glcontext, glcontext->width, glcontext->height);
+        ret = ngpu_glcontext_resize(glcontext, glcontext->width, glcontext->height);
         if (ret < 0)
             goto fail;
     }
 
     if (!params->external && params->swap_interval >= 0)
-        ngli_glcontext_set_swap_interval(glcontext, params->swap_interval);
+        ngpu_glcontext_set_swap_interval(glcontext, params->swap_interval);
 
     return glcontext;
 fail:
-    ngli_glcontext_freep(&glcontext);
+    ngpu_glcontext_freep(&glcontext);
     return NULL;
 }
 
-int ngli_glcontext_make_current(struct glcontext *glcontext, int current)
+int ngpu_glcontext_make_current(struct glcontext *glcontext, int current)
 {
     if (glcontext->cls->make_current)
         return glcontext->cls->make_current(glcontext, current);
@@ -749,7 +749,7 @@ int ngli_glcontext_make_current(struct glcontext *glcontext, int current)
     return 0;
 }
 
-int ngli_glcontext_set_swap_interval(struct glcontext *glcontext, int interval)
+int ngpu_glcontext_set_swap_interval(struct glcontext *glcontext, int interval)
 {
     if (glcontext->cls->set_swap_interval)
         return glcontext->cls->set_swap_interval(glcontext, interval);
@@ -757,19 +757,19 @@ int ngli_glcontext_set_swap_interval(struct glcontext *glcontext, int interval)
     return 0;
 }
 
-void ngli_glcontext_swap_buffers(struct glcontext *glcontext)
+void ngpu_glcontext_swap_buffers(struct glcontext *glcontext)
 {
     if (glcontext->cls->swap_buffers)
         glcontext->cls->swap_buffers(glcontext);
 }
 
-void ngli_glcontext_set_surface_pts(struct glcontext *glcontext, double t)
+void ngpu_glcontext_set_surface_pts(struct glcontext *glcontext, double t)
 {
     if (glcontext->cls->set_surface_pts)
         glcontext->cls->set_surface_pts(glcontext, t);
 }
 
-int ngli_glcontext_resize(struct glcontext *glcontext, uint32_t width, uint32_t height)
+int ngpu_glcontext_resize(struct glcontext *glcontext, uint32_t width, uint32_t height)
 {
     if (glcontext->offscreen) {
         LOG(ERROR, "offscreen context does not support resize operation");
@@ -787,7 +787,7 @@ int ngli_glcontext_resize(struct glcontext *glcontext, uint32_t width, uint32_t 
     return NGL_ERROR_UNSUPPORTED;
 }
 
-void ngli_glcontext_freep(struct glcontext **glcontextp)
+void ngpu_glcontext_freep(struct glcontext **glcontextp)
 {
     struct glcontext *glcontext;
 
@@ -803,7 +803,7 @@ void ngli_glcontext_freep(struct glcontext **glcontextp)
     ngli_freep(glcontextp);
 }
 
-void *ngli_glcontext_get_proc_address(struct glcontext *glcontext, const char *name)
+void *ngpu_glcontext_get_proc_address(struct glcontext *glcontext, const char *name)
 {
     void *ptr = NULL;
 
@@ -813,7 +813,7 @@ void *ngli_glcontext_get_proc_address(struct glcontext *glcontext, const char *n
     return ptr;
 }
 
-void *ngli_glcontext_get_texture_cache(struct glcontext *glcontext)
+void *ngpu_glcontext_get_texture_cache(struct glcontext *glcontext)
 {
     void *texture_cache = NULL;
 
@@ -823,7 +823,7 @@ void *ngli_glcontext_get_texture_cache(struct glcontext *glcontext)
     return texture_cache;
 }
 
-uintptr_t ngli_glcontext_get_display(struct glcontext *glcontext)
+uintptr_t ngpu_glcontext_get_display(struct glcontext *glcontext)
 {
     uintptr_t handle = 0;
 
@@ -833,7 +833,7 @@ uintptr_t ngli_glcontext_get_display(struct glcontext *glcontext)
     return handle;
 }
 
-uintptr_t ngli_glcontext_get_handle(struct glcontext *glcontext)
+uintptr_t ngpu_glcontext_get_handle(struct glcontext *glcontext)
 {
     uintptr_t handle = 0;
 
@@ -843,7 +843,7 @@ uintptr_t ngli_glcontext_get_handle(struct glcontext *glcontext)
     return handle;
 }
 
-GLuint ngli_glcontext_get_default_framebuffer(struct glcontext *glcontext)
+GLuint ngpu_glcontext_get_default_framebuffer(struct glcontext *glcontext)
 {
     GLuint fbo_id = 0;
 
@@ -853,7 +853,7 @@ GLuint ngli_glcontext_get_default_framebuffer(struct glcontext *glcontext)
     return fbo_id;
 }
 
-int ngli_glcontext_check_extension(const char *extension, const char *extensions)
+int ngpu_glcontext_check_extension(const char *extension, const char *extensions)
 {
     if (!extension || !extensions)
         return 0;
@@ -877,7 +877,7 @@ int ngli_glcontext_check_extension(const char *extension, const char *extensions
 
 #define GL_ERROR_STR_CASE(error) case error: error_str = #error; break
 
-int ngli_glcontext_check_gl_error(const struct glcontext *glcontext, const char *context)
+int ngpu_glcontext_check_gl_error(const struct glcontext *glcontext, const char *context)
 {
     const GLenum error = glcontext->funcs.GetError();
     if (!error)
