@@ -129,7 +129,7 @@ static int wgl_init_extensions(struct glcontext *ctx)
         LOG(WARNING, "context does not support any swap interval extension (%lu)", GetLastError());
 
     const char *extensions_string = wgl->GetExtensionsStringARB(device_context);
-    if (ngli_glcontext_check_extension("WGL_EXT_colorspace", extensions_string)) {
+    if (ngpu_glcontext_check_extension("WGL_EXT_colorspace", extensions_string)) {
         wgl->has_colorspace_ext = 1;
     }
 
@@ -227,8 +227,8 @@ static int wgl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window, 
         wgl->rendering_context = wgl->CreateContextAttribsARB(wgl->device_context, shared_context, context_attributes);
     } else if (ctx->backend == NGPU_BACKEND_OPENGLES) {
         const char *extensions = wgl->GetExtensionsStringARB(wgl->device_context);
-        if (!ngli_glcontext_check_extension("WGL_EXT_create_context_es2_profile", extensions) &&
-            !ngli_glcontext_check_extension("WGL_EXT_create_context_es_profile", extensions)) {
+        if (!ngpu_glcontext_check_extension("WGL_EXT_create_context_es2_profile", extensions) &&
+            !ngpu_glcontext_check_extension("WGL_EXT_create_context_es_profile", extensions)) {
             LOG(ERROR, "OpenGLES is not supported by this device");
             return NGL_ERROR_GRAPHICS_UNSUPPORTED;
         }
@@ -367,7 +367,7 @@ static uintptr_t wgl_get_handle(struct glcontext *ctx)
     return (uintptr_t)wgl->rendering_context;
 }
 
-const struct glcontext_class ngli_glcontext_wgl_class = {
+const struct glcontext_class ngpu_glcontext_wgl_class = {
     .init = wgl_init,
     .uninit = wgl_uninit,
     .resize = wgl_resize,
@@ -379,7 +379,7 @@ const struct glcontext_class ngli_glcontext_wgl_class = {
     .priv_size = sizeof(struct wgl_priv),
 };
 
-const struct glcontext_class ngli_glcontext_wgl_external_class = {
+const struct glcontext_class ngpu_glcontext_wgl_external_class = {
     .init = wgl_init_external,
     .uninit = wgl_uninit_external,
     .make_current = wgl_make_current,
