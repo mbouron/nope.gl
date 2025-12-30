@@ -88,7 +88,7 @@ int ngpu_program_vk_init(struct ngpu_program *s, const struct ngpu_program_param
                     params->label ? params->label : "", s_with_numbers);
                 ngli_free(s_with_numbers);
             }
-            return ngli_vk_res2ret(res);
+            return ngpu_vk_res2ret(res);
         }
     }
 

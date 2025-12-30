@@ -71,7 +71,7 @@ static int check_extensions(const struct ngpu_ctx *gpu_ctx)
             VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
         };
         for (size_t i = 0; i < NGLI_ARRAY_NB(required_extensions); i++) {
-            if (!ngli_vkcontext_has_extension(vk, required_extensions[i], 1))
+            if (!ngpu_vkcontext_has_extension(vk, required_extensions[i], 1))
                 return 0;
         }
         return 1;

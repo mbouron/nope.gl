@@ -199,7 +199,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     }
 
     static const char *debug_ext = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
-    const int has_debug_extension = ngli_vkcontext_has_extension(s, debug_ext, 0);
+    const int has_debug_extension = ngpu_vkcontext_has_extension(s, debug_ext, 0);
     if (debug) {
         if (has_debug_extension && !ngli_darray_push(&extensions, &debug_ext)) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -627,7 +627,7 @@ static VkResult create_device(struct vkcontext *s)
     };
 
     for (size_t i = 0; i < NGLI_ARRAY_NB(optional_device_extensions); i++) {
-        if (ngli_vkcontext_has_extension(s, optional_device_extensions[i], 1)) {
+        if (ngpu_vkcontext_has_extension(s, optional_device_extensions[i], 1)) {
             if (!ngli_darray_push(&enabled_extensions, &optional_device_extensions[i])) {
                 ngli_darray_reset(&enabled_extensions);
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -645,7 +645,7 @@ static VkResult create_device(struct vkcontext *s)
         .samplerYcbcrConversion = 1,
     };
 
-    if (ngli_vkcontext_has_extension(s, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME, 1))
+    if (ngpu_vkcontext_has_extension(s, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME, 1))
         dev_features2.pNext = &ycbcr_features;
 
     const VkDeviceCreateInfo device_create_info = {
@@ -670,7 +670,7 @@ static VkResult create_device(struct vkcontext *s)
     return VK_SUCCESS;
 }
 
-VkFormat ngli_vkcontext_find_supported_format(struct vkcontext *s, const VkFormat *formats,
+VkFormat ngpu_vkcontext_find_supported_format(struct vkcontext *s, const VkFormat *formats,
                                               VkImageTiling tiling, VkFormatFeatureFlags features)
 {
     uint32_t i = 0;
@@ -688,7 +688,7 @@ VkFormat ngli_vkcontext_find_supported_format(struct vkcontext *s, const VkForma
     return VK_FORMAT_UNDEFINED;
 }
 
-uint32_t ngli_vkcontext_find_memory_type(struct vkcontext *s, uint32_t type, VkMemoryPropertyFlags props)
+uint32_t ngpu_vkcontext_find_memory_type(struct vkcontext *s, uint32_t type, VkMemoryPropertyFlags props)
 {
     for (uint32_t i = 0; i < s->phydev_mem_props.memoryTypeCount; i++)
         if ((type & (1 << i)) && NGLI_HAS_ALL_FLAGS(s->phydev_mem_props.memoryTypes[i].propertyFlags, props))
@@ -724,7 +724,7 @@ static VkResult query_swapchain_support(struct vkcontext *s)
     return VK_SUCCESS;
 }
 
-VkBool32 ngli_vkcontext_support_present_mode(const struct vkcontext *s, VkPresentModeKHR mode)
+VkBool32 ngpu_vkcontext_support_present_mode(const struct vkcontext *s, VkPresentModeKHR mode)
 {
     for (uint32_t i = 0; i < s->nb_present_modes; i++) {
         if (s->present_modes[i] == mode) {
@@ -756,7 +756,7 @@ static VkResult select_preferred_formats(struct vkcontext *s)
         VK_FORMAT_D24_UNORM_S8_UINT,
         0
     };
-    VkFormat format = ngli_vkcontext_find_supported_format(s, depth_stencil_formats, tiling, features);
+    VkFormat format = ngpu_vkcontext_find_supported_format(s, depth_stencil_formats, tiling, features);
     if (!format)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
     s->preferred_depth_stencil_format = ngli_format_from_vk_format(format);
@@ -766,7 +766,7 @@ static VkResult select_preferred_formats(struct vkcontext *s)
         VK_FORMAT_D16_UNORM,
         0
     };
-    format = ngli_vkcontext_find_supported_format(s, depth_formats, tiling, features);
+    format = ngpu_vkcontext_find_supported_format(s, depth_formats, tiling, features);
     if (!format)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
     s->preferred_depth_format = ngli_format_from_vk_format(format);
@@ -847,7 +847,7 @@ static VkResult load_functions(struct vkcontext *s)
 {
     for (size_t i = 0; i < NGLI_ARRAY_NB(vk_extensions); i++) {
         struct vk_extension *ext = &vk_extensions[i];
-        if (!ngli_vkcontext_has_extension(s, ext->name, ext->device))
+        if (!ngpu_vkcontext_has_extension(s, ext->name, ext->device))
             continue;
         for (const struct vk_function *func = ext->functions; func && func->name; func++) {
             if (!load_function(s, func)) {
@@ -860,23 +860,23 @@ static VkResult load_functions(struct vkcontext *s)
     return VK_SUCCESS;
 }
 
-struct vkcontext *ngli_vkcontext_create(void)
+struct vkcontext *ngpu_vkcontext_create(void)
 {
     struct vkcontext *s = ngli_calloc(1, sizeof(*s));
     return s;
 }
 
-VkResult ngli_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params)
+VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params)
 {
     VkResult res = create_instance(s, params->platform, params->debug);
     if (res != VK_SUCCESS) {
-        LOG(ERROR, "failed to create instance: %s", ngli_vk_res2str(res));
+        LOG(ERROR, "failed to create instance: %s", ngpu_vk_res2str(res));
         return res;
     }
 
     res = create_window_surface(s, params);
     if (res != VK_SUCCESS) {
-        LOG(ERROR, "failed to create window surface: %s", ngli_vk_res2str(res));
+        LOG(ERROR, "failed to create window surface: %s", ngpu_vk_res2str(res));
         return res;
     }
 
@@ -911,12 +911,12 @@ VkResult ngli_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *
     return VK_SUCCESS;
 }
 
-void *ngli_vkcontext_get_proc_addr(struct vkcontext *s, const char *name)
+void *ngpu_vkcontext_get_proc_addr(struct vkcontext *s, const char *name)
 {
     return vkGetInstanceProcAddr(s->instance, name);
 }
 
-int ngli_vkcontext_has_extension(const struct vkcontext *s, const char *name, int device)
+int ngpu_vkcontext_has_extension(const struct vkcontext *s, const char *name, int device)
 {
     uint32_t nb_extensions = device ? s->nb_device_extensions : s->nb_extensions;
     VkExtensionProperties *extensions = device ? s->device_extensions : s->extensions;
@@ -927,7 +927,7 @@ int ngli_vkcontext_has_extension(const struct vkcontext *s, const char *name, in
     return 0;
 }
 
-void ngli_vkcontext_freep(struct vkcontext **sp)
+void ngpu_vkcontext_freep(struct vkcontext **sp)
 {
     struct vkcontext *s = *sp;
     if (!s)
