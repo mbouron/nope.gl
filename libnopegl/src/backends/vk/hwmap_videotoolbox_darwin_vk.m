@@ -165,9 +165,9 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
         VkResult res = vkCreateImage(vk->device, &image_create_info, NULL, &plane_vk->image);
         if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not create image: %s", ngli_vk_res2str(res));
+            LOG(ERROR, "could not create image: %s", ngpu_vk_res2str(res));
             CFRelease(texture_ref);
-            return ngli_vk_res2ret(res);
+            return ngpu_vk_res2ret(res);
         }
 
         const struct ngpu_texture_params plane_params = {
@@ -190,9 +190,9 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
         res = ngpu_texture_vk_wrap(vt->planes[i], &wrap_params);
         if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not wrap texture: %s", ngli_vk_res2str(res));
+            LOG(ERROR, "could not wrap texture: %s", ngpu_vk_res2str(res));
             CFRelease(texture_ref);
-            return ngli_vk_res2ret(res);
+            return ngpu_vk_res2ret(res);
         }
 
         CFRelease(texture_ref);
