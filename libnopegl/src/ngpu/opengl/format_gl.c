@@ -127,31 +127,31 @@ void ngpu_format_gl_init(struct glcontext *gl)
         gl->formats[NGPU_FORMAT_B8G8R8A8_SINT].features  |= S|C;
     }
 
-    if (gl->features & NGLI_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT) {
+    if (gl->features & NGPU_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT) {
         gl->formats[NGPU_FORMAT_R16_SFLOAT].features          |= C|B;
         gl->formats[NGPU_FORMAT_R16G16_SFLOAT].features       |= C|B;
         gl->formats[NGPU_FORMAT_R16G16B16A16_SFLOAT].features |= C|B;
     }
 
-    if (gl->features & NGLI_FEATURE_GL_COLOR_BUFFER_FLOAT) {
+    if (gl->features & NGPU_FEATURE_GL_COLOR_BUFFER_FLOAT) {
         gl->formats[NGPU_FORMAT_R32_SFLOAT].features          |= C;
         gl->formats[NGPU_FORMAT_R32G32_SFLOAT].features       |= C;
         gl->formats[NGPU_FORMAT_R32G32B32A32_SFLOAT].features |= C;
     }
 
-    if (gl->features & NGLI_FEATURE_GL_FLOAT_BLEND) {
+    if (gl->features & NGPU_FEATURE_GL_FLOAT_BLEND) {
         gl->formats[NGPU_FORMAT_R32_SFLOAT].features          |= B;
         gl->formats[NGPU_FORMAT_R32G32_SFLOAT].features       |= B;
         gl->formats[NGPU_FORMAT_R32G32B32A32_SFLOAT].features |= B;
     }
 
-    if (gl->features & NGLI_FEATURE_GL_TEXTURE_FLOAT_LINEAR) {
+    if (gl->features & NGPU_FEATURE_GL_TEXTURE_FLOAT_LINEAR) {
         gl->formats[NGPU_FORMAT_R32_SFLOAT].features          |= SL;
         gl->formats[NGPU_FORMAT_R32G32_SFLOAT].features       |= SL;
         gl->formats[NGPU_FORMAT_R32G32B32A32_SFLOAT].features |= SL;
     }
 
-    if (gl->features & NGLI_FEATURE_GL_TEXTURE_NORM16) {
+    if (gl->features & NGPU_FEATURE_GL_TEXTURE_NORM16) {
         gl->formats[NGPU_FORMAT_R16_UNORM].features          |= S|SL|C|B;
         gl->formats[NGPU_FORMAT_R16_SNORM].features          |= S|SL;
         gl->formats[NGPU_FORMAT_R16G16_UNORM].features       |= S|SL|C|B;

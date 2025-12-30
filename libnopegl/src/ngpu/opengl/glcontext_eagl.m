@@ -345,7 +345,7 @@ static GLuint eagl_get_default_framebuffer(struct glcontext *ctx)
     return ctx->samples > 0 ? eagl->fbo_ms : eagl->fbo;
 }
 
-const struct glcontext_class ngli_glcontext_eagl_class = {
+const struct glcontext_class ngpu_glcontext_eagl_class = {
     .init = eagl_init,
     .uninit = eagl_uninit,
     .resize = eagl_resize,
@@ -358,7 +358,7 @@ const struct glcontext_class ngli_glcontext_eagl_class = {
     .priv_size = sizeof(struct eagl_priv),
 };
 
-const struct glcontext_class ngli_glcontext_eagl_external_class = {
+const struct glcontext_class ngpu_glcontext_eagl_external_class = {
     .init = eagl_init_external,
     .uninit = eagl_uninit_external,
     .make_current = eagl_make_current,

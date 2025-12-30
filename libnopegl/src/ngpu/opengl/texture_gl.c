@@ -215,7 +215,7 @@ static int renderbuffer_check_samples(struct ngpu_texture *s)
     const struct ngpu_texture_params *params = &s->params;
 
     GLint max_samples = (GLint)limits->max_samples;
-    if (gl->features & NGLI_FEATURE_GL_INTERNALFORMAT_QUERY)
+    if (gl->features & NGPU_FEATURE_GL_INTERNALFORMAT_QUERY)
         gl->funcs.GetInternalformativ(GL_RENDERBUFFER, s_priv->format, GL_SAMPLES, 1, &max_samples);
 
     if (params->samples > max_samples) {
@@ -357,7 +357,7 @@ int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_param
         s_priv->target == GL_TEXTURE_3D ||
         s_priv->target == GL_TEXTURE_CUBE_MAP)
         gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_WRAP_R, wrap_r);
-    if (gl->features & NGLI_FEATURE_GL_TEXTURE_STORAGE) {
+    if (gl->features & NGPU_FEATURE_GL_TEXTURE_STORAGE) {
         texture_allocate_storage(s);
     } else {
         texture_allocate(s);

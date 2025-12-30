@@ -101,7 +101,7 @@ static int vt_ios_map_plane(struct hwmap *hwmap, CVPixelBufferRef cvpixbuf, size
     if (width > INT_MAX || height > INT_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
 
-    CVOpenGLESTextureCacheRef *cache = ngli_glcontext_get_texture_cache(gl);
+    CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
 
     CVReturn err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
                                                                 *cache,
