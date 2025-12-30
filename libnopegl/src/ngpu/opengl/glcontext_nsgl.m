@@ -240,7 +240,7 @@ static void nsgl_uninit_external(struct glcontext *ctx)
         CFRelease(nsgl->framework);
 }
 
-const struct glcontext_class ngli_glcontext_nsgl_class = {
+const struct glcontext_class ngpu_glcontext_nsgl_class = {
     .init = nsgl_init,
     .uninit = nsgl_uninit,
     .resize = nsgl_resize,
@@ -252,7 +252,7 @@ const struct glcontext_class ngli_glcontext_nsgl_class = {
     .priv_size = sizeof(struct nsgl_priv),
 };
 
-const struct glcontext_class ngli_glcontext_nsgl_external_class = {
+const struct glcontext_class ngpu_glcontext_nsgl_external_class = {
     .init = nsgl_init_external,
     .uninit = nsgl_uninit_external,
     .make_current = nsgl_make_current,

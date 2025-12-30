@@ -81,15 +81,15 @@ static int vaapi_init(struct hwmap *hwmap, struct nmd_frame *frame)
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct hwmap_vaapi *vaapi = hwmap->hwmap_priv_data;
 
-    if (!(gl->features & (NGLI_FEATURE_GL_OES_EGL_IMAGE |
-                          NGLI_FEATURE_GL_EGL_IMAGE_BASE_KHR |
-                          NGLI_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT))) {
+    if (!(gl->features & (NGPU_FEATURE_GL_OES_EGL_IMAGE |
+                          NGPU_FEATURE_GL_EGL_IMAGE_BASE_KHR |
+                          NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT))) {
         LOG(ERROR, "context does not support required extensions for vaapi");
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
     vaapi->use_drm_format_modifiers =
-        NGLI_HAS_ALL_FLAGS(gl->features, NGLI_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS);
+        NGLI_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS);
 
     gl->funcs.GenTextures(2, vaapi->gl_planes);
 

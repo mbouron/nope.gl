@@ -103,7 +103,7 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
-    const uint64_t features = NGLI_FEATURE_GL_COMPUTE_SHADER_ALL;
+    const uint64_t features = NGPU_FEATURE_GL_COMPUTE_SHADER_ALL;
     if (params->compute && (gl->features & features) != features) {
         LOG(ERROR, "context does not support compute shaders");
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
