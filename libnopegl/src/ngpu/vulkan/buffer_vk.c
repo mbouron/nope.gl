@@ -53,11 +53,11 @@ static VkResult create_vk_buffer(struct vkcontext *vk,
     VkMemoryRequirements mem_reqs;
     vkGetBufferMemoryRequirements(vk->device, buffer, &mem_reqs);
 
-    uint32_t mem_type_index = ngli_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
+    uint32_t mem_type_index = ngpu_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
     if (mem_type_index == UINT32_MAX) {
         /* Cached memory might not be supported, falling back on uncached memory */
         mem_props &= ~((VkFlags)VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
-        mem_type_index = ngli_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
+        mem_type_index = ngpu_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
         if (mem_type_index == UINT32_MAX) {
             res = VK_ERROR_FORMAT_NOT_SUPPORTED;
             goto fail;
@@ -143,8 +143,8 @@ int ngpu_buffer_vk_init(struct ngpu_buffer *s)
 {
     VkResult res = buffer_vk_init(s);
     if (res != VK_SUCCESS)
-        LOG(ERROR, "unable to initialize buffer: %s", ngli_vk_res2str(res));
-    return ngli_vk_res2ret(res);
+        LOG(ERROR, "unable to initialize buffer: %s", ngpu_vk_res2str(res));
+    return ngpu_vk_res2ret(res);
 }
 
 int ngpu_buffer_vk_wait(struct ngpu_buffer *s)
@@ -222,8 +222,8 @@ int ngpu_buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t offset
 {
     VkResult res = buffer_vk_upload(s, data, offset, size);
     if (res != VK_SUCCESS)
-        LOG(ERROR, "unable to upload buffer: %s", ngli_vk_res2str(res));
-    return ngli_vk_res2ret(res);
+        LOG(ERROR, "unable to upload buffer: %s", ngpu_vk_res2str(res));
+    return ngpu_vk_res2ret(res);
 }
 
 static VkResult buffer_vk_map(struct ngpu_buffer *s, size_t offset, size_t size, void **data)
@@ -239,8 +239,8 @@ int ngpu_buffer_vk_map(struct ngpu_buffer *s, size_t offset, size_t size, void *
 {
     VkResult res = buffer_vk_map(s, offset, size, data);
     if (res != VK_SUCCESS)
-        LOG(ERROR, "unable to map buffer: %s", ngli_vk_res2str(res));
-    return ngli_vk_res2ret(res);
+        LOG(ERROR, "unable to map buffer: %s", ngpu_vk_res2str(res));
+    return ngpu_vk_res2ret(res);
 }
 
 void ngpu_buffer_vk_unmap(struct ngpu_buffer *s)

@@ -289,7 +289,7 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
         VkResult res = vkGetPhysicalDeviceImageFormatProperties2(vk->phy_device, &fmt_info, &fmt_props);
         if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not get image format properties: %s", ngli_vk_res2str(res));
+            LOG(ERROR, "could not get image format properties: %s", ngpu_vk_res2str(res));
             return NGL_ERROR_GRAPHICS_GENERIC;
         }
 
@@ -302,7 +302,7 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
         res = vkCreateImage(vk->device, &img_info, NULL, &vaapi->images[i]);
         if (res != VK_SUCCESS) {
-            LOG(ERROR, "failed to create image: %s", ngli_vk_res2str(res));
+            LOG(ERROR, "failed to create image: %s", ngpu_vk_res2str(res));
             return NGL_ERROR_GRAPHICS_GENERIC;
         }
 
@@ -329,7 +329,7 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
                                            fd,
                                            &fd_props);
         if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not get fd properties (fd=%d): %s", fd, ngli_vk_res2str(res));
+            LOG(ERROR, "could not get fd properties (fd=%d): %s", fd, ngpu_vk_res2str(res));
             return NGL_ERROR_GRAPHICS_GENERIC;
         }
 
@@ -362,7 +362,7 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
         res = vkAllocateMemory(vk->device, &mem_alloc_info, NULL, &vaapi->memories[i]);
         if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not allocate memory: %s", ngli_vk_res2str(res));
+            LOG(ERROR, "could not allocate memory: %s", ngpu_vk_res2str(res));
             return NGL_ERROR_GRAPHICS_MEMORY;
         }
         /*
@@ -377,7 +377,7 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
         res = vkBindImageMemory(vk->device, vaapi->images[i], vaapi->memories[i], 0);
         if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not bind image memory: %s", ngli_vk_res2str(res));
+            LOG(ERROR, "could not bind image memory: %s", ngpu_vk_res2str(res));
             return NGL_ERROR_GRAPHICS_GENERIC;
         }
 

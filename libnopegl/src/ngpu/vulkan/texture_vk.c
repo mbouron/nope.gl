@@ -382,7 +382,7 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
         .tiling        = tiling,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage         = ngpu_vk_get_image_usage_flags(s->params.usage),
-        .samples       = ngli_ngl_samples_to_vk(s->params.samples),
+        .samples       = ngpu_ngl_samples_to_vk(s->params.samples),
         .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
         .flags         = flags,
     };
@@ -400,12 +400,12 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
     if (s->params.usage & NGPU_TEXTURE_USAGE_TRANSIENT_ATTACHMENT_BIT) {
         const VkMemoryPropertyFlags mem_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
                                                 VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
-        mem_type_index = ngli_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
+        mem_type_index = ngpu_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
     }
 
     if (mem_type_index == UINT32_MAX) {
         const VkMemoryPropertyFlags mem_pros = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-        mem_type_index = ngli_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_pros);
+        mem_type_index = ngpu_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_pros);
         if (mem_type_index == UINT32_MAX)
             return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
@@ -459,8 +459,8 @@ int ngpu_texture_vk_init(struct ngpu_texture *s, const struct ngpu_texture_param
 {
     VkResult res = texture_vk_init(s, params);
     if (res != VK_SUCCESS)
-        LOG(ERROR, "unable to initialize texture: %s", ngli_vk_res2str(res));
-    return ngli_vk_res2ret(res);
+        LOG(ERROR, "unable to initialize texture: %s", ngpu_vk_res2str(res));
+    return ngpu_vk_res2ret(res);
 }
 
 VkResult ngpu_texture_vk_wrap(struct ngpu_texture *s, const struct ngpu_texture_vk_wrap_params *wrap_params)
@@ -481,7 +481,7 @@ VkResult ngpu_texture_vk_wrap(struct ngpu_texture *s, const struct ngpu_texture_
     if (wrap_params->ycbcr_sampler) {
         ngli_assert(s_priv->sampler == VK_NULL_HANDLE);
         s_priv->use_ycbcr_sampler = 1;
-        s_priv->ycbcr_sampler = ngli_ycbcr_sampler_vk_ref(wrap_params->ycbcr_sampler);
+        s_priv->ycbcr_sampler = ngpu_ycbcr_sampler_vk_ref(wrap_params->ycbcr_sampler);
     }
 
     if (!s_priv->image_view) {
@@ -743,8 +743,8 @@ int ngpu_texture_vk_upload_with_params(struct ngpu_texture *s, const uint8_t *da
 {
     VkResult res = texture_vk_upload(s, data, transfer_params);
     if (res != VK_SUCCESS)
-        LOG(ERROR, "unable to upload texture: %s", ngli_vk_res2str(res));
-    return ngli_vk_res2ret(res);
+        LOG(ERROR, "unable to upload texture: %s", ngpu_vk_res2str(res));
+    return ngpu_vk_res2ret(res);
 }
 
 static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
@@ -882,8 +882,8 @@ int ngpu_texture_vk_generate_mipmap(struct ngpu_texture *s)
 {
     VkResult res = texture_vk_generate_mipmap(s);
     if (res != VK_SUCCESS)
-        LOG(ERROR, "unable to generate texture mipmap: %s", ngli_vk_res2str(res));
-    return ngli_vk_res2ret(res);
+        LOG(ERROR, "unable to generate texture mipmap: %s", ngpu_vk_res2str(res));
+    return ngpu_vk_res2ret(res);
 }
 
 void ngpu_texture_vk_freep(struct ngpu_texture **sp)
@@ -896,7 +896,7 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
-    ngli_ycbcr_sampler_vk_unrefp(&s_priv->ycbcr_sampler);
+    ngpu_ycbcr_sampler_vk_unrefp(&s_priv->ycbcr_sampler);
     if (!s_priv->wrapped_sampler)
         vkDestroySampler(vk->device, s_priv->sampler, NULL);
     if (!s_priv->wrapped_image_view)

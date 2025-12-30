@@ -88,14 +88,14 @@ struct vkcontext {
     VK_DECLARE_FUNC(GetPastPresentationTimingGOOGLE);
 };
 
-struct vkcontext *ngli_vkcontext_create(void);
-VkResult ngli_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params);
-void *ngli_vkcontext_get_proc_addr(struct vkcontext *s, const char *name);
-int ngli_vkcontext_has_extension(const struct vkcontext *s, const char *name, int device);
-VkFormat ngli_vkcontext_find_supported_format(struct vkcontext *s, const VkFormat *formats,
+struct vkcontext *ngpu_vkcontext_create(void);
+VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params);
+void *ngpu_vkcontext_get_proc_addr(struct vkcontext *s, const char *name);
+int ngpu_vkcontext_has_extension(const struct vkcontext *s, const char *name, int device);
+VkFormat ngpu_vkcontext_find_supported_format(struct vkcontext *s, const VkFormat *formats,
                                               VkImageTiling tiling, VkFormatFeatureFlags features);
-uint32_t ngli_vkcontext_find_memory_type(struct vkcontext *s, uint32_t type, VkMemoryPropertyFlags props);
-VkBool32 ngli_vkcontext_support_present_mode(const struct vkcontext *s, VkPresentModeKHR mode);
-void ngli_vkcontext_freep(struct vkcontext **sp);
+uint32_t ngpu_vkcontext_find_memory_type(struct vkcontext *s, uint32_t type, VkMemoryPropertyFlags props);
+VkBool32 ngpu_vkcontext_support_present_mode(const struct vkcontext *s, VkPresentModeKHR mode);
+void ngpu_vkcontext_freep(struct vkcontext **sp);
 
 #endif /* VKCONTEXT_H */
