@@ -430,15 +430,8 @@ static int glcontext_check_extensions(struct glcontext *glcontext,
     if (!extensions || !*extensions)
         return 0;
 
-    if (glcontext->backend == NGPU_BACKEND_OPENGLES) {
-        const char *gl_extensions = (const char *)glcontext->funcs.GetString(GL_EXTENSIONS);
-        while (*extensions) {
-            if (!ngli_glcontext_check_extension(*extensions, gl_extensions))
-                return 0;
-
-            extensions++;
-        }
-    } else if (glcontext->backend == NGPU_BACKEND_OPENGL) {
+    if (glcontext->backend == NGPU_BACKEND_OPENGL ||
+        glcontext->backend == NGPU_BACKEND_OPENGLES) {
         while (*extensions) {
             if (!glcontext_check_extension(*extensions, glcontext))
                 return 0;
