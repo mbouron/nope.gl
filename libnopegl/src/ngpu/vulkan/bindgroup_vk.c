@@ -77,7 +77,7 @@ static VkDescriptorType get_vk_descriptor_type(enum ngpu_type type)
 static void unref_immutable_sampler(void *user_arg, void *data)
 {
     struct ycbcr_sampler_vk **ycbcr_samplerp = data;
-    ngli_ycbcr_sampler_vk_unrefp(ycbcr_samplerp);
+    ngpu_ycbcr_sampler_vk_unrefp(ycbcr_samplerp);
 }
 
 static void destroy_desc_pool(void *user_data, void *data)
@@ -195,7 +195,7 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
 
             if (!ngli_darray_push(&s_priv->immutable_samplers, &ycbcr_sampler))
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
-            ngli_ycbcr_sampler_vk_ref(ycbcr_sampler);
+            ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler);
         }
         if (!ngli_darray_push(&s_priv->desc_set_layout_bindings, &binding))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -286,7 +286,7 @@ int ngpu_bindgroup_layout_vk_init(struct ngpu_bindgroup_layout *s)
 {
     VkResult res = create_desc_set_layout_bindings(s);
     if (res != VK_SUCCESS)
-        return ngli_vk_res2ret(res);
+        return ngpu_vk_res2ret(res);
 
     return 0;
 }

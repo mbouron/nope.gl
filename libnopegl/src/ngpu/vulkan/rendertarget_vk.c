@@ -78,7 +78,7 @@ static VkResult vk_create_compatible_renderpass(struct ngpu_ctx *s, const struct
     VkAttachmentReference depth_stencil_ref = {0};
     const int has_ds_ref = layout->depth_stencil.format != NGPU_FORMAT_UNDEFINED;
 
-    const VkSampleCountFlags samples = ngli_ngl_samples_to_vk(layout->samples);
+    const VkSampleCountFlags samples = ngpu_ngl_samples_to_vk(layout->samples);
 
     for (size_t i = 0; i < layout->nb_colors; i++) {
         VkFormat format = ngpu_format_ngl_to_vk(layout->colors[i].format);
@@ -351,8 +351,8 @@ int ngpu_rendertarget_vk_init(struct ngpu_rendertarget *s)
 {
     VkResult res = rendertarget_vk_init(s);
     if (res != VK_SUCCESS)
-        LOG(ERROR, "unable to initialize render target: %s", ngli_vk_res2str(res));
-    return ngli_vk_res2ret(res);
+        LOG(ERROR, "unable to initialize render target: %s", ngpu_vk_res2str(res));
+    return ngpu_vk_res2ret(res);
 }
 
 void ngpu_rendertarget_vk_freep(struct ngpu_rendertarget **sp)

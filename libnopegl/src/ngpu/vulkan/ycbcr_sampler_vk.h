@@ -48,12 +48,12 @@ struct ycbcr_sampler_vk {
     VkSampler sampler;
 };
 
-struct ycbcr_sampler_vk *ngli_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx);
-VkResult ngli_ycbcr_sampler_vk_init(struct ycbcr_sampler_vk *s,
+struct ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx);
+VkResult ngpu_ycbcr_sampler_vk_init(struct ycbcr_sampler_vk *s,
                                     const struct ycbcr_sampler_vk_params *params);
-int ngli_ycbcr_sampler_vk_is_compat(const struct ycbcr_sampler_vk *s,
+int ngpu_ycbcr_sampler_vk_is_compat(const struct ycbcr_sampler_vk *s,
                                     const struct ycbcr_sampler_vk_params *params);
-struct ycbcr_sampler_vk *ngli_ycbcr_sampler_vk_ref(struct ycbcr_sampler_vk *s);
-void ngli_ycbcr_sampler_vk_unrefp(struct ycbcr_sampler_vk **sp);
+struct ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ycbcr_sampler_vk *s);
+void ngpu_ycbcr_sampler_vk_unrefp(struct ycbcr_sampler_vk **sp);
 
 #endif

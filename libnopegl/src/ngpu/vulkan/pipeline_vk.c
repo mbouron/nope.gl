@@ -227,7 +227,7 @@ static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
     };
 
     const struct ngpu_rendertarget_layout *layout = &graphics->rt_layout;
-    const VkSampleCountFlagBits samples = ngli_ngl_samples_to_vk(layout->samples);
+    const VkSampleCountFlagBits samples = ngpu_ngl_samples_to_vk(layout->samples);
     const VkPipelineMultisampleStateCreateInfo multisampling_state_create_info = {
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .rasterizationSamples = samples,
@@ -419,8 +419,8 @@ int ngpu_pipeline_vk_init(struct ngpu_pipeline *s)
 {
     VkResult res = pipeline_vk_init(s);
     if (res != VK_SUCCESS)
-        LOG(ERROR, "unable to initialize pipeline: %s", ngli_vk_res2str(res));
-    return ngli_vk_res2ret(res);
+        LOG(ERROR, "unable to initialize pipeline: %s", ngpu_vk_res2str(res));
+    return ngpu_vk_res2ret(res);
 }
 
 static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuffer cmd_buf)

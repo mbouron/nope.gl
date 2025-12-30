@@ -164,7 +164,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
     VkResult res = vk->GetAndroidHardwareBufferPropertiesANDROID(vk->device, hardware_buffer, &ahb_props);
     if (res != VK_SUCCESS) {
-        LOG(ERROR, "could not get android hardware buffer properties: %s", ngli_vk_res2str(res));
+        LOG(ERROR, "could not get android hardware buffer properties: %s", ngpu_vk_res2str(res));
         return NGL_ERROR_GRAPHICS_GENERIC;
     }
 
@@ -215,7 +215,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
     res = vkCreateImage(vk->device, &img_info, NULL, &mc->image);
     if (res != VK_SUCCESS) {
-        LOG(ERROR, "could not create image: %s", ngli_vk_res2str(res));
+        LOG(ERROR, "could not create image: %s", ngpu_vk_res2str(res));
         return NGL_ERROR_GRAPHICS_GENERIC;
     }
 
@@ -231,7 +231,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     };
 
     const VkMemoryPropertyFlags mem_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    const uint32_t mem_type_index = ngli_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
+    const uint32_t mem_type_index = ngpu_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
     if (mem_type_index == UINT32_MAX) {
         LOG(ERROR, "could not find required memory type");
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
@@ -246,13 +246,13 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
     res = vkAllocateMemory(vk->device, &mem_info, NULL, &mc->memory);
     if (res != VK_SUCCESS) {
-        LOG(ERROR, "could not allocate memory: %s", ngli_vk_res2str(res));
+        LOG(ERROR, "could not allocate memory: %s", ngpu_vk_res2str(res));
         return NGL_ERROR_GRAPHICS_MEMORY;
     }
 
     res = vkBindImageMemory(vk->device, mc->image, mc->memory, 0);
     if (res != VK_SUCCESS) {
-        LOG(ERROR, "could not bind image memory: %s", ngli_vk_res2str(res));
+        LOG(ERROR, "could not bind image memory: %s", ngpu_vk_res2str(res));
         return NGL_ERROR_GRAPHICS_GENERIC;
     }
 
@@ -269,16 +269,16 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
         .filter                  = ngpu_vk_get_filter(params->texture_min_filter),
     };
 
-    if (!mc->ycbcr_sampler || !ngli_ycbcr_sampler_vk_is_compat(mc->ycbcr_sampler, &sampler_params)) {
-        ngli_ycbcr_sampler_vk_unrefp(&mc->ycbcr_sampler);
+    if (!mc->ycbcr_sampler || !ngpu_ycbcr_sampler_vk_is_compat(mc->ycbcr_sampler, &sampler_params)) {
+        ngpu_ycbcr_sampler_vk_unrefp(&mc->ycbcr_sampler);
 
-        mc->ycbcr_sampler = ngli_ycbcr_sampler_vk_create(gpu_ctx);
+        mc->ycbcr_sampler = ngpu_ycbcr_sampler_vk_create(gpu_ctx);
         if (!mc->ycbcr_sampler)
             return NGL_ERROR_MEMORY;
 
-        res = ngli_ycbcr_sampler_vk_init(mc->ycbcr_sampler, &sampler_params);
+        res = ngpu_ycbcr_sampler_vk_init(mc->ycbcr_sampler, &sampler_params);
         if (res != VK_SUCCESS) {
-            ngli_ycbcr_sampler_vk_unrefp(&mc->ycbcr_sampler);
+            ngpu_ycbcr_sampler_vk_unrefp(&mc->ycbcr_sampler);
             return res;
         }
     }
@@ -307,7 +307,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 
     res = vkCreateImageView(vk->device, &view_info, NULL, &mc->image_view);
     if (res != VK_SUCCESS) {
-        LOG(ERROR, "could not create image view: %s", ngli_vk_res2str(res));
+        LOG(ERROR, "could not create image view: %s", ngpu_vk_res2str(res));
         return NGL_ERROR_GRAPHICS_GENERIC;
     }
 
@@ -378,7 +378,7 @@ static void mc_uninit(struct hwmap *hwmap)
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
 
     mc_release_frame_resources(hwmap);
-    ngli_ycbcr_sampler_vk_unrefp(&mc->ycbcr_sampler);
+    ngpu_ycbcr_sampler_vk_unrefp(&mc->ycbcr_sampler);
 }
 
 const struct hwmap_class ngli_hwmap_mc_vk_class = {
