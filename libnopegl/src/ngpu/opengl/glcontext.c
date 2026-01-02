@@ -523,6 +523,7 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
      */
     if (glcontext->platform == NGPU_PLATFORM_MACOS || glcontext->platform == NGPU_PLATFORM_IOS)
         limits->max_vertex_attributes -= 2;
+
     GET(GL_MAX_TEXTURE_IMAGE_UNITS, &limits->max_texture_image_units);
     GET(GL_MAX_TEXTURE_SIZE, &limits->max_texture_dimension_1d);
     GET(GL_MAX_TEXTURE_SIZE, &limits->max_texture_dimension_2d);
@@ -530,8 +531,10 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
     GET(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &limits->max_texture_dimension_cube);
     GET(GL_MAX_ARRAY_TEXTURE_LAYERS, &limits->max_texture_array_layers);
     GET(GL_MAX_SAMPLES, &limits->max_samples);
+
     GET(GL_MAX_COLOR_ATTACHMENTS, &limits->max_color_attachments);
     limits->max_color_attachments = NGLI_MIN(limits->max_color_attachments, NGPU_MAX_COLOR_ATTACHMENTS);
+
     GET(GL_MAX_UNIFORM_BLOCK_SIZE, &limits->max_uniform_block_size);
     GET(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &limits->min_uniform_block_offset_alignment);
 
