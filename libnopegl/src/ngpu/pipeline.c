@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2019-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -52,6 +52,7 @@ static void pipeline_freep(void **pipelinep)
 
     struct ngpu_pipeline *s = *sp;
     ngpu_pipeline_graphics_reset(&s->graphics);
+    NGLI_RC_UNREFP(&s->program);
 
     (*sp)->gpu_ctx->cls->pipeline_freep(sp);
 }
@@ -73,7 +74,7 @@ int ngpu_pipeline_init(struct ngpu_pipeline *s, const struct ngpu_pipeline_param
     if (ret < 0)
         return ret;
 
-    s->program  = params->program;
+    s->program  = NGLI_RC_REF(params->program);
     s->layout = params->layout;
 
     return s->gpu_ctx->cls->pipeline_init(s);

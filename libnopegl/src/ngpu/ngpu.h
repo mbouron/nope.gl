@@ -24,6 +24,7 @@
 #define NGPU_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <stdbool.h>
 
 #include "utils/utils.h"
