@@ -19,9 +19,6 @@
  * under the License.
  */
 
-#include "capture.h"
-#include "log.h"
-#include "utils/memory.h"
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef _WIN32
@@ -29,7 +26,12 @@
 #else
 #include <dlfcn.h>
 #endif
+
 #include "renderdoc_app.h"
+
+#include "log.h"
+#include "ngpu/capture.h"
+#include "utils/memory.h"
 
 struct ngpu_capture_ctx {
     RENDERDOC_API_1_4_0 *rdoc_api;

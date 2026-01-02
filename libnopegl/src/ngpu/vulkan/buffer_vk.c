@@ -23,12 +23,12 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "buffer_vk.h"
-#include "ctx_vk.h"
 #include "log.h"
+#include "ngpu/vulkan/buffer_vk.h"
+#include "ngpu/vulkan/ctx_vk.h"
+#include "ngpu/vulkan/vkcontext.h"
+#include "ngpu/vulkan/vkutils.h"
 #include "utils/memory.h"
-#include "vkcontext.h"
-#include "vkutils.h"
 
 static VkResult create_vk_buffer(struct vkcontext *vk,
                                  VkDeviceSize size,

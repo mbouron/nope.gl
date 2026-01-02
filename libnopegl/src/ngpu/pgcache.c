@@ -22,7 +22,7 @@
 
 #include <string.h>
 
-#include "pgcache.h"
+#include "ngpu/pgcache.h"
 #include "utils/hmap.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -73,7 +73,7 @@ static int query_cache(struct ngpu_pgcache *s, struct ngpu_program **dstp,
     struct ngpu_program *cached_program = ngli_hmap_get_str(cache, cache_key);
     if (cached_program) {
         /* make sure the cached program has not been reset by the user */
-        ngli_assert(cached_program->gpu_ctx);
+        ngli_assert(ngpu_program_get_ctx(cached_program));
 
         *dstp = cached_program;
         return 0;

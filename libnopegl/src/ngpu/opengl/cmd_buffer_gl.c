@@ -21,15 +21,16 @@
 
 #include "log.h"
 
-#include "bindgroup_gl.h"
-#include "buffer_gl.h"
-#include "cmd_buffer_gl.h"
-#include "ctx_gl.h"
-#include "fence_gl.h"
-#include "pipeline_gl.h"
-#include "rendertarget_gl.h"
-
 #include "ngpu/ctx.h"
+
+#include "ngpu/opengl/bindgroup_gl.h"
+#include "ngpu/opengl/buffer_gl.h"
+#include "ngpu/opengl/cmd_buffer_gl.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/fence_gl.h"
+#include "ngpu/opengl/pipeline_gl.h"
+#include "ngpu/opengl/rendertarget_gl.h"
+
 #include "utils/memory.h"
 #include "utils/refcount.h"
 

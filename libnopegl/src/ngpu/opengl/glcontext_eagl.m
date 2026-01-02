@@ -21,13 +21,13 @@
  */
 
 #include <CoreVideo/CoreVideo.h>
-#include <UIKit/UIKit.h>
 #include <OpenGLES/EAGL.h>
 #include <OpenGLES/ES3/gl.h>
 #include <OpenGLES/ES3/glext.h>
+#include <UIKit/UIKit.h>
 
-#include "glcontext.h"
 #include "log.h"
+#include "ngpu/opengl/glcontext.h"
 #include "nopegl/nopegl.h"
 
 struct eagl_priv {

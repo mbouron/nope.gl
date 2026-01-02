@@ -23,10 +23,10 @@
 
 #include <string.h>
 
-#include "buffer_gl.h"
-#include "ctx_gl.h"
-#include "glcontext.h"
-#include "glincludes.h"
+#include "ngpu/opengl/buffer_gl.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/glcontext.h"
+#include "ngpu/opengl/glincludes.h"
 #include "utils/memory.h"
 
 static GLbitfield get_gl_barriers(uint32_t usage)

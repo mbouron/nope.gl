@@ -20,10 +20,9 @@
  * under the License.
  */
 
-#include "cmd_buffer_vk.h"
-
-#include "buffer_vk.h"
-#include "ctx_vk.h"
+#include "ngpu/vulkan/buffer_vk.h"
+#include "ngpu/vulkan/cmd_buffer_vk.h"
+#include "ngpu/vulkan/ctx_vk.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 

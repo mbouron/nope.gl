@@ -19,10 +19,10 @@
  * under the License.
  */
 
-#include "ctx_gl.h"
-#include "fence_gl.h"
 #include "log.h"
 #include "ngpu/ctx.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/fence_gl.h"
 #include "utils/memory.h"
 
 static void fence_freep(void **fencep)
@@ -82,7 +82,4 @@ int ngpu_fence_gl_wait(struct ngpu_fence_gl *s)
     return 0;
 }
 
-void ngpu_fence_gl_freep(struct ngpu_fence_gl **sp)
-{
-    NGLI_RC_UNREFP(sp);
-}
+void ngpu_fence_gl_freep(struct ngpu_fence_gl **sp) { NGLI_RC_UNREFP(sp); }

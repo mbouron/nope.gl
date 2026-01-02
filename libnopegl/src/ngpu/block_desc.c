@@ -20,13 +20,12 @@
  * under the License.
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
-#include <limits.h>
 
-#include "block_desc.h"
-#include "ngpu/ctx.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
+
 #include "utils/memory.h"
 #include "utils/utils.h"
 
@@ -187,7 +186,7 @@ size_t ngpu_block_desc_get_size(const struct ngpu_block_desc *s, size_t variadic
 
 size_t ngpu_block_desc_get_aligned_size(const struct ngpu_block_desc *s, size_t variadic_count)
 {
-    const struct ngpu_limits *limits = &s->gpu_ctx->limits;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(s->gpu_ctx);
     const size_t alignment = NGLI_MAX(limits->min_uniform_block_offset_alignment,
                                       limits->min_storage_block_offset_alignment);
     return NGLI_ALIGN(ngpu_block_desc_get_size(s, variadic_count), alignment);

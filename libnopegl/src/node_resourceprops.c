@@ -23,7 +23,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "node_resourceprops.h"
 #include "nopegl/nopegl.h"
 #include "precision.h"
@@ -46,7 +46,7 @@ static int resourceprops_init(struct ngl_node *node)
     const struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     const struct resourceprops_opts *o = node->opts;
 
-    if (o->as_image && !(gpu_ctx->features & NGPU_FEATURE_IMAGE_LOAD_STORE)) {
+    if (o->as_image && !(ngpu_ctx_get_features(gpu_ctx) & NGPU_FEATURE_IMAGE_LOAD_STORE)) {
         LOG(ERROR, "context does not support image load store operations");
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
     }

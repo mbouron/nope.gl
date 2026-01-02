@@ -23,9 +23,9 @@
 
 #include <string.h>
 
-#include "feature_gl.h"
-#include "format_gl.h"
-#include "glcontext.h"
+#include "ngpu/opengl/feature_gl.h"
+#include "ngpu/opengl/format_gl.h"
+#include "ngpu/opengl/glcontext.h"
 #include "utils/utils.h"
 
 #define S  NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_BIT

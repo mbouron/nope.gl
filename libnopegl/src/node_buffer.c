@@ -29,8 +29,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/buffer.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 #include "node_block.h"
 #include "node_buffer.h"
 #include "nopegl/nopegl.h"
@@ -303,7 +302,7 @@ static int buffer_prepare(struct ngl_node *node)
 
     ngli_assert(info->buffer);
 
-    if (info->buffer->size)
+    if (ngpu_buffer_get_size(info->buffer))
         return 0;
 
     int ret = ngpu_buffer_init(info->buffer, info->data_size, info->usage);

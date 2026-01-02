@@ -26,8 +26,8 @@
 
 #include "ngpu/buffer.h"
 #include "ngpu/texture.h"
-#include "vkcontext.h"
-#include "ycbcr_sampler_vk.h"
+#include "ngpu/vulkan/vkcontext.h"
+#include "ngpu/vulkan/ycbcr_sampler_vk.h"
 
 struct ngpu_texture_vk_wrap_params {
     const struct ngpu_texture_params *params;

@@ -23,9 +23,9 @@
 #ifndef NGPU_BUFFER_GL_H
 #define NGPU_BUFFER_GL_H
 
-#include "cmd_buffer_gl.h"
-#include "glincludes.h"
 #include "ngpu/buffer.h"
+#include "ngpu/opengl/cmd_buffer_gl.h"
+#include "ngpu/opengl/glincludes.h"
 #include "utils/darray.h"
 
 struct ngpu_buffer_gl {

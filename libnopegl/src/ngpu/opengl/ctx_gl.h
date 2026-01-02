@@ -30,10 +30,9 @@
 #include <CoreVideo/CoreVideo.h>
 #endif
 
-#include "cmd_buffer_gl.h"
-#include "glstate.h"
 #include "ngpu/ctx.h"
-#include "ngpu/rendertarget.h"
+#include "ngpu/opengl/cmd_buffer_gl.h"
+#include "ngpu/opengl/glstate.h"
 
 struct ngpu_ctx_params_gl {
     /*

@@ -23,14 +23,14 @@
 
 #include <string.h>
 
-#include "ctx_gl.h"
-#include "format_gl.h"
-#include "glcontext.h"
-#include "glincludes.h"
 #include "log.h"
-#include "utils/memory.h"
-#include "texture_gl.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/format_gl.h"
+#include "ngpu/opengl/glcontext.h"
+#include "ngpu/opengl/glincludes.h"
+#include "ngpu/opengl/texture_gl.h"
 #include "utils/bits.h"
+#include "utils/memory.h"
 #include "utils/utils.h"
 
 static const GLint gl_filter_map[NGPU_NB_FILTER][NGPU_NB_MIPMAP] = {

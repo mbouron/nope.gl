@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "glcontext.h"
+#include "ngpu/opengl/glcontext.h"
 
 #define M (1U << 0)
 

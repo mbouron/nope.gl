@@ -29,19 +29,18 @@
 #include <CoreVideo/CoreVideo.h>
 #endif
 
-#include "bindgroup_gl.h"
-#include "buffer_gl.h"
-#include "ctx_gl.h"
-#include "glcontext.h"
 #include "log.h"
-#include "math_utils.h"
 #include "ngpu/ctx.h"
-#include "ngpu/format.h"
-#include "pipeline_gl.h"
-#include "program_gl.h"
-#include "rendertarget_gl.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/opengl/bindgroup_gl.h"
+#include "ngpu/opengl/buffer_gl.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/glcontext.h"
+#include "ngpu/opengl/pipeline_gl.h"
+#include "ngpu/opengl/program_gl.h"
+#include "ngpu/opengl/rendertarget_gl.h"
+#include "ngpu/opengl/texture_gl.h"
 #include "utils/memory.h"
-#include "texture_gl.h"
 #include "utils/utils.h"
 
 #if DEBUG_GPU_CAPTURE

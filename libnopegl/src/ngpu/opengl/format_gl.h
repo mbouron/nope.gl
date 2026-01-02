@@ -26,8 +26,8 @@
 
 #include <stdint.h>
 
-#include "glincludes.h"
-#include "ngpu/format.h"
+#include "ngpu/opengl/glincludes.h"
+#include "ngpu/ngpu.h"
 
 struct glcontext;
 

@@ -23,7 +23,7 @@
 #ifndef NGPU_PIPELINE_GL_H
 #define NGPU_PIPELINE_GL_H
 
-#include "glincludes.h"
+#include "ngpu/opengl/glincludes.h"
 #include "ngpu/pipeline.h"
 
 struct ngpu_ctx;

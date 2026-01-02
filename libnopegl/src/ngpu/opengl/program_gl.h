@@ -22,7 +22,7 @@
 #ifndef NGPU_PROGRAM_GL_H
 #define NGPU_PROGRAM_GL_H
 
-#include "glincludes.h"
+#include "ngpu/opengl/glincludes.h"
 #include "ngpu/program.h"
 
 struct ngpu_ctx;
