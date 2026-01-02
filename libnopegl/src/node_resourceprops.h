@@ -22,7 +22,7 @@
 #ifndef NODE_RESOURCEPROPS_H
 #define NODE_RESOURCEPROPS_H
 
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 
 struct resourceprops_opts {
     enum ngpu_precision precision;

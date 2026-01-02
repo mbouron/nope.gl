@@ -28,22 +28,22 @@
 
 #include <vulkan/vulkan.h>
 
-#include "glslang_utils.h"
 #include "log.h"
 #include "math_utils.h"
 #include "utils/memory.h"
 #include "utils/time.h"
 
-#include "bindgroup_vk.h"
-#include "buffer_vk.h"
-#include "ctx_vk.h"
-#include "format_vk.h"
-#include "pipeline_vk.h"
-#include "program_vk.h"
-#include "rendertarget_vk.h"
-#include "texture_vk.h"
-#include "vkcontext.h"
-#include "vkutils.h"
+#include "ngpu/vulkan/bindgroup_vk.h"
+#include "ngpu/vulkan/buffer_vk.h"
+#include "ngpu/vulkan/ctx_vk.h"
+#include "ngpu/vulkan/format_vk.h"
+#include "ngpu/vulkan/glslang_utils.h"
+#include "ngpu/vulkan/pipeline_vk.h"
+#include "ngpu/vulkan/program_vk.h"
+#include "ngpu/vulkan/rendertarget_vk.h"
+#include "ngpu/vulkan/texture_vk.h"
+#include "ngpu/vulkan/vkcontext.h"
+#include "ngpu/vulkan/vkutils.h"
 
 #if DEBUG_GPU_CAPTURE
 #include "ngpu/capture.h"

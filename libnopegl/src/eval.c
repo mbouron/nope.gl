@@ -28,7 +28,7 @@
 #include "eval.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/program.h" // for MAX_ID_LEN
+#include "ngpu/ngpu.h" // for MAX_ID_LEN
 #include "nopegl/nopegl.h"
 #include "utils/darray.h"
 #include "utils/memory.h"

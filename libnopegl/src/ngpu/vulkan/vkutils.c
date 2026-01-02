@@ -19,7 +19,7 @@
  * under the License.
  */
 
-#include "vkutils.h"
+#include "ngpu/vulkan/vkutils.h"
 #include "nopegl/nopegl.h"
 #include "utils/utils.h"
 

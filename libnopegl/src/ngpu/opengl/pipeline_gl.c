@@ -22,14 +22,14 @@
 
 #include <string.h>
 
-#include "bindgroup_gl.h"
-#include "buffer_gl.h"
-#include "ctx_gl.h"
-#include "glcontext.h"
 #include "log.h"
-#include "ngpu/format.h"
-#include "pipeline_gl.h"
-#include "program_gl.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/opengl/bindgroup_gl.h"
+#include "ngpu/opengl/buffer_gl.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/glcontext.h"
+#include "ngpu/opengl/pipeline_gl.h"
+#include "ngpu/opengl/program_gl.h"
 #include "utils/memory.h"
 
 struct attribute_binding_gl {

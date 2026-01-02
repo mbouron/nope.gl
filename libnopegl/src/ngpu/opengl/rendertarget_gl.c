@@ -20,16 +20,17 @@
  * under the License.
  */
 
+#include "config.h"
+
 #include <string.h>
 
-#include "config.h"
-#include "ctx_gl.h"
-#include "glcontext.h"
-#include "glincludes.h"
 #include "log.h"
-#include "rendertarget_gl.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/glcontext.h"
+#include "ngpu/opengl/glincludes.h"
+#include "ngpu/opengl/rendertarget_gl.h"
+#include "ngpu/opengl/texture_gl.h"
 #include "utils/memory.h"
-#include "texture_gl.h"
 #include "utils/utils.h"
 
 static GLenum get_gl_attachment_index(GLenum format)

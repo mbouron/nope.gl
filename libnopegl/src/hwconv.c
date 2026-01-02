@@ -26,10 +26,7 @@
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/buffer.h"
-#include "ngpu/ctx.h"
-#include "ngpu/texture.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 #include "pipeline_compat.h"
 #include "ngpu/pgcraft.h"
 #include "utils/utils.h"
@@ -58,7 +55,7 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     }
 
     struct ngpu_texture *texture = dst_image->planes[0];
-    const struct ngpu_texture_params *texture_params = &texture->params;
+    const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
 
     const struct ngpu_rendertarget_layout rt_layout = {
         .nb_colors = 1,

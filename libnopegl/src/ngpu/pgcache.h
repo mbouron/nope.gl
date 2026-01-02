@@ -23,7 +23,7 @@
 #ifndef NGPU_PGCACHE_H
 #define NGPU_PGCACHE_H
 
-#include "program.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_pgcache;
 

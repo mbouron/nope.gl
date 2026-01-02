@@ -21,8 +21,8 @@
 
 #include <string.h>
 
-#include "buffer.h"
-#include "ctx.h"
+#include "ngpu/buffer.h"
+#include "ngpu/ctx.h"
 
 static void buffer_freep(void **bufferp)
 {
@@ -89,4 +89,14 @@ void ngpu_buffer_unmap(struct ngpu_buffer *s)
 void ngpu_buffer_freep(struct ngpu_buffer **sp)
 {
     NGLI_RC_UNREFP(sp);
+}
+
+size_t ngpu_buffer_get_size(const struct ngpu_buffer *s)
+{
+    return s->size;
+}
+
+uint32_t ngpu_buffer_get_usage(const struct ngpu_buffer *s)
+{
+    return s->usage;
 }

@@ -25,11 +25,11 @@
 
 #include <stdlib.h>
 
-#include "feature_gl.h"
-#include "format_gl.h"
-#include "glfunctions.h"
 #include "ngpu/ctx.h"
-#include "ngpu/limits.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/opengl/feature_gl.h"
+#include "ngpu/opengl/format_gl.h"
+#include "ngpu/opengl/glfunctions.h"
 
 struct glcontext_class;
 

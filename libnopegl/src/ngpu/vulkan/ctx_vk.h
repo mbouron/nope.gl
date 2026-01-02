@@ -22,9 +22,9 @@
 #ifndef NGPU_CTX_VK_H
 #define NGPU_CTX_VK_H
 
-#include "cmd_buffer_vk.h"
 #include "ngpu/ctx.h"
-#include "vkcontext.h"
+#include "ngpu/vulkan/cmd_buffer_vk.h"
+#include "ngpu/vulkan/vkcontext.h"
 
 struct ngpu_ctx_vk {
     struct ngpu_ctx parent;

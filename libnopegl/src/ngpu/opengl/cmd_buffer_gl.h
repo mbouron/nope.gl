@@ -23,7 +23,7 @@
 #define NGPU_CMD_BUFFER_GL_H
 
 #include "ngpu/ctx.h"
-#include "ngpu/limits.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_rendertarget;
 struct ngpu_bindgroup;

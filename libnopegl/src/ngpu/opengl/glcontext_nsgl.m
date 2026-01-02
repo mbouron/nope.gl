@@ -23,12 +23,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <OpenGL/OpenGL.h>
+
 #include <CoreFoundation/CFBundle.h>
 #include <Cocoa/Cocoa.h>
+#include <OpenGL/OpenGL.h>
 
-#include "glcontext.h"
 #include "log.h"
+#include "ngpu/opengl/glcontext.h"
 #include "nopegl/nopegl.h"
 
 struct nsgl_priv {

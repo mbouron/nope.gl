@@ -33,7 +33,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/opengl/ctx_gl.h"
 #include "ngpu/opengl/glincludes.h"
 #include "ngpu/opengl/texture_gl.h"
@@ -89,7 +89,7 @@ static int vt_darwin_map_plane(struct hwmap *hwmap, IOSurfaceRef surface, size_t
 {
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    const struct ngpu_limits *gpu_limits = &gpu_ctx->limits;
+    const struct ngpu_limits *gpu_limits = ngpu_ctx_get_limits(gpu_ctx);
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)ctx->gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct hwmap_vt_darwin *vt = hwmap->hwmap_priv_data;

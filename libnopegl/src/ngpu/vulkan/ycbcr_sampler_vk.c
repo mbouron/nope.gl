@@ -23,9 +23,9 @@
 
 #include "log.h"
 #include "ngpu/vulkan/ctx_vk.h"
+#include "ngpu/vulkan/vkutils.h"
+#include "ngpu/vulkan/ycbcr_sampler_vk.h"
 #include "utils/memory.h"
-#include "vkutils.h"
-#include "ycbcr_sampler_vk.h"
 
 struct ycbcr_sampler_vk *ngli_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx)
 {

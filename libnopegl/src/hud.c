@@ -44,11 +44,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/block.h"
-#include "ngpu/ctx.h"
-#include "ngpu/graphics_state.h"
-#include "ngpu/pgcraft.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
 #include "node_block.h"
 #include "node_buffer.h"
 #include "node_texture.h"
@@ -1269,7 +1265,7 @@ int ngli_hud_init(struct hud *s)
             .block         = &s->transforms_block.block_desc,
             .buffer = {
                 .buffer = s->transforms_block.buffer,
-                .size   = s->transforms_block.buffer->size,
+                .size   = ngpu_buffer_get_size(s->transforms_block.buffer),
             }
         },
     };

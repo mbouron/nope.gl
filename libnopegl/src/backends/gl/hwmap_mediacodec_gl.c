@@ -33,7 +33,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/opengl/ctx_gl.h"
 #include "ngpu/opengl/egl.h"
 #include "ngpu/opengl/glincludes.h"

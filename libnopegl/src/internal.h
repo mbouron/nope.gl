@@ -41,14 +41,14 @@
 #endif
 
 #include "hud.h"
-#include "ngpu/ctx.h"
-#include "ngpu/rendertarget.h"
+#include "ngpu/ngpu.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "rnode.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/pthread_compat.h"
+#include "utils/refcount.h"
 
 struct node_class;
 

@@ -27,7 +27,7 @@
 #include <vulkan/vulkan_android.h>
 
 #include "ngpu/ctx.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 
 #define VK_FUNC(name) PFN_vk##name
 #define VK_DECLARE_FUNC(name) VK_FUNC(name) name

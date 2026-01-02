@@ -29,8 +29,7 @@
 #include "geometry.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ctx.h"
-#include "ngpu/limits.h"
+#include "ngpu/ngpu.h"
 #include "node_buffer.h"
 #include "node_program.h"
 #include "nopegl/nopegl.h"
@@ -176,7 +175,7 @@ static int check_params(const struct ngl_node *node)
     const struct draw_opts *o = node->opts;
 
     const struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    const struct ngpu_limits *limits = &gpu_ctx->limits;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
 
     if (o->nb_instances < 1) {
         LOG(ERROR, "nb_instances must be > 0");

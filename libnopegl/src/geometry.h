@@ -25,7 +25,7 @@
 #include <stdint.h>
 
 #include "buffer_layout.h"
-#include "ngpu/pipeline.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_ctx;
 

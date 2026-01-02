@@ -20,6 +20,8 @@
  * under the License.
  */
 
+#include "config.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -28,10 +30,9 @@
 #include <GL/glcorearb.h>
 #include <GL/wglext.h>
 
-#include "config.h"
-#include "glcontext.h"
-#include "nopegl/nopegl.h"
 #include "log.h"
+#include "ngpu/opengl/glcontext.h"
+#include "nopegl/nopegl.h"
 
 #define WGL_COLORSPACE_EXT 0x309D
 #define WGL_COLORSPACE_SRGB_EXT 0x3089
