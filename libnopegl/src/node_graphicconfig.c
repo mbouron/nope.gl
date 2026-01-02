@@ -25,8 +25,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ctx.h"
-#include "ngpu/graphics_state.h"
+#include "ngpu/ngpu.h"
 #include "node_graphicconfig.h"
 #include "nopegl/nopegl.h"
 #include "utils/utils.h"

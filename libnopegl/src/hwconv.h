@@ -23,9 +23,9 @@
 #define HWCONV_H
 
 #include "image.h"
-#include "ngpu/rendertarget.h"
-#include "pipeline_compat.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/pgcraft.h"
+#include "pipeline_compat.h"
 
 struct ngl_ctx;
 

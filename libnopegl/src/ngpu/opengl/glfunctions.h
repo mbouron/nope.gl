@@ -3,7 +3,7 @@
 #ifndef GLFUNCTIONS_H
 #define GLFUNCTIONS_H
 
-#include "glincludes.h"
+#include "ngpu/opengl/glincludes.h"
 
 struct glfunctions {
     void (NGLI_GL_APIENTRY *ActiveTexture)(GLenum texture);

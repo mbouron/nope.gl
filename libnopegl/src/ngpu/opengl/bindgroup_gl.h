@@ -24,8 +24,9 @@
 
 #include <stdlib.h>
 
-#include "glincludes.h"
+#include "ngpu/opengl/glincludes.h"
 #include "ngpu/bindgroup.h"
+#include "utils/darray.h"
 
 struct ngpu_ctx;
 

@@ -19,15 +19,15 @@
  * under the License.
  */
 
-#include "bindgroup_vk.h"
-#include "buffer_vk.h"
-#include "ctx_vk.h"
 #include "log.h"
+#include "ngpu/vulkan/bindgroup_vk.h"
+#include "ngpu/vulkan/buffer_vk.h"
+#include "ngpu/vulkan/ctx_vk.h"
+#include "ngpu/vulkan/texture_vk.h"
+#include "ngpu/vulkan/vkcontext.h"
+#include "ngpu/vulkan/vkutils.h"
+#include "ngpu/vulkan/ycbcr_sampler_vk.h"
 #include "utils/memory.h"
-#include "texture_vk.h"
-#include "vkcontext.h"
-#include "vkutils.h"
-#include "ycbcr_sampler_vk.h"
 
 #define INITIAL_MAX_DESC_SETS 32
 

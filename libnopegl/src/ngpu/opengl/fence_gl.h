@@ -22,7 +22,7 @@
 #ifndef NGPU_FENCE_GL_H
 #define NGPU_FENCE_GL_H
 
-#include "glincludes.h"
+#include "ngpu/opengl/glincludes.h"
 #include "utils/refcount.h"
 
 struct ngpu_ctx;

@@ -41,7 +41,7 @@
 
 #include "log.h"
 #include "ngpu/ctx.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "ngpu/vulkan/vkcontext.h"
 #include "ngpu/vulkan/vkutils.h"
 #include "utils/bstr.h"

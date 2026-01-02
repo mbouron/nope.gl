@@ -23,7 +23,7 @@
 #ifndef NGPU_RENDERTARGET_GL_H
 #define NGPU_RENDERTARGET_GL_H
 
-#include "glincludes.h"
+#include "ngpu/opengl/glincludes.h"
 #include "ngpu/rendertarget.h"
 
 struct ngpu_rendertarget_gl {

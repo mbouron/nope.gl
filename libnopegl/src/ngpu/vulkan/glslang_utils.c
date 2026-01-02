@@ -22,13 +22,14 @@
 #include "config.h"
 
 #include <string.h>
+
 #include <glslang/build_info.h>
 #include <glslang/Include/glslang_c_interface.h>
 #include <glslang/Public/resource_limits_c.h>
 
-#include "glslang_utils.h"
 #include "log.h"
-#include "ngpu/program.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/vulkan/glslang_utils.h"
 #include "nopegl/nopegl.h"
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"

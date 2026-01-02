@@ -23,11 +23,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ctx_gl.h"
-#include "glincludes.h"
 #include "log.h"
-#include "ngpu/type.h"
-#include "program_gl.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/glincludes.h"
+#include "ngpu/opengl/program_gl.h"
 #include "utils/bstr.h"
 #include "utils/memory.h"
 #include "utils/string.h"

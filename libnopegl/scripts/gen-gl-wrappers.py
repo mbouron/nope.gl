@@ -250,7 +250,7 @@ def gen(gl_xml, func_file, def_file):
         #ifndef GLFUNCTIONS_H
         #define GLFUNCTIONS_H
 
-        #include "glincludes.h"
+        #include "ngpu/opengl/glincludes.h"
 
         struct glfunctions {
         """
@@ -263,7 +263,7 @@ def gen(gl_xml, func_file, def_file):
         #include <stddef.h>
         #include <stdint.h>
 
-        #include "glcontext.h"
+        #include "ngpu/opengl/glcontext.h"
 
         #define M (1U << 0)
 

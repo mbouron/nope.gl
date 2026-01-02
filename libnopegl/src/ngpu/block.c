@@ -22,8 +22,7 @@
 
 #include <string.h>
 
-#include "block.h"
-#include "ctx.h"
+#include "ngpu/ngpu.h"
 
 #include "utils/memory.h"
 #include "utils/utils.h"

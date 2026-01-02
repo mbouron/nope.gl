@@ -20,25 +20,26 @@
  * under the License.
  */
 
+#include "config.h"
+
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "config.h"
-#include "glcontext.h"
-#include "glincludes.h"
 #include "log.h"
-#include "ngpu/limits.h"
 #include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/opengl/glcontext.h"
+#include "ngpu/opengl/glincludes.h"
 #include "utils/bstr.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
-#include "gldefinitions_data.h"
-#include "glfeatures_data.h"
+#include "ngpu/opengl/gldefinitions_data.h"
+#include "ngpu/opengl/glfeatures_data.h"
 
 #ifdef HAVE_GLPLATFORM_EGL
-#include "egl.h"
+#include "ngpu/opengl/egl.h"
 #endif
 
 NGLI_STATIC_ASSERT(sizeof(GLfloat)  == sizeof(float),          "GLfloat size");

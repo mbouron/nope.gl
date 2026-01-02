@@ -23,14 +23,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ctx_vk.h"
-#include "glslang_utils.h"
 #include "log.h"
-#include "program_vk.h"
+#include "ngpu/vulkan/ctx_vk.h"
+#include "ngpu/vulkan/glslang_utils.h"
+#include "ngpu/vulkan/program_vk.h"
+#include "ngpu/vulkan/vkutils.h"
 #include "utils/memory.h"
 #include "utils/string.h"
 #include "utils/utils.h"
-#include "vkutils.h"
 
 struct ngpu_program *ngpu_program_vk_create(struct ngpu_ctx *gpu_ctx)
 {

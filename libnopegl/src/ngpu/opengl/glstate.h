@@ -24,8 +24,8 @@
 #ifndef NGPU_GLSTATE_H
 #define NGPU_GLSTATE_H
 
-#include "glcontext.h"
 #include "ngpu/ctx.h"
+#include "ngpu/opengl/glcontext.h"
 
 struct ngpu_graphics_state;
 

@@ -20,7 +20,7 @@
  * under the License.
  */
 
-#include "format.h"
+#include "ngpu/ngpu.h"
 
 #include <stddef.h>
 

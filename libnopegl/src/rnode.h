@@ -22,8 +22,7 @@
 #ifndef RNODE_H
 #define RNODE_H
 
-#include "ngpu/graphics_state.h"
-#include "ngpu/rendertarget.h"
+#include "ngpu/ngpu.h"
 #include "utils/darray.h"
 
 struct rnode {

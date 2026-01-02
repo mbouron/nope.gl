@@ -22,13 +22,13 @@
 
 #include <string.h>
 
-#include "ctx_gl.h"
 #include "log.h"
-#include "ngpu/type.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/program_gl.h"
+#include "ngpu/opengl/program_gl_utils.h"
 #include "ngpu/pgcraft.h"
 #include "pipeline_compat.h"
-#include "program_gl.h"
-#include "program_gl_utils.h"
 
 int ngpu_program_gl_set_locations_and_bindings(struct ngpu_program *s,
                                                const struct ngpu_pgcraft *crafter)

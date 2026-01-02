@@ -20,11 +20,11 @@
  * under the License.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-
-#include "config.h"
 
 #if defined(TARGET_LINUX)
 #include <X11/Xlib.h>
@@ -40,10 +40,10 @@
 #include <android/hardware_buffer.h>
 #endif
 
-#include "egl.h"
-#include "glcontext.h"
+#include "ngpu/opengl/egl.h"
+#include "ngpu/opengl/glcontext.h"
 #include "log.h"
-#include "ngpu/format.h"
+#include "ngpu/ngpu.h"
 #include "nopegl/nopegl.h"
 #include "utils/utils.h"
 

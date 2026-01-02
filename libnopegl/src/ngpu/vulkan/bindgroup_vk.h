@@ -26,6 +26,7 @@
 #include <vulkan/vulkan.h>
 
 #include "ngpu/bindgroup.h"
+#include "utils/darray.h"
 
 struct ngpu_ctx;
 

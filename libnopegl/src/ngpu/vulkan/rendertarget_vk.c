@@ -24,14 +24,14 @@
 #include <string.h>
 #include <vulkan/vulkan.h>
 
-#include "ctx_vk.h"
-#include "format_vk.h"
 #include "log.h"
-#include "ngpu/format.h"
-#include "rendertarget_vk.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/vulkan/ctx_vk.h"
+#include "ngpu/vulkan/format_vk.h"
+#include "ngpu/vulkan/rendertarget_vk.h"
+#include "ngpu/vulkan/texture_vk.h"
+#include "ngpu/vulkan/vkutils.h"
 #include "utils/memory.h"
-#include "texture_vk.h"
-#include "vkutils.h"
 
 static const VkAttachmentLoadOp load_op_map[] = {
     [NGPU_LOAD_OP_LOAD]      = VK_ATTACHMENT_LOAD_OP_LOAD,

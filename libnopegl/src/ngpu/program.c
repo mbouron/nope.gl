@@ -19,8 +19,8 @@
  * under the License.
  */
 
-#include "program.h"
-#include "ctx.h"
+#include "ngpu/ctx.h"
+#include "ngpu/program.h"
 
 struct ngpu_program *ngpu_program_create(struct ngpu_ctx *gpu_ctx)
 {
@@ -37,4 +37,9 @@ void ngpu_program_freep(struct ngpu_program **sp)
     if (!*sp)
         return;
     (*sp)->gpu_ctx->cls->program_freep(sp);
+}
+
+struct ngpu_ctx *ngpu_program_get_ctx(const struct ngpu_program *s)
+{
+    return s->gpu_ctx;
 }

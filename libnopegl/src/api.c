@@ -35,8 +35,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/ctx.h"
-#include "ngpu/graphics_state.h"
+#include "ngpu/ngpu.h"
 #include "nopegl/nopegl.h"
 #include "nopegl/nopegl_opengl.h"
 #include "rnode.h"
@@ -229,10 +228,11 @@ static const char *get_cap_string_id(unsigned cap_id)
 
 static int load_caps(struct ngl_backend *backend, const struct ngpu_ctx *gpu_ctx)
 {
-    const uint32_t has_compute    = NGLI_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_COMPUTE);
-    const uint32_t has_ds_resolve = NGLI_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_DEPTH_STENCIL_RESOLVE);
+    const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
+    const uint32_t has_compute    = NGLI_HAS_ALL_FLAGS(features, NGPU_FEATURE_COMPUTE);
+    const uint32_t has_ds_resolve = NGLI_HAS_ALL_FLAGS(features, NGPU_FEATURE_DEPTH_STENCIL_RESOLVE);
 
-    const struct ngpu_limits *limits = &gpu_ctx->limits;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
     const struct ngl_cap caps[] = {
         CAP(NGL_CAP_COMPUTE,                       has_compute),
         CAP(NGL_CAP_DEPTH_STENCIL_RESOLVE,         has_ds_resolve),
@@ -264,18 +264,15 @@ static int load_caps(struct ngl_backend *backend, const struct ngpu_ctx *gpu_ctx
 
 static int backend_init(struct ngl_backend *backend, struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
-
-    ngli_assert(gpu_ctx->cls);
-
-    const enum ngl_backend_type backend_id = ngpu_backend_type_to_ngl(ctx_params->backend);
+    const enum ngpu_backend_type backend_type = ngpu_ctx_get_backend_type(gpu_ctx);
+    const enum ngl_backend_type backend_id = ngpu_backend_type_to_ngl(backend_type);
     backend->id         = backend_id;
-    backend->string_id  = ngpu_backend_get_string_id(ctx_params->backend);
-    backend->name       = ngpu_backend_get_full_name(ctx_params->backend);
+    backend->string_id  = ngpu_backend_get_string_id(backend_type);
+    backend->name       = ngpu_backend_get_full_name(backend_type);
     backend->is_default = backend_id == DEFAULT_BACKEND;
 
     /* If GPU context is not initialized, return early */
-    if (!gpu_ctx->version)
+    if (!ngpu_ctx_get_version(gpu_ctx))
         return 0;
 
     int ret = load_caps(backend, gpu_ctx);

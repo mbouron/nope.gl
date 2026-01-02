@@ -24,9 +24,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/block_desc.h"
-#include "ngpu/buffer.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "node_block.h"
 #include "node_buffer.h"
 #include "node_uniform.h"
@@ -271,7 +269,8 @@ static int block_init(struct ngl_node *node)
     struct block_info *info = &s->blk;
     const struct block_opts *o = node->opts;
 
-    if (o->layout == NGPU_BLOCK_LAYOUT_STD430 && !(gpu_ctx->features & FEATURES_STD430)) {
+    uint64_t features = ngpu_ctx_get_features(gpu_ctx);
+    if (o->layout == NGPU_BLOCK_LAYOUT_STD430 && !(features & FEATURES_STD430)) {
         LOG(ERROR, "std430 blocks are not supported by this context");
         return NGL_ERROR_UNSUPPORTED;
     }
@@ -339,7 +338,7 @@ static int block_prepare(struct ngl_node *node)
 
     ngli_assert(info->buffer);
 
-    if (info->buffer->size)
+    if (ngpu_buffer_get_size(info->buffer))
         return 0;
 
     int ret = ngpu_buffer_init(info->buffer, info->data_size, info->usage);

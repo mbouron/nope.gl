@@ -26,7 +26,7 @@
 #include "geometry.h"
 #include "internal.h"
 #include "math_utils.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "nopegl/nopegl.h"
 #include "utils/utils.h"
 

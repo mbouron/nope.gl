@@ -24,19 +24,19 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bindgroup_vk.h"
-#include "ctx_vk.h"
-#include "format_vk.h"
 #include "log.h"
+#include "ngpu/vulkan/bindgroup_vk.h"
+#include "ngpu/vulkan/ctx_vk.h"
+#include "ngpu/vulkan/format_vk.h"
+#include "ngpu/vulkan/pipeline_vk.h"
+#include "ngpu/vulkan/program_vk.h"
+#include "ngpu/vulkan/rendertarget_vk.h"
+#include "ngpu/vulkan/vkcontext.h"
+#include "ngpu/vulkan/vkutils.h"
 #include "nopegl/nopegl.h"
-#include "pipeline_vk.h"
-#include "program_vk.h"
-#include "rendertarget_vk.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
-#include "vkcontext.h"
-#include "vkutils.h"
 
 static const VkPrimitiveTopology vk_primitive_topology_map[NGPU_PRIMITIVE_TOPOLOGY_NB] = {
     [NGPU_PRIMITIVE_TOPOLOGY_POINT_LIST]     = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,

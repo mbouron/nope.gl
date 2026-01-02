@@ -23,111 +23,17 @@
 #ifndef NGPU_CTX_H
 #define NGPU_CTX_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
-#include "bindgroup.h"
-#include "buffer.h"
-#include "graphics_state.h"
-#include "limits.h"
-#include "pgcache.h"
-#include "pipeline.h"
-#include "rendertarget.h"
-#include "texture.h"
+#include "ngpu/ngpu.h"
 
-enum ngpu_platform_type {
-    NGPU_PLATFORM_XLIB,
-    NGPU_PLATFORM_WAYLAND,
-    NGPU_PLATFORM_ANDROID,
-    NGPU_PLATFORM_MACOS,
-    NGPU_PLATFORM_IOS,
-    NGPU_PLATFORM_WINDOWS,
-    NGPU_PLATFORM_MAX_ENUM = 0x7FFFFFFF
-};
-
-enum ngpu_backend_type {
-    NGPU_BACKEND_OPENGL,
-    NGPU_BACKEND_OPENGLES,
-    NGPU_BACKEND_VULKAN,
-    NGPU_BACKEND_MAX_ENUM = 0x7FFFFFFF
-};
-
-enum ngpu_capture_buffer_type {
-    NGPU_CAPTURE_BUFFER_TYPE_CPU,
-    NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO,
-    NGPU_CAPTURE_BUFFER_TYPE_MAX_ENUM = 0x7FFFFFFF
-};
-
-int ngpu_get_available_backends(size_t *backend_count, enum ngpu_backend_type *backends);
-const char *ngpu_backend_get_string_id(enum ngpu_backend_type backend);
-const char *ngpu_backend_get_full_name(enum ngpu_backend_type backend);
-
-struct ngpu_viewport {
-    float x, y, width, height;
-};
-
-struct ngpu_scissor {
-    uint32_t x, y, width, height;
-};
-
-int ngpu_viewport_is_valid(const struct ngpu_viewport *viewport);
-
-#define NGPU_FEATURE_SOFTWARE                          (1U << 0)
-#define NGPU_FEATURE_COMPUTE                           (1U << 1)
-#define NGPU_FEATURE_IMAGE_LOAD_STORE                  (1U << 2)
-#define NGPU_FEATURE_STORAGE_BUFFER                    (1U << 3)
-#define NGPU_FEATURE_BUFFER_MAP_PERSISTENT             (1U << 4)
-#define NGPU_FEATURE_DEPTH_STENCIL_RESOLVE             (1U << 5)
-
-struct ngpu_ctx_params {
-    enum ngpu_platform_type platform;  /* Platform-specific identifier */
-
-    enum ngpu_backend_type backend;   /* Rendering backend */
-
-    void *backend_params; /* Optional backend specific parameters (any of ngpu_ctx_params_*
-                             depending on the selected backend) */
-
-    uintptr_t display; /* A native display handle */
-
-    uintptr_t window;  /* A native window handle */
-
-    int swap_interval; /* Specifies the minimum number of video frames that are
-                          displayed before a buffer swap will occur. -1 can be
-                          used to use the default system implementation value.
-                          This option is only honored on Linux, macOS, and
-                          Android (iOS does not provide swap interval control).
-                          */
-
-    int offscreen; /* Whether the rendering should happen offscreen or not.
-                      This field is ignored if the context is external. */
-
-    uint32_t width; /* Graphics context width, mandatory for offscreen rendering */
-
-    uint32_t height; /* Graphics context height, mandatory for offscreen rendering */
-
-    uint32_t samples;     /* Number of samples used for multisample anti-aliasing */
-
-    int set_surface_pts; /* Whether pts should be set to the surface or not (Android only).
-                            Unsupported with offscreen rendering. */
-
-    float clear_color[4]; /* Clear color (red, green, blue, alpha) */
-
-    void *capture_buffer; /* An optional pointer to a capture buffer.
-                             - If the capture buffer type is CPU, the user
-                               allocated size of the specified buffer must be of
-                               at least width * height * 4 bytes (RGBA)
-                             - If the capture buffer type is COREVIDEO, the
-                               specified pointer must reference a CVPixelBuffer */
-
-    enum ngpu_capture_buffer_type capture_buffer_type;
-
-    int debug; /* Enable graphics context debugging */
-
-    int timer_queries; /* Enable graphics context timer queries */
-};
-
-int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_params *src);
-void ngpu_ctx_params_reset(struct ngpu_ctx_params *params);
+#include "ngpu/bindgroup.h"
+#include "ngpu/buffer.h"
+#include "ngpu/pgcache.h"
+#include "ngpu/pipeline.h"
+#include "ngpu/rendertarget.h"
+#include "ngpu/texture.h"
 
 struct ngpu_ctx_class {
     enum ngpu_backend_type id;
@@ -238,50 +144,5 @@ struct ngpu_ctx {
     const struct ngpu_buffer *index_buffer;
     enum ngpu_format index_format;
 };
-
-struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params);
-int ngpu_ctx_init(struct ngpu_ctx *s);
-int ngpu_ctx_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height);
-int ngpu_ctx_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer);
-uint32_t ngpu_ctx_advance_frame(struct ngpu_ctx *s);
-uint32_t ngpu_ctx_get_current_frame_index(struct ngpu_ctx *s);
-uint32_t ngpu_ctx_get_nb_in_flight_frames(struct ngpu_ctx *s);
-int ngpu_ctx_begin_update(struct ngpu_ctx *s);
-int ngpu_ctx_end_update(struct ngpu_ctx *s);
-int ngpu_ctx_begin_draw(struct ngpu_ctx *s);
-int ngpu_ctx_end_draw(struct ngpu_ctx *s, double t);
-int ngpu_ctx_query_draw_time(struct ngpu_ctx *s, int64_t *time);
-void ngpu_ctx_wait_idle(struct ngpu_ctx *s);
-void ngpu_ctx_freep(struct ngpu_ctx **sp);
-
-enum ngpu_cull_mode ngpu_ctx_transform_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode);
-void ngpu_ctx_transform_projection_matrix(struct ngpu_ctx *s, float *dst);
-void ngpu_ctx_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst);
-
-struct ngpu_rendertarget *ngpu_ctx_get_default_rendertarget(struct ngpu_ctx *s, enum ngpu_load_op load_op);
-const struct ngpu_rendertarget_layout *ngpu_ctx_get_default_rendertarget_layout(struct ngpu_ctx *s);
-void ngpu_ctx_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width, uint32_t *height);
-
-void ngpu_ctx_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt);
-void ngpu_ctx_end_render_pass(struct ngpu_ctx *s);
-bool ngpu_ctx_is_render_pass_active(const struct ngpu_ctx *s);
-
-void ngpu_ctx_set_viewport(struct ngpu_ctx *s, const struct ngpu_viewport *viewport);
-void ngpu_ctx_set_scissor(struct ngpu_ctx *s, const struct ngpu_scissor *scissor);
-
-enum ngpu_format ngpu_ctx_get_preferred_depth_format(struct ngpu_ctx *s);
-enum ngpu_format ngpu_ctx_get_preferred_depth_stencil_format(struct ngpu_ctx *s);
-uint32_t ngpu_ctx_get_format_features(struct ngpu_ctx *s, enum ngpu_format format);
-
-void ngpu_ctx_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *texture);
-
-void ngpu_ctx_set_pipeline(struct ngpu_ctx *s, struct ngpu_pipeline *pipeline);
-void ngpu_ctx_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup, const uint32_t *offsets, size_t nb_offsets);
-void ngpu_ctx_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex);
-void ngpu_ctx_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances);
-void ngpu_ctx_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z);
-
-void ngpu_ctx_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struct ngpu_buffer *buffer);
-void ngpu_ctx_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *buffer, enum ngpu_format format);
 
 #endif

@@ -19,12 +19,12 @@
  * under the License.
  */
 
-#include "bindgroup_gl.h"
-#include "buffer_gl.h"
-#include "ctx_gl.h"
 #include "log.h"
+#include "ngpu/opengl/bindgroup_gl.h"
+#include "ngpu/opengl/buffer_gl.h"
+#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/opengl/texture_gl.h"
 #include "utils/memory.h"
-#include "texture_gl.h"
 
 struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_gl_create(struct ngpu_ctx *gpu_ctx)
 {

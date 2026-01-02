@@ -22,11 +22,12 @@
 #ifndef EGL_H
 #define EGL_H
 
+#include "config.h"
+
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include "config.h"
-#include "glcontext.h"
+#include "ngpu/opengl/glcontext.h"
 
 EGLImageKHR ngli_eglCreateImageKHR(struct glcontext *gl,
                                    EGLContext handle,

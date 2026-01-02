@@ -22,15 +22,11 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/block.h"
-#include "ngpu/ctx.h"
-#include "ngpu/limits.h"
+#include "ngpu/ngpu.h"
 #include "node_block.h"
 #include "node_texture.h"
 #include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
-#include "ngpu/block_desc.h"
-#include "ngpu/type.h"
 
 /* Compute shaders */
 #include "colorstats_init_comp.h"
@@ -203,7 +199,7 @@ static int init_computes(struct ngl_node *node)
      * use Y=1 and Z=1. 128 remains an always safe value so we use that as
      * a fallback.
      */
-    const struct ngpu_limits *limits = &gpu_ctx->limits;
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
     const uint32_t max_group_size_x = limits->max_compute_work_group_size[0];
     s->group_size = max_group_size_x >= 256 ? 256 : 128;
     LOG(DEBUG, "using a workgroup size of %u", s->group_size);
@@ -242,7 +238,7 @@ static int init_computes(struct ngl_node *node)
             .block    = &s->stats_params_block.block_desc,
             .buffer   = {
                 .buffer = s->stats_params_block.buffer,
-                .size   = s->stats_params_block.buffer->size,
+                .size   = ngpu_buffer_get_size(s->stats_params_block.buffer),
             },
         }, {
             .name     = "stats",
@@ -295,7 +291,7 @@ static int colorstats_init(struct ngl_node *node)
     struct colorstats_priv *s = node->priv_data;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
-    if (!(gpu_ctx->features & NGPU_FEATURE_COMPUTE)) {
+    if (!(ngpu_ctx_get_features(gpu_ctx) & NGPU_FEATURE_COMPUTE)) {
         LOG(ERROR, "ColorStats is not supported by this context (requires compute shaders and SSBO support)");
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
     }

@@ -23,16 +23,16 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "buffer_vk.h"
-#include "ctx_vk.h"
-#include "format_vk.h"
 #include "log.h"
-#include "ngpu/format.h"
-#include "utils/memory.h"
-#include "texture_vk.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/vulkan/buffer_vk.h"
+#include "ngpu/vulkan/ctx_vk.h"
+#include "ngpu/vulkan/format_vk.h"
+#include "ngpu/vulkan/texture_vk.h"
+#include "ngpu/vulkan/vkutils.h"
 #include "utils/bits.h"
+#include "utils/memory.h"
 #include "utils/utils.h"
-#include "vkutils.h"
 
 static const VkFilter vk_filter_map[NGPU_NB_FILTER] = {
     [NGPU_FILTER_NEAREST] = VK_FILTER_NEAREST,

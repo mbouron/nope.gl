@@ -25,35 +25,8 @@
 
 struct ngpu_ctx;
 
-#define MAX_ID_LEN 128
-
-enum ngpu_program_stage {
-    NGPU_PROGRAM_STAGE_VERT,
-    NGPU_PROGRAM_STAGE_FRAG,
-    NGPU_PROGRAM_STAGE_COMP,
-    NGPU_PROGRAM_STAGE_NB,
-    NGPU_PROGRAM_STAGE_MAX_ENUM = 0x7FFFFFFF
-};
-
-enum {
-    NGPU_PROGRAM_STAGE_VERTEX_BIT   = 1U << NGPU_PROGRAM_STAGE_VERT,
-    NGPU_PROGRAM_STAGE_FRAGMENT_BIT = 1U << NGPU_PROGRAM_STAGE_FRAG,
-    NGPU_PROGRAM_STAGE_COMPUTE_BIT  = 1U << NGPU_PROGRAM_STAGE_COMP,
-};
-
-struct ngpu_program_params {
-    const char *label;
-    const char *vertex;
-    const char *fragment;
-    const char *compute;
-};
-
 struct ngpu_program {
     struct ngpu_ctx *gpu_ctx;
 };
-
-struct ngpu_program *ngpu_program_create(struct ngpu_ctx *gpu_ctx);
-int ngpu_program_init(struct ngpu_program *s, const struct ngpu_program_params *params);
-void ngpu_program_freep(struct ngpu_program **sp);
 
 #endif

@@ -24,10 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "glstate.h"
-#include "glcontext.h"
-#include "ngpu/graphics_state.h"
-#include "utils/utils.h"
+#include "ngpu/opengl/glstate.h"
+#include "ngpu/opengl/glcontext.h"
+#include "ngpu/ngpu.h"
 
 static const GLenum gl_blend_factor_map[NGPU_BLEND_FACTOR_NB] = {
     [NGPU_BLEND_FACTOR_ZERO]                     = GL_ZERO,

@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "glcontext.h"
+#include "ngpu/opengl/glcontext.h"
 
 #define OFFSET(x) offsetof(struct glfunctions, x)
 static const struct glfeature {

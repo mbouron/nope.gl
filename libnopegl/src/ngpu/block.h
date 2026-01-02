@@ -26,8 +26,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "block_desc.h"
-#include "buffer.h"
+#include "ngpu/buffer.h"
+#include "ngpu/ngpu.h"
 
 struct ngpu_ctx;
 
