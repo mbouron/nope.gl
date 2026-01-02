@@ -23,10 +23,15 @@
 #ifndef NGPU_PROGRAM_H
 #define NGPU_PROGRAM_H
 
+#include "utils/refcount.h"
+
 struct ngpu_ctx;
 
 struct ngpu_program {
+    struct ngli_rc rc;
     struct ngpu_ctx *gpu_ctx;
 };
+
+NGLI_RC_CHECK_STRUCT(ngpu_program);
 
 #endif
