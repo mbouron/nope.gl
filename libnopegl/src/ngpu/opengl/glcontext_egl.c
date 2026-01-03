@@ -520,7 +520,7 @@ try_again:;
             EGL_NONE,
         };
         egl->surface = eglCreateWindowSurface(egl->display, egl->config, egl->native_window,
-                                              egl->has_surfaceless_context_ext ? surface_attribs : NULL);
+                                              egl->has_gl_colorspace_ext ? surface_attribs : NULL);
         if (!egl->surface) {
             LOG(ERROR, "could not create EGL window surface: %s", ngli_eglGetErrorStr());
             return NGL_ERROR_EXTERNAL;
