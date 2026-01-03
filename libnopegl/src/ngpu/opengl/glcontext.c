@@ -170,14 +170,14 @@ static const struct glfeature {
         .flag           = NGLI_FEATURE_GL_INTERNALFORMAT_QUERY,
         .version        = 420,
         .es_version     = 300,
-        .extensions     = (const char*[]){"ARB_internalformat_query", NULL},
+        .extensions     = (const char*[]){"GL_ARB_internalformat_query", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(GetInternalformativ),
                                            SIZE_MAX}
     }, {
         .name           = "timer_query",
         .flag           = NGLI_FEATURE_GL_TIMER_QUERY,
         .version        = 330,
-        .extensions     = (const char*[]){"ARB_timer_query", NULL},
+        .extensions     = (const char*[]){"GL_ARB_timer_query", NULL},
     }, {
         .name           = "ext_disjoint_timer_query",
         .flag           = NGLI_FEATURE_GL_EXT_DISJOINT_TIMER_QUERY,
@@ -247,13 +247,13 @@ static const struct glfeature {
         .flag           = NGLI_FEATURE_GL_COLOR_BUFFER_FLOAT,
         .version        = 300,
         .es_version     = 320,
-        .es_extensions  = (const char*[]){"EXT_color_buffer_float", NULL},
+        .es_extensions  = (const char*[]){"GL_EXT_color_buffer_float", NULL},
     }, {
         .name           = "color_buffer_half_float",
         .flag           = NGLI_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT,
         .version        = 300,
         .es_version     = 320,
-        .es_extensions  = (const char*[]){"EXT_color_buffer_half_float", NULL},
+        .es_extensions  = (const char*[]){"GL_EXT_color_buffer_half_float", NULL},
     }, {
         .name           = "buffer_storage",
         .flag           = NGLI_FEATURE_GL_BUFFER_STORAGE,
@@ -264,31 +264,31 @@ static const struct glfeature {
     }, {
         .name           = "ext_buffer_storage",
         .flag           = NGLI_FEATURE_GL_EXT_BUFFER_STORAGE,
-        .es_extensions  = (const char*[]){"EXT_buffer_storage", NULL},
+        .es_extensions  = (const char*[]){"GL_EXT_buffer_storage", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(BufferStorageEXT),
                                            SIZE_MAX}
     }, {
         .name           = "texture_norm16",
         .flag           = NGLI_FEATURE_GL_TEXTURE_NORM16,
         .version        = 300,
-        .es_extensions  = (const char*[]){"EXT_texture_norm16", NULL},
+        .es_extensions  = (const char*[]){"GL_EXT_texture_norm16", NULL},
     }, {
         .name           = "texture_float_linear",
         .flag           = NGLI_FEATURE_GL_TEXTURE_FLOAT_LINEAR,
         .version        = 300,
         .es_version     = 320,
-        .es_extensions  = (const char*[]){"OES_texture_float_linear", NULL},
+        .es_extensions  = (const char*[]){"GL_OES_texture_float_linear", NULL},
     }, {
         .name           = "float_blend",
         .flag           = NGLI_FEATURE_GL_FLOAT_BLEND,
         .version        = 300,
         .es_version     = 320,
-        .es_extensions  = (const char*[]){"EXT_float_blend", NULL},
+        .es_extensions  = (const char*[]){"GL_EXT_float_blend", NULL},
     }, {
         .name           = "viewport_array",
         .flag           = NGLI_FEATURE_GL_VIEWPORT_ARRAY,
         .version        = 410,
-        .extensions     = (const char*[]){"ARB_viewport_array", NULL},
+        .extensions     = (const char*[]){"GL_ARB_viewport_array", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(ViewportIndexedf),
                                            SIZE_MAX}
     },
