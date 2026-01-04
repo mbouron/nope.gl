@@ -19,13 +19,68 @@
  * under the License.
  */
 
+#include "config.h"
+
 #include <stddef.h>
+
+#if defined(TARGET_ANDROID)
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_android.h>
+#endif
 
 #include "log.h"
 #include "ngpu/vulkan/ctx_vk.h"
 #include "ngpu/vulkan/vkutils.h"
+#include "ngpu/vulkan/texture_vk.h"
 #include "ngpu/vulkan/ycbcr_sampler_vk.h"
 #include "utils/memory.h"
+
+int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHardwareBuffer *ahb, enum ngpu_filter filter, struct ngpu_ycbcr_sampler_vk_params *params)
+{
+#if defined(TARGET_ANDROID)
+    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    VkAndroidHardwareBufferFormatPropertiesANDROID ahb_format_props = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID,
+    };
+
+    VkAndroidHardwareBufferPropertiesANDROID ahb_props = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID,
+        .pNext = &ahb_format_props,
+    };
+
+    VkResult res =
+        vk->GetAndroidHardwareBufferPropertiesANDROID(vk->device, ahb, &ahb_props);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not get android hardware buffer properties: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+    uint64_t external_format = 0;
+    if (ahb_format_props.format == VK_FORMAT_UNDEFINED)
+        external_format = ahb_format_props.externalFormat;
+
+    const struct ngpu_ycbcr_sampler_vk_params sampler_params = {
+        /* Conversion params */
+        .android_external_format = external_format,
+        .format                  = VK_FORMAT_UNDEFINED,
+        .ycbcr_model             = ahb_format_props.suggestedYcbcrModel,
+        .ycbcr_range             = ahb_format_props.suggestedYcbcrRange,
+        .components              = ahb_format_props.samplerYcbcrConversionComponents,
+        .x_chroma_offset         = ahb_format_props.suggestedXChromaOffset,
+        .y_chroma_offset         = ahb_format_props.suggestedYChromaOffset,
+        /* Sampler params */
+        .filter                  = ngpu_vk_get_filter(filter),
+    };
+
+    *params = sampler_params;
+
+    return 0;
+#else
+    return NGL_ERROR_UNSUPPORTED;
+#endif
+}
 
 static void ycbcr_sampler_freep(void **texturep)
 {

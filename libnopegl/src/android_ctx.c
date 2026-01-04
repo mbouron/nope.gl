@@ -30,16 +30,9 @@
 #include "android_ctx.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ctx.h"
+#include "ngpu/ngpu.h"
 #include "utils/utils.h"
 
-#if defined(BACKEND_GLES)
-#include "ngpu/opengl/ctx_gl.h"
-#endif
-
-#if defined(BACKEND_VK)
-#include "ngpu/vulkan/ctx_vk.h"
-#endif
 
 #define NDK_LOAD_FUNC(handle, name) do {       \
     s->name = dlsym(handle, #name);            \
@@ -93,37 +86,6 @@ done:
     return NGL_ERROR_UNSUPPORTED;
 }
 
-static int has_native_imagereader_api_support(struct ngpu_ctx *gpu_ctx)
-{
-    ngli_unused const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
-#if defined(BACKEND_GLES)
-    if (ctx_params->backend == NGPU_BACKEND_OPENGLES) {
-        const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-        const struct glcontext *gl = gpu_ctx_gl->glcontext;
-        const uint64_t features = NGPU_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE |
-                                  NGPU_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER;
-        return (NGLI_HAS_ALL_FLAGS(gl->features, features));
-    }
-#endif
-#if defined(BACKEND_VK)
-    if (ctx_params->backend == NGPU_BACKEND_VULKAN) {
-        const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
-        const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-        static const char * const required_extensions[] = {
-            VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME,
-            VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
-            VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME,
-        };
-        for (size_t i = 0; i < NGLI_ARRAY_NB(required_extensions); i++) {
-            if (!ngpu_vkcontext_has_extension(vk, required_extensions[i], 1))
-                return 0;
-        }
-        return 1;
-    }
-#endif
-    return 0;
-}
-
 int ngli_android_ctx_init(struct ngpu_ctx *gpu_ctx, struct android_ctx *s)
 {
     memset(s, 0, sizeof(*s));
@@ -140,7 +102,8 @@ int ngli_android_ctx_init(struct ngpu_ctx *gpu_ctx, struct android_ctx *s)
         return ret;
     }
 
-    if (!has_native_imagereader_api_support(gpu_ctx)) {
+    const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
+    if (!NGLI_HAS_ALL_FLAGS(features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
         LOG(ERROR, "device is missing required functions/extensions available since Android 9.0");
         return NGL_ERROR_UNSUPPORTED;
     }

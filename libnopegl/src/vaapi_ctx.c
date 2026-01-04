@@ -19,17 +19,9 @@
  * under the License.
  */
 
-#include <string.h>
-
 #include "config.h"
 
-#if defined(BACKEND_GL) || defined(BACKEND_GLES)
-#include "ngpu/opengl/ctx_gl.h"
-#endif
-
-#if defined(BACKEND_VK)
-#include "ngpu/vulkan/ctx_vk.h"
-#endif
+#include <string.h>
 
 #if defined(HAVE_VAAPI_X11)
 #include <X11/Xlib.h>
@@ -46,47 +38,13 @@
 #include "utils/utils.h"
 #include "vaapi_ctx.h"
 
-static int check_extensions(const struct ngpu_ctx *gpu_ctx)
-{
-    ngli_unused const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
-#if defined(BACKEND_GL) || defined(BACKEND_GLES)
-        if (ctx_params->backend == NGPU_BACKEND_OPENGL ||
-            ctx_params->backend == NGPU_BACKEND_OPENGLES) {
-        const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-        const struct glcontext *gl = gpu_ctx_gl->glcontext;
-        const uint64_t features = NGPU_FEATURE_GL_OES_EGL_IMAGE |
-                                  NGPU_FEATURE_GL_EGL_IMAGE_BASE_KHR |
-                                  NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT;
-        if (NGLI_HAS_ALL_FLAGS(gl->features, features))
-            return 1;
-    }
-#endif
-#if defined(BACKEND_VK)
-    if (ctx_params->backend == NGPU_BACKEND_VULKAN) {
-        const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
-        const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-        static const char * const required_extensions[] = {
-            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-            VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
-            VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
-        };
-        for (size_t i = 0; i < NGLI_ARRAY_NB(required_extensions); i++) {
-            if (!ngpu_vkcontext_has_extension(vk, required_extensions[i], 1))
-                return 0;
-        }
-        return 1;
-    }
-#endif
-    return 0;
-}
-
 int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s)
 {
     const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
     if (features & NGPU_FEATURE_SOFTWARE_BIT)
         return -1;
 
-    if (!check_extensions(gpu_ctx))
+    if (!NGLI_HAS_ALL_FLAGS(features, NGPU_FEATURE_IMPORT_DMA_BUF_BIT))
         return -1;
 
     VADisplay va_display = NULL;

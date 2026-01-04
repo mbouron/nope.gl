@@ -1,5 +1,6 @@
 /*
- * Copyright 2022 GoPro Inc.
+ * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2018-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,26 +20,9 @@
  * under the License.
  */
 
-#ifndef YCBCR_SAMPLER_VK_H
-#define YCBCR_SAMPLER_VK_H
-
-#include <stdint.h>
-#include <vulkan/vulkan.h>
+#ifndef NGPU_OPENGL_H
+#define NGPU_OPENGL_H
 
 #include "ngpu/ngpu.h"
-#include "ngpu/ngpu_vulkan.h"
-#include "utils/refcount.h"
-
-struct AHardwareBuffer;
-
-struct ngpu_ycbcr_sampler_vk {
-    struct ngli_rc rc;
-    struct ngpu_ctx *gpu_ctx;
-    struct ngpu_ycbcr_sampler_vk_params params;
-    VkSamplerYcbcrConversion conv;
-    VkSampler sampler;
-};
-
-NGLI_RC_CHECK_STRUCT(ngpu_ycbcr_sampler_vk);
 
 #endif

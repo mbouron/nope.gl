@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2020-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -40,11 +41,8 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/vulkan/ctx_vk.h"
-#include "ngpu/vulkan/format_vk.h"
-#include "ngpu/vulkan/texture_vk.h"
-#include "ngpu/vulkan/vkutils.h"
 #include "ngpu/ngpu.h"
+#include "ngpu/ngpu_vulkan.h"
 #include "nopegl/nopegl.h"
 
 struct format_desc {
@@ -55,14 +53,14 @@ struct format_desc {
     } planes[2];
 };
 
-static MTLPixelFormat vt_get_mtl_format(VkFormat format)
+static MTLPixelFormat vt_get_mtl_format(enum ngpu_format format)
 {
     switch (format) {
-    case VK_FORMAT_B8G8R8A8_UNORM: return MTLPixelFormatBGRA8Unorm;
-    case VK_FORMAT_R8_UNORM:       return MTLPixelFormatR8Unorm;
-    case VK_FORMAT_R16_UNORM:      return MTLPixelFormatR16Unorm;
-    case VK_FORMAT_R8G8_UNORM:     return MTLPixelFormatRG8Unorm;
-    case VK_FORMAT_R16G16_UNORM:   return MTLPixelFormatRG16Unorm;
+    case NGPU_FORMAT_B8G8R8A8_UNORM:  return MTLPixelFormatBGRA8Unorm;
+    case NGPU_FORMAT_R8_UNORM:        return MTLPixelFormatR8Unorm;
+    case NGPU_FORMAT_R16_UNORM:       return MTLPixelFormatR16Unorm;
+    case NGPU_FORMAT_R8G8_UNORM:      return MTLPixelFormatRG8Unorm;
+    case NGPU_FORMAT_R16G16_UNORM:    return MTLPixelFormatRG16Unorm;
     default: ngli_assert(0);
     }
 }
@@ -110,10 +108,7 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 {
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
-    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct hwmap_vt_darwin *vt = hwmap->hwmap_priv_data;
-    const struct hwmap_params *params = &hwmap->params;
 
     nmd_frame_releasep(&vt->frame);
     vt->frame = frame;
@@ -126,14 +121,10 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     }
 
     for (size_t i = 0; i < vt->format_desc.nb_planes; i++) {
-        struct ngpu_texture *plane = vt->planes[i];
-        struct ngpu_texture_vk *plane_vk = (struct ngpu_texture_vk *)plane;
-
         const size_t width = CVPixelBufferGetWidthOfPlane(cvpixbuf, i);
         const size_t height = CVPixelBufferGetHeightOfPlane(cvpixbuf, i);
         const enum ngpu_format format = vt->format_desc.planes[i].format;
-        const int vk_format = ngpu_format_ngl_to_vk(format);
-        const MTLPixelFormat mtl_format = vt_get_mtl_format(vk_format);
+        const MTLPixelFormat mtl_format = vt_get_mtl_format(format);
 
         CVMetalTextureRef texture_ref = NULL;
         CVReturn status = CVMetalTextureCacheCreateTextureFromImage(NULL, vt->texture_cache, cvpixbuf, NULL, mtl_format, width, height, i, &texture_ref);
@@ -142,59 +133,33 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
             return NGL_ERROR_GRAPHICS_GENERIC;
         }
 
-        const VkImportMetalTextureInfoEXT mtl_texture_info = {
-            .sType = VK_STRUCTURE_TYPE_IMPORT_METAL_TEXTURE_INFO_EXT,
-            .plane = VK_IMAGE_ASPECT_PLANE_0_BIT,
-            .mtlTexture = CVMetalTextureGetTexture(texture_ref),
+        struct ngpu_texture_params texture_params = {
+            .type       = NGPU_TEXTURE_TYPE_2D,
+            .format     = format,
+            .width      = (uint32_t)width,
+            .height     = (uint32_t)height,
+            .min_filter = hwmap->params.texture_min_filter,
+            .mag_filter = hwmap->params.texture_mag_filter,
+            .usage      = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
+            .import_params = {
+                .type = NGPU_IMPORT_TYPE_METAL_TEXTURE,
+                .metal_texture = {
+                    .metal_texture = CVMetalTextureGetTexture(texture_ref),
+                },
+            },
         };
 
-        const VkImageCreateInfo image_create_info = {
-            .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .pNext         = &mtl_texture_info,
-            .imageType     = VK_IMAGE_TYPE_2D,
-            .extent        = {width, height, 1},
-            .mipLevels     = 1,
-            .arrayLayers   = 1,
-            .format        = vk_format,
-            .tiling        = VK_IMAGE_TILING_OPTIMAL,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .usage         = ngpu_vk_get_image_usage_flags(params->texture_usage),
-            .samples       = VK_SAMPLE_COUNT_1_BIT,
-            .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-        };
+        vt->planes[i] = ngpu_texture_create(gpu_ctx);
+        if (!vt->planes[i])
+            return NGL_ERROR_MEMORY;
 
-        VkResult res = vkCreateImage(vk->device, &image_create_info, NULL, &plane_vk->image);
-        if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not create image: %s", ngpu_vk_res2str(res));
+        int ret = ngpu_texture_init(vt->planes[i], &texture_params);
+        if (ret < 0) {
             CFRelease(texture_ref);
-            return ngpu_vk_res2ret(res);
+            return ret;
         }
 
-        const struct ngpu_texture_params plane_params = {
-            .type             = NGPU_TEXTURE_TYPE_2D,
-            .format           = format,
-            .width            = width,
-            .height           = height,
-            .min_filter       = params->texture_min_filter,
-            .mag_filter       = params->texture_mag_filter,
-            .wrap_s           = params->texture_wrap_s,
-            .wrap_t           = params->texture_wrap_t,
-            .usage            = params->texture_usage,
-        };
-
-        const struct ngpu_texture_vk_wrap_params wrap_params = {
-            .params       = &plane_params,
-            .image        = plane_vk->image,
-            .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-
-        res = ngpu_texture_vk_wrap(vt->planes[i], &wrap_params);
-        if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not wrap texture: %s", ngpu_vk_res2str(res));
-            CFRelease(texture_ref);
-            return ngpu_vk_res2ret(res);
-        }
-
+        hwmap->mapped_image.planes[i] = vt->planes[i];
         CFRelease(texture_ref);
     }
 
@@ -220,7 +185,6 @@ static int vt_darwin_init(struct hwmap *hwmap, struct nmd_frame * frame)
 {
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
     struct hwmap_vt_darwin *vt = hwmap->hwmap_priv_data;
 
     CVPixelBufferRef cvpixbuf = (CVPixelBufferRef)frame->datap[0];
@@ -239,19 +203,14 @@ static int vt_darwin_init(struct hwmap *hwmap, struct nmd_frame * frame)
         .pNext = &mtl_device_info,
     };
 
-    vkExportMetalObjectsEXT(gpu_ctx_vk->vkcontext->device, &mtl_objects_info);
+    VkDevice device = ngpu_ctx_vk_get_device(gpu_ctx);
+    vkExportMetalObjectsEXT(device, &mtl_objects_info);
     vt->device = mtl_device_info.mtlDevice;
 
     CVReturn status = CVMetalTextureCacheCreate(NULL, NULL, vt->device, NULL, &vt->texture_cache);
     if (status != kCVReturnSuccess) {
         LOG(ERROR, "could not create Metal texture cache: %d", status);
         return NGL_ERROR_GRAPHICS_GENERIC;
-    }
-
-    for (size_t i = 0; i < 2; i++) {
-        vt->planes[i] = ngpu_texture_create(gpu_ctx);
-        if (!vt->planes[i])
-            return NGL_ERROR_MEMORY;
     }
 
     const struct image_params image_params = {
@@ -274,6 +233,9 @@ static void vt_darwin_uninit(struct hwmap *hwmap)
 
     for (size_t i = 0; i < 2; i++)
         ngpu_texture_freep(&vt->planes[i]);
+
+    CVMetalTextureCacheFlush(vt->texture_cache, 0);
+    CFRelease(vt->texture_cache);
 
     nmd_frame_releasep(&vt->frame);
 }
