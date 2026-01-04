@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Nope Forge
  * Copyright 2018-2022 GoPro Inc.
  *
@@ -21,7 +21,40 @@
  * under the License.
  */
 
+#include "config.h"
+
+#if defined(TARGET_LINUX)
+#include <unistd.h>
+#include <va/va.h>
+#include <va/va_drmcommon.h>
+
+#ifndef DRM_FORMAT_MOD_INVALID
+#define DRM_FORMAT_MOD_INVALID ((1ULL << 56) - 1)
+#endif
+
+#include "egl.h"
+#endif
+
+#if defined(TARGET_ANDROID)
+#include <android/hardware_buffer.h>
+#include <android/hardware_buffer_jni.h>
+#include <unistd.h>
+
+#include "egl.h"
+#endif
+
+#if defined(TARGET_DARWIN)
+#include <CoreVideo/CoreVideo.h>
+#include <IOSurface/IOSurface.h>
+#include <OpenGL/CGLIOSurface.h>
+#endif
+
+#if defined(TARGET_IPHONE)
+#include <CoreVideo/CoreVideo.h>
+#endif
+
 #include <string.h>
+
 
 #include "log.h"
 #include "ngpu/opengl/ctx_gl.h"
@@ -268,6 +301,10 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
     }
     s->params.depth = depth;
 
+#if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
+    s_priv->fd = -1;
+#endif
+
     s_priv->array_layers = 1;
     if (params->type == NGPU_TEXTURE_TYPE_CUBE) {
         s_priv->array_layers = 6;
@@ -306,6 +343,11 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
     else
         ngli_assert(0);
 
+    if (params->import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER)
+        s_priv->target = GL_TEXTURE_EXTERNAL_OES;
+    if (params->import_params.type == NGPU_IMPORT_TYPE_IOSURFACE)
+        s_priv->target = GL_TEXTURE_RECTANGLE;
+
     const struct ngpu_format_gl *format_gl = ngpu_format_get_gl_texture_format(gl, params->format);
     s_priv->format          = format_gl->format;
     s_priv->internal_format = format_gl->internal_format;
@@ -316,24 +358,11 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
     return 0;
 }
 
-struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
-{
-    struct ngpu_texture_gl *s = ngli_calloc(1, sizeof(*s));
-    if (!s)
-        return NULL;
-    s->parent.gpu_ctx = gpu_ctx;
-    return (struct ngpu_texture *)s;
-}
-
-int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
+static int texture_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
     struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-
-    int ret = texture_init_fields(s, params);
-    if (ret < 0)
-        return ret;
 
     if (s_priv->target == GL_RENDERBUFFER) {
         gl->funcs.GenRenderbuffers(1, &s_priv->id);
@@ -357,6 +386,225 @@ int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_param
         s_priv->target == GL_TEXTURE_3D ||
         s_priv->target == GL_TEXTURE_CUBE_MAP)
         gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_WRAP_R, wrap_r);
+
+    return 0;
+}
+
+struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
+{
+    struct ngpu_texture_gl *s = ngli_calloc(1, sizeof(*s));
+    if (!s)
+        return NULL;
+    s->parent.gpu_ctx = gpu_ctx;
+    return (struct ngpu_texture *)s;
+}
+
+#define ADD_ATTRIB(name, value) do {                          \
+    ngli_assert(nb_attribs + 3 < NGLI_ARRAY_NB(attribs));     \
+    attribs[nb_attribs++] = (name);                           \
+    attribs[nb_attribs++] = (EGLint)(value);                  \
+    attribs[nb_attribs] = EGL_NONE;                           \
+} while(0)
+
+static int texture_import_dma_buf(struct ngpu_texture *s)
+{
+#if defined(TARGET_LINUX)
+    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
+    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    const struct ngpu_import_params *import_params = &s->params.import_params;
+    const struct ngpu_import_dma_buf_params *dma_buf_params = &import_params->dma_buf;
+
+    s_priv->fd = dup(dma_buf_params->fd);
+    if (s_priv->fd == -1) {
+        LOG(ERROR, "could not dup file descriptor (fd=%d)", dma_buf_params->fd);
+        return NGL_ERROR_EXTERNAL;
+    }
+
+    EGLint attribs[32] = {EGL_NONE};
+    size_t nb_attribs = 0;
+
+    ADD_ATTRIB(EGL_WIDTH,  s->params.width);
+    ADD_ATTRIB(EGL_HEIGHT, s->params.height);
+    ADD_ATTRIB(EGL_LINUX_DRM_FOURCC_EXT, import_params->dma_buf.drm_format);
+
+    ADD_ATTRIB(EGL_DMA_BUF_PLANE0_FD_EXT, s_priv->fd);
+    ADD_ATTRIB(EGL_DMA_BUF_PLANE0_OFFSET_EXT, dma_buf_params->offset);
+    ADD_ATTRIB(EGL_DMA_BUF_PLANE0_PITCH_EXT, dma_buf_params->pitch);
+
+    const bool use_drm_format_mod =
+        NGLI_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS);
+    if (use_drm_format_mod && dma_buf_params->drm_format_mod != DRM_FORMAT_MOD_INVALID) {
+        ADD_ATTRIB(EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT, (uint32_t)(dma_buf_params->drm_format_mod & 0xFFFFFFFFLU));
+        ADD_ATTRIB(EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, (uint32_t)((dma_buf_params->drm_format_mod >> 32U) & 0xFFFFFFFFLU));
+    }
+
+    s_priv->egl_image = ngpu_eglCreateImageKHR(gl, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, NULL, attribs);
+    if (!s_priv->egl_image) {
+        LOG(ERROR, "failed to create egl image");
+        return NGL_ERROR_EXTERNAL;
+    }
+
+    gl->funcs.BindTexture(s_priv->target, s_priv->id);
+    if (gl->features & NGPU_FEATURE_GL_EXT_EGL_IMAGE_STORAGE)
+        gl->funcs.EGLImageTargetTexStorageEXT(s_priv->target, s_priv->egl_image, NULL);
+    else
+        gl->funcs.EGLImageTargetTexture2DOES(s_priv->target, s_priv->egl_image);
+    gl->funcs.BindTexture(s_priv->target, 0);
+
+    return 0;
+#else
+    return NGL_ERROR_UNSUPPORTED;
+#endif
+}
+
+static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
+{
+#if defined(TARGET_ANDROID)
+    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
+    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    const struct ngpu_import_params *import_params = &s->params.import_params;
+    const struct ngpu_import_ahardware_buffer_params *ahb_params = &import_params->ahardware_buffer;
+    AHardwareBuffer *hardware_buffer = ahb_params->hardware_buffer;
+
+    EGLClientBuffer egl_buffer = ngpu_eglGetNativeClientBufferANDROID(gl, hardware_buffer);
+    if (!egl_buffer)
+        return NGL_ERROR_EXTERNAL;
+
+    static const EGLint attrs[] = {
+        EGL_IMAGE_PRESERVED_KHR,
+        EGL_TRUE,
+        EGL_NONE,
+    };
+
+    s_priv->egl_image = ngpu_eglCreateImageKHR(gl, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, egl_buffer, attrs);
+    if (!s_priv->egl_image) {
+        LOG(ERROR, "failed to create egl image");
+        return NGL_ERROR_EXTERNAL;
+    }
+
+    gl->funcs.BindTexture(GL_TEXTURE_EXTERNAL_OES, s_priv->id);
+    if (gl->features & NGPU_FEATURE_GL_EXT_EGL_IMAGE_STORAGE)
+        gl->funcs.EGLImageTargetTexStorageEXT(s_priv->target, s_priv->egl_image, NULL);
+    else
+        gl->funcs.EGLImageTargetTexture2DOES(s_priv->target, s_priv->egl_image);
+    gl->funcs.EGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, s_priv->egl_image);
+
+    return 0;
+#else
+    return NGL_ERROR_UNSUPPORTED;
+#endif
+}
+
+static int texture_import_iosurface(struct ngpu_texture *s)
+{
+#if defined(TARGET_DARWIN)
+    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
+    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    const struct ngpu_import_params *import_params = &s->params.import_params;
+    const struct ngpu_import_iosurface_params *iosurface_params = &import_params->iosurface;
+    IOSurfaceRef surface = iosurface_params->iosurface;
+    size_t index = iosurface_params->plane;
+
+    /* CGLTexImageIOSurface2D() requires GL_UNSIGNED_INT_8_8_8_8_REV instead of GL_UNSIGNED_SHORT to map BGRA IOSurface2D */
+    const GLenum format_type = s_priv->format == GL_BGRA ? GL_UNSIGNED_INT_8_8_8_8_REV : s_priv->format_type;
+
+    gl->funcs.BindTexture(GL_TEXTURE_RECTANGLE, s_priv->id);
+    CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(), GL_TEXTURE_RECTANGLE,
+                                          s_priv->internal_format, (GLsizei)s->params.width, (GLsizei)s->params.height,
+                                          s_priv->format, format_type, surface, (GLuint)index);
+    if (err != kCGLNoError) {
+        LOG(ERROR, "could not bind IOSurface plane %zu to texture %u: %s", index, s_priv->id, CGLErrorString(err));
+        return NGL_ERROR_EXTERNAL;
+    }
+
+    gl->funcs.BindTexture(GL_TEXTURE_RECTANGLE, 0);
+
+    return 0;
+#else
+    return NGL_ERROR_UNSUPPORTED;
+#endif
+}
+
+static int texture_import_corevideo_buffer(struct ngpu_texture *s)
+{
+#if defined(TARGET_IPHONE)
+    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
+    struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    const struct ngpu_import_params *import_params = &s->params.import_params;
+    const struct ngpu_import_corevideo_buffer_params *cv_buffer_params = &import_params->corevideo_buffer;
+    CVPixelBufferRef cv_pixel_buffer = cv_buffer_params->corevideo_buffer;
+    size_t index = cv_buffer_params->plane;
+
+    const size_t width  = CVPixelBufferGetWidthOfPlane(cv_pixel_buffer, index);
+    const size_t height = CVPixelBufferGetHeightOfPlane(cv_pixel_buffer, index);
+    if (width > INT_MAX || height > INT_MAX)
+        return NGL_ERROR_LIMIT_EXCEEDED;
+
+    CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
+    CVReturn err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
+                                                                *cache,
+                                                                cv_pixel_buffer,
+                                                                NULL,
+                                                                GL_TEXTURE_2D,
+                                                                (GLint)s_priv->internal_format,
+                                                                (GLsizei)width,
+                                                                (GLsizei)height,
+                                                                s_priv->format,
+                                                                s_priv->format_type,
+                                                                index,
+                                                                &s_priv->cv_texture);
+    if (err != noErr) {
+        LOG(ERROR, "could not create CoreVideo texture from image: %d", err);
+        return NGL_ERROR_EXTERNAL;
+    }
+
+    s_priv->cv_pixel_buffer = CFRetain(cv_pixel_buffer);
+
+    /* Delete pre-allocated texture handle */
+    gl->funcs.DeleteTextures(1, &s_priv->id);
+
+    s_priv->id = CVOpenGLESTextureGetName(s_priv->cv_texture);
+    s_priv->wrapped = 1;
+
+    gl->funcs.BindTexture(GL_TEXTURE_2D, s_priv->id);
+    const GLint min_filter = ngpu_texture_get_gl_min_filter(s->params.min_filter, s->params.mipmap_filter);
+    const GLint mag_filter = ngpu_texture_get_gl_mag_filter(s->params.mag_filter);
+    const GLint wrap_s = ngpu_texture_get_gl_wrap(s->params.wrap_s);
+    const GLint wrap_t = ngpu_texture_get_gl_wrap(s->params.wrap_t);
+    gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_MIN_FILTER, min_filter);
+    gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_MAG_FILTER, mag_filter);
+    gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_WRAP_S, wrap_s);
+    gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_WRAP_T, wrap_t);
+    gl->funcs.BindTexture(GL_TEXTURE_2D, 0);
+
+    return 0;
+#else
+    return NGL_ERROR_UNSUPPORTED;
+#endif
+}
+
+int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
+{
+    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    int ret = texture_init_fields(s, params);
+    if (ret < 0)
+        return ret;
+
+    ret = texture_init(s, params);
+    if (ret < 0)
+        return ret;
+
     if (gl->features & NGPU_FEATURE_GL_TEXTURE_STORAGE) {
         texture_allocate_storage(s);
     } else {
@@ -366,43 +614,37 @@ int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_param
     return 0;
 }
 
-int ngpu_texture_gl_wrap(struct ngpu_texture *s, const struct ngpu_texture_gl_wrap_params *wrap_params)
+int ngpu_texture_gl_import(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    s_priv->wrapped = 1;
-
-    int ret = texture_init_fields(s, wrap_params->params);
+    int ret = texture_init_fields(s, params);
     if (ret < 0)
         return ret;
 
-    s_priv->id = wrap_params->texture;
-    if (wrap_params->target)
-        s_priv->target = wrap_params->target;
+    ret = texture_init(s, params);
+    if (ret < 0)
+        return ret;
+
+    const struct ngpu_import_params *import_params = &params->import_params;
+    switch (import_params->type) {
+    case NGPU_IMPORT_TYPE_DMA_BUF:
+        ret = texture_import_dma_buf(s);
+        break;
+    case NGPU_IMPORT_TYPE_AHARDWARE_BUFFER:
+        ret = texture_import_android_hardware_buffer(s);
+        break;
+    case NGPU_IMPORT_TYPE_IOSURFACE:
+        ret = texture_import_iosurface(s);
+        break;
+    case NGPU_IMPORT_TYPE_COREVIDEO_BUFFER:
+        ret = texture_import_corevideo_buffer(s);
+        break;
+    default:
+        ngli_assert(0);
+    }
+    if (ret < 0)
+        return ret;
 
     return 0;
-}
-
-void ngpu_texture_gl_set_id(struct ngpu_texture *s, GLuint id)
-{
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-
-    /* only wrapped textures can update their id with this function */
-    ngli_assert(s_priv->wrapped);
-
-    s_priv->id = id;
-}
-
-void ngpu_texture_gl_set_dimensions(struct ngpu_texture *s, uint32_t width, uint32_t height, uint32_t depth)
-{
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-
-    /* only wrapped textures can update their dimensions with this function */
-    ngli_assert(s_priv->wrapped);
-
-    struct ngpu_texture_params *params = &s->params;
-    params->width = width;
-    params->height = height;
-    params->depth = depth;
 }
 
 int ngpu_texture_gl_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize)
@@ -475,6 +717,21 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
         else
             gl->funcs.DeleteTextures(1, &s_priv->id);
     }
+
+#if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
+    if (s_priv->egl_image)
+        ngpu_eglDestroyImageKHR(gl, s_priv->egl_image);
+
+    if (s_priv->fd != -1)
+        close(s_priv->fd);
+#endif
+
+#if defined(TARGET_IPHONE)
+    if (s_priv->cv_pixel_buffer)
+        CFRelease(s_priv->cv_pixel_buffer);
+    if (s_priv->cv_texture)
+        CFRelease(s_priv->cv_texture);
+#endif
 
     ngli_freep(sp);
 }

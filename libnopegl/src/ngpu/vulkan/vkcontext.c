@@ -927,6 +927,15 @@ int ngpu_vkcontext_has_extension(const struct vkcontext *s, const char *name, in
     return 0;
 }
 
+int ngpu_vkcontext_has_extensions(const struct vkcontext *s, size_t extension_count, const char * const *extensions, int device)
+{
+    for (size_t i = 0; i < extension_count; i++) {
+        if (!ngpu_vkcontext_has_extension(s, extensions[i], device))
+            return 0;
+    }
+    return 1;
+}
+
 void ngpu_vkcontext_freep(struct vkcontext **sp)
 {
     struct vkcontext *s = *sp;

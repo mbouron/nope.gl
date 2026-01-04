@@ -394,6 +394,58 @@ size_t ngpu_buffer_get_size(const struct ngpu_buffer *s);
 uint32_t ngpu_buffer_get_usage(const struct ngpu_buffer *s);
 
 /*
+ * Import
+ */
+
+enum ngpu_import_type {
+    NGPU_IMPORT_TYPE_NONE,
+    NGPU_IMPORT_TYPE_DMA_BUF,
+    NGPU_IMPORT_TYPE_AHARDWARE_BUFFER,
+    NGPU_IMPORT_TYPE_IOSURFACE,
+    NGPU_IMPORT_TYPE_COREVIDEO_BUFFER,
+    NGPU_IMPORT_TYPE_METAL_TEXTURE,
+};
+
+struct ngpu_import_dma_buf_params {
+    int fd;
+    size_t size;
+    size_t offset;
+    size_t pitch;
+    uint32_t drm_format;
+    uint64_t drm_format_mod;
+};
+
+struct ngpu_import_ahardware_buffer_params {
+    void *hardware_buffer; // AHardwareBuffer
+    void *ycbcr_sampler; // YCbCrSampler (Vulkan only)
+};
+
+struct ngpu_import_iosurface_params {
+    void *iosurface; // IOSurfaceRef
+    uint32_t plane;
+};
+
+struct ngpu_import_corevideo_buffer_params {
+    void *corevideo_buffer; // CVPixelBufferRef
+    uint32_t plane;
+};
+
+struct ngpu_import_metal_texture_params {
+    void *metal_texture; // MTLTexture
+};
+
+struct ngpu_import_params {
+    enum ngpu_import_type type;
+    union {
+        struct ngpu_import_dma_buf_params dma_buf;
+        struct ngpu_import_ahardware_buffer_params ahardware_buffer;
+        struct ngpu_import_iosurface_params iosurface;
+        struct ngpu_import_corevideo_buffer_params corevideo_buffer;
+        struct ngpu_import_metal_texture_params metal_texture;
+    };
+};
+
+/*
  * Texture
  */
 
@@ -453,6 +505,7 @@ struct ngpu_texture_params {
     enum ngpu_wrap wrap_t;
     enum ngpu_wrap wrap_r;
     uint32_t usage;
+    struct ngpu_import_params import_params;
 };
 
 struct ngpu_texture_transfer_params {
@@ -891,6 +944,11 @@ enum {
     NGPU_FEATURE_COMPUTE_BIT                           = 1U << 1,
     NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT             = 1U << 2,
     NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT             = 1U << 3,
+    NGPU_FEATURE_IMPORT_DMA_BUF_BIT                    = 1U << 4,
+    NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT           = 1U << 5,
+    NGPU_FEATURE_IMPORT_IOSURFACE_BIT                  = 1U << 6,
+    NGPU_FEATURE_IMPORT_COREVIDEO_BUFFER_BIT           = 1U << 7,
+    NGPU_FEATURE_IMPORT_METAL_TEXTURE_BIT              = 1U << 8,
     NGPU_FEATURE_MAX_ENUM                              = 0x7FFFFFFF,
 };
 
