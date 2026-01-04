@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2018-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -34,16 +34,10 @@
 #include "log.h"
 #include "math_utils.h"
 #include "ngpu/ngpu.h"
-#include "ngpu/opengl/ctx_gl.h"
-#include "ngpu/opengl/egl.h"
-#include "ngpu/opengl/glincludes.h"
-#include "ngpu/opengl/texture_gl.h"
 #include "nopegl/nopegl.h"
 
 struct hwmap_mc {
     struct android_image *android_image;
-    EGLImageKHR egl_image;
-    GLuint gl_texture;
     struct ngpu_texture *texture;
 };
 
@@ -71,49 +65,7 @@ static bool support_direct_rendering(struct hwmap *hwmap)
 
 static int mc_init(struct hwmap *hwmap, struct nmd_frame *frame)
 {
-    struct ngl_ctx *ctx = hwmap->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
-    const struct hwmap_params *params = &hwmap->params;
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
-
-    gl->funcs.GenTextures(1, &mc->gl_texture);
-
-    const GLint min_filter = ngpu_texture_get_gl_min_filter(params->texture_min_filter, NGPU_MIPMAP_FILTER_NONE);
-    const GLint mag_filter = ngpu_texture_get_gl_mag_filter(params->texture_mag_filter);
-
-    gl->funcs.BindTexture(GL_TEXTURE_EXTERNAL_OES, mc->gl_texture);
-    gl->funcs.TexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, min_filter);
-    gl->funcs.TexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, mag_filter);
-    gl->funcs.TexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    gl->funcs.TexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    gl->funcs.BindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
-
-    struct ngpu_texture_params texture_params = {
-        .type         = NGPU_TEXTURE_TYPE_2D,
-        .format       = NGPU_FORMAT_UNDEFINED,
-        .min_filter   = params->texture_min_filter,
-        .mag_filter   = params->texture_mag_filter,
-        .wrap_s       = NGPU_WRAP_CLAMP_TO_EDGE,
-        .wrap_t       = NGPU_WRAP_CLAMP_TO_EDGE,
-        .wrap_r       = NGPU_WRAP_CLAMP_TO_EDGE,
-        .usage        = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
-    };
-
-    struct ngpu_texture_gl_wrap_params wrap_params = {
-        .params  = &texture_params,
-        .texture = mc->gl_texture,
-        .target  = GL_TEXTURE_EXTERNAL_OES,
-    };
-
-    mc->texture = ngpu_texture_create(gpu_ctx);
-    if (!mc->texture)
-        return NGL_ERROR_MEMORY;
-
-    int ret = ngpu_texture_gl_wrap(mc->texture, &wrap_params);
-    if (ret < 0)
-        return ret;
 
     const struct image_params image_params = {
         .width = (uint32_t)frame->width,
@@ -129,18 +81,13 @@ static int mc_init(struct hwmap *hwmap, struct nmd_frame *frame)
     return 0;
 }
 
-
 static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 {
     const struct hwmap_params *params = &hwmap->params;
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct android_ctx *android_ctx = &ctx->android_ctx;
-
-    ngpu_texture_gl_set_dimensions(mc->texture, (uint32_t)frame->width, (uint32_t)frame->height, 0);
 
     int ret = nmd_mc_frame_render_and_releasep(&frame);
     if (ret < 0)
@@ -151,8 +98,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     if (ret < 0)
         return ret;
 
-    ngpu_eglDestroyImageKHR(gl, mc->egl_image);
-    mc->egl_image = NULL;
+    ngpu_texture_freep(&mc->texture);
     ngli_android_image_freep(&mc->android_image);
 
     mc->android_image = android_image;
@@ -173,43 +119,40 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     const int filtering = params->texture_min_filter || params->texture_mag_filter;
     ngli_android_get_crop_matrix(matrix, &desc, &crop_rect, filtering);
 
-    EGLClientBuffer egl_buffer = ngpu_eglGetNativeClientBufferANDROID(gl, hardware_buffer);
-    if (!egl_buffer)
-        return NGL_ERROR_EXTERNAL;
-
-    static const EGLint attrs[] = {
-        EGL_IMAGE_PRESERVED_KHR,
-        EGL_TRUE,
-        EGL_NONE,
+    struct ngpu_texture_params texture_params = {
+        .type       = NGPU_TEXTURE_TYPE_2D,
+        .format     = NGPU_FORMAT_UNDEFINED,
+        .width      = desc.width,
+        .height     = desc.height,
+        .min_filter = params->texture_min_filter,
+        .mag_filter = params->texture_mag_filter,
+        .usage      = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
+        .import_params = {
+            .type = NGPU_IMPORT_TYPE_AHARDWARE_BUFFER,
+            .ahardware_buffer = {
+                .hardware_buffer = hardware_buffer,
+            },
+        },
     };
 
-    const struct ngpu_texture_gl *texture_gl = (struct ngpu_texture_gl *)mc->texture;
-    const GLuint id = texture_gl->id;
+    mc->texture = ngpu_texture_create(gpu_ctx);
+    if (!mc->texture)
+        return NGL_ERROR_MEMORY;
 
-    mc->egl_image = ngpu_eglCreateImageKHR(gl, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, egl_buffer, attrs);
-    if (!mc->egl_image) {
-        LOG(ERROR, "failed to create egl image");
-        return NGL_ERROR_EXTERNAL;
-    }
+    ret = ngpu_texture_init(mc->texture, &texture_params);
+    if (ret < 0)
+        return ret;
 
-    gl->funcs.BindTexture(GL_TEXTURE_EXTERNAL_OES, id);
-    gl->funcs.EGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, mc->egl_image);
+    hwmap->mapped_image.planes[0] = mc->texture;
 
     return 0;
 }
 
 static void mc_uninit(struct hwmap *hwmap)
 {
-    struct ngl_ctx *ctx = hwmap->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
 
     ngpu_texture_freep(&mc->texture);
-    gl->funcs.DeleteTextures(1, &mc->gl_texture);
-
-    ngpu_eglDestroyImageKHR(gl, mc->egl_image);
     ngli_android_image_freep(&mc->android_image);
 }
 

@@ -93,6 +93,7 @@ struct vkcontext *ngpu_vkcontext_create(void);
 VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params);
 void *ngpu_vkcontext_get_proc_addr(struct vkcontext *s, const char *name);
 int ngpu_vkcontext_has_extension(const struct vkcontext *s, const char *name, int device);
+int ngpu_vkcontext_has_extensions(const struct vkcontext *s, size_t extension_count, const char * const *extensions, int device);
 VkFormat ngpu_vkcontext_find_supported_format(struct vkcontext *s, const VkFormat *formats,
                                               VkImageTiling tiling, VkFormatFeatureFlags features);
 uint32_t ngpu_vkcontext_find_memory_type(struct vkcontext *s, uint32_t type, VkMemoryPropertyFlags props);

@@ -93,6 +93,9 @@ typedef void (NGLI_GL_APIENTRY *GLDEBUGPROC)(GLenum source, GLenum type, GLuint 
 /* OES external images */
 # define GL_TEXTURE_EXTERNAL_OES               0x8D65
 
+/* Rectangle textures (macOS) */
+#define GL_TEXTURE_RECTANGLE                   0x84F5
+
 /* Desktop formats and features */
 # define GL_STENCIL_INDEX                      0x1901
 # define GL_R16                                0x822A

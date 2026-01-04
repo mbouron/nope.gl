@@ -20,6 +20,8 @@
  * under the License.
  */
 
+#include "config.h"
+
 #include <string.h>
 #include <stdint.h>
 
@@ -30,9 +32,24 @@
 #include "ngpu/vulkan/format_vk.h"
 #include "ngpu/vulkan/texture_vk.h"
 #include "ngpu/vulkan/vkutils.h"
+#include "ngpu/vulkan/ycbcr_sampler_vk.h"
 #include "utils/bits.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
+
+#if defined(TARGET_LINUX) ||defined(TARGET_ANDROID)
+#include <unistd.h>
+#endif
+
+#if defined(TARGET_ANDROID)
+#include <vulkan/vulkan_android.h>
+#include <android/hardware_buffer.h>
+#endif
+
+#if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
+#include <CoreFoundation/CoreFoundation.h>
+#include <vulkan/vulkan_metal.h>
+#endif
 
 static const VkFilter vk_filter_map[NGPU_NB_FILTER] = {
     [NGPU_FILTER_NEAREST] = VK_FILTER_NEAREST,
@@ -462,6 +479,430 @@ int ngpu_texture_vk_init(struct ngpu_texture *s, const struct ngpu_texture_param
         LOG(ERROR, "unable to initialize texture: %s", ngpu_vk_res2str(res));
     return ngpu_vk_res2ret(res);
 }
+
+static int import_dma_buf(struct ngpu_texture *s)
+{
+#if defined(TARGET_LINUX)
+    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    const struct ngpu_import_params *import_params = &s->params.import_params;
+    const struct ngpu_import_dma_buf_params *dma_buf_params = &import_params->dma_buf;
+
+    const VkImageDrmFormatModifierExplicitCreateInfoEXT drm_explicit_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
+        .drmFormatModifier = dma_buf_params->drm_format_mod,
+        .drmFormatModifierPlaneCount = 1,
+        .pPlaneLayouts = &(const VkSubresourceLayout) {
+            .rowPitch   = dma_buf_params->pitch,
+            .depthPitch = 0,
+            .offset     = dma_buf_params->offset,
+        },
+    };
+
+    const VkExternalMemoryImageCreateInfoKHR ext_mem_info = {
+        .sType       = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_KHR,
+        .pNext       = &drm_explicit_info,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    };
+
+    const VkImageCreateInfo img_info = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext         = &ext_mem_info,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .format        = s_priv->format,
+        .extent        = {.width = s->params.width, .height = s->params.height, .depth = 1},
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .tiling        = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT,
+        .usage         = ngpu_vk_get_image_usage_flags(s->params.usage),
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    const VkPhysicalDeviceImageDrmFormatModifierInfoEXT drm_info = {
+        .sType             = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT,
+        .drmFormatModifier = drm_explicit_info.drmFormatModifier,
+        .sharingMode       = img_info.sharingMode,
+    };
+
+    const VkPhysicalDeviceExternalImageFormatInfoKHR ext_fmt_info = {
+        .sType      = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO_KHR,
+        .pNext      = &drm_info,
+        .handleType = ext_mem_info.handleTypes,
+    };
+
+    const VkPhysicalDeviceImageFormatInfo2KHR fmt_info = {
+        .sType  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR,
+        .pNext  = &ext_fmt_info,
+        .format = img_info.format,
+        .type   = img_info.imageType,
+        .tiling = img_info.tiling,
+        .usage  = img_info.usage,
+        .flags  = img_info.flags,
+    };
+
+    VkExternalImageFormatPropertiesKHR ext_fmt_props = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES_KHR,
+    };
+
+    VkImageFormatProperties2KHR fmt_props = {
+        .pNext = &ext_fmt_props,
+        .sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2_KHR,
+    };
+
+    VkResult res = vkGetPhysicalDeviceImageFormatProperties2(vk->phy_device, &fmt_info, &fmt_props);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not get image format properties: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+    const VkExtent3D max = fmt_props.imageFormatProperties.maxExtent;
+    if (s->params.width > max.width || s->params.height > max.height) {
+        LOG(ERROR, "plane dimensions (%ux%u) exceed GPU limits (%ux%u)",
+            s->params.width, s->params.height, max.width, max.height);
+        return NGL_ERROR_GRAPHICS_LIMIT_EXCEEDED;
+    }
+
+    res = vkCreateImage(vk->device, &img_info, NULL, &s_priv->image);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "failed to create image: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+    VkMemoryDedicatedRequirements mem_ded_reqs = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS_KHR,
+    };
+
+    VkMemoryRequirements2 mem_reqs = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR,
+        .pNext = &mem_ded_reqs,
+    };
+
+    const VkImageMemoryRequirementsInfo2 mem_reqs_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2_KHR,
+        .image = s_priv->image,
+    };
+    vkGetImageMemoryRequirements2(vk->device, &mem_reqs_info, &mem_reqs);
+
+    VkMemoryFdPropertiesKHR fd_props = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
+    };
+    res = vk->GetMemoryFdPropertiesKHR(vk->device,
+                                       VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+                                       dma_buf_params->fd,
+                                       &fd_props);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not get fd properties (fd=%d): %s", dma_buf_params->fd, ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+    s_priv->fd = dup(dma_buf_params->fd);
+    if (s_priv->fd == -1) {
+        LOG(ERROR, "could not dup file descriptor (fd=%d)", dma_buf_params->fd);
+        return NGL_ERROR_EXTERNAL;
+    }
+
+    VkImportMemoryFdInfoKHR fd_info = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+        .fd = s_priv->fd,
+    };
+
+    const VkMemoryDedicatedAllocateInfoKHR mem_ded_alloc_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR,
+        .image = s_priv->image,
+    };
+
+    VkMemoryAllocateInfo mem_alloc_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &fd_info,
+        .allocationSize = dma_buf_params->size,
+    };
+    if (mem_ded_reqs.prefersDedicatedAllocation) {
+        fd_info.pNext = &mem_ded_alloc_info,
+        mem_alloc_info.allocationSize = mem_reqs.memoryRequirements.size;
+    }
+
+    res = vkAllocateMemory(vk->device, &mem_alloc_info, NULL, &s_priv->image_memory);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not allocate memory: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_MEMORY;
+    }
+    /*
+     * According to the VkImportMemoryFdInfoKHR documentation, importing
+     * the memory from a file descriptor transfers ownership of the file
+     * descriptor to the Vulkan implementation. Moreover, the application
+     * must not perform any operation on the file descriptor after a
+     * successful import.
+     * See: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImportMemoryFdInfoKHR.html
+     */
+    s_priv->fd = -1;
+
+    res = vkBindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not bind image memory: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+        ngpu_texture_vk_transition_layout(s, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    return 0;
+#else
+    return NGL_ERROR_UNSUPPORTED;
+#endif
+}
+
+static int import_android_hardware_buffer(struct ngpu_texture *s)
+{
+#if defined(TARGET_ANDROID)
+    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    const struct ngpu_import_params *import_params = &s->params.import_params;
+    const struct ngpu_import_ahardware_buffer_params *ahb_params = &import_params->ahardware_buffer;
+    struct AHardwareBuffer *hardware_buffer = ahb_params->hardware_buffer;
+
+    VkAndroidHardwareBufferFormatPropertiesANDROID ahb_format_props = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID,
+    };
+
+    VkAndroidHardwareBufferPropertiesANDROID ahb_props = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID,
+        .pNext = &ahb_format_props,
+    };
+
+    VkResult res = vk->GetAndroidHardwareBufferPropertiesANDROID(vk->device, hardware_buffer, &ahb_props);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not get android hardware buffer properties: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+    VkExternalFormatANDROID external_format = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID,
+        .externalFormat = 0,
+    };
+
+    if (ahb_format_props.format == VK_FORMAT_UNDEFINED)
+        external_format.externalFormat = ahb_format_props.externalFormat;
+
+    VkExternalMemoryImageCreateInfo external_memory_image_info = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .pNext = &external_format,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID,
+    };
+
+    VkImportAndroidHardwareBufferInfoANDROID import_ahb_info = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID,
+        .buffer = hardware_buffer,
+    };
+
+    const VkImageCreateInfo img_info = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext         = &external_memory_image_info,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .extent        = {s->params.width, s->params.height, 1},
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .format        = ahb_format_props.format,
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage         = ngpu_vk_get_image_usage_flags(s->params.usage),
+        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    res = vkCreateImage(vk->device, &img_info, NULL, &s_priv->image);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not create image: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+    VkMemoryDedicatedAllocateInfoKHR mem_ded_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR,
+        .pNext = &import_ahb_info,
+        .image = s_priv->image,
+    };
+
+    const VkMemoryRequirements mem_reqs = {
+      .size = ahb_props.allocationSize,
+      .memoryTypeBits = ahb_props.memoryTypeBits,
+    };
+
+    const VkMemoryPropertyFlags mem_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    const uint32_t mem_type_index = ngpu_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
+    if (mem_type_index == UINT32_MAX) {
+        LOG(ERROR, "could not find required memory type");
+        return NGL_ERROR_GRAPHICS_UNSUPPORTED;
+    }
+
+    const VkMemoryAllocateInfo mem_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &mem_ded_info,
+        .allocationSize = mem_reqs.size,
+        .memoryTypeIndex = mem_type_index,
+    };
+
+    res = vkAllocateMemory(vk->device, &mem_info, NULL, &s_priv->image_memory);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not allocate memory: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_MEMORY;
+    }
+
+    res = vkBindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not bind image memory: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+    const struct ngpu_ycbcr_sampler_vk *ycbcr_sampler_vk = (struct ngpu_ycbcr_sampler_vk *)ahb_params->ycbcr_sampler;
+    s_priv->use_ycbcr_sampler = 1;
+    s_priv->ycbcr_sampler = ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler_vk);
+
+    const VkSamplerYcbcrConversionInfoKHR sampler_ycbcr_conv_info = {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO_KHR,
+        .conversion = ycbcr_sampler_vk->conv,
+    };
+
+    const VkImageSubresourceRange subres_range = {
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1,
+    };
+
+    const VkImageViewCreateInfo view_info = {
+        .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext            = &sampler_ycbcr_conv_info,
+        .image            = s_priv->image,
+        .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+        .format           = VK_FORMAT_UNDEFINED,
+        .subresourceRange = subres_range,
+    };
+
+    res = vkCreateImageView(vk->device, &view_info, NULL, &s_priv->image_view);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not create image view: %s", ngpu_vk_res2str(res));
+        return NGL_ERROR_GRAPHICS_GENERIC;
+    }
+
+    const VkImageMemoryBarrier barrier = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask       = 0,
+        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+        .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
+        .dstQueueFamilyIndex = vk->graphics_queue_index,
+        .image               = s_priv->image,
+        .subresourceRange    = subres_range,
+    };
+
+    VkCommandBuffer cmd_buf = gpu_ctx_vk->cur_cmd_buffer->cmd_buf;
+    vkCmdPipelineBarrier(cmd_buf,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         0,
+                         0, NULL,
+                         0, NULL,
+                         1, &barrier);
+
+    ngpu_texture_vk_transition_to_default_layout(s);
+
+    return 0;
+#else
+    return NGL_ERROR_UNSUPPORTED;
+#endif
+}
+
+static int import_metal_texture(struct ngpu_texture *s)
+{
+#if defined(TARGET_DARWIN)
+    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    const struct ngpu_import_params *import_params = &s->params.import_params;
+    const struct ngpu_import_metal_texture_params *metal_texture_params = &import_params->metal_texture;
+
+    const VkImportMetalTextureInfoEXT mtl_texture_info = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_METAL_TEXTURE_INFO_EXT,
+        .plane = VK_IMAGE_ASPECT_PLANE_0_BIT,
+        .mtlTexture = metal_texture_params->metal_texture,
+    };
+
+    const VkImageCreateInfo image_create_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = &mtl_texture_info,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .extent = {s->params.width, s->params.height, 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .format = s_priv->format,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage = ngpu_vk_get_image_usage_flags(s->params.usage),
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    VkResult res = vkCreateImage(vk->device, &image_create_info, NULL, &s_priv->image);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not create image: %s", ngpu_vk_res2str(res));
+        return ngpu_vk_res2ret(res);
+    }
+
+  return 0;
+#else
+    return NGL_ERROR_UNSUPPORTED;
+#endif
+}
+
+int ngpu_texture_vk_import(struct ngpu_texture *s, const struct ngpu_texture_params *params)
+{
+    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+
+    int ret = init_fields(s, params);
+    if (ret < 0)
+        return ret;
+
+    const struct ngpu_import_params *import_params = &params->import_params;
+    switch (import_params->type) {
+    case NGPU_IMPORT_TYPE_DMA_BUF:
+        ret = import_dma_buf(s);
+        break;
+    case NGPU_IMPORT_TYPE_AHARDWARE_BUFFER:
+        ret = import_android_hardware_buffer(s);
+        break;
+    case NGPU_IMPORT_TYPE_METAL_TEXTURE:
+        ret = import_metal_texture(s);
+        break;
+    default:
+        ngli_assert(0);
+    }
+
+    if (ret < 0)
+        return ret;
+
+    VkResult res;
+    if (!s_priv->image_view) {
+        res = create_image_view(s);
+        if (res != VK_SUCCESS)
+            return res;
+    }
+
+    if (!s_priv->sampler) {
+        res = create_sampler(s);
+        if (res != VK_SUCCESS)
+            return res;
+    }
+
+    return 0;
+}
+
 
 VkResult ngpu_texture_vk_wrap(struct ngpu_texture *s, const struct ngpu_texture_vk_wrap_params *wrap_params)
 {

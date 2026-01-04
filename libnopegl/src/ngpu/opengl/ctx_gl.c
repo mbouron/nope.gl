@@ -71,67 +71,38 @@ static void capture_corevideo(struct ngpu_ctx *s)
 #if defined(TARGET_IPHONE)
 static int wrap_capture_cvpixelbuffer(struct ngpu_ctx *s,
                                       CVPixelBufferRef buffer,
-                                      struct ngpu_texture **texturep,
-                                      CVOpenGLESTextureRef *cv_texturep)
+                                      struct ngpu_texture **texturep)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-    struct glcontext *gl = s_priv->glcontext;
-
-    CVOpenGLESTextureRef cv_texture = NULL;
-    CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
     const size_t width = CVPixelBufferGetWidth(buffer);
     const size_t height = CVPixelBufferGetHeight(buffer);
-    CVReturn cv_ret = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
-                                                                   *cache,
-                                                                   buffer,
-                                                                   NULL,
-                                                                   GL_TEXTURE_2D,
-                                                                   GL_RGBA,
-                                                                   (GLsizei)width,
-                                                                   (GLsizei)height,
-                                                                   GL_BGRA,
-                                                                   GL_UNSIGNED_BYTE,
-                                                                   0,
-                                                                   &cv_texture);
-    if (cv_ret != kCVReturnSuccess) {
-        LOG(ERROR, "could not create CoreVideo texture from CVPixelBuffer: %d", cv_ret);
-        return NGL_ERROR_EXTERNAL;
-    }
-
-    GLuint id = CVOpenGLESTextureGetName(cv_texture);
-    gl->funcs.BindTexture(GL_TEXTURE_2D, id);
-    gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    gl->funcs.BindTexture(GL_TEXTURE_2D, 0);
 
     struct ngpu_texture *texture = ngpu_texture_create(s);
-    if (!texture) {
-        CFRelease(cv_texture);
+    if (!texture)
         return NGL_ERROR_MEMORY;
-    }
 
-    const struct ngpu_texture_params attachment_params = {
+    const struct ngpu_texture_params texture_params = {
         .type   = NGPU_TEXTURE_TYPE_2D,
         .format = NGPU_FORMAT_B8G8R8A8_UNORM,
         .width  = (uint32_t)width,
         .height = (uint32_t)height,
         .usage  = NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT,
+        .import_params = {
+            .type = NGPU_IMPORT_TYPE_COREVIDEO_BUFFER,
+            .corevideo_buffer = {
+                .corevideo_buffer = buffer,
+                .plane = 0,
+            }
+        },
     };
 
-    const struct ngpu_texture_gl_wrap_params wrap_params = {
-        .params  = &attachment_params,
-        .texture = id,
-    };
 
-    int ret = ngpu_texture_gl_wrap(texture, &wrap_params);
+    int ret = ngpu_texture_init(texture, &texture_params);
     if (ret < 0) {
-        CFRelease(cv_texture);
         ngpu_texture_freep(&texture);
         return ret;
     }
 
     *texturep = texture;
-    *cv_texturep = cv_texture;
 
     return 0;
 }
@@ -245,8 +216,7 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
 #if defined(TARGET_IPHONE)
         if (ctx_params->capture_buffer) {
             s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(ctx_params->capture_buffer);
-            int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer,
-                                                 &s_priv->capture_texture, &s_priv->capture_cvtexture);
+            int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer, &s_priv->capture_texture);
             if (ret < 0)
                 return ret;
         } else {
@@ -447,11 +417,16 @@ static const struct {
     uint64_t feature;
     uint64_t feature_gl;
 } feature_map[] = {
-    {NGPU_FEATURE_SOFTWARE_BIT,              NGPU_FEATURE_GL_SOFTWARE},
-    {NGPU_FEATURE_COMPUTE_BIT,               NGPU_FEATURE_GL_COMPUTE_SHADER_ALL},
-    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT, NGPU_FEATURE_GL_BUFFER_STORAGE},
-    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT, NGPU_FEATURE_GL_EXT_BUFFER_STORAGE},
-    {NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT, 0},
+    {NGPU_FEATURE_SOFTWARE_BIT,                NGPU_FEATURE_GL_SOFTWARE},
+    {NGPU_FEATURE_COMPUTE_BIT,                 NGPU_FEATURE_GL_COMPUTE_SHADER_ALL},
+    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT,   NGPU_FEATURE_GL_BUFFER_STORAGE},
+    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT,   NGPU_FEATURE_GL_EXT_BUFFER_STORAGE},
+    {NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT,   0},
+    {NGPU_FEATURE_IMPORT_DMA_BUF_BIT,          NGPU_FEATURE_GL_OES_EGL_IMAGE |
+                                               NGPU_FEATURE_GL_EGL_IMAGE_BASE_KHR |
+                                               NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT},
+    {NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT, NGPU_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE |
+                                               NGPU_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER},
 };
 
 static void ngpu_ctx_info_init(struct ngpu_ctx *s)
@@ -461,12 +436,19 @@ static void ngpu_ctx_info_init(struct ngpu_ctx *s)
 
     s->version = gl->version;
     s->language_version = gl->glsl_version;
+
     for (size_t i = 0; i < NGLI_ARRAY_NB(feature_map); i++) {
         const uint64_t feature = feature_map[i].feature;
         const uint64_t feature_gl = feature_map[i].feature_gl;
         if (NGLI_HAS_ALL_FLAGS(gl->features, feature_gl))
             s->features |= feature;
     }
+    if (s->params.platform == NGPU_PLATFORM_MACOS)
+        s->features |= NGPU_FEATURE_IMPORT_IOSURFACE_BIT;
+
+    if (s->params.platform == NGPU_PLATFORM_IOS)
+        s->features |= NGPU_FEATURE_IMPORT_IOSURFACE_BIT;
+
     s->limits = gl->limits;
     s->nb_in_flight_frames = 2;
 }
@@ -686,8 +668,7 @@ static int update_capture_cvpixelbuffer(struct ngpu_ctx *s, CVPixelBufferRef cap
 
     if (capture_buffer) {
         s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(capture_buffer);
-        int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer,
-                                             &s_priv->color, &s_priv->capture_cvtexture);
+        int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer, &s_priv->color);
         if (ret < 0)
             return ret;
     } else {
@@ -1310,6 +1291,7 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
                                                                                  \
     .texture_create                     = ngpu_texture_gl_create,                \
     .texture_init                       = ngpu_texture_gl_init,                  \
+    .texture_import                     = ngpu_texture_gl_import,                \
     .texture_upload                     = ngpu_texture_gl_upload,                \
     .texture_upload_with_params         = ngpu_texture_gl_upload_with_params,    \
     .texture_generate_mipmap            = ngpu_texture_gl_generate_mipmap,       \

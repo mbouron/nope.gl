@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2024 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2018-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -40,9 +41,24 @@ struct ngpu_texture *ngpu_texture_create(struct ngpu_ctx *gpu_ctx)
     return s;
 }
 
+static const uint64_t import_feature_map[] = {
+    [NGPU_IMPORT_TYPE_NONE]             = 0,
+    [NGPU_IMPORT_TYPE_DMA_BUF]          = NGPU_FEATURE_IMPORT_DMA_BUF_BIT,
+    [NGPU_IMPORT_TYPE_AHARDWARE_BUFFER] = NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT,
+    [NGPU_IMPORT_TYPE_IOSURFACE]        = NGPU_FEATURE_IMPORT_IOSURFACE_BIT,
+    [NGPU_IMPORT_TYPE_COREVIDEO_BUFFER] = NGPU_FEATURE_IMPORT_COREVIDEO_BUFFER_BIT,
+    [NGPU_IMPORT_TYPE_METAL_TEXTURE]    = NGPU_FEATURE_IMPORT_METAL_TEXTURE_BIT,
+};
+
 int ngpu_texture_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
-    return s->gpu_ctx->cls->texture_init(s, params);
+    const enum ngpu_import_type import_type = params->import_params.type;
+    if (import_type == NGPU_IMPORT_TYPE_NONE) {
+        ngli_assert(NGLI_HAS_ALL_FLAGS(s->gpu_ctx->features, import_feature_map[import_type]));
+        return s->gpu_ctx->cls->texture_init(s, params);
+    }
+
+    return s->gpu_ctx->cls->texture_import(s, params);
 }
 
 int ngpu_texture_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize)
