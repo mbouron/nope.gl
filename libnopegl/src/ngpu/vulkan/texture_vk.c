@@ -724,6 +724,11 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
     return VK_SUCCESS;
 }
 
+int ngpu_texture_vk_import(struct ngpu_texture *s, const struct ngpu_texture_import_params *params)
+{
+    return 0;
+}
+
 int ngpu_texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize)
 {
     struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;

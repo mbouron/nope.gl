@@ -453,6 +453,29 @@ struct ngpu_texture_params {
     enum ngpu_wrap wrap_t;
     enum ngpu_wrap wrap_r;
     uint32_t usage;
+
+};
+
+enum ngpu_texture_import_type {
+    NGPU_TEXTURE_IMPORT_TYPE_DMA_BUF,
+    NGPU_TEXTURE_IMPORT_TYPE_ANDROID_HARDWARE_BUFFER,
+};
+
+struct ngpu_texture_import_params {
+    struct ngpu_texture_params *params;
+    enum ngpu_texture_import_type type;
+    union {
+        int fd;
+        void *ptr;
+    } handle;
+    size_t size;
+    size_t offset;
+    uint32_t drm_format;
+    bool use_drm_format_mod;
+    uint64_t drm_format_mod;
+    size_t stride_w;
+    size_t stride_h;
+    uint32_t plane;
 };
 
 struct ngpu_texture_transfer_params {
@@ -467,6 +490,7 @@ struct ngpu_texture;
 
 struct ngpu_texture *ngpu_texture_create(struct ngpu_ctx *gpu_ctx);
 int ngpu_texture_init(struct ngpu_texture *s, const struct ngpu_texture_params *params);
+int ngpu_texture_import(struct ngpu_texture *s, const struct ngpu_texture_import_params *params);
 int ngpu_texture_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize);
 int ngpu_texture_upload_with_params(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params);
 int ngpu_texture_generate_mipmap(struct ngpu_texture *s);

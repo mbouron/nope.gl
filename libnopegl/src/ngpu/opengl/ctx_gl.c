@@ -1312,6 +1312,7 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
                                                                                  \
     .texture_create                     = ngpu_texture_gl_create,                \
     .texture_init                       = ngpu_texture_gl_init,                  \
+    .texture_import                     = ngpu_texture_gl_import,                \
     .texture_upload                     = ngpu_texture_gl_upload,                \
     .texture_upload_with_params         = ngpu_texture_gl_upload_with_params,    \
     .texture_generate_mipmap            = ngpu_texture_gl_generate_mipmap,       \

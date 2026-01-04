@@ -49,9 +49,6 @@ struct hwmap_vaapi {
     struct nmd_frame *frame;
     struct ngpu_texture *planes[2];
 
-    GLuint gl_planes[2];
-    EGLImageKHR egl_images[2];
-
     VADRMPRIMESurfaceDescriptor surface_descriptor;
     int surface_acquired;
 };
@@ -74,7 +71,6 @@ static bool support_direct_rendering(struct hwmap *hwmap)
 
 static int vaapi_init(struct hwmap *hwmap, struct nmd_frame *frame)
 {
-    const struct hwmap_params *params = &hwmap->params;
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
@@ -90,48 +86,6 @@ static int vaapi_init(struct hwmap *hwmap, struct nmd_frame *frame)
 
     vaapi->use_drm_format_modifiers =
         NGLI_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS);
-
-    gl->funcs.GenTextures(2, vaapi->gl_planes);
-
-    for (size_t i = 0; i < 2; i++) {
-        const GLint min_filter = ngpu_texture_get_gl_min_filter(params->texture_min_filter,
-                                                                    NGPU_MIPMAP_FILTER_NONE);
-        const GLint mag_filter = ngpu_texture_get_gl_mag_filter(params->texture_mag_filter);
-        const GLint wrap_s = ngpu_texture_get_gl_wrap(params->texture_wrap_s);
-        const GLint wrap_t = ngpu_texture_get_gl_wrap(params->texture_wrap_t);
-
-        gl->funcs.BindTexture(GL_TEXTURE_2D, vaapi->gl_planes[i]);
-        gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
-        gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter);
-        gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_s);
-        gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_t);
-        gl->funcs.BindTexture(GL_TEXTURE_2D, 0);
-
-        const enum ngpu_format format = i == 0 ? NGPU_FORMAT_R8_UNORM : NGPU_FORMAT_R8G8_UNORM;
-
-        const struct ngpu_texture_params plane_params = {
-            .type             = NGPU_TEXTURE_TYPE_2D,
-            .format           = format,
-            .min_filter       = params->texture_min_filter,
-            .mag_filter       = params->texture_mag_filter,
-            .wrap_s           = params->texture_wrap_s,
-            .wrap_t           = params->texture_wrap_t,
-            .usage            = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
-        };
-
-        const struct ngpu_texture_gl_wrap_params wrap_params = {
-            .params  = &plane_params,
-            .texture = vaapi->gl_planes[i],
-        };
-
-        vaapi->planes[i] = ngpu_texture_create(gpu_ctx);
-        if (!vaapi->planes[i])
-            return NGL_ERROR_MEMORY;
-
-        int ret = ngpu_texture_gl_wrap(vaapi->planes[i], &wrap_params);
-        if (ret < 0)
-            return ret;
-    }
 
     const struct image_params image_params = {
         .width = (uint32_t)frame->width,
@@ -149,18 +103,11 @@ static int vaapi_init(struct hwmap *hwmap, struct nmd_frame *frame)
 
 static void vaapi_release_frame_resources(struct hwmap *hwmap)
 {
-    struct ngl_ctx *ctx = hwmap->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct hwmap_vaapi *vaapi = hwmap->hwmap_priv_data;
 
     if (vaapi->surface_acquired) {
         for (size_t i = 0; i < 2; i++) {
-            if (vaapi->egl_images[i]) {
-                ngli_eglDestroyImageKHR(gl, vaapi->egl_images[i]);
-                vaapi->egl_images[i] = NULL;
-            }
+            ngpu_texture_freep(&vaapi->planes[i]);
         }
         for (uint32_t i = 0; i < vaapi->surface_descriptor.num_objects; i++) {
             close(vaapi->surface_descriptor.objects[i].fd);
@@ -173,27 +120,15 @@ static void vaapi_release_frame_resources(struct hwmap *hwmap)
 
 static void vaapi_uninit(struct hwmap *hwmap)
 {
-    struct ngl_ctx *ctx = hwmap->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
-    struct hwmap_vaapi *vaapi = hwmap->hwmap_priv_data;
-
-    for (size_t i = 0; i < 2; i++)
-        ngpu_texture_freep(&vaapi->planes[i]);
-
-    gl->funcs.DeleteTextures(2, vaapi->gl_planes);
-
     vaapi_release_frame_resources(hwmap);
 }
 
 static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 {
     struct ngl_ctx *ctx = hwmap->ctx;
+    const struct hwmap_params *params = &hwmap->params;
     struct vaapi_ctx *vaapi_ctx = &ctx->vaapi_ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct hwmap_vaapi *vaapi = hwmap->hwmap_priv_data;
 
     vaapi_release_frame_resources(hwmap);
@@ -224,70 +159,45 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     }
 
     size_t num_layers = vaapi->surface_descriptor.num_layers;
-    if (num_layers > NGLI_ARRAY_NB(vaapi->egl_images)) {
-        LOG(WARNING, "vaapi layer count (%zu) exceeds plane count (%zu)", num_layers, NGLI_ARRAY_NB(vaapi->egl_images));
-        num_layers = NGLI_ARRAY_NB(vaapi->egl_images);
+    if (num_layers > NGLI_ARRAY_NB(vaapi->planes)) {
+        LOG(WARNING, "vaapi layer count (%zu) exceeds plane count (%zu)", num_layers, NGLI_ARRAY_NB(vaapi->planes));
+        num_layers = NGLI_ARRAY_NB(vaapi->planes);
     }
 
     for (size_t i = 0; i < num_layers; i++) {
-        EGLint attribs[32] = {EGL_NONE};
-        size_t nb_attribs = 0;
+        const enum ngpu_format format = i == 0 ? NGPU_FORMAT_R8_UNORM : NGPU_FORMAT_R8G8_UNORM;
+        const int32_t width = i == 0 ? frame->width : (frame->width + 1) >> 1;
+        const int32_t height = i == 0 ? frame->height : (frame->height + 1) >> 1;
+        const uint32_t object_index = vaapi->surface_descriptor.layers[i].object_index[i];
+        const uint64_t drm_format_modifier = vaapi->surface_descriptor.objects[object_index].drm_format_modifier;
 
-#define ADD_ATTRIB(name, value) do {                          \
-    ngli_assert(nb_attribs + 3 < NGLI_ARRAY_NB(attribs));     \
-    attribs[nb_attribs++] = (name);                           \
-    attribs[nb_attribs++] = (EGLint)(value);                  \
-    attribs[nb_attribs] = EGL_NONE;                           \
-} while(0)
+        struct ngpu_texture_import_params import_params = {
+            .params = &(struct ngpu_texture_params) {
+                .type   = NGPU_TEXTURE_TYPE_2D,
+                .width  = (uint32_t)width,
+                .height = (uint32_t)height,
+                .format = format,
+                .usage  = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
+            },
+            .handle = {
+                .fd = vaapi->surface_descriptor.objects[object_index].fd,
+            },
+            .drm_format         = vaapi->surface_descriptor.layers[i].drm_format,
+            .use_drm_format_mod = vaapi->use_drm_format_modifiers,
+            .drm_format_mod     = drm_format_modifier,
+            .offset             = vaapi->surface_descriptor.layers[i].offset[0],
+            .stride_w           = vaapi->surface_descriptor.layers[i].pitch[0],
+        };
 
-#define ADD_PLANE_ATTRIBS(plane) do {                                                                         \
-    const uint32_t object_index = vaapi->surface_descriptor.layers[i].object_index[plane];                    \
-    const uint64_t drm_format_modifier = vaapi->surface_descriptor.objects[object_index].drm_format_modifier; \
-    ADD_ATTRIB(EGL_DMA_BUF_PLANE ## plane ## _FD_EXT,                                                         \
-               vaapi->surface_descriptor.objects[object_index].fd);                                           \
-    ADD_ATTRIB(EGL_DMA_BUF_PLANE ## plane ## _OFFSET_EXT,                                                     \
-               vaapi->surface_descriptor.layers[i].offset[plane]);                                            \
-    ADD_ATTRIB(EGL_DMA_BUF_PLANE ## plane ## _PITCH_EXT,                                                      \
-               vaapi->surface_descriptor.layers[i].pitch[plane]);                                             \
-    if (vaapi->use_drm_format_modifiers && drm_format_modifier != DRM_FORMAT_MOD_INVALID) {                   \
-        ADD_ATTRIB(EGL_DMA_BUF_PLANE ## plane ## _MODIFIER_LO_EXT,                                            \
-                   (uint32_t)(drm_format_modifier & 0xFFFFFFFFLU));                                           \
-        ADD_ATTRIB(EGL_DMA_BUF_PLANE ## plane ## _MODIFIER_HI_EXT,                                            \
-                   (uint32_t)((drm_format_modifier >> 32U) & 0xFFFFFFFFLU));                                  \
-    }                                                                                                         \
-} while (0)
+        vaapi->planes[i] = ngpu_texture_create(gpu_ctx);
+        if (!vaapi->planes[i])
+            return NGL_ERROR_MEMORY;
 
-        int32_t width = i == 0 ? frame->width : (frame->width + 1) >> 1;
-        int32_t height = i == 0 ? frame->height : (frame->height + 1) >> 1;
+        int ret = ngpu_texture_import(vaapi->planes[i], &import_params);
+        if (ret < 0)
+            return ret;
 
-        ADD_ATTRIB(EGL_LINUX_DRM_FOURCC_EXT, vaapi->surface_descriptor.layers[i].drm_format);
-        ADD_ATTRIB(EGL_WIDTH,  width);
-        ADD_ATTRIB(EGL_HEIGHT, height);
-
-        ADD_PLANE_ATTRIBS(0);
-        if (vaapi->surface_descriptor.layers[i].num_planes > 1)
-            ADD_PLANE_ATTRIBS(1);
-        if (vaapi->surface_descriptor.layers[i].num_planes > 2)
-            ADD_PLANE_ATTRIBS(2);
-        if (vaapi->surface_descriptor.layers[i].num_planes > 3)
-            ADD_PLANE_ATTRIBS(3);
-
-        vaapi->egl_images[i] = ngli_eglCreateImageKHR(gl,
-                                                      EGL_NO_CONTEXT,
-                                                      EGL_LINUX_DMA_BUF_EXT,
-                                                      NULL,
-                                                      attribs);
-        if (!vaapi->egl_images[i]) {
-            LOG(ERROR, "failed to create egl image");
-            return NGL_ERROR_EXTERNAL;
-        }
-
-        struct ngpu_texture *plane = vaapi->planes[i];
-        struct ngpu_texture_gl *plane_gl = (struct ngpu_texture_gl *)plane;
-        ngpu_texture_gl_set_dimensions(plane, (uint32_t)width, (uint32_t)height, 0);
-
-        gl->funcs.BindTexture(plane_gl->target, plane_gl->id);
-        gl->funcs.EGLImageTargetTexture2DOES(plane_gl->target, vaapi->egl_images[i]);
+        hwmap->mapped_image.planes[i] = vaapi->planes[i];
     }
 
     return 0;
