@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2018-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -30,20 +31,9 @@
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include "math_utils.h"
 #include "ngpu/ngpu.h"
-#include "ngpu/opengl/ctx_gl.h"
-#include "ngpu/opengl/glincludes.h"
-#include "ngpu/opengl/texture_gl.h"
 #include "nopegl/nopegl.h"
 #include "utils/memory.h"
-
-#define NGLI_CFRELEASE(ref) do { \
-    if (ref) {                   \
-        CFRelease(ref);          \
-        ref = NULL;              \
-    }                            \
-} while (0)
 
 struct format_desc {
     enum image_layout layout;
@@ -69,7 +59,7 @@ static int vt_get_format_desc(OSType format, struct format_desc *desc)
         desc->planes[1].format = NGPU_FORMAT_R8G8_UNORM;
         break;
     default:
-        LOG(ERROR, "unsupported pixel format %d", format);
+        LOG(ERROR, "unsupported pixel format %u", (uint32_t)format);
         return NGL_ERROR_UNSUPPORTED;
     }
 
@@ -80,61 +70,44 @@ struct hwmap_vt_ios {
     struct ngpu_texture *planes[2];
     OSType format;
     struct format_desc format_desc;
-    CVOpenGLESTextureRef ios_textures[2];
 };
 
 static int vt_ios_map_plane(struct hwmap *hwmap, CVPixelBufferRef cvpixbuf, size_t index)
 {
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct hwmap_vt_ios *vt = hwmap->hwmap_priv_data;
-    struct ngpu_texture *plane = vt->planes[index];
-    struct ngpu_texture_gl *plane_gl = (struct ngpu_texture_gl *)plane;
-    const struct ngpu_texture_params *plane_params = &plane->params;
-
-    NGLI_CFRELEASE(vt->ios_textures[index]);
 
     size_t width  = CVPixelBufferGetWidthOfPlane(cvpixbuf, index);
     size_t height = CVPixelBufferGetHeightOfPlane(cvpixbuf, index);
     if (width > INT_MAX || height > INT_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
 
-    CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
+    struct ngpu_texture_params texture_params = {
+        .type   = NGPU_TEXTURE_TYPE_2D,
+        .format = vt->format_desc.planes[index].format,
+        .width  = (uint32_t)width,
+        .height = (uint32_t)height,
+        .min_filter = hwmap->params.texture_min_filter,
+        .mag_filter = hwmap->params.texture_mag_filter,
+        .usage  = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
+        .import_params = {
+            .corevideo_buffer = {
+                .corevideo_buffer = cvpixbuf,
+                .plane = (uint32_t)index,
+            },
+        },
+    };
 
-    CVReturn err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
-                                                                *cache,
-                                                                cvpixbuf,
-                                                                NULL,
-                                                                GL_TEXTURE_2D,
-                                                                (GLint)plane_gl->internal_format,
-                                                                (GLsizei)width,
-                                                                (GLsizei)height,
-                                                                plane_gl->format,
-                                                                plane_gl->format_type,
-                                                                index,
-                                                                &vt->ios_textures[index]);
-    if (err != noErr) {
-        LOG(ERROR, "could not create CoreVideo texture from image: %d", err);
-        return NGL_ERROR_EXTERNAL;
-    }
+    vt->planes[index] = ngpu_texture_create(gpu_ctx);
+    if (!vt->planes[index])
+        return NGL_ERROR_MEMORY;
 
-    GLuint id = CVOpenGLESTextureGetName(vt->ios_textures[index]);
-    const GLint min_filter = ngpu_texture_get_gl_min_filter(plane_params->min_filter, plane_params->mipmap_filter);
-    const GLint mag_filter = ngpu_texture_get_gl_mag_filter(plane_params->mag_filter);
-    const GLint wrap_s = ngpu_texture_get_gl_wrap(plane_params->wrap_s);
-    const GLint wrap_t = ngpu_texture_get_gl_wrap(plane_params->wrap_t);
+    int ret = ngpu_texture_init(vt->planes[index], &texture_params);
+    if (ret < 0)
+        return ret;
 
-    gl->funcs.BindTexture(GL_TEXTURE_2D, id);
-    gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
-    gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter);
-    gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_s);
-    gl->funcs.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_t);
-    gl->funcs.BindTexture(GL_TEXTURE_2D, 0);
-
-    ngpu_texture_gl_set_id(plane, id);
-    ngpu_texture_gl_set_dimensions(plane, (uint32_t)width, (uint32_t)height, 0);
+    hwmap->mapped_image.planes[index] = vt->planes[index];
 
     return 0;
 }
@@ -146,6 +119,10 @@ static int vt_ios_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     CVPixelBufferRef cvpixbuf = (CVPixelBufferRef)frame->datap[0];
     OSType cvformat = CVPixelBufferGetPixelFormatType(cvpixbuf);
     ngli_assert(vt->format == cvformat);
+
+    for (size_t i = 0; i < NGLI_ARRAY_NB(vt->planes); i++) {
+        ngpu_texture_freep(&vt->planes[i]);
+    }
 
     for (size_t i = 0; i < vt->format_desc.nb_planes; i++) {
         int ret = vt_ios_map_plane(hwmap, cvpixbuf, i);
@@ -160,11 +137,9 @@ static void vt_ios_uninit(struct hwmap *hwmap)
 {
     struct hwmap_vt_ios *vt = hwmap->hwmap_priv_data;
 
-    ngpu_texture_freep(&vt->planes[0]);
-    ngpu_texture_freep(&vt->planes[1]);
-
-    NGLI_CFRELEASE(vt->ios_textures[0]);
-    NGLI_CFRELEASE(vt->ios_textures[1]);
+    for (size_t i = 0; i < NGLI_ARRAY_NB(vt->planes); i++) {
+        ngpu_texture_freep(&vt->planes[i]);
+    }
 }
 
 static int support_direct_rendering(struct hwmap *hwmap, struct nmd_frame *frame)
@@ -197,10 +172,7 @@ static int support_direct_rendering(struct hwmap *hwmap, struct nmd_frame *frame
 
 static int vt_ios_init(struct hwmap *hwmap, struct nmd_frame *frame)
 {
-    struct ngl_ctx *ctx = hwmap->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct hwmap_vt_ios *vt = hwmap->hwmap_priv_data;
-    const struct hwmap_params *params = &hwmap->params;
 
     CVPixelBufferRef cvpixbuf = (CVPixelBufferRef)frame->datap[0];
     vt->format = CVPixelBufferGetPixelFormatType(cvpixbuf);
@@ -208,30 +180,6 @@ static int vt_ios_init(struct hwmap *hwmap, struct nmd_frame *frame)
     int ret = vt_get_format_desc(vt->format, &vt->format_desc);
     if (ret < 0)
         return ret;
-
-    for (size_t i = 0; i < vt->format_desc.nb_planes; i++) {
-        const struct ngpu_texture_params plane_params = {
-            .type             = NGPU_TEXTURE_TYPE_2D,
-            .format           = vt->format_desc.planes[i].format,
-            .min_filter       = params->texture_min_filter,
-            .mag_filter       = params->texture_mag_filter,
-            .wrap_s           = params->texture_wrap_s,
-            .wrap_t           = params->texture_wrap_t,
-            .usage            = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
-        };
-
-        const struct ngpu_texture_gl_wrap_params wrap_params = {
-            .params = &plane_params,
-        };
-
-        vt->planes[i] = ngpu_texture_create(gpu_ctx);
-        if (!vt->planes[i])
-            return NGL_ERROR_MEMORY;
-
-        ret = ngpu_texture_gl_wrap(vt->planes[i], &wrap_params);
-        if (ret < 0)
-            return ret;
-    }
 
     const struct image_params image_params = {
         .width = (uint32_t)frame->width,

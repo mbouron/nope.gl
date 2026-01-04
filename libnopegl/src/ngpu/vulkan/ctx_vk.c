@@ -33,6 +33,7 @@
 #include "utils/memory.h"
 #include "utils/time.h"
 
+#include "ngpu/ngpu_vulkan.h"
 #include "ngpu/vulkan/bindgroup_vk.h"
 #include "ngpu/vulkan/buffer_vk.h"
 #include "ngpu/vulkan/ctx_vk.h"
@@ -875,6 +876,26 @@ static int vk_init(struct ngpu_ctx *s)
     s->features = NGPU_FEATURE_COMPUTE_BIT |
                   NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT;
 
+    static const char * const dmabuf_required_extensions[] = {
+        VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME,
+        VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
+        VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME,
+    };
+    if (ngpu_vkcontext_has_extensions(vk, NGLI_ARRAY_NB(dmabuf_required_extensions), dmabuf_required_extensions, 1))
+        s->features |= NGPU_FEATURE_IMPORT_DMA_BUF_BIT;
+
+    static const char * const ahb_required_extensions[] = {
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+        VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+        VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
+    };
+    if (ngpu_vkcontext_has_extensions(vk, NGLI_ARRAY_NB(ahb_required_extensions), ahb_required_extensions, 1))
+        s->features |= NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT;
+
+    if (s->params.platform == NGPU_PLATFORM_MACOS || s->params.platform == NGPU_PLATFORM_IOS) {
+        s->features |= NGPU_FEATURE_IMPORT_METAL_TEXTURE_BIT;
+    }
+
     const VkPhysicalDeviceLimits *limits = &vk->phy_device_props.limits;
     s->limits.max_vertex_attributes              = get_max_vertex_attributes(limits);
     s->limits.max_color_attachments              = get_max_color_attachments(limits);
@@ -1507,6 +1528,12 @@ static void vk_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *bu
     vkCmdBindIndexBuffer(cmd_buf, index_buffer->buffer, 0, indices_type);
 }
 
+VkDevice ngpu_ctx_vk_get_device(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
+    return s_priv->vkcontext->device;
+}
+
 const struct ngpu_ctx_class ngpu_ctx_vk = {
     .id                                 = NGPU_BACKEND_VULKAN,
     .create                             = vk_create,
@@ -1583,6 +1610,7 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
 
     .texture_create                     = ngpu_texture_vk_create,
     .texture_init                       = ngpu_texture_vk_init,
+    .texture_import                     = ngpu_texture_vk_import,
     .texture_upload                     = ngpu_texture_vk_upload,
     .texture_upload_with_params         = ngpu_texture_vk_upload_with_params,
     .texture_generate_mipmap            = ngpu_texture_vk_generate_mipmap,
