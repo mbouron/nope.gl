@@ -311,7 +311,9 @@ def gen(gl_xml, func_file):
         }
 
         glfunctions += "    %(func_ret)s (NGLI_GL_APIENTRY *%(func_name_nogl)s)(%(func_args_specs)s);\n" % data
-        gldefinitions += '    {"%(func_name)s", offsetof(struct glfunctions, %(func_name_nogl)s), %(optional)s},\n' % data
+        gldefinitions += (
+            '    {"%(func_name)s", offsetof(struct glfunctions, %(func_name_nogl)s), %(optional)s},\n' % data
+        )
 
         cmds.pop(cmds.index(funcname))
         if not cmds:
