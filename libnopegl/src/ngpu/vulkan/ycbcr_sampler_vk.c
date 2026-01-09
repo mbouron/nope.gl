@@ -27,9 +27,9 @@
 #include "ngpu/vulkan/ycbcr_sampler_vk.h"
 #include "utils/memory.h"
 
-struct ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx)
+struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ycbcr_sampler_vk *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_ycbcr_sampler_vk *s = ngli_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->refcount = 1;
@@ -37,7 +37,7 @@ struct ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx)
     return s;
 }
 
-VkResult ngpu_ycbcr_sampler_vk_init(struct ycbcr_sampler_vk *s, const struct ycbcr_sampler_vk_params *params)
+VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s, const struct ngpu_ycbcr_sampler_vk_params *params)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
@@ -103,8 +103,8 @@ VkResult ngpu_ycbcr_sampler_vk_init(struct ycbcr_sampler_vk *s, const struct ycb
     return VK_SUCCESS;
 }
 
-static int ycbcr_sampler_vk_params_eq(const struct ycbcr_sampler_vk_params *p0,
-                                      const struct ycbcr_sampler_vk_params *p1)
+static int ycbcr_sampler_vk_params_eq(const struct ngpu_ycbcr_sampler_vk_params *p0,
+                                      const struct ngpu_ycbcr_sampler_vk_params *p1)
 {
     return p0->android_external_format == p1->android_external_format &&
            p0->format                  == p1->format &&
@@ -119,21 +119,21 @@ static int ycbcr_sampler_vk_params_eq(const struct ycbcr_sampler_vk_params *p0,
            p0->filter                  == p1->filter;
 }
 
-int ngpu_ycbcr_sampler_vk_is_compat(const struct ycbcr_sampler_vk *s,
-                                    const struct ycbcr_sampler_vk_params *params)
+int ngpu_ycbcr_sampler_vk_is_compat(const struct ngpu_ycbcr_sampler_vk *s,
+                                    const struct ngpu_ycbcr_sampler_vk_params *params)
 {
     return ycbcr_sampler_vk_params_eq(&s->params, params);
 }
 
-struct ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ycbcr_sampler_vk *s)
+struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ngpu_ycbcr_sampler_vk *s)
 {
     s->refcount++;
     return s;
 }
 
-void ngpu_ycbcr_sampler_vk_unrefp(struct ycbcr_sampler_vk **sp)
+void ngpu_ycbcr_sampler_vk_unrefp(struct ngpu_ycbcr_sampler_vk **sp)
 {
-    struct ycbcr_sampler_vk *s = *sp;
+    struct ngpu_ycbcr_sampler_vk *s = *sp;
     if (!s)
         return;
 

@@ -27,7 +27,7 @@
 
 struct ngpu_ctx;
 
-struct ycbcr_sampler_vk_params {
+struct ngpu_ycbcr_sampler_vk_params {
     /* Conversion params */
     uint64_t android_external_format;
     VkFormat format;
@@ -40,20 +40,20 @@ struct ycbcr_sampler_vk_params {
     VkFilter filter;
 };
 
-struct ycbcr_sampler_vk {
+struct ngpu_ycbcr_sampler_vk {
     int refcount;
     struct ngpu_ctx *gpu_ctx;
-    struct ycbcr_sampler_vk_params params;
+    struct ngpu_ycbcr_sampler_vk_params params;
     VkSamplerYcbcrConversion conv;
     VkSampler sampler;
 };
 
-struct ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx);
-VkResult ngpu_ycbcr_sampler_vk_init(struct ycbcr_sampler_vk *s,
-                                    const struct ycbcr_sampler_vk_params *params);
-int ngpu_ycbcr_sampler_vk_is_compat(const struct ycbcr_sampler_vk *s,
-                                    const struct ycbcr_sampler_vk_params *params);
-struct ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ycbcr_sampler_vk *s);
-void ngpu_ycbcr_sampler_vk_unrefp(struct ycbcr_sampler_vk **sp);
+struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx);
+VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s,
+                                    const struct ngpu_ycbcr_sampler_vk_params *params);
+int ngpu_ycbcr_sampler_vk_is_compat(const struct ngpu_ycbcr_sampler_vk *s,
+                                    const struct ngpu_ycbcr_sampler_vk_params *params);
+struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ngpu_ycbcr_sampler_vk *s);
+void ngpu_ycbcr_sampler_vk_unrefp(struct ngpu_ycbcr_sampler_vk **sp);
 
 #endif

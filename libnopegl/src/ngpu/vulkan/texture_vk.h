@@ -35,7 +35,7 @@ struct ngpu_texture_vk_wrap_params {
     VkImageLayout image_layout;
     VkImageView image_view;
     VkSampler sampler;
-    struct ycbcr_sampler_vk *ycbcr_sampler;
+    struct ngpu_ycbcr_sampler_vk *ycbcr_sampler;
 };
 
 struct ngpu_texture_vk {
@@ -54,7 +54,7 @@ struct ngpu_texture_vk {
     VkSampler sampler;
     int wrapped_sampler;
     int use_ycbcr_sampler;
-    struct ycbcr_sampler_vk *ycbcr_sampler;
+    struct ngpu_ycbcr_sampler_vk *ycbcr_sampler;
     struct ngpu_buffer *staging_buffer;
     void *staging_buffer_ptr;
     struct ngpu_texture_transfer_params last_transfer_params;

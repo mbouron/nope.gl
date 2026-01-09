@@ -34,7 +34,7 @@ struct texture_binding_vk {
     struct ngpu_bindgroup_layout_entry layout_entry;
     const struct ngpu_texture *texture;
     int use_ycbcr_sampler;
-    struct ycbcr_sampler_vk *ycbcr_sampler;
+    struct ngpu_ycbcr_sampler_vk *ycbcr_sampler;
     uint32_t update_desc;
 };
 
