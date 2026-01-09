@@ -48,7 +48,7 @@ struct hwmap_mc {
     VkImage image;
     VkDeviceMemory memory;
     VkImageView image_view;
-    struct ycbcr_sampler_vk *ycbcr_sampler;
+    struct ngpu_ycbcr_sampler_vk *ycbcr_sampler;
 };
 
 static bool support_direct_rendering(struct hwmap *hwmap)
@@ -256,7 +256,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
         return NGL_ERROR_GRAPHICS_GENERIC;
     }
 
-    const struct ycbcr_sampler_vk_params sampler_params = {
+    const struct ngpu_ycbcr_sampler_vk_params sampler_params = {
         /* Conversion params */
         .android_external_format = external_format.externalFormat,
         .format                  = VK_FORMAT_UNDEFINED,

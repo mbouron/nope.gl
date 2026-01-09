@@ -76,7 +76,7 @@ static VkDescriptorType get_vk_descriptor_type(enum ngpu_type type)
 
 static void unref_immutable_sampler(void *user_arg, void *data)
 {
-    struct ycbcr_sampler_vk **ycbcr_samplerp = data;
+    struct ngpu_ycbcr_sampler_vk **ycbcr_samplerp = data;
     ngpu_ycbcr_sampler_vk_unrefp(ycbcr_samplerp);
 }
 
@@ -190,7 +190,7 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
             .stageFlags         = get_vk_stage_flags(entry->stage_flags),
         };
         if (entry->immutable_sampler) {
-            struct ycbcr_sampler_vk *ycbcr_sampler = entry->immutable_sampler;
+            struct ngpu_ycbcr_sampler_vk *ycbcr_sampler = entry->immutable_sampler;
             binding.pImmutableSamplers =  &ycbcr_sampler->sampler;
 
             if (!ngli_darray_push(&s_priv->immutable_samplers, &ycbcr_sampler))
