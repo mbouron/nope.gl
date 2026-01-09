@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -39,86 +38,42 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
-import org.nopeforge.nopegl.NGLScene
 import org.nopeforge.nopegl.engine.EngineRenderer
 import org.nopeforge.nopegl.engine.attach
-import timber.log.Timber
-import kotlin.time.Duration
 
 @Composable
 fun Engine(
     renderer: EngineRenderer,
+    backend: Int,
     modifier: Modifier = Modifier,
 ) {
     if (LocalInspectionMode.current) {
         Box(modifier = modifier.background(color = Color.Green))
         return
     }
+
+    val textureView = remember { mutableStateOf<TextureView?>(null) }
+
+    LaunchedEffect(backend, renderer) {
+        textureView.value?.let { view ->
+            renderer.attach(view)
+        }
+    }
+
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            TextureView(context)
-                .also(renderer::attach)
+            TextureView(context).also { view ->
+                textureView.value = view
+                renderer.attach(view)
+            }
         },
+        update = { view ->
+            textureView.value = view
+        }
     )
 }
 
-@Composable
-fun rememberEngineRenderer(
-    scene: NGLScene?,
-    playWhenReady: Boolean = true,
-    onIsPlayingChanged: (Boolean) -> Unit = {},
-    onSceneLoaded: () -> Unit = {},
-    onPositionChanged: (Duration) -> Unit = { },
-    onStateChanged: (Int) -> Unit = {},
-    looping: Boolean = true,
-): EngineRenderer {
-    val renderer = remember { EngineRenderer() }
-    DisposableEffect(renderer) {
-        val callback = object : EngineRenderer.PlaybackCallback {
-            override fun onStateChanged(state: Int) {
-                onStateChanged(state)
-            }
-
-            override fun onStarted() {
-                onIsPlayingChanged(true)
-            }
-
-            override fun onStopped() {
-                onIsPlayingChanged(false)
-            }
-
-            override fun onPaused() {
-                onIsPlayingChanged(false)
-            }
-
-            override fun onReleased() {
-                onIsPlayingChanged(false)
-            }
-
-            override fun onPositionChanged(position: Duration) {
-                onPositionChanged(position)
-            }
-
-            override fun onSceneChanged(scene: NGLScene?, elapsed: Duration?) {
-                if (scene != null) {
-                    onSceneLoaded()
-                    Timber.d("Scene loaded $elapsed")
-                }
-            }
-        }
-        renderer.addPlaybackCallback(callback)
-        onDispose {
-            renderer.removePlaybackCallback(callback)
-        }
-    }
-    val isResumed by rememberLifecycleResumedState()
-    LaunchedEffect(scene) { renderer.setScene(scene) }
-    LaunchedEffect(playWhenReady, isResumed) { renderer.playWhenReady = playWhenReady && isResumed }
-    LaunchedEffect(looping) { renderer.looping = looping }
-    DisposableEffect(renderer) { onDispose { renderer.release() } }
-    return renderer
-}
 
 @Composable
 internal fun rememberLifecycleResumedState(): State<Boolean> {

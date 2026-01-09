@@ -28,8 +28,6 @@ import android.os.Message
 import android.util.Rational
 import android.util.Size
 import android.view.Surface
-import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.view.TextureView
 import android.view.TextureView.SurfaceTextureListener
 import kotlinx.coroutines.CoroutineScope
@@ -49,7 +47,9 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 
-class EngineRenderer {
+class EngineRenderer(
+    var backend: Int = NGLConfig.BACKEND_OPENGLES
+) {
     private val clock: Clock = Clock()
 
     private val clockListener = Clock.Listener { time ->
@@ -164,9 +164,8 @@ class EngineRenderer {
     }
 
     fun seek(position: Duration) {
-        handler.removeMessages(MSG_SEEK)
-        handler.removeMessages(MSG_DRAW)
-        handler.sendMessage(handler.obtainMessage(MSG_SEEK, position))
+        val fps = clock.frameRate.toDouble()
+        clock.seek(nextFramePosition(position, fps))
     }
 
     fun addPlaybackCallback(callback: PlaybackCallback) {
@@ -203,7 +202,7 @@ class EngineRenderer {
 
     private fun onInit(configBuilder: NGLConfig.Builder) {
         val config = configBuilder
-            .setBackend(NGLConfig.BACKEND_OPENGLES)
+            .setBackend(backend)
             .setClearColor(0f, 0f, 0f, 1f)
             .build()
 
@@ -227,6 +226,7 @@ class EngineRenderer {
             block()
         }
     }
+
     fun refresh() {
         handler.removeMessages(MSG_REFRESH_DURATION)
         handler.sendMessage(handler.obtainMessage(MSG_REFRESH_DURATION))
@@ -313,13 +313,6 @@ class EngineRenderer {
         this.position = position
     }
 
-    private fun onSeek(position: Duration) {
-        if (!isReady()) return
-        val scene = scene ?: return
-        val fps = scene.frameRate.toDouble()
-        clock.seek(nextFramePosition(position, fps))
-    }
-
     private fun nextFramePosition(time: Duration, fps: Double): Duration {
         return (ceil(time.toDouble(DurationUnit.SECONDS) * fps) / fps).seconds
     }
@@ -349,10 +342,6 @@ class EngineRenderer {
         windowPointer = 0
     }
 
-    private fun onSeek(time: Double) {
-        clock.seek(time.seconds)
-    }
-
     private fun onRefreshDuration() {
         clock.duration = scene?.duration?.seconds ?: Duration.ZERO
     }
@@ -368,7 +357,7 @@ class EngineRenderer {
         }
     }
 
-    private fun isInitialized() = engine != null && state in State.Initialized..State.Paused
+    private fun isInitialized() = engine != null && state in State.Initialized..State.Stopped
     private fun isReady() = engine != null && state in State.Ready..State.Paused
     private fun isDrawing() = engine != null && state in State.Started..State.Paused
 
@@ -394,7 +383,6 @@ class EngineRenderer {
                 MSG_RESIZE -> onResize(msg.arg1, msg.arg2)
                 MSG_DRAW -> onDrawFrame(msg.obj as Duration)
                 MSG_RELEASE -> onRelease(msg.obj as CountDownLatch)
-                MSG_SEEK -> onSeek(msg.obj as Duration)
                 MSG_REFRESH_DURATION -> onRefreshDuration()
                 MSG_DISPOSE -> onDispose()
             }
@@ -411,7 +399,6 @@ class EngineRenderer {
         private const val MSG_RELEASE = 0x06
         private const val MSG_RESIZE = 0x07
         private const val MSG_STEP = 0x08
-        private const val MSG_SEEK = 0x09
         private const val MSG_REFRESH_DURATION = 0x0A
         private const val MSG_DISPOSE = 0x0E
         private val DEFAULT_FRAME_RATE = Rational(60, 1)
@@ -443,38 +430,9 @@ class EngineRenderer {
     }
 }
 
-fun EngineRenderer.attach(surfaceView: SurfaceView) = attach(surfaceView.holder)
-
-fun EngineRenderer.attach(holder: SurfaceHolder) {
-    holder.addCallback(
-        object : SurfaceHolder.Callback2 {
-            override fun surfaceCreated(holder: SurfaceHolder) {
-                init(holder.surface)
-            }
-
-            override fun surfaceChanged(
-                holder: SurfaceHolder,
-                format: Int,
-                width: Int,
-                height: Int,
-            ) {
-                Timber.d("Surface resize: $width, $height")
-                resize(width, height)
-            }
-
-            override fun surfaceDestroyed(holder: SurfaceHolder) {
-                // release before surface is destroyed
-                release(true)
-            }
-
-            override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
-                refresh()
-            }
-        },
-    )
-}
-
 fun EngineRenderer.attach(textureView: TextureView) {
+    textureView.surfaceTextureListener = null
+
     textureView.surfaceTextureListener = object : SurfaceTextureListener {
         override fun onSurfaceTextureAvailable(
             surfaceTexture: SurfaceTexture,
@@ -492,7 +450,6 @@ fun EngineRenderer.attach(textureView: TextureView) {
             width: Int,
             height: Int,
         ) {
-            Timber.d("Surface resize: $width, $height")
             resize(width, height)
         }
 
@@ -505,7 +462,14 @@ fun EngineRenderer.attach(textureView: TextureView) {
         override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) {
             refresh()
         }
+    }
 
+    // If surface texture is already available, initialize immediately
+    textureView.surfaceTexture?.let { surfaceTexture ->
+        Surface(surfaceTexture).also {
+            init(it)
+            resize(textureView.width, textureView.height)
+        }
     }
 }
 
