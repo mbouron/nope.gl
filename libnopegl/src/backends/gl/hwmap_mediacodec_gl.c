@@ -151,7 +151,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     if (ret < 0)
         return ret;
 
-    ngli_eglDestroyImageKHR(gl, mc->egl_image);
+    ngpu_eglDestroyImageKHR(gl, mc->egl_image);
     mc->egl_image = NULL;
     ngli_android_image_freep(&mc->android_image);
 
@@ -173,7 +173,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     const int filtering = params->texture_min_filter || params->texture_mag_filter;
     ngli_android_get_crop_matrix(matrix, &desc, &crop_rect, filtering);
 
-    EGLClientBuffer egl_buffer = ngli_eglGetNativeClientBufferANDROID(gl, hardware_buffer);
+    EGLClientBuffer egl_buffer = ngpu_eglGetNativeClientBufferANDROID(gl, hardware_buffer);
     if (!egl_buffer)
         return NGL_ERROR_EXTERNAL;
 
@@ -186,7 +186,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     const struct ngpu_texture_gl *texture_gl = (struct ngpu_texture_gl *)mc->texture;
     const GLuint id = texture_gl->id;
 
-    mc->egl_image = ngli_eglCreateImageKHR(gl, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, egl_buffer, attrs);
+    mc->egl_image = ngpu_eglCreateImageKHR(gl, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, egl_buffer, attrs);
     if (!mc->egl_image) {
         LOG(ERROR, "failed to create egl image");
         return NGL_ERROR_EXTERNAL;
@@ -209,7 +209,7 @@ static void mc_uninit(struct hwmap *hwmap)
     ngpu_texture_freep(&mc->texture);
     gl->funcs.DeleteTextures(1, &mc->gl_texture);
 
-    ngli_eglDestroyImageKHR(gl, mc->egl_image);
+    ngpu_eglDestroyImageKHR(gl, mc->egl_image);
     ngli_android_image_freep(&mc->android_image);
 }
 

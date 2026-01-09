@@ -86,27 +86,27 @@ struct egl_priv {
 #endif
 };
 
-EGLImageKHR ngli_eglCreateImageKHR(struct glcontext *gl, EGLConfig context, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list)
+EGLImageKHR ngpu_eglCreateImageKHR(struct glcontext *gl, EGLConfig context, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list)
 {
     struct egl_priv *egl = gl->priv_data;
     return egl->CreateImageKHR(egl->display, context, target, buffer, attrib_list);
 }
 
-EGLBoolean ngli_eglDestroyImageKHR(struct glcontext *gl, EGLImageKHR image)
+EGLBoolean ngpu_eglDestroyImageKHR(struct glcontext *gl, EGLImageKHR image)
 {
     struct egl_priv *egl = gl->priv_data;
     return egl->DestroyImageKHR(egl->display, image);
 }
 
 #if defined(TARGET_ANDROID)
-EGLClientBuffer ngli_eglGetNativeClientBufferANDROID(struct glcontext *gl, const struct AHardwareBuffer *buffer)
+EGLClientBuffer ngpu_eglGetNativeClientBufferANDROID(struct glcontext *gl, const struct AHardwareBuffer *buffer)
 {
     struct egl_priv *egl = gl->priv_data;
     return egl->GetNativeClientBufferANDROID(buffer);
 }
 #endif
 
-const char *ngli_eglGetDisplayDriverName(struct glcontext *gl)
+const char *ngpu_eglGetDisplayDriverName(struct glcontext *gl)
 {
     struct egl_priv *egl = gl->priv_data;
     return egl->GetDisplayDriverName(egl->display);
@@ -136,7 +136,7 @@ static const char *egl_error_to_str(GLint error)
     }
 }
 
-static const char *ngli_eglGetErrorStr(void)
+static const char *ngpu_eglGetErrorStr(void)
 {
     return egl_error_to_str(eglGetError());
 }
@@ -366,7 +366,7 @@ static int egl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window, 
     EGLint egl_major;
     EGLBoolean egl_ret = eglInitialize(egl->display, &egl_major, &egl_minor);
     if (!egl_ret) {
-        LOG(ERROR, "could not initialize EGL: %s", ngli_eglGetErrorStr());
+        LOG(ERROR, "could not initialize EGL: %s", ngpu_eglGetErrorStr());
         return NGL_ERROR_EXTERNAL;
     }
 
@@ -422,7 +422,7 @@ try_again:;
     }
 
     if (!egl_ret || !nb_configs) {
-        LOG(ERROR, "could not choose a valid EGL configuration: %s", ngli_eglGetErrorStr());
+        LOG(ERROR, "could not choose a valid EGL configuration: %s", ngpu_eglGetErrorStr());
         return NGL_ERROR_EXTERNAL;
     }
 
@@ -472,7 +472,7 @@ try_again:;
     }
 
     if (!egl->handle) {
-        LOG(ERROR, "could not create EGL context: %s", ngli_eglGetErrorStr());
+        LOG(ERROR, "could not create EGL context: %s", ngpu_eglGetErrorStr());
         return NGL_ERROR_EXTERNAL;
     }
 
@@ -488,7 +488,7 @@ try_again:;
 
             egl->surface = eglCreatePbufferSurface(egl->display, egl->config, attribs);
             if (!egl->surface) {
-                LOG(ERROR, "could not create EGL window surface: %s", ngli_eglGetErrorStr());
+                LOG(ERROR, "could not create EGL window surface: %s", ngpu_eglGetErrorStr());
                 return NGL_ERROR_EXTERNAL;
             }
         }
@@ -522,7 +522,7 @@ try_again:;
         egl->surface = eglCreateWindowSurface(egl->display, egl->config, egl->native_window,
                                               egl->has_gl_colorspace_ext ? surface_attribs : NULL);
         if (!egl->surface) {
-            LOG(ERROR, "could not create EGL window surface: %s", ngli_eglGetErrorStr());
+            LOG(ERROR, "could not create EGL window surface: %s", ngpu_eglGetErrorStr());
             return NGL_ERROR_EXTERNAL;
         }
     }
@@ -615,7 +615,7 @@ static int egl_resize(struct glcontext *ctx, uint32_t width, uint32_t height)
     EGLint cur_width, cur_height;
     if (!eglQuerySurface(egl->display, egl->surface, EGL_WIDTH, &cur_width) ||
         !eglQuerySurface(egl->display, egl->surface, EGL_HEIGHT, &cur_height)) {
-        LOG(ERROR, "could not query surface dimensions: %s", ngli_eglGetErrorStr());
+        LOG(ERROR, "could not query surface dimensions: %s", ngpu_eglGetErrorStr());
         return NGL_ERROR_EXTERNAL;
     }
     ctx->width = (uint32_t)cur_width;
