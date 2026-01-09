@@ -1,4 +1,5 @@
 /*
+ * Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2024 Nope Forge
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -35,15 +36,16 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.net.toUri
 import defaultScene
 import org.nopeforge.nopegl.components.Player
-import org.nopeforge.nopegl.components.rememberEngineRenderer
+import org.nopeforge.nopegl.viewmodels.PlayerViewModel
+import org.nopeforge.nopegl.viewmodels.PlayerViewModelFactory
 import timber.log.Timber
 import java.io.File
-import androidx.core.net.toUri
 
 class MainActivity : ComponentActivity() {
 
@@ -84,7 +86,7 @@ class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.R)
     private fun requestPermission(): Boolean {
         if (!Environment.isExternalStorageManager()) {
-            Timber.e("Could not update scene: missing permission")
+            Timber.e("Could not update scene: missing permissions")
             val uri = "package:${BuildConfig.APPLICATION_ID}".toUri()
             startActivity(
                 Intent(
@@ -109,19 +111,13 @@ class MainActivity : ComponentActivity() {
         Timber.plant(Timber.DebugTree())
         setContent {
             val defaultScene = defaultScene()
-            var isPlaying by remember { mutableStateOf(true) }
-            val renderer = rememberEngineRenderer(
-                scene = scene ?: defaultScene,
-                playWhenReady = isPlaying,
-                onIsPlayingChanged = { isPlaying = it }
+            val viewModel: PlayerViewModel = viewModel(
+                factory = PlayerViewModelFactory(NGLConfig.BACKEND_VULKAN)
             )
             Player(
-                modifier = Modifier
-                    .fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
+                viewModel = viewModel,
                 scene = scene ?: defaultScene,
-                renderer = renderer,
-                isPlaying = isPlaying,
-                onIsPlayingCheckedChanged = { isPlaying = it }
             )
         }
     }

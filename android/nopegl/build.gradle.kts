@@ -5,6 +5,8 @@ plugins {
     `maven-publish`
 }
 
+val buildEnv = "${rootProject.projectDir.parent}/build-android"
+
 afterEvaluate {
     val url = "https://github.com/NopeForge/nope.gl"
     val gitUrl = "https://github.com/NopeForge/nope.gl.git"
@@ -70,7 +72,10 @@ android {
                     "-Wconversion",
                     "-fno-math-errno",
                 )
-                arguments("-DANDROID_STL=c++_shared")
+                arguments(
+                    "-DANDROID_STL=c++_shared",
+                    "-DNGL_ANDROID_ENV=${buildEnv}",
+                )
             }
         }
     }

@@ -29,14 +29,22 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
 class Clock {
+    @Volatile
     var looping: Boolean = false
+
+    @Volatile
     var listener: Clock.Listener? = null
+
+    @Volatile
     var frameRate: Rational = Rational(60, 1)
+
     private var previousFrameTimeNanos = Long.MIN_VALUE
 
     private var state = State.Stopped
 
+    @Volatile
     private var frameIndex: Long = 0
+
     private val maxFrameIndex: Long
         get() {
             return (duration.toDouble(DurationUnit.SECONDS) * frameRate.toDouble()).toLong()
@@ -44,7 +52,13 @@ class Clock {
         }
 
     val time: Duration
-        get() = (frameIndex / frameRate.toDouble()).seconds
+        get() {
+            val index = frameIndex
+            val rate = frameRate
+            return (index / rate.toDouble()).seconds
+        }
+
+    @Volatile
     var duration: Duration = Duration.ZERO
 
     private var choreographer: Choreographer? = null
@@ -57,43 +71,45 @@ class Clock {
         }
 
         private fun onFrame(frameTimeNanos: Long) {
-            if (state == State.Playing) {
-                if (previousFrameTimeNanos == Long.MIN_VALUE) {
-                    previousFrameTimeNanos = frameTimeNanos
-                }
-                val elapsedDuration = (frameTimeNanos - previousFrameTimeNanos).nanoseconds
-                val elapsedFrames =
-                    (elapsedDuration.toDouble(DurationUnit.SECONDS) * frameRate.toDouble()).toLong()
+            synchronized(this@Clock) {
+                if (state == State.Playing) {
+                    if (previousFrameTimeNanos == Long.MIN_VALUE) {
+                        previousFrameTimeNanos = frameTimeNanos
+                    }
+                    val elapsedDuration = (frameTimeNanos - previousFrameTimeNanos).nanoseconds
+                    val elapsedFrames =
+                        (elapsedDuration.toDouble(DurationUnit.SECONDS) * frameRate.toDouble()).toLong()
 
-                if (elapsedFrames > 0) {
-                    previousFrameTimeNanos = frameTimeNanos
-                    frameIndex = if (looping) {
-                        (frameIndex + elapsedFrames) % maxFrameIndex
-                    } else {
-                        (frameIndex + elapsedFrames).coerceAtMost(maxFrameIndex)
+                    if (elapsedFrames > 0) {
+                        previousFrameTimeNanos = frameTimeNanos
+                        frameIndex = if (looping) {
+                            (frameIndex + elapsedFrames) % maxFrameIndex
+                        } else {
+                            (frameIndex + elapsedFrames).coerceAtMost(maxFrameIndex)
+                        }
                     }
                 }
+                listener?.onTick(time)
             }
-            listener?.onTick(time)
         }
 
     }
 
-    fun play() {
+    fun play() = synchronized(this) {
         state = State.Playing
         previousFrameTimeNanos = Long.MIN_VALUE
         choreographer = choreographer ?: Choreographer.getInstance()
         choreographer?.postFrameCallback(frameCallback)
     }
 
-    fun pause() {
+    fun pause() = synchronized(this) {
         choreographer?.removeFrameCallback(frameCallback)
         choreographer = null
         state = State.Paused
         previousFrameTimeNanos = Long.MIN_VALUE
     }
 
-    fun stop() {
+    fun stop() = synchronized(this) {
         choreographer?.removeFrameCallback(frameCallback)
         choreographer = null
         frameIndex = 0
@@ -101,14 +117,14 @@ class Clock {
         state = State.Stopped
     }
 
-    fun seek(time: Duration) {
+    fun seek(time: Duration) = synchronized(this) {
         val newFrameIndex = (time.toDouble(DurationUnit.SECONDS) * frameRate.toDouble()).toLong()
         previousFrameTimeNanos = Long.MIN_VALUE
         frameIndex = newFrameIndex.coerceAtMost(maxFrameIndex)
         listener?.onTick(time)
     }
 
-    fun step(step: Int) {
+    fun step(step: Int) = synchronized(this) {
         frameIndex = (frameIndex + step).coerceIn(0L, maxFrameIndex)
         listener?.onTick(time)
     }

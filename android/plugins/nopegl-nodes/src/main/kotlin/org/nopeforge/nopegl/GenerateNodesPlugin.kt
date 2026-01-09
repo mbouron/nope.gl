@@ -30,9 +30,7 @@ import java.io.File
 class GenerateNodesPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
-            val nglAndroidEnvironment = requireNotNull(System.getenv("NGL_ANDROID_ENV")) {
-                "NGL_ANDROID_ENV environment variable is not set"
-            }
+            val nglAndroidEnvironment = "${rootProject.projectDir.parent}/build-android"
             val specFile = findSpecFile(nglAndroidEnvironment)
 
             extensions.getByType(LibraryAndroidComponentsExtension::class.java)

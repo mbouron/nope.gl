@@ -4,6 +4,35 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
+tasks.register("copyAssets") {
+    val assetFiles = listOf(
+        "cat.mp4",
+        "mire-hevc.mp4"
+    )
+
+    val assetDir = "python/pynopegl-utils/pynopegl_utils/assets"
+    val sourceDir = file("${project.rootDir}/../$assetDir")
+    val assetsDir = file("${projectDir}/src/main/assets")
+
+    doLast {
+        assetsDir.mkdirs()
+
+        assetFiles.forEach { filename ->
+            val sourceFile = file("${sourceDir}/${filename}")
+            if (!sourceFile.exists()) return@forEach
+
+            val destFile = file("${assetsDir}/${filename}")
+            if (!destFile.exists() || sourceFile.lastModified() > destFile.lastModified()) {
+                sourceFile.copyTo(destFile, overwrite = true)
+            }
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn("copyAssets")
+}
+
 android {
     namespace = "org.nopeforge.nopegl"
     compileSdk = 36
@@ -49,6 +78,8 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.compose.activity)
 
     val composeBom = platform(libs.compose.bom)

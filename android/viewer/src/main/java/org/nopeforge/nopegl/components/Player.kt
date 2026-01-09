@@ -43,12 +43,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -59,10 +57,10 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.ConstraintSet
 import androidx.constraintlayout.compose.Dimension
 import androidx.constraintlayout.compose.layoutId
+import org.nopeforge.nopegl.NGLConfig
 import org.nopeforge.nopegl.NGLScene
 import org.nopeforge.nopegl.R
-import org.nopeforge.nopegl.engine.EngineRenderer
-import kotlin.time.Duration
+import org.nopeforge.nopegl.viewmodels.PlayerViewModel
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -90,26 +88,24 @@ private fun constraintSet() = ConstraintSet {
 
 @Composable
 internal fun Player(
-    renderer: EngineRenderer,
+    viewModel: PlayerViewModel,
     scene: NGLScene,
-    isPlaying: Boolean,
-    onIsPlayingCheckedChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var sliderPosition by remember { mutableStateOf(renderer.time) }
-    val updatedIsPlaying by rememberUpdatedState(newValue = isPlaying)
-    var isSeeking by remember { mutableStateOf(false) }
-    DisposableEffect(renderer) {
-        val callback = object : EngineRenderer.PlaybackCallback {
-            override fun onPositionChanged(position: Duration) {
-                if (!isSeeking) sliderPosition = position
-            }
-        }
-        renderer.addPlaybackCallback(callback)
-        onDispose {
-            renderer.removePlaybackCallback(callback)
-        }
+    val sliderPosition by viewModel.sliderPosition.collectAsState()
+    val isPlaying by viewModel.isPlaying.collectAsState()
+    val backend by viewModel.backend.collectAsState()
+
+    val isLifecycleResumed by rememberLifecycleResumedState()
+
+    LaunchedEffect(scene) {
+        viewModel.setScene(scene)
     }
+
+    LaunchedEffect(isLifecycleResumed) {
+        viewModel.setLifecycleResumed(isLifecycleResumed)
+    }
+
     val constraintSet = remember { constraintSet() }
 
     ConstraintLayout(
@@ -118,29 +114,33 @@ internal fun Player(
         constraintSet = constraintSet,
     ) {
         Engine(
-            renderer = renderer,
+            renderer = viewModel.renderer,
+            backend = backend,
             modifier = Modifier
                 .layoutId(Refs.ENGINE)
         )
-        val duration = remember(scene) { scene.duration.seconds.inWholeMilliseconds.toFloat() }
+        val duration = remember(scene) {
+            scene.duration.seconds.inWholeMilliseconds.toFloat()
+        }
         PlaybackControls(
             modifier = Modifier
                 .layoutId(Refs.CONTROLS)
                 .systemGestureExclusion(),
-            isPlaying = updatedIsPlaying,
-            onIsPlayingCheckedChanged = { onIsPlayingCheckedChanged(it) },
+            isPlaying = isPlaying,
+            onIsPlayingCheckedChanged = { playing ->
+                if (playing) viewModel.play() else viewModel.pause()
+            },
             progress = sliderPosition.inWholeMilliseconds.toFloat(),
             progressRange = 0f..duration,
             onProgressChange = { progress ->
-                isSeeking = true
-                renderer.pause()
-                val newPosition = progress.toLong().milliseconds
-                sliderPosition = newPosition
-                renderer.seek(newPosition)
+                viewModel.startSeeking()
+                viewModel.seek(progress.toLong().milliseconds)
             },
-            onProgressChangeFinished = { isSeeking = false },
-            onStep = { step -> renderer.step(step) },
-            onStop = { renderer.stop() },
+            onProgressChangeFinished = { viewModel.finishSeeking() },
+            onStep = { step -> viewModel.step(step) },
+            onStop = { viewModel.stop() },
+            backend = backend,
+            onBackendChanged = { newBackend -> viewModel.setBackend(newBackend) },
         )
     }
 }
@@ -165,6 +165,8 @@ fun PlaybackControls(
     onProgressChangeFinished: () -> Unit = {},
     onStep: (step: Int) -> Unit = {},
     onStop: () -> Unit = {},
+    backend: Int = NGLConfig.BACKEND_OPENGLES,
+    onBackendChanged: (Int) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -290,6 +292,30 @@ fun PlaybackControls(
                         modifier = Modifier.size(28.dp)
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = {
+                        onBackendChanged(
+                            if (backend == NGLConfig.BACKEND_VULKAN) NGLConfig.BACKEND_OPENGLES else NGLConfig.BACKEND_VULKAN
+                        )
+                    },
+                    modifier = Modifier.height(36.dp).width(72.dp),
+                ) {
+                    val painter = if (backend == NGLConfig.BACKEND_VULKAN) {
+                        painterResource(id = R.drawable.ic_vulkan)
+                    } else {
+                        painterResource(id = R.drawable.ic_opengles)
+                    }
+                    Icon(
+                        painter = painter,
+                        contentDescription = if (backend == NGLConfig.BACKEND_VULKAN) "Vulkan" else "OpenGL",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    )
+                }
             }
     }
 }
@@ -307,6 +333,8 @@ private fun PlayerPreview() {
         onProgressChangeFinished = {},
         onStep = {},
         onStop = {},
+        backend = NGLConfig.BACKEND_OPENGLES,
+        onBackendChanged = {},
         modifier = Modifier.fillMaxWidth()
     )
 }
