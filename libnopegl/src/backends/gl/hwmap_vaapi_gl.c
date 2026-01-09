@@ -158,7 +158,7 @@ static void vaapi_release_frame_resources(struct hwmap *hwmap)
     if (vaapi->surface_acquired) {
         for (size_t i = 0; i < 2; i++) {
             if (vaapi->egl_images[i]) {
-                ngli_eglDestroyImageKHR(gl, vaapi->egl_images[i]);
+                ngpu_eglDestroyImageKHR(gl, vaapi->egl_images[i]);
                 vaapi->egl_images[i] = NULL;
             }
         }
@@ -272,7 +272,7 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
         if (vaapi->surface_descriptor.layers[i].num_planes > 3)
             ADD_PLANE_ATTRIBS(3);
 
-        vaapi->egl_images[i] = ngli_eglCreateImageKHR(gl,
+        vaapi->egl_images[i] = ngpu_eglCreateImageKHR(gl,
                                                       EGL_NO_CONTEXT,
                                                       EGL_LINUX_DMA_BUF_EXT,
                                                       NULL,

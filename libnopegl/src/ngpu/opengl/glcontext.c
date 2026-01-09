@@ -628,7 +628,7 @@ static int glcontext_check_driver(struct glcontext *glcontext)
 
 #ifdef HAVE_GLPLATFORM_EGL
     if (glcontext->features & NGPU_FEATURE_GL_EGL_MESA_QUERY_DRIVER) {
-        const char *driver_name = ngli_eglGetDisplayDriverName(glcontext);
+        const char *driver_name = ngpu_eglGetDisplayDriverName(glcontext);
         if (driver_name) {
             LOG(INFO, "EGL driver name: %s", driver_name);
             if (!strcmp(driver_name, "radeonsi"))

@@ -29,20 +29,20 @@
 
 #include "ngpu/opengl/glcontext.h"
 
-EGLImageKHR ngli_eglCreateImageKHR(struct glcontext *gl,
+EGLImageKHR ngpu_eglCreateImageKHR(struct glcontext *gl,
                                    EGLContext handle,
                                    EGLenum target,
                                    EGLClientBuffer buffer,
                                    const EGLint *attrib_list);
 
-EGLBoolean ngli_eglDestroyImageKHR(struct glcontext *gl,
+EGLBoolean ngpu_eglDestroyImageKHR(struct glcontext *gl,
                                    EGLImageKHR image);
 
 #if defined(TARGET_ANDROID)
-EGLClientBuffer ngli_eglGetNativeClientBufferANDROID(struct glcontext *gl,
+EGLClientBuffer ngpu_eglGetNativeClientBufferANDROID(struct glcontext *gl,
                                                      const struct AHardwareBuffer *buffer);
 #endif
 
-const char *ngli_eglGetDisplayDriverName(struct glcontext *gl);
+const char *ngpu_eglGetDisplayDriverName(struct glcontext *gl);
 
 #endif
