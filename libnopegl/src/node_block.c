@@ -259,8 +259,6 @@ static int check_dup_labels(const char *block_name, struct ngl_node * const *nod
     return 0;
 }
 
-#define FEATURES_STD430 (NGPU_FEATURE_STORAGE_BUFFER)
-
 static int block_init(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -270,7 +268,7 @@ static int block_init(struct ngl_node *node)
     const struct block_opts *o = node->opts;
 
     uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-    if (o->layout == NGPU_BLOCK_LAYOUT_STD430 && !(features & FEATURES_STD430)) {
+    if (o->layout == NGPU_BLOCK_LAYOUT_STD430 && !(features & NGPU_FEATURE_COMPUTE)) {
         LOG(ERROR, "std430 blocks are not supported by this context");
         return NGL_ERROR_UNSUPPORTED;
     }
