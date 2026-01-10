@@ -888,10 +888,8 @@ void ngpu_ctx_params_reset(struct ngpu_ctx_params *params);
 
 #define NGPU_FEATURE_SOFTWARE                          (1U << 0)
 #define NGPU_FEATURE_COMPUTE                           (1U << 1)
-#define NGPU_FEATURE_IMAGE_LOAD_STORE                  (1U << 2)
-#define NGPU_FEATURE_STORAGE_BUFFER                    (1U << 3)
-#define NGPU_FEATURE_BUFFER_MAP_PERSISTENT             (1U << 4)
-#define NGPU_FEATURE_DEPTH_STENCIL_RESOLVE             (1U << 5)
+#define NGPU_FEATURE_BUFFER_MAP_PERSISTENT             (1U << 2)
+#define NGPU_FEATURE_DEPTH_STENCIL_RESOLVE             (1U << 3)
 
 struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params);
 int ngpu_ctx_init(struct ngpu_ctx *s);
