@@ -253,6 +253,21 @@ enum ngpu_backend_type ngpu_ctx_get_backend_type(const struct ngpu_ctx *s)
     return s->params.backend;
 }
 
+enum ngpu_platform_type ngpu_ctx_get_platform_type(const struct ngpu_ctx *s)
+{
+    return s->params.platform;
+}
+
+void *ngpu_ctx_get_display(const struct ngpu_ctx *s)
+{
+    return (void *)s->params.display;
+}
+
+void *ngpu_ctx_get_window(const struct ngpu_ctx *s)
+{
+    return (void *)s->params.window;
+}
+
 int ngpu_ctx_get_version(const struct ngpu_ctx *s)
 {
     return s->version;
