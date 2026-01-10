@@ -82,8 +82,6 @@ static int check_extensions(const struct ngpu_ctx *gpu_ctx)
 
 int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s)
 {
-    const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
-
     const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
     if (features & NGPU_FEATURE_SOFTWARE)
         return -1;
@@ -92,7 +90,9 @@ int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s)
         return -1;
 
     VADisplay va_display = NULL;
-    if (ctx_params->platform == NGPU_PLATFORM_XLIB) {
+
+    const enum ngpu_platform_type platform_type = ngpu_ctx_get_platform_type(gpu_ctx);
+    if (platform_type == NGPU_PLATFORM_XLIB) {
 #if defined(HAVE_VAAPI_X11)
         Display *x11_display = XOpenDisplay(NULL);
         if (!x11_display) {
@@ -103,9 +103,9 @@ int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s)
 
         va_display = vaGetDisplay(x11_display);
 #endif
-    } else if (ctx_params->platform == NGPU_PLATFORM_WAYLAND) {
+    } else if (platform_type == NGPU_PLATFORM_WAYLAND) {
 #if defined(HAVE_VAAPI_WAYLAND)
-        struct wl_display *wl_display = (struct wl_display *)gpu_ctx->params.display;
+        struct wl_display *wl_display = (struct wl_display *)ngpu_ctx_get_display(gpu_ctx);
         if (!wl_display) {
             wl_display = wl_display_connect(NULL);
             if (!wl_display) {
