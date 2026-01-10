@@ -873,8 +873,6 @@ static int vk_init(struct ngpu_ctx *s)
     s->language_version = 450;
 
     s->features = NGPU_FEATURE_COMPUTE |
-                  NGPU_FEATURE_IMAGE_LOAD_STORE |
-                  NGPU_FEATURE_STORAGE_BUFFER |
                   NGPU_FEATURE_BUFFER_MAP_PERSISTENT;
 
     const VkPhysicalDeviceLimits *limits = &vk->phy_device_props.limits;
