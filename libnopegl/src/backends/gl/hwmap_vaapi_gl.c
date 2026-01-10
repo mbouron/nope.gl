@@ -53,7 +53,7 @@ struct hwmap_vaapi {
     EGLImageKHR egl_images[2];
 
     VADRMPRIMESurfaceDescriptor surface_descriptor;
-    int surface_acquired;
+    bool surface_acquired;
 };
 
 static bool support_direct_rendering(struct hwmap *hwmap)
@@ -165,7 +165,7 @@ static void vaapi_release_frame_resources(struct hwmap *hwmap)
         for (uint32_t i = 0; i < vaapi->surface_descriptor.num_objects; i++) {
             close(vaapi->surface_descriptor.objects[i].fd);
         }
-        vaapi->surface_acquired = 0;
+        vaapi->surface_acquired = false;
     }
 
     nmd_frame_releasep(&vaapi->frame);
@@ -210,7 +210,7 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
         LOG(ERROR, "failed to export vaapi surface handle: %s", vaErrorStr(status));
         return NGL_ERROR_EXTERNAL;
     }
-    vaapi->surface_acquired = 1;
+    vaapi->surface_acquired = true;
 
     status = vaSyncSurface(vaapi_ctx->va_display, surface_id);
     if (status != VA_STATUS_SUCCESS)
