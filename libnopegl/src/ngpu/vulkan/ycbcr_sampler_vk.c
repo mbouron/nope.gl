@@ -27,12 +27,28 @@
 #include "ngpu/vulkan/ycbcr_sampler_vk.h"
 #include "utils/memory.h"
 
+static void ycbcr_sampler_freep(void **texturep)
+{
+    struct ngpu_ycbcr_sampler_vk **sp = (struct ngpu_ycbcr_sampler_vk **)texturep;
+    if (!*sp)
+        return;
+
+    struct ngpu_ycbcr_sampler_vk *s = *sp;
+    struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    vkDestroySampler(vk->device, s->sampler, NULL);
+    vk->DestroySamplerYcbcrConversionKHR(vk->device, s->conv, NULL);
+
+    ngli_freep(sp);
+}
+
 struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx)
 {
     struct ngpu_ycbcr_sampler_vk *s = ngli_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-    s->refcount = 1;
+    s->rc = NGLI_RC_CREATE(ycbcr_sampler_freep);
     s->gpu_ctx = gpu_ctx;
     return s;
 }
@@ -127,24 +143,10 @@ int ngpu_ycbcr_sampler_vk_is_compat(const struct ngpu_ycbcr_sampler_vk *s,
 
 struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ngpu_ycbcr_sampler_vk *s)
 {
-    s->refcount++;
-    return s;
+    return NGLI_RC_REF(s);
 }
 
 void ngpu_ycbcr_sampler_vk_unrefp(struct ngpu_ycbcr_sampler_vk **sp)
 {
-    struct ngpu_ycbcr_sampler_vk *s = *sp;
-    if (!s)
-        return;
-
-    if (s->refcount-- == 1) {
-        struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-        struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
-        struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-        vkDestroySampler(vk->device, s->sampler, NULL);
-        vk->DestroySamplerYcbcrConversionKHR(vk->device, s->conv, NULL);
-        ngli_free(s);
-    }
-
-    *sp = NULL;
+    NGLI_RC_UNREFP(sp);
 }
