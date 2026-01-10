@@ -907,6 +907,9 @@ void ngpu_ctx_wait_idle(struct ngpu_ctx *s);
 void ngpu_ctx_freep(struct ngpu_ctx **sp);
 
 enum ngpu_backend_type ngpu_ctx_get_backend_type(const struct ngpu_ctx *s);
+enum ngpu_platform_type ngpu_ctx_get_platform_type(const struct ngpu_ctx *s);
+void *ngpu_ctx_get_display(const struct ngpu_ctx *s);
+void *ngpu_ctx_get_window(const struct ngpu_ctx *s);
 int ngpu_ctx_get_version(const struct ngpu_ctx *s);
 int ngpu_ctx_get_language_version(const struct ngpu_ctx *s);
 uint64_t ngpu_ctx_get_features(const struct ngpu_ctx *s);
