@@ -25,6 +25,8 @@
 #include <stdint.h>
 #include <vulkan/vulkan.h>
 
+#include "utils/refcount.h"
+
 struct ngpu_ctx;
 
 struct ngpu_ycbcr_sampler_vk_params {
@@ -41,12 +43,14 @@ struct ngpu_ycbcr_sampler_vk_params {
 };
 
 struct ngpu_ycbcr_sampler_vk {
-    int refcount;
+    struct ngli_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_ycbcr_sampler_vk_params params;
     VkSamplerYcbcrConversion conv;
     VkSampler sampler;
 };
+
+NGLI_RC_CHECK_STRUCT(ngpu_ycbcr_sampler_vk);
 
 struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx);
 VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s,
