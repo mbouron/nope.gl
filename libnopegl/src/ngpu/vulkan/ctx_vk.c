@@ -872,8 +872,8 @@ static int vk_init(struct ngpu_ctx *s)
     s->version = major_version * 100 + minor_version * 10;
     s->language_version = 450;
 
-    s->features = NGPU_FEATURE_COMPUTE |
-                  NGPU_FEATURE_BUFFER_MAP_PERSISTENT;
+    s->features = NGPU_FEATURE_COMPUTE_BIT |
+                  NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT;
 
     const VkPhysicalDeviceLimits *limits = &vk->phy_device_props.limits;
     s->limits.max_vertex_attributes              = get_max_vertex_attributes(limits);

@@ -55,7 +55,7 @@ int ngpu_rendertarget_init(struct ngpu_rendertarget *s, const struct ngpu_render
     ngli_assert(params->nb_colors <= limits->max_color_attachments);
 
     if (params->depth_stencil.resolve_target) {
-        ngli_assert(features & NGPU_FEATURE_DEPTH_STENCIL_RESOLVE);
+        ngli_assert(features & NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT);
     }
 
     /* Set the rendertarget samples value from the attachments samples value

@@ -886,10 +886,13 @@ struct ngpu_ctx_params {
 int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_params *src);
 void ngpu_ctx_params_reset(struct ngpu_ctx_params *params);
 
-#define NGPU_FEATURE_SOFTWARE                          (1U << 0)
-#define NGPU_FEATURE_COMPUTE                           (1U << 1)
-#define NGPU_FEATURE_BUFFER_MAP_PERSISTENT             (1U << 2)
-#define NGPU_FEATURE_DEPTH_STENCIL_RESOLVE             (1U << 3)
+enum {
+    NGPU_FEATURE_SOFTWARE_BIT                          = 1U << 0,
+    NGPU_FEATURE_COMPUTE_BIT                           = 1U << 1,
+    NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT             = 1U << 2,
+    NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT             = 1U << 3,
+    NGPU_FEATURE_MAX_ENUM                              = 0x7FFFFFFF,
+};
 
 struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params);
 int ngpu_ctx_init(struct ngpu_ctx *s);

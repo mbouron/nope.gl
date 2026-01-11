@@ -83,7 +83,7 @@ static int check_extensions(const struct ngpu_ctx *gpu_ctx)
 int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s)
 {
     const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-    if (features & NGPU_FEATURE_SOFTWARE)
+    if (features & NGPU_FEATURE_SOFTWARE_BIT)
         return -1;
 
     if (!check_extensions(gpu_ctx))

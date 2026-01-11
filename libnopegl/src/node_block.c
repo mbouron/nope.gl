@@ -268,7 +268,7 @@ static int block_init(struct ngl_node *node)
     const struct block_opts *o = node->opts;
 
     uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-    if (o->layout == NGPU_BLOCK_LAYOUT_STD430 && !(features & NGPU_FEATURE_COMPUTE)) {
+    if (o->layout == NGPU_BLOCK_LAYOUT_STD430 && !(features & NGPU_FEATURE_COMPUTE_BIT)) {
         LOG(ERROR, "std430 blocks are not supported by this context");
         return NGL_ERROR_UNSUPPORTED;
     }
