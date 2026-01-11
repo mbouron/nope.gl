@@ -28,7 +28,7 @@
 #include "eval.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/ngpu.h" // for MAX_ID_LEN
+#include "ngpu/ngpu.h" // for NGPU_ID_LEN
 #include "nopegl/nopegl.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -338,7 +338,7 @@ static int parse_subexpr(struct eval *s, const char *expr, const char *p)
         LOG(ERROR, "parse error near '%.5s' at position %zu", p, pos);
         return NGL_ERROR_INVALID_DATA;
     }
-    char name[MAX_ID_LEN];
+    char name[NGPU_ID_LEN];
     snprintf(name, sizeof(name), "%.*s", (int)token_len, p);
     p += token_len;
 
