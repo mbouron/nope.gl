@@ -67,7 +67,7 @@ int ngpu_program_gl_set_locations_and_bindings(struct ngpu_program *s,
             entry->type != NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC)
             continue;
         const char *buffer_name = ngpu_pgcraft_get_symbol_name(crafter, entry->id);
-        char block_name[MAX_ID_LEN];
+        char block_name[NGPU_ID_LEN];
         int len = snprintf(block_name, sizeof(block_name), "%s_block", buffer_name);
         if (len >= sizeof(block_name)) {
             LOG(ERROR, "block name \"%s\" is too long", buffer_name);

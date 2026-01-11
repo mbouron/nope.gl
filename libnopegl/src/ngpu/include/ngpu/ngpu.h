@@ -606,7 +606,7 @@ uint32_t ngpu_rendertarget_get_height(const struct ngpu_rendertarget *s);
  * Program
  */
 
-#define MAX_ID_LEN 128
+#define NGPU_ID_LEN 128
 
 enum ngpu_program_stage {
     NGPU_PROGRAM_STAGE_VERT,
@@ -721,7 +721,7 @@ enum ngpu_block_layout {
 };
 
 struct ngpu_block_field {
-    char name[MAX_ID_LEN];
+    char name[NGPU_ID_LEN];
     enum ngpu_type type;
     size_t count;
     size_t offset;
