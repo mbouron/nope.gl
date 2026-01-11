@@ -192,7 +192,7 @@ static int rtt_init(struct ngl_node *node)
         }
 
         const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-        if (!(features & NGPU_FEATURE_DEPTH_STENCIL_RESOLVE) && o->samples > 0) {
+        if (!(features & NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT) && o->samples > 0) {
             LOG(ERROR, "context does not support resolving depth/stencil attachments");
             return NGL_ERROR_GRAPHICS_UNSUPPORTED;
         }

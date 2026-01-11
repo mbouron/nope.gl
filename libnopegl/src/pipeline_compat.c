@@ -114,14 +114,14 @@ static int init_blocks_buffers(struct pipeline_compat *s, const struct pipeline_
                        | NGPU_BUFFER_USAGE_MAP_WRITE;
 
         const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-        if (features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT)
+        if (features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT)
             usage |= NGPU_BUFFER_USAGE_MAP_PERSISTENT;
 
         int ret = ngpu_buffer_init(buffer, block_size, usage);
         if (ret < 0)
             return ret;
 
-        if (features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT) {
+        if (features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT) {
             ret = ngpu_buffer_map(buffer, 0, NGPU_BUFFER_WHOLE_SIZE, (void **) &s->mapped_datas[i]);
             if (ret < 0)
                 return ret;
@@ -287,7 +287,7 @@ int ngli_pipeline_compat_update_uniform_count(struct pipeline_compat *s, int32_t
     const struct ngpu_block_field *field = &fields[field_index];
     if (value) {
         const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-        if (!(features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT)) {
+        if (!(features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT)) {
             int ret = map_buffer(s, stage);
             if (ret < 0)
                 return ret;
@@ -544,7 +544,7 @@ static int prepare_pipeline(struct pipeline_compat *s)
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
     const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-    if (!(features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT))
+    if (!(features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT))
        unmap_buffers(s);
 
     int ret = prepare_bindgroup(s);
