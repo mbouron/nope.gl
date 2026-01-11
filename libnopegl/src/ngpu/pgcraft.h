@@ -33,7 +33,7 @@
 struct ngpu_ctx;
 
 struct ngpu_pgcraft_uniform { // also buffers (for arrays)
-    char name[MAX_ID_LEN];
+    char name[NGPU_ID_LEN];
     enum ngpu_type type;
     enum ngpu_program_stage stage;
     enum ngpu_precision precision;
@@ -57,7 +57,7 @@ enum ngpu_pgcraft_texture_type {
 };
 
 struct ngpu_pgcraft_texture {
-    char name[MAX_ID_LEN];
+    char name[NGPU_ID_LEN];
     enum ngpu_pgcraft_texture_type type;
     enum ngpu_program_stage stage;
     enum ngpu_precision precision;
@@ -97,7 +97,7 @@ struct ngpu_pgcraft_texture {
 };
 
 struct ngpu_pgcraft_block {
-    char name[MAX_ID_LEN];
+    char name[NGPU_ID_LEN];
     const char *instance_name;
     enum ngpu_type type;
     enum ngpu_program_stage stage;
@@ -107,7 +107,7 @@ struct ngpu_pgcraft_block {
 };
 
 struct ngpu_pgcraft_attribute {
-    char name[MAX_ID_LEN];
+    char name[NGPU_ID_LEN];
     enum ngpu_type type;
     enum ngpu_precision precision;
     enum ngpu_format format;
@@ -118,7 +118,7 @@ struct ngpu_pgcraft_attribute {
 };
 
 struct ngpu_pgcraft_iovar {
-    char name[MAX_ID_LEN];
+    char name[NGPU_ID_LEN];
     enum ngpu_precision precision_out;
     enum ngpu_precision precision_in;
     enum ngpu_type type;

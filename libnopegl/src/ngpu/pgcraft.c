@@ -456,7 +456,7 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
         if (field->type == NGPU_TYPE_NONE || field->stage != stage)
             continue;
 
-        char name[MAX_ID_LEN];
+        char name[NGPU_ID_LEN];
         int len = snprintf(name, sizeof(name), "%s%s", texture->name, texture_info_suffixes[i]);
         if (len >= sizeof(name)) {
             LOG(ERROR, "texture name \"%s\" is too long", texture->name);
@@ -1184,7 +1184,7 @@ static void probe_texture_info_elems(const struct ngpu_pgcraft *s,
 {
     for (size_t i = 0; i < NGPU_INFO_FIELD_NB; i++) {
         struct ngpu_pgcraft_texture_info_field *field = &fields[i];
-        char name[MAX_ID_LEN];
+        char name[NGPU_ID_LEN];
         int len = snprintf(name, sizeof(name), "%s%s", texture->name, texture_info_suffixes[i]);
         ngli_assert(len < sizeof(name));
         if (field->type == NGPU_TYPE_NONE)
@@ -1342,7 +1342,7 @@ struct ngpu_pgcraft *ngpu_pgcraft_create(struct ngpu_ctx *gpu_ctx)
         compat_info->uindices[i] = -1;
     }
 
-    ngli_darray_init(&s->symbols, sizeof(char[MAX_ID_LEN]), 0);
+    ngli_darray_init(&s->symbols, sizeof(char[NGPU_ID_LEN]), 0);
 
     ngli_darray_init(&s->pipeline_info.desc.textures, sizeof(struct ngpu_bindgroup_layout_entry), 0);
     ngli_darray_init(&s->pipeline_info.desc.buffers, sizeof(struct ngpu_bindgroup_layout_entry), 0);
