@@ -22,7 +22,7 @@
  */
 
 #include "filterschain.h"
-#include "ngpu/pgcraft.h"
+#include <ngpu/ngpu.h>
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"

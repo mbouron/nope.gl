@@ -44,7 +44,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_block.h"
 #include "node_buffer.h"
 #include "node_texture.h"

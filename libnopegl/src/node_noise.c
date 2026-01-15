@@ -26,7 +26,7 @@
 #include "node_uniform.h"
 #include "noise.h"
 #include "nopegl/nopegl.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 
 struct noise_opts {
     float frequency;

@@ -28,7 +28,7 @@
 #include "config.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_graphicconfig.h"
 #include "node_rtt.h"
 #include "node_texture.h"

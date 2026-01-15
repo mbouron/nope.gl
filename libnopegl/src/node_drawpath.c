@@ -27,12 +27,12 @@
 #include "box.h"
 #include "distmap.h"
 #include "internal.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline_compat.h"
-#include "ngpu/pgcraft.h"
+#include <ngpu/ngpu.h>
 #include "utils/utils.h"
 
 /* GLSL fragments as string */

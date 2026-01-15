@@ -22,7 +22,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_block.h"
 #include "node_texture.h"
 #include "nopegl/nopegl.h"

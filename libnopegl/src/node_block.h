@@ -25,7 +25,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 
 struct ngl_node;
 

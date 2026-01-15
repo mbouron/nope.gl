@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 
 /*
  * Helper structure to specify the content (or a slice) of a buffer

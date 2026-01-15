@@ -22,7 +22,7 @@
 #ifndef BLENDING_H
 #define BLENDING_H
 
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 
 enum ngli_blending {
     NGLI_BLENDING_DEFAULT,

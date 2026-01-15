@@ -915,6 +915,74 @@ def _fribidi_install(cfg):
 
 
 @_block(
+    "ngpu-setup",
+    {
+        "Android": [
+            _glslang_install,
+        ],
+        "Darwin": [
+            _glslang_install,
+            _moltenvk_install,
+        ],
+        "iOS": [
+            _moltenvk_install,
+            _glslang_install,
+        ],
+        "Local": [
+            _glslang_install,
+        ],
+        "Windows": [
+            _egl_registry_install,
+            _opengl_registry_install,
+            _glslang_install,
+        ],
+    },
+)
+def _ngpu_setup(cfg):
+    ngpu_opts = []
+    if cfg.args.debug_opts:
+        debug_opts = ",".join([opt for opt in cfg.args.debug_opts if opt != "scene"])
+        ngpu_opts += [f"-Ddebug_opts={debug_opts}"]
+
+    if cfg.args.sanitize:
+        ngpu_opts += [f"-Db_sanitize={cfg.args.sanitize}"]
+
+    if "gpu_capture" in cfg.args.debug_opts:
+        renderdoc_dir = cfg.externals[_RENDERDOC_ID]
+        ngpu_opts += [f"-Drenderdoc_dir={renderdoc_dir}"]
+
+    extra_library_dirs = []
+    extra_include_dirs = []
+    if cfg.host == "Windows":
+        extra_library_dirs += [op.join(cfg.prefix, "Lib")]
+        extra_include_dirs += [op.join(cfg.prefix, "Include")]
+    else:
+        extra_library_dirs += [op.join(cfg.prefix, "lib")]
+        extra_include_dirs += [op.join(cfg.prefix, "include")]
+
+    if cfg.host == "Darwin":
+        prefix = _get_brew_prefix()
+        if prefix:
+            extra_library_dirs += [op.join(prefix, "lib")]
+            extra_include_dirs += [op.join(prefix, "include")]
+
+    if extra_library_dirs:
+        opts = ",".join(extra_library_dirs)
+        ngpu_opts += [f"-Dextra_library_dirs={opts}"]
+
+    if extra_include_dirs:
+        opts = ",".join(extra_include_dirs)
+        ngpu_opts += [f"-Dextra_include_dirs={opts}"]
+
+    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(*ngpu_opts, "libngpu", _get_builddir(cfg, "libngpu"))]
+
+
+@_block("ngpu-install", [_ngpu_setup])
+def _ngpu_install(cfg):
+    return _meson_compile_install_cmd(cfg, "libngpu")
+
+
+@_block(
     "nopegl-setup",
     {
         "Android": [
@@ -923,11 +991,13 @@ def _fribidi_install(cfg):
             _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
+            _ngpu_install,
         ],
         "Darwin": [
             _nopemd_install,
             _glslang_install,
             _moltenvk_install,
+            _ngpu_install,
         ],
         "iOS": [
             _nopemd_install,
@@ -936,8 +1006,13 @@ def _fribidi_install(cfg):
             _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
+            _ngpu_install,
         ],
-        "Local": [_nopemd_install, _glslang_install],
+        "Local": [
+            _nopemd_install,
+            _glslang_install,
+            _ngpu_install,
+        ],
         "Windows": [
             _nopemd_install,
             _sdl2_install,
@@ -947,6 +1022,7 @@ def _fribidi_install(cfg):
             _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
+            _ngpu_install,
         ],
     },
 )

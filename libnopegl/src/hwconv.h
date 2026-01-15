@@ -23,8 +23,8 @@
 #define HWCONV_H
 
 #include "image.h"
-#include "ngpu/ngpu.h"
-#include "ngpu/pgcraft.h"
+#include <ngpu/ngpu.h>
+#include <ngpu/ngpu.h>
 #include "pipeline_compat.h"
 
 struct ngl_ctx;

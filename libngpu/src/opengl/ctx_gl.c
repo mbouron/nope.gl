@@ -1,0 +1,1313 @@
+/*
+ * Copyright 2023-2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023 Nope Forge
+ * Copyright 2019-2022 GoPro Inc.
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+#include <string.h>
+
+#include "config.h"
+
+#if defined(TARGET_IPHONE)
+#include <CoreVideo/CoreVideo.h>
+#endif
+
+#include "utils/log.h"
+#include "ctx.h"
+#include "ngpu/ngpu.h"
+#include "opengl/bindgroup_gl.h"
+#include "opengl/buffer_gl.h"
+#include "opengl/ctx_gl.h"
+#include "opengl/glcontext.h"
+#include "opengl/pipeline_gl.h"
+#include "opengl/program_gl.h"
+#include "opengl/rendertarget_gl.h"
+#include "opengl/texture_gl.h"
+#include "utils/memory.h"
+#include "utils/utils.h"
+
+#if DEBUG_GPU_CAPTURE
+#include "capture.h"
+#endif
+
+static void capture_cpu(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    struct ngpu_ctx_params *params = &s->params;
+    struct ngpu_rendertarget *rt = s_priv->capture_rt;
+    struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)rt;
+
+    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, rt_gl->id);
+    const GLint w = (GLint)rt->width, h = (GLint)rt->height;
+    gl->funcs.ReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, params->capture_buffer);
+}
+
+static void capture_corevideo(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+
+    gl->funcs.Finish();
+}
+
+#if defined(TARGET_IPHONE)
+static int wrap_capture_cvpixelbuffer(struct ngpu_ctx *s,
+                                      CVPixelBufferRef buffer,
+                                      struct ngpu_texture **texturep)
+{
+    const size_t width = CVPixelBufferGetWidth(buffer);
+    const size_t height = CVPixelBufferGetHeight(buffer);
+
+    struct ngpu_texture *texture = ngpu_texture_create(s);
+    if (!texture)
+        return NGPU_ERROR_MEMORY;
+
+    const struct ngpu_texture_params texture_params = {
+        .type   = NGPU_TEXTURE_TYPE_2D,
+        .format = NGPU_FORMAT_B8G8R8A8_UNORM,
+        .width  = (uint32_t)width,
+        .height = (uint32_t)height,
+        .usage  = NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT,
+        .import_params = {
+            .type = NGPU_IMPORT_TYPE_COREVIDEO_BUFFER,
+            .corevideo_buffer = {
+                .corevideo_buffer = buffer,
+                .plane = 0,
+            }
+        },
+    };
+
+
+    int ret = ngpu_texture_init(texture, &texture_params);
+    if (ret < 0) {
+        ngpu_texture_freep(&texture);
+        return ret;
+    }
+
+    *texturep = texture;
+
+    return 0;
+}
+
+static void reset_capture_cvpixelbuffer(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+
+    if (s_priv->capture_cvbuffer) {
+        CFRelease(s_priv->capture_cvbuffer);
+        s_priv->capture_cvbuffer = NULL;
+    }
+    if (s_priv->capture_cvtexture) {
+        CFRelease(s_priv->capture_cvtexture);
+        s_priv->capture_cvtexture = NULL;
+    }
+}
+#endif
+
+static int create_texture(struct ngpu_ctx *s, enum ngpu_format format, uint32_t samples, uint32_t usage, struct ngpu_texture **texturep)
+{
+    const struct ngpu_ctx_params *ctx_params = &s->params;
+
+    struct ngpu_texture *texture = ngpu_texture_create(s);
+    if (!texture)
+        return NGPU_ERROR_MEMORY;
+
+    const struct ngpu_texture_params texture_params = {
+        .type    = NGPU_TEXTURE_TYPE_2D,
+        .format  = format,
+        .width   = ctx_params->width,
+        .height  = ctx_params->height,
+        .samples = samples,
+        .usage   = usage,
+    };
+
+    int ret = ngpu_texture_init(texture, &texture_params);
+    if (ret < 0) {
+        ngpu_texture_freep(&texture);
+        return ret;
+    }
+
+    *texturep = texture;
+    return 0;
+}
+
+static int create_rendertarget(struct ngpu_ctx *s,
+                               struct ngpu_texture *color,
+                               struct ngpu_texture *resolve_color,
+                               struct ngpu_texture *depth_stencil,
+                               enum ngpu_load_op load_op,
+                               struct ngpu_rendertarget **rendertargetp)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
+    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
+
+    struct ngpu_rendertarget *rendertarget = ngpu_rendertarget_create(s);
+    if (!rendertarget)
+        return NGPU_ERROR_MEMORY;
+
+    const struct ngpu_rendertarget_params params = {
+        .width = ctx_params->width,
+        .height = ctx_params->height,
+        .nb_colors = 1,
+        .colors[0] = {
+            .attachment     = color,
+            .resolve_target = resolve_color,
+            .load_op        = load_op,
+            .clear_value[0] = ctx_params->clear_color[0],
+            .clear_value[1] = ctx_params->clear_color[1],
+            .clear_value[2] = ctx_params->clear_color[2],
+            .clear_value[3] = ctx_params->clear_color[3],
+            .store_op       = NGPU_STORE_OP_STORE,
+        },
+        .depth_stencil = {
+            .attachment = depth_stencil,
+            .load_op    = load_op,
+            .store_op   = NGPU_STORE_OP_STORE,
+        },
+    };
+
+    int ret;
+    if (color) {
+        ret = ngpu_rendertarget_init(rendertarget, &params);
+    } else {
+        const int external = ctx_params_gl ? ctx_params_gl->external : 0;
+        const GLuint default_fbo_id = ngpu_glcontext_get_default_framebuffer(gl);
+        const GLuint fbo_id = external ? ctx_params_gl->external_framebuffer : default_fbo_id;
+        ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, fbo_id);
+    }
+    if (ret < 0) {
+        ngpu_rendertarget_freep(&rendertarget);
+        return ret;
+    }
+
+    *rendertargetp = rendertarget;
+    return 0;
+}
+
+#define COLOR_USAGE NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT
+#define DEPTH_USAGE NGPU_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+
+static int offscreen_rendertarget_init(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_params *ctx_params = &s->params;
+
+    if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO) {
+#if defined(TARGET_IPHONE)
+        if (ctx_params->capture_buffer) {
+            s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(ctx_params->capture_buffer);
+            int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer, &s_priv->capture_texture);
+            if (ret < 0)
+                return ret;
+        } else {
+            int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
+            if (ret < 0)
+                return ret;
+        }
+#else
+        LOG(ERROR, "CoreVideo capture is only supported on iOS");
+        return NGPU_ERROR_UNSUPPORTED;
+#endif
+    } else if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_CPU) {
+        int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
+        if (ret < 0)
+            return ret;
+    } else {
+        LOG(ERROR, "unsupported capture buffer type: %u", ctx_params->capture_buffer_type);
+        return NGPU_ERROR_UNSUPPORTED;
+    }
+
+    int ret = create_rendertarget(s, s_priv->capture_texture, NULL, NULL,
+                                  NGPU_LOAD_OP_CLEAR, &s_priv->capture_rt);
+    if (ret < 0)
+        return ret;
+
+    ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->color);
+    if (ret < 0)
+        return ret;
+
+    if (ctx_params->samples) {
+        ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, ctx_params->samples, COLOR_USAGE, &s_priv->ms_color);
+        if (ret < 0)
+            return ret;
+    }
+
+    ret = create_texture(s, NGPU_FORMAT_D24_UNORM_S8_UINT, ctx_params->samples, DEPTH_USAGE, &s_priv->depth_stencil);
+    if (ret < 0)
+        return ret;
+
+    struct ngpu_texture *color         = s_priv->ms_color ? s_priv->ms_color : s_priv->color;
+    struct ngpu_texture *resolve_color = s_priv->ms_color ? s_priv->color    : NULL;
+    struct ngpu_texture *depth_stencil = s_priv->depth_stencil;
+
+    if ((ret = create_rendertarget(s, color, resolve_color, depth_stencil,
+                                   NGPU_LOAD_OP_CLEAR, &s_priv->default_rt)) < 0 ||
+        (ret = create_rendertarget(s, color, resolve_color, depth_stencil,
+                                   NGPU_LOAD_OP_LOAD, &s_priv->default_rt_load)) < 0)
+        return ret;
+
+    static const capture_func_type capture_func_map[] = {
+        [NGPU_CAPTURE_BUFFER_TYPE_CPU]       = capture_cpu,
+        [NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO] = capture_corevideo,
+    };
+    s_priv->capture_func = capture_func_map[ctx_params->capture_buffer_type];
+
+    return 0;
+}
+
+static int onscreen_rendertarget_init(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+
+    int ret;
+    if ((ret = create_rendertarget(s, NULL, NULL, NULL, NGPU_LOAD_OP_CLEAR,
+                                   &s_priv->default_rt)) < 0 ||
+        (ret = create_rendertarget(s, NULL, NULL, NULL, NGPU_LOAD_OP_LOAD,
+                                   &s_priv->default_rt_load)) < 0)
+        return ret;
+
+    return 0;
+}
+
+static void rendertarget_reset(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    ngpu_rendertarget_freep(&s_priv->default_rt);
+    ngpu_rendertarget_freep(&s_priv->default_rt_load);
+    ngpu_texture_freep(&s_priv->color);
+    ngpu_texture_freep(&s_priv->ms_color);
+    ngpu_texture_freep(&s_priv->depth_stencil);
+
+    ngpu_rendertarget_freep(&s_priv->capture_rt);
+    ngpu_texture_freep(&s_priv->capture_texture);
+#if defined(TARGET_IPHONE)
+    reset_capture_cvpixelbuffer(s);
+#endif
+    s_priv->capture_func = NULL;
+}
+
+static int timer_init(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+
+    gl->timer_funcs.GenQueries(2, s_priv->queries);
+
+    return 0;
+}
+
+static void timer_reset(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    if (!gl)
+        return;
+
+    gl->timer_funcs.DeleteQueries(2, s_priv->queries);
+}
+
+static struct ngpu_ctx *gl_create(const struct ngpu_ctx_params *params)
+{
+    struct ngpu_ctx_gl *s = ngpu_calloc(1, sizeof(*s));
+    if (!s)
+        return NULL;
+    return (struct ngpu_ctx *)s;
+}
+
+#define GL_ENUM_STR_CASE(prefix, error) case prefix##_##error: return #error
+
+static const char *gl_debug_source_to_str(GLenum source)
+{
+    switch (source) {
+    GL_ENUM_STR_CASE(GL_DEBUG_SOURCE, API);
+    GL_ENUM_STR_CASE(GL_DEBUG_SOURCE, WINDOW_SYSTEM);
+    GL_ENUM_STR_CASE(GL_DEBUG_SOURCE, SHADER_COMPILER);
+    GL_ENUM_STR_CASE(GL_DEBUG_SOURCE, THIRD_PARTY);
+    GL_ENUM_STR_CASE(GL_DEBUG_SOURCE, APPLICATION);
+    GL_ENUM_STR_CASE(GL_DEBUG_SOURCE, OTHER);
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static const char *gl_debug_type_to_str(GLenum type)
+{
+    switch (type) {
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, ERROR);
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, DEPRECATED_BEHAVIOR);
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, UNDEFINED_BEHAVIOR);
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, PORTABILITY);
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, PERFORMANCE);
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, OTHER);
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, MARKER);
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, PUSH_GROUP);
+    GL_ENUM_STR_CASE(GL_DEBUG_TYPE, POP_GROUP);
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static enum ngpu_log_level gl_debug_type_to_log_level(GLenum type)
+{
+    switch (type) {
+    case GL_DEBUG_TYPE_ERROR:
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+    case GL_DEBUG_TYPE_PORTABILITY:
+        return NGPU_LOG_ERROR;
+    default:
+        return NGPU_LOG_DEBUG;
+    }
+}
+
+static const char *gl_debug_severity_to_str(GLenum severity)
+{
+    switch (severity) {
+    GL_ENUM_STR_CASE(GL_DEBUG_SEVERITY, HIGH);
+    GL_ENUM_STR_CASE(GL_DEBUG_SEVERITY, MEDIUM);
+    GL_ENUM_STR_CASE(GL_DEBUG_SEVERITY, LOW);
+    GL_ENUM_STR_CASE(GL_DEBUG_SEVERITY, NOTIFICATION);
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static void NGPU_GL_APIENTRY gl_debug_message_callback(GLenum source,
+                                                       GLenum type,
+                                                       GLuint id,
+                                                       GLenum severity,
+                                                       GLsizei length,
+                                                       const GLchar *message,
+                                                       const void *user_param)
+{
+    const enum ngpu_log_level log_level = gl_debug_type_to_log_level(type);
+    const char *msg_source = gl_debug_source_to_str(source);
+    const char *msg_type = gl_debug_type_to_str(type);
+    const char *msg_severity = gl_debug_severity_to_str(severity);
+
+    ngpu_log_print(log_level, __FILE__, __LINE__, __func__, "%s:%s:%s: %s", msg_source, msg_type, msg_severity, message);
+
+    // Do not abort if the source is the shader compiler as we want the error to
+    // be properly reported and propagated to the user (with proper error messages)
+    if (log_level == NGPU_LOG_ERROR && source != GL_DEBUG_SOURCE_SHADER_COMPILER && DEBUG_GL)
+        ngpu_assert(0);
+}
+
+static const struct {
+    uint64_t feature;
+    uint64_t feature_gl;
+} feature_map[] = {
+    {NGPU_FEATURE_SOFTWARE_BIT,                NGPU_FEATURE_GL_SOFTWARE},
+    {NGPU_FEATURE_COMPUTE_BIT,                 NGPU_FEATURE_GL_COMPUTE_SHADER_ALL},
+    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT,   NGPU_FEATURE_GL_BUFFER_STORAGE},
+    {NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT,   NGPU_FEATURE_GL_EXT_BUFFER_STORAGE},
+    {NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT,   0},
+    {NGPU_FEATURE_IMPORT_DMA_BUF_BIT,          NGPU_FEATURE_GL_OES_EGL_IMAGE |
+                                               NGPU_FEATURE_GL_EGL_IMAGE_BASE_KHR |
+                                               NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT},
+    {NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT, NGPU_FEATURE_GL_OES_EGL_EXTERNAL_IMAGE |
+                                               NGPU_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER},
+};
+
+static void ngpu_ctx_info_init(struct ngpu_ctx *s)
+{
+    const struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    const struct glcontext *gl = s_priv->glcontext;
+
+    s->version = gl->version;
+    s->language_version = gl->glsl_version;
+
+    for (size_t i = 0; i < NGPU_ARRAY_NB(feature_map); i++) {
+        const uint64_t feature = feature_map[i].feature;
+        const uint64_t feature_gl = feature_map[i].feature_gl;
+        if (NGPU_HAS_ALL_FLAGS(gl->features, feature_gl))
+            s->features |= feature;
+    }
+    if (s->params.platform == NGPU_PLATFORM_MACOS)
+        s->features |= NGPU_FEATURE_IMPORT_IOSURFACE_BIT;
+
+    if (s->params.platform == NGPU_PLATFORM_IOS)
+        s->features |= NGPU_FEATURE_IMPORT_IOSURFACE_BIT;
+
+    s->limits = gl->limits;
+    s->nb_in_flight_frames = 2;
+}
+
+static int create_command_buffers(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+
+    s_priv->update_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
+    s_priv->draw_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
+    if (!s_priv->update_cmd_buffers || !s_priv->draw_cmd_buffers)
+        return NGPU_ERROR_MEMORY;
+
+    for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
+        s_priv->update_cmd_buffers[i] = ngpu_cmd_buffer_gl_create(s);
+        if (!s_priv->update_cmd_buffers[i])
+            return NGPU_ERROR_MEMORY;
+
+        int ret = ngpu_cmd_buffer_gl_init(s_priv->update_cmd_buffers[i]);
+        if (ret < 0)
+            return ret;
+
+        s_priv->draw_cmd_buffers[i] = ngpu_cmd_buffer_gl_create(s);
+        if (!s_priv->draw_cmd_buffers[i])
+            return NGPU_ERROR_MEMORY;
+
+        ret = ngpu_cmd_buffer_gl_init(s_priv->draw_cmd_buffers[i]);
+        if (ret < 0)
+            return ret;
+    }
+
+    return 0;
+}
+
+static void destroy_command_buffers(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+
+    if (s_priv->update_cmd_buffers) {
+        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
+            ngpu_cmd_buffer_gl_freep(&s_priv->update_cmd_buffers[i]);
+        ngpu_freep(&s_priv->update_cmd_buffers);
+    }
+
+    if (s_priv->draw_cmd_buffers) {
+        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
+            ngpu_cmd_buffer_gl_freep(&s_priv->draw_cmd_buffers[i]);
+        ngpu_freep(&s_priv->draw_cmd_buffers);
+    }
+}
+
+static int gl_init(struct ngpu_ctx *s)
+{
+    int ret;
+    struct ngpu_ctx_params *ctx_params = &s->params;
+    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
+    if (external) {
+        if (ctx_params->width <= 0 || ctx_params->height <= 0) {
+            LOG(ERROR, "could not create external context with invalid dimensions (%ux%u)",
+                ctx_params->width, ctx_params->height);
+            return NGPU_ERROR_INVALID_ARG;
+        }
+        if (ctx_params->capture_buffer) {
+            LOG(ERROR, "capture_buffer is not supported by external context");
+            return NGPU_ERROR_INVALID_ARG;
+        }
+    } else if (ctx_params->offscreen) {
+        if (ctx_params->width <= 0 || ctx_params->height <= 0) {
+            LOG(ERROR, "could not create offscreen context with invalid dimensions (%ux%u)",
+                ctx_params->width, ctx_params->height);
+            return NGPU_ERROR_INVALID_ARG;
+        }
+    } else {
+        if (ctx_params->capture_buffer) {
+            LOG(ERROR, "capture_buffer is not supported by onscreen context");
+            return NGPU_ERROR_INVALID_ARG;
+        }
+    }
+
+#if DEBUG_GPU_CAPTURE
+    const char *var = getenv("NGPU_GPU_CAPTURE");
+    s->gpu_capture = var && !strcmp(var, "yes");
+    if (s->gpu_capture) {
+        s->gpu_capture_ctx = ngpu_capture_ctx_create(s);
+        if (!s->gpu_capture_ctx) {
+            LOG(ERROR, "could not create GPU capture context");
+            return NGPU_ERROR_MEMORY;
+        }
+        ret = ngpu_capture_init(s->gpu_capture_ctx);
+        if (ret < 0) {
+            LOG(ERROR, "could not initialize GPU capture");
+            s->gpu_capture = 0;
+            return ret;
+        }
+    }
+#endif
+
+    const struct glcontext_params params = {
+        .platform      = ctx_params->platform,
+        .backend       = ctx_params->backend,
+        .external      = external,
+        .display       = ctx_params->display,
+        .window        = ctx_params->window,
+        .swap_interval = ctx_params->swap_interval,
+        .offscreen     = ctx_params->offscreen,
+        .width         = ctx_params->width,
+        .height        = ctx_params->height,
+        .samples       = ctx_params->samples,
+        .debug         = ctx_params->debug,
+    };
+
+    s_priv->glcontext = ngpu_glcontext_create(&params);
+    if (!s_priv->glcontext)
+        return NGPU_ERROR_MEMORY;
+
+    struct glcontext *gl = s_priv->glcontext;
+
+    if (gl->debug && (gl->features & NGPU_FEATURE_GL_KHR_DEBUG)) {
+        gl->funcs.Enable(GL_DEBUG_OUTPUT);
+        gl->funcs.Enable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        gl->funcs.DebugMessageCallback(gl_debug_message_callback, NULL);
+    }
+
+    ngpu_ctx_info_init(s);
+
+#if DEBUG_GPU_CAPTURE
+    if (s->gpu_capture)
+        ngpu_capture_begin(s->gpu_capture_ctx);
+#endif
+
+    if (external) {
+        ret = ngpu_ctx_gl_wrap_framebuffer(s, ctx_params_gl->external_framebuffer);
+    } else if (gl->offscreen) {
+        ret = offscreen_rendertarget_init(s);
+    } else {
+        /* Sync context config dimensions with glcontext (swapchain) dimensions */
+        ctx_params->width = gl->width;
+        ctx_params->height = gl->height;
+        ret = onscreen_rendertarget_init(s);
+    }
+    if (ret < 0)
+        return ret;
+
+    ret = timer_init(s);
+    if (ret < 0)
+        return ret;
+
+    s_priv->default_rt_layout.samples = gl->samples;
+    s_priv->default_rt_layout.nb_colors = 1;
+    s_priv->default_rt_layout.colors[0].format = NGPU_FORMAT_R8G8B8A8_UNORM;
+    s_priv->default_rt_layout.colors[0].resolve = gl->samples > 1;
+    s_priv->default_rt_layout.depth_stencil.format = NGPU_FORMAT_D24_UNORM_S8_UINT;
+    s_priv->default_rt_layout.depth_stencil.resolve = gl->samples > 1;
+
+    ngpu_glstate_reset(gl, &s_priv->glstate);
+    ngpu_glstate_enable_scissor_test(gl, &s_priv->glstate, GL_TRUE);
+
+    ret = create_command_buffers(s);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
+static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    struct ngpu_ctx_params *ctx_params = &s->params;
+    struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
+
+    if (external) {
+        ctx_params->width = width;
+        ctx_params->height = height;
+    } else if (!ctx_params->offscreen) {
+        int ret = ngpu_glcontext_resize(gl, width, height);
+        if (ret < 0)
+            return ret;
+        ctx_params->width = gl->width;
+        ctx_params->height = gl->height;
+    } else {
+        LOG(ERROR, "resize operation is not supported by offscreen context");
+        return NGPU_ERROR_UNSUPPORTED;
+    }
+
+    s_priv->default_rt->width = ctx_params->width;
+    s_priv->default_rt->height = ctx_params->height;
+    s_priv->default_rt_load->width = ctx_params->width;
+    s_priv->default_rt_load->height = ctx_params->height;
+
+    if (!external) {
+        /*
+        * The default framebuffer id can change after a resize operation on EAGL,
+        * thus we need to update the rendertargets wrapping the default framebuffer
+        */
+        struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt;
+        struct ngpu_rendertarget_gl *rt_load_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt_load;
+        rt_gl->id = rt_load_gl->id = ngpu_glcontext_get_default_framebuffer(gl);
+    }
+
+    return 0;
+}
+
+#if defined(TARGET_IPHONE)
+static int update_capture_cvpixelbuffer(struct ngpu_ctx *s, CVPixelBufferRef capture_buffer)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+
+    ngpu_rendertarget_freep(&s_priv->default_rt);
+    ngpu_rendertarget_freep(&s_priv->default_rt_load);
+    ngpu_texture_freep(&s_priv->color);
+    reset_capture_cvpixelbuffer(s);
+
+    if (capture_buffer) {
+        s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(capture_buffer);
+        int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer, &s_priv->color);
+        if (ret < 0)
+            return ret;
+    } else {
+        int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->color);
+        if (ret < 0)
+            return ret;
+    }
+
+    struct ngpu_texture *color         = s_priv->ms_color ? s_priv->ms_color : s_priv->color;
+    struct ngpu_texture *resolve_color = s_priv->ms_color ? s_priv->color : NULL;
+    struct ngpu_texture *depth_stencil = s_priv->depth_stencil;
+
+    int ret;
+    if ((ret = create_rendertarget(s, color, resolve_color, depth_stencil,
+                                   NGPU_LOAD_OP_CLEAR, &s_priv->default_rt)) < 0 ||
+        (ret = create_rendertarget(s, color, resolve_color, depth_stencil,
+                                   NGPU_LOAD_OP_LOAD, &s_priv->default_rt_load)) < 0)
+        return ret;
+
+    return 0;
+}
+#endif
+
+static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
+{
+    struct ngpu_ctx_params *ctx_params = &s->params;
+    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
+
+    if (external) {
+        LOG(ERROR, "capture_buffer is not supported by external context");
+        return NGPU_ERROR_UNSUPPORTED;
+    }
+
+    if (!ctx_params->offscreen) {
+        LOG(ERROR, "capture_buffer is not supported by onscreen context");
+        return NGPU_ERROR_UNSUPPORTED;
+    }
+
+    if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO) {
+#if defined(TARGET_IPHONE)
+        int ret = update_capture_cvpixelbuffer(s, capture_buffer);
+        if (ret < 0)
+            return ret;
+#else
+        return NGPU_ERROR_UNSUPPORTED;
+#endif
+    }
+
+    ctx_params->capture_buffer = capture_buffer;
+
+    return 0;
+}
+
+int ngpu_ctx_gl_make_current(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    return ngpu_glcontext_make_current(gl, 1);
+}
+
+int ngpu_ctx_gl_release_current(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    return ngpu_glcontext_make_current(gl, 0);
+}
+
+void ngpu_ctx_gl_reset_state(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    ngpu_glstate_reset(gl, &s_priv->glstate);
+}
+
+int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
+{
+    struct ngpu_ctx_params *ctx_params = &s->params;
+    struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
+    if (!external) {
+        LOG(ERROR, "wrapping external OpenGL framebuffers is not supported by context");
+        return NGPU_ERROR_UNSUPPORTED;
+    }
+
+    GLuint prev_fbo = 0;
+    gl->funcs.GetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&prev_fbo);
+
+    const GLenum target = GL_DRAW_FRAMEBUFFER;
+    gl->funcs.BindFramebuffer(target, fbo);
+
+    const int es = ctx_params->backend == NGPU_BACKEND_OPENGLES;
+    const GLenum default_color_attachment = es ? GL_BACK : GL_FRONT_LEFT;
+    const GLenum color_attachment   = fbo ? GL_COLOR_ATTACHMENT0  : default_color_attachment;
+    const GLenum depth_attachment   = fbo ? GL_DEPTH_ATTACHMENT   : GL_DEPTH;
+    const GLenum stencil_attachment = fbo ? GL_STENCIL_ATTACHMENT : GL_STENCIL;
+    const struct {
+        const char *buffer_name;
+        const char *component_name;
+        GLenum attachment;
+        const GLenum property;
+    } components[] = {
+        {"color",   "red",     color_attachment,   GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE},
+        {"color",   "green",   color_attachment,   GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE},
+        {"color",   "blue",    color_attachment,   GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE},
+        {"color",   "alpha",   color_attachment,   GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE},
+        {"depth",   "depth",   depth_attachment,   GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE},
+        {"stencil", "stencil", stencil_attachment, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE},
+    };
+    for (size_t i = 0; i < NGPU_ARRAY_NB(components); i++) {
+        GLint type = 0;
+        gl->funcs.GetFramebufferAttachmentParameteriv(target,
+            components[i].attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+        if (!type) {
+            LOG(ERROR, "external framebuffer have no %s buffer attached to it", components[i].buffer_name);
+            gl->funcs.BindFramebuffer(target, prev_fbo);
+            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+        }
+
+        GLint size = 0;
+        gl->funcs.GetFramebufferAttachmentParameteriv(target,
+            components[i].attachment, components[i].property, &size);
+        if (!size) {
+            LOG(ERROR, "external framebuffer have no %s component", components[i].component_name);
+            gl->funcs.BindFramebuffer(target, prev_fbo);
+            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+        }
+    }
+
+    gl->funcs.BindFramebuffer(target, prev_fbo);
+
+    ngpu_rendertarget_freep(&s_priv->default_rt);
+    ngpu_rendertarget_freep(&s_priv->default_rt_load);
+
+    int ret;
+    if ((ret = create_rendertarget(s, NULL, NULL, NULL,
+                                   NGPU_LOAD_OP_CLEAR, &s_priv->default_rt)) < 0 ||
+        (ret = create_rendertarget(s, NULL, NULL, NULL,
+                                   NGPU_LOAD_OP_LOAD, &s_priv->default_rt_load)) < 0)
+        return ret;
+
+    ctx_params_gl->external_framebuffer = fbo;
+
+    return 0;
+}
+
+static int gl_begin_update(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+
+    s_priv->cur_cmd_buffer = s_priv->update_cmd_buffers[s->current_frame_index];
+    int ret = ngpu_cmd_buffer_gl_wait(s_priv->cur_cmd_buffer);
+    if (ret < 0)
+        return ret;
+
+    ret = ngpu_cmd_buffer_gl_begin(s_priv->cur_cmd_buffer);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
+static int gl_end_update(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+
+    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
+static int gl_begin_draw(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    const struct glcontext *gl = s_priv->glcontext;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
+
+    if (ctx_params->timer_queries)
+#if defined(TARGET_DARWIN)
+        gl->timer_funcs.BeginQuery(GL_TIME_ELAPSED, s_priv->queries[0]);
+#else
+        gl->timer_funcs.QueryCounter(s_priv->queries[0], GL_TIMESTAMP);
+#endif
+
+    s_priv->cur_cmd_buffer = s_priv->draw_cmd_buffers[s->current_frame_index];
+    int ret = ngpu_cmd_buffer_gl_wait(s_priv->cur_cmd_buffer);
+    if (ret < 0)
+        return ret;
+
+    ret = ngpu_cmd_buffer_gl_begin(s_priv->cur_cmd_buffer);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
+static void blit_vflip(struct ngpu_ctx *s, struct ngpu_rendertarget *src, struct ngpu_rendertarget *dst)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    struct ngpu_glstate *glstate = &s_priv->glstate;
+
+    struct ngpu_rendertarget_gl *src_gl = (struct ngpu_rendertarget_gl *)src;
+    const GLuint src_fbo = src_gl->resolve_id ? src_gl->resolve_id : src_gl->id;
+
+    struct ngpu_rendertarget_gl *dst_gl = (struct ngpu_rendertarget_gl *)dst;
+    const GLuint dst_fbo = dst_gl->id;
+
+    const int32_t w = (int32_t)src->width, h = (int32_t)dst->height;
+
+    gl->funcs.BindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo);
+    gl->funcs.BindFramebuffer(GL_DRAW_FRAMEBUFFER, dst_fbo);
+
+    ngpu_glstate_enable_scissor_test(gl, glstate, GL_FALSE);
+
+    gl->funcs.BlitFramebuffer(0, 0, w, h,
+                               0, h, w, 0,
+                               GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    ngpu_glstate_enable_scissor_test(gl, glstate, GL_TRUE);
+}
+
+static int gl_end_draw(struct ngpu_ctx *s, double t)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
+    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
+
+    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer);
+    if (ret < 0)
+        return ret;
+
+    if (s_priv->capture_func && ctx_params->capture_buffer) {
+        blit_vflip(s, s_priv->default_rt, s_priv->capture_rt);
+        s_priv->capture_func(s);
+    }
+
+    ret = ngpu_glcontext_check_gl_error(gl, __func__);
+
+    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
+    if (!external && !ctx_params->offscreen) {
+        if (ctx_params->set_surface_pts)
+            ngpu_glcontext_set_surface_pts(gl, t);
+
+        ngpu_glcontext_swap_buffers(gl);
+    }
+
+    return ret;
+}
+
+static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+
+    const struct ngpu_ctx_params *ctx_params = &s->params;
+    if (!ctx_params->timer_queries)
+        return NGPU_ERROR_INVALID_USAGE;
+
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    int ret = ngpu_cmd_buffer_gl_submit(cmd_buffer);
+    if (ret < 0)
+        return ret;
+
+#if defined(TARGET_DARWIN)
+    GLuint64 time_elapsed = 0;
+    gl->timer_funcs.EndQuery(GL_TIME_ELAPSED);
+    gl->timer_funcs.GetQueryObjectui64v(s_priv->queries[0], GL_QUERY_RESULT, &time_elapsed);
+    *time = (int64_t)time_elapsed;
+#else
+    gl->timer_funcs.QueryCounter(s_priv->queries[1], GL_TIMESTAMP);
+
+    GLuint64 start_time = 0;
+    gl->timer_funcs.GetQueryObjectui64v(s_priv->queries[0], GL_QUERY_RESULT, &start_time);
+
+    GLuint64 end_time = 0;
+    gl->timer_funcs.GetQueryObjectui64v(s_priv->queries[1], GL_QUERY_RESULT, &end_time);
+
+    *time = (int64_t)(end_time - start_time);
+#endif
+    ret = ngpu_cmd_buffer_gl_begin(cmd_buffer);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
+static void gl_wait_idle(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+
+    for (size_t i = 0; i < s->nb_in_flight_frames; i++) {
+        ngpu_cmd_buffer_gl_wait(s_priv->update_cmd_buffers[i]);
+        ngpu_cmd_buffer_gl_wait(s_priv->draw_cmd_buffers[i]);
+    }
+    gl->funcs.Finish();
+}
+
+static void gl_destroy(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    timer_reset(s);
+    rendertarget_reset(s);
+    destroy_command_buffers(s);
+#if DEBUG_GPU_CAPTURE
+    if (s->gpu_capture)
+        ngpu_capture_end(s->gpu_capture_ctx);
+    ngpu_capture_freep(&s->gpu_capture_ctx);
+#endif
+    ngpu_glcontext_freep(&s_priv->glcontext);
+}
+
+static enum ngpu_cull_mode gl_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
+{
+    return cull_mode;
+}
+
+static void gl_get_projection_matrix(struct ngpu_ctx *s, float *dst)
+{
+    static const NGPU_ALIGNED_MAT(matrix) = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    };
+    memcpy(dst, matrix, 4 * 4 * sizeof(float));
+}
+
+static void gl_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
+{
+    static const NGPU_ALIGNED_MAT(matrix) = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f,-1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
+    };
+    memcpy(dst, matrix, 4 * 4 * sizeof(float));
+}
+
+static struct ngpu_rendertarget *gl_get_default_rendertarget(struct ngpu_ctx *s, enum ngpu_load_op load_op)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    switch (load_op) {
+    case NGPU_LOAD_OP_DONT_CARE:
+    case NGPU_LOAD_OP_CLEAR:
+        return s_priv->default_rt;
+    case NGPU_LOAD_OP_LOAD:
+        return s_priv->default_rt_load;
+    default:
+        ngpu_assert(0);
+    }
+}
+
+static const struct ngpu_rendertarget_layout *gl_get_default_rendertarget_layout(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    return &s_priv->default_rt_layout;
+}
+
+static void gl_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width, uint32_t *height)
+{
+    *width = s->params.width;
+    *height = s->params.height;
+}
+
+static void gl_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, rt);
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_BEGIN_RENDER_PASS,
+                                            .begin_render_pass.rendertarget = rt,
+                                        });
+}
+
+static void gl_end_render_pass(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_END_RENDER_PASS,
+                                        });
+}
+
+static void gl_set_viewport(struct ngpu_ctx *s, const struct ngpu_viewport *viewport)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_SET_VIEWPORT,
+                                            .set_viewport.viewport = *viewport,
+                                        });
+}
+
+static void gl_set_scissor(struct ngpu_ctx *s, const struct ngpu_scissor *scissor)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_SET_SCISSOR,
+                                            .set_scissor.scissor = *scissor,
+                                        });
+}
+
+static enum ngpu_format gl_get_preferred_depth_format(struct ngpu_ctx *s)
+{
+    return NGPU_FORMAT_D16_UNORM;
+}
+
+static enum ngpu_format gl_get_preferred_depth_stencil_format(struct ngpu_ctx *s)
+{
+    return NGPU_FORMAT_D24_UNORM_S8_UINT;
+}
+
+static uint32_t gl_get_format_features(struct ngpu_ctx *s, enum ngpu_format format)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct glcontext *gl = s_priv->glcontext;
+
+    const struct ngpu_format_gl *format_gl = ngpu_format_get_gl_texture_format(gl, format);
+    return format_gl->features;
+}
+
+static void gl_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *texture)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, texture);
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_GENERATE_TEXTURE_MIPMAP,
+                                            .generate_texture_mipmap.texture = texture,
+                                        });
+}
+
+static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup, const uint32_t *offsets, size_t nb_offsets)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, bindgroup);
+
+    struct ngpu_bindgroup_gl *bindgroup_gl = (struct ngpu_bindgroup_gl *)bindgroup;
+    for (size_t i = 0; i < ngpu_darray_count(&bindgroup_gl->buffer_bindings); i++) {
+        struct buffer_binding_gl *binding = ngpu_darray_get(&bindgroup_gl->buffer_bindings, i);
+        ngpu_cmd_buffer_gl_ref_buffer(cmd_buffer, (struct ngpu_buffer *)binding->buffer);
+    }
+
+    struct ngpu_cmd_gl cmd_gl = {
+        .type = NGPU_CMD_TYPE_GL_SET_BINDGROUP,
+        .set_bindgroup.bindgroup = bindgroup,
+    };
+    memcpy(cmd_gl.set_bindgroup.offsets, offsets, nb_offsets * sizeof(*offsets));
+    cmd_gl.set_bindgroup.nb_offsets = nb_offsets;
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &cmd_gl);
+}
+
+static void gl_set_pipeline(struct ngpu_ctx *s, struct ngpu_pipeline *pipeline)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, pipeline);
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_SET_PIPELINE,
+                                            .set_pipeline.pipeline = pipeline,
+                                        });
+}
+
+static void gl_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_DRAW,
+                                            .draw.nb_vertices = nb_vertices,
+                                            .draw.nb_instances = nb_instances,
+                                            .draw.first_vertex = first_vertex,
+                                        });
+}
+
+static void gl_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_DRAW_INDEXED,
+                                            .draw_indexed.nb_indices = nb_indices,
+                                            .draw_indexed.nb_instances = nb_instances,
+                                        });
+}
+
+static void gl_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_DISPATCH,
+                                            .dispatch.nb_group_x = nb_group_x,
+                                            .dispatch.nb_group_y = nb_group_y,
+                                            .dispatch.nb_group_z = nb_group_z,
+                                        });
+}
+
+static void gl_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struct ngpu_buffer *buffer)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, buffer);
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_SET_VERTEX_BUFFER,
+                                            .set_vertex_buffer.index = index,
+                                            .set_vertex_buffer.buffer = buffer,
+                                        });
+}
+
+static void gl_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *buffer, enum ngpu_format format)
+{
+    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
+
+    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, buffer);
+
+    ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
+                                            .type = NGPU_CMD_TYPE_GL_SET_INDEX_BUFFER,
+                                            .set_index_buffer.buffer = buffer,
+                                            .set_index_buffer.format = format,
+                                        });
+}
+
+#define DECLARE_GPU_CTX_CLASS(cls_suffix, cls_id)                                \
+const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                            \
+    .id                                 = cls_id,                                \
+    .create                             = gl_create,                             \
+    .init                               = gl_init,                               \
+    .resize                             = gl_resize,                             \
+    .set_capture_buffer                 = gl_set_capture_buffer,                 \
+    .begin_update                       = gl_begin_update,                       \
+    .end_update                         = gl_end_update,                         \
+    .begin_draw                         = gl_begin_draw,                         \
+    .end_draw                           = gl_end_draw,                           \
+    .query_draw_time                    = gl_query_draw_time,                    \
+    .wait_idle                          = gl_wait_idle,                          \
+    .destroy                            = gl_destroy,                            \
+                                                                                 \
+    .get_cull_mode                      = gl_get_cull_mode,                      \
+    .get_projection_matrix              = gl_get_projection_matrix,              \
+    .get_rendertarget_uvcoord_matrix    = gl_get_rendertarget_uvcoord_matrix,    \
+                                                                                 \
+    .get_default_rendertarget           = gl_get_default_rendertarget,           \
+    .get_default_rendertarget_layout    = gl_get_default_rendertarget_layout,    \
+    .get_default_rendertarget_size      = gl_get_default_rendertarget_size,      \
+                                                                                 \
+    .begin_render_pass                  = gl_begin_render_pass,                  \
+    .end_render_pass                    = gl_end_render_pass,                    \
+                                                                                 \
+    .set_viewport                       = gl_set_viewport,                       \
+    .set_scissor                        = gl_set_scissor,                        \
+                                                                                 \
+    .get_preferred_depth_format         = gl_get_preferred_depth_format,         \
+    .get_preferred_depth_stencil_format = gl_get_preferred_depth_stencil_format, \
+    .get_format_features                = gl_get_format_features,                \
+                                                                                 \
+    .generate_texture_mipmap            = gl_generate_texture_mipmap,            \
+                                                                                 \
+    .set_bindgroup                      = gl_set_bindgroup,                      \
+                                                                                 \
+    .set_pipeline                       = gl_set_pipeline,                       \
+    .draw                               = gl_draw,                               \
+    .draw_indexed                       = gl_draw_indexed,                       \
+    .dispatch                           = gl_dispatch,                           \
+                                                                                 \
+    .set_vertex_buffer                  = gl_set_vertex_buffer,                  \
+    .set_index_buffer                   = gl_set_index_buffer,                   \
+                                                                                 \
+    .buffer_create                      = ngpu_buffer_gl_create,                 \
+    .buffer_init                        = ngpu_buffer_gl_init,                   \
+    .buffer_wait                        = ngpu_buffer_gl_wait,                   \
+    .buffer_upload                      = ngpu_buffer_gl_upload,                 \
+    .buffer_map                         = ngpu_buffer_gl_map,                    \
+    .buffer_unmap                       = ngpu_buffer_gl_unmap,                  \
+    .buffer_freep                       = ngpu_buffer_gl_freep,                  \
+                                                                                 \
+    .bindgroup_layout_create            = ngpu_bindgroup_layout_gl_create,       \
+    .bindgroup_layout_init              = ngpu_bindgroup_layout_gl_init,         \
+    .bindgroup_layout_freep             = ngpu_bindgroup_layout_gl_freep,        \
+                                                                                 \
+    .bindgroup_create                   = ngpu_bindgroup_gl_create,              \
+    .bindgroup_init                     = ngpu_bindgroup_gl_init,                \
+    .bindgroup_update_texture           = ngpu_bindgroup_gl_update_texture,      \
+    .bindgroup_update_buffer            = ngpu_bindgroup_gl_update_buffer,       \
+    .bindgroup_freep                    = ngpu_bindgroup_gl_freep,               \
+                                                                                 \
+    .pipeline_create                    = ngpu_pipeline_gl_create,               \
+    .pipeline_init                      = ngpu_pipeline_gl_init,                 \
+    .pipeline_freep                     = ngpu_pipeline_gl_freep,                \
+                                                                                 \
+    .program_create                     = ngpu_program_gl_create,                \
+    .program_init                       = ngpu_program_gl_init,                  \
+    .program_freep                      = ngpu_program_gl_freep,                 \
+                                                                                 \
+    .rendertarget_create                = ngpu_rendertarget_gl_create,           \
+    .rendertarget_init                  = ngpu_rendertarget_gl_init,             \
+    .rendertarget_freep                 = ngpu_rendertarget_gl_freep,            \
+                                                                                 \
+    .texture_create                     = ngpu_texture_gl_create,                \
+    .texture_init                       = ngpu_texture_gl_init,                  \
+    .texture_import                     = ngpu_texture_gl_import,                \
+    .texture_upload                     = ngpu_texture_gl_upload,                \
+    .texture_upload_with_params         = ngpu_texture_gl_upload_with_params,    \
+    .texture_generate_mipmap            = ngpu_texture_gl_generate_mipmap,       \
+    .texture_freep                      = ngpu_texture_gl_freep,                 \
+}                                                                                \
+
+#ifdef BACKEND_GL
+DECLARE_GPU_CTX_CLASS(gl,   NGPU_BACKEND_OPENGL);
+#endif
+#ifdef BACKEND_GLES
+DECLARE_GPU_CTX_CLASS(gles, NGPU_BACKEND_OPENGLES);
+#endif
