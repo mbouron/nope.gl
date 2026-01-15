@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakePythonSetting">
+    <option name="pythonIntegrationState" value="YES" />
+  </component>
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="MesonSettings">
+    <option name="linkedExternalProjectsSettings">
+      <MesonProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+          </set>
+        </option>
+        <option name="profiles">
+          <MesonProfile>
+            <option name="buildDir" value="$PROJECT_DIR$/../builddir/libngpu" />
+            <option name="setupOptions">
+              <list>
+                <option value="--prefix" />
+                <option value="$PROJECT_DIR$/../venv" />
+                <option value="--pkg-config-path" />
+                <option value="$PROJECT_DIR$/../venv/lib/pkgconfig" />
+                <option value="--buildtype" />
+                <option value="debugoptimized" />
+                <option value="--backend=ninja" />
+                <option value="-Drpath=true" />
+                <option value="-Ddebug_opts=mem,gpu_capture,vk" />
+                <option value="-Drenderdoc_dir=/home/mateo/src/nope.gl/external/renderdoc_Linux" />
+                <option value="-Dextra_library_dirs=/home/mateo/src/nope.gl/venv/lib" />
+                <option value="-Dextra_include_dirs=/home/mateo/src/nope.gl/venv/include" />
+              </list>
+            </option>
+          </MesonProfile>
+        </option>
+      </MesonProjectSettings>
+    </option>
+  </component>
+  <component name="MesonWorkspace" PROJECT_DIR="$PROJECT_DIR$" />
+</project>

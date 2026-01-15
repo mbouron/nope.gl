@@ -32,7 +32,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_block.h"
 #include "node_buffer.h"
 #include "node_resourceprops.h"
@@ -41,7 +41,7 @@
 #include "nopegl/nopegl.h"
 #include "pass.h"
 #include "pipeline_compat.h"
-#include "ngpu/pgcraft.h"
+#include <ngpu/ngpu.h>
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/utils.h"

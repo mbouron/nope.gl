@@ -24,7 +24,7 @@
 
 #include <nopemd.h>
 
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "utils/utils.h"
 
 #define NGLI_COLOR_INFO_DEFAULTS {             \
@@ -44,13 +44,13 @@ struct color_info {
 struct color_info ngli_color_info_from_nopemd_frame(const struct nmd_frame *frame);
 
 enum image_layout {
-    NGLI_IMAGE_LAYOUT_NONE           = 0,
-    NGLI_IMAGE_LAYOUT_DEFAULT        = 1,
-    NGLI_IMAGE_LAYOUT_MEDIACODEC     = 2,
-    NGLI_IMAGE_LAYOUT_NV12           = 3,
-    NGLI_IMAGE_LAYOUT_NV12_RECTANGLE = 4,
-    NGLI_IMAGE_LAYOUT_YUV            = 5,
-    NGLI_IMAGE_LAYOUT_RECTANGLE      = 6,
+    NGLI_IMAGE_LAYOUT_NONE           = NGPU_IMAGE_LAYOUT_NONE,
+    NGLI_IMAGE_LAYOUT_DEFAULT        = NGPU_IMAGE_LAYOUT_DEFAULT,
+    NGLI_IMAGE_LAYOUT_MEDIACODEC     = NGPU_IMAGE_LAYOUT_MEDIACODEC,
+    NGLI_IMAGE_LAYOUT_NV12           = NGPU_IMAGE_LAYOUT_NV12,
+    NGLI_IMAGE_LAYOUT_NV12_RECTANGLE = NGPU_IMAGE_LAYOUT_NV12_RECTANGLE,
+    NGLI_IMAGE_LAYOUT_YUV            = NGPU_IMAGE_LAYOUT_YUV,
+    NGLI_IMAGE_LAYOUT_RECTANGLE      = NGPU_IMAGE_LAYOUT_RECTANGLE,
     NGLI_NB_IMAGE_LAYOUTS
 };
 

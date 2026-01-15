@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 #include "image.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 
 struct ngl_ctx;
 struct rtt_ctx;

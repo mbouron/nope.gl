@@ -32,7 +32,7 @@
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 
 struct format_desc {

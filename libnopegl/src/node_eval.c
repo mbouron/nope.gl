@@ -26,7 +26,7 @@
 #include "eval.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "utils/hmap.h"

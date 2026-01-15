@@ -34,7 +34,7 @@
 #endif
 
 #include "log.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "utils/utils.h"
 #include "vaapi_ctx.h"
 

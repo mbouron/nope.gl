@@ -23,8 +23,8 @@
 #ifndef PIPELINE_COMPAT_H
 #define PIPELINE_COMPAT_H
 
-#include "ngpu/ngpu.h"
-#include "ngpu/pgcraft.h"
+#include <ngpu/ngpu.h>
+#include <ngpu/ngpu.h>
 
 struct pipeline_compat_params {
     enum ngpu_pipeline_type type;

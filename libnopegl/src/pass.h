@@ -25,8 +25,8 @@
 #include <stdint.h>
 
 #include "blending.h"
-#include "ngpu/ngpu.h"
-#include "ngpu/pgcraft.h"
+#include <ngpu/ngpu.h>
+#include <ngpu/ngpu.h>
 #include "utils/darray.h"
 
 struct ngl_ctx;

@@ -28,7 +28,7 @@
 
 #include "hwconv.h"
 #include "image.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 
 #define HWMAP_FLAG_FRAME_OWNER (1U << 0)
 

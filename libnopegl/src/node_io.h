@@ -22,7 +22,7 @@
 #ifndef NODE_IO_H
 #define NODE_IO_H
 
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 
 struct io_opts {
     enum ngpu_precision precision_out;

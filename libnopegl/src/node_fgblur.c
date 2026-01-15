@@ -27,13 +27,13 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
 #include "rtt.h"
-#include "ngpu/pgcraft.h"
+#include <ngpu/ngpu.h>
 #include "utils/bits.h"
 #include "utils/utils.h"
 

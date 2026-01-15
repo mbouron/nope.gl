@@ -30,7 +30,7 @@
 #include "android_ctx.h"
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "utils/utils.h"
 
 

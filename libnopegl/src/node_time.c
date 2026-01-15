@@ -24,7 +24,7 @@
 #include "internal.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 
 struct time_priv {
     struct variable_info var;
