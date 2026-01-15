@@ -45,7 +45,7 @@
 #include "utils/pthread_compat.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
-#include "ngpu/opengl/ctx_gl.h"
+#include "ngpu/ngpu_opengl.h"
 #endif
 
 #if defined(HAVE_VAAPI)
