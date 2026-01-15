@@ -26,9 +26,8 @@
 #include <OpenGLES/ES3/glext.h>
 #include <UIKit/UIKit.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/opengl/glcontext.h"
-#include "nopegl/nopegl.h"
 
 struct eagl_priv {
     EAGLContext *handle;
@@ -48,7 +47,7 @@ static int eagl_init_layer(struct glcontext *ctx)
 {
     if (![NSThread isMainThread]) {
         LOG(ERROR, "eagl_init_layer() must be called from the UI thread");
-        return NGL_ERROR_INVALID_USAGE;
+        return NGPU_ERROR_INVALID_USAGE;
     }
 
     struct eagl_priv *eagl = ctx->priv_data;
@@ -56,7 +55,7 @@ static int eagl_init_layer(struct glcontext *ctx)
     eagl->layer = (CAEAGLLayer *)[eagl->view layer];
     if (!eagl->layer) {
         LOG(ERROR, "could not retrieve EAGL layer");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     NSDictionary *properties = [NSDictionary dictionaryWithObjectsAndKeys:
@@ -77,26 +76,26 @@ static int eagl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window,
 
     if (ctx->backend != NGPU_BACKEND_OPENGLES) {
         LOG(ERROR, "unsupported backend: %d, only OpenGLES is supported by EAGL", ctx->backend);
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengles"));
     if (!framework) {
         LOG(ERROR, "could not retrieve OpenGLES framework");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     eagl->framework = (CFBundleRef)CFRetain(framework);
     if (!eagl->framework) {
         LOG(ERROR, "could not retain OpenGL framework object");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     if (!ctx->offscreen) {
         eagl->view = (UIView *)window;
         if (!eagl->view) {
             LOG(ERROR, "could not retrieve UI view");
-            return NGL_ERROR_EXTERNAL;
+            return NGPU_ERROR_EXTERNAL;
         }
 
         int ret = eagl_init_layer(ctx);
@@ -113,7 +112,7 @@ static int eagl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window,
     eagl->handle = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3 sharegroup:share_group];
     if (!eagl->handle) {
         LOG(ERROR, "could not create EAGL context");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     CVReturn err = CVOpenGLESTextureCacheCreate(kCFAllocatorDefault,
@@ -123,7 +122,7 @@ static int eagl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window,
                                                 &eagl->texture_cache);
     if (err != noErr) {
         LOG(ERROR, "could not create CoreVideo texture cache: 0x%x", err);
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     return 0;
@@ -135,25 +134,25 @@ static int eagl_init_external(struct glcontext *ctx, uintptr_t display, uintptr_
 
     if (ctx->backend != NGPU_BACKEND_OPENGLES) {
         LOG(ERROR, "unsupported backend: %d, only OpenGLES is supported by EAGL", ctx->backend);
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengles"));
     if (!framework) {
         LOG(ERROR, "could not retrieve OpenGLES framework");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     eagl->framework = (CFBundleRef)CFRetain(framework);
     if (!eagl->framework) {
         LOG(ERROR, "could not retain OpenGL framework object");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     eagl->handle = [EAGLContext currentContext];
     if (!eagl->handle) {
         LOG(ERROR, "could not retrieve EAGL context");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     CVReturn err = CVOpenGLESTextureCacheCreate(kCFAllocatorDefault,
@@ -163,7 +162,7 @@ static int eagl_init_external(struct glcontext *ctx, uintptr_t display, uintptr_
                                                 &eagl->texture_cache);
     if (err != noErr) {
         LOG(ERROR, "could not create CoreVideo texture cache: 0x%x", err);
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     return 0;
@@ -196,7 +195,7 @@ static int eagl_init_framebuffer(struct glcontext *ctx)
     GLenum status = ctx->funcs.CheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
        LOG(ERROR, "framebuffer is not complete: 0x%x", status);
-       return NGL_ERROR_EXTERNAL;
+       return NGPU_ERROR_EXTERNAL;
     }
 
     if (ctx->samples > 0) {
@@ -217,7 +216,7 @@ static int eagl_init_framebuffer(struct glcontext *ctx)
         status = ctx->funcs.CheckFramebufferStatus(GL_FRAMEBUFFER);
         if (status != GL_FRAMEBUFFER_COMPLETE) {
             LOG(ERROR, "framebuffer is not complete: 0x%x", status);
-            return NGL_ERROR_EXTERNAL;
+            return NGPU_ERROR_EXTERNAL;
         }
     }
 
@@ -271,7 +270,7 @@ static int eagl_resize(struct glcontext *ctx, uint32_t width, uint32_t height)
 {
     if (![NSThread isMainThread]) {
         LOG(ERROR, "eagl_resize() must be called from the UI thread");
-        return NGL_ERROR_INVALID_USAGE;
+        return NGPU_ERROR_INVALID_USAGE;
     }
 
     eagl_reset_framebuffer(ctx);
@@ -290,7 +289,7 @@ static int eagl_make_current(struct glcontext *ctx, int current)
         ret = [EAGLContext setCurrentContext:nil];
     }
 
-    return ret ? 0 : NGL_ERROR_EXTERNAL;
+    return ret ? 0 : NGPU_ERROR_EXTERNAL;
 }
 
 static void eagl_swap_buffers(struct glcontext *ctx)

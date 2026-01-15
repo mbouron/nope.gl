@@ -23,9 +23,9 @@
 #include <string.h>
 
 #include "ngpu/pgcache.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "ngpu/utils/hmap.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/utils.h"
 
 struct ngpu_pgcache {
     struct ngpu_ctx *gpu_ctx;
@@ -42,21 +42,21 @@ static void reset_cached_program(void *user_arg, void *data)
 static void reset_cached_frag_map(void *user_arg, void *data)
 {
     struct hmap *p = data;
-    ngli_hmap_freep(&p);
+    ngpu_hmap_freep(&p);
 }
 
 struct ngpu_pgcache *ngpu_pgcache_create(struct ngpu_ctx *ctx)
 {
-    struct ngpu_pgcache *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_pgcache *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->gpu_ctx = ctx;
-    s->graphics_cache = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
-    s->compute_cache = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    s->graphics_cache = ngpu_hmap_create(NGPU_HMAP_TYPE_STR);
+    s->compute_cache = ngpu_hmap_create(NGPU_HMAP_TYPE_STR);
     if (!s->graphics_cache || !s->compute_cache)
         goto fail;
-    ngli_hmap_set_free_func(s->graphics_cache, reset_cached_frag_map, s);
-    ngli_hmap_set_free_func(s->compute_cache, reset_cached_program, s);
+    ngpu_hmap_set_free_func(s->graphics_cache, reset_cached_frag_map, s);
+    ngpu_hmap_set_free_func(s->compute_cache, reset_cached_program, s);
     return s;
 
 fail:
@@ -70,10 +70,10 @@ static int query_cache(struct ngpu_pgcache *s, struct ngpu_program **dstp,
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
-    struct ngpu_program *cached_program = ngli_hmap_get_str(cache, cache_key);
+    struct ngpu_program *cached_program = ngpu_hmap_get_str(cache, cache_key);
     if (cached_program) {
         /* make sure the cached program has not been reset by the user */
-        ngli_assert(ngpu_program_get_ctx(cached_program));
+        ngpu_assert(ngpu_program_get_ctx(cached_program));
 
         *dstp = cached_program;
         return 0;
@@ -82,7 +82,7 @@ static int query_cache(struct ngpu_pgcache *s, struct ngpu_program **dstp,
     /* this is free'd by the reset_cached_program() when destroying the cache */
     struct ngpu_program *new_program = ngpu_program_create(gpu_ctx);
     if (!new_program)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     int ret = ngpu_program_init(new_program, params);
     if (ret < 0) {
@@ -90,7 +90,7 @@ static int query_cache(struct ngpu_pgcache *s, struct ngpu_program **dstp,
         return ret;
     }
 
-    ret = ngli_hmap_set_str(cache, cache_key, new_program);
+    ret = ngpu_hmap_set_str(cache, cache_key, new_program);
     if (ret < 0) {
         ngpu_program_freep(&new_program);
         return ret;
@@ -107,17 +107,17 @@ int ngpu_pgcache_get_graphics_program(struct ngpu_pgcache *s, struct ngpu_progra
      * do is basically graphics_cache[vert][frag] to obtain the program. If the
      * 2nd hmap is not yet allocated, we do create a new one here.
      */
-    struct hmap *frag_map = ngli_hmap_get_str(s->graphics_cache, params->vertex);
+    struct hmap *frag_map = ngpu_hmap_get_str(s->graphics_cache, params->vertex);
     if (!frag_map) {
-        frag_map = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+        frag_map = ngpu_hmap_create(NGPU_HMAP_TYPE_STR);
         if (!frag_map)
-            return NGL_ERROR_MEMORY;
-        ngli_hmap_set_free_func(frag_map, reset_cached_program, s);
+            return NGPU_ERROR_MEMORY;
+        ngpu_hmap_set_free_func(frag_map, reset_cached_program, s);
 
-        int ret = ngli_hmap_set_str(s->graphics_cache, params->vertex, frag_map);
+        int ret = ngpu_hmap_set_str(s->graphics_cache, params->vertex, frag_map);
         if (ret < 0) {
-            ngli_hmap_freep(&frag_map);
-            return NGL_ERROR_MEMORY;
+            ngpu_hmap_freep(&frag_map);
+            return NGPU_ERROR_MEMORY;
         }
     }
 
@@ -134,7 +134,7 @@ void ngpu_pgcache_freep(struct ngpu_pgcache **sp)
     struct ngpu_pgcache *s = *sp;
     if (!s)
         return;
-    ngli_hmap_freep(&s->compute_cache);
-    ngli_hmap_freep(&s->graphics_cache);
-    ngli_freep(sp);
+    ngpu_hmap_freep(&s->compute_cache);
+    ngpu_hmap_freep(&s->graphics_cache);
+    ngpu_freep(sp);
 }

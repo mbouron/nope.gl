@@ -22,7 +22,7 @@
 
 #include <string.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/opengl/ctx_gl.h"
 #include "ngpu/opengl/program_gl.h"
@@ -71,7 +71,7 @@ int ngpu_program_gl_set_locations_and_bindings(struct ngpu_program *s,
         int len = snprintf(block_name, sizeof(block_name), "%s_block", buffer_name);
         if (len >= sizeof(block_name)) {
             LOG(ERROR, "block name \"%s\" is too long", buffer_name);
-            return NGL_ERROR_MEMORY;
+            return NGPU_ERROR_MEMORY;
         }
         const GLuint block_index = gl->funcs.GetUniformBlockIndex(s_priv->id, block_name);
         gl->funcs.UniformBlockBinding(s_priv->id, block_index, entry->binding);

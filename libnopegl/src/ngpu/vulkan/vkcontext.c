@@ -39,15 +39,15 @@
 #include <stdlib.h>
 #include <vulkan/vulkan.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ctx.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/vulkan/vkcontext.h"
 #include "ngpu/vulkan/vkutils.h"
-#include "utils/bstr.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "ngpu/utils/bstr.h"
+#include "ngpu/utils/darray.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/utils.h"
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
                                                      VkDebugUtilsMessageTypeFlagsEXT type,
@@ -62,11 +62,11 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverity
     if (cb_data->messageIdNumber == 0x7cd0911d)
         return VK_FALSE;
 
-    enum ngl_log_level level = NGL_LOG_INFO;
-    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)        level = NGL_LOG_ERROR;
-    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) level = NGL_LOG_WARNING;
-    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)    level = NGL_LOG_INFO;
-    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) level = NGL_LOG_VERBOSE;
+    enum ngpu_log_level level = NGPU_LOG_INFO;
+    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)        level = NGPU_LOG_ERROR;
+    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) level = NGPU_LOG_WARNING;
+    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)    level = NGPU_LOG_INFO;
+    else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) level = NGPU_LOG_VERBOSE;
 
     const char *msg_type = "GENERAL";
     if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)       msg_type = "VALIDATION";
@@ -77,7 +77,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverity
         msg_len--;
     if (msg_len > INT_MAX)
         return VK_TRUE;
-    ngli_log_print(level, __FILE__, __LINE__, "debug_callback", "%s: %.*s", msg_type, (int)msg_len, cb_data->pMessage);
+    ngpu_log_print(level, __FILE__, __LINE__, "debug_callback", "%s: %.*s", msg_type, (int)msg_len, cb_data->pMessage);
 
     /* Make the Vulkan call fail if the validation layer has returned an error */
     if ((severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) &&
@@ -129,14 +129,14 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
                     (int)VK_VERSION_MAJOR(VK_API_VERSION_1_1),
                     (int)VK_VERSION_MINOR(VK_API_VERSION_1_1),
                     (int)VK_VERSION_PATCH(VK_API_VERSION_1_1));
-        return NGL_ERROR_GRAPHICS_UNSUPPORTED;
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
     VkResult res = vkEnumerateInstanceLayerProperties(&s->nb_layers, NULL);
     if (res != VK_SUCCESS)
         return res;
 
-    s->layers = ngli_calloc(s->nb_layers, sizeof(*s->layers));
+    s->layers = ngpu_calloc(s->nb_layers, sizeof(*s->layers));
     if (!s->layers)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -152,7 +152,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     if (res != VK_SUCCESS)
         return res;
 
-    s->extensions = ngli_calloc(s->nb_extensions, sizeof(*s->extensions));
+    s->extensions = ngpu_calloc(s->nb_extensions, sizeof(*s->extensions));
     if (!s->extensions)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -166,7 +166,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
             s->extensions[i].extensionName, s->extensions[i].specVersion);
     }
 
-    if (platform < 0 || platform >= NGLI_ARRAY_NB(platform_ext_names)) {
+    if (platform < 0 || platform >= NGPU_ARRAY_NB(platform_ext_names)) {
         LOG(ERROR, "unsupported platform: %u", platform);
         return VK_ERROR_UNKNOWN;
     }
@@ -185,14 +185,14 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
 #endif
     };
 
-    struct darray extensions;
-    ngli_darray_init(&extensions, sizeof(const char **), 0);
+    struct ngpu_darray extensions;
+    ngpu_darray_init(&extensions, sizeof(const char **), 0);
 
-    struct darray layers;
-    ngli_darray_init(&layers, sizeof(const char **), 0);
+    struct ngpu_darray layers;
+    ngpu_darray_init(&layers, sizeof(const char **), 0);
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(mandatory_extensions); i++) {
-        if (!ngli_darray_push(&extensions, &mandatory_extensions[i])) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(mandatory_extensions); i++) {
+        if (!ngpu_darray_push(&extensions, &mandatory_extensions[i])) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
@@ -201,14 +201,14 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     static const char *debug_ext = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     const int has_debug_extension = ngpu_vkcontext_has_extension(s, debug_ext, 0);
     if (debug) {
-        if (has_debug_extension && !ngli_darray_push(&extensions, &debug_ext)) {
+        if (has_debug_extension && !ngpu_darray_push(&extensions, &debug_ext)) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
 
         static const char *debug_layer = "VK_LAYER_KHRONOS_validation";
         const int has_validation_layer = has_layer(s, debug_layer);
-        if (has_validation_layer && !ngli_darray_push(&layers, &debug_layer)) {
+        if (has_validation_layer && !ngpu_darray_push(&layers, &debug_layer)) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
@@ -220,17 +220,17 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     const VkApplicationInfo app_info = {
         .sType         = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pEngineName   = "nope.gl",
-        .engineVersion = NGL_VERSION_INT,
+        .engineVersion = 0,
         .apiVersion    = s->api_version,
     };
 
     const VkInstanceCreateInfo instance_create_info = {
         .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo        = &app_info,
-        .enabledExtensionCount   = (uint32_t)ngli_darray_count(&extensions),
-        .ppEnabledExtensionNames = ngli_darray_data(&extensions),
-        .enabledLayerCount       = (uint32_t)ngli_darray_count(&layers),
-        .ppEnabledLayerNames     = ngli_darray_data(&layers),
+        .enabledExtensionCount   = (uint32_t)ngpu_darray_count(&extensions),
+        .ppEnabledExtensionNames = ngpu_darray_data(&extensions),
+        .enabledLayerCount       = (uint32_t)ngpu_darray_count(&layers),
+        .ppEnabledLayerNames     = ngpu_darray_data(&layers),
     };
 
     res = vkCreateInstance(&instance_create_info, NULL, &s->instance);
@@ -261,8 +261,8 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     }
 
 end:
-    ngli_darray_reset(&extensions);
-    ngli_darray_reset(&layers);
+    ngpu_darray_reset(&extensions);
+    ngpu_darray_reset(&layers);
 
     return res;
 }
@@ -380,7 +380,7 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
         return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
     } else {
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 
     return VK_SUCCESS;
@@ -395,7 +395,7 @@ static VkResult enumerate_physical_devices(struct vkcontext *s, const struct ngp
     if (!s->nb_phy_devices)
         return VK_ERROR_DEVICE_LOST;
 
-    s->phy_devices = ngli_calloc(s->nb_phy_devices, sizeof(*s->phy_devices));
+    s->phy_devices = ngpu_calloc(s->nb_phy_devices, sizeof(*s->phy_devices));
     if (!s->phy_devices)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -420,9 +420,9 @@ static void get_memory_property_flags_str(struct bstr *bstr, VkMemoryPropertyFla
     };
 
     int nb_props = 0;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(vk_mem_prop_map); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(vk_mem_prop_map); i++) {
         if (vk_mem_prop_map[i].property & flags) {
-            ngli_bstr_printf(bstr, "%s%s", nb_props == 0 ? "" : "|", vk_mem_prop_map[i].name);
+            ngpu_bstr_printf(bstr, "%s%s", nb_props == 0 ? "" : "|", vk_mem_prop_map[i].name);
             nb_props++;
         }
     }
@@ -454,14 +454,14 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
         VkPhysicalDeviceMemoryProperties mem_props;
         vkGetPhysicalDeviceMemoryProperties(phy_device, &mem_props);
 
-        if (dev_props.deviceType >= NGLI_ARRAY_NB(types)) {
+        if (dev_props.deviceType >= NGPU_ARRAY_NB(types)) {
             LOG(ERROR, "device %s has unknown type: 0x%x, skipping", dev_props.deviceName, dev_props.deviceType);
             continue;
         }
 
         uint32_t qfamily_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &qfamily_count, NULL);
-        VkQueueFamilyProperties *qfamily_props = ngli_calloc(qfamily_count, sizeof(*qfamily_props));
+        VkQueueFamilyProperties *qfamily_props = ngpu_calloc(qfamily_count, sizeof(*qfamily_props));
         if (!qfamily_props)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &qfamily_count, qfamily_props);
@@ -472,7 +472,7 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
         for (uint32_t j = 0; j < qfamily_count; j++) {
             const VkQueueFamilyProperties props = qfamily_props[j];
             const VkQueueFlags flags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
-            if (NGLI_HAS_ALL_FLAGS(props.queueFlags, flags))
+            if (NGPU_HAS_ALL_FLAGS(props.queueFlags, flags))
                 queue_family_graphics_id = j;
             if (s->surface) {
                 VkBool32 support;
@@ -484,7 +484,7 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
             if (found_queues)
                 break;
         }
-        ngli_free(qfamily_props);
+        ngpu_free(qfamily_props);
 
         if (!found_queues)
             continue;
@@ -508,23 +508,23 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
     LOG(DEBUG, "select physical device: %s, graphics queue: %u, present queue: %u",
         s->phy_device_props.deviceName, s->graphics_queue_index, s->present_queue_index);
 
-    struct bstr *type = ngli_bstr_create();
-    struct bstr *props = ngli_bstr_create();
+    struct bstr *type = ngpu_bstr_create();
+    struct bstr *props = ngpu_bstr_create();
     if (!type || !props) {
-        ngli_bstr_freep(&type);
-        ngli_bstr_freep(&props);
-        return NGL_ERROR_MEMORY;
+        ngpu_bstr_freep(&type);
+        ngpu_bstr_freep(&props);
+        return NGPU_ERROR_MEMORY;
     }
     LOG(DEBUG, "available memory types:");
     for (uint32_t i = 0; i < s->phydev_mem_props.memoryTypeCount; i++) {
         get_memory_property_flags_str(type, 1 << i);
         get_memory_property_flags_str(props, s->phydev_mem_props.memoryTypes[i].propertyFlags);
-        LOG(DEBUG, "\t%s:\t%s", ngli_bstr_strptr(type), ngli_bstr_strptr(props));
-        ngli_bstr_clear(type);
-        ngli_bstr_clear(props);
+        LOG(DEBUG, "\t%s:\t%s", ngpu_bstr_strptr(type), ngpu_bstr_strptr(props));
+        ngpu_bstr_clear(type);
+        ngpu_bstr_clear(props);
     }
-    ngli_bstr_freep(&type);
-    ngli_bstr_freep(&props);
+    ngpu_bstr_freep(&type);
+    ngpu_bstr_freep(&props);
 
     return VK_SUCCESS;
 }
@@ -535,7 +535,7 @@ static VkResult enumerate_extensions(struct vkcontext *s)
     if (res != VK_SUCCESS)
         return res;
 
-    s->device_extensions = ngli_calloc(s->nb_device_extensions, sizeof(*s->device_extensions));
+    s->device_extensions = ngpu_calloc(s->nb_device_extensions, sizeof(*s->device_extensions));
     if (!s->device_extensions)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -596,8 +596,8 @@ static VkResult create_device(struct vkcontext *s)
 
 #undef ENABLE_FEATURE
 
-    struct darray enabled_extensions;
-    ngli_darray_init(&enabled_extensions, sizeof(const char *), 0);
+    struct ngpu_darray enabled_extensions;
+    ngpu_darray_init(&enabled_extensions, sizeof(const char *), 0);
 
     static const char *mandatory_device_extensions[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -606,9 +606,9 @@ static VkResult create_device(struct vkcontext *s)
 #endif
     };
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(mandatory_device_extensions); i++) {
-        if (!ngli_darray_push(&enabled_extensions, &mandatory_device_extensions[i])) {
-            ngli_darray_reset(&enabled_extensions);
+    for (size_t i = 0; i < NGPU_ARRAY_NB(mandatory_device_extensions); i++) {
+        if (!ngpu_darray_push(&enabled_extensions, &mandatory_device_extensions[i])) {
+            ngpu_darray_reset(&enabled_extensions);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
     }
@@ -626,10 +626,10 @@ static VkResult create_device(struct vkcontext *s)
 #endif
     };
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(optional_device_extensions); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(optional_device_extensions); i++) {
         if (ngpu_vkcontext_has_extension(s, optional_device_extensions[i], 1)) {
-            if (!ngli_darray_push(&enabled_extensions, &optional_device_extensions[i])) {
-                ngli_darray_reset(&enabled_extensions);
+            if (!ngpu_darray_push(&enabled_extensions, &optional_device_extensions[i])) {
+                ngpu_darray_reset(&enabled_extensions);
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
             }
         }
@@ -653,12 +653,12 @@ static VkResult create_device(struct vkcontext *s)
         .pNext                   = &dev_features2,
         .pQueueCreateInfos       = queues_create_info,
         .queueCreateInfoCount    = nb_queues,
-        .enabledExtensionCount   = (uint32_t)ngli_darray_count(&enabled_extensions),
-        .ppEnabledExtensionNames = ngli_darray_data(&enabled_extensions),
+        .enabledExtensionCount   = (uint32_t)ngpu_darray_count(&enabled_extensions),
+        .ppEnabledExtensionNames = ngpu_darray_data(&enabled_extensions),
     };
     VkResult res = vkCreateDevice(s->phy_device, &device_create_info, NULL, &s->device);
 
-    ngli_darray_reset(&enabled_extensions);
+    ngpu_darray_reset(&enabled_extensions);
 
     if (res != VK_SUCCESS)
         return res;
@@ -678,10 +678,10 @@ VkFormat ngpu_vkcontext_find_supported_format(struct vkcontext *s, const VkForma
         VkFormatProperties properties;
         vkGetPhysicalDeviceFormatProperties(s->phy_device, formats[i], &properties);
         if (tiling == VK_IMAGE_TILING_LINEAR &&
-            NGLI_HAS_ALL_FLAGS(properties.linearTilingFeatures, features))
+            NGPU_HAS_ALL_FLAGS(properties.linearTilingFeatures, features))
             return formats[i];
         if (tiling == VK_IMAGE_TILING_OPTIMAL &&
-            NGLI_HAS_ALL_FLAGS(properties.optimalTilingFeatures, features))
+            NGPU_HAS_ALL_FLAGS(properties.optimalTilingFeatures, features))
             return formats[i];
         i++;
     }
@@ -691,7 +691,7 @@ VkFormat ngpu_vkcontext_find_supported_format(struct vkcontext *s, const VkForma
 uint32_t ngpu_vkcontext_find_memory_type(struct vkcontext *s, uint32_t type, VkMemoryPropertyFlags props)
 {
     for (uint32_t i = 0; i < s->phydev_mem_props.memoryTypeCount; i++)
-        if ((type & (1 << i)) && NGLI_HAS_ALL_FLAGS(s->phydev_mem_props.memoryTypes[i].propertyFlags, props))
+        if ((type & (1 << i)) && NGPU_HAS_ALL_FLAGS(s->phydev_mem_props.memoryTypes[i].propertyFlags, props))
             return i;
     return UINT32_MAX;
 }
@@ -707,7 +707,7 @@ static VkResult query_swapchain_support(struct vkcontext *s)
     if (!s->nb_surface_formats)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
-    s->surface_formats = ngli_calloc(s->nb_surface_formats, sizeof(*s->surface_formats));
+    s->surface_formats = ngpu_calloc(s->nb_surface_formats, sizeof(*s->surface_formats));
     if (!s->surface_formats)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     vkGetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, s->surface, &s->nb_surface_formats, s->surface_formats);
@@ -716,7 +716,7 @@ static VkResult query_swapchain_support(struct vkcontext *s)
     if (!s->nb_present_modes)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
-    s->present_modes = ngli_calloc(s->nb_present_modes, sizeof(*s->present_modes));
+    s->present_modes = ngpu_calloc(s->nb_present_modes, sizeof(*s->present_modes));
     if (!s->present_modes)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     vkGetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, s->surface, &s->nb_present_modes, s->present_modes);
@@ -734,7 +734,7 @@ VkBool32 ngpu_vkcontext_support_present_mode(const struct vkcontext *s, VkPresen
     return VK_FALSE;
 }
 
-static enum ngpu_format ngli_format_from_vk_format(VkFormat format)
+static enum ngpu_format ngpu_format_from_vk_format(VkFormat format)
 {
     switch (format) {
     case VK_FORMAT_D32_SFLOAT:         return NGPU_FORMAT_D32_SFLOAT;
@@ -742,7 +742,7 @@ static enum ngpu_format ngli_format_from_vk_format(VkFormat format)
     case VK_FORMAT_D32_SFLOAT_S8_UINT: return NGPU_FORMAT_D32_SFLOAT_S8_UINT;
     case VK_FORMAT_D24_UNORM_S8_UINT:  return NGPU_FORMAT_D24_UNORM_S8_UINT;
     default:
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 }
 
@@ -759,7 +759,7 @@ static VkResult select_preferred_formats(struct vkcontext *s)
     VkFormat format = ngpu_vkcontext_find_supported_format(s, depth_stencil_formats, tiling, features);
     if (!format)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
-    s->preferred_depth_stencil_format = ngli_format_from_vk_format(format);
+    s->preferred_depth_stencil_format = ngpu_format_from_vk_format(format);
 
     const VkFormat depth_formats[] = {
         VK_FORMAT_D32_SFLOAT,
@@ -769,7 +769,7 @@ static VkResult select_preferred_formats(struct vkcontext *s)
     format = ngpu_vkcontext_find_supported_format(s, depth_formats, tiling, features);
     if (!format)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
-    s->preferred_depth_format = ngli_format_from_vk_format(format);
+    s->preferred_depth_format = ngpu_format_from_vk_format(format);
 
     return VK_SUCCESS;
 }
@@ -845,7 +845,7 @@ static int load_function(struct vkcontext *s, const struct vk_function *func)
 
 static VkResult load_functions(struct vkcontext *s)
 {
-    for (size_t i = 0; i < NGLI_ARRAY_NB(vk_extensions); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(vk_extensions); i++) {
         struct vk_extension *ext = &vk_extensions[i];
         if (!ngpu_vkcontext_has_extension(s, ext->name, ext->device))
             continue;
@@ -862,7 +862,7 @@ static VkResult load_functions(struct vkcontext *s)
 
 struct vkcontext *ngpu_vkcontext_create(void)
 {
-    struct vkcontext *s = ngli_calloc(1, sizeof(*s));
+    struct vkcontext *s = ngpu_calloc(1, sizeof(*s));
     return s;
 }
 
@@ -956,12 +956,12 @@ void ngpu_vkcontext_freep(struct vkcontext **sp)
             DestroyDebugUtilsMessengerEXT(s->instance, s->debug_callback, NULL);
     }
 
-    ngli_freep(&s->present_modes);
-    ngli_freep(&s->surface_formats);
-    ngli_freep(&s->device_extensions);
-    ngli_freep(&s->phy_devices);
-    ngli_freep(&s->layers);
-    ngli_freep(&s->extensions);
+    ngpu_freep(&s->present_modes);
+    ngpu_freep(&s->surface_formats);
+    ngpu_freep(&s->device_extensions);
+    ngpu_freep(&s->phy_devices);
+    ngpu_freep(&s->layers);
+    ngpu_freep(&s->extensions);
 
     vkDestroyInstance(s->instance, NULL);
 
@@ -970,5 +970,5 @@ void ngpu_vkcontext_freep(struct vkcontext **sp)
         XCloseDisplay(s->x11_display);
 #endif
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }

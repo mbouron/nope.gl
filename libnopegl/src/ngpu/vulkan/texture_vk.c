@@ -25,7 +25,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/vulkan/buffer_vk.h"
 #include "ngpu/vulkan/ctx_vk.h"
@@ -33,9 +33,9 @@
 #include "ngpu/vulkan/texture_vk.h"
 #include "ngpu/vulkan/vkutils.h"
 #include "ngpu/vulkan/ycbcr_sampler_vk.h"
-#include "utils/bits.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "ngpu/utils/bits.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/utils.h"
 
 #if defined(TARGET_LINUX) ||defined(TARGET_ANDROID)
 #include <unistd.h>
@@ -128,7 +128,7 @@ static VkAccessFlagBits get_vk_access_mask_from_image_layout(VkImageLayout layou
     VkPipelineStageFlags access_mask = 0;
     switch (layout) {
     case VK_IMAGE_LAYOUT_UNDEFINED:
-        ngli_assert(!dst_mask);
+        ngpu_assert(!dst_mask);
         break;
     case VK_IMAGE_LAYOUT_GENERAL:
         access_mask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
@@ -152,7 +152,7 @@ static VkAccessFlagBits get_vk_access_mask_from_image_layout(VkImageLayout layou
         access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
         break;
     case VK_IMAGE_LAYOUT_PREINITIALIZED:
-        ngli_assert(dst_mask);
+        ngpu_assert(dst_mask);
         access_mask = VK_ACCESS_HOST_WRITE_BIT;
         break;
     case VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL:
@@ -180,7 +180,7 @@ static VkAccessFlagBits get_vk_access_mask_from_image_layout(VkImageLayout layou
         break;
     default:
         LOG(ERROR, "unexpected image layout: 0x%x", layout);
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 
     return access_mask;
@@ -245,7 +245,7 @@ static VkFormatFeatureFlags get_vk_texture_format_features(const struct ngpu_tex
 
 static uint32_t get_mipmap_levels(uint32_t width, uint32_t height)
 {
-    return ngli_log2(width | height | 1);
+    return ngpu_log2(width | height | 1);
 }
 
 static int init_fields(struct ngpu_texture *s, const struct ngpu_texture_params *params)
@@ -254,11 +254,11 @@ static int init_fields(struct ngpu_texture *s, const struct ngpu_texture_params 
 
     s->params = *params;
 
-    ngli_assert(params->width && params->height);
+    ngpu_assert(params->width && params->height);
 
     uint32_t depth = 1;
     if (params->type == NGPU_TEXTURE_TYPE_3D) {
-        ngli_assert(params->depth);
+        ngpu_assert(params->depth);
         depth = params->depth;
     }
     s->params.depth = depth;
@@ -344,7 +344,7 @@ static VkResult create_sampler(struct ngpu_texture *s)
 
 struct ngpu_texture *ngpu_texture_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_texture_vk *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_texture_vk *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -370,7 +370,7 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
     case VK_IMAGE_TILING_LINEAR:  supported_features = properties.linearTilingFeatures;  break;
     case VK_IMAGE_TILING_OPTIMAL: supported_features = properties.optimalTilingFeatures; break;
     default:
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 
     const VkFormatFeatureFlags features = get_vk_texture_format_features(params);
@@ -556,20 +556,20 @@ static int import_dma_buf(struct ngpu_texture *s)
     VkResult res = vkGetPhysicalDeviceImageFormatProperties2(vk->phy_device, &fmt_info, &fmt_props);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not get image format properties: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     const VkExtent3D max = fmt_props.imageFormatProperties.maxExtent;
     if (s->params.width > max.width || s->params.height > max.height) {
         LOG(ERROR, "plane dimensions (%ux%u) exceed GPU limits (%ux%u)",
             s->params.width, s->params.height, max.width, max.height);
-        return NGL_ERROR_GRAPHICS_LIMIT_EXCEEDED;
+        return NGPU_ERROR_GRAPHICS_LIMIT_EXCEEDED;
     }
 
     res = vkCreateImage(vk->device, &img_info, NULL, &s_priv->image);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "failed to create image: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     VkMemoryDedicatedRequirements mem_ded_reqs = {
@@ -596,13 +596,13 @@ static int import_dma_buf(struct ngpu_texture *s)
                                        &fd_props);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not get fd properties (fd=%d): %s", dma_buf_params->fd, ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     s_priv->fd = dup(dma_buf_params->fd);
     if (s_priv->fd == -1) {
         LOG(ERROR, "could not dup file descriptor (fd=%d)", dma_buf_params->fd);
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     VkImportMemoryFdInfoKHR fd_info = {
@@ -629,7 +629,7 @@ static int import_dma_buf(struct ngpu_texture *s)
     res = vkAllocateMemory(vk->device, &mem_alloc_info, NULL, &s_priv->image_memory);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not allocate memory: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_MEMORY;
+        return NGPU_ERROR_GRAPHICS_MEMORY;
     }
     /*
      * According to the VkImportMemoryFdInfoKHR documentation, importing
@@ -644,13 +644,13 @@ static int import_dma_buf(struct ngpu_texture *s)
     res = vkBindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not bind image memory: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
         ngpu_texture_vk_transition_layout(s, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     return 0;
 #else
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -677,7 +677,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     VkResult res = vk->GetAndroidHardwareBufferPropertiesANDROID(vk->device, hardware_buffer, &ahb_props);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not get android hardware buffer properties: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     VkExternalFormatANDROID external_format = {
@@ -717,7 +717,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     res = vkCreateImage(vk->device, &img_info, NULL, &s_priv->image);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create image: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     VkMemoryDedicatedAllocateInfoKHR mem_ded_info = {
@@ -735,7 +735,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     const uint32_t mem_type_index = ngpu_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
     if (mem_type_index == UINT32_MAX) {
         LOG(ERROR, "could not find required memory type");
-        return NGL_ERROR_GRAPHICS_UNSUPPORTED;
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
     const VkMemoryAllocateInfo mem_info = {
@@ -748,13 +748,13 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     res = vkAllocateMemory(vk->device, &mem_info, NULL, &s_priv->image_memory);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not allocate memory: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_MEMORY;
+        return NGPU_ERROR_GRAPHICS_MEMORY;
     }
 
     res = vkBindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not bind image memory: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     const struct ngpu_ycbcr_sampler_vk *ycbcr_sampler_vk = (struct ngpu_ycbcr_sampler_vk *)ahb_params->ycbcr_sampler;
@@ -786,7 +786,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     res = vkCreateImageView(vk->device, &view_info, NULL, &s_priv->image_view);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create image view: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     const VkImageMemoryBarrier barrier = {
@@ -814,7 +814,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
 
     return 0;
 #else
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -857,7 +857,7 @@ static int import_metal_texture(struct ngpu_texture *s)
 
   return 0;
 #else
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -881,7 +881,7 @@ int ngpu_texture_vk_import(struct ngpu_texture *s, const struct ngpu_texture_par
         ret = import_metal_texture(s);
         break;
     default:
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 
     if (ret < 0)
@@ -920,7 +920,7 @@ VkResult ngpu_texture_vk_wrap(struct ngpu_texture *s, const struct ngpu_texture_
     s_priv->sampler = wrap_params->sampler;
     s_priv->wrapped_sampler = wrap_params->sampler != VK_NULL_HANDLE;
     if (wrap_params->ycbcr_sampler) {
-        ngli_assert(s_priv->sampler == VK_NULL_HANDLE);
+        ngpu_assert(s_priv->sampler == VK_NULL_HANDLE);
         s_priv->use_ycbcr_sampler = 1;
         s_priv->ycbcr_sampler = ngpu_ycbcr_sampler_vk_ref(wrap_params->ycbcr_sampler);
     }
@@ -1014,7 +1014,7 @@ static int create_staging_buffer(struct ngpu_texture *s, size_t size)
 
     s_priv->staging_buffer = ngpu_buffer_create(s->gpu_ctx);
     if (!s_priv->staging_buffer)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     const uint32_t usage = NGPU_BUFFER_USAGE_DYNAMIC_BIT |
                            NGPU_BUFFER_USAGE_TRANSFER_SRC_BIT |
@@ -1050,8 +1050,8 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
     struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
 
     /* Wrapped textures cannot update their content with this function */
-    ngli_assert(!s_priv->wrapped_image);
-    ngli_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
+    ngpu_assert(!s_priv->wrapped_image);
+    ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
     if (!data)
         return VK_SUCCESS;
@@ -1101,8 +1101,8 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                             &subres_range);
 
-    struct darray copy_regions;
-    ngli_darray_init(&copy_regions, sizeof(VkBufferImageCopy), 0);
+    struct ngpu_darray copy_regions;
+    ngpu_darray_init(&copy_regions, sizeof(VkBufferImageCopy), 0);
 
     for (uint32_t i = transfer_params->base_layer; i < transfer_params->layer_count; i++) {
         const VkDeviceSize offset = i * transfer_layer_size;
@@ -1128,8 +1128,8 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
             },
         };
 
-        if (!ngli_darray_push(&copy_regions, &region)) {
-            ngli_darray_reset(&copy_regions);
+        if (!ngpu_darray_push(&copy_regions, &region)) {
+            ngpu_darray_reset(&copy_regions);
             if (cmd_is_transient) {
                 ngpu_cmd_buffer_vk_freep(&cmd_buffer_vk);
             }
@@ -1142,10 +1142,10 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
                            staging_buffer_vk->buffer,
                            s_priv->image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           (uint32_t)ngli_darray_count(&copy_regions),
-                           ngli_darray_data(&copy_regions));
+                           (uint32_t)ngpu_darray_count(&copy_regions),
+                           ngpu_darray_data(&copy_regions));
 
-    ngli_darray_reset(&copy_regions);
+    ngpu_darray_reset(&copy_regions);
 
     transition_image_layout(cmd_buf,
                             s_priv->image,
@@ -1194,8 +1194,8 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
     const struct ngpu_texture_params *params = &s->params;
     struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
 
-    ngli_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_SRC_BIT);
-    ngli_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
+    ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_SRC_BIT);
+    ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
     const int cmd_is_transient = cmd_buffer_vk ? 0 : 1;
@@ -1269,7 +1269,7 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
             },
             .dstOffsets = {
                 {0, 0, 0},
-                {NGLI_MAX(mipmap_width >> 1, 1), NGLI_MAX(mipmap_height >> 1, 1), 1},
+                {NGPU_MAX(mipmap_width >> 1, 1), NGPU_MAX(mipmap_height >> 1, 1), 1},
             },
         };
 
@@ -1292,8 +1292,8 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
                              0, NULL,
                              1, &barrier);
 
-        mipmap_width  = NGLI_MAX(mipmap_width >> 1, 1);
-        mipmap_height = NGLI_MAX(mipmap_height >> 1, 1);
+        mipmap_width  = NGPU_MAX(mipmap_width >> 1, 1);
+        mipmap_height = NGPU_MAX(mipmap_height >> 1, 1);
     }
 
     barrier.subresourceRange.baseMipLevel = s_priv->mipmap_levels - 1;
@@ -1348,5 +1348,5 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
 
     destroy_staging_buffer(s);
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }

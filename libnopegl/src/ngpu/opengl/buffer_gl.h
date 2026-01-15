@@ -26,14 +26,14 @@
 #include "ngpu/buffer.h"
 #include "ngpu/opengl/cmd_buffer_gl.h"
 #include "ngpu/opengl/glincludes.h"
-#include "utils/darray.h"
+#include "ngpu/utils/darray.h"
 
 struct ngpu_buffer_gl {
     struct ngpu_buffer parent;
     GLuint id;
     GLbitfield map_flags;
     GLbitfield barriers;
-    struct darray cmd_buffers;
+    struct ngpu_darray cmd_buffers;
 };
 
 struct ngpu_ctx;

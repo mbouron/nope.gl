@@ -26,27 +26,27 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ctx.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/opengl/glcontext.h"
 #include "ngpu/opengl/glincludes.h"
-#include "utils/bstr.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "ngpu/utils/bstr.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/utils.h"
 
 #ifdef HAVE_GLPLATFORM_EGL
 #include "ngpu/opengl/egl.h"
 #endif
 
-NGLI_STATIC_ASSERT(sizeof(GLfloat)  == sizeof(float),          "GLfloat size");
-NGLI_STATIC_ASSERT(sizeof(GLbyte)   == sizeof(char),           "GLbyte size");
-NGLI_STATIC_ASSERT(sizeof(GLshort)  == sizeof(short),          "GLshort size");
-NGLI_STATIC_ASSERT(sizeof(GLint)    == sizeof(int),            "GLint size");
-NGLI_STATIC_ASSERT(sizeof(GLubyte)  == sizeof(unsigned char),  "GLubyte size");
-NGLI_STATIC_ASSERT(sizeof(GLushort) == sizeof(unsigned short), "GLushort size");
-NGLI_STATIC_ASSERT(sizeof(GLuint)   == sizeof(unsigned int),   "GLuint size");
-NGLI_STATIC_ASSERT(GL_FALSE == 0 && GL_TRUE == 1,              "GLboolean values");
+NGPU_STATIC_ASSERT(sizeof(GLfloat)  == sizeof(float),          "GLfloat size");
+NGPU_STATIC_ASSERT(sizeof(GLbyte)   == sizeof(char),           "GLbyte size");
+NGPU_STATIC_ASSERT(sizeof(GLshort)  == sizeof(short),          "GLshort size");
+NGPU_STATIC_ASSERT(sizeof(GLint)    == sizeof(int),            "GLint size");
+NGPU_STATIC_ASSERT(sizeof(GLubyte)  == sizeof(unsigned char),  "GLubyte size");
+NGPU_STATIC_ASSERT(sizeof(GLushort) == sizeof(unsigned short), "GLushort size");
+NGPU_STATIC_ASSERT(sizeof(GLuint)   == sizeof(unsigned int),   "GLuint size");
+NGPU_STATIC_ASSERT(GL_FALSE == 0 && GL_TRUE == 1,              "GLboolean values");
 
 enum {
     GLPLATFORM_EGL,
@@ -298,13 +298,13 @@ static int glcontext_load_functions(struct glcontext *glcontext)
 {
     const struct glfunctions *gl = &glcontext->funcs;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(glfunction_load_infos); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(glfunction_load_infos); i++) {
         const struct glfunction_load_info *func_load_info = &glfunction_load_infos[i];
 
         void *func = ngpu_glcontext_get_proc_address(glcontext, func_load_info->name);
         if (!func && !func_load_info->optional) {
             LOG(ERROR, "could not find core function: %s", func_load_info->name);
-            return NGL_ERROR_NOT_FOUND;
+            return NGPU_ERROR_NOT_FOUND;
         }
 
         *(void **)((uintptr_t)gl + func_load_info->offset) = func;
@@ -321,7 +321,7 @@ static int glcontext_probe_version(struct glcontext *glcontext)
     const char *gl_version = (const char *)glcontext->funcs.GetString(GL_VERSION);
     if (!gl_version) {
         LOG(ERROR, "could not get OpenGL version");
-        return NGL_ERROR_BUG;
+        return NGPU_ERROR_BUG;
     }
 
     const char *es_prefix = "OpenGL ES";
@@ -330,7 +330,7 @@ static int glcontext_probe_version(struct glcontext *glcontext)
     if (glcontext->backend != backend) {
         LOG(ERROR, "OpenGL context (%s) does not match requested backend (%s)",
             backend_names[backend], backend_names[glcontext->backend]);
-        return NGL_ERROR_INVALID_USAGE;
+        return NGPU_ERROR_INVALID_USAGE;
     }
 
     if (glcontext->backend == NGPU_BACKEND_OPENGL) {
@@ -343,10 +343,10 @@ static int glcontext_probe_version(struct glcontext *glcontext)
                          &minor_version);
         if (ret != 2) {
             LOG(ERROR, "could not parse OpenGL ES version: \"%s\"", gl_version);
-            return NGL_ERROR_BUG;
+            return NGPU_ERROR_BUG;
         }
     } else {
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 
     LOG(INFO, "OpenGL version: %d.%d %s",
@@ -357,7 +357,7 @@ static int glcontext_probe_version(struct glcontext *glcontext)
     const char *renderer = (const char *)glcontext->funcs.GetString(GL_RENDERER);
     if (!renderer) {
         LOG(ERROR, "could not get OpenGL renderer");
-        return NGL_ERROR_BUG;
+        return NGPU_ERROR_BUG;
     }
     LOG(INFO, "OpenGL renderer: %s", renderer);
 
@@ -372,10 +372,10 @@ static int glcontext_probe_version(struct glcontext *glcontext)
 
     if (glcontext->backend == NGPU_BACKEND_OPENGL && glcontext->version < 330) {
         LOG(ERROR, "nope.gl only supports OpenGL >= 3.3");
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     } else if (glcontext->backend == NGPU_BACKEND_OPENGLES && glcontext->version < 300) {
         LOG(ERROR, "nope.gl only supports OpenGL ES >= 3.0");
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     return 0;
@@ -387,7 +387,7 @@ static int glcontext_probe_glsl_version(struct glcontext *glcontext)
         const char *glsl_version = (const char *)glcontext->funcs.GetString(GL_SHADING_LANGUAGE_VERSION);
         if (!glsl_version) {
             LOG(ERROR, "could not get GLSL version");
-            return NGL_ERROR_BUG;
+            return NGPU_ERROR_BUG;
         }
 
         int major_version;
@@ -395,13 +395,13 @@ static int glcontext_probe_glsl_version(struct glcontext *glcontext)
         int ret = sscanf(glsl_version, "%d.%d", &major_version, &minor_version);
         if (ret != 2) {
             LOG(ERROR, "could not parse GLSL version: \"%s\"", glsl_version);
-            return NGL_ERROR_BUG;
+            return NGPU_ERROR_BUG;
         }
         glcontext->glsl_version = major_version * 100 + minor_version;
     } else if (glcontext->backend == NGPU_BACKEND_OPENGLES) {
         glcontext->glsl_version = glcontext->version;
     } else {
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 
     return 0;
@@ -439,7 +439,7 @@ static int glcontext_check_extensions(struct glcontext *glcontext,
             extensions++;
         }
     } else {
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 
     return 1;
@@ -466,16 +466,16 @@ static int glcontext_check_functions(struct glcontext *glcontext,
 static int glcontext_probe_extensions(struct glcontext *glcontext)
 {
     const int es = glcontext->backend == NGPU_BACKEND_OPENGLES;
-    struct bstr *features_str = ngli_bstr_create();
+    struct bstr *features_str = ngpu_bstr_create();
 
     if (!features_str)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(glfeatures); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(glfeatures); i++) {
         const struct glfeature *glfeature = &glfeatures[i];
 
         const char **extensions = es ? glfeature->es_extensions : glfeature->extensions;
-        ngli_assert(!extensions || *extensions);
+        ngpu_assert(!extensions || *extensions);
 
         int version = es ? glfeature->es_version : glfeature->version;
         if (!version && !extensions)
@@ -489,12 +489,12 @@ static int glcontext_probe_extensions(struct glcontext *glcontext)
         if (!glcontext_check_functions(glcontext, glfeature->funcs_offsets))
             continue;
 
-        ngli_bstr_printf(features_str, " %s", glfeature->name);
+        ngpu_bstr_printf(features_str, " %s", glfeature->name);
         glcontext->features |= glfeature->flag;
     }
 
-    LOG(INFO, "OpenGL%s features:%s", es ? " ES" : "", ngli_bstr_strptr(features_str));
-    ngli_bstr_freep(&features_str);
+    LOG(INFO, "OpenGL%s features:%s", es ? " ES" : "", ngpu_bstr_strptr(features_str));
+    ngpu_bstr_freep(&features_str);
 
     return 0;
 }
@@ -516,7 +516,7 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
     struct ngpu_limits *limits = &glcontext->limits;
 
     GET(GL_MAX_VERTEX_ATTRIBS, &limits->max_vertex_attributes);
-    limits->max_vertex_attributes = NGLI_MIN(limits->max_vertex_attributes, NGPU_MAX_VERTEX_BUFFERS);
+    limits->max_vertex_attributes = NGPU_MIN(limits->max_vertex_attributes, NGPU_MAX_VERTEX_BUFFERS);
     /*
      * macOS and iOS OpenGL drivers pass gl_VertexID and gl_InstanceID as
      * standard attributes and forget to count them in GL_MAX_VERTEX_ATTRIBS.
@@ -533,7 +533,7 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
     GET(GL_MAX_SAMPLES, &limits->max_samples);
 
     GET(GL_MAX_COLOR_ATTACHMENTS, &limits->max_color_attachments);
-    limits->max_color_attachments = NGLI_MIN(limits->max_color_attachments, NGPU_MAX_COLOR_ATTACHMENTS);
+    limits->max_color_attachments = NGPU_MIN(limits->max_color_attachments, NGPU_MAX_COLOR_ATTACHMENTS);
 
     GET(GL_MAX_UNIFORM_BLOCK_SIZE, &limits->max_uniform_block_size);
     GET(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &limits->min_uniform_block_offset_alignment);
@@ -548,13 +548,13 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
     }
 
     if (glcontext->features & NGPU_FEATURE_GL_COMPUTE_SHADER) {
-        for (GLuint i = 0; i < (GLuint)NGLI_ARRAY_NB(limits->max_compute_work_group_count); i++) {
+        for (GLuint i = 0; i < (GLuint)NGPU_ARRAY_NB(limits->max_compute_work_group_count); i++) {
             GET_I(GL_MAX_COMPUTE_WORK_GROUP_COUNT, i, &limits->max_compute_work_group_count[i]);
         }
 
         GET(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &limits->max_compute_work_group_invocations);
 
-        for (GLuint i = 0; i < (GLuint)NGLI_ARRAY_NB(limits->max_compute_work_group_size); i++) {
+        for (GLuint i = 0; i < (GLuint)NGPU_ARRAY_NB(limits->max_compute_work_group_size); i++) {
             GET_I(GL_MAX_COMPUTE_WORK_GROUP_SIZE, i, &limits->max_compute_work_group_size[i]);
         }
 
@@ -573,12 +573,12 @@ static int glcontext_probe_formats(struct glcontext *glcontext)
     return 0;
 }
 
-static void NGLI_GL_APIENTRY GenQueriesNoop(GLsizei n, GLuint * ids) {}
-static void NGLI_GL_APIENTRY DeleteQueriesNoop(GLsizei n, const GLuint *ids) {}
-static void NGLI_GL_APIENTRY BeginQueryNoop(GLenum target, GLuint id) {}
-static void NGLI_GL_APIENTRY EndQueryNoop(GLenum target) {}
-static void NGLI_GL_APIENTRY QueryCounterNoop(GLuint id, GLenum target) {}
-static void NGLI_GL_APIENTRY GetQueryObjectui64vNoop(GLuint id, GLenum pname, GLuint64 *params) {}
+static void NGPU_GL_APIENTRY GenQueriesNoop(GLsizei n, GLuint * ids) {}
+static void NGPU_GL_APIENTRY DeleteQueriesNoop(GLsizei n, const GLuint *ids) {}
+static void NGPU_GL_APIENTRY BeginQueryNoop(GLenum target, GLuint id) {}
+static void NGPU_GL_APIENTRY EndQueryNoop(GLenum target) {}
+static void NGPU_GL_APIENTRY QueryCounterNoop(GLuint id, GLenum target) {}
+static void NGPU_GL_APIENTRY GetQueryObjectui64vNoop(GLuint id, GLenum pname, GLuint64 *params) {}
 
 static int glcontext_probe_timer_functions(struct glcontext *gl)
 {
@@ -612,7 +612,7 @@ static int glcontext_check_driver(struct glcontext *glcontext)
     const char *gl_version = (const char *)glcontext->funcs.GetString(GL_VERSION);
     if (!gl_version) {
         LOG(ERROR, "could not get OpenGL version");
-        return NGL_ERROR_BUG;
+        return NGPU_ERROR_BUG;
     }
 
     int mesa_version[3] = {0};
@@ -621,9 +621,9 @@ static int glcontext_check_driver(struct glcontext *glcontext)
         int ret = sscanf(mesa, "Mesa %d.%d.%d", &mesa_version[0], &mesa_version[1], &mesa_version[2]);
         if (ret != 3) {
             LOG(ERROR, "could not parse Mesa version: \"%s\"", mesa);
-            return NGL_ERROR_BUG;
+            return NGPU_ERROR_BUG;
         }
-        LOG(INFO, "Mesa version: %d.%d.%d", NGLI_ARG_VEC3(mesa_version));
+        LOG(INFO, "Mesa version: %d.%d.%d", NGPU_ARG_VEC3(mesa_version));
     }
 
 #ifdef HAVE_GLPLATFORM_EGL
@@ -679,14 +679,14 @@ static int glcontext_load_extensions(struct glcontext *glcontext)
 
 struct glcontext *ngpu_glcontext_create(const struct glcontext_params *params)
 {
-    if (params->platform < 0 || params->platform >= NGLI_ARRAY_NB(platform_to_glplatform))
+    if (params->platform < 0 || params->platform >= NGPU_ARRAY_NB(platform_to_glplatform))
         return NULL;
 
     const int glplatform = platform_to_glplatform[params->platform];
-    if (glplatform < 0 || glplatform >= NGLI_ARRAY_NB(glcontext_class_map))
+    if (glplatform < 0 || glplatform >= NGPU_ARRAY_NB(glcontext_class_map))
         return NULL;
 
-    struct glcontext *glcontext = ngli_calloc(1, sizeof(*glcontext));
+    struct glcontext *glcontext = ngpu_calloc(1, sizeof(*glcontext));
     if (!glcontext)
         return NULL;
     if (params->external) {
@@ -696,9 +696,9 @@ struct glcontext *ngpu_glcontext_create(const struct glcontext_params *params)
     }
 
     if (glcontext->cls->priv_size) {
-        glcontext->priv_data = ngli_calloc(1, glcontext->cls->priv_size);
+        glcontext->priv_data = ngpu_calloc(1, glcontext->cls->priv_size);
         if (!glcontext->priv_data) {
-            ngli_free(glcontext);
+            ngpu_free(glcontext);
             return NULL;
         }
     }
@@ -778,18 +778,18 @@ int ngpu_glcontext_resize(struct glcontext *glcontext, uint32_t width, uint32_t 
 {
     if (glcontext->offscreen) {
         LOG(ERROR, "offscreen context does not support resize operation");
-        return NGL_ERROR_INVALID_USAGE;
+        return NGPU_ERROR_INVALID_USAGE;
     }
 
     if (glcontext->external) {
         LOG(ERROR, "external context does not support resize operation");
-        return NGL_ERROR_INVALID_USAGE;
+        return NGPU_ERROR_INVALID_USAGE;
     }
 
     if (glcontext->cls->resize)
         return glcontext->cls->resize(glcontext, width, height);
 
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 }
 
 void ngpu_glcontext_freep(struct glcontext **glcontextp)
@@ -804,8 +804,8 @@ void ngpu_glcontext_freep(struct glcontext **glcontextp)
     if (glcontext->cls->uninit)
         glcontext->cls->uninit(glcontext);
 
-    ngli_free(glcontext->priv_data);
-    ngli_freep(glcontextp);
+    ngpu_free(glcontext->priv_data);
+    ngpu_freep(glcontextp);
 }
 
 void *ngpu_glcontext_get_proc_address(struct glcontext *glcontext, const char *name)
@@ -902,8 +902,8 @@ int ngpu_glcontext_check_gl_error(const struct glcontext *glcontext, const char 
     LOG(ERROR, "%s: GL error: %s (0x%04x)", context, error_str, error);
 
 #if DEBUG_GL
-    ngli_assert(0);
+    ngpu_assert(0);
 #endif
 
-    return NGL_ERROR_GRAPHICS_GENERIC;
+    return NGPU_ERROR_GRAPHICS_GENERIC;
 }

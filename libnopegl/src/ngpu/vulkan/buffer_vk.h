@@ -27,7 +27,7 @@
 
 #include "ngpu/buffer.h"
 #include "ngpu/vulkan/cmd_buffer_vk.h"
-#include "utils/darray.h"
+#include "ngpu/utils/darray.h"
 
 struct ngpu_buffer_vk {
     struct ngpu_buffer parent;
@@ -35,7 +35,7 @@ struct ngpu_buffer_vk {
     VkDeviceMemory memory;
     VkBuffer staging_buffer;
     VkDeviceMemory staging_memory;
-    struct darray cmd_buffers;
+    struct ngpu_darray cmd_buffers;
 };
 
 struct ngpu_buffer *ngpu_buffer_vk_create(struct ngpu_ctx *gpu_ctx);

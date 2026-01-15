@@ -19,11 +19,11 @@
  * under the License.
  */
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ctx.h"
 #include "ngpu/opengl/ctx_gl.h"
 #include "ngpu/opengl/fence_gl.h"
-#include "utils/memory.h"
+#include "ngpu/utils/memory.h"
 
 static void fence_freep(void **fencep)
 {
@@ -39,7 +39,7 @@ static void fence_freep(void **fencep)
         gl->funcs.DeleteSync(s->fence);
     }
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }
 
 struct ngpu_fence_gl *ngpu_fence_gl_create(struct ngpu_ctx *ctx)
@@ -47,15 +47,15 @@ struct ngpu_fence_gl *ngpu_fence_gl_create(struct ngpu_ctx *ctx)
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
-    struct ngpu_fence_gl *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_fence_gl *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
     s->gpu_ctx = ctx;
-    s->rc = NGLI_RC_CREATE(fence_freep);
+    s->rc = NGPU_RC_CREATE(fence_freep);
     s->fence = gl->funcs.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     if (s->fence == 0) {
-        ngli_free(s);
+        ngpu_free(s);
         return NULL;
     }
 
@@ -73,13 +73,13 @@ int ngpu_fence_gl_wait(struct ngpu_fence_gl *s)
     GLenum ret = gl->funcs.ClientWaitSync(s->fence, GL_SYNC_FLUSH_COMMANDS_BIT, UINT64_MAX);
     if (ret == GL_TIMEOUT_EXPIRED) {
         LOG(ERROR, "fence timeout expired");
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     } else if (ret == GL_WAIT_FAILED) {
         LOG(ERROR, "fence wait failed");
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     return 0;
 }
 
-void ngpu_fence_gl_freep(struct ngpu_fence_gl **sp) { NGLI_RC_UNREFP(sp); }
+void ngpu_fence_gl_freep(struct ngpu_fence_gl **sp) { NGPU_RC_UNREFP(sp); }

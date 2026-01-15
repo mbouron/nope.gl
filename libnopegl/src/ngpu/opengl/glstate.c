@@ -27,6 +27,7 @@
 #include "ngpu/opengl/glstate.h"
 #include "ngpu/opengl/glcontext.h"
 #include "ngpu/ngpu.h"
+#include "ngpu/utils/utils.h"
 
 static const GLenum gl_blend_factor_map[NGPU_BLEND_FACTOR_NB] = {
     [NGPU_BLEND_FACTOR_ZERO]                     = GL_ZERO,
@@ -409,7 +410,7 @@ void ngpu_glstate_update_viewport(const struct glcontext *gl, struct ngpu_glstat
         glstate->viewport.height == viewport->height)
         return;
     glstate->viewport = *viewport;
-    if (NGLI_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_VIEWPORT_ARRAY))
+    if (NGPU_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_VIEWPORT_ARRAY))
         gl->funcs.ViewportIndexedf(0, viewport->x, viewport->y, viewport->width, viewport->height);
     else
         gl->funcs.Viewport((GLint)viewport->x, (GLint)viewport->y, (GLsizei)viewport->width, (GLsizei)viewport->height);

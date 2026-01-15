@@ -19,7 +19,7 @@
  * under the License.
  */
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/vulkan/bindgroup_vk.h"
 #include "ngpu/vulkan/buffer_vk.h"
 #include "ngpu/vulkan/ctx_vk.h"
@@ -27,13 +27,13 @@
 #include "ngpu/vulkan/vkcontext.h"
 #include "ngpu/vulkan/vkutils.h"
 #include "ngpu/vulkan/ycbcr_sampler_vk.h"
-#include "utils/memory.h"
+#include "ngpu/utils/memory.h"
 
 #define INITIAL_MAX_DESC_SETS 32
 
 struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_bindgroup_layout_vk *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_bindgroup_layout_vk *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -43,11 +43,11 @@ struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_vk_create(struct ngpu_ctx *g
 static VkShaderStageFlags get_vk_stage_flags(uint32_t stage_flags)
 {
     VkShaderStageFlags flags = 0;
-    if (NGLI_HAS_ALL_FLAGS(stage_flags, NGPU_PROGRAM_STAGE_VERTEX_BIT))
+    if (NGPU_HAS_ALL_FLAGS(stage_flags, NGPU_PROGRAM_STAGE_VERTEX_BIT))
         flags |= VK_SHADER_STAGE_VERTEX_BIT;
-    if (NGLI_HAS_ALL_FLAGS(stage_flags, NGPU_PROGRAM_STAGE_FRAGMENT_BIT))
+    if (NGPU_HAS_ALL_FLAGS(stage_flags, NGPU_PROGRAM_STAGE_FRAGMENT_BIT))
         flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
-    if (NGLI_HAS_ALL_FLAGS(stage_flags, NGPU_PROGRAM_STAGE_COMPUTE_BIT))
+    if (NGPU_HAS_ALL_FLAGS(stage_flags, NGPU_PROGRAM_STAGE_COMPUTE_BIT))
         flags |= VK_SHADER_STAGE_COMPUTE_BIT;
     return flags;
 }
@@ -70,7 +70,7 @@ static const VkDescriptorType descriptor_type_map[NGPU_TYPE_NB] = {
 static VkDescriptorType get_vk_descriptor_type(enum ngpu_type type)
 {
     const VkDescriptorType descriptor_type = descriptor_type_map[type];
-    ngli_assert(descriptor_type);
+    ngpu_assert(descriptor_type);
     return descriptor_type;
 }
 
@@ -101,11 +101,11 @@ static VkResult allocate_desc_pool(struct ngpu_bindgroup_layout *s, uint32_t fac
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_bindgroup_layout_vk *s_priv = (struct ngpu_bindgroup_layout_vk *)s;
 
-    if (NGLI_CHK_MUL(&s_priv->max_desc_sets, s_priv->max_desc_sets, factor))
+    if (NGPU_CHK_MUL(&s_priv->max_desc_sets, s_priv->max_desc_sets, factor))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     for (size_t i = 0; i < s_priv->desc_pool_size_count; i++) {
-        if (NGLI_CHK_MUL(&s_priv->desc_pool_sizes[i].descriptorCount,
+        if (NGPU_CHK_MUL(&s_priv->desc_pool_sizes[i].descriptorCount,
                          s_priv->desc_pool_sizes[i].descriptorCount, factor))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -122,12 +122,12 @@ static VkResult allocate_desc_pool(struct ngpu_bindgroup_layout *s, uint32_t fac
     if (res != VK_SUCCESS)
         return res;
 
-    if (!ngli_darray_push(&s_priv->desc_pools, &pool)) {
+    if (!ngpu_darray_push(&s_priv->desc_pools, &pool)) {
         vkDestroyDescriptorPool(vk->device, pool, NULL);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
-    const size_t desc_pool_count = ngli_darray_count(&s_priv->desc_pools);
+    const size_t desc_pool_count = ngpu_darray_count(&s_priv->desc_pools);
     s_priv->desc_pool_index = desc_pool_count - 1;
 
     return VK_SUCCESS;
@@ -140,10 +140,10 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_bindgroup_layout_vk *s_priv = (struct ngpu_bindgroup_layout_vk *)s;
 
-    ngli_darray_init(&s_priv->desc_set_layout_bindings, sizeof(VkDescriptorSetLayoutBinding), 0);
-    ngli_darray_init(&s_priv->immutable_samplers, sizeof(struct ycbcr_sampler_vk *), 0);
+    ngpu_darray_init(&s_priv->desc_set_layout_bindings, sizeof(VkDescriptorSetLayoutBinding), 0);
+    ngpu_darray_init(&s_priv->immutable_samplers, sizeof(struct ycbcr_sampler_vk *), 0);
 
-    ngli_darray_set_free_func(&s_priv->immutable_samplers, unref_immutable_sampler, NULL);
+    ngpu_darray_set_free_func(&s_priv->immutable_samplers, unref_immutable_sampler, NULL);
 
     VkDescriptorPoolSize desc_pool_size_map[NGPU_TYPE_NB] = {
         [NGPU_TYPE_UNIFORM_BUFFER]         = {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
@@ -172,10 +172,10 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
             .descriptorCount = 1,
             .stageFlags      = get_vk_stage_flags(entry->stage_flags),
         };
-        if (!ngli_darray_push(&s_priv->desc_set_layout_bindings, &binding))
+        if (!ngpu_darray_push(&s_priv->desc_set_layout_bindings, &binding))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-        ngli_assert(desc_pool_size_map[entry->type].type);
+        ngpu_assert(desc_pool_size_map[entry->type].type);
         desc_pool_size_map[entry->type].descriptorCount += gpu_ctx->nb_in_flight_frames * s_priv->max_desc_sets;
     }
 
@@ -193,21 +193,21 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
             struct ngpu_ycbcr_sampler_vk *ycbcr_sampler = entry->immutable_sampler;
             binding.pImmutableSamplers =  &ycbcr_sampler->sampler;
 
-            if (!ngli_darray_push(&s_priv->immutable_samplers, &ycbcr_sampler))
+            if (!ngpu_darray_push(&s_priv->immutable_samplers, &ycbcr_sampler))
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
             ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler);
         }
-        if (!ngli_darray_push(&s_priv->desc_set_layout_bindings, &binding))
+        if (!ngpu_darray_push(&s_priv->desc_set_layout_bindings, &binding))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-        ngli_assert(desc_pool_size_map[entry->type].type);
+        ngpu_assert(desc_pool_size_map[entry->type].type);
         desc_pool_size_map[entry->type].descriptorCount += gpu_ctx->nb_in_flight_frames * s_priv->max_desc_sets;
     }
 
     const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = (uint32_t)ngli_darray_count(&s_priv->desc_set_layout_bindings),
-        .pBindings    = ngli_darray_data(&s_priv->desc_set_layout_bindings),
+        .bindingCount = (uint32_t)ngpu_darray_count(&s_priv->desc_set_layout_bindings),
+        .pBindings    = ngpu_darray_data(&s_priv->desc_set_layout_bindings),
     };
 
     VkResult res = vkCreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s_priv->desc_set_layout);
@@ -215,13 +215,13 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
         return res;
 
     s_priv->desc_pool_size_count = 0;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(desc_pool_size_map); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(desc_pool_size_map); i++) {
         if (desc_pool_size_map[i].descriptorCount)
             s_priv->desc_pool_sizes[s_priv->desc_pool_size_count++] = desc_pool_size_map[i];
     }
 
-    ngli_darray_init(&s_priv->desc_pools, sizeof(VkDescriptorPool), 0);
-    ngli_darray_set_free_func(&s_priv->desc_pools, destroy_desc_pool, (void *)gpu_ctx);
+    ngpu_darray_init(&s_priv->desc_pools, sizeof(VkDescriptorPool), 0);
+    ngpu_darray_set_free_func(&s_priv->desc_pools, destroy_desc_pool, (void *)gpu_ctx);
 
     if (!s_priv->desc_pool_size_count)
         return VK_SUCCESS;
@@ -242,10 +242,10 @@ static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layo
 
     *desc_set = VK_NULL_HANDLE;
 
-    for (size_t i = 0; i < ngli_darray_count(&s_priv->desc_pools); i++) {
-        const size_t pool_index = (i + s_priv->desc_pool_index) % ngli_darray_count(&s_priv->desc_pools);
+    for (size_t i = 0; i < ngpu_darray_count(&s_priv->desc_pools); i++) {
+        const size_t pool_index = (i + s_priv->desc_pool_index) % ngpu_darray_count(&s_priv->desc_pools);
 
-        VkDescriptorPool *desc_pool = ngli_darray_get(&s_priv->desc_pools, pool_index);
+        VkDescriptorPool *desc_pool = ngpu_darray_get(&s_priv->desc_pools, pool_index);
         const VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
             .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool     = *desc_pool,
@@ -267,7 +267,7 @@ static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layo
     if (res != VK_SUCCESS)
         return res;
 
-    VkDescriptorPool *desc_pool = ngli_darray_get(&s_priv->desc_pools, s_priv->desc_pool_index);
+    VkDescriptorPool *desc_pool = ngpu_darray_get(&s_priv->desc_pools, s_priv->desc_pool_index);
     const VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool     = *desc_pool,
@@ -301,18 +301,18 @@ void ngpu_bindgroup_layout_vk_freep(struct ngpu_bindgroup_layout **sp)
     const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
-    ngli_darray_reset(&s_priv->desc_set_layout_bindings);
-    ngli_darray_reset(&s_priv->immutable_samplers);
-    ngli_darray_reset(&s_priv->desc_pools);
+    ngpu_darray_reset(&s_priv->desc_set_layout_bindings);
+    ngpu_darray_reset(&s_priv->immutable_samplers);
+    ngpu_darray_reset(&s_priv->desc_pools);
 
     vkDestroyDescriptorSetLayout(vk->device, s_priv->desc_set_layout, NULL);
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }
 
 struct ngpu_bindgroup *ngpu_bindgroup_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_bindgroup_vk *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_bindgroup_vk *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -322,13 +322,13 @@ struct ngpu_bindgroup *ngpu_bindgroup_vk_create(struct ngpu_ctx *gpu_ctx)
 static void unref_texture_binding(void *user_arg, void *data)
 {
     struct texture_binding_vk *binding = data;
-    NGLI_RC_UNREFP(&binding->texture);
+    NGPU_RC_UNREFP(&binding->texture);
 }
 
 static void unref_buffer_binding(void *user_arg, void *data)
 {
     struct buffer_binding_vk *binding = data;
-    NGLI_RC_UNREFP(&binding->buffer);
+    NGPU_RC_UNREFP(&binding->buffer);
 }
 
 int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params)
@@ -336,18 +336,18 @@ int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup
     struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
 
     if (params->resources.nb_buffers > 0)
-        ngli_assert(params->resources.nb_buffers == params->layout->nb_buffers);
+        ngpu_assert(params->resources.nb_buffers == params->layout->nb_buffers);
 
     if (params->resources.nb_textures > 0)
-        ngli_assert(params->resources.nb_textures == params->layout->nb_textures);
+        ngpu_assert(params->resources.nb_textures == params->layout->nb_textures);
 
-    s->layout = NGLI_RC_REF(params->layout);
+    s->layout = NGPU_RC_REF(params->layout);
 
-    ngli_darray_init(&s_priv->texture_bindings, sizeof(struct texture_binding_vk), 0);
-    ngli_darray_init(&s_priv->buffer_bindings, sizeof(struct buffer_binding_vk), 0);
+    ngpu_darray_init(&s_priv->texture_bindings, sizeof(struct texture_binding_vk), 0);
+    ngpu_darray_init(&s_priv->buffer_bindings, sizeof(struct buffer_binding_vk), 0);
 
-    ngli_darray_set_free_func(&s_priv->texture_bindings, unref_texture_binding, NULL);
-    ngli_darray_set_free_func(&s_priv->buffer_bindings, unref_buffer_binding, NULL);
+    ngpu_darray_set_free_func(&s_priv->texture_bindings, unref_texture_binding, NULL);
+    ngpu_darray_set_free_func(&s_priv->buffer_bindings, unref_buffer_binding, NULL);
 
     VkResult res = ngpu_bindgroup_layout_vk_allocate_set(s->layout, &s_priv->desc_set);
     if (res != VK_SUCCESS) {
@@ -358,14 +358,14 @@ int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup
     for (size_t i = 0; i < layout->nb_buffers; i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &layout->buffers[i];
         const struct buffer_binding_vk binding = {.layout_entry = *entry};
-        if (!ngli_darray_push(&s_priv->buffer_bindings, &binding))
+        if (!ngpu_darray_push(&s_priv->buffer_bindings, &binding))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     for (size_t i = 0; i < layout->nb_textures; i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &layout->textures[i];
         const struct texture_binding_vk binding = {.layout_entry = *entry};
-        if (!ngli_darray_push(&s_priv->texture_bindings, &binding))
+        if (!ngpu_darray_push(&s_priv->texture_bindings, &binding))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -391,15 +391,15 @@ int ngpu_bindgroup_vk_update_texture(struct ngpu_bindgroup *s, uint32_t index, c
     struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
 
-    struct texture_binding_vk *binding_vk = ngli_darray_get(&s_priv->texture_bindings, index);
+    struct texture_binding_vk *binding_vk = ngpu_darray_get(&s_priv->texture_bindings, index);
 
-    NGLI_RC_UNREFP(&binding_vk->texture);
+    NGPU_RC_UNREFP(&binding_vk->texture);
 
     const struct ngpu_texture *texture = binding->texture;
     if (!texture)
         texture = gpu_ctx_vk->dummy_texture;
 
-    binding_vk->texture = NGLI_RC_REF(texture);
+    binding_vk->texture = NGPU_RC_REF(texture);
     binding_vk->update_desc = 1;
 
     return 0;
@@ -409,13 +409,13 @@ int ngpu_bindgroup_vk_update_buffer(struct ngpu_bindgroup *s, uint32_t index, co
 {
     struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
 
-    struct buffer_binding_vk *binding_vk = ngli_darray_get(&s_priv->buffer_bindings, index);
+    struct buffer_binding_vk *binding_vk = ngpu_darray_get(&s_priv->buffer_bindings, index);
 
-    NGLI_RC_UNREFP(&binding_vk->buffer);
+    NGPU_RC_UNREFP(&binding_vk->buffer);
 
     const struct ngpu_buffer *buffer = binding->buffer;
     if (buffer)
-        buffer = NGLI_RC_REF(binding->buffer);
+        buffer = NGPU_RC_REF(binding->buffer);
 
     binding_vk->buffer = buffer;
     binding_vk->offset = binding->offset;
@@ -431,8 +431,8 @@ int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
-    struct texture_binding_vk *texture_bindings = ngli_darray_data(&s_priv->texture_bindings);
-    for (size_t i = 0; i < ngli_darray_count(&s_priv->texture_bindings); i++) {
+    struct texture_binding_vk *texture_bindings = ngpu_darray_data(&s_priv->texture_bindings);
+    for (size_t i = 0; i < ngpu_darray_count(&s_priv->texture_bindings); i++) {
         struct texture_binding_vk *binding = &texture_bindings[i];
         if (binding->update_desc) {
             const struct ngpu_texture_vk *texture_vk = (struct ngpu_texture_vk *)binding->texture;
@@ -456,8 +456,8 @@ int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
         }
     }
 
-    struct buffer_binding_vk *buffer_bindings = ngli_darray_data(&s_priv->buffer_bindings);
-    for (size_t i = 0; i < ngli_darray_count(&s_priv->buffer_bindings); i++) {
+    struct buffer_binding_vk *buffer_bindings = ngpu_darray_data(&s_priv->buffer_bindings);
+    for (size_t i = 0; i < ngpu_darray_count(&s_priv->buffer_bindings); i++) {
         struct buffer_binding_vk *binding = &buffer_bindings[i];
         if (binding->update_desc) {
             const struct ngpu_bindgroup_layout_entry *desc = &binding->layout_entry;
@@ -494,9 +494,9 @@ void ngpu_bindgroup_vk_freep(struct ngpu_bindgroup **sp)
     struct ngpu_bindgroup *s = *sp;
     struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
 
-    NGLI_RC_UNREFP(&s->layout);
-    ngli_darray_reset(&s_priv->texture_bindings);
-    ngli_darray_reset(&s_priv->buffer_bindings);
+    NGPU_RC_UNREFP(&s->layout);
+    ngpu_darray_reset(&s_priv->texture_bindings);
+    ngpu_darray_reset(&s_priv->buffer_bindings);
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }

@@ -29,7 +29,7 @@
 #include <CoreVideo/CoreVideo.h>
 #endif
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ctx.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/opengl/bindgroup_gl.h"
@@ -40,8 +40,8 @@
 #include "ngpu/opengl/program_gl.h"
 #include "ngpu/opengl/rendertarget_gl.h"
 #include "ngpu/opengl/texture_gl.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/utils.h"
 
 #if DEBUG_GPU_CAPTURE
 #include "ngpu/capture.h"
@@ -78,7 +78,7 @@ static int wrap_capture_cvpixelbuffer(struct ngpu_ctx *s,
 
     struct ngpu_texture *texture = ngpu_texture_create(s);
     if (!texture)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     const struct ngpu_texture_params texture_params = {
         .type   = NGPU_TEXTURE_TYPE_2D,
@@ -128,7 +128,7 @@ static int create_texture(struct ngpu_ctx *s, enum ngpu_format format, uint32_t 
 
     struct ngpu_texture *texture = ngpu_texture_create(s);
     if (!texture)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     const struct ngpu_texture_params texture_params = {
         .type    = NGPU_TEXTURE_TYPE_2D,
@@ -163,7 +163,7 @@ static int create_rendertarget(struct ngpu_ctx *s,
 
     struct ngpu_rendertarget *rendertarget = ngpu_rendertarget_create(s);
     if (!rendertarget)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     const struct ngpu_rendertarget_params params = {
         .width = ctx_params->width,
@@ -226,7 +226,7 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
         }
 #else
         LOG(ERROR, "CoreVideo capture is only supported on iOS");
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
 #endif
     } else if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_CPU) {
         int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
@@ -234,7 +234,7 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
             return ret;
     } else {
         LOG(ERROR, "unsupported capture buffer type: %u", ctx_params->capture_buffer_type);
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     int ret = create_rendertarget(s, s_priv->capture_texture, NULL, NULL,
@@ -328,7 +328,7 @@ static void timer_reset(struct ngpu_ctx *s)
 
 static struct ngpu_ctx *gl_create(const struct ngpu_ctx_params *params)
 {
-    struct ngpu_ctx_gl *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_ctx_gl *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     return (struct ngpu_ctx *)s;
@@ -367,16 +367,16 @@ static const char *gl_debug_type_to_str(GLenum type)
     }
 }
 
-static enum ngl_log_level gl_debug_type_to_log_level(GLenum type)
+static enum ngpu_log_level gl_debug_type_to_log_level(GLenum type)
 {
     switch (type) {
     case GL_DEBUG_TYPE_ERROR:
     case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
     case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
     case GL_DEBUG_TYPE_PORTABILITY:
-        return NGL_LOG_ERROR;
+        return NGPU_LOG_ERROR;
     default:
-        return NGL_LOG_DEBUG;
+        return NGPU_LOG_DEBUG;
     }
 }
 
@@ -392,7 +392,7 @@ static const char *gl_debug_severity_to_str(GLenum severity)
     }
 }
 
-static void NGLI_GL_APIENTRY gl_debug_message_callback(GLenum source,
+static void NGPU_GL_APIENTRY gl_debug_message_callback(GLenum source,
                                                        GLenum type,
                                                        GLuint id,
                                                        GLenum severity,
@@ -400,17 +400,17 @@ static void NGLI_GL_APIENTRY gl_debug_message_callback(GLenum source,
                                                        const GLchar *message,
                                                        const void *user_param)
 {
-    const enum ngl_log_level log_level = gl_debug_type_to_log_level(type);
+    const enum ngpu_log_level log_level = gl_debug_type_to_log_level(type);
     const char *msg_source = gl_debug_source_to_str(source);
     const char *msg_type = gl_debug_type_to_str(type);
     const char *msg_severity = gl_debug_severity_to_str(severity);
 
-    ngli_log_print(log_level, __FILE__, __LINE__, __func__, "%s:%s:%s: %s", msg_source, msg_type, msg_severity, message);
+    ngpu_log_print(log_level, __FILE__, __LINE__, __func__, "%s:%s:%s: %s", msg_source, msg_type, msg_severity, message);
 
     // Do not abort if the source is the shader compiler as we want the error to
     // be properly reported and propagated to the user (with proper error messages)
-    if (log_level == NGL_LOG_ERROR && source != GL_DEBUG_SOURCE_SHADER_COMPILER && DEBUG_GL)
-        ngli_assert(0);
+    if (log_level == NGPU_LOG_ERROR && source != GL_DEBUG_SOURCE_SHADER_COMPILER && DEBUG_GL)
+        ngpu_assert(0);
 }
 
 static const struct {
@@ -437,10 +437,10 @@ static void ngpu_ctx_info_init(struct ngpu_ctx *s)
     s->version = gl->version;
     s->language_version = gl->glsl_version;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(feature_map); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(feature_map); i++) {
         const uint64_t feature = feature_map[i].feature;
         const uint64_t feature_gl = feature_map[i].feature_gl;
-        if (NGLI_HAS_ALL_FLAGS(gl->features, feature_gl))
+        if (NGPU_HAS_ALL_FLAGS(gl->features, feature_gl))
             s->features |= feature;
     }
     if (s->params.platform == NGPU_PLATFORM_MACOS)
@@ -457,15 +457,15 @@ static int create_command_buffers(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
 
-    s_priv->update_cmd_buffers = ngli_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
-    s_priv->draw_cmd_buffers = ngli_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
+    s_priv->update_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
+    s_priv->draw_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
     if (!s_priv->update_cmd_buffers || !s_priv->draw_cmd_buffers)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
         s_priv->update_cmd_buffers[i] = ngpu_cmd_buffer_gl_create(s);
         if (!s_priv->update_cmd_buffers[i])
-            return NGL_ERROR_MEMORY;
+            return NGPU_ERROR_MEMORY;
 
         int ret = ngpu_cmd_buffer_gl_init(s_priv->update_cmd_buffers[i]);
         if (ret < 0)
@@ -473,7 +473,7 @@ static int create_command_buffers(struct ngpu_ctx *s)
 
         s_priv->draw_cmd_buffers[i] = ngpu_cmd_buffer_gl_create(s);
         if (!s_priv->draw_cmd_buffers[i])
-            return NGL_ERROR_MEMORY;
+            return NGPU_ERROR_MEMORY;
 
         ret = ngpu_cmd_buffer_gl_init(s_priv->draw_cmd_buffers[i]);
         if (ret < 0)
@@ -490,13 +490,13 @@ static void destroy_command_buffers(struct ngpu_ctx *s)
     if (s_priv->update_cmd_buffers) {
         for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
             ngpu_cmd_buffer_gl_freep(&s_priv->update_cmd_buffers[i]);
-        ngli_freep(&s_priv->update_cmd_buffers);
+        ngpu_freep(&s_priv->update_cmd_buffers);
     }
 
     if (s_priv->draw_cmd_buffers) {
         for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
             ngpu_cmd_buffer_gl_freep(&s_priv->draw_cmd_buffers[i]);
-        ngli_freep(&s_priv->draw_cmd_buffers);
+        ngpu_freep(&s_priv->draw_cmd_buffers);
     }
 }
 
@@ -512,33 +512,33 @@ static int gl_init(struct ngpu_ctx *s)
         if (ctx_params->width <= 0 || ctx_params->height <= 0) {
             LOG(ERROR, "could not create external context with invalid dimensions (%ux%u)",
                 ctx_params->width, ctx_params->height);
-            return NGL_ERROR_INVALID_ARG;
+            return NGPU_ERROR_INVALID_ARG;
         }
         if (ctx_params->capture_buffer) {
             LOG(ERROR, "capture_buffer is not supported by external context");
-            return NGL_ERROR_INVALID_ARG;
+            return NGPU_ERROR_INVALID_ARG;
         }
     } else if (ctx_params->offscreen) {
         if (ctx_params->width <= 0 || ctx_params->height <= 0) {
             LOG(ERROR, "could not create offscreen context with invalid dimensions (%ux%u)",
                 ctx_params->width, ctx_params->height);
-            return NGL_ERROR_INVALID_ARG;
+            return NGPU_ERROR_INVALID_ARG;
         }
     } else {
         if (ctx_params->capture_buffer) {
             LOG(ERROR, "capture_buffer is not supported by onscreen context");
-            return NGL_ERROR_INVALID_ARG;
+            return NGPU_ERROR_INVALID_ARG;
         }
     }
 
 #if DEBUG_GPU_CAPTURE
-    const char *var = getenv("NGL_GPU_CAPTURE");
+    const char *var = getenv("NGPU_GPU_CAPTURE");
     s->gpu_capture = var && !strcmp(var, "yes");
     if (s->gpu_capture) {
         s->gpu_capture_ctx = ngpu_capture_ctx_create(s);
         if (!s->gpu_capture_ctx) {
             LOG(ERROR, "could not create GPU capture context");
-            return NGL_ERROR_MEMORY;
+            return NGPU_ERROR_MEMORY;
         }
         ret = ngpu_capture_init(s->gpu_capture_ctx);
         if (ret < 0) {
@@ -565,7 +565,7 @@ static int gl_init(struct ngpu_ctx *s)
 
     s_priv->glcontext = ngpu_glcontext_create(&params);
     if (!s_priv->glcontext)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     struct glcontext *gl = s_priv->glcontext;
 
@@ -635,7 +635,7 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
         ctx_params->height = gl->height;
     } else {
         LOG(ERROR, "resize operation is not supported by offscreen context");
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     s_priv->default_rt->width = ctx_params->width;
@@ -700,12 +700,12 @@ static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 
     if (external) {
         LOG(ERROR, "capture_buffer is not supported by external context");
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     if (!ctx_params->offscreen) {
         LOG(ERROR, "capture_buffer is not supported by onscreen context");
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO) {
@@ -714,7 +714,7 @@ static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
         if (ret < 0)
             return ret;
 #else
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
 #endif
     }
 
@@ -754,7 +754,7 @@ int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
     const int external = ctx_params_gl ? ctx_params_gl->external : 0;
     if (!external) {
         LOG(ERROR, "wrapping external OpenGL framebuffers is not supported by context");
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     GLuint prev_fbo = 0;
@@ -781,14 +781,14 @@ int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
         {"depth",   "depth",   depth_attachment,   GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE},
         {"stencil", "stencil", stencil_attachment, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE},
     };
-    for (size_t i = 0; i < NGLI_ARRAY_NB(components); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(components); i++) {
         GLint type = 0;
         gl->funcs.GetFramebufferAttachmentParameteriv(target,
             components[i].attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
         if (!type) {
             LOG(ERROR, "external framebuffer have no %s buffer attached to it", components[i].buffer_name);
             gl->funcs.BindFramebuffer(target, prev_fbo);
-            return NGL_ERROR_GRAPHICS_UNSUPPORTED;
+            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
         }
 
         GLint size = 0;
@@ -797,7 +797,7 @@ int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
         if (!size) {
             LOG(ERROR, "external framebuffer have no %s component", components[i].component_name);
             gl->funcs.BindFramebuffer(target, prev_fbo);
-            return NGL_ERROR_GRAPHICS_UNSUPPORTED;
+            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
         }
     }
 
@@ -932,7 +932,7 @@ static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 
     const struct ngpu_ctx_params *ctx_params = &s->params;
     if (!ctx_params->timer_queries)
-        return NGL_ERROR_INVALID_USAGE;
+        return NGPU_ERROR_INVALID_USAGE;
 
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
@@ -1000,7 +1000,7 @@ static void gl_transform_projection_matrix(struct ngpu_ctx *s, float *dst)
 
 static void gl_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
 {
-    static const NGLI_ALIGNED_MAT(matrix) = {
+    static const NGPU_ALIGNED_MAT(matrix) = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f,-1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
@@ -1019,7 +1019,7 @@ static struct ngpu_rendertarget *gl_get_default_rendertarget(struct ngpu_ctx *s,
     case NGPU_LOAD_OP_LOAD:
         return s_priv->default_rt_load;
     default:
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 }
 
@@ -1120,8 +1120,8 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
     NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, bindgroup);
 
     struct ngpu_bindgroup_gl *bindgroup_gl = (struct ngpu_bindgroup_gl *)bindgroup;
-    for (size_t i = 0; i < ngli_darray_count(&bindgroup_gl->buffer_bindings); i++) {
-        struct buffer_binding_gl *binding = ngli_darray_get(&bindgroup_gl->buffer_bindings, i);
+    for (size_t i = 0; i < ngpu_darray_count(&bindgroup_gl->buffer_bindings); i++) {
+        struct buffer_binding_gl *binding = ngpu_darray_get(&bindgroup_gl->buffer_bindings, i);
         ngpu_cmd_buffer_gl_ref_buffer(cmd_buffer, (struct ngpu_buffer *)binding->buffer);
     }
 

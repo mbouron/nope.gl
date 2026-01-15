@@ -54,9 +54,9 @@
 #endif
 
 #ifdef _WIN32
-#define NGLI_GL_APIENTRY WINAPI
+#define NGPU_GL_APIENTRY WINAPI
 #else
-#define NGLI_GL_APIENTRY
+#define NGPU_GL_APIENTRY
 #endif
 
 #ifndef GL_OES_EGL_image
@@ -64,7 +64,7 @@ typedef void* GLeglImageOES;
 #endif
 
 #if !defined(GL_VERSION_4_3) && !defined(GL_ES_VERSION_3_2)
-typedef void (NGLI_GL_APIENTRY *GLDEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *user_param);
+typedef void (NGPU_GL_APIENTRY *GLDEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *user_param);
 #endif
 
 /* Debug */

@@ -22,6 +22,7 @@
 
 #include "ngpu/ctx.h"
 #include "ngpu/texture.h"
+#include "ngpu/utils/utils.h"
 
 static void texture_freep(void **texturep)
 {
@@ -37,7 +38,7 @@ struct ngpu_texture *ngpu_texture_create(struct ngpu_ctx *gpu_ctx)
     struct ngpu_texture *s = gpu_ctx->cls->texture_create(gpu_ctx);
     if (!s)
         return NULL;
-    s->rc = NGLI_RC_CREATE(texture_freep);
+    s->rc = NGPU_RC_CREATE(texture_freep);
     return s;
 }
 
@@ -54,7 +55,7 @@ int ngpu_texture_init(struct ngpu_texture *s, const struct ngpu_texture_params *
 {
     const enum ngpu_import_type import_type = params->import_params.type;
     if (import_type == NGPU_IMPORT_TYPE_NONE) {
-        ngli_assert(NGLI_HAS_ALL_FLAGS(s->gpu_ctx->features, import_feature_map[import_type]));
+        ngpu_assert(NGPU_HAS_ALL_FLAGS(s->gpu_ctx->features, import_feature_map[import_type]));
         return s->gpu_ctx->cls->texture_init(s, params);
     }
 
@@ -78,7 +79,7 @@ int ngpu_texture_generate_mipmap(struct ngpu_texture *s)
 
 void ngpu_texture_freep(struct ngpu_texture **sp)
 {
-    NGLI_RC_UNREFP(sp);
+    NGPU_RC_UNREFP(sp);
 }
 
 const struct ngpu_texture_params *ngpu_texture_get_params(const struct ngpu_texture *s)

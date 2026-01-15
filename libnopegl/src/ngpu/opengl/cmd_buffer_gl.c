@@ -19,7 +19,7 @@
  * under the License.
  */
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 
 #include "ngpu/ctx.h"
 
@@ -31,16 +31,16 @@
 #include "ngpu/opengl/pipeline_gl.h"
 #include "ngpu/opengl/rendertarget_gl.h"
 
-#include "utils/memory.h"
-#include "utils/refcount.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/refcount.h"
 
 struct ngpu_cmd_buffer_gl {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_fence_gl *fence;
-    struct darray cmds; // array of cmd_gl
-    struct darray refs; // array of ngli_rc pointers
-    struct darray buffer_refs; // array of ngpu_buffer pointers
+    struct ngpu_darray cmds; // array of cmd_gl
+    struct ngpu_darray refs; // array of ngpu_rc pointers
+    struct ngpu_darray buffer_refs; // array of ngpu_buffer pointers
 };
 
 static void cmd_buffer_gl_freep(void **sp)
@@ -51,26 +51,26 @@ static void cmd_buffer_gl_freep(void **sp)
 
     ngpu_cmd_buffer_gl_wait(s);
 
-    ngli_darray_reset(&s->refs);
-    ngli_darray_reset(&s->cmds);
+    ngpu_darray_reset(&s->refs);
+    ngpu_darray_reset(&s->cmds);
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }
 
 struct ngpu_cmd_buffer_gl *ngpu_cmd_buffer_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_cmd_buffer_gl *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_cmd_buffer_gl *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-    s->rc = NGLI_RC_CREATE(cmd_buffer_gl_freep);
+    s->rc = NGPU_RC_CREATE(cmd_buffer_gl_freep);
     s->gpu_ctx = gpu_ctx;
     return s;
 }
 
 static void unref_rc(void *user_arg, void *data)
 {
-    struct ngli_rc **rcp = data;
-    NGLI_RC_UNREFP(rcp);
+    struct ngpu_rc **rcp = data;
+    NGPU_RC_UNREFP(rcp);
 }
 
 static void unref_buffer(void *user_arg, void *data)
@@ -87,56 +87,56 @@ static void unref_buffer(void *user_arg, void *data)
 
 void ngpu_cmd_buffer_gl_freep(struct ngpu_cmd_buffer_gl **sp)
 {
-    NGLI_RC_UNREFP(sp);
+    NGPU_RC_UNREFP(sp);
 }
 
 int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s)
 {
-    ngli_darray_init(&s->cmds, sizeof(struct ngpu_cmd_gl), 0);
-    ngli_darray_init(&s->refs, sizeof(struct ngli_rc *), 0);
-    ngli_darray_set_free_func(&s->refs, unref_rc, NULL);
-    ngli_darray_init(&s->buffer_refs, sizeof(struct ngpu_buffer *), 0);
-    ngli_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
+    ngpu_darray_init(&s->cmds, sizeof(struct ngpu_cmd_gl), 0);
+    ngpu_darray_init(&s->refs, sizeof(struct ngpu_rc *), 0);
+    ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
+    ngpu_darray_init(&s->buffer_refs, sizeof(struct ngpu_buffer *), 0);
+    ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
 
     return 0;
 }
 
-int ngpu_cmd_buffer_gl_ref(struct ngpu_cmd_buffer_gl *s, struct ngli_rc *rc)
+int ngpu_cmd_buffer_gl_ref(struct ngpu_cmd_buffer_gl *s, struct ngpu_rc *rc)
 {
-    if (!ngli_darray_push(&s->refs, &rc))
-        return NGL_ERROR_MEMORY;
+    if (!ngpu_darray_push(&s->refs, &rc))
+        return NGPU_ERROR_MEMORY;
 
-    NGLI_RC_REF(rc);
+    NGPU_RC_REF(rc);
 
     return 0;
 }
 
 int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buffer *buffer)
 {
-    int ret = ngpu_cmd_buffer_gl_ref(s, (struct ngli_rc *)buffer);
+    int ret = ngpu_cmd_buffer_gl_ref(s, (struct ngpu_rc *)buffer);
     if (ret < 0)
         return ret;
 
-    if (!ngli_darray_push(&s->buffer_refs, &buffer))
-        return NGL_ERROR_MEMORY;
+    if (!ngpu_darray_push(&s->buffer_refs, &buffer))
+        return NGPU_ERROR_MEMORY;
 
-    NGLI_RC_REF(buffer);
+    NGPU_RC_REF(buffer);
 
     return 0;
 }
 
 int ngpu_cmd_buffer_gl_begin(struct ngpu_cmd_buffer_gl *s)
 {
-    ngli_darray_clear(&s->refs);
-    ngli_darray_clear(&s->cmds);
+    ngpu_darray_clear(&s->refs);
+    ngpu_darray_clear(&s->cmds);
 
     return 0;
 }
 
 int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_gl *cmd)
 {
-    if (!ngli_darray_push(&s->cmds, cmd))
-        return NGL_ERROR_MEMORY;
+    if (!ngpu_darray_push(&s->cmds, cmd))
+        return NGPU_ERROR_MEMORY;
 
     return 0;
 }
@@ -150,8 +150,8 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
     struct ngpu_rendertarget *cur_rendertarget = NULL;
     struct ngpu_pipeline *cur_pipeline = NULL;
 
-    const struct ngpu_cmd_gl *cmds = ngli_darray_data(&s->cmds);
-    for (size_t i = 0; i < ngli_darray_count(&s->cmds); i++) {
+    const struct ngpu_cmd_gl *cmds = ngpu_darray_data(&s->cmds);
+    for (size_t i = 0; i < ngpu_darray_count(&s->cmds); i++) {
         const struct ngpu_cmd_gl *cmd = &cmds[i];
 
         switch (cmd->type) {
@@ -179,7 +179,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
             break;
         }
         case NGPU_CMD_TYPE_GL_END_RENDER_PASS: {
-            ngli_assert(cur_rendertarget != NULL);
+            ngpu_assert(cur_rendertarget != NULL);
             ngpu_rendertarget_gl_end_pass(cur_rendertarget);
             cur_rendertarget = NULL;
             break;
@@ -200,7 +200,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
             break;
         }
         case NGPU_CMD_TYPE_GL_DRAW: {
-            ngli_assert(cur_pipeline != NULL);
+            ngpu_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_draw(cur_pipeline,
                                   cmd->draw.nb_vertices,
                                   cmd->draw.nb_instances,
@@ -208,14 +208,14 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
             break;
         }
         case NGPU_CMD_TYPE_GL_DRAW_INDEXED: {
-            ngli_assert(cur_pipeline != NULL);
+            ngpu_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_draw_indexed(cur_pipeline,
                                           cmd->draw_indexed.nb_indices,
                                           cmd->draw_indexed.nb_instances);
             break;
         }
         case NGPU_CMD_TYPE_GL_DISPATCH: {
-            ngli_assert(cur_pipeline != NULL);
+            ngpu_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_dispatch(cur_pipeline,
                                       cmd->dispatch.nb_group_x,
                                       cmd->dispatch.nb_group_y,
@@ -223,15 +223,15 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
             break;
         }
         default:
-            ngli_assert(0);
+            ngpu_assert(0);
         }
     }
 
     s->fence = ngpu_fence_gl_create(gpu_ctx);
     if (!s->fence)
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
 
-    ngli_darray_clear(&s->cmds);
+    ngpu_darray_clear(&s->cmds);
 
     return 0;
 }
@@ -245,8 +245,8 @@ int ngpu_cmd_buffer_gl_wait(struct ngpu_cmd_buffer_gl *s)
     int ret = ngpu_fence_gl_wait(s->fence);
 
     ngpu_fence_gl_freep(&s->fence);
-    ngli_darray_clear(&s->refs);
-    ngli_darray_clear(&s->buffer_refs);
+    ngpu_darray_clear(&s->refs);
+    ngpu_darray_clear(&s->buffer_refs);
 
     return ret;
 }

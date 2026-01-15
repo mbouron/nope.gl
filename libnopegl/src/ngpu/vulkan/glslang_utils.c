@@ -27,24 +27,23 @@
 #include <glslang/Include/glslang_c_interface.h>
 #include <glslang/Public/resource_limits_c.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/vulkan/glslang_utils.h"
-#include "nopegl/nopegl.h"
-#include "utils/memory.h"
-#include "utils/pthread_compat.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/pthread_compat.h"
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static int refcount = 0;
 
-int ngli_glslang_init(void)
+int ngpu_glslang_init(void)
 {
     int ret = 0;
     pthread_mutex_lock(&lock);
     if (!refcount++) {
         if (!glslang_initialize_process()) {
             refcount--;
-            ret = NGL_ERROR_EXTERNAL;
+            ret = NGPU_ERROR_EXTERNAL;
         }
     }
     pthread_mutex_unlock(&lock);
@@ -52,7 +51,7 @@ int ngli_glslang_init(void)
     return ret;
 }
 
-int ngli_glslang_compile(enum ngpu_program_stage stage, const char *src, int debug, void **datap, size_t *sizep)
+int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int debug, void **datap, size_t *sizep)
 {
     static const glslang_stage_t stages[] = {
         [NGPU_PROGRAM_STAGE_VERT] = GLSLANG_STAGE_VERTEX,
@@ -82,14 +81,14 @@ int ngli_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
 
     glslang_shader_t *shader = glslang_shader_create(&glslc_input);
     if (!shader)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     int ret = glslang_shader_preprocess(shader, &glslc_input);
     if (!ret) {
         LOG(ERROR, "unable to preprocess shader:\n%s",
             glslang_shader_get_info_log(shader));
         glslang_shader_delete(shader);
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     ret = glslang_shader_parse(shader, &glslc_input);
@@ -97,13 +96,13 @@ int ngli_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
         LOG(ERROR, "unable to parse shader:\n%s",
             glslang_shader_get_info_log(shader));
         glslang_shader_delete(shader);
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     glslang_program_t *program = glslang_program_create();
     if (!program) {
         glslang_shader_delete(shader);
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
     }
     glslang_program_add_shader(program, shader);
 
@@ -113,7 +112,7 @@ int ngli_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
             glslang_shader_get_info_log(shader));
         glslang_program_delete(program);
         glslang_shader_delete(shader);
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
 /*
@@ -152,11 +151,11 @@ int ngli_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
         LOG(WARNING, "%s", messages);
 
     const size_t size = glslang_program_SPIRV_get_size(program) * sizeof(unsigned int);
-    unsigned int *data = ngli_malloc(size);
+    unsigned int *data = ngpu_malloc(size);
     if (!data) {
         glslang_program_delete(program);
         glslang_shader_delete(shader);
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
     }
     glslang_program_SPIRV_get(program, data);
 
@@ -169,7 +168,7 @@ int ngli_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
     return 0;
 }
 
-void ngli_glslang_uninit(void)
+void ngpu_glslang_uninit(void)
 {
     pthread_mutex_lock(&lock);
     if (refcount && (refcount-- == 1))

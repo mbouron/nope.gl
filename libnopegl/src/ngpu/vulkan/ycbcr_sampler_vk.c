@@ -28,12 +28,12 @@
 #include <vulkan/vulkan_android.h>
 #endif
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/vulkan/ctx_vk.h"
 #include "ngpu/vulkan/vkutils.h"
 #include "ngpu/vulkan/texture_vk.h"
 #include "ngpu/vulkan/ycbcr_sampler_vk.h"
-#include "utils/memory.h"
+#include "ngpu/utils/memory.h"
 
 int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHardwareBuffer *ahb, enum ngpu_filter filter, struct ngpu_ycbcr_sampler_vk_params *params)
 {
@@ -54,7 +54,7 @@ int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHard
         vk->GetAndroidHardwareBufferPropertiesANDROID(vk->device, ahb, &ahb_props);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not get android hardware buffer properties: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     uint64_t external_format = 0;
@@ -78,7 +78,7 @@ int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHard
 
     return 0;
 #else
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -95,15 +95,15 @@ static void ycbcr_sampler_freep(void **texturep)
     vkDestroySampler(vk->device, s->sampler, NULL);
     vk->DestroySamplerYcbcrConversionKHR(vk->device, s->conv, NULL);
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }
 
 struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_ycbcr_sampler_vk *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_ycbcr_sampler_vk *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-    s->rc = NGLI_RC_CREATE(ycbcr_sampler_freep);
+    s->rc = NGPU_RC_CREATE(ycbcr_sampler_freep);
     s->gpu_ctx = gpu_ctx;
     return s;
 }
@@ -137,7 +137,7 @@ VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s, const struc
     VkResult res = vk->CreateSamplerYcbcrConversionKHR(vk->device, &sampler_ycbcr_info, 0, &s->conv);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create sampler YCbCr conversion: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     const VkSamplerYcbcrConversionInfoKHR sampler_ycbcr_conv_info = {
@@ -168,7 +168,7 @@ VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s, const struc
     res = vkCreateSampler(vk->device, &sampler_info, 0, &s->sampler);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create sampler: %s", ngpu_vk_res2str(res));
-        return NGL_ERROR_GRAPHICS_GENERIC;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     return VK_SUCCESS;
@@ -198,10 +198,10 @@ int ngpu_ycbcr_sampler_vk_is_compat(const struct ngpu_ycbcr_sampler_vk *s,
 
 struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ngpu_ycbcr_sampler_vk *s)
 {
-    return NGLI_RC_REF(s);
+    return NGPU_RC_REF(s);
 }
 
 void ngpu_ycbcr_sampler_vk_unrefp(struct ngpu_ycbcr_sampler_vk **sp)
 {
-    NGLI_RC_UNREFP(sp);
+    NGPU_RC_UNREFP(sp);
 }

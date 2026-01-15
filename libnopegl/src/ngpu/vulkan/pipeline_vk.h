@@ -25,15 +25,15 @@
 #include <vulkan/vulkan.h>
 
 #include "ngpu/pipeline.h"
-#include "utils/darray.h"
+#include "ngpu/utils/darray.h"
 
 struct ngpu_ctx;
 
 struct ngpu_pipeline_vk {
     struct ngpu_pipeline parent;
 
-    struct darray vertex_attribute_descs;   // array of VkVertexInputAttributeDescription
-    struct darray vertex_binding_descs;     // array of VkVertexInputBindingDescription
+    struct ngpu_darray vertex_attribute_descs;   // array of VkVertexInputAttributeDescription
+    struct ngpu_darray vertex_binding_descs;     // array of VkVertexInputBindingDescription
 
     VkPipelineLayout pipeline_layout;
     VkPipelineBindPoint pipeline_bind_point;

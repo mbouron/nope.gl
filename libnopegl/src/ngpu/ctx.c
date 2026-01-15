@@ -22,10 +22,10 @@
 
 #include <string.h>
 
-#include "log.h"
 #include "ngpu/ctx.h"
 #include "ngpu/rendertarget.h"
-#include "utils/memory.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/log.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "ngpu/opengl/ctx_gl.h"
@@ -76,7 +76,7 @@ static const struct ngpu_ctx_class *ctx_classes[] = {
 int ngpu_get_available_backends(size_t *backend_count, enum ngpu_backend_type *backends)
 {
     if (!backend_count)
-        return NGL_ERROR_INVALID_ARG;
+        return NGPU_ERROR_INVALID_ARG;
 
     size_t total_count = 0;
     for (size_t i = 0; ctx_classes[i]; i++) {
@@ -88,7 +88,7 @@ int ngpu_get_available_backends(size_t *backend_count, enum ngpu_backend_type *b
         return 0;
     }
 
-    size_t wanted_count = NGLI_MIN(*backend_count, total_count);
+    size_t wanted_count = NGPU_MIN(*backend_count, total_count);
     for (size_t i = 0; i < wanted_count; i++) {
         backends[i] = ctx_classes[i]->id;
     }
@@ -114,9 +114,9 @@ int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_para
         if (src->backend == NGPU_BACKEND_OPENGL ||
             src->backend == NGPU_BACKEND_OPENGLES) {
             const size_t size = sizeof(struct ngpu_ctx_params_gl);
-            tmp.backend_params = ngli_memdup(src->backend_params, size);
+            tmp.backend_params = ngpu_memdup(src->backend_params, size);
             if (!tmp.backend_params) {
-                return NGL_ERROR_MEMORY;
+                return NGPU_ERROR_MEMORY;
             }
             goto done;
             }
@@ -124,7 +124,7 @@ int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_para
 
         LOG(ERROR, "backend_params %p is not supported by backend %u",
             src->backend_params, src->backend);
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
 
     done:
@@ -135,7 +135,7 @@ int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_para
 
 void ngpu_ctx_params_reset(struct ngpu_ctx_params *params)
 {
-    ngli_freep(&params->backend_params);
+    ngpu_freep(&params->backend_params);
     memset(params, 0, sizeof(*params));
 }
 struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params)
@@ -171,7 +171,7 @@ int ngpu_ctx_init(struct ngpu_ctx *s)
 
     s->program_cache = ngpu_pgcache_create(s);
     if (!s->program_cache)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     return 0;
 }
@@ -245,7 +245,7 @@ void ngpu_ctx_freep(struct ngpu_ctx **sp)
     s->cls->destroy(s);
 
     ngpu_ctx_params_reset(&s->params);
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }
 
 enum ngpu_backend_type ngpu_ctx_get_backend_type(const struct ngpu_ctx *s)
@@ -300,8 +300,8 @@ void ngpu_ctx_transform_projection_matrix(struct ngpu_ctx *s, float *dst)
 
 void ngpu_ctx_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
 {
-    ngli_assert(rt);
-    ngli_assert(!s->rendertarget);
+    ngpu_assert(rt);
+    ngpu_assert(!s->rendertarget);
 
     s->rendertarget = rt;
     s->cls->begin_render_pass(s, rt);
@@ -340,13 +340,13 @@ void ngpu_ctx_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width,
 
 void ngpu_ctx_set_viewport(struct ngpu_ctx *s, const struct ngpu_viewport *viewport)
 {
-    ngli_assert(s->rendertarget);
+    ngpu_assert(s->rendertarget);
     s->cls->set_viewport(s, viewport);
 }
 
 void ngpu_ctx_set_scissor(struct ngpu_ctx *s, const struct ngpu_scissor *scissor)
 {
-    ngli_assert(s->rendertarget);
+    ngpu_assert(s->rendertarget);
     s->cls->set_scissor(s, scissor);
 }
 
@@ -367,7 +367,7 @@ uint32_t ngpu_ctx_get_format_features(struct ngpu_ctx *s, enum ngpu_format forma
 
 void ngpu_ctx_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *texture)
 {
-    ngli_assert(!s->rendertarget);
+    ngpu_assert(!s->rendertarget);
     s->cls->generate_texture_mipmap(s, texture);
 }
 
@@ -381,7 +381,7 @@ void ngpu_ctx_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup
 {
     s->bindgroup = bindgroup;
 
-    ngli_assert(bindgroup->layout->nb_dynamic_offsets == nb_offsets);
+    ngpu_assert(bindgroup->layout->nb_dynamic_offsets == nb_offsets);
     memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
     s->nb_dynamic_offsets = nb_offsets;
 
@@ -394,41 +394,41 @@ static void validate_vertex_buffers(struct ngpu_ctx *s)
     const struct ngpu_pipeline_graphics *graphics = &pipeline->graphics;
     const struct ngpu_vertex_state *vertex_state = &graphics->vertex_state;
     for (size_t i = 0; i < vertex_state->nb_buffers; i++) {
-        ngli_assert(s->vertex_buffers[i]);
+        ngpu_assert(s->vertex_buffers[i]);
     }
 }
 
 void ngpu_ctx_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex)
 {
-    ngli_assert(s->pipeline);
+    ngpu_assert(s->pipeline);
     validate_vertex_buffers(s);
-    ngli_assert(s->bindgroup);
+    ngpu_assert(s->bindgroup);
     const struct ngpu_bindgroup_layout *p_layout = s->pipeline->layout.bindgroup_layout;
     const struct ngpu_bindgroup_layout *b_layout = s->bindgroup->layout;
-    ngli_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
+    ngpu_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
 
     s->cls->draw(s, nb_vertices, nb_instances, first_vertex);
 }
 
 void ngpu_ctx_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances)
 {
-    ngli_assert(s->pipeline);
+    ngpu_assert(s->pipeline);
     validate_vertex_buffers(s);
-    ngli_assert(s->bindgroup);
+    ngpu_assert(s->bindgroup);
     const struct ngpu_bindgroup_layout *p_layout = s->pipeline->layout.bindgroup_layout;
     const struct ngpu_bindgroup_layout *b_layout = s->bindgroup->layout;
-    ngli_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
+    ngpu_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
 
     s->cls->draw_indexed(s, nb_indices, nb_instances);
 }
 
 void ngpu_ctx_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
 {
-    ngli_assert(s->pipeline);
-    ngli_assert(s->bindgroup);
+    ngpu_assert(s->pipeline);
+    ngpu_assert(s->bindgroup);
     const struct ngpu_bindgroup_layout *p_layout = s->pipeline->layout.bindgroup_layout;
     const struct ngpu_bindgroup_layout *b_layout = s->bindgroup->layout;
-    ngli_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
+    ngpu_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
 
     s->cls->dispatch(s, nb_group_x, nb_group_y, nb_group_z);
 }
@@ -436,7 +436,7 @@ void ngpu_ctx_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_grou
 void ngpu_ctx_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struct ngpu_buffer *buffer)
 {
     struct ngpu_limits *limits = &s->limits;
-    ngli_assert(index < limits->max_vertex_attributes);
+    ngpu_assert(index < limits->max_vertex_attributes);
     s->vertex_buffers[index] = buffer;
     s->cls->set_vertex_buffer(s, index, buffer);
 }

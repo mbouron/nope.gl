@@ -40,7 +40,7 @@ struct ngpu_buffer *ngpu_buffer_create(struct ngpu_ctx *gpu_ctx)
     struct ngpu_buffer *s = gpu_ctx->cls->buffer_create(gpu_ctx);
     if (!s)
         return NULL;
-    s->rc = NGLI_RC_CREATE(buffer_freep);
+    s->rc = NGPU_RC_CREATE(buffer_freep);
     return s;
 }
 
@@ -88,7 +88,7 @@ void ngpu_buffer_unmap(struct ngpu_buffer *s)
 
 void ngpu_buffer_freep(struct ngpu_buffer **sp)
 {
-    NGLI_RC_UNREFP(sp);
+    NGPU_RC_UNREFP(sp);
 }
 
 size_t ngpu_buffer_get_size(const struct ngpu_buffer *s)

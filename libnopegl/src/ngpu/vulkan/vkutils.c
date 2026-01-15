@@ -19,9 +19,9 @@
  * under the License.
  */
 
+#include "ngpu/ngpu.h"
 #include "ngpu/vulkan/vkutils.h"
-#include "nopegl/nopegl.h"
-#include "utils/utils.h"
+#include "ngpu/utils/utils.h"
 
 const char *ngpu_vk_res2str(VkResult res)
 {
@@ -77,11 +77,11 @@ int ngpu_vk_res2ret(VkResult res)
 {
     switch (res) {
     case VK_SUCCESS:                        return 0;
-    case VK_ERROR_OUT_OF_HOST_MEMORY:       return NGL_ERROR_GRAPHICS_MEMORY;
-    case VK_ERROR_OUT_OF_DEVICE_MEMORY:     return NGL_ERROR_GRAPHICS_MEMORY;
-    case VK_ERROR_FORMAT_NOT_SUPPORTED:     return NGL_ERROR_GRAPHICS_UNSUPPORTED;
-    case VK_ERROR_OUT_OF_POOL_MEMORY:       return NGL_ERROR_GRAPHICS_MEMORY;
-    default:                                return NGL_ERROR_GRAPHICS_GENERIC;
+    case VK_ERROR_OUT_OF_HOST_MEMORY:       return NGPU_ERROR_GRAPHICS_MEMORY;
+    case VK_ERROR_OUT_OF_DEVICE_MEMORY:     return NGPU_ERROR_GRAPHICS_MEMORY;
+    case VK_ERROR_FORMAT_NOT_SUPPORTED:     return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+    case VK_ERROR_OUT_OF_POOL_MEMORY:       return NGPU_ERROR_GRAPHICS_MEMORY;
+    default:                                return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 }
 
@@ -97,7 +97,7 @@ VkSampleCountFlagBits ngpu_ngl_samples_to_vk(uint32_t samples)
     case 32: return VK_SAMPLE_COUNT_32_BIT;
     case 64: return VK_SAMPLE_COUNT_64_BIT;
     default:
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 }
 

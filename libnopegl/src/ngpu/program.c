@@ -37,7 +37,7 @@ struct ngpu_program *ngpu_program_create(struct ngpu_ctx *gpu_ctx)
     struct ngpu_program *s = gpu_ctx->cls->program_create(gpu_ctx);
     if (!s)
         return NULL;
-    s->rc = NGLI_RC_CREATE(program_freep);
+    s->rc = NGPU_RC_CREATE(program_freep);
     return s;
 }
 
@@ -48,7 +48,7 @@ int ngpu_program_init(struct ngpu_program *s, const struct ngpu_program_params *
 
 void ngpu_program_freep(struct ngpu_program **sp)
 {
-    NGLI_RC_UNREFP(sp);
+    NGPU_RC_UNREFP(sp);
 }
 
 struct ngpu_ctx *ngpu_program_get_ctx(const struct ngpu_program *s)

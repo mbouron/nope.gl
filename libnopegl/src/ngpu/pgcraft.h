@@ -28,7 +28,7 @@
 
 #include "ngpu/ngpu.h"
 
-#include "utils/darray.h"
+#include "ngpu/utils/darray.h"
 
 struct ngpu_ctx;
 
@@ -69,9 +69,9 @@ struct ngpu_pgcraft_texture {
      * exists in order to be transmitted to the pipeline (through the
      * pipeline_resources destination). That way, these resources can be
      * associated with the pipeline straight after the pipeline initialization
-     * (using ngli_pipeline_set_resources()). In the case of the texture
+     * (using ngpu_pipeline_set_resources()). In the case of the texture
      * though, there is one exception: if the specified type is
-     * NGLI_PGCRAFT_SHADER_TEX_TYPE_VIDEO, then the texture field must be NULL.
+     * NGPU_PGCRAFT_SHADER_TEX_TYPE_VIDEO, then the texture field must be NULL.
      * Indeed, this type implies the potential use of multiple samplers (which
      * can be hardware accelerated and platform/backend specific) depending on
      * the image layout. This means that a single texture cannot be used as a
@@ -89,7 +89,7 @@ struct ngpu_pgcraft_texture {
      * accessible through pgcraft.texture_infos. The user may optionally set it
      * if they plan to have access to the image information directly through
      * the ngpu_pgcraft_texture_info structure. The field is pretty much mandatory
-     * if the user plans to use ngli_pipeline_compat_update_image() in
+     * if the user plans to use ngpu_pipeline_compat_update_image() in
      * conjunction with pgcraft.texture_infos to instruct a pipeline on which
      * texture resources to use.
      */

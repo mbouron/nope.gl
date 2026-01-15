@@ -23,17 +23,66 @@
 #ifndef NGPU_H
 #define NGPU_H
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-
-#include "utils/utils.h"
 
 /*
  * Forward declarations
  */
 
 struct ngpu_ctx;
+
+/*
+ * Errors
+ */
+#define NGPU_FOURCC(a, b, c, d) \
+   (((uint32_t)((uint8_t)(a)) << 24) | \
+    ((uint32_t)((uint8_t)(b)) << 16) | \
+    ((uint32_t)((uint8_t)(c)) << 8)  | \
+    ((uint32_t)((uint8_t)(d)) << 0))   \
+
+#define NGPU_ERROR(a,b,c,d) (-(int32_t)NGPU_FOURCC(a,b,c,d))
+
+#define NGPU_SUCCESS                        0
+#define NGPU_ERROR_GENERIC                  -1                             /* Generic error */
+#define NGPU_ERROR_ACCESS                   NGPU_ERROR('E','a','c','c')    /* Operation not allowed */
+#define NGPU_ERROR_BUG                      NGPU_ERROR('E','b','u','g')    /* A buggy code path was triggered, please report if it happens */
+#define NGPU_ERROR_EXTERNAL                 NGPU_ERROR('E','e','x','t')    /* An error occurred in an external dependency */
+#define NGPU_ERROR_INVALID_ARG              NGPU_ERROR('E','a','r','g')    /* Invalid user argument specified */
+#define NGPU_ERROR_INVALID_DATA             NGPU_ERROR('E','d','a','t')    /* Invalid input data */
+#define NGPU_ERROR_INVALID_USAGE            NGPU_ERROR('E','u','s','g')    /* Invalid public API usage */
+#define NGPU_ERROR_IO                       NGPU_ERROR('E','i','o',' ')    /* Input/Output error */
+#define NGPU_ERROR_LIMIT_EXCEEDED           NGPU_ERROR('E','l','i','m')    /* Hardware or resource limit exceeded */
+#define NGPU_ERROR_MEMORY                   NGPU_ERROR('E','m','e','m')    /* Memory/allocation error */
+#define NGPU_ERROR_NOT_FOUND                NGPU_ERROR('E','f','n','d')    /* Target not found */
+#define NGPU_ERROR_UNSUPPORTED              NGPU_ERROR('E','s','u','p')    /* Unsupported operation */
+
+#define NGPU_ERROR_GRAPHICS_GENERIC         NGPU_ERROR('G','g','e','n')    /* Generic graphics error */
+#define NGPU_ERROR_GRAPHICS_LIMIT_EXCEEDED  NGPU_ERROR('G','l','i','m')    /* Graphics hardware or resource limit exceeded */
+#define NGPU_ERROR_GRAPHICS_MEMORY          NGPU_ERROR('G','m','e','m')    /* Graphics memory/allocation error */
+#define NGPU_ERROR_GRAPHICS_UNSUPPORTED     NGPU_ERROR('G','s','u','p')    /* Unsupported graphics operation */
+
+/*
+ * Logs
+ */
+
+enum ngpu_log_level {
+    NGPU_LOG_VERBOSE,
+    NGPU_LOG_DEBUG,
+    NGPU_LOG_INFO,
+    NGPU_LOG_WARNING,
+    NGPU_LOG_ERROR,
+    NGPU_LOG_QUIET = 1 << 8,
+    NGPU_LOG_MAX_ENUM = 0x7FFFFFFF
+};
+
+typedef void (*ngpu_log_callback_type)(void *arg, enum ngpu_log_level level, const char *filename,
+                                       int ln, const char *fn, const char *fmt, va_list vl);
+
+void ngpu_log_set_callback(void *arg, ngpu_log_callback_type callback);
+void ngpu_log_set_min_level(enum ngpu_log_level level);
 
 /*
  * Types
@@ -934,6 +983,8 @@ struct ngpu_ctx_params {
     int debug; /* Enable graphics context debugging */
 
     int timer_queries; /* Enable graphics context timer queries */
+
+    ngpu_log_callback_type log_callback;
 };
 
 int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_params *src);

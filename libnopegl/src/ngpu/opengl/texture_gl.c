@@ -56,15 +56,15 @@
 #include <string.h>
 
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/opengl/ctx_gl.h"
 #include "ngpu/opengl/format_gl.h"
 #include "ngpu/opengl/glcontext.h"
 #include "ngpu/opengl/glincludes.h"
 #include "ngpu/opengl/texture_gl.h"
-#include "utils/bits.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "ngpu/utils/bits.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/utils.h"
 
 static const GLint gl_filter_map[NGPU_NB_FILTER][NGPU_NB_MIPMAP] = {
     [NGPU_FILTER_NEAREST] = {
@@ -153,7 +153,7 @@ static uint32_t get_mipmap_levels(const struct ngpu_texture *s)
 
     uint32_t mipmap_levels = 1;
     if (params->mipmap_filter != NGPU_MIPMAP_FILTER_NONE)
-        mipmap_levels = ngli_log2(params->width | params->height | 1);
+        mipmap_levels = ngpu_log2(params->width | params->height | 1);
     return mipmap_levels;
 }
 
@@ -195,7 +195,7 @@ static void texture_upload(struct ngpu_texture *s, const uint8_t *data, const st
 
     const size_t pixels_per_row = (size_t)transfer_params->pixels_per_row;
     const size_t bytes_per_row = pixels_per_row * s_priv->bytes_per_pixel;
-    const size_t alignment = NGLI_MIN(NGLI_ALIGNMENT(bytes_per_row), 8);
+    const size_t alignment = NGPU_MIN(NGPU_ALIGNMENT(bytes_per_row), 8);
     gl->funcs.PixelStorei(GL_UNPACK_ALIGNMENT, (GLint)alignment);
     gl->funcs.PixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)transfer_params->pixels_per_row);
 
@@ -254,7 +254,7 @@ static int renderbuffer_check_samples(struct ngpu_texture *s)
     if (params->samples > max_samples) {
         LOG(WARNING, "renderbuffer format 0x%x does not support samples %u (maximum %d)",
             s_priv->format, params->samples, max_samples);
-        return NGL_ERROR_GRAPHICS_UNSUPPORTED;
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
     return 0;
@@ -291,12 +291,12 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
     s->params = *params;
 
     if (!s_priv->wrapped)
-        ngli_assert(params->width && params->height);
+        ngpu_assert(params->width && params->height);
 
     uint32_t depth = 1;
     if (params->type == NGPU_TEXTURE_TYPE_3D) {
         if (!s_priv->wrapped)
-            ngli_assert(params->depth);
+            ngpu_assert(params->depth);
         depth = params->depth;
     }
     s->params.depth = depth;
@@ -330,7 +330,7 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
     }
 
     /* TODO: add multisample support for textures */
-    ngli_assert(!params->samples);
+    ngpu_assert(!params->samples);
 
     if (params->type == NGPU_TEXTURE_TYPE_2D)
         s_priv->target = GL_TEXTURE_2D;
@@ -341,7 +341,7 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
     else if (params->type == NGPU_TEXTURE_TYPE_CUBE)
         s_priv->target = GL_TEXTURE_CUBE_MAP;
     else
-        ngli_assert(0);
+        ngpu_assert(0);
 
     if (params->import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER)
         s_priv->target = GL_TEXTURE_EXTERNAL_OES;
@@ -392,7 +392,7 @@ static int texture_init(struct ngpu_texture *s, const struct ngpu_texture_params
 
 struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_texture_gl *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_texture_gl *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -400,7 +400,7 @@ struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
 }
 
 #define ADD_ATTRIB(name, value) do {                          \
-    ngli_assert(nb_attribs + 3 < NGLI_ARRAY_NB(attribs));     \
+    ngpu_assert(nb_attribs + 3 < NGPU_ARRAY_NB(attribs));     \
     attribs[nb_attribs++] = (name);                           \
     attribs[nb_attribs++] = (EGLint)(value);                  \
     attribs[nb_attribs] = EGL_NONE;                           \
@@ -419,7 +419,7 @@ static int texture_import_dma_buf(struct ngpu_texture *s)
     s_priv->fd = dup(dma_buf_params->fd);
     if (s_priv->fd == -1) {
         LOG(ERROR, "could not dup file descriptor (fd=%d)", dma_buf_params->fd);
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     EGLint attribs[32] = {EGL_NONE};
@@ -434,7 +434,7 @@ static int texture_import_dma_buf(struct ngpu_texture *s)
     ADD_ATTRIB(EGL_DMA_BUF_PLANE0_PITCH_EXT, dma_buf_params->pitch);
 
     const bool use_drm_format_mod =
-        NGLI_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS);
+        NGPU_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS);
     if (use_drm_format_mod && dma_buf_params->drm_format_mod != DRM_FORMAT_MOD_INVALID) {
         ADD_ATTRIB(EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT, (uint32_t)(dma_buf_params->drm_format_mod & 0xFFFFFFFFLU));
         ADD_ATTRIB(EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, (uint32_t)((dma_buf_params->drm_format_mod >> 32U) & 0xFFFFFFFFLU));
@@ -443,7 +443,7 @@ static int texture_import_dma_buf(struct ngpu_texture *s)
     s_priv->egl_image = ngpu_eglCreateImageKHR(gl, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, NULL, attribs);
     if (!s_priv->egl_image) {
         LOG(ERROR, "failed to create egl image");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     gl->funcs.BindTexture(s_priv->target, s_priv->id);
@@ -455,7 +455,7 @@ static int texture_import_dma_buf(struct ngpu_texture *s)
 
     return 0;
 #else
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -472,7 +472,7 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
 
     EGLClientBuffer egl_buffer = ngpu_eglGetNativeClientBufferANDROID(gl, hardware_buffer);
     if (!egl_buffer)
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
 
     static const EGLint attrs[] = {
         EGL_IMAGE_PRESERVED_KHR,
@@ -483,7 +483,7 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
     s_priv->egl_image = ngpu_eglCreateImageKHR(gl, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, egl_buffer, attrs);
     if (!s_priv->egl_image) {
         LOG(ERROR, "failed to create egl image");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     gl->funcs.BindTexture(GL_TEXTURE_EXTERNAL_OES, s_priv->id);
@@ -495,7 +495,7 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
 
     return 0;
 #else
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -520,14 +520,14 @@ static int texture_import_iosurface(struct ngpu_texture *s)
                                           s_priv->format, format_type, surface, (GLuint)index);
     if (err != kCGLNoError) {
         LOG(ERROR, "could not bind IOSurface plane %zu to texture %u: %s", index, s_priv->id, CGLErrorString(err));
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     gl->funcs.BindTexture(GL_TEXTURE_RECTANGLE, 0);
 
     return 0;
 #else
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -547,7 +547,7 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
     const size_t width  = CVPixelBufferGetWidthOfPlane(cv_pixel_buffer, index);
     const size_t height = CVPixelBufferGetHeightOfPlane(cv_pixel_buffer, index);
     if (width > INT_MAX || height > INT_MAX)
-        return NGL_ERROR_LIMIT_EXCEEDED;
+        return NGPU_ERROR_LIMIT_EXCEEDED;
 
     CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
     CVReturn err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
@@ -564,7 +564,7 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
                                                                 &s_priv->cv_texture);
     if (err != noErr) {
         LOG(ERROR, "could not create CoreVideo texture from image: %d", err);
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
 
     s_priv->cv_pixel_buffer = CFRetain(cv_pixel_buffer);
@@ -588,7 +588,7 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
 
     return 0;
 #else
-    return NGL_ERROR_UNSUPPORTED;
+    return NGPU_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -639,7 +639,7 @@ int ngpu_texture_gl_import(struct ngpu_texture *s, const struct ngpu_texture_par
         ret = texture_import_corevideo_buffer(s);
         break;
     default:
-        ngli_assert(0);
+        ngpu_assert(0);
     }
     if (ret < 0)
         return ret;
@@ -672,8 +672,8 @@ int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *da
 
     /* Wrapped textures and render buffers cannot update their content with
      * this function */
-    ngli_assert(!s_priv->wrapped);
-    ngli_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
+    ngpu_assert(!s_priv->wrapped);
+    ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
     gl->funcs.BindTexture(s_priv->target, s_priv->id);
     if (data) {
@@ -693,8 +693,8 @@ int ngpu_texture_gl_generate_mipmap(struct ngpu_texture *s)
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_texture_params *params = &s->params;
 
-    ngli_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_SRC_BIT);
-    ngli_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
+    ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_SRC_BIT);
+    ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
     gl->funcs.BindTexture(s_priv->target, s_priv->id);
     gl->funcs.GenerateMipmap(s_priv->target);
@@ -733,5 +733,5 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
         CFRelease(s_priv->cv_texture);
 #endif
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }

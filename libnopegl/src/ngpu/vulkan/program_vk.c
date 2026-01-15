@@ -23,18 +23,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/vulkan/ctx_vk.h"
 #include "ngpu/vulkan/glslang_utils.h"
 #include "ngpu/vulkan/program_vk.h"
 #include "ngpu/vulkan/vkutils.h"
-#include "utils/memory.h"
-#include "utils/string.h"
-#include "utils/utils.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/string.h"
+#include "ngpu/utils/utils.h"
 
 struct ngpu_program *ngpu_program_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_program_vk *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_program_vk *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -57,19 +57,19 @@ int ngpu_program_vk_init(struct ngpu_program *s, const struct ngpu_program_param
         {NGPU_PROGRAM_STAGE_COMP, params->compute},
     };
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(shaders); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++) {
         if (!shaders[i].src)
             continue;
 
         void *data = NULL;
         size_t size = 0;
-        int ret = ngli_glslang_compile(shaders[i].stage, shaders[i].src, s->gpu_ctx->params.debug, &data, &size);
+        int ret = ngpu_glslang_compile(shaders[i].stage, shaders[i].src, s->gpu_ctx->params.debug, &data, &size);
         if (ret < 0) {
-            char *s_with_numbers = ngli_numbered_lines(shaders[i].src);
+            char *s_with_numbers = ngpu_numbered_lines(shaders[i].src);
             if (s_with_numbers) {
                 LOG(ERROR, "failed to compile shader \"%s\":\n%s",
                     params->label ? params->label : "", s_with_numbers);
-                ngli_free(s_with_numbers);
+                ngpu_free(s_with_numbers);
             }
             return ret;
         }
@@ -80,13 +80,13 @@ int ngpu_program_vk_init(struct ngpu_program *s, const struct ngpu_program_param
             .pCode    = data,
         };
         VkResult res = vkCreateShaderModule(vk->device, &shader_module_create_info, NULL, &s_priv->shaders[i]);
-        ngli_freep(&data);
+        ngpu_freep(&data);
         if (res != VK_SUCCESS) {
-            char *s_with_numbers = ngli_numbered_lines(shaders[i].src);
+            char *s_with_numbers = ngpu_numbered_lines(shaders[i].src);
             if (s_with_numbers) {
                 LOG(ERROR, "failed to compile shader \"%s\":\n%s",
                     params->label ? params->label : "", s_with_numbers);
-                ngli_free(s_with_numbers);
+                ngpu_free(s_with_numbers);
             }
             return ngpu_vk_res2ret(res);
         }
@@ -105,7 +105,7 @@ void ngpu_program_vk_freep(struct ngpu_program **sp)
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(s_priv->shaders); i++)
+    for (size_t i = 0; i < NGPU_ARRAY_NB(s_priv->shaders); i++)
         vkDestroyShaderModule(vk->device, s_priv->shaders[i], NULL);
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }

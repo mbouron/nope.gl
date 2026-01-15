@@ -26,8 +26,8 @@
 
 #include "ngpu/ngpu.h"
 
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/utils.h"
 
 #define BLOCK_DESC_INITIAL_CAPACITY 8
 
@@ -149,9 +149,9 @@ static size_t fill_tail_field_info(const struct ngpu_block_desc *s, struct ngpu_
     const size_t size  = get_field_size(field, s->layout);
     const size_t align = get_field_align(field, s->layout);
 
-    ngli_assert(field->type != NGPU_TYPE_NONE);
-    ngli_assert(size);
-    ngli_assert(align);
+    ngpu_assert(field->type != NGPU_TYPE_NONE);
+    ngpu_assert(size);
+    ngpu_assert(align);
 
     const size_t remain = s->size % align;
     const size_t offset = s->size + (remain ? align - remain : 0);
@@ -165,7 +165,7 @@ static size_t fill_tail_field_info(const struct ngpu_block_desc *s, struct ngpu_
 size_t ngpu_block_desc_get_size(const struct ngpu_block_desc *s, size_t variadic_count)
 {
     if (variadic_count == 0)
-        return NGLI_ALIGN(s->size, aligns_map[NGPU_TYPE_VEC4]);
+        return NGPU_ALIGN(s->size, aligns_map[NGPU_TYPE_VEC4]);
 
     if (s->nb_fields == 0)
         return 0;
@@ -176,30 +176,30 @@ size_t ngpu_block_desc_get_size(const struct ngpu_block_desc *s, size_t variadic
      * recalculate the new size as if it was a normal field.
      */
     const struct ngpu_block_field *last = &s->fields[s->nb_fields - 1];
-    ngli_assert(last->count == NGPU_BLOCK_DESC_VARIADIC_COUNT);
+    ngpu_assert(last->count == NGPU_BLOCK_DESC_VARIADIC_COUNT);
 
     struct ngpu_block_field tmp = *last;
     tmp.count = variadic_count;
     size_t size = fill_tail_field_info(s, &tmp);
-    return NGLI_ALIGN(size, aligns_map[NGPU_TYPE_VEC4]);
+    return NGPU_ALIGN(size, aligns_map[NGPU_TYPE_VEC4]);
 }
 
 size_t ngpu_block_desc_get_aligned_size(const struct ngpu_block_desc *s, size_t variadic_count)
 {
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(s->gpu_ctx);
-    const size_t alignment = NGLI_MAX(limits->min_uniform_block_offset_alignment,
+    const size_t alignment = NGPU_MAX(limits->min_uniform_block_offset_alignment,
                                       limits->min_storage_block_offset_alignment);
-    return NGLI_ALIGN(ngpu_block_desc_get_size(s, variadic_count), alignment);
+    return NGPU_ALIGN(ngpu_block_desc_get_size(s, variadic_count), alignment);
 }
 
 int ngpu_block_desc_add_field(struct ngpu_block_desc *s, const char *name, enum ngpu_type type, size_t count)
 {
-    ngli_assert(s->layout != NGPU_BLOCK_LAYOUT_UNKNOWN);
+    ngpu_assert(s->layout != NGPU_BLOCK_LAYOUT_UNKNOWN);
 
     /* check that we are not adding a field after a variadic one */
     if (s->nb_fields > 0) {
         const struct ngpu_block_field *last = &s->fields[s->nb_fields - 1];
-        ngli_assert(last->count != NGPU_BLOCK_DESC_VARIADIC_COUNT);
+        ngpu_assert(last->count != NGPU_BLOCK_DESC_VARIADIC_COUNT);
     }
 
     struct ngpu_block_field field = {
@@ -211,18 +211,18 @@ int ngpu_block_desc_add_field(struct ngpu_block_desc *s, const char *name, enum 
 
     struct ngpu_block_field *new_fields = s->fields;
     if (!s->fields) {
-        new_fields = ngli_realloc(NULL, BLOCK_DESC_INITIAL_CAPACITY, sizeof(*s->fields));
-    } else if (s->nb_fields >= BLOCK_DESC_INITIAL_CAPACITY && NGLI_IS_POW2(s->nb_fields)) {
-        new_fields = ngli_realloc(s->fields, s->nb_fields * 2, sizeof(*s->fields));
+        new_fields = ngpu_realloc(NULL, BLOCK_DESC_INITIAL_CAPACITY, sizeof(*s->fields));
+    } else if (s->nb_fields >= BLOCK_DESC_INITIAL_CAPACITY && NGPU_IS_POW2(s->nb_fields)) {
+        new_fields = ngpu_realloc(s->fields, s->nb_fields * 2, sizeof(*s->fields));
     }
     if (!new_fields)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     s->fields = new_fields;
     s->fields[s->nb_fields] = field;
     s->nb_fields++;
 
-    ngli_assert(s->nb_fields > 0 && s->nb_fields < INT_MAX);
+    ngpu_assert(s->nb_fields > 0 && s->nb_fields < INT_MAX);
 
     return (int)s->nb_fields - 1;
 }
@@ -233,9 +233,9 @@ int ngpu_block_desc_add_fields(struct ngpu_block_desc *s, const struct ngpu_bloc
         const struct ngpu_block_field *field = &fields[i];
 
         /* These fields are filled internally */
-        ngli_assert(field->offset == 0);
-        ngli_assert(field->size == 0);
-        ngli_assert(field->stride == 0);
+        ngpu_assert(field->offset == 0);
+        ngpu_assert(field->size == 0);
+        ngpu_assert(field->stride == 0);
 
         int ret = ngpu_block_desc_add_field(s, field->name, field->type, field->count);
         if (ret < 0)
@@ -252,7 +252,7 @@ void ngpu_block_field_copy_count(const struct ngpu_block_field *fi, uint8_t * re
     if (fi->type == NGPU_TYPE_MAT3) {
         const size_t dst_vec_stride = fi->stride / 3;
         const size_t src_vec_stride = sizes_map[NGPU_TYPE_VEC3];
-        const size_t n = 3 * NGLI_MAX(count ? count : fi->count, 1);
+        const size_t n = 3 * NGPU_MAX(count ? count : fi->count, 1);
         for (size_t i = 0; i < n; i++) {
             memcpy(dstp, srcp, src_vec_stride);
             dstp += dst_vec_stride;
@@ -262,7 +262,7 @@ void ngpu_block_field_copy_count(const struct ngpu_block_field *fi, uint8_t * re
     }
 
     const size_t src_stride = sizes_map[fi->type];
-    const size_t n = NGLI_MAX(count ? count : fi->count, 1);
+    const size_t n = NGPU_MAX(count ? count : fi->count, 1);
     for (size_t i = 0; i < n; i++) {
         memcpy(dstp, srcp, src_stride);
         dstp += fi->stride;
@@ -277,6 +277,6 @@ void ngpu_block_field_copy(const struct ngpu_block_field *fi, uint8_t *dst, cons
 
 void ngpu_block_desc_reset(struct ngpu_block_desc *s)
 {
-    ngli_freep(&s->fields);
+    ngpu_freep(&s->fields);
     memset(s, 0, sizeof(*s));
 }

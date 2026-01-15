@@ -29,9 +29,10 @@
 
 #include "renderdoc_app.h"
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/capture.h"
-#include "utils/memory.h"
+#include "ngpu/ngpu.h"
+#include "ngpu/utils/memory.h"
 
 struct ngpu_capture_ctx {
     RENDERDOC_API_1_4_0 *rdoc_api;
@@ -44,7 +45,7 @@ struct ngpu_capture_ctx {
 
 struct ngpu_capture_ctx *ngpu_capture_ctx_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_capture_ctx *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_capture_ctx *s = ngpu_calloc(1, sizeof(*s));
     return s;
 }
 
@@ -54,7 +55,7 @@ int ngpu_capture_init(struct ngpu_capture_ctx *s)
     s->mod = LoadLibraryA("renderdoc.dll");
     if (!s->mod) {
         LOG(ERROR, "could not load renderdoc.dll");
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
     pRENDERDOC_GetAPI RENDERDOC_GetAPI =
         (pRENDERDOC_GetAPI)GetProcAddress(s->mod, "RENDERDOC_GetAPI");
@@ -62,7 +63,7 @@ int ngpu_capture_init(struct ngpu_capture_ctx *s)
     s->mod = dlopen("librenderdoc.so", RTLD_LAZY);
     if (!s->mod) {
         LOG(ERROR, "could not load renderdoc.so: %s", dlerror());
-        return NGL_ERROR_UNSUPPORTED;
+        return NGPU_ERROR_UNSUPPORTED;
     }
     pRENDERDOC_GetAPI RENDERDOC_GetAPI =
         dlsym(s->mod, "RENDERDOC_GetAPI");
@@ -70,7 +71,7 @@ int ngpu_capture_init(struct ngpu_capture_ctx *s)
     int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_4_0, (void **)&s->rdoc_api);
     if (ret == 0) {
         LOG(ERROR, "could not initialize renderdoc");
-        return NGL_ERROR_EXTERNAL;
+        return NGPU_ERROR_EXTERNAL;
     }
     LOG(INFO, "renderdoc capture path: %s", s->rdoc_api->GetCaptureFilePathTemplate());
     return 0;
@@ -87,7 +88,7 @@ int ngpu_capture_end(struct ngpu_capture_ctx *s)
     uint32_t ret = s->rdoc_api->EndFrameCapture(NULL, NULL);
     if (ret == 0) {
         LOG(ERROR, "end frame capture failed");
-        return NGL_ERROR_GENERIC;
+        return NGPU_ERROR_GENERIC;
     }
     return 0;
 }
@@ -104,6 +105,6 @@ void ngpu_capture_freep(struct ngpu_capture_ctx **sp)
 #else
         dlclose(s->mod);
 #endif
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }
 

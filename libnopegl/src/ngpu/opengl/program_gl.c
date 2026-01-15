@@ -23,22 +23,22 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/opengl/ctx_gl.h"
 #include "ngpu/opengl/glincludes.h"
 #include "ngpu/opengl/program_gl.h"
-#include "utils/bstr.h"
-#include "utils/memory.h"
-#include "utils/string.h"
+#include "ngpu/utils/bstr.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/string.h"
 
 static int program_check_status(const struct glcontext *gl, GLuint id, GLenum status)
 {
     char *info_log = NULL;
     int info_log_length = 0;
 
-    void (NGLI_GL_APIENTRY *get_info)(GLuint id, GLenum pname, GLint *params);
-    void (NGLI_GL_APIENTRY *get_log)(GLuint id, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+    void (NGPU_GL_APIENTRY *get_info)(GLuint id, GLenum pname, GLint *params);
+    void (NGPU_GL_APIENTRY *get_log)(GLuint id, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
     const char *type_str;
 
     if (status == GL_COMPILE_STATUS) {
@@ -50,7 +50,7 @@ static int program_check_status(const struct glcontext *gl, GLuint id, GLenum st
         get_info = gl->funcs.GetProgramiv;
         get_log  = gl->funcs.GetProgramInfoLog;
     } else {
-        ngli_assert(0);
+        ngpu_assert(0);
     }
 
     GLint result = GL_FALSE;
@@ -60,24 +60,24 @@ static int program_check_status(const struct glcontext *gl, GLuint id, GLenum st
 
     get_info(id, GL_INFO_LOG_LENGTH, &info_log_length);
     if (!info_log_length)
-        return NGL_ERROR_BUG;
+        return NGPU_ERROR_BUG;
 
-    info_log = ngli_malloc((size_t)info_log_length);
+    info_log = ngpu_malloc((size_t)info_log_length);
     if (!info_log)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     get_log(id, info_log_length, NULL, info_log);
     while (info_log_length && strchr(" \r\n", info_log[info_log_length - 1]))
         info_log_length--;
 
     LOG(ERROR, "could not %s shader: %.*s", type_str, info_log_length, info_log);
-    ngli_free(info_log);
-    return NGL_ERROR_INVALID_DATA;
+    ngpu_free(info_log);
+    return NGPU_ERROR_INVALID_DATA;
 }
 
 struct ngpu_program *ngpu_program_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_program_gl *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_program_gl *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -106,12 +106,12 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
     const uint64_t features = NGPU_FEATURE_GL_COMPUTE_SHADER_ALL;
     if (params->compute && (gl->features & features) != features) {
         LOG(ERROR, "context does not support compute shaders");
-        return NGL_ERROR_GRAPHICS_UNSUPPORTED;
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
     s_priv->id = gl->funcs.CreateProgram();
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(shaders); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++) {
         if (!shaders[i].src)
             continue;
         GLuint shader = gl->funcs.CreateShader(shaders[i].type);
@@ -120,11 +120,11 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
         gl->funcs.CompileShader(shader);
         ret = program_check_status(gl, shader, GL_COMPILE_STATUS);
         if (ret < 0) {
-            char *s_with_numbers = ngli_numbered_lines(shaders[i].src);
+            char *s_with_numbers = ngpu_numbered_lines(shaders[i].src);
             if (s_with_numbers) {
                 LOG(ERROR, "failed to compile shader \"%s\":\n%s",
                     params->label ? params->label : "", s_with_numbers);
-                ngli_free(s_with_numbers);
+                ngpu_free(s_with_numbers);
             }
             goto fail;
         }
@@ -134,33 +134,33 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
     gl->funcs.LinkProgram(s_priv->id);
     ret = program_check_status(gl, s_priv->id, GL_LINK_STATUS);
     if (ret < 0) {
-        struct bstr *bstr = ngli_bstr_create();
+        struct bstr *bstr = ngpu_bstr_create();
         if (bstr) {
-            ngli_bstr_printf(bstr, "failed to link shaders \"%s\":",
+            ngpu_bstr_printf(bstr, "failed to link shaders \"%s\":",
                              params->label ? params->label : "");
-            for (size_t i = 0; i < NGLI_ARRAY_NB(shaders); i++) {
+            for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++) {
                 if (!shaders[i].src)
                     continue;
-                char *s_with_numbers = ngli_numbered_lines(shaders[i].src);
+                char *s_with_numbers = ngpu_numbered_lines(shaders[i].src);
                 if (s_with_numbers) {
-                    ngli_bstr_printf(bstr, "\n\n%s shader:\n%s", shaders[i].name, s_with_numbers);
-                    ngli_free(s_with_numbers);
+                    ngpu_bstr_printf(bstr, "\n\n%s shader:\n%s", shaders[i].name, s_with_numbers);
+                    ngpu_free(s_with_numbers);
                 }
             }
-            LOG(ERROR, "%s", ngli_bstr_strptr(bstr));
-            ngli_bstr_freep(&bstr);
+            LOG(ERROR, "%s", ngpu_bstr_strptr(bstr));
+            ngpu_bstr_freep(&bstr);
         }
         goto fail;
     }
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(shaders); i++)
+    for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++)
         if (shaders[i].id != 0)
             gl->funcs.DeleteShader(shaders[i].id);
 
     return 0;
 
 fail:
-    for (size_t i = 0; i < NGLI_ARRAY_NB(shaders); i++)
+    for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++)
         gl->funcs.DeleteShader(shaders[i].id);
 
     return ret;
@@ -175,5 +175,5 @@ void ngpu_program_gl_freep(struct ngpu_program **sp)
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     gl->funcs.DeleteProgram(s_priv->id);
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }

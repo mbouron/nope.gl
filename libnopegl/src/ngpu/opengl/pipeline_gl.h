@@ -32,7 +32,7 @@ struct glcontext;
 struct ngpu_pipeline_gl {
     struct ngpu_pipeline parent;
 
-    struct darray attribute_bindings; // attribute_binding_gl
+    struct ngpu_darray attribute_bindings; // attribute_binding_gl
 
     GLuint vao_id;
 };

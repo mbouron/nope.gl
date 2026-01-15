@@ -28,14 +28,14 @@
 #include <string.h>
 
 #include "hwmap.h"
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ctx.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/pgcraft.h"
 
-#include "utils/bstr.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "ngpu/utils/bstr.h"
+#include "ngpu/utils/memory.h"
+#include "ngpu/utils/utils.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "ngpu/opengl/ctx_gl.h"
@@ -43,47 +43,47 @@
 #endif
 
 enum {
-    NGLI_BINDING_TYPE_UBO,
-    NGLI_BINDING_TYPE_SSBO,
-    NGLI_BINDING_TYPE_TEXTURE,
-    NGLI_BINDING_TYPE_IMAGE,
-    NGLI_BINDING_TYPE_NB
+    NGPU_BINDING_TYPE_UBO,
+    NGPU_BINDING_TYPE_SSBO,
+    NGPU_BINDING_TYPE_TEXTURE,
+    NGPU_BINDING_TYPE_IMAGE,
+    NGPU_BINDING_TYPE_NB
 };
 
 struct pgcraft_pipeline_info {
     struct {
-        struct darray textures;   // ngpu_bindgroup_layout_entry
-        struct darray buffers;    // ngpu_bindgroup_layout_entry
-        struct darray vertex_buffers; // ngpu_vertex_buffer_layout
+        struct ngpu_darray textures;   // ngpu_bindgroup_layout_entry
+        struct ngpu_darray buffers;    // ngpu_bindgroup_layout_entry
+        struct ngpu_darray vertex_buffers; // ngpu_vertex_buffer_layout
     } desc;
     struct {
-        struct darray textures;   // ngpu_texture_binding
-        struct darray buffers;    // ngpu_buffer_binding
-        struct darray vertex_buffers; // ngpu_buffer pointer
+        struct ngpu_darray textures;   // ngpu_texture_binding
+        struct ngpu_darray buffers;    // ngpu_buffer_binding
+        struct ngpu_darray vertex_buffers; // ngpu_buffer pointer
     } data;
 };
 
 struct ngpu_pgcraft {
     struct ngpu_ctx *gpu_ctx;
 
-    struct darray texture_infos; // ngpu_pgcraft_texture_info
-    struct darray images; // image pointer
+    struct ngpu_darray texture_infos; // ngpu_pgcraft_texture_info
+    struct ngpu_darray images; // image pointer
     struct ngpu_pgcraft_compat_info compat_info;
 
     struct bstr *shaders[NGPU_PROGRAM_STAGE_NB];
 
-    struct darray symbols;
+    struct ngpu_darray symbols;
 
     struct pgcraft_pipeline_info pipeline_info;
 
-    struct darray vert_out_vars; // ngpu_pgcraft_iovar
-    struct darray textures; // ngpu_pgcraft_texture
+    struct ngpu_darray vert_out_vars; // ngpu_pgcraft_iovar
+    struct ngpu_darray textures; // ngpu_pgcraft_texture
 
     struct ngpu_program *program;
     struct ngpu_bindgroup_layout *bindgroup_layout;
 
-    uint32_t bindings[NGLI_BINDING_TYPE_NB];
-    uint32_t *next_bindings[NGLI_BINDING_TYPE_NB];
+    uint32_t bindings[NGPU_BINDING_TYPE_NB];
+    uint32_t *next_bindings[NGPU_BINDING_TYPE_NB];
     uint32_t next_in_locations[NGPU_PROGRAM_STAGE_NB];
     uint32_t next_out_locations[NGPU_PROGRAM_STAGE_NB];
 
@@ -207,21 +207,21 @@ static const int type_flags_map[NGPU_TYPE_NB] = {
 };
 
 static const int type_binding_map[NGPU_TYPE_NB] = {
-    [NGPU_TYPE_SAMPLER_2D]                  = NGLI_BINDING_TYPE_TEXTURE,
-    [NGPU_TYPE_SAMPLER_2D_ARRAY]            = NGLI_BINDING_TYPE_TEXTURE,
-    [NGPU_TYPE_SAMPLER_2D_RECT]             = NGLI_BINDING_TYPE_TEXTURE,
-    [NGPU_TYPE_SAMPLER_3D]                  = NGLI_BINDING_TYPE_TEXTURE,
-    [NGPU_TYPE_SAMPLER_CUBE]                = NGLI_BINDING_TYPE_TEXTURE,
-    [NGPU_TYPE_SAMPLER_EXTERNAL_OES]        = NGLI_BINDING_TYPE_TEXTURE,
-    [NGPU_TYPE_SAMPLER_EXTERNAL_2D_Y2Y_EXT] = NGLI_BINDING_TYPE_TEXTURE,
-    [NGPU_TYPE_IMAGE_2D]                    = NGLI_BINDING_TYPE_IMAGE,
-    [NGPU_TYPE_IMAGE_2D_ARRAY]              = NGLI_BINDING_TYPE_IMAGE,
-    [NGPU_TYPE_IMAGE_3D]                    = NGLI_BINDING_TYPE_IMAGE,
-    [NGPU_TYPE_IMAGE_CUBE]                  = NGLI_BINDING_TYPE_IMAGE,
-    [NGPU_TYPE_UNIFORM_BUFFER]              = NGLI_BINDING_TYPE_UBO,
-    [NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC]      = NGLI_BINDING_TYPE_UBO,
-    [NGPU_TYPE_STORAGE_BUFFER]              = NGLI_BINDING_TYPE_SSBO,
-    [NGPU_TYPE_STORAGE_BUFFER_DYNAMIC]      = NGLI_BINDING_TYPE_SSBO,
+    [NGPU_TYPE_SAMPLER_2D]                  = NGPU_BINDING_TYPE_TEXTURE,
+    [NGPU_TYPE_SAMPLER_2D_ARRAY]            = NGPU_BINDING_TYPE_TEXTURE,
+    [NGPU_TYPE_SAMPLER_2D_RECT]             = NGPU_BINDING_TYPE_TEXTURE,
+    [NGPU_TYPE_SAMPLER_3D]                  = NGPU_BINDING_TYPE_TEXTURE,
+    [NGPU_TYPE_SAMPLER_CUBE]                = NGPU_BINDING_TYPE_TEXTURE,
+    [NGPU_TYPE_SAMPLER_EXTERNAL_OES]        = NGPU_BINDING_TYPE_TEXTURE,
+    [NGPU_TYPE_SAMPLER_EXTERNAL_2D_Y2Y_EXT] = NGPU_BINDING_TYPE_TEXTURE,
+    [NGPU_TYPE_IMAGE_2D]                    = NGPU_BINDING_TYPE_IMAGE,
+    [NGPU_TYPE_IMAGE_2D_ARRAY]              = NGPU_BINDING_TYPE_IMAGE,
+    [NGPU_TYPE_IMAGE_3D]                    = NGPU_BINDING_TYPE_IMAGE,
+    [NGPU_TYPE_IMAGE_CUBE]                  = NGPU_BINDING_TYPE_IMAGE,
+    [NGPU_TYPE_UNIFORM_BUFFER]              = NGPU_BINDING_TYPE_UBO,
+    [NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC]      = NGPU_BINDING_TYPE_UBO,
+    [NGPU_TYPE_STORAGE_BUFFER]              = NGPU_BINDING_TYPE_SSBO,
+    [NGPU_TYPE_STORAGE_BUFFER_DYNAMIC]      = NGPU_BINDING_TYPE_SSBO,
 };
 
 static int is_sampler(enum ngpu_type type)
@@ -247,17 +247,17 @@ static int type_is_int(enum ngpu_type type)
 static const char *get_glsl_type(enum ngpu_type type)
 {
     const char *ret = ngpu_type_get_name(type);
-    ngli_assert(ret);
+    ngpu_assert(ret);
     return ret;
 }
 
 static uint32_t request_next_binding(struct ngpu_pgcraft *s, enum ngpu_type type)
 {
-    ngli_assert(type >= 0 && type < NGPU_TYPE_NB);
+    ngpu_assert(type >= 0 && type < NGPU_TYPE_NB);
     const int binding_type = type_binding_map[type];
 
     uint32_t *next_bind = s->next_bindings[binding_type];
-    ngli_assert(next_bind);
+    ngpu_assert(next_bind);
 
     return (*next_bind)++;
 }
@@ -391,11 +391,11 @@ static int is_type_supported(struct ngpu_pgcraft *s, enum ngpu_type type)
 
     switch(type) {
     case NGPU_TYPE_SAMPLER_2D_RECT:
-        return ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_RECTANGLE) ||
-               ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_NV12_RECTANGLE);
+        return ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_RECTANGLE) ||
+               ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_NV12_RECTANGLE);
     case NGPU_TYPE_SAMPLER_EXTERNAL_OES:
     case NGPU_TYPE_SAMPLER_EXTERNAL_2D_Y2Y_EXT:
-        return ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_MEDIACODEC);
+        return ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_MEDIACODEC);
     default:
         return 1;
     }
@@ -423,27 +423,27 @@ static int prepare_texture_info_fields(struct ngpu_pgcraft *s, const struct ngpu
 
 static int prepare_texture_infos(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params, int graphics)
 {
-    ngli_darray_init(&s->textures, sizeof(struct ngpu_pgcraft_texture), 0);
+    ngpu_darray_init(&s->textures, sizeof(struct ngpu_pgcraft_texture), 0);
     for (size_t i = 0; i < params->nb_textures; i++) {
         const struct ngpu_pgcraft_texture *texture = &params->textures[i];
-        ngli_assert(!(texture->type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO && texture->texture));
+        ngpu_assert(!(texture->type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO && texture->texture));
 
-        if (!ngli_darray_push(&s->textures, &params->textures[i]))
-            return NGL_ERROR_MEMORY;
+        if (!ngpu_darray_push(&s->textures, &params->textures[i]))
+            return NGPU_ERROR_MEMORY;
 
-        if (!ngli_darray_push(&s->symbols, texture->name))
-            return NGL_ERROR_MEMORY;
+        if (!ngpu_darray_push(&s->symbols, texture->name))
+            return NGPU_ERROR_MEMORY;
 
-        struct ngpu_pgcraft_texture_info info = {.id = ngli_darray_count(&s->symbols) - 1};
+        struct ngpu_pgcraft_texture_info info = {.id = ngpu_darray_count(&s->symbols) - 1};
         int ret = prepare_texture_info_fields(s, params, graphics, texture, &info);
         if (ret < 0)
             return ret;
 
-        if (!ngli_darray_push(&s->texture_infos, &info))
-            return NGL_ERROR_MEMORY;
+        if (!ngpu_darray_push(&s->texture_infos, &info))
+            return NGPU_ERROR_MEMORY;
 
-        if (!ngli_darray_push(&s->images, &texture->image))
-            return NGL_ERROR_MEMORY;
+        if (!ngpu_darray_push(&s->images, &texture->image))
+            return NGPU_ERROR_MEMORY;
     }
     return 0;
 }
@@ -460,17 +460,17 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
         int len = snprintf(name, sizeof(name), "%s%s", texture->name, texture_info_suffixes[i]);
         if (len >= sizeof(name)) {
             LOG(ERROR, "texture name \"%s\" is too long", texture->name);
-            return NGL_ERROR_MEMORY;
+            return NGPU_ERROR_MEMORY;
         }
 
         struct bstr *b = s->shaders[stage];
 
         if (is_sampler(field->type) || is_image(field->type)) {
-            if (!ngli_darray_push(&s->symbols, name))
-                return NGL_ERROR_MEMORY;
+            if (!ngpu_darray_push(&s->symbols, name))
+                return NGPU_ERROR_MEMORY;
 
             const struct ngpu_bindgroup_layout_entry layout_entry = {
-                .id          = ngli_darray_count(&s->symbols) - 1,
+                .id          = ngpu_darray_count(&s->symbols) - 1,
                 .type        = field->type,
                 .binding     = request_next_binding(s, field->type),
                 .access      = texture->writable ? NGPU_ACCESS_READ_WRITE : NGPU_ACCESS_READ_BIT,
@@ -481,19 +481,19 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
             if (is_image(field->type)) {
                 if (texture->format == NGPU_FORMAT_UNDEFINED) {
                     LOG(ERROR, "texture format must be set when accessing it as an image");
-                    return NGL_ERROR_INVALID_ARG;
+                    return NGPU_ERROR_INVALID_ARG;
                 }
                 const char *format = image_glsl_format_map[texture->format].format;
                 prefix = image_glsl_format_map[texture->format].prefix;
                 if (!format || !prefix) {
                     LOG(ERROR, "unsupported texture format");
-                    return NGL_ERROR_UNSUPPORTED;
+                    return NGPU_ERROR_UNSUPPORTED;
                 }
 
-                ngli_bstr_printf(b, "layout(%s", format);
+                ngpu_bstr_printf(b, "layout(%s", format);
 
                 if (s->has_explicit_bindings)
-                    ngli_bstr_printf(b, ", binding=%u", layout_entry.binding);
+                    ngpu_bstr_printf(b, ", binding=%u", layout_entry.binding);
 
                 /*
                  * Restrict memory qualifier according to the OpenGLES 3.2 spec
@@ -509,23 +509,23 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
                     texture->format != NGPU_FORMAT_R32_UINT) {
                     writable_qualifier = "writeonly";
                 }
-                ngli_bstr_printf(b, ") %s ", texture->writable ? writable_qualifier : "readonly");
+                ngpu_bstr_printf(b, ") %s ", texture->writable ? writable_qualifier : "readonly");
             } else if (s->has_explicit_bindings) {
-                ngli_bstr_printf(b, "layout(binding=%u) ", layout_entry.binding);
+                ngpu_bstr_printf(b, "layout(binding=%u) ", layout_entry.binding);
             }
 
             const char *type = get_glsl_type(field->type);
             const char *precision = get_precision_qualifier(s, field->type, texture->precision, "lowp");
-            ngli_bstr_printf(b, "uniform %s %s%s %s;\n", precision, prefix, type, name);
+            ngpu_bstr_printf(b, "uniform %s %s%s %s;\n", precision, prefix, type, name);
 
-            if (!ngli_darray_push(&s->pipeline_info.desc.textures, &layout_entry))
-                return NGL_ERROR_MEMORY;
+            if (!ngpu_darray_push(&s->pipeline_info.desc.textures, &layout_entry))
+                return NGPU_ERROR_MEMORY;
 
             const struct ngpu_texture_binding texture_binding = {
                 .texture = texture->texture,
             };
-            if (!ngli_darray_push(&s->pipeline_info.data.textures, &texture_binding))
-                return NGL_ERROR_MEMORY;
+            if (!ngpu_darray_push(&s->pipeline_info.data.textures, &texture_binding))
+                return NGPU_ERROR_MEMORY;
         } else {
             struct ngpu_pgcraft_uniform uniform = {
                 .stage = field->stage,
@@ -542,9 +542,9 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
 
 static int inject_textures(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params, enum ngpu_program_stage stage)
 {
-    const struct ngpu_pgcraft_texture *textures = ngli_darray_data(&s->textures);
-    const struct ngpu_pgcraft_texture_info *texture_infos = ngli_darray_data(&s->texture_infos);
-    for (size_t i = 0; i < ngli_darray_count(&s->texture_infos); i++) {
+    const struct ngpu_pgcraft_texture *textures = ngpu_darray_data(&s->textures);
+    const struct ngpu_pgcraft_texture_info *texture_infos = ngpu_darray_data(&s->texture_infos);
+    for (size_t i = 0; i < ngpu_darray_count(&s->texture_infos); i++) {
         const struct ngpu_pgcraft_texture_info *info = &texture_infos[i];
         int ret = inject_texture(s, &textures[i], info, stage);
         if (ret < 0)
@@ -561,11 +561,11 @@ static const char *glsl_layout_str_map[NGPU_BLOCK_NB_LAYOUTS] = {
 static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
                         const struct ngpu_pgcraft_block *named_block)
 {
-    if (!ngli_darray_push(&s->symbols, named_block->name))
-        return NGL_ERROR_MEMORY;
+    if (!ngpu_darray_push(&s->symbols, named_block->name))
+        return NGPU_ERROR_MEMORY;
 
     const struct ngpu_bindgroup_layout_entry layout_entry = {
-        .id          = ngli_darray_count(&s->symbols) - 1,
+        .id          = ngpu_darray_count(&s->symbols) - 1,
         .type        = named_block->type,
         .binding     = request_next_binding(s, named_block->type),
         .access      = named_block->writable ? NGPU_ACCESS_READ_WRITE : NGPU_ACCESS_READ_BIT,
@@ -575,32 +575,32 @@ static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
     const struct ngpu_block_desc *block = named_block->block;
     const char *layout = glsl_layout_str_map[block->layout];
     if (s->has_explicit_bindings) {
-        ngli_bstr_printf(b, "layout(%s,binding=%u)", layout, layout_entry.binding);
+        ngpu_bstr_printf(b, "layout(%s,binding=%u)", layout, layout_entry.binding);
     } else {
-        ngli_bstr_printf(b, "layout(%s)", layout);
+        ngpu_bstr_printf(b, "layout(%s)", layout);
     }
 
     if (named_block->type == NGPU_TYPE_STORAGE_BUFFER && !named_block->writable)
-        ngli_bstr_print(b, " readonly");
+        ngpu_bstr_print(b, " readonly");
 
     const char *keyword = get_glsl_type(named_block->type);
-    ngli_bstr_printf(b, " %s %s_block {\n", keyword, named_block->name);
+    ngpu_bstr_printf(b, " %s %s_block {\n", keyword, named_block->name);
     const struct ngpu_block_field *field_info = block->fields;
     for (size_t i = 0; i < block->nb_fields; i++) {
         const struct ngpu_block_field *fi = &field_info[i];
         const char *type = get_glsl_type(fi->type);
         const char *precision = get_precision_qualifier(s, fi->type, fi->precision, "");
         const char *array_suffix = GET_ARRAY_SUFFIX(fi->count);
-        ngli_bstr_printf(b, "    %s %s %s%s;\n", precision, type, fi->name, array_suffix);
+        ngpu_bstr_printf(b, "    %s %s %s%s;\n", precision, type, fi->name, array_suffix);
     }
     const char *instance_name = named_block->instance_name ? named_block->instance_name : named_block->name;
-    ngli_bstr_printf(b, "} %s;\n", instance_name);
+    ngpu_bstr_printf(b, "} %s;\n", instance_name);
 
-    if (!ngli_darray_push(&s->pipeline_info.desc.buffers, &layout_entry))
-        return NGL_ERROR_MEMORY;
+    if (!ngpu_darray_push(&s->pipeline_info.desc.buffers, &layout_entry))
+        return NGPU_ERROR_MEMORY;
 
-    if (!ngli_darray_push(&s->pipeline_info.data.buffers, &named_block->buffer))
-        return NGL_ERROR_MEMORY;
+    if (!ngpu_darray_push(&s->pipeline_info.data.buffers, &named_block->buffer))
+        return NGPU_ERROR_MEMORY;
 
     return (int)layout_entry.binding;
 }
@@ -638,11 +638,11 @@ static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
     s->next_in_locations[NGPU_PROGRAM_STAGE_VERT] += attribute_count;
 
     if (s->has_in_out_layout_qualifiers) {
-        ngli_bstr_printf(b, "layout(location=%u) ", base_location);
+        ngpu_bstr_printf(b, "layout(location=%u) ", base_location);
     }
 
     const char *precision = get_precision_qualifier(s, attribute->type, attribute->precision, "highp");
-    ngli_bstr_printf(b, "in %s %s %s;\n", precision, type, attribute->name);
+    ngpu_bstr_printf(b, "in %s %s %s;\n", precision, type, attribute->name);
 
     struct ngpu_vertex_buffer_layout vertex_buffer = {
         .stride = attribute->stride,
@@ -651,22 +651,22 @@ static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
 
     const size_t attribute_offset = ngpu_format_get_bytes_per_pixel(attribute->format);
     for (uint32_t i = 0; i < attribute_count; i++) {
-        if (!ngli_darray_push(&s->symbols, attribute->name))
-            return NGL_ERROR_MEMORY;
+        if (!ngpu_darray_push(&s->symbols, attribute->name))
+            return NGPU_ERROR_MEMORY;
 
-        ngli_assert(vertex_buffer.nb_attributes < NGPU_MAX_ATTRIBUTES_PER_BUFFER);
+        ngpu_assert(vertex_buffer.nb_attributes < NGPU_MAX_ATTRIBUTES_PER_BUFFER);
         vertex_buffer.attributes[vertex_buffer.nb_attributes++] = (struct ngpu_vertex_attribute) {
-            .id = ngli_darray_count(&s->symbols) - 1,
+            .id = ngpu_darray_count(&s->symbols) - 1,
             .location = base_location + i,
             .format = attribute->format,
             .offset = attribute->offset + i * attribute_offset,
         };
     }
 
-    if (!ngli_darray_push(&s->pipeline_info.desc.vertex_buffers, &vertex_buffer))
-        return NGL_ERROR_MEMORY;
-    if (!ngli_darray_push(&s->pipeline_info.data.vertex_buffers, &attribute->buffer))
-        return NGL_ERROR_MEMORY;
+    if (!ngpu_darray_push(&s->pipeline_info.desc.vertex_buffers, &vertex_buffer))
+        return NGPU_ERROR_MEMORY;
+    if (!ngpu_darray_push(&s->pipeline_info.data.vertex_buffers, &attribute->buffer))
+        return NGPU_ERROR_MEMORY;
 
     return 0;
 }
@@ -726,9 +726,9 @@ static int params_have_ssbos(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_p
 
 static int params_have_images(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params, enum ngpu_program_stage stage)
 {
-    const struct darray *texture_infos_array = &s->texture_infos;
-    const struct ngpu_pgcraft_texture_info *texture_infos = ngli_darray_data(texture_infos_array);
-    for (size_t i = 0; i < ngli_darray_count(texture_infos_array); i++) {
+    const struct ngpu_darray *texture_infos_array = &s->texture_infos;
+    const struct ngpu_pgcraft_texture_info *texture_infos = ngpu_darray_data(texture_infos_array);
+    for (size_t i = 0; i < ngpu_darray_count(texture_infos_array); i++) {
         const struct ngpu_pgcraft_texture_info *info = &texture_infos[i];
         for (size_t j = 0; j < NGPU_INFO_FIELD_NB; j++) {
             const struct ngpu_pgcraft_texture_info_field *field = &info->fields[j];
@@ -748,12 +748,12 @@ static void set_glsl_header(struct ngpu_pgcraft *s, struct bstr *b, const struct
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 
-    ngli_bstr_printf(b, "#version %d%s\n", s->glsl_version, s->glsl_version_suffix);
+    ngpu_bstr_printf(b, "#version %d%s\n", s->glsl_version, s->glsl_version_suffix);
 
     const int require_ssbo_feature = params_have_ssbos(s, params, stage);
     const int require_image_feature = params_have_images(s, params, stage);
 #if defined(TARGET_ANDROID)
-    const int require_image_external_essl3_feature = ngli_darray_count(&s->texture_infos) > 0;
+    const int require_image_external_essl3_feature = ngpu_darray_count(&s->texture_infos) > 0;
 #endif
 
     const struct {
@@ -775,14 +775,14 @@ static void set_glsl_header(struct ngpu_pgcraft *s, struct bstr *b, const struct
 #endif
     };
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(features); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(features); i++) {
         if (features[i].backend == ctx_params->backend &&
             features[i].glsl_version > s->glsl_version &&
             features[i].required)
-            ngli_bstr_printf(b, "#extension %s : require\n", features[i].extension);
+            ngpu_bstr_printf(b, "#extension %s : require\n", features[i].extension);
     }
 
-    ngli_bstr_print(b, "\n");
+    ngpu_bstr_print(b, "\n");
 }
 
 static int texture_needs_clamping(const struct ngpu_pgcraft_params *params,
@@ -868,7 +868,7 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
     p += strlen(token->id);
     p += strspn(p, WHITESPACES);
     if (*p++ != '(')
-        return NGL_ERROR_INVALID_ARG;
+        return NGPU_ERROR_INVALID_ARG;
     p += strspn(p, WHITESPACES);
 
     /* Extract the first argument (texture base name) from which we later
@@ -879,7 +879,7 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
 
     if (!strcmp(token->id, "ngl_texvideo")) {
         if (*p != ',')
-            return NGL_ERROR_INVALID_ARG;
+            return NGPU_ERROR_INVALID_ARG;
         p++;
         p += strspn(p, WHITESPACES);
 
@@ -887,54 +887,54 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
         p = skip_arg(p);
         ptrdiff_t coords_len = p - coords_start;
         if (*p != ')')
-            return NGL_ERROR_INVALID_ARG;
+            return NGPU_ERROR_INVALID_ARG;
         p++;
 
         const enum ngpu_pgcraft_texture_type texture_type = get_texture_type(params, arg0_start, arg0_len);
         if (texture_type != NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO) {
-            ngli_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
-            ngli_bstr_print(dst, p);
+            ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
+            ngpu_bstr_print(dst, p);
             return 0;
         }
 
         const int clamp = texture_needs_clamping(params, arg0_start, arg0_len);
         if (clamp)
-            ngli_bstr_print(dst, "clamp(");
+            ngpu_bstr_print(dst, "clamp(");
 
-        ngli_bstr_print(dst, "(");
+        ngpu_bstr_print(dst, "(");
 
-        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_MEDIACODEC)) {
-            ngli_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_MEDIACODEC);
-            ngli_bstr_printf(dst, "texture(%.*s_oes, %.*s) : ", ARG_FMT(arg0), ARG_FMT(coords));
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_MEDIACODEC)) {
+            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0),NGLI_IMAGE_LAYOUT_MEDIACODEC);
+            ngpu_bstr_printf(dst, "texture(%.*s_oes, %.*s) : ", ARG_FMT(arg0), ARG_FMT(coords));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_NV12_RECTANGLE)) {
-            ngli_bstr_printf(dst, " %.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_NV12_RECTANGLE);
-            ngli_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)).r, "
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_NV12_RECTANGLE)) {
+            ngpu_bstr_printf(dst, " %.*s_sampling_mode == %d ? ", ARG_FMT(arg0),NGLI_IMAGE_LAYOUT_NV12_RECTANGLE);
+            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)).r, "
                                                            "texture(%.*s_rect_1, (%.*s) * textureSize(%.*s_rect_1)).rg, 1.0) : ",
                              ARG_FMT(arg0),
                              ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0),
                              ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_RECTANGLE)) {
-            ngli_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_RECTANGLE);
-            ngli_bstr_printf(dst, "texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)) : ",
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_RECTANGLE)) {
+            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0),NGLI_IMAGE_LAYOUT_RECTANGLE);
+            ngpu_bstr_printf(dst, "texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)) : ",
                              ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_NV12)) {
-            ngli_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_NV12);
-            ngli_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_NV12)) {
+            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0),NGLI_IMAGE_LAYOUT_NV12);
+            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
                                                            "texture(%.*s_1, %.*s).rg, 1.0) : ",
                              ARG_FMT(arg0),
                              ARG_FMT(arg0), ARG_FMT(coords),
                              ARG_FMT(arg0), ARG_FMT(coords));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_YUV)) {
-            ngli_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGLI_IMAGE_LAYOUT_YUV);
-            ngli_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_YUV)) {
+            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0),NGLI_IMAGE_LAYOUT_YUV);
+            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
                                                            "texture(%.*s_1, %.*s).r, "
                                                            "texture(%.*s_2, %.*s).r, 1.0) : ",
                              ARG_FMT(arg0),
@@ -943,19 +943,19 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
                              ARG_FMT(arg0), ARG_FMT(coords));
         }
 
-        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend, NGLI_IMAGE_LAYOUT_DEFAULT)) {
-            ngli_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
+        if (ngli_hwmap_is_image_layout_supported(ctx_params->backend,NGLI_IMAGE_LAYOUT_DEFAULT)) {
+            ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
         } else {
             LOG(WARNING, "default image layout not supported in current build");
-            ngli_bstr_print(dst, "vec4(1.0, 0.0, 0.0, 1.0)"); /* red color */
+            ngpu_bstr_print(dst, "vec4(1.0, 0.0, 0.0, 1.0)"); /* red color */
         }
 
-        ngli_bstr_print(dst, ")");
+        ngpu_bstr_print(dst, ")");
         if (clamp)
-            ngli_bstr_print(dst, ", 0.0, 1.0)");
-        ngli_bstr_print(dst, p);
+            ngpu_bstr_print(dst, ", 0.0, 1.0)");
+        ngpu_bstr_print(dst, p);
     } else {
-        ngli_assert(0);
+        ngpu_assert(0);
     }
     return 0;
 }
@@ -975,26 +975,26 @@ static int samplers_preproc(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_pa
      * If there is no texture, no point in looking for these custom "ngl_"
      * texture picking symbols.
      */
-    if (!ngli_darray_data(&s->texture_infos))
+    if (!ngpu_darray_data(&s->texture_infos))
         return 0;
 
-    struct bstr *tmp_buf = ngli_bstr_create();
+    struct bstr *tmp_buf = ngpu_bstr_create();
     if (!tmp_buf)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
 
     /*
      * Construct a stack of "ngl*" tokens found in the shader.
      */
-    struct darray token_stack;
-    ngli_darray_init(&token_stack, sizeof(struct token), 0);
-    const char *base_str = ngli_bstr_strptr(b);
+    struct ngpu_darray token_stack;
+    ngpu_darray_init(&token_stack, sizeof(struct token), 0);
+    const char *base_str = ngpu_bstr_strptr(b);
     const char *p = base_str;
     while ((p = strstr(p, "ngl"))) {
         struct token token = {.pos = (size_t)(p - base_str)};
         p = read_token_id(p, token.id, sizeof(token.id));
         if (strcmp(token.id, "ngl_texvideo"))
             continue;
-        ngli_darray_push(&token_stack, &token);
+        ngpu_darray_push(&token_stack, &token);
     }
 
     /*
@@ -1002,18 +1002,18 @@ static int samplers_preproc(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_pa
      * never anything left to substitute up until the end of the buffer.
      */
     int ret = 0;
-    const struct token *tokens = ngli_darray_data(&token_stack);
-    const size_t nb_tokens = ngli_darray_count(&token_stack);
+    const struct token *tokens = ngpu_darray_data(&token_stack);
+    const size_t nb_tokens = ngpu_darray_count(&token_stack);
     for (size_t i = 0; i < nb_tokens; i++) {
         const struct token *token = &tokens[nb_tokens - i - 1];
-        ngli_bstr_clear(tmp_buf);
+        ngpu_bstr_clear(tmp_buf);
 
         /*
          * We get back the pointer in case it changed in a previous iteration
          * (internal realloc while extending it). The token offset on the other
          * hand wouldn't change since we're doing the replacements backward.
          */
-        p = ngli_bstr_strptr(b);
+        p = ngpu_bstr_strptr(b);
         ret = handle_token(s, params, token, p + token->pos, tmp_buf);
         if (ret < 0)
             break;
@@ -1023,12 +1023,12 @@ static int samplers_preproc(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_pa
          * up until the end of the buffer, so we can just truncate the main
          * buffer, and re-append the new payload.
          */
-        ngli_bstr_truncate(b, token->pos);
-        ngli_bstr_print(b, ngli_bstr_strptr(tmp_buf));
+        ngpu_bstr_truncate(b, token->pos);
+        ngpu_bstr_print(b, ngpu_bstr_strptr(tmp_buf));
     }
 
-    ngli_darray_reset(&token_stack);
-    ngli_bstr_freep(&tmp_buf);
+    ngpu_darray_reset(&token_stack);
+    ngpu_bstr_freep(&tmp_buf);
     return ret;
 }
 
@@ -1039,19 +1039,19 @@ static int inject_iovars(struct ngpu_pgcraft *s, struct bstr *b, enum ngpu_progr
         [NGPU_PROGRAM_STAGE_FRAG] = "in",
     };
     const char *qualifier = qualifiers[stage];
-    const struct ngpu_pgcraft_iovar *iovars = ngli_darray_data(&s->vert_out_vars);
+    const struct ngpu_pgcraft_iovar *iovars = ngpu_darray_data(&s->vert_out_vars);
     uint32_t location = 0;
-    for (size_t i = 0; i < ngli_darray_count(&s->vert_out_vars); i++) {
+    for (size_t i = 0; i < ngpu_darray_count(&s->vert_out_vars); i++) {
         if (s->has_in_out_layout_qualifiers)
-            ngli_bstr_printf(b, "layout(location=%u) ", location);
+            ngpu_bstr_printf(b, "layout(location=%u) ", location);
         const struct ngpu_pgcraft_iovar *iovar = &iovars[i];
         const char *precision = stage == NGPU_PROGRAM_STAGE_VERT
                               ? get_precision_qualifier(s, iovar->type, iovar->precision_out, "highp")
                               : get_precision_qualifier(s, iovar->type, iovar->precision_in, "highp");
         const char *type = get_glsl_type(iovar->type);
         if (type_is_int(iovar->type))
-            ngli_bstr_print(b, "flat ");
-        ngli_bstr_printf(b, "%s %s %s %s;\n", qualifier, precision, type, iovar->name);
+            ngpu_bstr_print(b, "flat ");
+        ngpu_bstr_printf(b, "%s %s %s %s;\n", qualifier, precision, type, iovar->name);
         location += get_location_count(iovar->type);
     }
     return 0;
@@ -1063,7 +1063,7 @@ static int craft_vert(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
 
     set_glsl_header(s, b, params, NGPU_PROGRAM_STAGE_VERT);
 
-    ngli_bstr_printf(b, "#define ngl_out_pos gl_Position\n"
+    ngpu_bstr_printf(b, "#define ngl_out_pos gl_Position\n"
                         "#define ngl_vertex_index %s\n"
                         "#define ngl_instance_index %s\n",
                         s->sym_vertex_index, s->sym_instance_index);
@@ -1077,7 +1077,7 @@ static int craft_vert(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
         (ret = inject_ublock(s, b, NGPU_PROGRAM_STAGE_VERT)) < 0)
         return ret;
 
-    ngli_bstr_print(b, params->vert_base);
+    ngpu_bstr_print(b, params->vert_base);
     return samplers_preproc(s, params, b);
 }
 
@@ -1089,7 +1089,7 @@ static int craft_frag(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
     set_glsl_header(s, b, params, NGPU_PROGRAM_STAGE_FRAG);
 
     if (s->has_precision_qualifiers)
-        ngli_bstr_print(b, "#if GL_FRAGMENT_PRECISION_HIGH\n"
+        ngpu_bstr_print(b, "#if GL_FRAGMENT_PRECISION_HIGH\n"
                            "precision highp float;\n"
                            "precision highp int;\n"
                            "#else\n"
@@ -1104,20 +1104,20 @@ static int craft_frag(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
          *     they have no functional effects.
          *  But as safety measure, we define them anyway.
          */
-        ngli_bstr_print(b, "#define lowp\n"
+        ngpu_bstr_print(b, "#define lowp\n"
                            "#define mediump\n"
                            "#define highp\n");
 
-    ngli_bstr_print(b, "\n");
+    ngpu_bstr_print(b, "\n");
 
     if (s->has_in_out_layout_qualifiers) {
         const uint32_t out_location = s->next_out_locations[NGPU_PROGRAM_STAGE_FRAG]++;
-        ngli_bstr_printf(b, "layout(location=%u) ", out_location);
+        ngpu_bstr_printf(b, "layout(location=%u) ", out_location);
     }
     if (params->nb_frag_output)
-        ngli_bstr_printf(b, "out vec4 ngl_out_color[%zu];\n", params->nb_frag_output);
+        ngpu_bstr_printf(b, "out vec4 ngl_out_color[%zu];\n", params->nb_frag_output);
     else
-        ngli_bstr_print(b, "out vec4 ngl_out_color;\n");
+        ngpu_bstr_print(b, "out vec4 ngl_out_color;\n");
 
     int ret;
     if ((ret = inject_iovars(s, b, NGPU_PROGRAM_STAGE_FRAG)) < 0 ||
@@ -1127,9 +1127,9 @@ static int craft_frag(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
         (ret = inject_ublock(s, b, NGPU_PROGRAM_STAGE_FRAG)) < 0)
         return ret;
 
-    ngli_bstr_print(b, "\n");
+    ngpu_bstr_print(b, "\n");
 
-    ngli_bstr_print(b, params->frag_base);
+    ngpu_bstr_print(b, params->frag_base);
     return samplers_preproc(s, params, b);
 }
 
@@ -1140,7 +1140,7 @@ static int craft_comp(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
     set_glsl_header(s, b, params, NGPU_PROGRAM_STAGE_COMP);
 
     const uint32_t *wg_size = params->workgroup_size;
-    ngli_bstr_printf(b, "layout(local_size_x=%u, local_size_y=%u, local_size_z=%u) in;\n", NGLI_ARG_VEC3(wg_size));
+    ngpu_bstr_printf(b, "layout(local_size_x=%u, local_size_y=%u, local_size_z=%u) in;\n", NGPU_ARG_VEC3(wg_size));
 
     int ret;
     if ((ret = inject_uniforms(s, b, params, NGPU_PROGRAM_STAGE_COMP)) < 0 ||
@@ -1149,11 +1149,11 @@ static int craft_comp(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
         (ret = inject_ublock(s, b, NGPU_PROGRAM_STAGE_COMP)) < 0)
         return ret;
 
-    ngli_bstr_print(b, params->comp_base);
+    ngpu_bstr_print(b, params->comp_base);
     return samplers_preproc(s, params, b);
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct ngpu_bindgroup_layout_entry, id) == 0, "resource name offset");
+NGPU_STATIC_ASSERT(offsetof(struct ngpu_bindgroup_layout_entry, id) == 0, "resource name offset");
 
 static int32_t get_ublock_index(const struct ngpu_pgcraft *s, const char *name, enum ngpu_program_stage stage)
 {
@@ -1168,8 +1168,8 @@ static int32_t get_ublock_index(const struct ngpu_pgcraft *s, const char *name, 
 
 static int32_t get_texture_index(const struct ngpu_pgcraft *s, const char *name)
 {
-    const struct ngpu_bindgroup_layout_entry *entries = ngli_darray_data(&s->pipeline_info.desc.textures);
-    for (int32_t i = 0; i < (int32_t)ngli_darray_count(&s->pipeline_info.desc.textures); i++) {
+    const struct ngpu_bindgroup_layout_entry *entries = ngpu_darray_data(&s->pipeline_info.desc.textures);
+    for (int32_t i = 0; i < (int32_t)ngpu_darray_count(&s->pipeline_info.desc.textures); i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &entries[i];
         const char *texture_name = ngpu_pgcraft_get_symbol_name(s, entry->id);
         if (!strcmp(texture_name, name))
@@ -1186,7 +1186,7 @@ static void probe_texture_info_elems(const struct ngpu_pgcraft *s,
         struct ngpu_pgcraft_texture_info_field *field = &fields[i];
         char name[NGPU_ID_LEN];
         int len = snprintf(name, sizeof(name), "%s%s", texture->name, texture_info_suffixes[i]);
-        ngli_assert(len < sizeof(name));
+        ngpu_assert(len < sizeof(name));
         if (field->type == NGPU_TYPE_NONE)
             field->index = -1;
         else if (is_sampler(field->type) || is_image(field->type))
@@ -1198,9 +1198,9 @@ static void probe_texture_info_elems(const struct ngpu_pgcraft *s,
 
 static void probe_texture_infos(struct ngpu_pgcraft *s)
 {
-    const struct ngpu_pgcraft_texture *textures = ngli_darray_data(&s->textures);
-    struct ngpu_pgcraft_texture_info *texture_infos = ngli_darray_data(&s->texture_infos);
-    for (size_t i = 0; i < ngli_darray_count(&s->texture_infos); i++) {
+    const struct ngpu_pgcraft_texture *textures = ngpu_darray_data(&s->textures);
+    struct ngpu_pgcraft_texture_info *texture_infos = ngpu_darray_data(&s->texture_infos);
+    for (size_t i = 0; i < ngpu_darray_count(&s->texture_infos); i++) {
         const struct ngpu_pgcraft_texture *texture = &textures[i];
         struct ngpu_pgcraft_texture_info *info = &texture_infos[i];
         probe_texture_info_elems(s, texture, info->fields);
@@ -1209,7 +1209,7 @@ static void probe_texture_infos(struct ngpu_pgcraft *s)
 
 static void probe_ublocks(struct ngpu_pgcraft *s)
 {
-    const struct darray *array = &s->pipeline_info.desc.buffers;
+    const struct ngpu_darray *array = &s->pipeline_info.desc.buffers;
 
     struct ngpu_pgcraft_compat_info *info = &s->compat_info;
     for (size_t i = 0; i < NGPU_PROGRAM_STAGE_NB; i++) {
@@ -1220,8 +1220,8 @@ static void probe_ublocks(struct ngpu_pgcraft *s)
         if (!block_size)
             continue;
 
-        const struct ngpu_bindgroup_layout_entry *entries = ngli_darray_data(array);
-        for (size_t j = 0; j < ngli_darray_count(array); j++) {
+        const struct ngpu_bindgroup_layout_entry *entries = ngpu_darray_data(array);
+        for (size_t j = 0; j < ngpu_darray_count(array); j++) {
             const struct ngpu_bindgroup_layout_entry *entry = &entries[j];
             if (entry->type == NGPU_TYPE_UNIFORM_BUFFER &&
                 entry->binding == binding &&
@@ -1271,10 +1271,10 @@ static void setup_glsl_info_gl(struct ngpu_pgcraft *s)
      * Bindings are shared across all stages. UBO, SSBO, texture and image
      * bindings use distinct binding points.
      */
-    s->next_bindings[NGLI_BINDING_TYPE_UBO]     = &s->bindings[NGLI_BINDING_TYPE_UBO];
-    s->next_bindings[NGLI_BINDING_TYPE_SSBO]    = &s->bindings[NGLI_BINDING_TYPE_SSBO];
-    s->next_bindings[NGLI_BINDING_TYPE_TEXTURE] = &s->bindings[NGLI_BINDING_TYPE_TEXTURE];
-    s->next_bindings[NGLI_BINDING_TYPE_IMAGE]   = &s->bindings[NGLI_BINDING_TYPE_IMAGE];
+    s->next_bindings[NGPU_BINDING_TYPE_UBO]     = &s->bindings[NGPU_BINDING_TYPE_UBO];
+    s->next_bindings[NGPU_BINDING_TYPE_SSBO]    = &s->bindings[NGPU_BINDING_TYPE_SSBO];
+    s->next_bindings[NGPU_BINDING_TYPE_TEXTURE] = &s->bindings[NGPU_BINDING_TYPE_TEXTURE];
+    s->next_bindings[NGPU_BINDING_TYPE_IMAGE]   = &s->bindings[NGPU_BINDING_TYPE_IMAGE];
 }
 #endif
 
@@ -1293,7 +1293,7 @@ static void setup_glsl_info_vk(struct ngpu_pgcraft *s)
     s->has_precision_qualifiers     = false;
 
     /* Bindings are shared across stages and types */
-    for (size_t i = 0; i < NGLI_BINDING_TYPE_NB; i++)
+    for (size_t i = 0; i < NGPU_BINDING_TYPE_NB; i++)
         s->next_bindings[i] = &s->bindings[0];
 }
 #endif
@@ -1301,7 +1301,7 @@ static void setup_glsl_info_vk(struct ngpu_pgcraft *s)
 static void setup_glsl_info(struct ngpu_pgcraft *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    ngli_unused const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
+    ngpu_unused const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
 
     s->glsl_version_suffix = "";
 
@@ -1319,12 +1319,12 @@ static void setup_glsl_info(struct ngpu_pgcraft *s)
     }
 #endif
 
-    ngli_assert(0);
+    ngpu_assert(0);
 }
 
 struct ngpu_pgcraft *ngpu_pgcraft_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_pgcraft *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_pgcraft *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
@@ -1332,35 +1332,35 @@ struct ngpu_pgcraft *ngpu_pgcraft_create(struct ngpu_ctx *gpu_ctx)
 
     setup_glsl_info(s);
 
-    ngli_darray_init(&s->texture_infos, sizeof(struct ngpu_pgcraft_texture_info), 0);
-    ngli_darray_init(&s->images, sizeof(struct image *), 0);
+    ngpu_darray_init(&s->texture_infos, sizeof(struct ngpu_pgcraft_texture_info), 0);
+    ngpu_darray_init(&s->images, sizeof(struct image *), 0);
 
     struct ngpu_pgcraft_compat_info *compat_info = &s->compat_info;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(compat_info->ublocks); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(compat_info->ublocks); i++) {
         ngpu_block_desc_init(gpu_ctx, &compat_info->ublocks[i], NGPU_BLOCK_LAYOUT_STD140);
         compat_info->ubindings[i] = -1;
         compat_info->uindices[i] = -1;
     }
 
-    ngli_darray_init(&s->symbols, sizeof(char[NGPU_ID_LEN]), 0);
+    ngpu_darray_init(&s->symbols, sizeof(char[NGPU_ID_LEN]), 0);
 
-    ngli_darray_init(&s->pipeline_info.desc.textures, sizeof(struct ngpu_bindgroup_layout_entry), 0);
-    ngli_darray_init(&s->pipeline_info.desc.buffers, sizeof(struct ngpu_bindgroup_layout_entry), 0);
-    ngli_darray_init(&s->pipeline_info.desc.vertex_buffers, sizeof(struct ngpu_vertex_buffer_layout), 0);
+    ngpu_darray_init(&s->pipeline_info.desc.textures, sizeof(struct ngpu_bindgroup_layout_entry), 0);
+    ngpu_darray_init(&s->pipeline_info.desc.buffers, sizeof(struct ngpu_bindgroup_layout_entry), 0);
+    ngpu_darray_init(&s->pipeline_info.desc.vertex_buffers, sizeof(struct ngpu_vertex_buffer_layout), 0);
 
-    ngli_darray_init(&s->pipeline_info.data.textures, sizeof(struct ngpu_texture_binding), 0);
-    ngli_darray_init(&s->pipeline_info.data.buffers, sizeof(struct ngpu_buffer_binding), 0);
-    ngli_darray_init(&s->pipeline_info.data.vertex_buffers, sizeof(struct ngpu_buffer *),  0);
+    ngpu_darray_init(&s->pipeline_info.data.textures, sizeof(struct ngpu_texture_binding), 0);
+    ngpu_darray_init(&s->pipeline_info.data.buffers, sizeof(struct ngpu_buffer_binding), 0);
+    ngpu_darray_init(&s->pipeline_info.data.vertex_buffers, sizeof(struct ngpu_buffer *),  0);
 
     return s;
 }
 
 static int alloc_shader(struct ngpu_pgcraft *s, enum ngpu_program_stage stage)
 {
-    ngli_assert(!s->shaders[stage]);
-    struct bstr *b = ngli_bstr_create();
+    ngpu_assert(!s->shaders[stage]);
+    struct bstr *b = ngpu_bstr_create();
     if (!b)
-        return NGL_ERROR_MEMORY;
+        return NGPU_ERROR_MEMORY;
     s->shaders[stage] = b;
     return 0;
 }
@@ -1376,10 +1376,10 @@ static int get_program_compute(struct ngpu_pgcraft *s, const struct ngpu_pgcraft
 
     const struct ngpu_program_params program_params = {
         .label   = params->program_label,
-        .compute = ngli_bstr_strptr(s->shaders[NGPU_PROGRAM_STAGE_COMP]),
+        .compute = ngpu_bstr_strptr(s->shaders[NGPU_PROGRAM_STAGE_COMP]),
     };
     ret = ngpu_pgcache_get_compute_program(s->gpu_ctx->program_cache, &s->program, &program_params);
-    ngli_bstr_freep(&s->shaders[NGPU_PROGRAM_STAGE_COMP]);
+    ngpu_bstr_freep(&s->shaders[NGPU_PROGRAM_STAGE_COMP]);
     return ret;
 }
 
@@ -1387,11 +1387,11 @@ static int get_program_graphics(struct ngpu_pgcraft *s, const struct ngpu_pgcraf
 {
     int ret;
 
-    ngli_darray_init(&s->vert_out_vars, sizeof(struct ngpu_pgcraft_iovar), 0);
+    ngpu_darray_init(&s->vert_out_vars, sizeof(struct ngpu_pgcraft_iovar), 0);
     for (size_t i = 0; i < params->nb_vert_out_vars; i++) {
-        struct ngpu_pgcraft_iovar *iovar = ngli_darray_push(&s->vert_out_vars, &params->vert_out_vars[i]);
+        struct ngpu_pgcraft_iovar *iovar = ngpu_darray_push(&s->vert_out_vars, &params->vert_out_vars[i]);
         if (!iovar)
-            return NGL_ERROR_MEMORY;
+            return NGPU_ERROR_MEMORY;
     }
 
     if ((ret = alloc_shader(s, NGPU_PROGRAM_STAGE_VERT)) < 0 ||
@@ -1403,12 +1403,12 @@ static int get_program_graphics(struct ngpu_pgcraft *s, const struct ngpu_pgcraf
 
     const struct ngpu_program_params program_params = {
         .label    = params->program_label,
-        .vertex   = ngli_bstr_strptr(s->shaders[NGPU_PROGRAM_STAGE_VERT]),
-        .fragment = ngli_bstr_strptr(s->shaders[NGPU_PROGRAM_STAGE_FRAG]),
+        .vertex   = ngpu_bstr_strptr(s->shaders[NGPU_PROGRAM_STAGE_VERT]),
+        .fragment = ngpu_bstr_strptr(s->shaders[NGPU_PROGRAM_STAGE_FRAG]),
     };
     ret = ngpu_pgcache_get_graphics_program(s->gpu_ctx->program_cache, &s->program, &program_params);
-    ngli_bstr_freep(&s->shaders[NGPU_PROGRAM_STAGE_VERT]);
-    ngli_bstr_freep(&s->shaders[NGPU_PROGRAM_STAGE_FRAG]);
+    ngpu_bstr_freep(&s->shaders[NGPU_PROGRAM_STAGE_VERT]);
+    ngpu_bstr_freep(&s->shaders[NGPU_PROGRAM_STAGE_FRAG]);
     return ret;
 }
 
@@ -1423,9 +1423,9 @@ int ngpu_pgcraft_craft(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params 
     if (ret < 0)
         return ret;
 
-    s->compat_info.texture_infos    = ngli_darray_data(&s->texture_infos);
-    s->compat_info.images           = ngli_darray_data(&s->images);
-    s->compat_info.nb_texture_infos = ngli_darray_count(&s->texture_infos);
+    s->compat_info.texture_infos    = ngpu_darray_data(&s->texture_infos);
+    s->compat_info.images           = ngpu_darray_data(&s->images);
+    s->compat_info.nb_texture_infos = ngpu_darray_count(&s->texture_infos);
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
     struct ngpu_ctx *gpu_ctx  = s->gpu_ctx;
@@ -1452,9 +1452,9 @@ int32_t ngpu_pgcraft_get_uniform_index(const struct ngpu_pgcraft *s, const char 
 
 int32_t ngpu_pgcraft_get_block_index(const struct ngpu_pgcraft *s, const char *name, enum ngpu_program_stage stage)
 {
-    const struct darray *array = &s->pipeline_info.desc.buffers;
-    const struct ngpu_bindgroup_layout_entry *entries = ngli_darray_data(array);
-    for (int32_t i = 0; i < (int32_t)ngli_darray_count(array); i++) {
+    const struct ngpu_darray *array = &s->pipeline_info.desc.buffers;
+    const struct ngpu_bindgroup_layout_entry *entries = ngpu_darray_data(array);
+    for (int32_t i = 0; i < (int32_t)ngpu_darray_count(array); i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &entries[i];
         const char *desc_name = ngpu_pgcraft_get_symbol_name(s, entry->id);
         if (!strcmp(desc_name, name) && entry->stage_flags == (1U << stage))
@@ -1465,9 +1465,9 @@ int32_t ngpu_pgcraft_get_block_index(const struct ngpu_pgcraft *s, const char *n
 
 int32_t ngpu_pgcraft_get_image_index(const struct ngpu_pgcraft *s, const char *name)
 {
-    const struct darray *array = &s->texture_infos;
-    const struct ngpu_pgcraft_texture_info *infos = ngli_darray_data(array);
-    for (int32_t i = 0; i < (int32_t)ngli_darray_count(array); i++) {
+    const struct ngpu_darray *array = &s->texture_infos;
+    const struct ngpu_pgcraft_texture_info *infos = ngpu_darray_data(array);
+    for (int32_t i = 0; i < (int32_t)ngpu_darray_count(array); i++) {
         const struct ngpu_pgcraft_texture_info *info = &infos[i];
         const char *desc_name = ngpu_pgcraft_get_symbol_name(s, info->id);
         if (!strcmp(desc_name, name))
@@ -1489,25 +1489,25 @@ struct ngpu_program *ngpu_pgcraft_get_program(const struct ngpu_pgcraft *s)
 struct ngpu_vertex_state ngpu_pgcraft_get_vertex_state(const struct ngpu_pgcraft *s)
 {
     return (const struct ngpu_vertex_state) {
-        .buffers = ngli_darray_data(&s->pipeline_info.desc.vertex_buffers),
-        .nb_buffers = ngli_darray_count(&s->pipeline_info.desc.vertex_buffers),
+        .buffers = ngpu_darray_data(&s->pipeline_info.desc.vertex_buffers),
+        .nb_buffers = ngpu_darray_count(&s->pipeline_info.desc.vertex_buffers),
     };
 }
 
 struct ngpu_vertex_resources ngpu_pgcraft_get_vertex_resources(const struct ngpu_pgcraft *s)
 {
     const struct ngpu_vertex_resources resources = {
-        .vertex_buffers    = ngli_darray_data(&s->pipeline_info.data.vertex_buffers),
-        .nb_vertex_buffers = ngli_darray_count(&s->pipeline_info.data.vertex_buffers),
+        .vertex_buffers    = ngpu_darray_data(&s->pipeline_info.data.vertex_buffers),
+        .nb_vertex_buffers = ngpu_darray_count(&s->pipeline_info.data.vertex_buffers),
     };
     return resources;
 }
 
 int32_t ngpu_pgcraft_get_vertex_buffer_index(const struct ngpu_pgcraft *s, const char *name)
 {
-    const struct darray *array = &s->pipeline_info.desc.vertex_buffers;
-    struct ngpu_vertex_buffer_layout *layouts = ngli_darray_data(array);
-    for (int32_t i = 0; i < (int32_t)ngli_darray_count(array); i++) {
+    const struct ngpu_darray *array = &s->pipeline_info.desc.vertex_buffers;
+    struct ngpu_vertex_buffer_layout *layouts = ngpu_darray_data(array);
+    for (int32_t i = 0; i < (int32_t)ngpu_darray_count(array); i++) {
         struct ngpu_vertex_buffer_layout *layout = &layouts[i];
         for (size_t j = 0; j < layout->nb_attributes; j++) {
             struct ngpu_vertex_attribute *attribute = &layout->attributes[j];
@@ -1521,16 +1521,16 @@ int32_t ngpu_pgcraft_get_vertex_buffer_index(const struct ngpu_pgcraft *s, const
 
 const char *ngpu_pgcraft_get_symbol_name(const struct ngpu_pgcraft *s, size_t id)
 {
-    return ngli_darray_get(&s->symbols, id);
+    return ngpu_darray_get(&s->symbols, id);
 }
 
 struct ngpu_bindgroup_layout_desc ngpu_pgcraft_get_bindgroup_layout_desc(const struct ngpu_pgcraft *s)
 {
     const struct ngpu_bindgroup_layout_desc bindgroup_layout_params = {
-        .textures    = ngli_darray_data(&s->pipeline_info.desc.textures),
-        .nb_textures = ngli_darray_count(&s->pipeline_info.desc.textures),
-        .buffers     = ngli_darray_data(&s->pipeline_info.desc.buffers),
-        .nb_buffers  = ngli_darray_count(&s->pipeline_info.desc.buffers),
+        .textures    = ngpu_darray_data(&s->pipeline_info.desc.textures),
+        .nb_textures = ngpu_darray_count(&s->pipeline_info.desc.textures),
+        .buffers     = ngpu_darray_data(&s->pipeline_info.desc.buffers),
+        .nb_buffers  = ngpu_darray_count(&s->pipeline_info.desc.buffers),
     };
     return bindgroup_layout_params;
 }
@@ -1538,10 +1538,10 @@ struct ngpu_bindgroup_layout_desc ngpu_pgcraft_get_bindgroup_layout_desc(const s
 struct ngpu_bindgroup_resources ngpu_pgcraft_get_bindgroup_resources(const struct ngpu_pgcraft *s)
 {
     const struct ngpu_bindgroup_resources resources = {
-        .textures          = ngli_darray_data(&s->pipeline_info.data.textures),
-        .nb_textures       = ngli_darray_count(&s->pipeline_info.data.textures),
-        .buffers           = ngli_darray_data(&s->pipeline_info.data.buffers),
-        .nb_buffers        = ngli_darray_count(&s->pipeline_info.data.buffers),
+        .textures          = ngpu_darray_data(&s->pipeline_info.data.textures),
+        .nb_textures       = ngpu_darray_count(&s->pipeline_info.data.textures),
+        .buffers           = ngpu_darray_data(&s->pipeline_info.data.buffers),
+        .nb_buffers        = ngpu_darray_count(&s->pipeline_info.data.buffers),
     };
     return resources;
 }
@@ -1552,28 +1552,28 @@ void ngpu_pgcraft_freep(struct ngpu_pgcraft **sp)
     if (!s)
         return;
 
-    ngli_darray_reset(&s->textures);
-    ngli_darray_reset(&s->texture_infos);
-    ngli_darray_reset(&s->images);
-    ngli_darray_reset(&s->vert_out_vars);
+    ngpu_darray_reset(&s->textures);
+    ngpu_darray_reset(&s->texture_infos);
+    ngpu_darray_reset(&s->images);
+    ngpu_darray_reset(&s->vert_out_vars);
 
     struct ngpu_pgcraft_compat_info *compat_info = &s->compat_info;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(compat_info->ublocks); i++) {
+    for (size_t i = 0; i < NGPU_ARRAY_NB(compat_info->ublocks); i++) {
         ngpu_block_desc_reset(&compat_info->ublocks[i]);
     }
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(s->shaders); i++)
-        ngli_bstr_freep(&s->shaders[i]);
+    for (size_t i = 0; i < NGPU_ARRAY_NB(s->shaders); i++)
+        ngpu_bstr_freep(&s->shaders[i]);
 
-    ngli_darray_reset(&s->symbols);
+    ngpu_darray_reset(&s->symbols);
 
-    ngli_darray_reset(&s->pipeline_info.desc.textures);
-    ngli_darray_reset(&s->pipeline_info.desc.buffers);
-    ngli_darray_reset(&s->pipeline_info.desc.vertex_buffers);
+    ngpu_darray_reset(&s->pipeline_info.desc.textures);
+    ngpu_darray_reset(&s->pipeline_info.desc.buffers);
+    ngpu_darray_reset(&s->pipeline_info.desc.vertex_buffers);
 
-    ngli_darray_reset(&s->pipeline_info.data.textures);
-    ngli_darray_reset(&s->pipeline_info.data.buffers);
-    ngli_darray_reset(&s->pipeline_info.data.vertex_buffers);
+    ngpu_darray_reset(&s->pipeline_info.data.textures);
+    ngpu_darray_reset(&s->pipeline_info.data.buffers);
+    ngpu_darray_reset(&s->pipeline_info.data.vertex_buffers);
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }

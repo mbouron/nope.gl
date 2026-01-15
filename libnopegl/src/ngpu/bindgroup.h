@@ -33,7 +33,7 @@
 struct ngpu_ctx;
 
 struct ngpu_bindgroup_layout {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_bindgroup_layout_entry *textures;
     size_t nb_textures;
@@ -42,14 +42,14 @@ struct ngpu_bindgroup_layout {
     size_t nb_dynamic_offsets;
 };
 
-NGLI_RC_CHECK_STRUCT(ngpu_bindgroup_layout);
+NGPU_RC_CHECK_STRUCT(ngpu_bindgroup_layout);
 
 struct ngpu_bindgroup {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_bindgroup_layout *layout;
 };
 
-NGLI_RC_CHECK_STRUCT(ngpu_bindgroup);
+NGPU_RC_CHECK_STRUCT(ngpu_bindgroup);
 
 #endif

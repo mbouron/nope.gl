@@ -25,7 +25,7 @@
 
 #include "ngpu/opengl/format_gl.h"
 #include "ngpu/opengl/glcontext.h"
-#include "utils/utils.h"
+#include "ngpu/utils/utils.h"
 
 #define S  NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
 #define SL NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
@@ -114,7 +114,7 @@ static const struct ngpu_format_gl formats[NGPU_FORMAT_NB] = {
     [NGPU_FORMAT_S8_UINT]              = {GL_STENCIL_INDEX,   GL_STENCIL_INDEX8,     GL_UNSIGNED_BYTE,                  S|DS},
 };
 
-NGLI_STATIC_ASSERT(NGLI_FIELD_SIZEOF(struct glcontext, formats) == sizeof(formats), "formats size");
+NGPU_STATIC_ASSERT(NGPU_FIELD_SIZEOF(struct glcontext, formats) == sizeof(formats), "formats size");
 
 void ngpu_format_gl_init(struct glcontext *gl)
 {
@@ -163,11 +163,11 @@ void ngpu_format_gl_init(struct glcontext *gl)
 
 const struct ngpu_format_gl *ngpu_format_get_gl_texture_format(struct glcontext *gl, enum ngpu_format format)
 {
-    ngli_assert(format >= 0 && format < NGLI_ARRAY_NB(gl->formats));
+    ngpu_assert(format >= 0 && format < NGPU_ARRAY_NB(gl->formats));
     const struct ngpu_format_gl *format_gl = &gl->formats[format];
 
     if (format != NGPU_FORMAT_UNDEFINED)
-        ngli_assert(format_gl->format && format_gl->internal_format && format_gl->type);
+        ngpu_assert(format_gl->format && format_gl->internal_format && format_gl->type);
 
     return format_gl;
 }

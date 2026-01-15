@@ -33,13 +33,13 @@ struct ngpu_ctx_vk {
     VkSemaphore *image_avail_sems;
     VkSemaphore *update_finished_sems;
     VkSemaphore *render_finished_sems;
-    struct darray pending_wait_sems;
+    struct ngpu_darray pending_wait_sems;
 
     VkCommandPool cmd_pool;
 
     struct ngpu_cmd_buffer_vk **cmd_buffers;
     struct ngpu_cmd_buffer_vk **update_cmd_buffers;
-    struct darray pending_cmd_buffers;
+    struct ngpu_darray pending_cmd_buffers;
     struct ngpu_cmd_buffer_vk *cur_cmd_buffer;
     int cur_cmd_buffer_is_transient;
 
@@ -58,11 +58,11 @@ struct ngpu_ctx_vk {
     uint32_t width;
     uint32_t height;
 
-    struct darray colors;
-    struct darray ms_colors;
-    struct darray depth_stencils;
-    struct darray rts;
-    struct darray rts_load;
+    struct ngpu_darray colors;
+    struct ngpu_darray ms_colors;
+    struct ngpu_darray depth_stencils;
+    struct ngpu_darray rts;
+    struct ngpu_darray rts_load;
     struct ngpu_buffer *capture_buffer;
     size_t capture_buffer_size;
     void *mapped_data;

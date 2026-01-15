@@ -26,7 +26,7 @@
 
 #include "ngpu/opengl/glincludes.h"
 #include "ngpu/bindgroup.h"
-#include "utils/darray.h"
+#include "ngpu/utils/darray.h"
 
 struct ngpu_ctx;
 
@@ -48,8 +48,8 @@ struct ngpu_bindgroup_layout_gl {
 
 struct ngpu_bindgroup_gl {
     struct ngpu_bindgroup parent;
-    struct darray texture_bindings;   // texture_binding_gl
-    struct darray buffer_bindings;    // buffer_binding_gl
+    struct ngpu_darray texture_bindings;   // texture_binding_gl
+    struct ngpu_darray buffer_bindings;    // buffer_binding_gl
     int use_barriers;
 };
 

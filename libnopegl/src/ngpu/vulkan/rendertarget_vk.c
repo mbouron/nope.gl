@@ -24,14 +24,14 @@
 #include <string.h>
 #include <vulkan/vulkan.h>
 
-#include "log.h"
+#include "ngpu/utils/log.h"
 #include "ngpu/ngpu.h"
 #include "ngpu/vulkan/ctx_vk.h"
 #include "ngpu/vulkan/format_vk.h"
 #include "ngpu/vulkan/rendertarget_vk.h"
 #include "ngpu/vulkan/texture_vk.h"
 #include "ngpu/vulkan/vkutils.h"
-#include "utils/memory.h"
+#include "ngpu/utils/memory.h"
 
 static const VkAttachmentLoadOp load_op_map[] = {
     [NGPU_LOAD_OP_LOAD]      = VK_ATTACHMENT_LOAD_OP_LOAD,
@@ -206,7 +206,7 @@ static VkResult vk_create_compatible_renderpass(struct ngpu_ctx *s, const struct
         .pAttachments    = descs,
         .subpassCount    = 1,
         .pSubpasses      = &subpass_description,
-        .dependencyCount = (uint32_t)NGLI_ARRAY_NB(dependencies),
+        .dependencyCount = (uint32_t)NGPU_ARRAY_NB(dependencies),
         .pDependencies   = dependencies,
     };
 
@@ -277,7 +277,7 @@ static VkResult add_attachment(struct ngpu_rendertarget *s, const struct ngpu_te
         return res;
 
     s_priv->attachments[s_priv->nb_attachments] = view;
-    s_priv->attachments_refs[s_priv->nb_attachments] = NGLI_RC_REF(texture);
+    s_priv->attachments_refs[s_priv->nb_attachments] = NGPU_RC_REF(texture);
     s_priv->nb_attachments++;
 
     s_priv->clear_values[s_priv->nb_clear_values] = *clear_value;
@@ -288,7 +288,7 @@ static VkResult add_attachment(struct ngpu_rendertarget *s, const struct ngpu_te
 
 struct ngpu_rendertarget *ngpu_rendertarget_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_rendertarget_vk *s = ngli_calloc(1, sizeof(*s));
+    struct ngpu_rendertarget_vk *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -308,7 +308,7 @@ static VkResult rendertarget_vk_init(struct ngpu_rendertarget *s)
     for (size_t i = 0; i < s->params.nb_colors; i++) {
         const struct ngpu_attachment *attachment = &s->params.colors[i];
 
-        const VkClearValue clear_value = {.color.float32 = {NGLI_ARG_VEC4(attachment->clear_value)}};
+        const VkClearValue clear_value = {.color.float32 = {NGPU_ARG_VEC4(attachment->clear_value)}};
         res = add_attachment(s, attachment->attachment, attachment->attachment_layer, &clear_value);
         if (res != VK_SUCCESS)
             return res;
@@ -370,11 +370,11 @@ void ngpu_rendertarget_vk_freep(struct ngpu_rendertarget **sp)
 
     for (uint32_t i = 0; i < s_priv->nb_attachments; i++) {
         vkDestroyImageView(vk->device, s_priv->attachments[i], NULL);
-        NGLI_RC_UNREFP(&s_priv->attachments_refs[i]);
+        NGPU_RC_UNREFP(&s_priv->attachments_refs[i]);
     }
 
     vkDestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
     vkFreeMemory(vk->device, s_priv->staging_memory, NULL);
 
-    ngli_freep(sp);
+    ngpu_freep(sp);
 }

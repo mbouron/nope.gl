@@ -27,18 +27,18 @@
 
 #include "ngpu/ngpu.h"
 #include "ngpu/ngpu_vulkan.h"
-#include "utils/refcount.h"
+#include "ngpu/utils/refcount.h"
 
 struct AHardwareBuffer;
 
 struct ngpu_ycbcr_sampler_vk {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_ycbcr_sampler_vk_params params;
     VkSamplerYcbcrConversion conv;
     VkSampler sampler;
 };
 
-NGLI_RC_CHECK_STRUCT(ngpu_ycbcr_sampler_vk);
+NGPU_RC_CHECK_STRUCT(ngpu_ycbcr_sampler_vk);
 
 #endif

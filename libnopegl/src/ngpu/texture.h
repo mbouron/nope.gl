@@ -25,16 +25,16 @@
 
 #include "ngpu/ngpu.h"
 
-#include "utils/refcount.h"
+#include "ngpu/utils/refcount.h"
 
 struct ngpu_ctx;
 
 struct ngpu_texture {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_texture_params params;
 };
 
-NGLI_RC_CHECK_STRUCT(ngpu_texture);
+NGPU_RC_CHECK_STRUCT(ngpu_texture);
 
 #endif

@@ -27,10 +27,10 @@
 
 #include "ngpu/ngpu.h"
 
-#include "utils/refcount.h"
+#include "ngpu/utils/refcount.h"
 
 struct ngpu_rendertarget {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_rendertarget_params params;
     uint32_t width;
@@ -38,6 +38,6 @@ struct ngpu_rendertarget {
     struct ngpu_rendertarget_layout layout;
 };
 
-NGLI_RC_CHECK_STRUCT(ngpu_rendertarget);
+NGPU_RC_CHECK_STRUCT(ngpu_rendertarget);
 
 #endif

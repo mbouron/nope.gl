@@ -25,25 +25,25 @@
 
 #include <vulkan/vulkan.h>
 
-#include "utils/darray.h"
-#include "utils/refcount.h"
-#include "utils/utils.h"
+#include "ngpu/utils/darray.h"
+#include "ngpu/utils/refcount.h"
+#include "ngpu/utils/utils.h"
 
 struct ngpu_buffer;
 
 struct ngpu_cmd_buffer_vk {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     int type;
     VkCommandPool pool;
     VkCommandBuffer cmd_buf;
     VkFence fence;
     VkBool32 submitted;
-    struct darray wait_sems;
-    struct darray wait_stages;
-    struct darray signal_sems;
-    struct darray refs; // array of ngli_rc pointers
-    struct darray buffer_refs; // array of ngpu_buffer pointers
+    struct ngpu_darray wait_sems;
+    struct ngpu_darray wait_stages;
+    struct ngpu_darray signal_sems;
+    struct ngpu_darray refs; // array of ngpu_rc pointers
+    struct ngpu_darray buffer_refs; // array of ngpu_buffer pointers
 };
 
 struct ngpu_cmd_buffer_vk *ngpu_cmd_buffer_vk_create(struct ngpu_ctx *gpu_ctx);
@@ -52,8 +52,8 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type);
 VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore *sem, VkPipelineStageFlags stage);
 VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore *sem);
 
-#define NGPU_CMD_BUFFER_VK_REF(cmd, rc) ngpu_cmd_buffer_vk_ref((cmd), (struct ngli_rc *)(rc))
-VkResult ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngli_rc *rc);
+#define NGPU_CMD_BUFFER_VK_REF(cmd, rc) ngpu_cmd_buffer_vk_ref((cmd), (struct ngpu_rc *)(rc))
+VkResult ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc);
 VkResult ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buffer *buffer);
 
 VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s);

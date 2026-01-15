@@ -29,7 +29,6 @@
 #import <QuartzCore/CAMetalLayer.h>
 
 #import "log.h"
-#import "nopegl/nopegl.h"
 #import "wsi_apple.h"
 
 #if defined(TARGET_DARWIN)

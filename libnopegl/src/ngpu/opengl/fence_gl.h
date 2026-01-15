@@ -23,17 +23,17 @@
 #define NGPU_FENCE_GL_H
 
 #include "ngpu/opengl/glincludes.h"
-#include "utils/refcount.h"
+#include "ngpu/utils/refcount.h"
 
 struct ngpu_ctx;
 
 struct ngpu_fence_gl {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     GLsync fence;
 };
 
-NGLI_RC_CHECK_STRUCT(ngpu_fence_gl);
+NGPU_RC_CHECK_STRUCT(ngpu_fence_gl);
 
 struct ngpu_fence_gl *ngpu_fence_gl_create(struct ngpu_ctx *ctx);
 int ngpu_fence_gl_wait(struct ngpu_fence_gl *s);

@@ -26,17 +26,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "utils/refcount.h"
+#include "ngpu/utils/refcount.h"
 
 struct ngpu_ctx;
 
 struct ngpu_buffer {
-    struct ngli_rc rc;
+    struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     size_t size;
     uint32_t usage;
 };
 
-NGLI_RC_CHECK_STRUCT(ngpu_buffer);
+NGPU_RC_CHECK_STRUCT(ngpu_buffer);
 
 #endif
