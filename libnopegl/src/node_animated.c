@@ -28,7 +28,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_animkeyframe.h"
 #include "node_uniform.h"
 #include "node_velocity.h"

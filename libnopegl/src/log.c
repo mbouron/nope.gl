@@ -29,6 +29,7 @@
 #endif
 
 #include "log.h"
+#include <ngpu/ngpu.h>
 #include "utils/memory.h"
 
 ngli_printf_format(6, 0)
@@ -97,15 +98,37 @@ static struct {
     .min_level = NGL_LOG_WARNING,
 };
 
+ngli_printf_format(6, 0)
+static void default_ngpu_callback(void *arg, enum ngpu_log_level level, const char *filename, int ln,
+                                  const char *fn, const char *fmt, va_list vl)
+{
+    static const enum ngl_log_level log_levels[] = {
+        [NGPU_LOG_VERBOSE] = NGL_LOG_VERBOSE,
+        [NGPU_LOG_DEBUG]   = NGL_LOG_DEBUG,
+        [NGPU_LOG_INFO]    = NGL_LOG_INFO,
+        [NGPU_LOG_WARNING] = NGL_LOG_WARNING,
+        [NGPU_LOG_ERROR]   = NGL_LOG_ERROR,
+    };
+    if (level >= NGLI_ARRAY_NB(log_levels))
+        return;
+    log_ctx.callback(log_ctx.user_arg, log_levels[level], filename, ln, fn, fmt, vl);
+}
+
 void ngli_log_set_callback(void *arg, ngl_log_callback_type callback)
 {
     log_ctx.user_arg = arg;
     log_ctx.callback = callback;
+
+    ngpu_log_set_callback(NULL, default_ngpu_callback);
+    ngpu_log_set_min_level(NGPU_LOG_VERBOSE);
 }
 
 void ngli_log_set_min_level(enum ngl_log_level level)
 {
     log_ctx.min_level = level;
+
+    ngpu_log_set_callback(NULL, default_ngpu_callback);
+    ngpu_log_set_min_level(NGPU_LOG_VERBOSE);
 }
 
 void ngli_log_print(enum ngl_log_level log_level, const char *filename,

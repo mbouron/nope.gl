@@ -25,7 +25,7 @@
 #include <stdint.h>
 
 #include "image.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 #include "params.h"
 

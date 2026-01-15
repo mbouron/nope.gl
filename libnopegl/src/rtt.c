@@ -25,7 +25,7 @@
 #include <string.h>
 
 #include "internal.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "rtt.h"
 #include "utils/memory.h"
 

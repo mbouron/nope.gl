@@ -35,7 +35,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 #include "nopegl/nopegl_opengl.h"
 #include "rnode.h"

@@ -155,7 +155,6 @@ add_project_arguments(project_args, language: 'c', native: true)
 inc_dir = include_directories(
   'src',
   'src/include',
-  'src/ngpu/include',
 )
 
 #
@@ -182,19 +181,6 @@ lib_src = files(
   'src/hwmap_common.c',
   'src/image.c',
   'src/log.c',
-  'src/ngpu/bindgroup.c',
-  'src/ngpu/block.c',
-  'src/ngpu/block_desc.c',
-  'src/ngpu/buffer.c',
-  'src/ngpu/ctx.c',
-  'src/ngpu/format.c',
-  'src/ngpu/pipeline.c',
-  'src/ngpu/program.c',
-  'src/ngpu/pgcache.c',
-  'src/ngpu/pgcraft.c',
-  'src/ngpu/rendertarget.c',
-  'src/ngpu/texture.c',
-  'src/ngpu/type.c',
   'src/ngl_config.c',
   'src/node_animatedbuffer.c',
   'src/node_animated.c',
@@ -314,6 +300,7 @@ hosts_cfg = {
 lib_deps = [
   cc.find_library('m', required: false),
   dependency('libnopemd', version: '>= 12.0.0'),
+  dependency('libngpu', version: '>= 0.0.0'),
   dependency('threads'),
 ]
 
@@ -397,7 +384,6 @@ if 'gpu_capture' in debug_opts
     renderdoc_include_dir = renderdoc_dir / 'include'
   endif
   if cc.has_header(renderdoc_include_dir / 'renderdoc_app.h', required: true)
-    lib_src += files('src/ngpu/capture_renderdoc.c')
     lib_deps += declare_dependency(include_directories: renderdoc_include_dir)
     lib_deps += cc.find_library('dl', required: host_system == 'linux')
   endif
@@ -413,36 +399,16 @@ gbackends_cfg = {
     'src': files(
       'src/backends/gl/api_gl.c',
       'src/backends/gl/hwmap_gl.c',
-      'src/ngpu/opengl/cmd_buffer_gl.c',
-      'src/ngpu/opengl/fence_gl.c',
-      'src/ngpu/opengl/glcontext.c',
-      'src/ngpu/opengl/glstate.c',
-      'src/ngpu/opengl/bindgroup_gl.c',
-      'src/ngpu/opengl/buffer_gl.c',
-      'src/ngpu/opengl/ctx_gl.c',
-      'src/ngpu/opengl/format_gl.c',
-      'src/ngpu/opengl/pipeline_gl.c',
-      'src/ngpu/opengl/program_gl.c',
-      'src/ngpu/opengl/program_gl_utils.c',
-      'src/ngpu/opengl/rendertarget_gl.c',
-      'src/ngpu/opengl/texture_gl.c',
     ),
     'cfg': 'BACKEND_GL',
     'hosts_cfg': {
       'linux': {
-        'src': files('src/ngpu/opengl/glcontext_egl.c'),
-        'cfg': 'HAVE_GLPLATFORM_EGL',
-        'deps': ['gl', 'egl'],
       },
       'darwin': {
-        'src': files('src/ngpu/opengl/glcontext_nsgl.m', 'src/backends/gl/hwmap_videotoolbox_darwin_gl.c'),
-        'cfg': 'HAVE_GLPLATFORM_NSGL',
-        'frameworks': ['OpenGL'],
+        'src': files('src/backends/gl/hwmap_videotoolbox_darwin_gl.c'),
       },
       'windows': {
-        'src': files('src/ngpu/opengl/glcontext_wgl.c'),
         'cfg': 'HAVE_GLPLATFORM_WGL',
-        'libs': ['OpenGL32', 'gdi32'],
       },
     },
   },
@@ -450,41 +416,19 @@ gbackends_cfg = {
     'src': files(
       'src/backends/gl/api_gl.c',
       'src/backends/gl/hwmap_gl.c',
-      'src/ngpu/opengl/cmd_buffer_gl.c',
-      'src/ngpu/opengl/fence_gl.c',
-      'src/ngpu/opengl/format_gl.c',
-      'src/ngpu/opengl/glcontext.c',
-      'src/ngpu/opengl/glstate.c',
-      'src/ngpu/opengl/bindgroup_gl.c',
-      'src/ngpu/opengl/buffer_gl.c',
-      'src/ngpu/opengl/ctx_gl.c',
-      'src/ngpu/opengl/pipeline_gl.c',
-      'src/ngpu/opengl/program_gl.c',
-      'src/ngpu/opengl/program_gl_utils.c',
-      'src/ngpu/opengl/rendertarget_gl.c',
-      'src/ngpu/opengl/texture_gl.c',
     ),
     'cfg': 'BACKEND_GLES',
     'hosts_cfg': {
       'linux': {
-        'src': files('src/ngpu/opengl/glcontext_egl.c'),
-        'cfg': 'HAVE_GLPLATFORM_EGL',
-        'deps': ['gl', 'egl'],
       },
       'android': {
-        'src': files('src/ngpu/opengl/glcontext_egl.c', 'src/backends/gl/hwmap_mediacodec_gl.c'),
-        'cfg': 'HAVE_GLPLATFORM_EGL',
-        'libs': ['EGL'],
+        'src': files('src/backends/gl/hwmap_mediacodec_gl.c'),
       },
       'iphone': {
-        'src': files('src/ngpu/opengl/glcontext_eagl.m', 'src/backends/gl/hwmap_videotoolbox_ios_gl.c'),
-        'cfg': 'HAVE_GLPLATFORM_EAGL',
-        'frameworks': ['OpenGLES'],
+        'src': files('src/backends/gl/hwmap_videotoolbox_ios_gl.c'),
       },
       'windows': {
-        'src': files('src/ngpu/opengl/glcontext_wgl.c'),
         'cfg': 'HAVE_GLPLATFORM_WGL',
-        'libs': ['OpenGL32', 'gdi32'],
       },
     },
   },
@@ -492,49 +436,27 @@ gbackends_cfg = {
     'src': files(
       'src/backends/vk/api_vk.c',
       'src/backends/vk/hwmap_vk.c',
-      'src/ngpu/vulkan/cmd_buffer_vk.c',
-      'src/ngpu/vulkan/glslang_utils.c',
-      'src/ngpu/vulkan/bindgroup_vk.c',
-      'src/ngpu/vulkan/buffer_vk.c',
-      'src/ngpu/vulkan/ctx_vk.c',
-      'src/ngpu/vulkan/format_vk.c',
-      'src/ngpu/vulkan/pipeline_vk.c',
-      'src/ngpu/vulkan/program_vk.c',
-      'src/ngpu/vulkan/rendertarget_vk.c',
-      'src/ngpu/vulkan/texture_vk.c',
-      'src/ngpu/vulkan/vkcontext.c',
-      'src/ngpu/vulkan/vkutils.c',
-      'src/ngpu/vulkan/ycbcr_sampler_vk.c',
     ),
     'cfg': 'BACKEND_VK',
     'hosts_cfg': {
       'linux': {
-        'deps': ['vulkan', 'glslang'],
       },
       'darwin': {
         'src': files(
           'src/backends/vk/hwmap_videotoolbox_darwin_vk.m',
-          'src/ngpu/vulkan/wsi_apple.m',
         ),
-        'deps': ['glslang'],
-        'libs': ['MoltenVK'],
         'frameworks': ['Metal', 'QuartzCore', 'CoreGraphics', 'IOKit'],
       },
       'android': {
         'src': files('src/backends/vk/hwmap_mediacodec_vk.c'),
-        'deps': ['vulkan', 'glslang'],
       },
       'iphone': {
         'src': files(
           'src/backends/vk/hwmap_videotoolbox_darwin_vk.m',
-          'src/ngpu/vulkan/wsi_apple.m',
         ),
-        'deps': ['glslang'],
-        'libs': ['MoltenVK'],
         'frameworks': ['Metal', 'QuartzCore', 'CoreGraphics'],
       },
       'windows': {
-        'deps': ['vulkan', 'glslang'],
       },
     },
   },
@@ -560,65 +482,7 @@ foreach gbackend_name, gbackend_cfg : gbackends_cfg
   host_backend_cfg = hosts_backend_cfg.get(host_system)
   gbackend_deps = []
   foreach dep : host_backend_cfg.get('deps', [])
-    if dep == 'glslang'
-      add_languages('cpp')
-      cxx = meson.get_compiler('cpp')
-      # The following list declares the glslang libraries that we need to check
-      # and link against in the right order (to allow static linking). Some
-      # libraries are marked as non-required because they might be present or
-      # not depending on the build of glslang.
-      glslang_libs = [
-        {'name': 'glslang',                         'required': true},
-        {'name': 'glslang-default-resource-limits', 'required': true},
-        {'name': 'SPIRV-Tools-opt',                 'required': false},
-        {'name': 'SPIRV-Tools',                     'required': false},
-      ]
-      foreach lib : glslang_libs
-        libname = lib.get('name')
-        # Only require the library if the backend is explicitly enabled by the
-        # user. This makes meson bail out early if the required library can not
-        # be found.
-        required = lib.get('required') and opt_gbackend.enabled()
-        dep = cxx.find_library(libname, required: required, dirs: extra_library_dirs)
-        # Add the dependency if the library is marked as required or if it has
-        # been found so the backend can be disabled later on.
-        if lib.get('required') or dep.found()
-          gbackend_deps += dep
-        endif
-      endforeach
-      glslang_header = 'glslang/build_info.h'
-      glslang_include_dirs = include_directories(extra_include_dirs)
-      if cxx.has_header(glslang_header, include_directories: glslang_include_dirs)
-        glslang_ver_array = []
-        foreach comp : ['MAJOR', 'MINOR', 'PATCH']
-          glslang_ver_array += cxx.get_define(
-            'GLSLANG_VERSION_' + comp,
-            prefix: '#include <' + glslang_header + '>',
-            include_directories: glslang_include_dirs,
-          )
-        endforeach
-        glslang_ver = '.'.join(glslang_ver_array)
-        glslang_min_ver = '>= 15.3.0'
-        if glslang_ver.version_compare(glslang_min_ver)
-          gbackend_deps += declare_dependency(include_directories: glslang_include_dirs)
-        else
-          if opt_gbackend.enabled()
-            error('detected glslang version @0@ is too old, must be @1@'.format(
-                  glslang_ver, glslang_min_ver))
-          else
-            gbackend_deps += disabler()
-          endif
-        endif
-      else
-        if opt_gbackend.enabled()
-          error('glslang header not found')
-        else
-          gbackend_deps += disabler()
-        endif
-      endif
-    else
-      gbackend_deps += dependency(dep, required: opt_gbackend)
-    endif
+    gbackend_deps += dependency(dep, required: opt_gbackend)
   endforeach
   foreach lib : host_backend_cfg.get('libs', [])
     # We need to call find_library() twice because specifying the dirs
@@ -837,39 +701,6 @@ specs_file = custom_target(
 run_target(
   'updatespecs',
   command: [copyfile, specs_file, meson.current_source_dir()],
-)
-
-
-#
-# OpenGL specifications
-#
-
-gl_xml = custom_target(
-  'gl.xml',
-  command: [find_program('curl'), 'https://raw.githubusercontent.com/KhronosGroup/OpenGL-Registry/master/xml/gl.xml', '-o', '@OUTPUT@'],
-  capture: false,
-  output: 'gl.xml',
-)
-gl_generated_files = custom_target(
-  'gl_generated_files',
-  command: [find_program('scripts/gen-gl-wrappers.py'), '@INPUT@', '@OUTPUT@'],
-  capture: false,
-  input: gl_xml,
-  output: ['glfunctions.h'],
-)
-run_target(
-  'updateglwrappers',
-  command: [
-    copyfile,
-    # FIXME: In 0.56.0, we get "WARNING: custom_target 'gl_generated_files' has
-    # more than one output!  Using the first one.", so we need to do this
-    # instead of just using gl_generated_files. It also requires the "depends:"
-    # entry below.
-    # See https://github.com/mesonbuild/meson/issues/7891 for more information
-    gl_generated_files[0].full_path(),
-    meson.current_source_dir() / 'src/ngpu/opengl'
-  ],
-  depends: gl_generated_files,
 )
 
 

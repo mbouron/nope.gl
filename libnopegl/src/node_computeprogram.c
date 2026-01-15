@@ -23,7 +23,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ngpu.h"
+#include <ngpu/ngpu.h>
 #include "node_program.h"
 #include "nopegl/nopegl.h"
 
