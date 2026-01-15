@@ -31,23 +31,9 @@
 #endif
 
 #include "ngpu/ctx.h"
+#include "ngpu/ngpu_opengl.h"
 #include "ngpu/opengl/cmd_buffer_gl.h"
 #include "ngpu/opengl/glstate.h"
-
-struct ngpu_ctx_params_gl {
-    /*
-     * Whether the OpenGL context is external or not. If the OpenGL context is
-     * external, it is the user responsibility to manage the OpenGL context and
-     * make sure it is current before calling any of the ngl_* functions.
-     */
-    int external;
-    /*
-     * External OpenGL framebuffer used for rendering. The framebuffer must
-     * have a color attachment composed of 4 color components (R, G, B, A) and
-     * a combined depth and stencil buffer attached to it.
-     */
-    uint32_t external_framebuffer;
-};
 
 struct ngl_ctx;
 struct ngpu_rendertarget;
@@ -86,10 +72,5 @@ struct ngpu_ctx_gl {
     /* Timer */
     GLuint queries[2];
 };
-
-int ngpu_ctx_gl_make_current(struct ngpu_ctx *s);
-int ngpu_ctx_gl_release_current(struct ngpu_ctx *s);
-void ngpu_ctx_gl_reset_state(struct ngpu_ctx *s);
-int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo);
 
 #endif
