@@ -989,7 +989,7 @@ static void gl_destroy(struct ngpu_ctx *s)
     ngpu_glcontext_freep(&s_priv->glcontext);
 }
 
-static enum ngpu_cull_mode gl_transform_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
+static enum ngpu_cull_mode gl_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
 {
     return cull_mode;
 }
@@ -1229,7 +1229,7 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
     .wait_idle                          = gl_wait_idle,                          \
     .destroy                            = gl_destroy,                            \
                                                                                  \
-    .transform_cull_mode                = gl_transform_cull_mode,                \
+    .get_cull_mode                      = gl_get_cull_mode,                      \
     .transform_projection_matrix        = gl_transform_projection_matrix,        \
     .get_rendertarget_uvcoord_matrix    = gl_get_rendertarget_uvcoord_matrix,    \
                                                                                  \
