@@ -288,9 +288,9 @@ const struct ngpu_limits *ngpu_ctx_get_limits(const struct ngpu_ctx *s)
     return &s->limits;
 }
 
-enum ngpu_cull_mode ngpu_ctx_transform_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
+enum ngpu_cull_mode ngpu_ctx_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
 {
-    return s->cls->transform_cull_mode(s, cull_mode);
+    return s->cls->get_cull_mode(s, cull_mode);
 }
 
 void ngpu_ctx_transform_projection_matrix(struct ngpu_ctx *s, float *dst)

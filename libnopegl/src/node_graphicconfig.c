@@ -258,7 +258,7 @@ void ngli_node_graphicconfig_get_state(const struct ngl_node *node, struct ngpu_
     COPY_STENCIL_PARAM(depth_pass);
 
     if (o->cull_mode != -1)
-        state->cull_mode = ngpu_ctx_transform_cull_mode(gpu_ctx, o->cull_mode);
+        state->cull_mode = ngpu_ctx_get_cull_mode(gpu_ctx, o->cull_mode);
 }
 
 static int graphicconfig_init(struct ngl_node *node)

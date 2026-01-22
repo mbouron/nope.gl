@@ -50,7 +50,7 @@ struct ngpu_ctx_class {
     void (*wait_idle)(struct ngpu_ctx *s);
     void (*destroy)(struct ngpu_ctx *s);
 
-    enum ngpu_cull_mode (*transform_cull_mode)(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode);
+    enum ngpu_cull_mode (*get_cull_mode)(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode);
     void (*transform_projection_matrix)(struct ngpu_ctx *s, float *dst);
     void (*get_rendertarget_uvcoord_matrix)(struct ngpu_ctx *s, float *dst);
 
