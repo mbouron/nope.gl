@@ -293,9 +293,9 @@ enum ngpu_cull_mode ngpu_ctx_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mo
     return s->cls->get_cull_mode(s, cull_mode);
 }
 
-void ngpu_ctx_transform_projection_matrix(struct ngpu_ctx *s, float *dst)
+void ngpu_ctx_get_projection_matrix(struct ngpu_ctx *s, float *dst)
 {
-    s->cls->transform_projection_matrix(s, dst);
+    s->cls->get_projection_matrix(s, dst);
 }
 
 void ngpu_ctx_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)

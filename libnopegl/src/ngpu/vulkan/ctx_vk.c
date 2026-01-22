@@ -1256,7 +1256,7 @@ static enum ngpu_cull_mode vk_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_m
     return cull_mode_map[cull_mode];
 }
 
-static void vk_transform_projection_matrix(struct ngpu_ctx *s, float *dst)
+static void vk_get_projection_matrix(struct ngpu_ctx *s, float *dst)
 {
     static const NGLI_ALIGNED_MAT(matrix) = {
         1.0f, 0.0f, 0.0f, 0.0f,
@@ -1264,7 +1264,7 @@ static void vk_transform_projection_matrix(struct ngpu_ctx *s, float *dst)
         0.0f, 0.0f, 0.5f, 0.0f,
         0.0f, 0.0f, 0.5f, 1.0f,
     };
-    ngli_mat4_mul(dst, matrix, dst);
+    memcpy(dst, matrix, 4 * 4 * sizeof(float));
 }
 
 static void vk_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
@@ -1551,7 +1551,7 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
     .destroy                            = vk_destroy,
 
     .get_cull_mode                      = vk_get_cull_mode,
-    .transform_projection_matrix        = vk_transform_projection_matrix,
+    .get_projection_matrix              = vk_get_projection_matrix,
     .get_rendertarget_uvcoord_matrix    = vk_get_rendertarget_uvcoord_matrix,
 
     .get_default_rendertarget           = vk_get_default_rendertarget,

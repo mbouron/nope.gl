@@ -487,12 +487,9 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
         LOG(WARNING, "could not initialize Android context");
 #endif
 
-    NGLI_ALIGNED_MAT(matrix) = NGLI_MAT4_IDENTITY;
-    ngpu_ctx_transform_projection_matrix(s->gpu_ctx, matrix);
-    memcpy(s->default_projection_matrix, matrix, sizeof(matrix));
-
+    ngpu_ctx_get_projection_matrix(s->gpu_ctx, s->default_projection_matrix);
     ngli_darray_clear(&s->projection_matrix_stack);
-    if (!ngli_darray_push(&s->projection_matrix_stack, matrix)) {
+    if (!ngli_darray_push(&s->projection_matrix_stack, s->default_projection_matrix)) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
     }
