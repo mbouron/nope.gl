@@ -977,7 +977,7 @@ uint64_t ngpu_ctx_get_features(const struct ngpu_ctx *s);
 const struct ngpu_limits *ngpu_ctx_get_limits(const struct ngpu_ctx *s);
 
 enum ngpu_cull_mode ngpu_ctx_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode);
-void ngpu_ctx_transform_projection_matrix(struct ngpu_ctx *s, float *dst);
+void ngpu_ctx_get_projection_matrix(struct ngpu_ctx *s, float *dst);
 void ngpu_ctx_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst);
 
 struct ngpu_rendertarget *ngpu_ctx_get_default_rendertarget(struct ngpu_ctx *s, enum ngpu_load_op load_op);

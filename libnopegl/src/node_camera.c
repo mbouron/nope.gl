@@ -56,6 +56,7 @@ struct camera_priv {
     int use_orthographic;
 
     NGLI_ALIGNED_MAT(modelview_matrix);
+    NGLI_ALIGNED_MAT(default_projection_matrix);
     NGLI_ALIGNED_MAT(projection_matrix);
 };
 
@@ -76,7 +77,6 @@ static int apply_transform(float *v, struct ngl_node *transform, double t)
 
 static int update_matrices(struct ngl_node *node, double t)
 {
-    struct ngl_ctx *ctx = node->ctx;
     struct camera_priv *s = node->priv_data;
     const struct camera_opts *o = node->opts;
 
@@ -115,26 +115,24 @@ static int update_matrices(struct ngl_node *node, double t)
         perspective = o->perspective;
     }
 
+    NGLI_ALIGNED_MAT(projection_matrix) = NGLI_MAT4_IDENTITY;
     if (s->use_perspective) {
-        ngli_mat4_perspective(s->projection_matrix,
+        ngli_mat4_perspective(projection_matrix,
                               perspective[0],
                               perspective[1],
                               o->clipping[0],
                               o->clipping[1]);
     } else if (s->use_orthographic) {
-        ngli_mat4_orthographic(s->projection_matrix,
+        ngli_mat4_orthographic(projection_matrix,
                                o->orthographic[0],
                                o->orthographic[1],
                                o->orthographic[2],
                                o->orthographic[3],
                                o->clipping[0],
                                o->clipping[1]);
-    } else {
-        ngli_mat4_identity(s->projection_matrix);
     }
 
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    ngpu_ctx_transform_projection_matrix(gpu_ctx, s->projection_matrix);
+    ngli_mat4_mul(s->projection_matrix, s->default_projection_matrix, projection_matrix);
 
     return 0;
 }
@@ -209,6 +207,10 @@ static int camera_init(struct ngl_node *node)
     s->eye_data    = ngli_node_get_data_ptr(o->eye_node, o->eye);
     s->center_data = ngli_node_get_data_ptr(o->center_node, o->center);
     s->up_data     = ngli_node_get_data_ptr(o->up_node, o->up);
+
+    struct ngl_ctx *ngl_ctx = node->ctx;
+    struct ngpu_ctx *gpu_ctx = ngl_ctx->gpu_ctx;
+    ngpu_ctx_get_projection_matrix(gpu_ctx, s->default_projection_matrix);
 
     int ret;
     if ((ret = ngli_transform_chain_check(o->eye_transform)) < 0 ||

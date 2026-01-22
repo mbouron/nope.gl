@@ -51,7 +51,7 @@ struct ngpu_ctx_class {
     void (*destroy)(struct ngpu_ctx *s);
 
     enum ngpu_cull_mode (*get_cull_mode)(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode);
-    void (*transform_projection_matrix)(struct ngpu_ctx *s, float *dst);
+    void (*get_projection_matrix)(struct ngpu_ctx *s, float *dst);
     void (*get_rendertarget_uvcoord_matrix)(struct ngpu_ctx *s, float *dst);
 
     struct ngpu_rendertarget *(*get_default_rendertarget)(struct ngpu_ctx *s, enum ngpu_load_op load_op);

@@ -994,8 +994,15 @@ static enum ngpu_cull_mode gl_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_m
     return cull_mode;
 }
 
-static void gl_transform_projection_matrix(struct ngpu_ctx *s, float *dst)
+static void gl_get_projection_matrix(struct ngpu_ctx *s, float *dst)
 {
+    static const NGPU_ALIGNED_MAT(matrix) = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    };
+    memcpy(dst, matrix, 4 * 4 * sizeof(float));
 }
 
 static void gl_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
@@ -1230,7 +1237,7 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
     .destroy                            = gl_destroy,                            \
                                                                                  \
     .get_cull_mode                      = gl_get_cull_mode,                      \
-    .transform_projection_matrix        = gl_transform_projection_matrix,        \
+    .get_projection_matrix              = gl_get_projection_matrix,              \
     .get_rendertarget_uvcoord_matrix    = gl_get_rendertarget_uvcoord_matrix,    \
                                                                                  \
     .get_default_rendertarget           = gl_get_default_rendertarget,           \
