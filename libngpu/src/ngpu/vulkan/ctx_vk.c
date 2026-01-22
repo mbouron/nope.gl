@@ -875,6 +875,9 @@ static int vk_init(struct ngpu_ctx *s)
     s->features = NGPU_FEATURE_COMPUTE_BIT |
                   NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT;
 
+    if (vk->phy_device_props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU)
+        s->features = NGPU_FEATURE_SOFTWARE_BIT;
+
     static const char * const dmabuf_required_extensions[] = {
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
         VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
