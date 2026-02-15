@@ -44,6 +44,16 @@ NGL_API int ngl_jni_set_java_vm(JavaVM *vm);
 NGL_API JavaVM *ngl_jni_get_java_vm(void);
 
 /**
+ * Attach permanently a JNI environment to the current thread and retrieve it.
+ *
+ * If successfully attached, the JNI environment will automatically be detached
+ * at thread destruction.
+ *
+ * @return the JNI environment on success, NULL otherwise
+ */
+NGL_API void *ngl_jni_get_env(void);
+
+/**
  * Set the Android application context.
  *
  * @param application_context   JNI global reference of the Android application

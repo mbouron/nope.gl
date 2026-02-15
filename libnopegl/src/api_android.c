@@ -64,6 +64,11 @@ JavaVM *ngl_jni_get_java_vm(void)
     return vm;
 }
 
+void *ngl_jni_get_env(void)
+{
+    return ngli_jni_get_env();
+}
+
 static void *android_application_context;
 
 int ngl_android_set_application_context(jobject *application_context)
