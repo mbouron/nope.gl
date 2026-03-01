@@ -449,6 +449,8 @@ static void ngpu_ctx_info_init(struct ngpu_ctx *s)
     if (s->params.platform == NGPU_PLATFORM_IOS)
         s->features |= NGPU_FEATURE_IMPORT_IOSURFACE_BIT;
 
+    s->features |= NGPU_FEATURE_IMPORT_OPENGL_TEXTURE_BIT;
+
     s->limits = gl->limits;
     s->nb_in_flight_frames = 2;
 }

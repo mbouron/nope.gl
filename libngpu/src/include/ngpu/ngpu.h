@@ -464,6 +464,7 @@ enum ngpu_import_type {
     NGPU_IMPORT_TYPE_IOSURFACE,
     NGPU_IMPORT_TYPE_COREVIDEO_BUFFER,
     NGPU_IMPORT_TYPE_METAL_TEXTURE,
+    NGPU_IMPORT_TYPE_OPENGL_TEXTURE,
 };
 
 struct ngpu_import_dma_buf_params {
@@ -494,6 +495,11 @@ struct ngpu_import_metal_texture_params {
     void *metal_texture; // MTLTexture
 };
 
+struct ngpu_import_opengl_texture_params {
+    uint32_t texture; // OpenGL texture
+    uint32_t target; // OpenGL texture target
+};
+
 struct ngpu_import_params {
     enum ngpu_import_type type;
     union {
@@ -502,6 +508,7 @@ struct ngpu_import_params {
         struct ngpu_import_iosurface_params iosurface;
         struct ngpu_import_corevideo_buffer_params corevideo_buffer;
         struct ngpu_import_metal_texture_params metal_texture;
+        struct ngpu_import_opengl_texture_params opengl_texture;
     };
 };
 
@@ -1010,6 +1017,7 @@ enum {
     NGPU_FEATURE_IMPORT_IOSURFACE_BIT                  = 1U << 6,
     NGPU_FEATURE_IMPORT_COREVIDEO_BUFFER_BIT           = 1U << 7,
     NGPU_FEATURE_IMPORT_METAL_TEXTURE_BIT              = 1U << 8,
+    NGPU_FEATURE_IMPORT_OPENGL_TEXTURE_BIT             = 1U << 9,
     NGPU_FEATURE_MAX_ENUM                              = 0x7FFFFFFF,
 };
 

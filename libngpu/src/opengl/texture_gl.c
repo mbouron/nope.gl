@@ -592,6 +592,26 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
 #endif
 }
 
+static int texture_import_opengl_texture(struct ngpu_texture *s)
+{
+    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
+    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    const struct ngpu_import_params *import_params = &s->params.import_params;
+    const struct ngpu_import_opengl_texture_params *opengl_texture_params = &import_params->opengl_texture;
+
+    /* Delete pre-allocated texture handle */
+    gl->funcs.DeleteTextures(1, &s_priv->id);
+
+    s_priv->id = opengl_texture_params->texture;
+    s_priv->target = opengl_texture_params->target;
+
+    s_priv->wrapped = 1;
+
+    return 0;
+}
+
 int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
@@ -637,6 +657,9 @@ int ngpu_texture_gl_import(struct ngpu_texture *s, const struct ngpu_texture_par
         break;
     case NGPU_IMPORT_TYPE_COREVIDEO_BUFFER:
         ret = texture_import_corevideo_buffer(s);
+        break;
+    case NGPU_IMPORT_TYPE_OPENGL_TEXTURE:
+        ret = texture_import_opengl_texture(s);
         break;
     default:
         ngpu_assert(0);
