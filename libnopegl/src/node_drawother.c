@@ -488,7 +488,7 @@ const struct param_choices texture_wrap_choices = {
 #define OFFSET(x) offsetof(struct drawtexture_opts, x)
 static const struct node_param drawtexture_params[] = {
     {"texture",  NGLI_PARAM_TYPE_NODE, OFFSET(texture_node),
-                 .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
+                 .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGL_NODE_CUSTOMTEXTURE, NGLI_NODE_NONE},
                  .flags=NGLI_PARAM_FLAG_NON_NULL,
                  .desc=NGLI_DOCSTRING("texture to render")},
     {"wrap",     NGLI_PARAM_TYPE_SELECT, OFFSET(wrap),

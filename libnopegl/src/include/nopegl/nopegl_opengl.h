@@ -54,4 +54,25 @@ struct ngl_config_gl {
  */
 NGL_API int ngl_gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer);
 
+struct ngl_custom_texture_info_gl {
+   uint32_t texture;
+   uint32_t target;
+   uint32_t width;
+   uint32_t height;
+};
+
+/**
+ * Defines an OpenGL user-provided texture to be used by the node
+ *
+ * This function must only be called from the node user-defined functions of
+ * the NGL_NODE_CUSTOMTEXTURE node.
+ *
+ * @param node      pointer to the target node
+ * @param info      pointer to a ngl_custom_texture_info structure. NULL can be
+ *                  passed in order to reset previous texture information.
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_custom_texture_set_texture_info_gl(struct ngl_node *node, const struct ngl_custom_texture_info_gl *info);
+
 #endif

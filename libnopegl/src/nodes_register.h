@@ -80,6 +80,7 @@
     action(NGL_NODE_COLORSTATS,             ngli_colorstats_class)              \
     action(NGL_NODE_COMPUTE,                ngli_compute_class)                 \
     action(NGL_NODE_COMPUTEPROGRAM,         ngli_computeprogram_class)          \
+    action(NGL_NODE_CUSTOMTEXTURE,          ngli_customtexture_class)           \
     action(NGL_NODE_DRAW,                   ngli_draw_class)                    \
     action(NGL_NODE_DRAWCOLOR,              ngli_drawcolor_class)               \
     action(NGL_NODE_DRAWDISPLACE,           ngli_drawdisplace_class)            \

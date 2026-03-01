@@ -790,6 +790,8 @@ void ngl_node_unrefp(struct ngl_node **nodep)
     if (delete) {
         LOG(VERBOSE, "DELETE %s @ %p", node->label, node);
         ngli_assert(!node->ctx);
+        if (node->cls->free)
+            node->cls->free(node);
         ngli_params_free((uint8_t *)node, ngli_base_node_params);
         ngli_params_free(node->opts, node->cls->params);
         ngli_free_aligned(node);

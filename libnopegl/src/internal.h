@@ -375,6 +375,17 @@ struct node_class {
      */
     void (*uninit)(struct ngl_node *node);
 
+    /*
+     * Must delete any extra resources still held by the node. This is typically
+     * useful to delete user-provided data.
+     *
+     * reentrant: no
+     * execution-order: loose
+     * dispatch: managed
+     * when: called when the node is about be freed
+     */
+    void (*free)(struct ngl_node *node);
+
     char *(*info_str)(const struct ngl_node *node);
     size_t opts_size;
     size_t priv_size;

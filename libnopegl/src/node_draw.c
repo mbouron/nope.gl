@@ -55,7 +55,8 @@ struct draw_priv {
 #define PROGRAMS_TYPES_LIST (const uint32_t[]){NGL_NODE_PROGRAM,         \
                                                NGLI_NODE_NONE}
 
-#define INPUT_TYPES_LIST    (const uint32_t[]){NGL_NODE_TEXTURE2D,           \
+#define INPUT_TYPES_LIST    (const uint32_t[]){NGL_NODE_CUSTOMTEXTURE,       \
+                                               NGL_NODE_TEXTURE2D,           \
                                                NGL_NODE_TEXTURE2DARRAY,      \
                                                NGL_NODE_TEXTURE3D,           \
                                                NGL_NODE_TEXTURECUBE,         \

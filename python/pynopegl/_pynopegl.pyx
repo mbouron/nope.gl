@@ -1,5 +1,6 @@
 # cython: c_string_type=unicode, c_string_encoding=utf8
 #
+# Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2016-2022 GoPro Inc.
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -21,6 +22,7 @@
 #
 
 from cpython cimport array
+from cpython cimport pystate
 from libc.stdint cimport int32_t, uint8_t, uint32_t, uintptr_t
 from libc.stdlib cimport calloc, free
 from libc.string cimport memset
@@ -203,6 +205,17 @@ cdef extern from "nopegl/nopegl.h":
         ngl_livectl_data min
         ngl_livectl_data max
 
+    cdef struct ngl_node_funcs:
+        int (*init)(void *reserved, void *user_data)
+        int (*prepare)(void *reserved, void *user_data)
+        int (*prefetch)(void *reserved, void *user_data)
+        int (*update)(void *reserved, void *user_data, double t)
+        void (*draw)(void *reserved, void *user_data)
+        void (*invalidate)(void *reserved, void *user_data)
+        void (*release)(void *reserved, void *user_data)
+        void (*uninit)(void *reserved, void *user_data)
+        void (*free)(void *reserved, void *user_data)
+
     ngl_ctx *ngl_create()
     int ngl_backends_probe(const ngl_config *user_config, size_t *nb_backendsp, ngl_backend **backendsp)
     int ngl_backends_get(const ngl_config *user_config, size_t *nb_backendsp, ngl_backend **backendsp)
@@ -217,6 +230,7 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_update(ngl_ctx *s, double t) nogil
     int ngl_draw(ngl_ctx *s, double t) nogil
     char *ngl_dot(ngl_ctx *s, double t) nogil
+    int ngl_node_set_funcs(ngl_node *node, void *user_data, ngl_node_funcs *funcs)
     int ngl_livectls_get(ngl_scene *scene, size_t *nb_livectlsp, ngl_livectl **livectlsp)
     void ngl_livectls_freep(ngl_livectl **livectlsp)
     void ngl_freep(ngl_ctx **ss)
@@ -236,6 +250,14 @@ cdef extern from "nopegl/nopegl_opengl.h":
         uint32_t external_framebuffer
 
     int ngl_gl_wrap_framebuffer(ngl_ctx *s, uint32_t framebuffer)
+
+    cdef struct ngl_custom_texture_info_gl:
+       uint32_t texture
+       uint32_t target
+       uint32_t width
+       uint32_t height
+
+    int ngl_custom_texture_set_texture_info_gl(ngl_node *node, const ngl_custom_texture_info_gl *info)
 
 PLATFORM_AUTO    = NGL_PLATFORM_AUTO
 PLATFORM_XLIB    = NGL_PLATFORM_XLIB
@@ -843,3 +865,148 @@ cdef class Context:
 
     def gl_wrap_framebuffer(self, uint32_t framebuffer):
         return ngl_gl_wrap_framebuffer(self.ctx, framebuffer)
+
+
+def _wrap_func(func, *args):
+    try:
+        func(*args)
+    except Exception as e:
+        return -1
+    else:
+        return 0
+
+
+cdef int _py_custom_texture_init(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    ret = _wrap_func(node._init)
+    pystate.PyGILState_Release(gil_state)
+    return ret
+
+
+cdef int _py_custom_texture_prepare(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    ret = _wrap_func(node._prepare)
+    pystate.PyGILState_Release(gil_state)
+    return ret
+
+
+cdef int _py_custom_texture_prefetch(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    ret = _wrap_func(node._prefetch)
+    pystate.PyGILState_Release(gil_state)
+    return ret
+
+
+cdef void _py_custom_texture_invalidate(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    _wrap_func(node._invalidate)
+    pystate.PyGILState_Release(gil_state)
+
+
+cdef int _py_custom_texture_update(void *reserved, void *user_data, double t) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    ret = _wrap_func(node._update, t)
+    pystate.PyGILState_Release(gil_state)
+    return ret
+
+
+cdef void _py_custom_texture_draw(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    _wrap_func(node._draw)
+    pystate.PyGILState_Release(gil_state)
+
+
+cdef void _py_custom_texture_release(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    _wrap_func(node._release)
+    pystate.PyGILState_Release(gil_state)
+
+
+cdef void _py_custom_texture_uninit(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    _wrap_func(node._uninit)
+    pystate.PyGILState_Release(gil_state)
+
+
+cdef class CustomTextureInfoGL:
+    cdef ngl_custom_texture_info_gl info
+
+    def __cinit__(self):
+        memset(&self.info, 0, sizeof(self.info))
+
+    def __init__(self, int texture, int target, int width, int height):
+        self.info.texture = texture
+        self.info.target = target
+        self.info.width = width
+        self.info.height = height
+
+    @property
+    def cptr(self):
+        return <uintptr_t>&self.info
+
+
+cdef class CustomTexture(_Node):
+    type_id = NGL_NODE_CUSTOMTEXTURE
+
+    def __init__(
+        self,
+        label: Optional[str] = None,
+        ctx: int = 0
+    ):
+        super().__init__(ctx)
+        if label is not None:
+            self._param_set_str("label", label)
+
+        cdef ngl_node_funcs funcs;
+        memset(&funcs, 0, sizeof(funcs))
+        funcs.init = _py_custom_texture_init
+        funcs.prepare = _py_custom_texture_prepare
+        funcs.prefetch = _py_custom_texture_prefetch
+        funcs.invalidate = _py_custom_texture_invalidate
+        funcs.update = _py_custom_texture_update
+        funcs.draw = _py_custom_texture_draw
+        funcs.release = _py_custom_texture_release
+        funcs.uninit = _py_custom_texture_uninit
+        cdef int ret = ngl_node_set_funcs(self.ctx, <void *>self, &funcs)
+
+    def set_label(self, label: str) -> int:
+        self._param_set_str("label", label)
+
+    def set_texture_info_gl(self, info: Optional[CustomTextureInfoGL]):
+        cdef uintptr_t ptr = 0
+        cdef ngl_custom_texture_info_gl *texture_info = NULL
+        if info is not None:
+            ptr = info.cptr
+            texture_info = <ngl_custom_texture_info_gl *>ptr
+        cdef int ret = ngl_custom_texture_set_texture_info_gl(self.ctx, texture_info)
+        if ret < 0:
+            raise Exception("Could not update texture")
+
+    def _init(self):
+        pass
+
+    def _prepare(self):
+        pass
+
+    def _prefetch(self):
+        pass
+
+    def _update(self, t):
+        pass
+
+    def _draw(self):
+        pass
+
+    def _release(self):
+        pass
+
+    def _uninit(self):
+        pass

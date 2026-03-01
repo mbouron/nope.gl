@@ -1,4 +1,5 @@
 #
+# Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2022 GoPro Inc.
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -462,3 +463,12 @@ class scene:
         func_wrapper.iam_a_ngl_scene_func = True
 
         return func_wrapper
+
+
+class CustomTextureInfoGL(_ngl.CustomTextureInfoGL):
+    def __init__(self, texture: int, target: int, width: int, height: int):
+        super().__init__(texture, target, width, height)
+
+
+class CustomTexture(_ngl.CustomTexture):
+    pass

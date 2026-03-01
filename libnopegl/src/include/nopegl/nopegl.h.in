@@ -323,6 +323,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_COLORSTATS             NGLI_FOURCC('C','l','r','S')
 #define NGL_NODE_COMPUTE                NGLI_FOURCC('C','p','t',' ')
 #define NGL_NODE_COMPUTEPROGRAM         NGLI_FOURCC('C','p','t','P')
+#define NGL_NODE_CUSTOMTEXTURE          NGLI_FOURCC('C','s','t','T')
 #define NGL_NODE_DRAW                   NGLI_FOURCC('D','r','a','w')
 #define NGL_NODE_DRAWCOLOR              NGLI_FOURCC('D','c','l','r')
 #define NGL_NODE_DRAWDISPLACE           NGLI_FOURCC('D','d','s','p')
@@ -633,6 +634,38 @@ NGL_API int ngl_node_get_label(struct ngl_node *node, const char **label);
  * @return 0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_timerangefilter_set_range(struct ngl_node *node, double start, double end);
+
+/*
+ * User defined node
+ */
+
+struct ngl_node_funcs {
+    int (*init)(void *reserved, void *user_data);
+    int (*prepare)(void *reserved, void *user_data);
+    int (*prefetch)(void *reserved, void *user_data);
+    int (*update)(void *reserved, void *user_data, double t);
+    void (*draw)(void *reserved, void *user_data);
+    void (*invalidate)(void *reserved, void *user_data);
+    void (*release)(void *reserved, void *user_data);
+    void (*uninit)(void *reserved, void *user_data);
+    void (*free)(void *reserved, void *user_data);
+};
+
+/**
+ * Sets user-defined functions
+ *
+ * This function must called before the node is associated with a rendering
+ * context.
+ *
+ * For now, only the NGL_NODE_CUSTOMTEXTURE node is supported.
+ *
+ * @param node       pointer to the target node
+ * @param user_data  pointer to user-defined data that will be passed to the user-defined node functions
+ * @param funcs      pointer to a ngl_node_funcs structure
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_set_funcs(struct ngl_node *node, void *user_data, struct ngl_node_funcs *funcs);
 
 /**
  * Live controls
