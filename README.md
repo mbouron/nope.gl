@@ -9,14 +9,14 @@ and API can change at any time.
 
 📚 [Documentation](https://doc.nopeforge.org)
 
-![tests Linux](https://github.com/NopeForge/nope.gl/workflows/tests%20Linux/badge.svg)
-![tests Mac](https://github.com/NopeForge/nope.gl/workflows/tests%20Mac/badge.svg)
-![tests MinGW](https://github.com/NopeForge/nope.gl/workflows/tests%20MinGW/badge.svg)
-![tests MSVC](https://github.com/NopeForge/nope.gl/workflows/tests%20MSVC/badge.svg)
+![tests Linux](https://github.com/mbouron/nope.gl/workflows/tests%20Linux/badge.svg)
+![tests Mac](https://github.com/mbouron/nope.gl/workflows/tests%20Mac/badge.svg)
+![tests MinGW](https://github.com/mbouron/nope.gl/workflows/tests%20MinGW/badge.svg)
+![tests MSVC](https://github.com/mbouron/nope.gl/workflows/tests%20MSVC/badge.svg)
 [![coverage](https://codecov.io/gh/NopeForge/nope.gl/branch/main/graph/badge.svg)](https://codecov.io/gh/NopeForge/nope.gl)
 [![coverity](https://scan.coverity.com/projects/28215/badge.svg)](https://scan.coverity.com/projects/nope-gl)
-![build Android 🤖](https://github.com/NopeForge/nope.gl/workflows/build%20Android%20🤖/badge.svg)
-![build iOS 🍏](https://github.com/NopeForge/nope.gl/workflows/build%20iOS%20🍏/badge.svg)
+![build Android 🤖](https://github.com/mbouron/nope.gl/workflows/build%20Android%20🤖/badge.svg)
+![build iOS 🍏](https://github.com/mbouron/nope.gl/workflows/build%20iOS%20🍏/badge.svg)
 
 
 ## 📜 License
