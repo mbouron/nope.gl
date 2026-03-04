@@ -493,10 +493,6 @@ static int set_node_params(struct darray *nodes_array, char *str,
                            const struct ngl_node *node)
 {
     uint8_t *base_ptr = node->opts;
-    const struct node_param *params = node->cls->params;
-
-    if (!params)
-        return 0;
 
     for (;;) {
         char *eok = strchr(str, ':');
@@ -579,10 +575,10 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str)
                 LOG(ERROR, "unable to parse duration \"%s\"", value);
                 goto end;
             }
-        } else if (!strcmp(key, "aspect_ratio")) {
-            n = sscanf(value, "%d/%d", &params.aspect_ratio[0], &params.aspect_ratio[1]);
+        } else if (!strcmp(key, "canvas")) {
+            n = sscanf(value, "%dx%d", &params.width, &params.height);
             if (n != 2) {
-                LOG(ERROR, "unable to parse aspect ratio \"%s\"", value);
+                LOG(ERROR, "unable to parse canvas size \"%s\"", value);
                 ret = NGL_ERROR_INVALID_DATA;
                 goto end;
             }

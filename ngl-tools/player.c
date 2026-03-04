@@ -289,98 +289,6 @@ static void mouse_pos_callback(struct player *p, SDL_MouseMotionEvent *event)
         seek_event(p, event->x);
 }
 
-static const char *pgbar_vert =
-    "void main()"                                                                               "\n"
-    "{"                                                                                         "\n"
-    "    ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);" "\n"
-    "    coord = ngl_uvcoord;"                                                                  "\n"
-    "}";
-
-static const char *pgbar_frag =
-    "void main()"                                                                       "\n"
-    "{"                                                                                 "\n"
-    "    float stime = time / duration;"                                                "\n"
-    "    float alpha = opacity * (coord.x < stime ? 1.0 : 0.3);"                        "\n"
-    "    ngl_out_color = vec4(1.0) * alpha;"                                            "\n"
-    "}";
-
-static int add_progress_bar(struct player *p, struct ngl_scene *scene)
-{
-    int ret = 0;
-
-    static const float bar_corner[3] = {-1.0f, -1.0f + 0.1f, 0.0f};
-    static const float bar_width[3]  = { 2.0f,  0.0f, 0.0f};
-    static const float bar_height[3] = { 0.0f,  2.0f * 0.01f, 0.0f}; // 1% of the height
-
-    static const float text_box[4] = {-1.0f, -1.0f, 2.0f, 2.0f * 0.05f}; // 5% of the height
-
-    struct ngl_node *text       = ngl_node_create(NGL_NODE_TEXT);
-    struct ngl_node *quad       = ngl_node_create(NGL_NODE_QUAD);
-    struct ngl_node *program    = ngl_node_create(NGL_NODE_PROGRAM);
-    struct ngl_node *draw       = ngl_node_create(NGL_NODE_DRAW);
-    struct ngl_node *time       = ngl_node_create(NGL_NODE_TIME);
-    struct ngl_node *v_duration = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
-    struct ngl_node *v_opacity  = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
-    struct ngl_node *coord      = ngl_node_create(NGL_NODE_IOVEC2);
-    struct ngl_node *group      = ngl_node_create(NGL_NODE_GROUP);
-
-    if (!text || !quad || !program || !draw || !time || !v_duration || !v_opacity ||
-        !coord || !group) {
-        ret = NGL_ERROR_MEMORY;
-        goto end;
-    }
-
-    const struct ngl_scene_params *params = ngl_scene_get_params(scene);
-    struct ngl_node *children[] = {params->root, draw, text};
-
-    ngl_node_param_set_vec3(quad, "corner", bar_corner);
-    ngl_node_param_set_vec3(quad, "width",  bar_width);
-    ngl_node_param_set_vec3(quad, "height", bar_height);
-
-    ngl_node_param_set_str(program, "vertex",   pgbar_vert);
-    ngl_node_param_set_str(program, "fragment", pgbar_frag);
-    ngl_node_param_set_dict(program, "vert_out_vars", "coord", coord);
-
-    ngl_node_param_set_f32(v_duration, "value", (float)p->duration_f);
-    ngl_node_param_set_f32(v_opacity,  "value", 0.f);
-
-    ngl_node_param_set_node(draw, "geometry", quad);
-    ngl_node_param_set_node(draw, "program", program);
-    ngl_node_param_set_dict(draw, "frag_resources", "time",     time);
-    ngl_node_param_set_dict(draw, "frag_resources", "duration", v_duration);
-    ngl_node_param_set_dict(draw, "frag_resources", "opacity",  v_opacity);
-    ngl_node_param_set_select(draw, "blending", "src_over");
-
-    ngl_node_param_add_nodes(group, "children", ARRAY_NB(children), children);
-
-    ngl_node_param_set_vec4(text, "box", text_box);
-    ngl_node_param_set_f32(text, "bg_opacity", 0.f);
-    ngl_node_param_set_f32(text, "fg_opacity", 0.f);
-
-    struct ngl_scene_params new_params = *params;
-    new_params.root = group;
-    ret = ngl_scene_init(scene, &new_params);
-    if (ret < 0)
-        goto end;
-
-    p->pgbar_opacity_node  = v_opacity;
-    p->pgbar_duration_node = v_duration;
-    p->pgbar_text_node     = text;
-
-end:
-    ngl_node_unrefp(&group);
-    ngl_node_unrefp(&text);
-    ngl_node_unrefp(&quad);
-    ngl_node_unrefp(&program);
-    ngl_node_unrefp(&draw);
-    ngl_node_unrefp(&time);
-    ngl_node_unrefp(&v_duration);
-    ngl_node_unrefp(&v_opacity);
-    ngl_node_unrefp(&coord);
-
-    return ret;
-}
-
 static int set_duration(struct player *p, double duration)
 {
     p->duration_f = duration;
@@ -403,26 +311,10 @@ static int set_framerate(struct player *p, const int *rate)
     return 0;
 }
 
-static int set_aspect_ratio(struct player *p, const int32_t *aspect)
-{
-    memcpy(p->aspect, aspect, sizeof(p->aspect));
-    if (!p->aspect[0] || !p->aspect[1])
-        p->aspect[0] = p->aspect[1] = 1;
-    int32_t width, height;
-    SDL_GetWindowSize(p->window, &width, &height);
-    size_callback(p, width, height);
-    return 0;
-}
-
 static int set_scene(struct player *p, struct ngl_scene *scene)
 {
     int ret;
 
-    if (p->enable_ui) {
-        ret = add_progress_bar(p, scene);
-        if (ret < 0)
-            return ret;
-    }
     ret = ngl_set_scene(p->ngl, scene);
     if (ret < 0) {
         p->pgbar_opacity_node  = NULL;
@@ -432,9 +324,12 @@ static int set_scene(struct player *p, struct ngl_scene *scene)
 
     const struct ngl_scene_params *params = ngl_scene_get_params(scene);
     if ((ret = set_duration(p, params->duration)) < 0 ||
-        (ret = set_framerate(p, params->framerate)) < 0 ||
-        (ret = set_aspect_ratio(p, params->aspect_ratio)) < 0)
+        (ret = set_framerate(p, params->framerate)) < 0)
         return ret;
+
+    int32_t width, height;
+    SDL_GetWindowSize(p->window, &width, &height);
+    size_callback(p, width, height);
 
     return 0;
 }
@@ -472,9 +367,6 @@ int player_init(struct player *p, const char *win_title, struct ngl_scene *scene
     p->duration_i = llrint(p->duration_f * params->framerate[0] / (double)params->framerate[1]);
 
     p->ngl_config = *cfg;
-
-    p->aspect[0] = params->aspect_ratio[0];
-    p->aspect[1] = params->aspect_ratio[1];
 
     static const int refresh_rate[2] = {1, 60};
     p->ngl_config.hud_refresh_rate[0] = refresh_rate[0];

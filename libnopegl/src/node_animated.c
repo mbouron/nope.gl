@@ -31,7 +31,6 @@
 #include <ngpu/ngpu.h>
 #include "node_animkeyframe.h"
 #include "node_uniform.h"
-#include "node_velocity.h"
 #include "nopegl/nopegl.h"
 #include "path.h"
 
@@ -97,7 +96,7 @@ static const struct node_param animatedpath_params[] = {
                   .node_types=(const uint32_t[]){NGL_NODE_ANIMKEYFRAMEFLOAT, NGLI_NODE_NONE},
                   .desc=NGLI_DOCSTRING("float key frames to interpolate from, representing the normed distance from the start of the `path`")},
     {"path",      NGLI_PARAM_TYPE_NODE, OFFSET(path_node),
-                  .node_types=(const uint32_t[]){NGL_NODE_PATH, NGL_NODE_SMOOTHPATH, NGLI_NODE_NONE},
+                  .node_types=(const uint32_t[]){NGL_NODE_SMOOTHPATH, NGLI_NODE_NONE},
                   .flags=NGLI_PARAM_FLAG_NON_NULL,
                   .desc=NGLI_DOCSTRING("path to follow")},
     {"time_offset", NGLI_PARAM_TYPE_F64, OFFSET(time_offset),
@@ -297,12 +296,6 @@ static ngli_animation_cpy_func_type get_cpy_func(const struct variable_opts *o, 
 
 int ngl_anim_evaluate(struct ngl_node *node, void *dst, double t)
 {
-    if (node->cls->id == NGL_NODE_VELOCITYFLOAT ||
-        node->cls->id == NGL_NODE_VELOCITYVEC2 ||
-        node->cls->id == NGL_NODE_VELOCITYVEC3 ||
-        node->cls->id == NGL_NODE_VELOCITYVEC4)
-        return ngli_velocity_evaluate(node, dst, t);
-
     if (node->cls->id != NGL_NODE_ANIMATEDFLOAT &&
         node->cls->id != NGL_NODE_ANIMATEDVEC2 &&
         node->cls->id != NGL_NODE_ANIMATEDVEC3 &&

@@ -35,6 +35,7 @@
 #include "node_media.h"
 #include "node_rtt.h"
 #include "node_texture.h"
+#include "node_textureview.h"
 #include "nopegl/nopegl.h"
 #include "rtt.h"
 
@@ -61,8 +62,21 @@ struct texture_priv {
 
 NGLI_STATIC_ASSERT(offsetof(struct texture_priv, texture_info) == 0, "texture_info is first");
 
+struct texture_info *ngli_node_texture_get_texture_info(const struct ngl_node *node)
+{
+    if (node->cls->id == NGL_NODE_TEXTUREVIEW) {
+        const struct textureview_opts *o = node->opts;
+        return o->texture->priv_data;
+    }
+    return node->priv_data;
+}
+
 enum ngpu_pgcraft_texture_type ngli_node_texture_get_pgcraft_texture_type(const struct ngl_node *node)
 {
+    if (node->cls->id == NGL_NODE_TEXTUREVIEW) {
+        const struct textureview_opts *o = node->opts;
+        return ngli_node_texture_get_pgcraft_texture_type(o->texture);
+    }
     switch (node->cls->id) {
     case NGL_NODE_CUSTOMTEXTURE:
         return NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO;
@@ -206,9 +220,6 @@ static const struct param_choices format_choices = {
 };
 
 #define BUFFER_NODES                \
-    NGL_NODE_ANIMATEDBUFFERFLOAT,   \
-    NGL_NODE_ANIMATEDBUFFERVEC2,    \
-    NGL_NODE_ANIMATEDBUFFERVEC4,    \
     NGL_NODE_BUFFERBYTE,            \
     NGL_NODE_BUFFERBVEC2,           \
     NGL_NODE_BUFFERBVEC4,           \
@@ -270,8 +281,6 @@ static const struct node_param texture2d_params[] = {
                 .desc=NGLI_DOCSTRING("premultiply ngl_texvideo() output color by its alpha")},
     {"clear_color", NGLI_PARAM_TYPE_VEC4, OFFSET(clear_color),
                     .desc=NGLI_DOCSTRING("color used to clear the texture when used as an implicit render target")},
-    {"forward_transforms", NGLI_PARAM_TYPE_BOOL, OFFSET(forward_transforms), {.i32=0},
-                           .desc=NGLI_DOCSTRING("enable forwarding of camera/model transformations when used as an implicit render target")},
     {NULL}
 };
 
@@ -531,22 +540,6 @@ static int handle_media_frame(struct ngl_node *node)
     return 0;
 }
 
-static int handle_buffer_frame(struct ngl_node *node)
-{
-    struct texture_info *i = node->priv_data;
-    const struct texture_opts *o = node->opts;
-    struct buffer_info *buffer = o->data_src->priv_data;
-    const uint8_t *data = buffer->data;
-
-    int ret = ngpu_texture_upload(i->texture, data, 0);
-    if (ret < 0) {
-        LOG(ERROR, "could not upload texture buffer");
-        return ret;
-    }
-
-    return 0;
-}
-
 static int texture_update(struct ngl_node *node, double t)
 {
     const struct texture_opts *o = node->opts;
@@ -558,22 +551,13 @@ static int texture_update(struct ngl_node *node, double t)
     if (ret < 0)
         return ret;
 
-    switch (o->data_src->cls->id) {
-        case NGL_NODE_MEDIA:
-            /*
-             * Tolerate media frames mapping/upload failures because they are
-             * "likely" errors where we prefer to black-out part of the
-             * presentation instead of hard-failing.
-             */
-            (void)handle_media_frame(node);
-            break;
-        case NGL_NODE_ANIMATEDBUFFERFLOAT:
-        case NGL_NODE_ANIMATEDBUFFERVEC2:
-        case NGL_NODE_ANIMATEDBUFFERVEC4:
-            ret = handle_buffer_frame(node);
-            if (ret < 0)
-                return ret;
-            break;
+    if (o->data_src->cls->id == NGL_NODE_MEDIA) {
+        /*
+         * Tolerate media frames mapping/upload failures because they are
+         * "likely" errors where we prefer to black-out part of the
+         * presentation instead of hard-failing.
+         */
+        (void)handle_media_frame(node);
     }
 
     return 0;

@@ -24,10 +24,6 @@
 #define NODES_REGISTER_H
 
 #define NODE_MAP_TYPE2CLASS(action)                                             \
-    action(NGL_NODE_ANIMATEDBUFFERFLOAT,    ngli_animatedbufferfloat_class)     \
-    action(NGL_NODE_ANIMATEDBUFFERVEC2,     ngli_animatedbuffervec2_class)      \
-    action(NGL_NODE_ANIMATEDBUFFERVEC3,     ngli_animatedbuffervec3_class)      \
-    action(NGL_NODE_ANIMATEDBUFFERVEC4,     ngli_animatedbuffervec4_class)      \
     action(NGL_NODE_ANIMATEDCOLOR,          ngli_animatedcolor_class)           \
     action(NGL_NODE_ANIMATEDPATH,           ngli_animatedpath_class)            \
     action(NGL_NODE_ANIMATEDTIME,           ngli_animatedtime_class)            \
@@ -42,7 +38,6 @@
     action(NGL_NODE_ANIMKEYFRAMEVEC4,       ngli_animkeyframevec4_class)        \
     action(NGL_NODE_ANIMKEYFRAMEQUAT,       ngli_animkeyframequat_class)        \
     action(NGL_NODE_ANIMKEYFRAMECOLOR,      ngli_animkeyframecolor_class)       \
-    action(NGL_NODE_ANIMKEYFRAMEBUFFER,     ngli_animkeyframebuffer_class)      \
     action(NGL_NODE_BLOCK,                  ngli_block_class)                   \
     action(NGL_NODE_BUFFERBYTE,             ngli_bufferbyte_class)              \
     action(NGL_NODE_BUFFERBVEC2,            ngli_bufferbvec2_class)             \
@@ -74,41 +69,21 @@
     action(NGL_NODE_BUFFERVEC3,             ngli_buffervec3_class)              \
     action(NGL_NODE_BUFFERVEC4,             ngli_buffervec4_class)              \
     action(NGL_NODE_BUFFERMAT4,             ngli_buffermat4_class)              \
-    action(NGL_NODE_CAMERA,                 ngli_camera_class)                  \
-    action(NGL_NODE_CIRCLE,                 ngli_circle_class)                  \
-    action(NGL_NODE_COLORKEY,               ngli_colorkey_class)                \
-    action(NGL_NODE_COLORSTATS,             ngli_colorstats_class)              \
     action(NGL_NODE_COMPUTE,                ngli_compute_class)                 \
     action(NGL_NODE_COMPUTEPROGRAM,         ngli_computeprogram_class)          \
     action(NGL_NODE_CUSTOMTEXTURE,          ngli_customtexture_class)           \
-    action(NGL_NODE_DRAW,                   ngli_draw_class)                    \
-    action(NGL_NODE_DRAWCOLOR,              ngli_drawcolor_class)               \
-    action(NGL_NODE_DRAWDISPLACE,           ngli_drawdisplace_class)            \
-    action(NGL_NODE_DRAWGRADIENT,           ngli_drawgradient_class)            \
-    action(NGL_NODE_DRAWGRADIENT4,          ngli_drawgradient4_class)           \
-    action(NGL_NODE_DRAWHISTOGRAM,          ngli_drawhistogram_class)           \
-    action(NGL_NODE_DRAWMASK,               ngli_drawmask_class)                \
-    action(NGL_NODE_DRAWNOISE,              ngli_drawnoise_class)               \
-    action(NGL_NODE_DRAWPATH,               ngli_drawpath_class)                \
-    action(NGL_NODE_DRAWTEXTURE,            ngli_drawtexture_class)             \
-    action(NGL_NODE_DRAWWAVEFORM,           ngli_drawwaveform_class)            \
-    action(NGL_NODE_FILTERALPHA,            ngli_filteralpha_class)             \
-    action(NGL_NODE_FILTERCOLORMAP,         ngli_filtercolormap_class)          \
-    action(NGL_NODE_FILTERCONTRAST,         ngli_filtercontrast_class)          \
-    action(NGL_NODE_FILTEREXPOSURE,         ngli_filterexposure_class)          \
-    action(NGL_NODE_FILTERINVERSEALPHA,     ngli_filterinversealpha_class)      \
-    action(NGL_NODE_FILTERLINEAR2SRGB,      ngli_filterlinear2srgb_class)       \
-    action(NGL_NODE_FILTEROPACITY,          ngli_filteropacity_class)           \
-    action(NGL_NODE_FILTERPREMULT,          ngli_filterpremult_class)           \
-    action(NGL_NODE_FILTERSATURATION,       ngli_filtersaturation_class)        \
-    action(NGL_NODE_FILTERSELECTOR,         ngli_filterselector_class)          \
-    action(NGL_NODE_FILTERSRGB2LINEAR,      ngli_filtersrgb2linear_class)       \
+    action(NGL_NODE_COLORFILL,              ngli_colorfill_class)               \
+    action(NGL_NODE_CUSTOMFILL,             ngli_customfill_class)              \
+    action(NGL_NODE_DRAWRECT,               ngli_drawrect_class)                \
     action(NGL_NODE_FASTGAUSSIANBLUR,       ngli_fgblur_class)                  \
-    action(NGL_NODE_FONTFACE,               ngli_fontface_class)                \
+    action(NGL_NODE_GRADIENT4FILL,          ngli_gradient4fill_class)           \
+    action(NGL_NODE_GRADIENTFILL,           ngli_gradientfill_class)            \
+    action(NGL_NODE_NOISEFILL,              ngli_noisefill_class)               \
+    action(NGL_NODE_STROKE,                 ngli_stroke_class)                  \
+    action(NGL_NODE_STROKEGRADIENT,         ngli_strokegradient_class)          \
+    action(NGL_NODE_STROKEGRADIENT4,        ngli_strokegradient4_class)         \
+    action(NGL_NODE_TEXTUREFILL,            ngli_texturefill_class)             \
     action(NGL_NODE_GAUSSIANBLUR,           ngli_gblur_class)                   \
-    action(NGL_NODE_GEOMETRY,               ngli_geometry_class)                \
-    action(NGL_NODE_GRAPHICCONFIG,          ngli_graphicconfig_class)           \
-    action(NGL_NODE_GRIDLAYOUT,             ngli_gridlayout_class)              \
     action(NGL_NODE_GROUP,                  ngli_group_class)                   \
     action(NGL_NODE_HEXAGONALBLUR,          ngli_hblur_class)                   \
     action(NGL_NODE_IDENTITY,               ngli_identity_class)                \
@@ -136,14 +111,7 @@
     action(NGL_NODE_NOISEVEC2,              ngli_noisevec2_class)               \
     action(NGL_NODE_NOISEVEC3,              ngli_noisevec3_class)               \
     action(NGL_NODE_NOISEVEC4,              ngli_noisevec4_class)               \
-    action(NGL_NODE_PATH,                   ngli_path_class)                    \
-    action(NGL_NODE_PATHKEYBEZIER2,         ngli_pathkeybezier2_class)          \
-    action(NGL_NODE_PATHKEYBEZIER3,         ngli_pathkeybezier3_class)          \
-    action(NGL_NODE_PATHKEYCLOSE,           ngli_pathkeyclose_class)            \
-    action(NGL_NODE_PATHKEYLINE,            ngli_pathkeyline_class)             \
-    action(NGL_NODE_PATHKEYMOVE,            ngli_pathkeymove_class)             \
     action(NGL_NODE_PROGRAM,                ngli_program_class)                 \
-    action(NGL_NODE_QUAD,                   ngli_quad_class)                    \
     action(NGL_NODE_RENDERTOTEXTURE,        ngli_rtt_class)                     \
     action(NGL_NODE_RESOURCEPROPS,          ngli_resourceprops_class)           \
     action(NGL_NODE_ROTATE,                 ngli_rotate_class)                  \
@@ -151,8 +119,6 @@
     action(NGL_NODE_SCALE,                  ngli_scale_class)                   \
     action(NGL_NODE_SKEW,                   ngli_skew_class)                    \
     action(NGL_NODE_SMOOTHPATH,             ngli_smoothpath_class)              \
-    action(NGL_NODE_TEXT,                   ngli_text_class)                    \
-    action(NGL_NODE_TEXTEFFECT,             ngli_texteffect_class)              \
     action(NGL_NODE_TEXTURE2D,              ngli_texture2d_class)               \
     action(NGL_NODE_TEXTURE2DARRAY,         ngli_texture2darray_class)          \
     action(NGL_NODE_TEXTURE3D,              ngli_texture3d_class)               \
@@ -162,33 +128,6 @@
     action(NGL_NODE_TIMERANGEFILTER,        ngli_timerangefilter_class)         \
     action(NGL_NODE_TRANSFORM,              ngli_transform_class)               \
     action(NGL_NODE_TRANSLATE,              ngli_translate_class)               \
-    action(NGL_NODE_TRIANGLE,               ngli_triangle_class)                \
-    action(NGL_NODE_STREAMEDINT,            ngli_streamedint_class)             \
-    action(NGL_NODE_STREAMEDIVEC2,          ngli_streamedivec2_class)           \
-    action(NGL_NODE_STREAMEDIVEC3,          ngli_streamedivec3_class)           \
-    action(NGL_NODE_STREAMEDIVEC4,          ngli_streamedivec4_class)           \
-    action(NGL_NODE_STREAMEDUINT,           ngli_streameduint_class)            \
-    action(NGL_NODE_STREAMEDUIVEC2,         ngli_streameduivec2_class)          \
-    action(NGL_NODE_STREAMEDUIVEC3,         ngli_streameduivec3_class)          \
-    action(NGL_NODE_STREAMEDUIVEC4,         ngli_streameduivec4_class)          \
-    action(NGL_NODE_STREAMEDFLOAT,          ngli_streamedfloat_class)           \
-    action(NGL_NODE_STREAMEDVEC2,           ngli_streamedvec2_class)            \
-    action(NGL_NODE_STREAMEDVEC3,           ngli_streamedvec3_class)            \
-    action(NGL_NODE_STREAMEDVEC4,           ngli_streamedvec4_class)            \
-    action(NGL_NODE_STREAMEDMAT4,           ngli_streamedmat4_class)            \
-    action(NGL_NODE_STREAMEDBUFFERINT,      ngli_streamedbufferint_class)       \
-    action(NGL_NODE_STREAMEDBUFFERIVEC2,    ngli_streamedbufferivec2_class)     \
-    action(NGL_NODE_STREAMEDBUFFERIVEC3,    ngli_streamedbufferivec3_class)     \
-    action(NGL_NODE_STREAMEDBUFFERIVEC4,    ngli_streamedbufferivec4_class)     \
-    action(NGL_NODE_STREAMEDBUFFERUINT,     ngli_streamedbufferuint_class)      \
-    action(NGL_NODE_STREAMEDBUFFERUIVEC2,   ngli_streamedbufferuivec2_class)    \
-    action(NGL_NODE_STREAMEDBUFFERUIVEC3,   ngli_streamedbufferuivec3_class)    \
-    action(NGL_NODE_STREAMEDBUFFERUIVEC4,   ngli_streamedbufferuivec4_class)    \
-    action(NGL_NODE_STREAMEDBUFFERFLOAT,    ngli_streamedbufferfloat_class)     \
-    action(NGL_NODE_STREAMEDBUFFERVEC2,     ngli_streamedbuffervec2_class)      \
-    action(NGL_NODE_STREAMEDBUFFERVEC3,     ngli_streamedbuffervec3_class)      \
-    action(NGL_NODE_STREAMEDBUFFERVEC4,     ngli_streamedbuffervec4_class)      \
-    action(NGL_NODE_STREAMEDBUFFERMAT4,     ngli_streamedbuffermat4_class)      \
     action(NGL_NODE_UNIFORMBOOL,            ngli_uniformbool_class)             \
     action(NGL_NODE_UNIFORMINT,             ngli_uniformint_class)              \
     action(NGL_NODE_UNIFORMIVEC2,           ngli_uniformivec2_class)            \
@@ -207,9 +146,5 @@
     action(NGL_NODE_UNIFORMQUAT,            ngli_uniformquat_class)             \
     action(NGL_NODE_USERSELECT,             ngli_userselect_class)              \
     action(NGL_NODE_USERSWITCH,             ngli_userswitch_class)              \
-    action(NGL_NODE_VELOCITYFLOAT,          ngli_velocityfloat_class)           \
-    action(NGL_NODE_VELOCITYVEC2,           ngli_velocityvec2_class)            \
-    action(NGL_NODE_VELOCITYVEC3,           ngli_velocityvec3_class)            \
-    action(NGL_NODE_VELOCITYVEC4,           ngli_velocityvec4_class)            \
 
 #endif

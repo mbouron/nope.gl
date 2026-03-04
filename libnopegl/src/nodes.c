@@ -209,14 +209,14 @@ static int node_init(struct ngl_node *node)
     return 0;
 }
 
-static int node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
+int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 {
     int ret;
 
     struct ngl_node **children = ngli_darray_data(&node->children);
     for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
         struct ngl_node *child = children[i];
-        ret = node_set_ctx(child, ctx);
+        ret = ngli_node_set_ctx(child, ctx);
         if (ret < 0)
             return ret;
     }
@@ -253,7 +253,7 @@ static void node_reset_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 {
-    int ret = node_set_ctx(node, ctx);
+    int ret = ngli_node_set_ctx(node, ctx);
     if (ret < 0)
         return ret;
 

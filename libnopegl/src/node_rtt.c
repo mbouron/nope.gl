@@ -29,7 +29,6 @@
 #include "internal.h"
 #include "log.h"
 #include <ngpu/ngpu.h>
-#include "node_graphicconfig.h"
 #include "node_rtt.h"
 #include "node_texture.h"
 #include "node_textureview.h"
@@ -236,14 +235,6 @@ static int get_renderpass_info(const struct ngl_node *node, int state, struct re
             if (state == RENDER_PASS_STATE_STOPPED)
                 info->nb_interruptions++;
             state = RENDER_PASS_STATE_STARTED;
-        } else if (child->cls->id == NGL_NODE_GRAPHICCONFIG) {
-            struct ngpu_graphics_state graphics_state = {0};
-            ngli_node_graphicconfig_get_state(child, &graphics_state);
-            if (graphics_state.depth_test)
-                info->features |= NGLI_RENDERPASS_FEATURE_DEPTH;
-            if (graphics_state.stencil_test)
-                info->features |= NGLI_RENDERPASS_FEATURE_STENCIL;
-            state = get_renderpass_info(child, state, info);
         } else {
             state = get_renderpass_info(child, state, info);
         }

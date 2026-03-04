@@ -370,10 +370,9 @@ struct ngl_scene *ngl_scene_create(void)
 struct ngl_scene_params ngl_scene_default_params(struct ngl_node *root)
 {
     const struct ngl_scene_params params = {
-        .root         = root,
-        .duration     = 30.0,
-        .framerate    = {60, 1},
-        .aspect_ratio = {1, 1},
+        .root      = root,
+        .duration  = 30.0,
+        .framerate = {60, 1},
     };
     return params;
 }
@@ -381,6 +380,42 @@ struct ngl_scene_params ngl_scene_default_params(struct ngl_node *root)
 struct ngl_scene *ngl_scene_ref(struct ngl_scene *s)
 {
     return NGLI_RC_REF(s);
+}
+
+int ngli_scene_attach_child(struct ngl_scene *scene, struct ngl_node *parent, struct ngl_node *child)
+{
+    return setup_nodes(scene, parent, child);
+}
+
+void ngli_scene_detach_child(struct ngl_scene *scene, struct ngl_node *parent, struct ngl_node *child)
+{
+    struct ngl_node **children = ngli_darray_data(&parent->children);
+    for (size_t i = 0; i < ngli_darray_count(&parent->children); i++) {
+        if (children[i] == child) {
+            ngli_darray_remove(&parent->children, i);
+            break;
+        }
+    }
+
+    struct ngl_node **draw_children = ngli_darray_data(&parent->draw_children);
+    for (size_t i = 0; i < ngli_darray_count(&parent->draw_children); i++) {
+        if (draw_children[i] == child) {
+            ngli_darray_remove(&parent->draw_children, i);
+            break;
+        }
+    }
+
+    struct ngl_node **parents = ngli_darray_data(&child->parents);
+    for (size_t i = 0; i < ngli_darray_count(&child->parents); i++) {
+        if (parents[i] == parent) {
+            ngli_darray_remove(&child->parents, i);
+            break;
+        }
+    }
+
+    /* Only fully reset scene membership when node has no remaining parents */
+    if (ngli_darray_count(&child->parents) == 0)
+        reset_nodes(scene, NULL, child);
 }
 
 int ngl_scene_init(struct ngl_scene *s, const struct ngl_scene_params *params)
@@ -397,8 +432,12 @@ int ngl_scene_init(struct ngl_scene *s, const struct ngl_scene_params *params)
         LOG(ERROR, "invalid framerate %d/%d", NGLI_ARG_VEC2(params->framerate));
         return NGL_ERROR_INVALID_ARG;
     }
-    if (params->aspect_ratio[0] < 0 || params->aspect_ratio[1] < 0) {
-        LOG(ERROR, "invalid aspect ratio %d:%d", NGLI_ARG_VEC2(params->aspect_ratio));
+    if (params->width < 0 || params->height < 0) {
+        LOG(ERROR, "invalid canvas size %dx%d", params->width, params->height);
+        return NGL_ERROR_INVALID_ARG;
+    }
+    if ((params->width == 0) != (params->height == 0)) {
+        LOG(ERROR, "canvas width and height must both be zero or both be positive");
         return NGL_ERROR_INVALID_ARG;
     }
 
@@ -520,15 +559,6 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
         memcpy(&ctl->min, &ref_ctl->min, sizeof(ctl->min));
         memcpy(&ctl->max, &ref_ctl->max, sizeof(ctl->max));
 
-        if (node->cls->id == NGL_NODE_TEXT) {
-            ngli_assert(ctl->val.s);
-            ngli_assert(!ctl->min.s && !ctl->max.s);
-            ctl->val.s = ngli_strdup(ctl->val.s);
-            if (!ctl->val.s) {
-                ret = NGL_ERROR_MEMORY;
-                goto end;
-            }
-        }
     }
 
     *livectlsp = ctls;
@@ -548,8 +578,6 @@ void ngl_livectls_freep(struct ngl_livectl **livectlsp)
         return;
     for (size_t i = 0; livectls[i].node; i++) {
         struct ngl_livectl *ctl = &livectls[i];
-        if (livectls[i].node->cls->id == NGL_NODE_TEXT)
-            ngli_freep(&livectls[i].val.s);
         ngl_node_unrefp(&ctl->node);
         ngli_freep(&ctl->id);
     }

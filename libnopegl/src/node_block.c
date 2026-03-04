@@ -40,23 +40,7 @@ static const struct param_choices layout_choices = {
     }
 };
 
-#define FIELD_TYPES_LIST (const uint32_t[]){NGL_NODE_ANIMATEDBUFFERFLOAT,    \
-                                            NGL_NODE_ANIMATEDBUFFERVEC2,     \
-                                            NGL_NODE_ANIMATEDBUFFERVEC3,     \
-                                            NGL_NODE_ANIMATEDBUFFERVEC4,     \
-                                            NGL_NODE_STREAMEDBUFFERINT,      \
-                                            NGL_NODE_STREAMEDBUFFERIVEC2,    \
-                                            NGL_NODE_STREAMEDBUFFERIVEC3,    \
-                                            NGL_NODE_STREAMEDBUFFERIVEC4,    \
-                                            NGL_NODE_STREAMEDBUFFERUINT,     \
-                                            NGL_NODE_STREAMEDBUFFERUIVEC2,   \
-                                            NGL_NODE_STREAMEDBUFFERUIVEC3,   \
-                                            NGL_NODE_STREAMEDBUFFERUIVEC4,   \
-                                            NGL_NODE_STREAMEDBUFFERFLOAT,    \
-                                            NGL_NODE_STREAMEDBUFFERVEC2,     \
-                                            NGL_NODE_STREAMEDBUFFERVEC3,     \
-                                            NGL_NODE_STREAMEDBUFFERVEC4,     \
-                                            NGL_NODE_BUFFERFLOAT,            \
+#define FIELD_TYPES_LIST (const uint32_t[]){NGL_NODE_BUFFERFLOAT,            \
                                             NGL_NODE_BUFFERVEC2,             \
                                             NGL_NODE_BUFFERVEC3,             \
                                             NGL_NODE_BUFFERVEC4,             \
@@ -91,19 +75,6 @@ static const struct param_choices layout_choices = {
                                             NGL_NODE_ANIMATEDVEC4,           \
                                             NGL_NODE_ANIMATEDQUAT,           \
                                             NGL_NODE_ANIMATEDCOLOR,          \
-                                            NGL_NODE_STREAMEDINT,            \
-                                            NGL_NODE_STREAMEDIVEC2,          \
-                                            NGL_NODE_STREAMEDIVEC3,          \
-                                            NGL_NODE_STREAMEDIVEC4,          \
-                                            NGL_NODE_STREAMEDUINT,           \
-                                            NGL_NODE_STREAMEDUIVEC2,         \
-                                            NGL_NODE_STREAMEDUIVEC3,         \
-                                            NGL_NODE_STREAMEDUIVEC4,         \
-                                            NGL_NODE_STREAMEDFLOAT,          \
-                                            NGL_NODE_STREAMEDVEC2,           \
-                                            NGL_NODE_STREAMEDVEC3,           \
-                                            NGL_NODE_STREAMEDVEC4,           \
-                                            NGL_NODE_STREAMEDMAT4,           \
                                             NGL_NODE_TIME,                   \
                                             NGLI_NODE_NONE}
 

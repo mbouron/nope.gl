@@ -424,6 +424,17 @@ class _WrapperGenerator:
 
 class CommandUtils:
     @staticmethod
+    def _decode_nan(obj):
+        """Recursively replace "nan" strings with float("nan") in parsed JSON."""
+        if isinstance(obj, str) and obj == "nan":
+            return float("nan")
+        if isinstance(obj, list):
+            return [CommandUtils._decode_nan(v) for v in obj]
+        if isinstance(obj, dict):
+            return {k: CommandUtils._decode_nan(v) for k, v in obj.items()}
+        return obj
+
+    @staticmethod
     def _gen_definitions_pyx(specs):
         # Map C nodes identifiers (NGL_NODE_*)
         content = 'cdef extern from "nopegl/nopegl.h":\n'
@@ -446,6 +457,7 @@ class CommandUtils:
         specs_file = op.join(_LIB_CFG.data_root_dir, "nopegl", "nodes.specs")
         with open(specs_file, encoding="utf-8") as f:
             specs = json.load(f)
+        specs = CommandUtils._decode_nan(specs)
         content = f'__version__ = "{_LIB_CFG.version}"\n\n'
         content += CommandUtils._gen_definitions_pyx(specs)
         with open("nodes_def.pyx", "w", encoding="utf-8") as output:

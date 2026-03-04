@@ -42,6 +42,7 @@ struct texture_info {
     size_t image_rev;
 };
 
+struct texture_info *ngli_node_texture_get_texture_info(const struct ngl_node *node);
 enum ngpu_pgcraft_texture_type ngli_node_texture_get_pgcraft_texture_type(const struct ngl_node *node);
 enum ngpu_pgcraft_texture_type ngli_node_texture_get_pgcraft_image_type(const struct ngl_node *node);
 int ngli_node_texture_has_media_data_src(const struct ngl_node *node);

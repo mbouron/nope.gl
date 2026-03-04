@@ -21,98 +21,25 @@
 #
 
 import array
+import os
+import tempfile
+
+from PIL import Image
 
 import pynopegl as ngl
-from pynopegl_utils.misc import get_shader
-from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
-from pynopegl_utils.tests.cuepoints_utils import get_grid_points, get_points_nodes
-from pynopegl_utils.toolbox.colors import COLORS
+from pynopegl_utils.tests.cmp_png import test_png
 
-_PARTICULES_COMPUTE = """
-void main()
-{
-    uvec3 total_size = gl_WorkGroupSize * gl_NumWorkGroups;
-    uint i = gl_GlobalInvocationID.z * total_size.x * total_size.y
-           + gl_GlobalInvocationID.y * total_size.x
-           + gl_GlobalInvocationID.x;
-    vec3 iposition = idata.positions[i];
-    vec2 ivelocity = idata.velocities[i];
-    vec3 position;
-    position.x = iposition.x + time * ivelocity.x;
-    position.y = iposition.y + 0.1 * sin(time * duration * ivelocity.y);
-    position.z = 0.0;
-    odata.positions[i] = position;
-}
-"""
+W, H = 128, 128
+_N = 8
 
 
-_PARTICULES_VERT = """
-void main()
-{
-    vec4 position = vec4(ngl_position, 1.0) + vec4(data.positions[ngl_instance_index], 0.0);
-    ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * position;
-}
-"""
+def _scene(cfg, node, duration=1.0):
+    cfg.aspect_ratio = (W, H)
+    cfg.duration = duration
+    return node
 
 
-@test_fingerprint(width=800, height=800, keyframes=10, tolerance=1)
-@ngl.scene()
-def compute_particles(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-    cfg.duration = 10
-    workgroups = (2, 1, 4)
-    local_size = (4, 4, 1)
-    nb_particles = workgroups[0] * workgroups[1] * workgroups[2] * local_size[0] * local_size[1] * local_size[2]
-
-    positions = array.array("f")
-    velocities = array.array("f")
-    for _ in range(nb_particles):
-        positions.extend(
-            [
-                cfg.rng.uniform(-2.0, 1.0),
-                cfg.rng.uniform(-1.0, 1.0),
-                0.0,
-            ]
-        )
-        velocities.extend(
-            [
-                cfg.rng.uniform(1.0, 2.0),
-                cfg.rng.uniform(0.5, 1.5),
-            ]
-        )
-
-    ipositions = ngl.Block(
-        fields=[
-            ngl.BufferVec3(data=positions, label="positions"),
-            ngl.BufferVec2(data=velocities, label="velocities"),
-        ],
-        layout="std430",
-    )
-    opositions = ngl.Block(fields=[ngl.BufferVec3(count=nb_particles, label="positions")], layout="std140")
-
-    animkf = [
-        ngl.AnimKeyFrameFloat(0, 0),
-        ngl.AnimKeyFrameFloat(cfg.duration, 1.0),
-    ]
-    time = ngl.AnimatedFloat(animkf)
-    duration = ngl.UniformFloat(cfg.duration)
-
-    program = ngl.ComputeProgram(_PARTICULES_COMPUTE, workgroup_size=local_size)
-    program.update_properties(odata=ngl.ResourceProps(writable=True))
-    compute = ngl.Compute(workgroups, program)
-    compute.update_resources(time=time, duration=duration, idata=ipositions, odata=opositions)
-
-    circle = ngl.Circle(radius=0.05)
-    program = ngl.Program(vertex=_PARTICULES_VERT, fragment=get_shader("color.frag"))
-    draw = ngl.Draw(circle, program, nb_instances=nb_particles)
-    draw.update_frag_resources(color=ngl.UniformVec3(value=COLORS.sgreen), opacity=ngl.UniformFloat(1))
-    draw.update_vert_resources(data=opositions)
-
-    group = ngl.Group()
-    group.add_children(compute, draw)
-    return group
-
+# -- Histogram -----------------------------------------------------------------
 
 _COMPUTE_HISTOGRAM_CLEAR = """
 void main()
@@ -126,7 +53,6 @@ void main()
     atomicAnd(hist.max.b, 0U);
 }
 """
-
 
 _COMPUTE_HISTOGRAM_EXEC = """
 void main()
@@ -149,58 +75,29 @@ void main()
 """
 
 
-_RENDER_HISTOGRAM_VERT = """
-void main()
-{
-    ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
-    var_uvcoord = ngl_uvcoord;
-}
-"""
-
-
-_RENDER_HISTOGRAM_FRAG = """
-void main()
-{
-    uint x = uint(var_uvcoord.x * %(size)d.0);
-    uint y = uint(var_uvcoord.y * %(size)d.0);
-    uint i = clamp(x + y * %(size)dU, 0U, %(hsize)dU - 1U);
-    vec3 rgb = vec3(hist.r[i], hist.g[i], hist.b[i]) / vec3(hist.max);
-    ngl_out_color = vec4(rgb, 1.0);
-}
-"""
-
-
-_N = 8
-_CUEPOINTS = get_grid_points(_N, _N)
-
-
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def compute_histogram(cfg: ngl.SceneCfg, show_dbg_points=False):
-    cfg.duration = 10
-    cfg.aspect_ratio = (1, 1)
+@test_png(width=W, height=H)
+@ngl.scene()
+def compute_histogram(cfg: ngl.SceneCfg):
     hsize, size, local_size = _N * _N, _N, _N // 2
-    data = array.array("f")
+
+    img = Image.new("RGBA", (size, size))
+    pixels = []
     for _ in range(size * size):
-        data.extend(
-            (
-                cfg.rng.uniform(0.0, 0.5),
-                cfg.rng.uniform(0.25, 0.75),
-                cfg.rng.uniform(0.5, 1.0),
-                1.0,
-            )
-        )
-    texture_buffer = ngl.BufferVec4(data=data)
+        r = int(cfg.rng.uniform(0.0, 0.5) * 255)
+        g = int(cfg.rng.uniform(0.25, 0.75) * 255)
+        b = int(cfg.rng.uniform(0.5, 1.0) * 255)
+        pixels.append((r, g, b, 255))
+    img.putdata(pixels)
+    img_path = os.path.join(tempfile.gettempdir(), "ngl_compute_histogram_source.png")
+    img.save(img_path)
+
     texture = ngl.Texture2D(
-        width=size,
-        height=size,
-        data_src=texture_buffer,
+        data_src=ngl.Media(filename=img_path),
         min_filter="nearest",
         mag_filter="nearest",
     )
-    texture.set_format("r32g32b32a32_sfloat")
 
-    histogram_block = ngl.Block(layout="std140", label="histogram")
+    histogram_block = ngl.Block(layout="std140", label="hist")
     histogram_block.add_fields(
         ngl.BufferUInt(hsize, label="r"),
         ngl.BufferUInt(hsize, label="g"),
@@ -231,85 +128,23 @@ def compute_histogram(cfg: ngl.SceneCfg, show_dbg_points=False):
     exec_histogram.update_resources(hist=histogram_block, source=texture)
     exec_histogram_program.update_properties(source=ngl.ResourceProps(as_image=True))
 
-    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
-    program = ngl.Program(
-        vertex=_RENDER_HISTOGRAM_VERT,
-        fragment=_RENDER_HISTOGRAM_FRAG % shader_params,
+    fill = ngl.CustomFill(
+        color_glsl="""
+            uint x = uint(uv.x * %(size)d.0);
+            uint y = uint(uv.y * %(size)d.0);
+            uint i = clamp(x + y * %(size)dU, 0U, %(hsize)dU - 1U);
+            vec3 rgb = vec3(hist.r[i], hist.g[i], hist.b[i]) / vec3(hist.max);
+            return vec4(rgb, 1.0);
+        """
+        % shader_params,
+        frag_resources=[histogram_block],
     )
-    program.update_vert_out_vars(var_uvcoord=ngl.IOVec2())
-    draw = ngl.Draw(quad, program, label="draw_histogram")
-    draw.update_frag_resources(hist=histogram_block)
+    draw = ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
 
-    group = ngl.Group(children=[clear_histogram, exec_histogram, draw])
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _CUEPOINTS))
-    return group
+    return _scene(cfg, ngl.Group(children=[clear_histogram, exec_histogram, draw]))
 
 
-_ANIMATION_COMPUTE = """
-void main()
-{
-    uint i = gl_WorkGroupID.x * gl_WorkGroupSize.x * gl_WorkGroupSize.y + gl_LocalInvocationIndex;
-    dst.vertices[i] = vec3(transform * vec4(src.vertices[i], 1.0));
-}
-"""
-
-
-def _compute_animation(cfg: ngl.SceneCfg, animate_pre_draw=True):
-    cfg.duration = 5
-    cfg.aspect_ratio = (1, 1)
-    local_size = 2
-
-    vertices_data = array.array(
-        "f",
-        [
-            # fmt: off
-            -0.5, -0.5, 0.0,
-             0.5, -0.5, 0.0,
-            -0.5,  0.5, 0.0,
-             0.5,  0.5, 0.0,
-            # fmt: on
-        ],
-    )
-    nb_vertices = 4
-
-    input_vertices = ngl.BufferVec3(data=vertices_data, label="vertices")
-    output_vertices = ngl.BufferVec3(data=vertices_data, label="vertices")
-    input_padding = ngl.UniformVec3(label="padding")
-    output_padding = ngl.UniformVec4(label="padding")
-    input_block = ngl.Block(fields=[input_padding, input_vertices], layout="std140")
-    output_block = ngl.Block(fields=[output_padding, output_vertices], layout="std140")
-
-    rotate_animkf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(cfg.duration, 360)]
-    rotate = ngl.Rotate(ngl.Identity(), axis=(0, 0, 1), angle=ngl.AnimatedFloat(rotate_animkf))
-    transform = ngl.UniformMat4(transform=rotate)
-
-    program = ngl.ComputeProgram(_ANIMATION_COMPUTE, workgroup_size=(local_size, local_size, 1))
-    program.update_properties(dst=ngl.ResourceProps(writable=True))
-    compute = ngl.Compute(workgroup_count=(nb_vertices // (local_size**2), 1, 1), program=program)
-    compute.update_resources(transform=transform, src=input_block, dst=output_block)
-
-    quad_buffer = ngl.BufferVec3(block=output_block, block_field="vertices")
-    geometry = ngl.Geometry(quad_buffer, topology="triangle_strip")
-    program = ngl.Program(vertex=get_shader("color.vert"), fragment=get_shader("color.frag"))
-    draw = ngl.Draw(geometry, program)
-    draw.update_frag_resources(color=ngl.UniformVec3(value=COLORS.sgreen), opacity=ngl.UniformFloat(1))
-
-    children = [compute, draw] if animate_pre_draw else [draw, compute]
-    return ngl.Group(children=children)
-
-
-@test_fingerprint(width=800, height=800, keyframes=5, tolerance=1)
-@ngl.scene()
-def compute_animation(cfg: ngl.SceneCfg):
-    return _compute_animation(cfg)
-
-
-@test_fingerprint(width=800, height=800, keyframes=5, tolerance=1)
-@ngl.scene()
-def compute_animation_post_draw(cfg: ngl.SceneCfg):
-    return _compute_animation(cfg, False)
-
+# -- Image load/store (2D) ----------------------------------------------------
 
 _IMAGE_LOAD_STORE_COMPUTE = """
 void main()
@@ -326,46 +161,26 @@ void main()
 """
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def compute_image_load_store(cfg: ngl.SceneCfg, show_dbg_points=False):
-    cfg.aspect_ratio = (1, 1)
+@test_png(width=W, height=H)
+@ngl.scene()
+def compute_image_load_store(cfg: ngl.SceneCfg):
     size = _N
     texture_data = ngl.BufferFloat(data=array.array("f", [x / (size**2) for x in range(size**2)]))
     texture_r = ngl.Texture2D(
-        format="r32_sfloat",
-        width=size,
-        height=size,
-        data_src=texture_data,
-        min_filter="nearest",
-        mag_filter="nearest",
+        format="r32_sfloat", width=size, height=size, data_src=texture_data, min_filter="nearest", mag_filter="nearest"
     )
     texture_g = ngl.Texture2D(
-        format="r32_sfloat",
-        width=size,
-        height=size,
-        data_src=texture_data,
-        min_filter="nearest",
-        mag_filter="nearest",
+        format="r32_sfloat", width=size, height=size, data_src=texture_data, min_filter="nearest", mag_filter="nearest"
     )
     texture_b = ngl.Texture2D(
-        format="r32_sfloat",
-        width=size,
-        height=size,
-        data_src=texture_data,
-        min_filter="nearest",
-        mag_filter="nearest",
+        format="r32_sfloat", width=size, height=size, data_src=texture_data, min_filter="nearest", mag_filter="nearest"
     )
     scale = ngl.Block(
         fields=[ngl.UniformVec2(value=(-1.0, 1.0), label="factors")],
         layout="std140",
     )
-    texture_rgba = ngl.Texture2D(
-        width=size,
-        height=size,
-        min_filter="nearest",
-        mag_filter="nearest",
-    )
+    texture_rgba = ngl.Texture2D(width=size, height=size, min_filter="nearest", mag_filter="nearest")
+
     program = ngl.ComputeProgram(_IMAGE_LOAD_STORE_COMPUTE, workgroup_size=(size, size, 1))
     program.update_properties(
         texture_r=ngl.ResourceProps(as_image=True),
@@ -378,14 +193,12 @@ def compute_image_load_store(cfg: ngl.SceneCfg, show_dbg_points=False):
         texture_r=texture_r, texture_g=texture_g, texture_b=texture_b, scale=scale, texture_rgba=texture_rgba
     )
 
-    draw = ngl.DrawTexture(texture_rgba)
-    group = ngl.Group(children=[compute, draw])
+    fill = ngl.TextureFill(texture=texture_rgba, scaling="none")
+    draw = ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
+    return _scene(cfg, ngl.Group(children=[compute, draw]))
 
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _CUEPOINTS))
 
-    return group
-
+# -- Image layered load/store (3D / 2D array) ---------------------------------
 
 _IMAGE_LAYERED_STORE_COMPUTE = """
 void main()
@@ -414,8 +227,7 @@ void main()
 """
 
 
-def _get_compute_image_layered_load_store_scene(cfg: ngl.SceneCfg, texture_cls, show_dbg_points=False):
-    cfg.aspect_ratio = (1, 1)
+def _get_compute_image_layered_load_store_scene(cfg, texture_cls):
     size = _N
     texture = texture_cls(
         format="r32_sfloat",
@@ -426,19 +238,12 @@ def _get_compute_image_layered_load_store_scene(cfg: ngl.SceneCfg, texture_cls, 
         mag_filter="nearest",
     )
     texture_rgba = ngl.Texture2D(width=size, height=size, min_filter="nearest", mag_filter="nearest")
-    program_store = ngl.ComputeProgram(_IMAGE_LAYERED_STORE_COMPUTE, workgroup_size=(size, size, 1))
-    program_store.update_properties(
-        texture=ngl.ResourceProps(as_image=True, writable=True),
-    )
-    compute_store = ngl.Compute(workgroup_count=(1, 1, 1), program=program_store)
-    compute_store.update_resources(
-        texture=texture,
-    )
 
-    # Each color component is stored in a separate layer of the 3D texture.
-    # This second compute pass load them, invert them using the scale factors
-    # declared in a block (to mix bindings of different type) and store them in a
-    # RGBA texture.
+    program_store = ngl.ComputeProgram(_IMAGE_LAYERED_STORE_COMPUTE, workgroup_size=(size, size, 1))
+    program_store.update_properties(texture=ngl.ResourceProps(as_image=True, writable=True))
+    compute_store = ngl.Compute(workgroup_count=(1, 1, 1), program=program_store)
+    compute_store.update_resources(texture=texture)
+
     scale = ngl.Block(
         fields=[ngl.UniformVec2(value=(-1.0, 1.0), label="factors")],
         layout="std140",
@@ -449,32 +254,26 @@ def _get_compute_image_layered_load_store_scene(cfg: ngl.SceneCfg, texture_cls, 
         texture_rgba=ngl.ResourceProps(as_image=True, writable=True),
     )
     compute_load_store = ngl.Compute(workgroup_count=(1, 1, 1), program=program_load_store)
-    compute_load_store.update_resources(
-        texture=texture,
-        texture_rgba=texture_rgba,
-        scale=scale,
-    )
+    compute_load_store.update_resources(texture=texture, texture_rgba=texture_rgba, scale=scale)
 
-    draw = ngl.DrawTexture(texture_rgba)
-    group = ngl.Group(children=[compute_store, compute_load_store, draw])
-
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _CUEPOINTS))
-
-    return group
+    fill = ngl.TextureFill(texture=texture_rgba, scaling="none")
+    draw = ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
+    return _scene(cfg, ngl.Group(children=[compute_store, compute_load_store, draw]))
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def compute_image_3d_load_store(cfg: ngl.SceneCfg, show_dbg_points=False):
-    return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture3D, show_dbg_points)
+@test_png(width=W, height=H)
+@ngl.scene()
+def compute_image_3d_load_store(cfg: ngl.SceneCfg):
+    return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture3D)
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def compute_image_2d_array_load_store(cfg: ngl.SceneCfg, show_dbg_points=False):
-    return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture2DArray, show_dbg_points)
+@test_png(width=W, height=H)
+@ngl.scene()
+def compute_image_2d_array_load_store(cfg: ngl.SceneCfg):
+    return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture2DArray)
 
+
+# -- Image cube load/store ----------------------------------------------------
 
 _IMAGE_CUBE_STORE_COMPUTE = """
 void main()
@@ -497,31 +296,21 @@ void main()
 }
 """
 
-_IMAGE_CUBE_VERT = """
-void main()
-{
-    ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
-    var_uvcoord = ngl_position;
-}
-"""
-
-_IMAGE_CUBE_FRAG = """
-// Cube map texture selection is described in the OpenGL specification, see:
-// https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf#table.3.21
+_IMAGE_CUBE_READBACK_COMPUTE = """
 vec2 get_sample_cube_coord(vec3 r, out int face)
 {
     vec3 r_abs = abs(r);
-    vec2 uv;  // sc,tc
-    float ma; // major axis
-    if (r_abs.z >= r_abs.x && r_abs.z >= r_abs.y) { // z major
+    vec2 uv;
+    float ma;
+    if (r_abs.z >= r_abs.x && r_abs.z >= r_abs.y) {
         uv = vec2(sign(r.z) * r.x, -r.y);
         ma = r_abs.z;
         face = r.z < 0.0 ? 5 : 4;
-    } else if (r_abs.y >= r_abs.x) { // y major
+    } else if (r_abs.y >= r_abs.x) {
         uv = vec2(r.x, sign(r.y) * r.z);
         ma = r_abs.y;
         face = r.y < 0.0 ? 3 : 2;
-    } else { // x major
+    } else {
         uv = vec2(sign(r.x) * -r.z, -r.y);
         ma = r_abs.x;
         face = r.x < 0.0 ? 1 : 0;
@@ -531,36 +320,44 @@ vec2 get_sample_cube_coord(vec3 r, out int face)
 
 void main()
 {
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 out_size = imageSize(output_tex);
+    vec2 ndc = (vec2(pos) + 0.5) / vec2(out_size) * 2.0 - 1.0;
+
     int face = 0;
-    vec2 uv = get_sample_cube_coord(vec3(var_uvcoord.xy, 0.5), face);
-    float size = float(imageSize(texture).x);
-    ngl_out_color = imageLoad(texture, ivec3(uv * size, face));
+    vec2 tc = get_sample_cube_coord(vec3(ndc, 0.5), face);
+    float tex_size = float(imageSize(cube_tex).x);
+    vec4 color = imageLoad(cube_tex, ivec3(tc * tex_size, face));
+    imageStore(output_tex, pos, color);
 }
 """
 
 
-@test_fingerprint(width=128, height=128)
+@test_png(width=W, height=H)
 @ngl.scene()
 def compute_image_cube_load_store(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     size = _N
     texture = ngl.TextureCube(format="r32g32b32a32_sfloat", size=size, min_filter="nearest", mag_filter="nearest")
+
     program_store = ngl.ComputeProgram(_IMAGE_CUBE_STORE_COMPUTE, workgroup_size=(size, size, 6))
-    program_store.update_properties(
-        texture=ngl.ResourceProps(as_image=True, writable=True),
-    )
+    program_store.update_properties(texture=ngl.ResourceProps(as_image=True, writable=True))
     compute_store = ngl.Compute(workgroup_count=(1, 1, 1), program=program_store)
-    compute_store.update_resources(
-        texture=texture,
-    )
+    compute_store.update_resources(texture=texture)
 
-    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
-    program = ngl.Program(vertex=_IMAGE_CUBE_VERT, fragment=_IMAGE_CUBE_FRAG)
-    program.update_vert_out_vars(var_uvcoord=ngl.IOVec3())
-    program.update_properties(
-        texture=ngl.ResourceProps(as_image=True),
+    local_size = 16
+    output_tex = ngl.Texture2D(width=W, height=H, min_filter="nearest", mag_filter="nearest")
+    program_readback = ngl.ComputeProgram(
+        _IMAGE_CUBE_READBACK_COMPUTE, workgroup_size=(local_size, local_size, 1)
     )
-    draw = ngl.Draw(quad, program)
-    draw.update_frag_resources(texture=texture)
+    program_readback.update_properties(
+        cube_tex=ngl.ResourceProps(as_image=True),
+        output_tex=ngl.ResourceProps(as_image=True, writable=True),
+    )
+    compute_readback = ngl.Compute(
+        workgroup_count=(W // local_size, H // local_size, 1), program=program_readback
+    )
+    compute_readback.update_resources(cube_tex=texture, output_tex=output_tex)
 
-    return ngl.Group(children=[compute_store, draw])
+    fill = ngl.TextureFill(texture=output_tex, scaling="none")
+    draw = ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
+    return _scene(cfg, ngl.Group(children=[compute_store, compute_readback, draw]))

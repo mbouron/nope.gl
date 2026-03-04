@@ -37,7 +37,6 @@ _COLS = (
     "Textures count",
     "Textures total",
     "Computes",
-    "GraphicCfgs",
     "Draws",
     "RTTs",
 )

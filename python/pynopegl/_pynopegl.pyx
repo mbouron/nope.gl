@@ -153,7 +153,8 @@ cdef extern from "nopegl/nopegl.h":
         ngl_node *root
         double duration
         int32_t framerate[2]
-        int32_t aspect_ratio[2]
+        int32_t width
+        int32_t height
 
     ngl_scene_params ngl_scene_default_params(ngl_node *root)
     ngl_scene *ngl_scene_create()
@@ -629,7 +630,7 @@ cdef class Scene:
             raise MemoryError()
 
     @classmethod
-    def from_params(cls, _Node root, duration, framerate, aspect_ratio):
+    def from_params(cls, _Node root, duration, framerate, width=None, height=None):
         scene = cls()
         cdef uintptr_t sptr = scene.cptr
         cdef ngl_scene *scenep = <ngl_scene *>sptr
@@ -637,12 +638,13 @@ cdef class Scene:
         cdef ngl_scene_params params = ngl_scene_default_params(<ngl_node *>rptr)
         if duration is not None:
             params.duration = duration
-        if aspect_ratio is not None:
-            params.aspect_ratio[0] = aspect_ratio[0]
-            params.aspect_ratio[1] = aspect_ratio[1]
         if framerate is not None:
             params.framerate[0] = framerate[0]
             params.framerate[1] = framerate[1]
+        if width is not None:
+            params.width = width
+        if height is not None:
+            params.height = height
         cdef int ret = ngl_scene_init(scenep, &params)
         if ret < 0:
             raise Exception("unable to initialize scene")
@@ -686,10 +688,16 @@ cdef class Scene:
         return (params.framerate[0], params.framerate[1])
 
     @property
-    def aspect_ratio(self):
+    def width(self):
         assert self.ctx != NULL, "Scene not initialized"
         cdef const ngl_scene_params *params = ngl_scene_get_params(self.ctx);
-        return (params.aspect_ratio[0], params.aspect_ratio[1])
+        return params.width
+
+    @property
+    def height(self):
+        assert self.ctx != NULL, "Scene not initialized"
+        cdef const ngl_scene_params *params = ngl_scene_get_params(self.ctx);
+        return params.height
 
     @property
     def files(self):

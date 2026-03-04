@@ -209,7 +209,6 @@ class _Diff:
         return self._set_framing(cs, nx, ny)
 
     def _get_wait_scene(self):
-        ar = (16, 9)
         n = 2 - [self._media0, self._media1].count(None)
         root = ngl.Text(
             text=f"{n}/2 media selected",
@@ -219,7 +218,7 @@ class _Diff:
             bg_opacity=1,
             padding=54,
         )
-        return ngl.Scene.from_params(root, aspect_ratio=ar)
+        return ngl.Scene.from_params(root, width=16, height=9)
 
     def _get_scene(
         self,
@@ -285,7 +284,8 @@ class _Diff:
             scene,
             duration=duration,
             framerate=avg_frame_rate.as_integer_ratio(),
-            aspect_ratio=(width, height),
+            width=width,
+            height=height,
         )
 
 

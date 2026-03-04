@@ -264,9 +264,10 @@ class Scene(_ngl.Scene):
         root: Node,
         duration: Optional[float] = None,
         framerate: Optional[Tuple[int, int]] = None,
-        aspect_ratio: Optional[Tuple[int, int]] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
     ) -> "Scene":
-        return super().from_params(root, duration, framerate, aspect_ratio)
+        return super().from_params(root, duration, framerate, width, height)
 
     @classmethod
     def from_string(cls, s: Union[str, bytes]) -> "Scene":
@@ -290,8 +291,17 @@ class Scene(_ngl.Scene):
         return super().framerate
 
     @property
+    def width(self) -> int:
+        return super().width
+
+    @property
+    def height(self) -> int:
+        return super().height
+
+    @property
     def aspect_ratio(self) -> Tuple[int, int]:
-        return super().aspect_ratio
+        """Compat alias: returns (width, height)."""
+        return (self.width, self.height)
 
     @property
     def files(self) -> List[str]:
@@ -362,7 +372,8 @@ def get_livectls(scene: Node) -> Mapping[str, Mapping[str, Any]]:
 
 @dataclass
 class SceneCfg:
-    aspect_ratio: Tuple[int, int] = (16, 9)
+    width: int = 0
+    height: int = 0
     duration: float = 30.0
     framerate: Tuple[int, int] = (60, 1)
     backend: Backend = Backend.AUTO
@@ -375,9 +386,21 @@ class SceneCfg:
         # Predictible random number generator
         self.rng = random.Random(0)
 
+    def __setattr__(self, name, value):
+        if name == "aspect_ratio":
+            object.__setattr__(self, "width", value[0])
+            object.__setattr__(self, "height", value[1])
+        else:
+            object.__setattr__(self, name, value)
+
+    def __getattr__(self, name):
+        if name == "aspect_ratio":
+            return (self.width, self.height)
+        raise AttributeError(name)
+
     @property
     def aspect_ratio_float(self) -> float:
-        return self.aspect_ratio[0] / self.aspect_ratio[1]
+        return self.width / self.height if self.height > 0 else 1.0
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -431,7 +454,7 @@ class scene:
                     raise Exception("the specified capabilities set does not match the available capabilities")
 
             root = scene_func(scene_cfg, **extra_args)
-            scene = Scene.from_params(root, scene_cfg.duration, scene_cfg.framerate, scene_cfg.aspect_ratio)
+            scene = Scene.from_params(root, scene_cfg.duration, scene_cfg.framerate, scene_cfg.width, scene_cfg.height)
             return SceneInfo(
                 scene=scene,
                 backend=scene_cfg.backend,
