@@ -19,16 +19,15 @@
 # under the License.
 #
 
+import textwrap
+
 import pynopegl as ngl
 from pynopegl_utils.misc import load_media
 from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_png import test_png
+from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cmp_resources import test_resources
 from pynopegl_utils.toolbox.colors import COLORS
-
-
-def _media_draw(texture, w, h, **kwargs):
-    """Create a DrawRect displaying a texture at full viewport size."""
-    return ngl.DrawRect(rect=(0, 0, w, h), fill=ngl.TextureFill(texture=texture, scaling="none"), **kwargs)
+from pynopegl_utils.toolbox.grid import autogrid_simple
 
 
 def _get_time_scene(cfg: ngl.SceneCfg):
@@ -56,14 +55,14 @@ def _get_time_scene(cfg: ngl.SceneCfg):
 
     m = ngl.Media(m0.filename, time_anim=ngl.AnimatedTime(media_animkf))
     t = ngl.Texture2D(data_src=m, min_filter="nearest", mag_filter="nearest")
-    r = _media_draw(t, m0.width, m0.height)
+    r = ngl.DrawTexture(t)
 
     rf = ngl.TimeRangeFilter(r, range_start, range_stop, prefetch_time=prefetch_duration)
 
     return rf
 
 
-@test_png(width=320, height=240, keyframes=3, threshold=1)
+@test_fingerprint(width=320, height=240, keyframes=3, tolerance=1)
 @ngl.scene()
 def media_flat_remap(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
@@ -76,7 +75,7 @@ def media_flat_remap(cfg: ngl.SceneCfg):
 
     m = ngl.Media(m0.filename, time_anim=ngl.AnimatedTime(media_animkf))
     t = ngl.Texture2D(data_src=m, min_filter="nearest", mag_filter="nearest")
-    return _media_draw(t, m0.width, m0.height)
+    return ngl.DrawTexture(t)
 
 
 @test_cuepoints(
@@ -92,6 +91,12 @@ def media_phases_display(cfg: ngl.SceneCfg):
     return _get_time_scene(cfg)
 
 
+@test_resources(width=320, height=240, keyframes=15)
+@ngl.scene()
+def media_phases_resources(cfg: ngl.SceneCfg):
+    return _get_time_scene(cfg)
+
+
 # Note: the following test only makes sure the clamping code shader compiles,
 # not check for an actual overflow
 @test_cuepoints(width=320, height=240, points={"X": (0, -0.625)}, keyframes=1, tolerance=1)
@@ -103,22 +108,56 @@ def media_clamp(cfg: ngl.SceneCfg):
 
     media = ngl.Media(m0.filename)
     texture = ngl.Texture2D(data_src=media, clamp_video=True, min_filter="nearest", mag_filter="nearest")
-    return _media_draw(texture, m0.width, m0.height)
+    return ngl.DrawTexture(texture)
 
 
-@test_png(width=1024, height=1024, keyframes=30, threshold=2)
+@test_cuepoints(width=320, height=240, points={f"P{i}": (i / 5 * 2 - 1, 0) for i in range(5)}, keyframes=5, tolerance=1)
+@ngl.scene()
+def media_exposed_time(cfg: ngl.SceneCfg):
+    m0 = load_media("mire")
+    cfg.duration = m0.duration
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    vert = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+            uv = ngl_uvcoord;
+        }
+        """
+    )
+
+    frag = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_color = vec4(vec3(step(0.0, tex0_ts/duration - uv.x)), 1.0);
+        }
+        """
+    )
+
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    media = ngl.Media(m0.filename)
+    texture = ngl.Texture2D(data_src=media, min_filter="nearest", mag_filter="nearest")
+    program = ngl.Program(vertex=vert, fragment=frag)
+    program.update_vert_out_vars(uv=ngl.IOVec2())
+    draw = ngl.Draw(quad, program)
+    draw.update_frag_resources(tex0=texture, duration=ngl.UniformFloat(cfg.duration))
+    return draw
+
+
+@test_fingerprint(width=1024, height=1024, keyframes=30, tolerance=2)
 @ngl.scene(controls=dict(overlap_time=ngl.scene.Range(range=[0, 10], unit_base=10), dim=ngl.scene.Range(range=[1, 10])))
 def media_queue(cfg: ngl.SceneCfg, overlap_time=7.0, dim=3):
     cfg.duration = 10
-    cfg.aspect_ratio = (1024, 1024)
+    cfg.aspect_ratio = (1, 1)
 
     nb_medias = dim * dim
+
     medias = [load_media(m).filename for m in ("mire", "cat", "rooster", "panda")]
 
-    cell_w = 1024 // dim
-    cell_h = 1024 // dim
-
-    children = []
+    queued_medias = []
     for video_id in range(nb_medias):
         start = video_id * cfg.duration / nb_medias
         end = start + cfg.duration / nb_medias + overlap_time
@@ -128,56 +167,44 @@ def media_queue(cfg: ngl.SceneCfg, overlap_time=7.0, dim=3):
             ngl.AnimKeyFrameFloat(start + cfg.duration, cfg.duration),
         ]
         media = ngl.Media(medias[video_id % len(medias)], time_anim=ngl.AnimatedTime(animkf))
-        texture = ngl.Texture2D(data_src=media, min_filter="linear", mag_filter="linear")
 
-        col = video_id % dim
-        row = video_id // dim
-        x = col * cell_w
-        y = row * cell_h
-        draw = ngl.DrawRect(rect=(x, y, cell_w, cell_h), fill=ngl.TextureFill(texture=texture, scaling="none"))
+        texture = ngl.Texture2D(data_src=media, min_filter="linear", mag_filter="linear")
+        draw = ngl.DrawTexture(texture)
 
         rf = ngl.TimeRangeFilter(draw, start, end)
-        children.append(rf)
 
-    return ngl.Group(children=children)
+        queued_medias.append(rf)
+
+    return autogrid_simple(queued_medias)
 
 
-@test_png(width=320, height=240, keyframes=20, threshold=1)
+@test_fingerprint(width=320, height=240, keyframes=20, tolerance=1)
 @ngl.scene()
 def media_timeranges_rtt(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
     cfg.duration = d = 10
     cfg.aspect_ratio = (m0.width, m0.height)
 
-    w, h = m0.width, m0.height
-
     # Use a media/texture as leaf to exercise its prefetch/release mechanism
     media = ngl.Media(m0.filename)
     texture = ngl.Texture2D(data_src=media, min_filter="nearest", mag_filter="nearest")
 
     # Diamond tree on the same media texture
-    draw0 = _media_draw(texture, w, h, label="leaf 0")
-    draw1 = _media_draw(texture, w, h, label="leaf 1")
+    draw0 = ngl.DrawTexture(texture, label="leaf 0")
+    draw1 = ngl.DrawTexture(texture, label="leaf 1")
 
     # Create intermediate RTT "proxy" to exercise prefetch/release at this
     # level as well
-    dst_tex0 = ngl.Texture2D(width=w, height=h, min_filter="nearest", mag_filter="nearest")
-    dst_tex1 = ngl.Texture2D(width=w, height=h, min_filter="nearest", mag_filter="nearest")
+    dst_tex0 = ngl.Texture2D(width=m0.width, height=m0.height, min_filter="nearest", mag_filter="nearest")
+    dst_tex1 = ngl.Texture2D(width=m0.width, height=m0.height, min_filter="nearest", mag_filter="nearest")
     rtt0 = ngl.RenderToTexture(draw0, [dst_tex0])
     rtt1 = ngl.RenderToTexture(draw1, [dst_tex1])
 
-    # Render the 2 RTTs as left and right halves
-    half_w = w // 2
-    rtt_draw0 = ngl.DrawRect(
-        rect=(0, 0, half_w, h),
-        fill=ngl.TextureFill(texture=dst_tex0, scaling="none"),
-        label="draw RTT 0",
-    )
-    rtt_draw1 = ngl.DrawRect(
-        rect=(half_w, 0, half_w, h),
-        fill=ngl.TextureFill(texture=dst_tex1, scaling="none"),
-        label="draw RTT 1",
-    )
+    # Render the 2 RTTs vertically split (one half content each)
+    quad0 = ngl.Quad((-1, -1, 0), (1, 0, 0), (0, 2, 0), uv_corner=(0, 0), uv_width=(0.5, 0))
+    quad1 = ngl.Quad((0, -1, 0), (1, 0, 0), (0, 2, 0), uv_corner=(0.5, 0), uv_width=(0.5, 0))
+    rtt_draw0 = ngl.DrawTexture(dst_tex0, geometry=quad0, label="draw RTT 0")
+    rtt_draw1 = ngl.DrawTexture(dst_tex1, geometry=quad1, label="draw RTT 1")
     proxy0 = ngl.Group(children=[rtt0, rtt_draw0], label="proxy 0")
     proxy1 = ngl.Group(children=[rtt1, rtt_draw1], label="proxy 1")
 

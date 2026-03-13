@@ -120,12 +120,17 @@ enum {
 
 enum {
     DRAWCALL_COMPUTES,
+    DRAWCALL_GRAPHICCONFIGS,
     DRAWCALL_DRAWS,
     DRAWCALL_RTTS,
     NB_DRAWCALL
 };
 
 #define BUFFER_NODES                \
+    NGL_NODE_ANIMATEDBUFFERFLOAT,   \
+    NGL_NODE_ANIMATEDBUFFERVEC2,    \
+    NGL_NODE_ANIMATEDBUFFERVEC3,    \
+    NGL_NODE_ANIMATEDBUFFERVEC4,    \
     NGL_NODE_BUFFERBYTE,            \
     NGL_NODE_BUFFERBVEC2,           \
     NGL_NODE_BUFFERBVEC3,           \
@@ -189,7 +194,7 @@ static const struct {
     },
     [MEMORY_BLOCKS_GPU] = {
         .label="Blocks GPU",
-        .node_types=(const uint32_t[]){NGL_NODE_BLOCK, NGLI_NODE_NONE},
+        .node_types=(const uint32_t[]){NGL_NODE_BLOCK, NGL_NODE_COLORSTATS, NGLI_NODE_NONE},
         .color=0xD6FF32FF,
     },
     [MEMORY_TEXTURES] = {
@@ -209,7 +214,7 @@ static const struct activity_spec {
     },
     [ACTIVITY_BLOCKS] = {
         .label="Blocks",
-        .node_types=(const uint32_t[]){NGL_NODE_BLOCK, NGLI_NODE_NONE},
+        .node_types=(const uint32_t[]){NGL_NODE_BLOCK, NGL_NODE_COLORSTATS, NGLI_NODE_NONE},
     },
     [ACTIVITY_MEDIAS] = {
         .label="Medias",
@@ -229,10 +234,21 @@ static const struct drawcall_spec {
         .label="Computes",
         .node_types=(const uint32_t[]){NGL_NODE_COMPUTE, NGLI_NODE_NONE},
     },
+    [DRAWCALL_GRAPHICCONFIGS] = {
+        .label="GraphicCfgs",
+        .node_types=(const uint32_t[]){NGL_NODE_GRAPHICCONFIG, NGLI_NODE_NONE},
+    },
     [DRAWCALL_DRAWS] = {
         .label="Draws",
         .node_types=(const uint32_t[]){
             NGL_NODE_DRAW,
+            NGL_NODE_DRAWCOLOR,
+            NGL_NODE_DRAWGRADIENT,
+            NGL_NODE_DRAWGRADIENT4,
+            NGL_NODE_DRAWHISTOGRAM,
+            NGL_NODE_DRAWPATH,
+            NGL_NODE_DRAWTEXTURE,
+            NGL_NODE_DRAWWAVEFORM,
             NGLI_NODE_NONE
         },
     },

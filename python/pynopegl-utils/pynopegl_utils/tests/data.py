@@ -23,8 +23,17 @@ import colorsys
 import random
 
 import pynopegl as ngl
+from pynopegl_utils.tests.cuepoints_utils import get_points_nodes
 
-_FIELDS_HEADER = """\
+_FIELDS_VERT = """
+void main()
+{
+    ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+    var_uvcoord = ngl_uvcoord;
+}
+"""
+
+_FIELDS_FRAG = """
 float in_rect(vec4 rect, vec2 pos)
 {
     return (1.0 - step(pos.x, rect.x)) * step(pos.x, rect.x + rect.z) *
@@ -32,13 +41,14 @@ float in_rect(vec4 rect, vec2 pos)
 }
 
 %(func_definitions)s
-"""
 
-_FIELDS_BODY = """\
+void main()
+{
     float w = 1.0;
     float h = 1.0 / float(nb_fields);
     vec3 res = %(func_calls)s;
-    return vec4(res, 1.0);
+    ngl_out_color = vec4(res, 1.0);
+}
 """
 
 _ARRAY_TPL = """
@@ -62,8 +72,8 @@ vec3 get_color_%(field_name)s(float w, float h, float x, float y)
 }
 """
 
-_COMMON_INT_TPL = "amount += float(%(fields_prefix)s%(field_name)s%(vec_field)s) * %(scale)f * in_rect(rect_%(comp_id)d, uv);"
-_COMMON_FLT_TPL = "amount += %(fields_prefix)s%(field_name)s%(vec_field)s * in_rect(rect_%(comp_id)d, uv);"
+_COMMON_INT_TPL = "amount += float(%(fields_prefix)s%(field_name)s%(vec_field)s) * %(scale)f * in_rect(rect_%(comp_id)d, var_uvcoord);"
+_COMMON_FLT_TPL = "amount += %(fields_prefix)s%(field_name)s%(vec_field)s * in_rect(rect_%(comp_id)d, var_uvcoord);"
 
 _RECT_ARRAY_TPL = "vec4 rect_%(comp_id)d = vec4(x + %(row)f * w / (%(nb_rows)f * float(len)) + float(i) * w / float(len), y + %(col)f * h / %(nb_cols)f, w / %(nb_rows)f / float(len), h / %(nb_cols)f);"
 _RECT_SINGLE_TPL = "vec4 rect_%(comp_id)d = vec4(x + %(col)f * w / %(nb_cols)f, y + %(row)f * h / %(nb_rows)f, w / %(nb_cols)f, h / %(nb_rows)f);"
@@ -104,15 +114,9 @@ def _get_display_glsl_func(layout, field_name, field_type, field_len=None):
     rect_tpl = _RECT_ARRAY_TPL if is_array else _RECT_SINGLE_TPL
     amount_tpl = _COMMON_INT_TPL if scale is not None else _COMMON_FLT_TPL
 
-    # In uniform layout, buffer arrays are wrapped in a block named "fields",
-    # so they use "fields." prefix like std140/std430; scalar uniforms use "field_"
-    if layout == "uniform" and not is_array:
-        fields_prefix = "field_"
-    else:
-        fields_prefix = "fields."
     tpl_data = dict(
         colors_prefix="color_" if layout == "uniform" else "colors.",
-        fields_prefix=fields_prefix,
+        fields_prefix="field_" if layout == "uniform" else "fields.",
         field_name=field_name,
         field_len=field_len,
         nb_comp=nb_comp,
@@ -230,6 +234,10 @@ _FUNCS = dict(
     animated_vec2=        lambda data: ngl.AnimatedVec2(keyframes=_get_anim_kf(ngl.AnimKeyFrameVec2, data)),
     animated_vec3=        lambda data: ngl.AnimatedVec3(keyframes=_get_anim_kf(ngl.AnimKeyFrameVec3, data)),
     animated_vec4=        lambda data: ngl.AnimatedVec4(keyframes=_get_anim_kf(ngl.AnimKeyFrameVec4, data)),
+    animated_buffer_float=lambda data: ngl.AnimatedBufferFloat(keyframes=_get_anim_kf(ngl.AnimKeyFrameBuffer, data)),
+    animated_buffer_vec2= lambda data: ngl.AnimatedBufferVec2(keyframes=_get_anim_kf(ngl.AnimKeyFrameBuffer, data)),
+    animated_buffer_vec3= lambda data: ngl.AnimatedBufferVec3(keyframes=_get_anim_kf(ngl.AnimKeyFrameBuffer, data)),
+    animated_buffer_vec4= lambda data: ngl.AnimatedBufferVec4(keyframes=_get_anim_kf(ngl.AnimKeyFrameBuffer, data)),
     animated_quat_mat4=   lambda data: ngl.AnimatedQuat(keyframes=_get_anim_kf(ngl.AnimKeyFrameQuat, data), as_mat4=True),
     animated_quat_vec4=   lambda data: ngl.AnimatedQuat(keyframes=_get_anim_kf(ngl.AnimKeyFrameQuat, data), as_mat4=False),
     array_float=          lambda data: ngl.BufferFloat(data=data),
@@ -261,10 +269,10 @@ _FUNCS = dict(
 )
 
 
-def get_field_scene(cfg: ngl.SceneCfg, spec, category, field_type, seed, debug_positions, layout, color_tint, rect_size=128):
+def get_field_scene(cfg: ngl.SceneCfg, spec, category, field_type, seed, debug_positions, layout, color_tint):
     """
     Build a scene testing that a given data has been properly uploaded to the
-    GPU memory using DrawRect + CustomFill.
+    GPU memory.
 
     - `spec` contains all the fields that should also be declared (either in a
       block or as uniforms). All the fields are shuffled such that the field we
@@ -273,11 +281,12 @@ def get_field_scene(cfg: ngl.SceneCfg, spec, category, field_type, seed, debug_p
     - `category` and `field_type` are filters in the spec to select the
       field(s) from which we want to read the data
     - `seed` is used to control the fields shuffling
-    - `debug_positions` is unused (kept for API compatibility)
+    - `debug_positions` controls whether there are debug circles in the scene
+      in order to make sure we are reading back the data colors at the
+      appropriate position
     - `layout` controls the block layout or whether we are working with uniforms
     - `color_tint` is a debug helper to give a different color for each field
       (because if they have the same data, it is hard to indiscriminate them).
-    - `rect_size` is the viewport size in pixels (square)
     """
 
     cfg.aspect_ratio = (1, 1)
@@ -312,40 +321,41 @@ def get_field_scene(cfg: ngl.SceneCfg, spec, category, field_type, seed, debug_p
         func_calls.append("get_color_{}(w, h, 0.0, {:f} * h)".format(field["name"], i))
         func_definitions.append(_get_display_glsl_func(layout, field["name"], field["type"], field_len=field_len))
 
-    glsl_header = _FIELDS_HEADER % dict(func_definitions="\n".join(func_definitions))
-    color_glsl = _FIELDS_BODY % dict(func_calls=" + ".join(func_calls))
+    frag_data = dict(
+        func_definitions="\n".join(func_definitions),
+        func_calls=" + ".join(func_calls),
+    )
+
+    fragment = _FIELDS_FRAG % frag_data
+    vertex = _FIELDS_VERT
+
+    program = ngl.Program(vertex=vertex, fragment=fragment)
+    program.update_vert_out_vars(var_uvcoord=ngl.IOVec2())
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    draw = ngl.Draw(quad, program)
 
     shuf_fields = [fields_info[pos] for pos in fields_pos]
-    color_field_pairs = [(f["name"], ngl.UniformVec3(f["color"], label=f["name"])) for f in fields_info]
-    block_field_pairs = [(f["name"], f["node"]) for f in shuf_fields]
-
-    resources = []
-    field_categories = {f["name"]: f["category"] for f in fields}
+    color_fields = [(f["name"], ngl.UniformVec3(f["color"], label=f["name"])) for f in fields_info]
+    block_fields = [(f["name"], f["node"]) for f in shuf_fields]
     if layout == "uniform":
-        color_dict = dict(color_field_pairs)
-        block_dict = dict(block_field_pairs)
+        color_fields = dict(color_fields)
+        block_fields = dict(block_fields)
         field_names = {f["name"] for f in fields}
-        buffer_nodes = []
-        for n, u in color_dict.items():
-            if n in field_names:
-                u.set_label("color_" + n)
-                resources.append(u)
-        for n, u in block_dict.items():
-            if n in field_names:
-                if field_categories.get(n) == "array":
-                    buffer_nodes.append(u)
-                else:
-                    u.set_label("field_" + n)
-                    resources.append(u)
-        if buffer_nodes:
-            fields_block = ngl.Block(fields=buffer_nodes, layout="std430", label="fields")
-            resources.append(fields_block)
+        d = {}
+        d.update(("color_" + n, u) for (n, u) in color_fields.items() if n in field_names)
+        d.update(("field_" + n, u) for (n, u) in block_fields.items() if n in field_names)
+        draw.update_frag_resources(**d)
     else:
-        colors_block = ngl.Block(fields=[f for _, f in color_field_pairs], layout=layout, label="colors")
-        fields_block = ngl.Block(fields=[f for _, f in block_field_pairs], layout=layout, label="fields")
-        resources.extend([fields_block, colors_block])
+        color_fields = ngl.Block(fields=[f for _, f in color_fields], layout=layout, label="colors_block")
+        block_fields = ngl.Block(fields=[f for _, f in block_fields], layout=layout, label="fields_block")
+        draw.update_frag_resources(fields=block_fields, colors=color_fields)
 
-    resources.append(ngl.UniformInt(len(fields), label="nb_fields"))
+    draw.update_frag_resources(nb_fields=ngl.UniformInt(len(fields)))
 
-    fill = ngl.CustomFill(glsl_header=glsl_header, color_glsl=color_glsl, frag_resources=resources)
-    return ngl.DrawRect(rect=(0, 0, rect_size, rect_size), fill=fill)
+    if debug_positions:
+        debug_points = get_data_debug_positions(fields)
+        dbg_circles = get_points_nodes(cfg, debug_points, text_size=(0.2, 0.1))
+        g = ngl.Group(children=[draw, dbg_circles])
+        return g
+
+    return draw

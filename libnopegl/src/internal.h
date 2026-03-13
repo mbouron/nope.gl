@@ -406,8 +406,6 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str);
 char *ngli_scene_serialize(const struct ngl_scene *s);
 char *ngli_scene_dot(const struct ngl_scene *s);
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par);
-int ngli_scene_attach_child(struct ngl_scene *scene, struct ngl_node *parent, struct ngl_node *child);
-void ngli_scene_detach_child(struct ngl_scene *scene, struct ngl_node *parent, struct ngl_node *child);
 
 int ngli_node_prepare(struct ngl_node *node);
 int ngli_node_prepare_children(struct ngl_node *node);
@@ -420,7 +418,6 @@ void ngli_node_draw(struct ngl_node *node);
 void ngli_node_draw_children(struct ngl_node *node);
 int ngli_node_invalidate_branch(struct ngl_node *node);
 
-int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 

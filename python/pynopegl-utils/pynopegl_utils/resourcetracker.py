@@ -39,15 +39,12 @@ class ResourceTracker:
         self._configfile = op.realpath(Config.FILEPATH)
 
     def _register_file(self, file):
-        try:
-            if not op.isfile(file):
-                return
-            file = op.realpath(file)
-            if file == self._configfile:
-                return
-            self.filelist.update([file])
-        except:
-            pass
+        if not op.isfile(file):
+            return
+        file = op.realpath(file)
+        if file == self._configfile:
+            return
+        self.filelist.update([file])
 
     def _builtin_open_hook(self, file, *args, **kwargs):
         ret = self._builtin_open(file, *args, **kwargs)

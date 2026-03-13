@@ -52,6 +52,7 @@ struct compute_priv {
                                                NGL_NODE_TEXTURE3D,       \
                                                NGL_NODE_TEXTURECUBE,     \
                                                NGL_NODE_BLOCK,           \
+                                               NGL_NODE_COLORSTATS,      \
                                                NGL_NODE_UNIFORMFLOAT,    \
                                                NGL_NODE_UNIFORMVEC2,     \
                                                NGL_NODE_UNIFORMVEC3,     \
@@ -82,7 +83,24 @@ struct compute_priv {
                                                NGL_NODE_EVALVEC2,        \
                                                NGL_NODE_EVALVEC3,        \
                                                NGL_NODE_EVALVEC4,        \
+                                               NGL_NODE_STREAMEDINT,     \
+                                               NGL_NODE_STREAMEDIVEC2,   \
+                                               NGL_NODE_STREAMEDIVEC3,   \
+                                               NGL_NODE_STREAMEDIVEC4,   \
+                                               NGL_NODE_STREAMEDUINT,    \
+                                               NGL_NODE_STREAMEDUIVEC2,  \
+                                               NGL_NODE_STREAMEDUIVEC3,  \
+                                               NGL_NODE_STREAMEDUIVEC4,  \
+                                               NGL_NODE_STREAMEDFLOAT,   \
+                                               NGL_NODE_STREAMEDVEC2,    \
+                                               NGL_NODE_STREAMEDVEC3,    \
+                                               NGL_NODE_STREAMEDVEC4,    \
+                                               NGL_NODE_STREAMEDMAT4,    \
                                                NGL_NODE_TIME,            \
+                                               NGL_NODE_VELOCITYFLOAT,   \
+                                               NGL_NODE_VELOCITYVEC2,    \
+                                               NGL_NODE_VELOCITYVEC3,    \
+                                               NGL_NODE_VELOCITYVEC4,    \
                                                NGLI_NODE_NONE}
 
 #define OFFSET(x) offsetof(struct compute_opts, x)

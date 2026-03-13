@@ -21,22 +21,22 @@
 #
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_png import test_png
-
-W, H = 320, 320
+from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
 
 
-@test_png(width=W, height=H)
+@test_fingerprint(width=320, height=320, keyframes=10, tolerance=1)
 @ngl.scene()
 def noise_blocky(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (W, H)
-    fill = ngl.NoiseFill(type="blocky", octaves=3, seed=42)
-    return ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
+    cfg.aspect_ratio = (1, 1)
+    cfg.duration = 5
+
+    return ngl.DrawNoise(type="blocky", octaves=3, scale=(9, 9), evolution=ngl.Time())
 
 
-@test_png(width=W, height=H)
+@test_fingerprint(width=320, height=320, keyframes=10, tolerance=1)
 @ngl.scene()
 def noise_perlin(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (W, H)
-    fill = ngl.NoiseFill(type="perlin", octaves=3, seed=42)
-    return ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
+    cfg.aspect_ratio = (1, 1)
+    cfg.duration = 5
+
+    return ngl.DrawNoise(type="perlin", octaves=3, scale=(2, 2), evolution=ngl.Time())

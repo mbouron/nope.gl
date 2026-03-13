@@ -1,5 +1,0 @@
-live.py
-texture.py
-data.py (rollback)
-compute.py (rollback)
-node_texture.c (re-enable buffer as input)

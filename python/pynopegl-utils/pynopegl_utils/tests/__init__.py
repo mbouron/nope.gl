@@ -139,11 +139,8 @@ def run():
         sys.exit(0)
 
     tester = func.tester
-    if hasattr(tester, "run_with_ref"):
-        err = tester.run_with_ref(func_name, ref_filepath, dump, refgen_opt)
-    else:
-        test_func = _refgen_map[refgen_opt]
-        err = test_func(func_name, tester, ref_filepath, dump)
+    test_func = _refgen_map[refgen_opt]
+    err = test_func(func_name, tester, ref_filepath, dump)
     if err:
         sys.stderr.write(f"{func_name} failed\n")
         sys.stderr.write("\n".join(err) + "\n")

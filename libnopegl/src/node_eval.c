@@ -61,7 +61,15 @@ struct eval_priv {
                                             NGL_NODE_ANIMATEDVEC2,    \
                                             NGL_NODE_ANIMATEDVEC3,    \
                                             NGL_NODE_ANIMATEDVEC4,    \
+                                            NGL_NODE_STREAMEDFLOAT,   \
+                                            NGL_NODE_STREAMEDVEC2,    \
+                                            NGL_NODE_STREAMEDVEC3,    \
+                                            NGL_NODE_STREAMEDVEC4,    \
                                             NGL_NODE_TIME,            \
+                                            NGL_NODE_VELOCITYFLOAT,   \
+                                            NGL_NODE_VELOCITYVEC2,    \
+                                            NGL_NODE_VELOCITYVEC3,    \
+                                            NGL_NODE_VELOCITYVEC4,    \
                                             NGLI_NODE_NONE}
 
 #define OFFSET(x) offsetof(struct eval_opts, x)

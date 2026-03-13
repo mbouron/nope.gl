@@ -500,7 +500,7 @@ char *ngli_scene_serialize(const struct ngl_scene *s)
     ngli_bstr_printf(b, "# duration=");
     print_f64(b, s->params.duration);
     ngli_bstr_print(b, "\n");
-    ngli_bstr_printf(b, "# canvas=%dx%d\n", s->params.width, s->params.height);
+    ngli_bstr_printf(b, "# aspect_ratio=%d/%d\n", s->params.aspect_ratio[0], s->params.aspect_ratio[1]);
     ngli_bstr_printf(b, "# framerate=%d/%d\n", s->params.framerate[0], s->params.framerate[1]);
 
     /* Write nodes (1 line = 1 node) */

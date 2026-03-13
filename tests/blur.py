@@ -19,28 +19,22 @@
 # under the License.
 #
 
+import textwrap
+
 import pynopegl as ngl
 from pynopegl_utils.misc import load_media
-from pynopegl_utils.tests.cmp_png import test_png
-
-_NOISE_W, _NOISE_H = 256, 256
-_CITY_MI = None
-
-
-def _get_city_media():
-    global _CITY_MI
-    if _CITY_MI is None:
-        _CITY_MI = load_media("city")
-    return _CITY_MI
+from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
+from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cuepoints_utils import get_grid_points, get_points_nodes
 
 
-@test_png(width=_NOISE_W, height=_NOISE_H, keyframes=10, threshold=1)
+@test_fingerprint(width=256, height=256, keyframes=10, tolerance=1)
 @ngl.scene()
 def blur_gaussian(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (_NOISE_W, _NOISE_H)
+    cfg.aspect_ratio = (1, 1)
     cfg.duration = 10
 
-    noise = ngl.DrawRect(rect=(0, 0, _NOISE_W, _NOISE_H), fill=ngl.NoiseFill(type="blocky", octaves=3, seed=42))
+    noise = ngl.DrawNoise(type="blocky", octaves=3, scale=(9, 9))
     noise_texture = ngl.Texture2D(data_src=noise)
     blurred_texture = ngl.Texture2D()
     blur = ngl.GaussianBlur(
@@ -53,21 +47,16 @@ def blur_gaussian(cfg: ngl.SceneCfg):
             ]
         ),
     )
-    display = ngl.DrawRect(
-        rect=(0, 0, _NOISE_W, _NOISE_H),
-        fill=ngl.TextureFill(texture=blurred_texture, scaling="none"),
-    )
-    return ngl.Group(children=[blur, display])
+    return ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
 
 
-@test_png(width=800, height=800, keyframes=10, threshold=5)
+@test_fingerprint(width=800, height=800, keyframes=10, tolerance=5)
 @ngl.scene()
 def blur_fast_gaussian(cfg: ngl.SceneCfg):
-    w, h = 800, 800
-    cfg.aspect_ratio = (w, h)
+    cfg.aspect_ratio = (1, 1)
     cfg.duration = 10
 
-    noise = ngl.DrawRect(rect=(0, 0, w, h), fill=ngl.NoiseFill(type="blocky", octaves=3, seed=42))
+    noise = ngl.DrawNoise(type="blocky", octaves=3, scale=(9, 9))
     noise_texture = ngl.Texture2D(data_src=noise)
     blurred_texture = ngl.Texture2D()
     blur = ngl.FastGaussianBlur(
@@ -80,17 +69,16 @@ def blur_fast_gaussian(cfg: ngl.SceneCfg):
             ]
         ),
     )
-    display = ngl.DrawRect(
-        rect=(0, 0, w, h),
-        fill=ngl.TextureFill(texture=blurred_texture, scaling="none"),
-    )
-    return ngl.Group(children=[blur, display])
+    return ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
 
 
-@test_png(width=540, height=808, keyframes=5, threshold=5)
-@ngl.scene()
-def blur_hexagonal(cfg: ngl.SceneCfg):
-    mi = _get_city_media()
+_BLUR_HEXAGONAL_CUEPOINTS = get_grid_points(10, 10)
+
+
+@test_cuepoints(width=540, height=808, points=_BLUR_HEXAGONAL_CUEPOINTS, keyframes=5, tolerance=5)
+@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
+def blur_hexagonal(cfg: ngl.SceneCfg, show_dbg_points=False):
+    mi = load_media("city")
     cfg.aspect_ratio = (mi.width, mi.height)
     cfg.duration = 5
 
@@ -106,32 +94,59 @@ def blur_hexagonal(cfg: ngl.SceneCfg):
             ]
         ),
     )
-    display = ngl.DrawRect(
-        rect=(0, 0, mi.width, mi.height),
-        fill=ngl.TextureFill(texture=blurred_texture, scaling="none"),
-    )
-    return ngl.Group(children=[blur, display])
+
+    group = ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
+    if show_dbg_points:
+        group.add_children(get_points_nodes(cfg, _BLUR_HEXAGONAL_CUEPOINTS))
+
+    return group
 
 
-@test_png(width=540, height=808, keyframes=5, threshold=5)
-@ngl.scene()
-def blur_hexagonal_with_map(cfg: ngl.SceneCfg):
-    mi = _get_city_media()
+_BLUR_HEXAGONAL_MAP_VERTEX = textwrap.dedent(
+    """
+    void main()
+    {
+        vec4 position = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+        uv = position.xy;
+        ngl_out_pos = position;
+    }
+    """
+)
+
+_BLUR_HEXAGONAL_MAP_FRAGMENT = textwrap.dedent(
+    """
+    #define ngli_sat(x) clamp(x, 0.0, 1.0)
+    #define ngli_linear(a, b, x) (((x) - (a)) / ((b) - (a)))
+    #define ngli_linearstep(a, b, x) ngli_sat(ngli_linear(a, b, x))
+
+    float sd_rounded_box(vec2 position, vec2 size, float radius)
+    {
+       position = abs(position) - size + radius;
+       return length(max(position, 0.0)) + min(max(position.x, position.y), 0.0) - radius;
+    }
+
+    void main()
+    {
+        float sd = sd_rounded_box(uv + vec2(-0.016, 0.11), vec2(0.19, 0.19), 0.13);
+        float value = ngli_linearstep(0.0, 0.8, sd);
+        ngl_out_color = vec4(value);
+    }
+    """
+)
+
+
+@test_cuepoints(width=540, height=808, points=_BLUR_HEXAGONAL_CUEPOINTS, keyframes=5, tolerance=5)
+@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
+def blur_hexagonal_with_map(cfg: ngl.SceneCfg, show_dbg_points=False):
+    mi = load_media("city")
     cfg.aspect_ratio = (mi.width, mi.height)
     cfg.duration = 5
 
-    # Generate the blur map with a rounded-box SDF via CustomFill
-    map_fill = ngl.CustomFill(
-        color_glsl="""
-            vec2 p = uv * 2.0 - 1.0;
-            vec2 pos = abs(p + vec2(-0.016, 0.11)) - vec2(0.19, 0.19) + 0.13;
-            float sd = length(max(pos, 0.0)) + min(max(pos.x, pos.y), 0.0) - 0.13;
-            float value = clamp(sd / 0.8, 0.0, 1.0);
-            return vec4(value, value, value, value);
-        """,
-    )
-    map_rect = ngl.DrawRect(rect=(0, 0, mi.width // 2, mi.height // 2), fill=map_fill)
-    map_texture = ngl.Texture2D(width=mi.width // 2, height=mi.height // 2, format="r8_unorm", data_src=map_rect)
+    quad = ngl.Quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 2, 0))
+    program = ngl.Program(vertex=_BLUR_HEXAGONAL_MAP_VERTEX, fragment=_BLUR_HEXAGONAL_MAP_FRAGMENT)
+    program.update_vert_out_vars(uv=ngl.IOVec2())
+    render = ngl.Draw(quad, program)
+    map_texture = ngl.Texture2D(width=mi.width // 2, height=mi.height // 2, format="r8_unorm", data_src=render)
 
     source_texture = ngl.Texture2D(data_src=ngl.Media(filename=mi.filename))
     blurred_texture = ngl.Texture2D()
@@ -146,8 +161,9 @@ def blur_hexagonal_with_map(cfg: ngl.SceneCfg):
         ),
         map=map_texture,
     )
-    display = ngl.DrawRect(
-        rect=(0, 0, mi.width, mi.height),
-        fill=ngl.TextureFill(texture=blurred_texture, scaling="none"),
-    )
-    return ngl.Group(children=[blur, display])
+
+    group = ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
+    if show_dbg_points:
+        group.add_children(get_points_nodes(cfg, _BLUR_HEXAGONAL_CUEPOINTS))
+
+    return group

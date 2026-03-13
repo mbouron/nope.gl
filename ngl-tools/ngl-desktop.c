@@ -433,12 +433,26 @@ static struct ngl_scene *get_default_scene(const char *host, const char *port)
     if (!scene)
         return NULL;
 
-    struct ngl_node *group = ngl_node_create(NGL_NODE_GROUP);
+    char subtext_buf[64];
+    snprintf(subtext_buf, sizeof(subtext_buf), "Listening on %s:%s", host, port);
+    static const float fg_color[]  = {1.0f, 2.f/3.f, 0.0f};
+    static const float subtext_box[] = {-1.f, -1.f, 2.f, 0.5f};
 
-    if (!group) {
+    struct ngl_node *group = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *texts[] = {
+        ngl_node_create(NGL_NODE_TEXT),
+        ngl_node_create(NGL_NODE_TEXT),
+    };
+
+    if (!group || !texts[0] || !texts[1]) {
         ngl_scene_unrefp(&scene);
         goto end;
     }
+    ngl_node_param_set_str(texts[0], "text", "No scene");
+    ngl_node_param_set_vec3(texts[0], "fg_color", fg_color);
+    ngl_node_param_set_str(texts[1], "text", subtext_buf);
+    ngl_node_param_set_vec4(texts[1], "box", subtext_box);
+    ngl_node_param_add_nodes(group, "children", 2, texts);
 
     struct ngl_scene_params params = ngl_scene_default_params(group);
     params.duration = 0.0;
@@ -447,6 +461,8 @@ static struct ngl_scene *get_default_scene(const char *host, const char *port)
 
 end:
     ngl_node_unrefp(&group);
+    ngl_node_unrefp(&texts[0]);
+    ngl_node_unrefp(&texts[1]);
     return scene;
 }
 

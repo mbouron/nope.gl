@@ -20,29 +20,22 @@
 #
 
 import array
+import textwrap
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_png import test_png
+from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
+from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cuepoints_utils import get_grid_points, get_points_nodes
 from pynopegl_utils.tests.data import (
     ANIM_DURATION,
     LAYOUTS,
     gen_floats,
     gen_ints,
+    get_data_debug_positions,
     get_field_scene,
     match_fields,
 )
-
-W, H = 256, 256
-_DATA_SIZE = 128
-
-
-def _scene(cfg: ngl.SceneCfg, node, duration: float = 1.0):
-    cfg.aspect_ratio = (W, H)
-    cfg.duration = duration
-    return node
-
-
-# ── Bootstrap data upload tests ──────────────────────────────────────────────
+from pynopegl_utils.toolbox.colors import COLORS
 
 
 def _get_data_spec(layout, i_count=6, f_count=7, v2_count=5, v3_count=9, v4_count=2, mat_count=3):
@@ -120,6 +113,10 @@ def _get_data_spec(layout, i_count=6, f_count=7, v2_count=5, v3_count=9, v4_coun
             dict(name="t_iv3",  type="ivec3",      category="array",           data=iv3_array,  len=v3_count),
             dict(name="t_iv4",  type="ivec4",      category="array",           data=iv4_array,  len=v4_count),
             dict(name="t_mat4", type="mat4",       category="array",           data=mat4_array, len=mat_count),
+            dict(name="ab_f",   type="float",      category="animated_buffer", data=f_array,    len=f_count),
+            dict(name="ab_v2",  type="vec2",       category="animated_buffer", data=v2_array,   len=v2_count),
+            dict(name="ab_v3",  type="vec3",       category="animated_buffer", data=v3_array,   len=v3_count),
+            dict(name="ab_v4",  type="vec4",       category="animated_buffer", data=v4_array,   len=v4_count),
         ]
     # fmt: on
 
@@ -128,22 +125,24 @@ def _get_data_spec(layout, i_count=6, f_count=7, v2_count=5, v3_count=9, v4_coun
 
 def _get_data_function(spec, category, field_type, layout):
     keyframes = 5 if "animated" in category else 1
+    fields = match_fields(spec, category, field_type)
 
-    @test_png(
-        width=_DATA_SIZE,
-        height=_DATA_SIZE,
+    @test_cuepoints(
+        width=128,
+        height=128,
+        points=get_data_debug_positions(fields),
         keyframes=keyframes,
-        threshold=1,
+        tolerance=1,
+        debug_positions=False,
     )
     @ngl.scene(
         controls=dict(
-            seed=ngl.scene.Range(range=[0, 100]),
-            color_tint=ngl.scene.Bool(),
+            seed=ngl.scene.Range(range=[0, 100]), debug_positions=ngl.scene.Bool(), color_tint=ngl.scene.Bool()
         )
     )
-    def scene_func(cfg: ngl.SceneCfg, seed=0, color_tint=False):
+    def scene_func(cfg: ngl.SceneCfg, seed=0, debug_positions=True, color_tint=False):
         cfg.duration = ANIM_DURATION
-        return get_field_scene(cfg, spec, category, field_type, seed, False, layout, color_tint, rect_size=_DATA_SIZE)
+        return get_field_scene(cfg, spec, category, field_type, seed, debug_positions, layout, color_tint)
 
     return scene_func
 
@@ -155,56 +154,226 @@ for layout in LAYOUTS:
         globals()[f"data_{category}_{field_type}_{layout}"] = _get_data_function(spec, category, field_type, layout)
 
 
-# ── Noise tests ──────────────────────────────────────────────────────────────
+_RENDER_STREAMEDBUFFER_VERT = """
+void main()
+{
+    ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+    var_uvcoord = ngl_uvcoord;
+}
+"""
 
 
-@test_png(width=W, height=H, keyframes=10, threshold=1)
+_RENDER_STREAMEDBUFFER_FRAG = """
+void main()
+{
+    uint x = uint(var_uvcoord.x * %(size)d.0);
+    uint y = uint(var_uvcoord.y * %(size)d.0);
+    uint i = clamp(x + y * %(size)dU, 0U, %(data_size)dU - 1U);
+    ngl_out_color = vec4(streamed.data[i]);
+}
+"""
+
+
+def _get_data_streamed_buffer_vec4_scene(cfg: ngl.SceneCfg, size, keyframes, scale, single, show_dbg_points):
+    cfg.duration = keyframes * scale
+    cfg.aspect_ratio = (1, 1)
+    data_size = size * size
+    assert not single or size == 2
+
+    time_anim = None
+    if scale != 1:
+        kfs = [
+            ngl.AnimKeyFrameFloat(0, 0),
+            ngl.AnimKeyFrameFloat(cfg.duration, keyframes),
+        ]
+        time_anim = ngl.AnimatedTime(kfs)
+
+    pts_data = array.array("q")
+    assert pts_data.itemsize == 8
+
+    for i in range(keyframes):
+        offset = 10000 if i == 0 else 0
+        pts_data.extend([i * 1000000 + offset])
+
+    vec4_data = array.array("f")
+    for i in range(keyframes):
+        for j in range(data_size):
+            v = i / float(keyframes) + j / float(data_size * keyframes)
+            if single:
+                vec4_data.extend([v])
+            else:
+                vec4_data.extend([v, v, v, v])
+
+    pts_buffer = ngl.BufferInt64(data=pts_data)
+    vec4_buffer = ngl.BufferVec4(data=vec4_data)
+
+    if single:
+        streamed_buffer = ngl.StreamedVec4(pts_buffer, vec4_buffer, time_anim=time_anim, label="data")
+    else:
+        streamed_buffer = ngl.StreamedBufferVec4(data_size, pts_buffer, vec4_buffer, time_anim=time_anim, label="data")
+    streamed_block = ngl.Block(layout="std140", label="streamed_block", fields=[streamed_buffer])
+
+    shader_params = dict(data_size=data_size, size=size)
+
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    program = ngl.Program(
+        vertex=_RENDER_STREAMEDBUFFER_VERT,
+        fragment=_RENDER_STREAMEDBUFFER_FRAG % shader_params,
+    )
+    program.update_vert_out_vars(var_uvcoord=ngl.IOVec2())
+    draw = ngl.Draw(quad, program)
+    draw.update_frag_resources(streamed=streamed_block)
+
+    group = ngl.Group(children=[draw])
+    if show_dbg_points:
+        cuepoints = get_grid_points(size, size)
+        group.add_children(get_points_nodes(cfg, cuepoints))
+    return group
+
+
+def _get_data_streamed_buffer_function(scale, single):
+    size = 2 if single else 4
+    keyframes = 4
+
+    @test_cuepoints(
+        width=128,
+        height=128,
+        points=get_grid_points(size, size),
+        keyframes=keyframes,
+        tolerance=1,
+    )
+    @ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
+    def scene_func(cfg: ngl.SceneCfg, show_dbg_points=False):
+        return _get_data_streamed_buffer_vec4_scene(cfg, size, keyframes, scale, single, show_dbg_points)
+
+    return scene_func
+
+
+data_streamed_vec4 = _get_data_streamed_buffer_function(1, True)
+data_streamed_vec4_time_anim = _get_data_streamed_buffer_function(2, True)
+data_streamed_buffer_vec4 = _get_data_streamed_buffer_function(1, False)
+data_streamed_buffer_vec4_time_anim = _get_data_streamed_buffer_function(2, False)
+
+
+@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, tolerance=1)
+@ngl.scene()
+def data_integer_iovars(cfg: ngl.SceneCfg):
+    cfg.aspect_ratio = (1, 1)
+    vert = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+            var_color_u32 = color_u32;
+        }
+        """
+    )
+    frag = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_color = vec4(var_color_u32) / 255.;
+        }
+        """
+    )
+    program = ngl.Program(vertex=vert, fragment=frag)
+    program.update_vert_out_vars(var_color_u32=ngl.IOIVec4())
+    geometry = ngl.Quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 2, 0))
+    draw = ngl.Draw(geometry, program)
+    draw.update_vert_resources(color_u32=ngl.UniformIVec4(value=(0x50, 0x80, 0xA0, 0xFF)))
+    return draw
+
+
+@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, tolerance=1)
+@ngl.scene()
+def data_mat_iovars(cfg: ngl.SceneCfg):
+    cfg.aspect_ratio = (1, 1)
+    vert = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+            var_mat3 = mat3(1.0);
+            var_mat4 = mat4(1.0);
+            var_vec4 = vec4(1.0, 0.5, 0.0, 1.0);
+        }
+        """
+    )
+    frag = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_color = mat4(var_mat3) * var_mat4 * var_vec4;
+        }
+        """
+    )
+    program = ngl.Program(vertex=vert, fragment=frag)
+    program.update_vert_out_vars(
+        var_mat3=ngl.IOMat3(),
+        var_mat4=ngl.IOMat4(),
+        var_vec4=ngl.IOVec4(),
+    )
+    geometry = ngl.Quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 2, 0))
+    draw = ngl.Draw(geometry, program)
+    return draw
+
+
+@test_fingerprint(width=512, height=512, keyframes=10, tolerance=1)
 @ngl.scene()
 def data_noise_time(cfg: ngl.SceneCfg):
-    """A small white square that moves across the screen driven by Time and NoiseFloat."""
+    cfg.aspect_ratio = (1, 1)
     cfg.duration = 2
+    vert = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_pos = ngl_modelview_matrix * vec4(ngl_position, 1.0) + vec4(t - 1.0, -signal, 0.0, 0.0);
+            ngl_out_pos = ngl_projection_matrix * ngl_out_pos;
+        }
+        """
+    )
+    frag = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_color = vec4(color, 1.0);
+        }
+        """
+    )
 
-    size = 64
-    fill = ngl.ColorFill(color=(1.0, 1.0, 1.0, 1.0))
-    rect = ngl.DrawRect(rect=(W // 2 - size // 2, H // 2 - size // 2, size, size), fill=fill)
-
-    translate = ngl.EvalVec3("(t - 1.0) * 100.0", "-signal * 100.0", "0")
-    translate.update_resources(t=ngl.Time(), signal=ngl.NoiseFloat(octaves=8))
-
-    return _scene(cfg, ngl.Translate(rect, vector=translate), duration=cfg.duration)
+    geometry = ngl.Circle(radius=0.25, npoints=6)
+    program = ngl.Program(vertex=vert, fragment=frag)
+    draw = ngl.Draw(geometry, program)
+    draw.update_vert_resources(t=ngl.Time(), signal=ngl.NoiseFloat(octaves=8))
+    draw.update_frag_resources(color=ngl.UniformVec3(value=COLORS.white))
+    return draw
 
 
-@test_png(width=W, height=H, keyframes=30, threshold=1)
+@test_fingerprint(width=512, height=512, keyframes=30, tolerance=1)
 @ngl.scene()
 def data_noise_wiggle(cfg: ngl.SceneCfg):
-    """A small white square that wiggles around driven by NoiseVec2."""
+    cfg.aspect_ratio = (1, 1)
     cfg.duration = 3
 
-    size = 64
-    fill = ngl.ColorFill(color=(1.0, 1.0, 1.0, 1.0))
-    rect = ngl.DrawRect(rect=(W // 2 - size // 2, H // 2 - size // 2, size, size), fill=fill)
-
-    translate = ngl.EvalVec3("wiggle.x * 80.0", "wiggle.y * 80.0", "0")
+    geometry = ngl.Circle(radius=0.25, npoints=6)
+    draw = ngl.DrawColor(geometry=geometry)
+    translate = ngl.EvalVec3("wiggle.x", "wiggle.y", "0")
     translate.update_resources(wiggle=ngl.NoiseVec2(octaves=8))
-
-    return _scene(cfg, ngl.Translate(rect, vector=translate), duration=cfg.duration)
-
-
-# ── Eval tests ──────────────────────────────────────────────────────────────
+    return ngl.Translate(draw, vector=translate)
 
 
-@test_png(width=W, height=H, keyframes=10, threshold=1)
+@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=10, tolerance=1)
 @ngl.scene()
 def data_eval(cfg: ngl.SceneCfg):
-    """Test entangled Eval dependencies with CustomFill."""
-    cfg.aspect_ratio = (W, H)
+    cfg.aspect_ratio = (1, 1)
 
+    # Entangled dependencies between evals
     t = ngl.Time()
     vec = ngl.UniformVec3(value=(0.7, 0.3, 4.0))
     a = ngl.EvalFloat("vec.0")
     a.update_resources(vec=vec)
     b = ngl.EvalFloat("vec.t")
-    b.update_resources(vec=vec)
+    a.update_resources(vec=vec)
     x = ngl.EvalFloat("sin(v.x - v.g + t*v.p)")
     x.update_resources(t=t, v=vec)
     color = ngl.EvalVec4(
@@ -215,56 +384,88 @@ def data_eval(cfg: ngl.SceneCfg):
     )
     color.update_resources(wiggle=ngl.NoiseFloat(), t=t, a=a, x=x)
 
-    fill = ngl.CustomFill(
-        color_glsl="return color;",
-        frag_resources=[color],
+    vert = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+        }
+        """
     )
-    return _scene(cfg, ngl.DrawRect(rect=(0, 0, W, H), fill=fill))
+    frag = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_color = color;
+        }
+        """
+    )
+    program = ngl.Program(vertex=vert, fragment=frag)
+    geometry = ngl.Quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 2, 0))
+    draw = ngl.Draw(geometry, program)
+    draw.update_frag_resources(color=color)
 
-
-# ── Vertex and fragment blocks tests ────────────────────────────────────────
+    return draw
 
 
 def _data_vertex_and_fragment_blocks(cfg: ngl.SceneCfg, layout):
     """
     This test ensures that the block bindings are properly set by pgcraft
-    when UBOs or SSBOs are bound to the fragment stage.
+    when UBOs or SSBOs are bound to different stages.
     """
-    cfg.aspect_ratio = (W, H)
+    cfg.aspect_ratio = (1, 1)
 
     src = ngl.Block(
         fields=[
-            ngl.UniformVec3(value=(1.0, 0.0, 0.0), label="color"),
+            ngl.UniformVec3(value=COLORS.red, label="color"),
             ngl.UniformFloat(value=0.5, label="opacity"),
         ],
         layout="std140",
     )
     dst = ngl.Block(
         fields=[
-            ngl.UniformVec3(value=(1.0, 1.0, 1.0), label="color"),
+            ngl.UniformVec3(value=COLORS.white, label="color"),
         ],
         layout=layout,
     )
-
-    fill = ngl.CustomFill(
-        color_glsl="""\
-    vec4 src_val = vec4(src.color, 1.0) * src.opacity;
-    vec3 color = src_val.rgb + (1.0 - src_val.a) * dst.color;
-    return vec4(color, 1.0);""",
-        frag_resources=[src, dst],
+    vert = textwrap.dedent(
+        """\
+        void main()
+        {
+            ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+            var_src = vec4(src.color, 1.0) * src.opacity;
+        }
+        """
     )
-    return ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
+    frag = textwrap.dedent(
+        """\
+        void main()
+        {
+            vec3 color = var_src.rgb + (1.0 - var_src.a) * dst.color;
+            ngl_out_color = vec4(color, 1.0);
+        }
+        """
+    )
+
+    program = ngl.Program(vertex=vert, fragment=frag)
+    program.update_vert_out_vars(
+        var_src=ngl.IOVec4(),
+    )
+    geometry = ngl.Quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 2, 0))
+    draw = ngl.Draw(geometry, program)
+    draw.update_vert_resources(src=src)
+    draw.update_frag_resources(dst=dst)
+
+    return draw
 
 
-@test_png(width=W, height=H, keyframes=1, threshold=1)
+@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=1, tolerance=1)
 @ngl.scene()
 def data_vertex_and_fragment_blocks(cfg: ngl.SceneCfg):
     return _data_vertex_and_fragment_blocks(cfg, "std140")
 
 
-@test_png(width=W, height=H, keyframes=1, threshold=1)
+@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=1, tolerance=1)
 @ngl.scene()
 def data_vertex_and_fragment_blocks_std430(cfg: ngl.SceneCfg):
     return _data_vertex_and_fragment_blocks(cfg, "std430")
-
-

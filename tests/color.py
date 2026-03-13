@@ -1,6 +1,5 @@
 #
 # Copyright 2022 GoPro Inc.
-# Copyright 2026 Nope Forge
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -20,43 +19,58 @@
 # under the License.
 #
 
+
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_png import test_png
-
-W, H = 128, 128
+from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
 
 
-def _get_static_color_scene_func(c, space):
-    @test_png(width=W, height=H)
+def _get_anim_color_scene_func(c0, c1, space):
+    @test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=10, tolerance=1)
     @ngl.scene()
     def scene_func(cfg: ngl.SceneCfg):
-        cfg.aspect_ratio = (W, H)
-        fill = ngl.CustomFill(
-            color_glsl="return vec4(color.rgb, 1.0);",
-            frag_resources=[ngl.UniformColor(c, space=space, label="color")],
-        )
-        return ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
+        cfg.aspect_ratio = (1, 1)
+        cfg.duration = 5
+        color_animkf = [
+            # Start at t=1 and end 1s earlier so that it tests the underflow
+            # and overflow of the animation
+            ngl.AnimKeyFrameColor(1, c0),
+            ngl.AnimKeyFrameColor(cfg.duration - 1, c1),
+        ]
+        ucolor = ngl.AnimatedColor(color_animkf, space=space)
+        return ngl.DrawColor(ucolor)
 
     return scene_func
 
+
+def _get_static_color_scene_func(c, space):
+    @test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=1, tolerance=1)
+    @ngl.scene()
+    def scene_func(cfg: ngl.SceneCfg):
+        cfg.aspect_ratio = (1, 1)
+        return ngl.DrawColor(color=ngl.UniformColor(c, space=space))
+
+    return scene_func
+
+
+color_anim_srgb = _get_anim_color_scene_func((1.0, 0.5, 0.0), (0.0, 0.6, 1.0), "srgb")
+color_anim_hsl = _get_anim_color_scene_func((0.6, 0.9, 0.4), (0.1, 0.5, 0.6), "hsl")
+color_anim_hsv = _get_anim_color_scene_func((0.3, 0.7, 0.6), (1.0, 1.0, 0.7), "hsv")
 
 color_static_srgb = _get_static_color_scene_func((1.0, 0.5, 0.0), "srgb")
 color_static_hsl = _get_static_color_scene_func((0.6, 0.9, 0.4), "hsl")
 color_static_hsv = _get_static_color_scene_func((0.3, 0.7, 0.6), "hsv")
 
 
-@test_png(width=W, height=H)
+@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=10, tolerance=0)
 @ngl.scene()
 def color_negative_values_srgb(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (W, H)
-    fill = ngl.CustomFill(
-        color_glsl="""
-            vec3 c = mix(color0, color1, uv.x);
-            return vec4(clamp(c, 0.0, 1.0), 1.0);
-        """,
-        frag_resources=[
-            ngl.UniformVec3(value=(0.0, 0.0, 0.0), label="color0"),
-            ngl.UniformVec3(value=(-1.0, -1.0, 1.0), label="color1"),
-        ],
-    )
-    return ngl.DrawRect(rect=(0, 0, W, H), fill=fill)
+    cfg.aspect_ratio = (1, 1)
+    cfg.duration = 5
+    kfs = [
+        # The elastic_in easing has the special property to undershoot under 0
+        ngl.AnimKeyFrameVec3(-5, value=(0.0, 0.0, 0.0)),
+        ngl.AnimKeyFrameVec3(5, value=(0.0, 0.0, 1.0), easing="elastic_in"),
+    ]
+    color0 = ngl.AnimatedVec3(keyframes=kfs)
+    color1 = ngl.UniformVec3(value=(-1.0, -1.0, 1.0))
+    return ngl.DrawGradient(color0=color0, color1=color1, linear=True)

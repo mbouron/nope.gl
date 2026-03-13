@@ -19,9 +19,13 @@
 # under the License.
 #
 
+import textwrap
+
 import pynopegl as ngl
 from pynopegl_utils.misc import load_media
-from pynopegl_utils.tests.cmp_png import test_png
+from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
+from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cuepoints_utils import get_points_nodes
 from pynopegl_utils.tests.data import (
     LAYOUTS,
     gen_floats,
@@ -32,27 +36,29 @@ from pynopegl_utils.tests.data import (
 )
 from pynopegl_utils.toolbox.colors import COLORS
 
-_RECT_SIZE = 128
+_SHARED_UNIFORM_CUEPOINTS = {"0": (-0.5, -0.5), "1": (0.5, 0.5)}
 
 
 def _get_group_reorder_function():
+    origin = (-1, -1)
     colors = [
         COLORS.white,
         COLORS.orange,
         COLORS.sgreen,
         COLORS.rose,
     ]
-    offset = _RECT_SIZE / len(colors)
+    offset = 2.0 / len(colors)
     draws = []
     for i, color in enumerate(colors):
-        tx = -_RECT_SIZE / 2 + (i + 0.5) * offset
-        ty = tx
-        draw = ngl.DrawRect(
-            rect=(0, 0, _RECT_SIZE, _RECT_SIZE),
-            fill=ngl.ColorFill(color=color + (1.0,)),
-            translate=(tx, ty, 0),
+        coord = (
+            origin[0] + (i + 0.5) * offset,
+            origin[1] + (i + 0.5) * offset,
+            0.0,
         )
-        draws.append(draw)
+        quad = ngl.Quad()
+        draw = ngl.DrawColor(color, geometry=quad)
+        draw = ngl.Translate(draw, vector=coord)
+        draws += [draw]
     group = ngl.Group(children=draws)
 
     def _reoder_group(t_id: int):
@@ -63,10 +69,10 @@ def _get_group_reorder_function():
             group.swap_children(0, 3)
             group.swap_children(1, 2)
 
-    @test_png(
-        width=_RECT_SIZE,
-        height=_RECT_SIZE,
-        threshold=1,
+    @test_fingerprint(
+        width=128,
+        height=128,
+        tolerance=1,
         exercise_serialization=False,
         keyframes_callback=_reoder_group,
         keyframes=[0.0, 1.0, 2.0],
@@ -82,32 +88,44 @@ def _get_group_reorder_function():
 live_group_reorder = _get_group_reorder_function()
 
 
-def _get_live_shared_uniform_scene(color):
+def _get_live_shared_uniform_scene(cfg: ngl.SceneCfg, color, debug_positions):
     group = ngl.Group()
     for i in range(2):
-        fill = ngl.CustomFill(
-            color_glsl="return vec4(color.rgb, 1.0);",
-            frag_resources=[color],
-        )
-        x = i * (_RECT_SIZE // 2)
-        y = i * (_RECT_SIZE // 2)
-        draw = ngl.DrawRect(rect=(x, y, _RECT_SIZE // 2, _RECT_SIZE // 2), fill=fill)
+        quad = ngl.Quad((-1 + i, -1 + i, 0), (1, 0, 0), (0, 1, 0))
+        draw = ngl.DrawColor(color, geometry=quad)
         group.add_children(draw)
+    if debug_positions:
+        group.add_children(get_points_nodes(cfg, _SHARED_UNIFORM_CUEPOINTS))
     return group
 
 
-def _get_live_shared_uniform_with_block_scene(color, layout):
+def _get_live_shared_uniform_with_block_scene(cfg: ngl.SceneCfg, color, layout, debug_positions):
+    vertex = textwrap.dedent(
+        """\
+    void main()
+    {
+        ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+    }
+    """
+    )
+    fragment = textwrap.dedent(
+        """\
+    void main()
+    {
+        ngl_out_color = vec4(data.color, 1.0);
+    }
+    """
+    )
+    program = ngl.Program(vertex=vertex, fragment=fragment)
     group = ngl.Group()
     for i in range(2):
-        block = ngl.Block(fields=[color], layout=layout, label="data")
-        fill = ngl.CustomFill(
-            color_glsl="return vec4(data.color, 1.0);",
-            frag_resources=[block],
-        )
-        x = i * (_RECT_SIZE // 2)
-        y = i * (_RECT_SIZE // 2)
-        draw = ngl.DrawRect(rect=(x, y, _RECT_SIZE // 2, _RECT_SIZE // 2), fill=fill)
+        block = ngl.Block(fields=[color], layout=layout)
+        quad = ngl.Quad((-1 + i, -1 + i, 0), (1, 0, 0), (0, 1, 0))
+        draw = ngl.Draw(quad, program)
+        draw.update_frag_resources(data=block)
         group.add_children(draw)
+    if debug_positions:
+        group.add_children(get_points_nodes(cfg, _SHARED_UNIFORM_CUEPOINTS))
     return group
 
 
@@ -118,22 +136,24 @@ def _get_live_shared_uniform_function(layout=None):
     def keyframes_callback(t_id):
         color.set_value(*data[t_id])
 
-    @test_png(
-        width=_RECT_SIZE,
-        height=_RECT_SIZE,
+    @test_cuepoints(
+        width=128,
+        height=128,
+        points=_SHARED_UNIFORM_CUEPOINTS,
         keyframes=len(data),
-        threshold=1,
-        exercise_serialization=False,
         keyframes_callback=keyframes_callback,
+        tolerance=1,
+        exercise_serialization=False,
+        debug_positions=False,
     )
-    @ngl.scene()
-    def scene_func(cfg: ngl.SceneCfg):
+    @ngl.scene(controls=dict(debug_positions=ngl.scene.Bool()))
+    def scene_func(cfg: ngl.SceneCfg, debug_positions=True):
         cfg.duration = 0
         cfg.aspect_ratio = (1, 1)
         if layout:
-            return _get_live_shared_uniform_with_block_scene(color, layout)
+            return _get_live_shared_uniform_with_block_scene(cfg, color, layout, debug_positions)
         else:
-            return _get_live_shared_uniform_scene(color)
+            return _get_live_shared_uniform_scene(cfg, color, debug_positions)
 
     return scene_func
 
@@ -152,10 +172,11 @@ def _get_media_change_function():
             media0.set_filename(load_media("cat").filename)
             media1.set_filename(load_media("panda").filename)
 
-    @test_png(
-        width=_RECT_SIZE,
-        height=_RECT_SIZE,
-        threshold=1,
+    @test_cuepoints(
+        width=128,
+        height=128,
+        points=dict(x=(0, 0)),
+        tolerance=1,
         exercise_serialization=False,
         keyframes_callback=_change_media,
         keyframes=[0.0, 0.0, 12.0],
@@ -163,24 +184,11 @@ def _get_media_change_function():
     @ngl.scene()
     def live_media_change_func(cfg: ngl.SceneCfg):
         cfg.aspect_ratio = (1, 1)
+        # Build a scene with 2 successive media displayed, 10 seconds each
         return ngl.Group(
             children=[
-                ngl.TimeRangeFilter(
-                    child=ngl.DrawRect(
-                        rect=(0, 0, _RECT_SIZE, _RECT_SIZE),
-                        fill=ngl.TextureFill(texture=ngl.Texture2D(data_src=media0)),
-                    ),
-                    start=0,
-                    end=10,
-                ),
-                ngl.TimeRangeFilter(
-                    child=ngl.DrawRect(
-                        rect=(0, 0, _RECT_SIZE, _RECT_SIZE),
-                        fill=ngl.TextureFill(texture=ngl.Texture2D(data_src=media1)),
-                    ),
-                    start=10,
-                    end=20,
-                ),
+                ngl.TimeRangeFilter(child=ngl.DrawTexture(ngl.Texture2D(data_src=media0)), start=0, end=10),
+                ngl.TimeRangeFilter(child=ngl.DrawTexture(ngl.Texture2D(data_src=media1)), start=10, end=20),
             ]
         )
 
@@ -191,10 +199,7 @@ live_media_change = _get_media_change_function()
 
 
 def _get_timerangefilter_update_function():
-    draw = ngl.DrawRect(
-        rect=(0, 0, _RECT_SIZE, _RECT_SIZE),
-        fill=ngl.ColorFill(color=COLORS.orange + (1.0,)),
-    )
+    draw = ngl.DrawColor(color=COLORS.orange)
     range = ngl.TimeRangeFilter(draw, start=5.0, end=10.0)
 
     def _update_timerange(t_id: int):
@@ -208,10 +213,11 @@ def _get_timerangefilter_update_function():
         elif t_id == 3:
             range.set_range(10.0, 15.0)
 
-    @test_png(
-        width=_RECT_SIZE,
-        height=_RECT_SIZE,
-        threshold=1,
+    @test_cuepoints(
+        width=128,
+        height=128,
+        points=dict(x=(0, 0)),
+        tolerance=1,
         exercise_serialization=False,
         keyframes_callback=_update_timerange,
         keyframes=[0.0, 0.0, 10.0, 15.0],
@@ -320,23 +326,26 @@ def _get_live_function(spec, category, field_type, layout):
             v = data_src[t_id - 1]
             field["node"].set_value(*v)
 
-    @test_png(
-        width=_RECT_SIZE,
-        height=_RECT_SIZE,
+    @test_cuepoints(
+        width=128,
+        height=128,
+        points=get_data_debug_positions(fields),
         keyframes=len(data_src) + 1,
-        threshold=1,
-        exercise_serialization=False,
         keyframes_callback=keyframes_callback,
+        tolerance=1,
+        exercise_serialization=False,
+        debug_positions=False,
     )
     @ngl.scene(
         controls=dict(
             seed=ngl.scene.Range(range=[0, 100]),
+            debug_positions=ngl.scene.Bool(),
             color_tint=ngl.scene.Bool(),
         )
     )
-    def scene_func(cfg: ngl.SceneCfg, seed=0, color_tint=False):
+    def scene_func(cfg: ngl.SceneCfg, seed=0, debug_positions=True, color_tint=False):
         cfg.duration = 0
-        return get_field_scene(cfg, spec, category, field_type, seed, False, layout, color_tint)
+        return get_field_scene(cfg, spec, category, field_type, seed, debug_positions, layout, color_tint)
 
     return scene_func
 
@@ -350,24 +359,27 @@ def _get_live_trf_function(spec, category, field_type, layout):
     def keyframes_callback(t_id):
         livechange_funcs[t_id]()
 
-    @test_png(
-        width=_RECT_SIZE,
-        height=_RECT_SIZE,
+    @test_cuepoints(
+        width=128,
+        height=128,
+        points=get_data_debug_positions(fields),
         keyframes=len(livechange_funcs),
-        threshold=1,
-        exercise_serialization=False,
         keyframes_callback=keyframes_callback,
+        tolerance=1,
+        exercise_serialization=False,
+        debug_positions=False,
     )
     @ngl.scene(
         controls=dict(
             seed=ngl.scene.Range(range=[0, 100]),
+            debug_positions=ngl.scene.Bool(),
             color_tint=ngl.scene.Bool(),
             trf_step=ngl.scene.Range(range=[0, len(livechange_funcs)]),
         )
     )
-    def scene_func(cfg: ngl.SceneCfg, seed=0, color_tint=False, trf_step=0):
+    def scene_func(cfg: ngl.SceneCfg, seed=0, debug_positions=True, color_tint=False, trf_step=0):
         cfg.duration = 0
-        s = get_field_scene(cfg, spec, category, field_type, seed, False, layout, color_tint)
+        s = get_field_scene(cfg, spec, category, field_type, seed, debug_positions, layout, color_tint)
         for i in range(trf_step):
             keyframes_callback(i)
         return s

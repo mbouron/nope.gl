@@ -1,6 +1,5 @@
 #
 # Copyright 2022 GoPro Inc.
-# Copyright 2026 Nope Forge
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -21,30 +20,18 @@
 #
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_png import test_png
+from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
 from pynopegl_utils.toolbox.colors import COLORS
-
-W, H = 128, 128
 
 
 def _get_userlive_switch_func():
-    # Three differently colored/sized DrawRect nodes at different positions
-    scene0 = ngl.DrawRect(
-        rect=(4, 32, 40, 64),
-        fill=ngl.ColorFill(color=(*COLORS.white, 1.0)),
-    )
-    scene1 = ngl.DrawRect(
-        rect=(32, 16, 64, 96),
-        fill=ngl.ColorFill(color=(*COLORS.red, 1.0)),
-    )
-    scene2 = ngl.DrawRect(
-        rect=(84, 32, 40, 64),
-        fill=ngl.ColorFill(color=(*COLORS.azure, 1.0)),
-    )
+    scene0 = ngl.DrawColor(COLORS.white, geometry=ngl.Circle())
+    scene1 = ngl.DrawColor(COLORS.red, geometry=ngl.Quad())
+    scene2 = ngl.DrawColor(COLORS.azure, geometry=ngl.Triangle())
 
-    switch0 = ngl.UserSwitch(scene0)
-    switch1 = ngl.UserSwitch(scene1)
-    switch2 = ngl.UserSwitch(scene2)
+    switch0 = ngl.UserSwitch(ngl.Scale(scene0, factors=(1 / 3, 1 / 3, 1 / 3), anchor=(-1, 0, 0)))
+    switch1 = ngl.UserSwitch(ngl.Scale(scene1, factors=(1 / 2, 1 / 2, 1 / 2)))
+    switch2 = ngl.UserSwitch(ngl.Scale(scene2, factors=(1 / 3, 1 / 3, 1 / 3), anchor=(1, 0, 0)))
 
     def keyframes_callback(t_id):
         # Build a "random" composition of switches
@@ -52,16 +39,17 @@ def _get_userlive_switch_func():
         switch1.set_enabled(t_id % 3 == 0)
         switch2.set_enabled(t_id % 4 == 0)
 
-    @test_png(
-        width=W,
-        height=H,
+    @test_fingerprint(
+        width=128,
+        height=128,
         keyframes=10,
         keyframes_callback=keyframes_callback,
+        tolerance=1,
         exercise_serialization=False,
     )
     @ngl.scene(controls=dict(s0=ngl.scene.Bool(), s1=ngl.scene.Bool(), s2=ngl.scene.Bool()))
     def scene_func(cfg: ngl.SceneCfg, s0_enabled=True, s1_enabled=True, s2_enabled=True):
-        cfg.aspect_ratio = (W, H)
+        cfg.aspect_ratio = (1, 1)
         switch0.set_enabled(s0_enabled)
         switch1.set_enabled(s1_enabled)
         switch2.set_enabled(s2_enabled)
@@ -71,53 +59,51 @@ def _get_userlive_switch_func():
 
 
 def _get_userlive_select_func():
-    # Background rect
-    below = ngl.DrawRect(
-        rect=(16, 32, 48, 64),
-        fill=ngl.ColorFill(color=(*COLORS.white, 1.0)),
-        opacity=0.5,
-        blending="src_over",
+    # We point on the same underlying draw to test the different draw paths
+    draw = ngl.DrawColor(COLORS.white, opacity=0.5, geometry=ngl.Quad())
+    below = ngl.Translate(draw, vector=(0.5 - 2 / 3, 0.5 - 1 / 3, 0))
+    above = ngl.Translate(draw, vector=(0.5 - 1 / 3, 0.5 - 2 / 3, 0))
+
+    # Additive blending (for premultiplied values): lighten
+    gc0 = ngl.GraphicConfig(
+        above,
+        blend=True,
+        blend_src_factor="one",
+        blend_dst_factor="one",
+        blend_src_factor_a="one",
+        blend_dst_factor_a="one",
     )
 
-    # Foreground rect at a different position
-    above_plain = ngl.DrawRect(
-        rect=(64, 16, 48, 64),
-        fill=ngl.ColorFill(color=(*COLORS.white, 1.0)),
-        opacity=0.5,
-        blending="src_over",
+    # Multiply blending (for premultiplied values): darken
+    gc1 = ngl.GraphicConfig(
+        above,
+        blend=True,
+        blend_src_factor="zero",
+        blend_dst_factor="src_color",
+        blend_src_factor_a="zero",
+        blend_dst_factor_a="src_alpha",
     )
 
-    # Same rect with different blending for branch 1 (additive-like via src_over)
-    above_bright = ngl.DrawRect(
-        rect=(64, 16, 48, 64),
-        fill=ngl.ColorFill(color=(1.0, 1.0, 1.0, 0.8)),
-        blending="src_over",
-    )
-
-    # Same rect with low opacity for branch 2 (darker effect)
-    above_dark = ngl.DrawRect(
-        rect=(64, 16, 48, 64),
-        fill=ngl.ColorFill(color=(0.3, 0.3, 0.3, 0.5)),
-        blending="src_over",
-    )
-
-    select = ngl.UserSelect(branches=[above_plain, above_bright, above_dark])
+    # Select has 3 branches: simple over blending, additive blending, multiply
+    # blending
+    select = ngl.UserSelect(branches=[above, gc0, gc1])
 
     def keyframes_callback(t_id):
-        # 4 states: 3 blending branches and one extra for nothing
-        # (branch ID overflow). We remain on each state for 2 frames.
+        # 4 states: the for the 3 blending branches and one extra for nothing
+        # (branch ID overflow). We remain on the each state for 2 frames.
         select.set_branch((t_id // 2) % 4)
 
-    @test_png(
-        width=W,
-        height=H,
+    @test_fingerprint(
+        width=128,
+        height=128,
         keyframes=8,
         keyframes_callback=keyframes_callback,
+        tolerance=1,
         exercise_serialization=False,
     )
     @ngl.scene(controls=dict(branch=ngl.scene.Range([0, 3])))
     def scene_func(cfg: ngl.SceneCfg, branch=0):
-        cfg.aspect_ratio = (W, H)
+        cfg.aspect_ratio = (1, 1)
         select.set_branch(branch)
         return ngl.Group(children=[below, select])
 

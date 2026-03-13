@@ -19,7 +19,6 @@
  * under the License.
  */
 
-#include <math.h>
 #include <string.h>
 
 #include "internal.h"
@@ -49,15 +48,6 @@ static const struct node_class *get_node_class(uint32_t type)
         NODE_MAP_TYPE2CLASS(REGISTER_NODE)
     }
     return NULL;
-}
-
-/* Print a float as a JSON number, or the string "nan" for NaN values. */
-static void print_f(float f)
-{
-    if (isnan(f))
-        fputs("\"nan\"", stdout);
-    else
-        printf("%f", f);
 }
 
 static char *escape_json_str(const char *s)
@@ -112,10 +102,10 @@ static void print_node_params(const char *name, const struct node_param *p, cons
                 break;
             }
             case NGLI_PARAM_TYPE_F32:
-                printf(D); print_f(p->def_value.f32); printf(",\n");
+                printf(D "%f,\n", p->def_value.f32);
                 break;
             case NGLI_PARAM_TYPE_F64:
-                printf(D); print_f((float)p->def_value.f64); printf(",\n");
+                printf(D "%f,\n", p->def_value.f64);
                 break;
             case NGLI_PARAM_TYPE_BOOL:
                 printf(D "%d,\n", p->def_value.i32);
@@ -132,15 +122,9 @@ static void print_node_params(const char *name, const struct node_param *p, cons
             case NGLI_PARAM_TYPE_UVEC2: printf(D "[%u,%u],\n",       NGLI_ARG_VEC2(p->def_value.uvec)); break;
             case NGLI_PARAM_TYPE_UVEC3: printf(D "[%u,%u,%u],\n",    NGLI_ARG_VEC3(p->def_value.uvec)); break;
             case NGLI_PARAM_TYPE_UVEC4: printf(D "[%u,%u,%u,%u],\n", NGLI_ARG_VEC4(p->def_value.uvec)); break;
-            case NGLI_PARAM_TYPE_VEC2:
-                printf(D "["); print_f(p->def_value.vec[0]); printf(","); print_f(p->def_value.vec[1]); printf("],\n");
-                break;
-            case NGLI_PARAM_TYPE_VEC3:
-                printf(D "["); print_f(p->def_value.vec[0]); printf(","); print_f(p->def_value.vec[1]); printf(","); print_f(p->def_value.vec[2]); printf("],\n");
-                break;
-            case NGLI_PARAM_TYPE_VEC4:
-                printf(D "["); print_f(p->def_value.vec[0]); printf(","); print_f(p->def_value.vec[1]); printf(","); print_f(p->def_value.vec[2]); printf(","); print_f(p->def_value.vec[3]); printf("],\n");
-                break;
+            case NGLI_PARAM_TYPE_VEC2:  printf(D "[%f,%f],\n",       NGLI_ARG_VEC2(p->def_value.vec));  break;
+            case NGLI_PARAM_TYPE_VEC3:  printf(D "[%f,%f,%f],\n",    NGLI_ARG_VEC3(p->def_value.vec));  break;
+            case NGLI_PARAM_TYPE_VEC4:  printf(D "[%f,%f,%f,%f],\n", NGLI_ARG_VEC4(p->def_value.vec));  break;
             case NGLI_PARAM_TYPE_MAT4:
                 printf(D "[%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f],\n", NGLI_ARG_MAT4(p->def_value.mat));
                 break;

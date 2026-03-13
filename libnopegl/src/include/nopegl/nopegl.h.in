@@ -108,17 +108,20 @@ struct ngl_scene;
 struct ngl_scene_params {
     struct ngl_node *root;  /* root node of the scene graph */
     double duration;        /* for how long the scene is to be rendered, in seconds */
-    int32_t framerate[2];   /* fraction representing the expected rendering number of frames per seconds */
-    int32_t width;          /* canvas width in pixels; when non-zero the rendering is letterboxed
-                               to preserve this canvas aspect ratio within the output window */
-    int32_t height;         /* canvas height in pixels; must be non-zero when width is non-zero */
+    int32_t framerate[2];    /* fraction representing the expected rendering number of frames per seconds */
+    int32_t aspect_ratio[2]; /* fraction representing the expected rendering
+                                aspect ratio. The aspect ratio numerator and
+                                denominator must be positive. 0 can be used
+                                as a special value to not apply any aspect
+                                ratio and let the main viewport dimensions
+                                match the output window/surface dimensions. */
 };
 
 /**
  * Get the default parameters for the scene initialization:
  * - duration: 30 seconds
  * - framerate: 60 FPS
- * - width/height: 0 (match window dimensions)
+ * - aspect ratio: 1:1
  *
  * @param root pointer to the root node of a graph (can be NULL)
  *
@@ -264,6 +267,10 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 /**
  * Node FOURCC identifiers
  */
+#define NGL_NODE_ANIMATEDBUFFERFLOAT    NGLI_FOURCC('A','B','f','1')
+#define NGL_NODE_ANIMATEDBUFFERVEC2     NGLI_FOURCC('A','B','f','2')
+#define NGL_NODE_ANIMATEDBUFFERVEC3     NGLI_FOURCC('A','B','f','3')
+#define NGL_NODE_ANIMATEDBUFFERVEC4     NGLI_FOURCC('A','B','f','4')
 #define NGL_NODE_ANIMATEDCOLOR          NGLI_FOURCC('A','n','m','c')
 #define NGL_NODE_ANIMATEDPATH           NGLI_FOURCC('A','n','m','P')
 #define NGL_NODE_ANIMATEDTIME           NGLI_FOURCC('A','n','m','T')
@@ -272,6 +279,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_ANIMATEDVEC3           NGLI_FOURCC('A','n','m','3')
 #define NGL_NODE_ANIMATEDVEC4           NGLI_FOURCC('A','n','m','4')
 #define NGL_NODE_ANIMATEDQUAT           NGLI_FOURCC('A','n','m','Q')
+#define NGL_NODE_ANIMKEYFRAMEBUFFER     NGLI_FOURCC('A','K','F','B')
 #define NGL_NODE_ANIMKEYFRAMEFLOAT      NGLI_FOURCC('A','K','F','1')
 #define NGL_NODE_ANIMKEYFRAMEVEC2       NGLI_FOURCC('A','K','F','2')
 #define NGL_NODE_ANIMKEYFRAMEVEC3       NGLI_FOURCC('A','K','F','3')
@@ -309,26 +317,45 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_BUFFERVEC3             NGLI_FOURCC('B','f','v','3')
 #define NGL_NODE_BUFFERVEC4             NGLI_FOURCC('B','f','v','4')
 #define NGL_NODE_BUFFERMAT4             NGLI_FOURCC('B','f','m','4')
+#define NGL_NODE_CAMERA                 NGLI_FOURCC('C','m','r','a')
+#define NGL_NODE_CIRCLE                 NGLI_FOURCC('C','r','c','l')
+#define NGL_NODE_COLORKEY               NGLI_FOURCC('C','K','e','y')
+#define NGL_NODE_COLORSTATS             NGLI_FOURCC('C','l','r','S')
 #define NGL_NODE_COMPUTE                NGLI_FOURCC('C','p','t',' ')
 #define NGL_NODE_COMPUTEPROGRAM         NGLI_FOURCC('C','p','t','P')
 #define NGL_NODE_CUSTOMTEXTURE          NGLI_FOURCC('C','s','t','T')
-#define NGL_NODE_COLORFILL              NGLI_FOURCC('C','l','F','l')
-#define NGL_NODE_CUSTOMFILL             NGLI_FOURCC('C','u','F','l')
 #define NGL_NODE_DRAW                   NGLI_FOURCC('D','r','a','w')
-#define NGL_NODE_DRAWRECT               NGLI_FOURCC('D','R','c','t')
-#define NGL_NODE_GRADIENT4FILL          NGLI_FOURCC('G','4','F','l')
-#define NGL_NODE_GRADIENTFILL           NGLI_FOURCC('G','r','F','l')
-#define NGL_NODE_NOISEFILL              NGLI_FOURCC('N','s','F','l')
-#define NGL_NODE_STROKE                 NGLI_FOURCC('S','t','r','k')
-#define NGL_NODE_STROKEGRADIENT         NGLI_FOURCC('S','G','r','d')
-#define NGL_NODE_STROKEGRADIENT4        NGLI_FOURCC('S','G','4','c')
-#define NGL_NODE_TEXTUREFILL            NGLI_FOURCC('T','x','F','l')
+#define NGL_NODE_DRAWCOLOR              NGLI_FOURCC('D','c','l','r')
+#define NGL_NODE_DRAWDISPLACE           NGLI_FOURCC('D','d','s','p')
+#define NGL_NODE_DRAWGRADIENT           NGLI_FOURCC('D','g','r','d')
+#define NGL_NODE_DRAWGRADIENT4          NGLI_FOURCC('D','g','d','4')
+#define NGL_NODE_DRAWHISTOGRAM          NGLI_FOURCC('D','h','s','t')
+#define NGL_NODE_DRAWMASK               NGLI_FOURCC('D','m','s','k')
+#define NGL_NODE_DRAWNOISE              NGLI_FOURCC('D','N','o','i')
+#define NGL_NODE_DRAWPATH               NGLI_FOURCC('D','P','t','h')
+#define NGL_NODE_DRAWTEXTURE            NGLI_FOURCC('D','t','e','x')
+#define NGL_NODE_DRAWWAVEFORM           NGLI_FOURCC('D','w','f','m')
 #define NGL_NODE_EVALFLOAT              NGLI_FOURCC('E','v','f','1')
 #define NGL_NODE_EVALVEC2               NGLI_FOURCC('E','v','f','2')
 #define NGL_NODE_EVALVEC3               NGLI_FOURCC('E','v','f','3')
 #define NGL_NODE_EVALVEC4               NGLI_FOURCC('E','v','f','4')
+#define NGL_NODE_FILTERALPHA            NGLI_FOURCC('F','a','l','f')
+#define NGL_NODE_FILTERCOLORMAP         NGLI_FOURCC('F','m','a','p')
+#define NGL_NODE_FILTERCONTRAST         NGLI_FOURCC('F','c','t','r')
+#define NGL_NODE_FILTEREXPOSURE         NGLI_FOURCC('F','e','x','p')
+#define NGL_NODE_FILTERINVERSEALPHA     NGLI_FOURCC('F','1','-','a')
+#define NGL_NODE_FILTERLINEAR2SRGB      NGLI_FOURCC('F','r','g','b')
+#define NGL_NODE_FILTEROPACITY          NGLI_FOURCC('F','o','p','a')
+#define NGL_NODE_FILTERPREMULT          NGLI_FOURCC('F','p','r','e')
+#define NGL_NODE_FILTERSATURATION       NGLI_FOURCC('F','s','a','t')
+#define NGL_NODE_FILTERSELECTOR         NGLI_FOURCC('F','S','e','l')
+#define NGL_NODE_FILTERSRGB2LINEAR      NGLI_FOURCC('F','l','i','n')
 #define NGL_NODE_FASTGAUSSIANBLUR       NGLI_FOURCC('F','G','B','l')
+#define NGL_NODE_FONTFACE               NGLI_FOURCC('F','o','n','t')
 #define NGL_NODE_GAUSSIANBLUR           NGLI_FOURCC('G','B','l','r')
+#define NGL_NODE_GEOMETRY               NGLI_FOURCC('G','e','o','m')
+#define NGL_NODE_GRAPHICCONFIG          NGLI_FOURCC('G','r','C','f')
+#define NGL_NODE_GRIDLAYOUT             NGLI_FOURCC('G','r','d','L')
 #define NGL_NODE_GROUP                  NGLI_FOURCC('G','r','p',' ')
 #define NGL_NODE_HEXAGONALBLUR          NGLI_FOURCC('H','G','B','l')
 #define NGL_NODE_IDENTITY               NGLI_FOURCC('I','d',' ',' ')
@@ -352,7 +379,14 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_NOISEVEC2              NGLI_FOURCC('N','z','f','2')
 #define NGL_NODE_NOISEVEC3              NGLI_FOURCC('N','z','f','3')
 #define NGL_NODE_NOISEVEC4              NGLI_FOURCC('N','z','f','4')
+#define NGL_NODE_PATH                   NGLI_FOURCC('P','a','t','h')
+#define NGL_NODE_PATHKEYBEZIER2         NGLI_FOURCC('P','h','K','2')
+#define NGL_NODE_PATHKEYBEZIER3         NGLI_FOURCC('P','h','K','3')
+#define NGL_NODE_PATHKEYCLOSE           NGLI_FOURCC('P','h','C','l')
+#define NGL_NODE_PATHKEYLINE            NGLI_FOURCC('P','h','K','1')
+#define NGL_NODE_PATHKEYMOVE            NGLI_FOURCC('P','h','K','0')
 #define NGL_NODE_PROGRAM                NGLI_FOURCC('P','r','g','m')
+#define NGL_NODE_QUAD                   NGLI_FOURCC('Q','u','a','d')
 #define NGL_NODE_RENDERTOTEXTURE        NGLI_FOURCC('R','T','T',' ')
 #define NGL_NODE_RESOURCEPROPS          NGLI_FOURCC('R','e','s','P')
 #define NGL_NODE_ROTATE                 NGLI_FOURCC('T','R','o','t')
@@ -360,6 +394,34 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_SCALE                  NGLI_FOURCC('T','s','c','l')
 #define NGL_NODE_SKEW                   NGLI_FOURCC('T','s','k','w')
 #define NGL_NODE_SMOOTHPATH             NGLI_FOURCC('S','P','t','h')
+#define NGL_NODE_STREAMEDINT            NGLI_FOURCC('S','t','i','1')
+#define NGL_NODE_STREAMEDIVEC2          NGLI_FOURCC('S','t','i','2')
+#define NGL_NODE_STREAMEDIVEC3          NGLI_FOURCC('S','t','i','3')
+#define NGL_NODE_STREAMEDIVEC4          NGLI_FOURCC('S','t','i','4')
+#define NGL_NODE_STREAMEDUINT           NGLI_FOURCC('S','t','u','1')
+#define NGL_NODE_STREAMEDUIVEC2         NGLI_FOURCC('S','t','u','2')
+#define NGL_NODE_STREAMEDUIVEC3         NGLI_FOURCC('S','t','u','3')
+#define NGL_NODE_STREAMEDUIVEC4         NGLI_FOURCC('S','t','u','4')
+#define NGL_NODE_STREAMEDFLOAT          NGLI_FOURCC('S','t','f','1')
+#define NGL_NODE_STREAMEDVEC2           NGLI_FOURCC('S','t','f','2')
+#define NGL_NODE_STREAMEDVEC3           NGLI_FOURCC('S','t','f','3')
+#define NGL_NODE_STREAMEDVEC4           NGLI_FOURCC('S','t','f','4')
+#define NGL_NODE_STREAMEDMAT4           NGLI_FOURCC('S','t','m','4')
+#define NGL_NODE_STREAMEDBUFFERINT      NGLI_FOURCC('S','B','i','1')
+#define NGL_NODE_STREAMEDBUFFERIVEC2    NGLI_FOURCC('S','B','i','2')
+#define NGL_NODE_STREAMEDBUFFERIVEC3    NGLI_FOURCC('S','B','i','3')
+#define NGL_NODE_STREAMEDBUFFERIVEC4    NGLI_FOURCC('S','B','i','4')
+#define NGL_NODE_STREAMEDBUFFERUINT     NGLI_FOURCC('S','B','u','1')
+#define NGL_NODE_STREAMEDBUFFERUIVEC2   NGLI_FOURCC('S','B','u','2')
+#define NGL_NODE_STREAMEDBUFFERUIVEC3   NGLI_FOURCC('S','B','u','3')
+#define NGL_NODE_STREAMEDBUFFERUIVEC4   NGLI_FOURCC('S','B','u','4')
+#define NGL_NODE_STREAMEDBUFFERFLOAT    NGLI_FOURCC('S','B','f','1')
+#define NGL_NODE_STREAMEDBUFFERVEC2     NGLI_FOURCC('S','B','f','2')
+#define NGL_NODE_STREAMEDBUFFERVEC3     NGLI_FOURCC('S','B','f','3')
+#define NGL_NODE_STREAMEDBUFFERVEC4     NGLI_FOURCC('S','B','f','4')
+#define NGL_NODE_STREAMEDBUFFERMAT4     NGLI_FOURCC('S','B','m','4')
+#define NGL_NODE_TEXT                   NGLI_FOURCC('T','e','x','t')
+#define NGL_NODE_TEXTEFFECT             NGLI_FOURCC('T','x','F','X')
 #define NGL_NODE_TEXTURE2D              NGLI_FOURCC('T','e','x','2')
 #define NGL_NODE_TEXTURE2DARRAY         NGLI_FOURCC('T','e','2','A')
 #define NGL_NODE_TEXTURE3D              NGLI_FOURCC('T','e','x','3')
@@ -369,6 +431,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_TIMERANGEFILTER        NGLI_FOURCC('T','R','F','l')
 #define NGL_NODE_TRANSFORM              NGLI_FOURCC('T','r','f','m')
 #define NGL_NODE_TRANSLATE              NGLI_FOURCC('T','m','o','v')
+#define NGL_NODE_TRIANGLE               NGLI_FOURCC('T','r','g','l')
 #define NGL_NODE_UNIFORMBOOL            NGLI_FOURCC('U','n','b','1')
 #define NGL_NODE_UNIFORMINT             NGLI_FOURCC('U','n','i','1')
 #define NGL_NODE_UNIFORMIVEC2           NGLI_FOURCC('U','n','i','2')
@@ -387,6 +450,10 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_UNIFORMQUAT            NGLI_FOURCC('U','n','Q','t')
 #define NGL_NODE_USERSELECT             NGLI_FOURCC('U','S','e','l')
 #define NGL_NODE_USERSWITCH             NGLI_FOURCC('U','S','c','h')
+#define NGL_NODE_VELOCITYFLOAT          NGLI_FOURCC('V','l','y','1')
+#define NGL_NODE_VELOCITYVEC2           NGLI_FOURCC('V','l','y','2')
+#define NGL_NODE_VELOCITYVEC3           NGLI_FOURCC('V','l','y','3')
+#define NGL_NODE_VELOCITYVEC4           NGLI_FOURCC('V','l','y','4')
 
 /**
  * Return error codes.
@@ -495,37 +562,6 @@ NGL_API int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
  */
 NGL_API int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
                                      size_t from, size_t to);
-
-/**
- * Add a child node to a Group node.
- *
- * This function works whether or not the group is attached to a rendering
- * context.  When live (attached), the child is initialized, prepared, and
- * visible from the next rendered frame.
- *
- * Note: the caller's rnode_pos pointer stored inside the group may be
- * invalidated if a parent group is also modified concurrently.  For the
- * common case of a root-level group this is never an issue.
- *
- * @param group pointer to a Group node
- * @param child pointer to the node to add as a child
- *
- * @return 0 on success, NGL_ERROR_* (< 0) on error
- */
-NGL_API int ngl_node_group_add_child(struct ngl_node *group, struct ngl_node *child);
-
-/**
- * Remove a child node from a Group node.
- *
- * When the group is live (attached to a rendering context) the child is
- * uninitialized immediately and will not appear in subsequent frames.
- *
- * @param group pointer to a Group node
- * @param child pointer to the child node to remove
- *
- * @return 0 on success, NGL_ERROR_* (< 0) on error
- */
-NGL_API int ngl_node_group_remove_child(struct ngl_node *group, struct ngl_node *child);
 
 /**
  * All ngl_node_param_set_* functions set a parameter value of an allocated
