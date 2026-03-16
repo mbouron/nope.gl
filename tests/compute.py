@@ -24,9 +24,7 @@ import array
 
 import pynopegl as ngl
 from pynopegl_utils.misc import get_shader
-from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
-from pynopegl_utils.tests.cuepoints_utils import get_grid_points, get_points_nodes
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.toolbox.colors import COLORS
 
 _PARTICULES_COMPUTE = """
@@ -56,7 +54,7 @@ void main()
 """
 
 
-@test_fingerprint(width=800, height=800, keyframes=10, tolerance=1)
+@test_render(width=400, height=400, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def compute_particles(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -171,12 +169,11 @@ void main()
 
 
 _N = 8
-_CUEPOINTS = get_grid_points(_N, _N)
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def compute_histogram(cfg: ngl.SceneCfg, show_dbg_points=False):
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def compute_histogram(cfg: ngl.SceneCfg):
     cfg.duration = 10
     cfg.aspect_ratio = (1, 1)
     hsize, size, local_size = _N * _N, _N, _N // 2
@@ -241,8 +238,6 @@ def compute_histogram(cfg: ngl.SceneCfg, show_dbg_points=False):
     draw.update_frag_resources(hist=histogram_block)
 
     group = ngl.Group(children=[clear_histogram, exec_histogram, draw])
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _CUEPOINTS))
     return group
 
 
@@ -299,13 +294,13 @@ def _compute_animation(cfg: ngl.SceneCfg, animate_pre_draw=True):
     return ngl.Group(children=children)
 
 
-@test_fingerprint(width=800, height=800, keyframes=5, tolerance=1)
+@test_render(width=256, height=256, keyframes=5, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def compute_animation(cfg: ngl.SceneCfg):
     return _compute_animation(cfg)
 
 
-@test_fingerprint(width=800, height=800, keyframes=5, tolerance=1)
+@test_render(width=256, height=256, keyframes=5, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def compute_animation_post_draw(cfg: ngl.SceneCfg):
     return _compute_animation(cfg, False)
@@ -326,9 +321,9 @@ void main()
 """
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def compute_image_load_store(cfg: ngl.SceneCfg, show_dbg_points=False):
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def compute_image_load_store(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
     size = _N
     texture_data = ngl.BufferFloat(data=array.array("f", [x / (size**2) for x in range(size**2)]))
@@ -381,9 +376,6 @@ def compute_image_load_store(cfg: ngl.SceneCfg, show_dbg_points=False):
     draw = ngl.DrawTexture(texture_rgba)
     group = ngl.Group(children=[compute, draw])
 
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _CUEPOINTS))
-
     return group
 
 
@@ -414,7 +406,7 @@ void main()
 """
 
 
-def _get_compute_image_layered_load_store_scene(cfg: ngl.SceneCfg, texture_cls, show_dbg_points=False):
+def _get_compute_image_layered_load_store_scene(cfg: ngl.SceneCfg, texture_cls):
     cfg.aspect_ratio = (1, 1)
     size = _N
     texture = texture_cls(
@@ -458,22 +450,19 @@ def _get_compute_image_layered_load_store_scene(cfg: ngl.SceneCfg, texture_cls, 
     draw = ngl.DrawTexture(texture_rgba)
     group = ngl.Group(children=[compute_store, compute_load_store, draw])
 
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _CUEPOINTS))
-
     return group
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def compute_image_3d_load_store(cfg: ngl.SceneCfg, show_dbg_points=False):
-    return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture3D, show_dbg_points)
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def compute_image_3d_load_store(cfg: ngl.SceneCfg):
+    return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture3D)
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def compute_image_2d_array_load_store(cfg: ngl.SceneCfg, show_dbg_points=False):
-    return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture2DArray, show_dbg_points)
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def compute_image_2d_array_load_store(cfg: ngl.SceneCfg):
+    return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture2DArray)
 
 
 _IMAGE_CUBE_STORE_COMPUTE = """
@@ -539,7 +528,7 @@ void main()
 """
 
 
-@test_fingerprint(width=128, height=128)
+@test_render(width=128, height=128)
 @ngl.scene()
 def compute_image_cube_load_store(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)

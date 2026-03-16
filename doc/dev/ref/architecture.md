@@ -22,7 +22,8 @@ The `nope.gl` project is split in several parts:
 - `pynopegl-utils` needs [Python][python] and `pynopegl`. The controller depends on
   `PySide6` (which is the main reason why this package is separated from the
   `pynopegl` package). It is also recommended to install [Graphviz][graphviz]
-  in order to render graph in the controller.
+  in order to render graph in the controller. The tests tools depends on
+  `NumPy` and `Jinja`.
 
 ```{mermaid}
 graph
@@ -39,6 +40,8 @@ graph
     sdl2[SDL2]
     libnopemd[libnopemd]
     watchdog[watchdog]
+    numpy[NumPy]
+    jinja[Jinja]
 
     libnopemd --> ffmpeg
     libnopegl --> libnopemd
@@ -53,11 +56,13 @@ graph
     pynopegl_utils -.-> graphviz
     pynopegl_utils --> pyside6
     pynopegl_utils --> watchdog
+    pynopegl_utils --> numpy
+    pynopegl_utils --> jinja
 
     classDef ngldep fill:#add8e6,color:#222
     classDef extdep fill:#c0c0c0,color:#222
     class libnopegl,ngl_tools,pynopegl,pynopegl_utils ngldep
-    class libnopemd,ffmpeg,sdl2,python,cython,graphviz,pyside6,watchdog extdep
+    class libnopemd,ffmpeg,sdl2,python,cython,graphviz,pyside6,watchdog,numpy,jinja extdep
 ```
 
 [meson]: https://mesonbuild.com/

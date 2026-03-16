@@ -24,9 +24,7 @@ import array
 
 import pynopegl as ngl
 from pynopegl_utils.misc import get_shader
-from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
-from pynopegl_utils.tests.cuepoints_utils import get_grid_points, get_points_nodes
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.toolbox.colors import COLORS
 
 
@@ -191,11 +189,15 @@ def _get_rtt_scene(
 
 
 def _get_rtt_function(**kwargs):
-    tolerance = 0
-    if kwargs.get("sample_depth", False):
+    tolerance = 1
+    if kwargs.get("samples", 0) > 0:
         tolerance = 2
+    if kwargs.get("sample_depth", False):
+        tolerance = 3
+    if kwargs.get("resizable", False):
+        tolerance = 3
 
-    @test_fingerprint(width=512, height=512, keyframes=10, tolerance=tolerance)
+    @test_render(width=256, height=256, keyframes=10, tolerance=tolerance, diff_threshold=0.003)
     @ngl.scene()
     def rtt_function(cfg: ngl.SceneCfg):
         return _get_rtt_scene(cfg, **kwargs)
@@ -248,15 +250,13 @@ def _rtt_load_attachment(cfg: ngl.SceneCfg):
     return ngl.Group(children=[background, rtt, rtt_noop, foreground])
 
 
-@test_cuepoints(width=32, height=32, points={"bottom-left": (-0.5, -0.5), "top-right": (0.5, 0.5)}, tolerance=1)
+@test_render(width=32, height=32, tolerance=1)
 @ngl.scene()
 def rtt_load_attachment(cfg: ngl.SceneCfg):
     return _rtt_load_attachment(cfg)
 
 
-@test_cuepoints(
-    samples=4, width=32, height=32, points={"bottom-left": (-0.5, -0.5), "top-right": (0.5, 0.5)}, tolerance=1
-)
+@test_render(samples=4, width=32, height=32, tolerance=1)
 @ngl.scene()
 def rtt_load_attachment_msaa(cfg: ngl.SceneCfg):
     return _rtt_load_attachment(cfg)
@@ -273,13 +273,13 @@ def _rtt_load_attachment_nested(cfg: ngl.SceneCfg, samples=0):
     return ngl.Group(children=[rtt, foreground])
 
 
-@test_cuepoints(width=32, height=32, points={"bottom-left": (-0.5, -0.5), "top-right": (0.5, 0.5)}, tolerance=1)
+@test_render(width=32, height=32, tolerance=1)
 @ngl.scene()
 def rtt_load_attachment_nested(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_nested(cfg)
 
 
-@test_cuepoints(width=32, height=32, points={"bottom-left": (-0.5, -0.5), "top-right": (0.5, 0.5)}, tolerance=1)
+@test_render(width=32, height=32, tolerance=1)
 @ngl.scene()
 def rtt_load_attachment_nested_msaa(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_nested(cfg, 4)
@@ -302,15 +302,13 @@ def _rtt_load_attachment_implicit(cfg: ngl.SceneCfg):
     return ngl.Group(children=[background, foreground])
 
 
-@test_cuepoints(width=32, height=32, points={"bottom-left": (-0.5, -0.5), "top-right": (0.5, 0.5)}, tolerance=1)
+@test_render(width=32, height=32, tolerance=1)
 @ngl.scene()
 def rtt_load_attachment_implicit(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_implicit(cfg)
 
 
-@test_cuepoints(
-    samples=4, width=32, height=32, points={"bottom-left": (-0.5, -0.5), "top-right": (0.5, 0.5)}, tolerance=1
-)
+@test_render(samples=4, width=32, height=32, tolerance=1)
 @ngl.scene()
 def rtt_load_attachment_msaa_implicit(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_implicit(cfg)
@@ -327,19 +325,19 @@ def _rtt_load_attachment_nested_implicit(cfg: ngl.SceneCfg, samples=0):
     return ngl.Group(children=[rtt, foreground])
 
 
-@test_cuepoints(width=32, height=32, points={"bottom-left": (-0.5, -0.5), "top-right": (0.5, 0.5)}, tolerance=1)
+@test_render(width=32, height=32, tolerance=1)
 @ngl.scene()
 def rtt_load_attachment_nested_implicit(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_nested_implicit(cfg)
 
 
-@test_cuepoints(width=32, height=32, points={"bottom-left": (-0.5, -0.5), "top-right": (0.5, 0.5)}, tolerance=1)
+@test_render(width=32, height=32, tolerance=1)
 @ngl.scene()
 def rtt_load_attachment_nested_msaa_implicit(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_nested_implicit(cfg, 4)
 
 
-@test_fingerprint(width=512, height=512, keyframes=10, tolerance=3)
+@test_render(width=256, height=256, keyframes=10, tolerance=3, diff_threshold=0.003)
 @ngl.scene()
 def rtt_clear_attachment_with_timeranges(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -372,7 +370,7 @@ def rtt_clear_attachment_with_timeranges(cfg: ngl.SceneCfg):
     return ngl.Group(children=[rtt, draw])
 
 
-@test_fingerprint(width=512, height=512, keyframes=10, tolerance=3)
+@test_render(width=256, height=256, keyframes=10, tolerance=3, diff_threshold=0.003)
 @ngl.scene()
 def rtt_shared_subgraph_implicit(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -390,7 +388,7 @@ def rtt_shared_subgraph_implicit(cfg: ngl.SceneCfg):
     return group
 
 
-@test_fingerprint(width=512, height=512, keyframes=10, tolerance=3)
+@test_render(width=256, height=256, keyframes=10, tolerance=3, diff_threshold=0.003)
 @ngl.scene()
 def rtt_resizable_with_timeranges(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -411,7 +409,7 @@ def rtt_resizable_with_timeranges(cfg: ngl.SceneCfg):
     return group
 
 
-@test_fingerprint(width=512, height=512, keyframes=10, tolerance=3)
+@test_render(width=256, height=256, keyframes=10, tolerance=3, diff_threshold=0.003)
 @ngl.scene()
 def rtt_resizable_with_timeranges_implicit(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -430,9 +428,9 @@ def rtt_resizable_with_timeranges_implicit(cfg: ngl.SceneCfg):
     return group
 
 
-@test_cuepoints(width=32, height=32, points=get_grid_points(8, 1), tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def rtt_srgb(cfg: ngl.SceneCfg, show_dbg_points=False):
+@test_render(width=32, height=32, tolerance=3)
+@ngl.scene()
+def rtt_srgb(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
     cfg.duration = 1
 
@@ -447,9 +445,5 @@ def rtt_srgb(cfg: ngl.SceneCfg, show_dbg_points=False):
         data_src=gradient,
     )
     group = ngl.Group(children=[ngl.DrawTexture(texture)])
-
-    if show_dbg_points:
-        cuepoints = get_grid_points(8, 1)
-        group.add_children(get_points_nodes(cfg, cuepoints))
 
     return group

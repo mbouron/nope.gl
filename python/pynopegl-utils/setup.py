@@ -25,7 +25,7 @@ setup(
     name="pynopegl-utils",
     version="0.1",
     packages=find_packages(),
-    install_requires=["pynopegl"],
+    install_requires=["jinja2", "pynopegl"],
     entry_points={
         "console_scripts": [
             "ngl-control = pynopegl_utils.controller:run",
@@ -45,6 +45,7 @@ setup(
             "examples/shaders/*.vert",
             "hooks/desktop.py",
             "qml/*.qml",
+            "tests/*.j2",
         ],
     },
 )

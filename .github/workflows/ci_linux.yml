@@ -86,3 +86,10 @@ jobs:
       with:
         name: linux logs ${{matrix.backend}}
         path: builddir/tests/meson-logs/testlog.txt
+
+    - name: Upload Report
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux report ${{matrix.backend}}
+        path: builddir/tests/report

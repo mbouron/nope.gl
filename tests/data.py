@@ -23,17 +23,13 @@ import array
 import textwrap
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
-from pynopegl_utils.tests.cuepoints_utils import get_grid_points, get_points_nodes
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.tests.data import (
     ANIM_DURATION,
     LAYOUTS,
     gen_floats,
     gen_ints,
-    get_data_debug_positions,
     get_field_scene,
-    match_fields,
 )
 from pynopegl_utils.toolbox.colors import COLORS
 
@@ -125,12 +121,10 @@ def _get_data_spec(layout, i_count=6, f_count=7, v2_count=5, v3_count=9, v4_coun
 
 def _get_data_function(spec, category, field_type, layout):
     keyframes = 5 if "animated" in category else 1
-    fields = match_fields(spec, category, field_type)
 
-    @test_cuepoints(
+    @test_render(
         width=128,
         height=128,
-        points=get_data_debug_positions(fields),
         keyframes=keyframes,
         tolerance=1,
         debug_positions=False,
@@ -174,7 +168,7 @@ void main()
 """
 
 
-def _get_data_streamed_buffer_vec4_scene(cfg: ngl.SceneCfg, size, keyframes, scale, single, show_dbg_points):
+def _get_data_streamed_buffer_vec4_scene(cfg: ngl.SceneCfg, size, keyframes, scale, single):
     cfg.duration = keyframes * scale
     cfg.aspect_ratio = (1, 1)
     data_size = size * size
@@ -224,27 +218,22 @@ def _get_data_streamed_buffer_vec4_scene(cfg: ngl.SceneCfg, size, keyframes, sca
     draw = ngl.Draw(quad, program)
     draw.update_frag_resources(streamed=streamed_block)
 
-    group = ngl.Group(children=[draw])
-    if show_dbg_points:
-        cuepoints = get_grid_points(size, size)
-        group.add_children(get_points_nodes(cfg, cuepoints))
-    return group
+    return ngl.Group(children=[draw])
 
 
 def _get_data_streamed_buffer_function(scale, single):
     size = 2 if single else 4
     keyframes = 4
 
-    @test_cuepoints(
+    @test_render(
         width=128,
         height=128,
-        points=get_grid_points(size, size),
         keyframes=keyframes,
         tolerance=1,
     )
-    @ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-    def scene_func(cfg: ngl.SceneCfg, show_dbg_points=False):
-        return _get_data_streamed_buffer_vec4_scene(cfg, size, keyframes, scale, single, show_dbg_points)
+    @ngl.scene()
+    def scene_func(cfg: ngl.SceneCfg):
+        return _get_data_streamed_buffer_vec4_scene(cfg, size, keyframes, scale, single)
 
     return scene_func
 
@@ -255,7 +244,7 @@ data_streamed_buffer_vec4 = _get_data_streamed_buffer_function(1, False)
 data_streamed_buffer_vec4_time_anim = _get_data_streamed_buffer_function(2, False)
 
 
-@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, tolerance=1)
+@test_render(width=128, height=128, tolerance=1)
 @ngl.scene()
 def data_integer_iovars(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -284,7 +273,7 @@ def data_integer_iovars(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, tolerance=1)
+@test_render(width=128, height=128, tolerance=1)
 @ngl.scene()
 def data_mat_iovars(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -318,7 +307,7 @@ def data_mat_iovars(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_fingerprint(width=512, height=512, keyframes=10, tolerance=1)
+@test_render(width=256, height=256, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def data_noise_time(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -349,7 +338,7 @@ def data_noise_time(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_fingerprint(width=512, height=512, keyframes=30, tolerance=1)
+@test_render(width=256, height=256, keyframes=30, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def data_noise_wiggle(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -362,7 +351,7 @@ def data_noise_wiggle(cfg: ngl.SceneCfg):
     return ngl.Translate(draw, vector=translate)
 
 
-@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=10, tolerance=1)
+@test_render(width=128, height=128, keyframes=10, tolerance=1)
 @ngl.scene()
 def data_eval(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -459,13 +448,13 @@ def _data_vertex_and_fragment_blocks(cfg: ngl.SceneCfg, layout):
     return draw
 
 
-@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=1, tolerance=1)
+@test_render(width=128, height=128, keyframes=1, tolerance=1)
 @ngl.scene()
 def data_vertex_and_fragment_blocks(cfg: ngl.SceneCfg):
     return _data_vertex_and_fragment_blocks(cfg, "std140")
 
 
-@test_cuepoints(width=128, height=128, points={"c": (0, 0)}, keyframes=1, tolerance=1)
+@test_render(width=128, height=128, keyframes=1, tolerance=1)
 @ngl.scene()
 def data_vertex_and_fragment_blocks_std430(cfg: ngl.SceneCfg):
     return _data_vertex_and_fragment_blocks(cfg, "std430")

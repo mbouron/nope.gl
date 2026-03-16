@@ -25,9 +25,7 @@ from textwrap import dedent
 
 import pynopegl as ngl
 from pynopegl_utils.misc import get_shader, load_media
-from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
-from pynopegl_utils.tests.cuepoints_utils import get_grid_points, get_points_nodes
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.toolbox.colors import COLORS, get_random_color_buffer
 
 
@@ -52,14 +50,14 @@ def _draw_buffer(cfg: ngl.SceneCfg, w, h):
     return draw
 
 
-@test_fingerprint(width=128, height=128)
+@test_render(width=128, height=128)
 @ngl.scene(controls=dict(w=ngl.scene.Range(range=[1, 128]), h=ngl.scene.Range(range=[1, 128])))
 def texture_data(cfg: ngl.SceneCfg, w=4, h=5):
     cfg.aspect_ratio = (1, 1)
     return _draw_buffer(cfg, w, h)
 
 
-@test_fingerprint(width=128, height=128)
+@test_render(width=128, height=128)
 @ngl.scene(controls=dict(dim=ngl.scene.Range(range=[1, 100])))
 def texture_data_animated(cfg: ngl.SceneCfg, dim=8):
     cfg.duration = 3.0
@@ -81,7 +79,7 @@ def texture_data_animated(cfg: ngl.SceneCfg, dim=8):
     return ngl.DrawTexture(random_tex)
 
 
-@test_fingerprint(width=128, height=128)
+@test_render(width=128, height=128)
 @ngl.scene(controls=dict(h=ngl.scene.Range(range=[1, 32])))
 def texture_data_unaligned_row(cfg: ngl.SceneCfg, h=32):
     """Tests upload of buffers with rows that are not 4-byte aligned"""
@@ -89,7 +87,7 @@ def texture_data_unaligned_row(cfg: ngl.SceneCfg, h=32):
     return _draw_buffer(cfg, 1, h)
 
 
-@test_fingerprint(width=128, height=128, keyframes=(0, 1, 0))
+@test_render(width=128, height=128, keyframes=(0, 1, 0))
 @ngl.scene(controls=dict(w=ngl.scene.Range(range=[1, 128]), h=ngl.scene.Range(range=[1, 128])))
 def texture_data_seek_timeranges(cfg: ngl.SceneCfg, w=4, h=5):
     cfg.aspect_ratio = (1, 1)
@@ -97,7 +95,7 @@ def texture_data_seek_timeranges(cfg: ngl.SceneCfg, w=4, h=5):
     return ngl.TimeRangeFilter(_draw_buffer(cfg, w, h), end=1)
 
 
-@test_fingerprint(width=1280, height=960, keyframes=5)
+@test_render(width=320, height=240, keyframes=5, diff_threshold=0.01)
 @ngl.scene()
 def texture_displacement(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
@@ -258,7 +256,7 @@ def _get_texture_cubemap(mipmap_filter="none"):
     return cube
 
 
-@test_fingerprint(width=800, height=800)
+@test_render(width=400, height=400, tolerance=3)
 @ngl.scene()
 def texture_cubemap(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -271,7 +269,7 @@ def texture_cubemap(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_fingerprint(width=800, height=800, tolerance=1)
+@test_render(width=400, height=400, tolerance=3)
 @ngl.scene()
 def texture_cubemap_mipmap(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -292,31 +290,31 @@ def texture_cubemap_mipmap(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_fingerprint(width=800, height=800)
+@test_render(width=400, height=400, tolerance=3)
 @ngl.scene()
 def texture_cubemap_from_mrt(cfg: ngl.SceneCfg):
     return _get_texture_cubemap_from_mrt_scene(cfg)
 
 
-@test_fingerprint(width=800, height=800)
+@test_render(width=400, height=400, tolerance=3)
 @ngl.scene()
 def texture_cubemap_from_mrt_msaa(cfg: ngl.SceneCfg):
     return _get_texture_cubemap_from_mrt_scene(cfg, 4)
 
 
-@test_fingerprint(width=800, height=800)
+@test_render(width=400, height=400, tolerance=3)
 @ngl.scene()
 def texture_cubemap_from_mrt_2_pass(cfg: ngl.SceneCfg):
     return _get_texture_cubemap_from_mrt_scene_2_pass(cfg)
 
 
-@test_fingerprint(width=800, height=800)
+@test_render(width=400, height=400, tolerance=3)
 @ngl.scene()
 def texture_cubemap_from_mrt_2_pass_msaa(cfg: ngl.SceneCfg):
     return _get_texture_cubemap_from_mrt_scene_2_pass(cfg, 4)
 
 
-@test_cuepoints(width=32, height=32, points={"bottom-left": (-1, -1), "top-right": (1, 1)}, tolerance=1)
+@test_render(width=32, height=32, tolerance=1)
 @ngl.scene()
 def texture_clear_and_scissor(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -331,7 +329,7 @@ def texture_clear_and_scissor(cfg: ngl.SceneCfg):
     return ngl.Group(children=[graphic_config, rtt, draw])
 
 
-@test_fingerprint(width=64, height=64)
+@test_render(width=64, height=64)
 @ngl.scene()
 def texture_scissor(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -387,7 +385,7 @@ def _get_texture_2d_array(cfg: ngl.SceneCfg, mipmap_filter="none"):
     return texture
 
 
-@test_fingerprint(width=320, height=320)
+@test_render(width=320, height=320)
 @ngl.scene()
 def texture_2d_array(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -400,7 +398,7 @@ def texture_2d_array(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_fingerprint(width=1280, height=720, tolerance=4)
+@test_render(width=320, height=180, tolerance=4)
 @ngl.scene()
 def texture_2d_array_mipmap(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (16, 9)
@@ -424,10 +422,9 @@ def texture_2d_array_mipmap(cfg: ngl.SceneCfg):
 
 
 _STEPS = 4
-_CUEPOINTS = get_grid_points(_STEPS, 2)
 
 
-def _get_texture_2d_array_from_mrt_scene(cfg: ngl.SceneCfg, show_dbg_points, samples=0):
+def _get_texture_2d_array_from_mrt_scene(cfg: ngl.SceneCfg, samples=0):
     cfg.aspect_ratio = (1, 1)
     vert = dedent(
         """\
@@ -465,23 +462,19 @@ def _get_texture_2d_array_from_mrt_scene(cfg: ngl.SceneCfg, show_dbg_points, sam
     draw = ngl.Draw(quad, program)
     draw.update_frag_resources(tex0=texture)
 
-    group = ngl.Group(children=[rtt, draw])
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _CUEPOINTS))
-
-    return group
+    return ngl.Group(children=[rtt, draw])
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def texture_2d_array_from_mrt(cfg: ngl.SceneCfg, show_dbg_points=False):
-    return _get_texture_2d_array_from_mrt_scene(cfg, show_dbg_points)
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def texture_2d_array_from_mrt(cfg: ngl.SceneCfg):
+    return _get_texture_2d_array_from_mrt_scene(cfg)
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def texture_2d_array_from_mrt_msaa(cfg: ngl.SceneCfg, show_dbg_points=False):
-    return _get_texture_2d_array_from_mrt_scene(cfg, show_dbg_points, 4)
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def texture_2d_array_from_mrt_msaa(cfg: ngl.SceneCfg):
+    return _get_texture_2d_array_from_mrt_scene(cfg, 4)
 
 
 _TEXTURE3D_VERT = """
@@ -503,7 +496,7 @@ void main()
 """
 
 
-@test_fingerprint(width=400, height=400)
+@test_render(width=400, height=400)
 @ngl.scene()
 def texture_3d(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -535,7 +528,7 @@ def texture_3d(cfg: ngl.SceneCfg):
     return draw
 
 
-def _get_texture_3d_from_mrt_scene(cfg: ngl.SceneCfg, show_dbg_points, samples=0):
+def _get_texture_3d_from_mrt_scene(cfg: ngl.SceneCfg, samples=0):
     cfg.aspect_ratio = (1, 1)
     vert = dedent(
         """\
@@ -572,32 +565,27 @@ def _get_texture_3d_from_mrt_scene(cfg: ngl.SceneCfg, show_dbg_points, samples=0
     draw = ngl.Draw(quad, program)
     draw.update_frag_resources(tex0=texture)
 
-    group = ngl.Group(children=[rtt, draw])
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _CUEPOINTS))
-
-    return group
+    return ngl.Group(children=[rtt, draw])
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def texture_3d_from_mrt(cfg: ngl.SceneCfg, show_dbg_points=False):
-    return _get_texture_3d_from_mrt_scene(cfg, show_dbg_points)
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def texture_3d_from_mrt(cfg: ngl.SceneCfg):
+    return _get_texture_3d_from_mrt_scene(cfg)
 
 
-@test_cuepoints(width=128, height=128, points=_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def texture_3d_from_mrt_msaa(cfg: ngl.SceneCfg, show_dbg_points=False):
-    return _get_texture_3d_from_mrt_scene(cfg, show_dbg_points, 4)
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def texture_3d_from_mrt_msaa(cfg: ngl.SceneCfg):
+    return _get_texture_3d_from_mrt_scene(cfg, 4)
 
 
 _N = 8
-_MIPMAP_CUEPOINTS = get_grid_points(_N, _N)
 
 
-@test_cuepoints(width=128, height=128, points=_MIPMAP_CUEPOINTS, tolerance=1)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def texture_mipmap(cfg: ngl.SceneCfg, show_dbg_points=False):
+@test_render(width=128, height=128, tolerance=1)
+@ngl.scene()
+def texture_mipmap(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
     black = (0, 0, 0, 255)
     white = (255, 255, 255, 255)
@@ -640,11 +628,7 @@ def texture_mipmap(cfg: ngl.SceneCfg, show_dbg_points=False):
     draw = ngl.Draw(quad, program)
     draw.update_frag_resources(tex0=texture)
 
-    group = ngl.Group(children=[draw])
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _MIPMAP_CUEPOINTS))
-
-    return group
+    return ngl.Group(children=[draw])
 
 
 def _get_texture_reframing_scene(d, wrap="default"):
@@ -663,7 +647,7 @@ def _get_texture_reframing_scene(d, wrap="default"):
     return ngl.DrawTexture(texture=tex, wrap=wrap, geometry=geometry)
 
 
-@test_fingerprint(width=320, height=320, keyframes=5, tolerance=1)
+@test_render(width=320, height=320, keyframes=5, tolerance=1)
 @ngl.scene()
 def texture_reframing(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -671,7 +655,7 @@ def texture_reframing(cfg: ngl.SceneCfg):
     return _get_texture_reframing_scene(d)
 
 
-@test_fingerprint(width=320, height=320, keyframes=5, tolerance=1)
+@test_render(width=320, height=320, keyframes=5, tolerance=1)
 @ngl.scene()
 def texture_reframing_wrap_discard(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -679,7 +663,7 @@ def texture_reframing_wrap_discard(cfg: ngl.SceneCfg):
     return _get_texture_reframing_scene(d, "discard")
 
 
-@test_fingerprint(width=320, height=320, keyframes=5, tolerance=1)
+@test_render(width=320, height=320, keyframes=5, tolerance=1)
 @ngl.scene()
 def texture_reframing(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -700,7 +684,7 @@ def texture_reframing(cfg: ngl.SceneCfg):
     return ngl.DrawTexture(texture=tex, geometry=geometry)
 
 
-@test_fingerprint(width=640, height=360, keyframes=5, tolerance=1)
+@test_render(width=320, height=180, keyframes=5, tolerance=3, diff_threshold=0.005)
 @ngl.scene()
 def texture_masking(cfg: ngl.SceneCfg):
     media = load_media("cat")

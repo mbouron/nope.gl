@@ -20,7 +20,7 @@
 #
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.toolbox.colors import COLORS
 
 
@@ -39,7 +39,7 @@ def _get_userlive_switch_func():
         switch1.set_enabled(t_id % 3 == 0)
         switch2.set_enabled(t_id % 4 == 0)
 
-    @test_fingerprint(
+    @test_render(
         width=128,
         height=128,
         keyframes=10,
@@ -93,7 +93,7 @@ def _get_userlive_select_func():
         # (branch ID overflow). We remain on the each state for 2 frames.
         select.set_branch((t_id // 2) % 4)
 
-    @test_fingerprint(
+    @test_render(
         width=128,
         height=128,
         keyframes=8,

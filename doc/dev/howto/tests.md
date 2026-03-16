@@ -30,13 +30,8 @@ builddir/tests` can be used (from within the `venv` and after running `make
 tests-setup` or `make tests` at least once).
 
 Many tests are based on scenes constructed in Python, sometimes available with
-specific debugging options. So in order to get a visual feedback, you can
-usually test them in `ngl-control`/`ngl-desktop` (or `ngl-python`), for
-example: `ngl-control -m ./tests/blending.py`. For more information on the
-controller usage, check out the [starter tutorial](/usr/tuto/start.md).
-
-For cue-points or fingerprint based tests, the `TESTS_OPTIONS=dump` environment
-toggle can be used to dump pictures (in `<tempdir>/nopegl/tests`).
+specific debugging options. Visual inspection can be done through the HTML test
+report generated in `builddir/tests/report/` at the end of a test run.
 
 Additional tooling is available, such as GPU capture and code coverage (see
 associated sections below).

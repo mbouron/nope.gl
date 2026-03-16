@@ -23,14 +23,12 @@ import textwrap
 
 import pynopegl as ngl
 from pynopegl_utils.misc import load_media
-from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.tests.cuepoints_utils import get_points_nodes
 from pynopegl_utils.tests.data import (
     LAYOUTS,
     gen_floats,
     gen_ints,
-    get_data_debug_positions,
     get_field_scene,
     match_fields,
 )
@@ -69,7 +67,7 @@ def _get_group_reorder_function():
             group.swap_children(0, 3)
             group.swap_children(1, 2)
 
-    @test_fingerprint(
+    @test_render(
         width=128,
         height=128,
         tolerance=1,
@@ -136,10 +134,9 @@ def _get_live_shared_uniform_function(layout=None):
     def keyframes_callback(t_id):
         color.set_value(*data[t_id])
 
-    @test_cuepoints(
+    @test_render(
         width=128,
         height=128,
-        points=_SHARED_UNIFORM_CUEPOINTS,
         keyframes=len(data),
         keyframes_callback=keyframes_callback,
         tolerance=1,
@@ -172,11 +169,10 @@ def _get_media_change_function():
             media0.set_filename(load_media("cat").filename)
             media1.set_filename(load_media("panda").filename)
 
-    @test_cuepoints(
+    @test_render(
         width=128,
         height=128,
-        points=dict(x=(0, 0)),
-        tolerance=1,
+        tolerance=5,
         exercise_serialization=False,
         keyframes_callback=_change_media,
         keyframes=[0.0, 0.0, 12.0],
@@ -213,10 +209,9 @@ def _get_timerangefilter_update_function():
         elif t_id == 3:
             range.set_range(10.0, 15.0)
 
-    @test_cuepoints(
+    @test_render(
         width=128,
         height=128,
-        points=dict(x=(0, 0)),
         tolerance=1,
         exercise_serialization=False,
         keyframes_callback=_update_timerange,
@@ -326,10 +321,9 @@ def _get_live_function(spec, category, field_type, layout):
             v = data_src[t_id - 1]
             field["node"].set_value(*v)
 
-    @test_cuepoints(
+    @test_render(
         width=128,
         height=128,
-        points=get_data_debug_positions(fields),
         keyframes=len(data_src) + 1,
         keyframes_callback=keyframes_callback,
         tolerance=1,
@@ -359,10 +353,9 @@ def _get_live_trf_function(spec, category, field_type, layout):
     def keyframes_callback(t_id):
         livechange_funcs[t_id]()
 
-    @test_cuepoints(
+    @test_render(
         width=128,
         height=128,
-        points=get_data_debug_positions(fields),
         keyframes=len(livechange_funcs),
         keyframes_callback=keyframes_callback,
         tolerance=1,

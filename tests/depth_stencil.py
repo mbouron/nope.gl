@@ -20,7 +20,7 @@
 #
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.toolbox.colors import COLORS
 
 
@@ -29,7 +29,7 @@ def _draw_quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 2, 0), color=(1, 
     return ngl.DrawColor(color, opacity=opacity, geometry=quad, blending="src_over")
 
 
-@test_fingerprint(width=16, height=16, keyframes=2, tolerance=1)
+@test_render(width=16, height=16, keyframes=2, tolerance=1)
 @ngl.scene()
 def depth_stencil_depth(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -63,7 +63,7 @@ def depth_stencil_depth(cfg: ngl.SceneCfg):
     return group
 
 
-@test_fingerprint(width=16, height=16, keyframes=2, tolerance=1)
+@test_render(width=16, height=16, keyframes=2, tolerance=1)
 @ngl.scene()
 def depth_stencil_stencil(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
