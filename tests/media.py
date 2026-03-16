@@ -23,8 +23,7 @@ import textwrap
 
 import pynopegl as ngl
 from pynopegl_utils.misc import load_media
-from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.toolbox.colors import COLORS
 from pynopegl_utils.toolbox.grid import autogrid_simple
 
@@ -61,7 +60,7 @@ def _get_time_scene(cfg: ngl.SceneCfg):
     return rf
 
 
-@test_fingerprint(width=320, height=240, keyframes=3, tolerance=1)
+@test_render(width=320, height=240, keyframes=3, tolerance=1)
 @ngl.scene()
 def media_flat_remap(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
@@ -77,10 +76,9 @@ def media_flat_remap(cfg: ngl.SceneCfg):
     return ngl.DrawTexture(t)
 
 
-@test_cuepoints(
+@test_render(
     width=320,
     height=240,
-    points={"X": (0, -0.625)},
     keyframes=15,
     clear_color=list(COLORS.violet) + [1],
     tolerance=1,
@@ -92,7 +90,7 @@ def media_phases_display(cfg: ngl.SceneCfg):
 
 # Note: the following test only makes sure the clamping code shader compiles,
 # not check for an actual overflow
-@test_cuepoints(width=320, height=240, points={"X": (0, -0.625)}, keyframes=1, tolerance=1)
+@test_render(width=320, height=240, keyframes=1, tolerance=1)
 @ngl.scene()
 def media_clamp(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
@@ -104,7 +102,7 @@ def media_clamp(cfg: ngl.SceneCfg):
     return ngl.DrawTexture(texture)
 
 
-@test_cuepoints(width=320, height=240, points={f"P{i}": (i / 5 * 2 - 1, 0) for i in range(5)}, keyframes=5, tolerance=1)
+@test_render(width=320, height=240, keyframes=5, tolerance=1)
 @ngl.scene()
 def media_exposed_time(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
@@ -136,7 +134,7 @@ def media_exposed_time(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_fingerprint(width=1024, height=1024, keyframes=30, tolerance=2)
+@test_render(width=256, height=256, keyframes=10, tolerance=2)
 @ngl.scene(controls=dict(overlap_time=ngl.scene.Range(range=[0, 10], unit_base=10), dim=ngl.scene.Range(range=[1, 10])))
 def media_queue(cfg: ngl.SceneCfg, overlap_time=7.0, dim=3):
     cfg.duration = 10
@@ -167,7 +165,7 @@ def media_queue(cfg: ngl.SceneCfg, overlap_time=7.0, dim=3):
     return autogrid_simple(queued_medias)
 
 
-@test_fingerprint(width=320, height=240, keyframes=20, tolerance=1)
+@test_render(width=320, height=240, keyframes=20, tolerance=1)
 @ngl.scene()
 def media_timeranges_rtt(cfg: ngl.SceneCfg):
     m0 = load_media("mire")

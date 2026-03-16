@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>nope.gl render test report ({{ backend }})</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+          crossorigin="anonymous">
+    <style>
+        img { width: 256px; background-color: #000; }
+        img.render {
+            background-color: #fff;
+            background-image:
+                linear-gradient(45deg, #eee 25%, transparent 25%),
+                linear-gradient(-45deg, #eee 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #eee 75%),
+                linear-gradient(-45deg, transparent 75%, #eee 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 0, 10px -10px, 0px 10px;
+        }
+        table td, table th { padding: 8px !important; }
+        table td:first-child { word-break: break-all; }
+        small { color: #666; }
+
+        .flip-cell {
+            position: relative;
+            cursor: pointer;
+            width: 256px;
+            min-width: 256px;
+        }
+        .flip-cell img.flip-ref {
+            display: block;
+        }
+        .flip-cell img.flip-out {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .flip-cell img.flip-out {
+            opacity: 0;
+        }
+        .flip-cell.show-out img.flip-ref {
+            opacity: 0;
+        }
+        .flip-cell.show-out img.flip-out {
+            opacity: 1;
+        }
+        .flip-cell .flip-label {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: rgba(0,0,0,.6);
+            color: #fff;
+            font-size: 11px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            z-index: 5;
+            pointer-events: none;
+        }
+        .flip-cell .flip-label-out {
+            display: none;
+        }
+        .flip-cell.show-out .flip-label-ref {
+            display: none;
+        }
+        .flip-cell.show-out .flip-label-out {
+            display: inline;
+        }
+
+        .swipe-cell {
+            position: relative;
+            width: 256px;
+            min-width: 256px;
+            overflow: hidden;
+            user-select: none;
+            cursor: ew-resize;
+        }
+        .swipe-cell img.swipe-bg {
+            display: block;
+            pointer-events: none;
+        }
+        .swipe-cell .swipe-clip {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 50%;
+            height: 100%;
+            overflow: hidden;
+        }
+        .swipe-cell .swipe-clip img {
+            pointer-events: none;
+        }
+        .swipe-cell .swipe-handle {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 2px;
+            height: 100%;
+            background: #fff;
+            box-shadow: 0 0 0 1px rgba(0,0,0,.5);
+            z-index: 3;
+            pointer-events: none;
+        }
+        .swipe-cell .swipe-handle::after {
+            content: '\25c0\25b6';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,.6);
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            white-space: nowrap;
+            letter-spacing: 2px;
+        }
+        .swipe-cell .swipe-label {
+            position: absolute;
+            top: 4px;
+            background: rgba(0,0,0,.6);
+            color: #fff;
+            font-size: 11px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            z-index: 5;
+            pointer-events: none;
+        }
+        .swipe-cell .swipe-label-out {
+            left: 4px;
+        }
+        .swipe-cell .swipe-label-ref {
+            right: 4px;
+        }
+
+        .zoom-cell {
+            position: relative;
+        }
+        .zoom-lens {
+            display: none;
+            position: absolute;
+            pointer-events: none;
+            width: 160px;
+            height: 160px;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px #000, 0 2px 8px rgba(0,0,0,.5);
+            image-rendering: pixelated;
+            background-color: #fff;
+            z-index: 10;
+        }
+        /* Detail overlay */
+        .detail-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,.85);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        .detail-overlay.active {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .detail-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .detail-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .detail-close {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0 8px;
+            line-height: 1;
+        }
+        .detail-close:hover {
+            color: #ccc;
+        }
+        .detail-tabs {
+            display: flex;
+            gap: 0;
+            flex-shrink: 0;
+            border-bottom: 1px solid #555;
+            margin-bottom: 16px;
+        }
+        .detail-tab {
+            padding: 8px 20px;
+            color: #aaa;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .detail-tab:hover {
+            color: #fff;
+        }
+        .detail-tab.active {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+        .detail-body {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 0 24px 24px;
+            width: 100%;
+        }
+        .detail-pane {
+            display: none;
+        }
+        .detail-pane.active {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .detail-pane figure {
+            margin: 0;
+            text-align: center;
+        }
+        .detail-pane figure figcaption {
+            color: #aaa;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+        .detail-pane img {
+            width: 512px;
+            max-width: calc(50vw - 48px);
+        }
+        .detail-pane .flip-cell {
+            width: 512px;
+            max-width: calc(90vw - 48px);
+            min-width: auto;
+        }
+        .detail-pane .flip-cell img {
+            width: 100%;
+        }
+        .detail-pane .swipe-cell {
+            width: 512px;
+            max-width: calc(90vw - 48px);
+            min-width: auto;
+        }
+        .detail-pane .swipe-cell img.swipe-bg {
+            width: 100%;
+        }
+        .detail-pane .swipe-cell .swipe-clip img {
+            width: 512px;
+            max-width: calc(90vw - 48px);
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <br>
+    <h1>nope.gl Render Test Report</h1>
+    <p>Backend: <b>{{ backend }}</b> &mdash; {{ n_pass }} passed, {{ n_fail }} failed, {{ n_total }} total</p>
+    {% if n_fail > 0 %}
+    <div class="alert alert-danger">Some tests failed. See red rows below.</div>
+    {% else %}
+    <div class="alert alert-success">All tests passed.</div>
+    {% endif %}
+    <p><small>Hover over images to zoom (synchronized across columns). Diff legend: <span style="color:red">red</span> = real difference, <span style="color:#cc0">yellow</span> = anti-aliased (forgiven).</small></p>
+    <table class="table table-striped">
+        <thead class="thead-dark">
+            <tr><th>Name</th><th>Output</th><th>Reference</th><th>Diff</th><th>Flip</th></tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr id="{{ r.key }}"{% if r.failed %} class="table-danger"{% endif %} data-row="{{ r.key }}" data-name="{{ r.name }}"{% if r.has_images %} data-out="{{ r.out_url }}" data-ref="{{ r.ref_url }}" data-diff="{{ r.diff_url }}" data-has-diff="{{ r.has_diff | lower }}"{% elif r.ref_path %} data-ref="{{ r.ref_path }}"{% endif %} style="cursor:pointer">
+                <td>
+                    <b>{{ r.name }}</b>
+                    {%- if r.frame > 0 %} <small>(frame {{ r.frame }})</small>{% endif %}
+                    <br><small>{{ r.stats_html }}</small>
+                </td>
+                {% if r.has_images %}
+                <td class="zoom-cell" data-img="{{ r.out_url }}">
+                    <img src="{{ r.out_url }}" class="render">
+                    <div class="zoom-lens"></div>
+                </td>
+                <td class="zoom-cell" data-img="{{ r.ref_url }}">
+                    <img src="{{ r.ref_url }}" class="render">
+                    <div class="zoom-lens"></div>
+                </td>
+                {% if r.has_diff %}
+                <td class="zoom-cell" data-img="{{ r.diff_url }}">
+                    <img src="{{ r.diff_url }}" class="render">
+                    <div class="zoom-lens"></div>
+                </td>
+                {% else %}
+                <td></td>
+                {% endif %}
+                <td>
+                    <div class="flip-cell">
+                        <img src="{{ r.ref_url }}" class="render flip-ref">
+                        <img src="{{ r.out_url }}" class="render flip-out">
+                        <span class="flip-label flip-label-ref">ref</span>
+                        <span class="flip-label flip-label-out">out</span>
+                    </div>
+                </td>
+                {% elif r.ref_path %}
+                <td class="zoom-cell" data-img="{{ r.ref_path }}">
+                    <img src="{{ r.ref_path }}" class="render">
+                    <div class="zoom-lens"></div>
+                </td>
+                <td class="zoom-cell" data-img="{{ r.ref_path }}">
+                    <img src="{{ r.ref_path }}" class="render">
+                    <div class="zoom-lens"></div>
+                </td>
+                <td></td>
+                <td></td>
+                {% else %}
+                <td></td><td></td><td></td><td></td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <br>
+</div>
+<div class="detail-overlay" id="detailOverlay">
+    <div class="detail-header">
+        <h2 id="detailTitle"></h2>
+        <button class="detail-close" id="detailClose">&times;</button>
+    </div>
+    <div class="detail-tabs" id="detailTabs">
+        <button class="detail-tab active" data-tab="sidebyside">Side by Side</button>
+        <button class="detail-tab" data-tab="diff">Diff</button>
+        <button class="detail-tab" data-tab="flip">Flip</button>
+        <button class="detail-tab" data-tab="swipe">Swipe</button>
+    </div>
+    <div class="detail-body">
+        <div class="detail-pane active" id="pane-sidebyside"></div>
+        <div class="detail-pane" id="pane-diff"></div>
+        <div class="detail-pane" id="pane-flip"></div>
+        <div class="detail-pane" id="pane-swipe"></div>
+    </div>
+</div>
+<script>
+(function() {
+    var ZOOM = 8;
+    var LENS_SIZE = 160;
+
+    function updateLens(lens, imgRect, imgSrc, natW, natH, mx, my) {
+        /* Normalized position within the displayed image (0..1) */
+        var nx = (mx - imgRect.left) / imgRect.width;
+        var ny = (my - imgRect.top) / imgRect.height;
+        nx = Math.max(0, Math.min(1, nx));
+        ny = Math.max(0, Math.min(1, ny));
+
+        var bgW = natW * ZOOM;
+        var bgH = natH * ZOOM;
+        var bgX = -(nx * bgW - LENS_SIZE / 2);
+        var bgY = -(ny * bgH - LENS_SIZE / 2);
+
+        var checker = 'linear-gradient(45deg, #eee 25%, transparent 25%), '
+            + 'linear-gradient(-45deg, #eee 25%, transparent 25%), '
+            + 'linear-gradient(45deg, transparent 75%, #eee 75%), '
+            + 'linear-gradient(-45deg, transparent 75%, #eee 75%)';
+
+        lens.style.display = 'block';
+        lens.style.backgroundImage = 'url(' + imgSrc + '), ' + checker;
+        lens.style.backgroundSize = bgW + 'px ' + bgH + 'px, 20px 20px';
+        lens.style.backgroundPosition = bgX + 'px ' + bgY + 'px, 0 0, 10px 0, 10px -10px, 0px 10px';
+        lens.style.backgroundRepeat = 'no-repeat, repeat';
+
+        /* Position the lens above/beside the cursor within the cell */
+        var lensX = mx - imgRect.left - LENS_SIZE / 2;
+        var lensY = my - imgRect.top - LENS_SIZE / 2;
+        lens.style.left = lensX + 'px';
+        lens.style.top = lensY + 'px';
+    }
+
+    function initSwipeCells(root) {
+        root.querySelectorAll('.swipe-cell').forEach(function(cell) {
+            var clip = cell.querySelector('.swipe-clip');
+            var handle = cell.querySelector('.swipe-handle');
+            var dragging = false;
+
+            function setPosition(x) {
+                var rect = cell.getBoundingClientRect();
+                var pct = (x - rect.left) / rect.width;
+                pct = Math.max(0, Math.min(1, pct));
+                clip.style.width = (pct * 100) + '%';
+                handle.style.left = (pct * 100) + '%';
+            }
+
+            cell.addEventListener('mousedown', function(e) {
+                dragging = true;
+                setPosition(e.clientX);
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (dragging) setPosition(e.clientX);
+            });
+
+            document.addEventListener('mouseup', function() {
+                dragging = false;
+            });
+        });
+    }
+
+    function initFlipCells(root) {
+        root.querySelectorAll('.flip-cell').forEach(function(cell) {
+            cell.addEventListener('click', function() {
+                cell.classList.toggle('show-out');
+            });
+        });
+    }
+
+    function initZoomCells(root) {
+        root.querySelectorAll('tr[data-row]').forEach(function(tr) {
+            var cells = tr.querySelectorAll('.zoom-cell');
+            var lenses = [];
+            var imgs = [];
+            var srcs = [];
+
+            cells.forEach(function(cell) {
+                lenses.push(cell.querySelector('.zoom-lens'));
+                imgs.push(cell.querySelector('img'));
+                srcs.push(cell.getAttribute('data-img'));
+            });
+
+            cells.forEach(function(cell, idx) {
+                cell.addEventListener('mousemove', function(e) {
+                    var rect = imgs[idx].getBoundingClientRect();
+                    var natW = imgs[idx].naturalWidth;
+                    var natH = imgs[idx].naturalHeight;
+                    for (var i = 0; i < lenses.length; i++) {
+                        var r = imgs[i].getBoundingClientRect();
+                        updateLens(lenses[i], r, srcs[i], natW, natH, e.clientX - rect.left + r.left, e.clientY - rect.top + r.top);
+                    }
+                });
+
+                cell.addEventListener('mouseleave', function() {
+                    for (var i = 0; i < lenses.length; i++) {
+                        lenses[i].style.display = 'none';
+                    }
+                });
+            });
+        });
+    }
+
+    /* Initialize table interactions */
+    initSwipeCells(document);
+    initFlipCells(document);
+    initZoomCells(document);
+
+    /* Detail overlay */
+    var overlay = document.getElementById('detailOverlay');
+    var detailTitle = document.getElementById('detailTitle');
+    var detailTabs = document.getElementById('detailTabs');
+    var panes = {
+        sidebyside: document.getElementById('pane-sidebyside'),
+        diff: document.getElementById('pane-diff'),
+        flip: document.getElementById('pane-flip'),
+        swipe: document.getElementById('pane-swipe')
+    };
+
+    function openDetail(tr) {
+        var name = tr.getAttribute('data-name');
+        var outUrl = tr.getAttribute('data-out');
+        var refUrl = tr.getAttribute('data-ref');
+        var diffUrl = tr.getAttribute('data-diff');
+        var hasDiff = tr.getAttribute('data-has-diff') === 'true';
+
+        if (!refUrl) return;
+
+        detailTitle.textContent = name;
+
+        /* Side by side */
+        var sbs = '<figure><img src="' + (outUrl || refUrl) + '" class="render"><figcaption>Output</figcaption></figure>';
+        sbs += '<figure><img src="' + refUrl + '" class="render"><figcaption>Reference</figcaption></figure>';
+        panes.sidebyside.innerHTML = sbs;
+
+        /* Diff */
+        if (hasDiff && diffUrl) {
+            panes.diff.innerHTML = '<figure><img src="' + diffUrl + '" class="render"><figcaption>Diff</figcaption></figure>';
+        } else {
+            panes.diff.innerHTML = '<p style="color:#aaa">No diff available (images are identical).</p>';
+        }
+
+        /* Flip */
+        if (outUrl) {
+            panes.flip.innerHTML =
+                '<div class="flip-cell">' +
+                    '<img src="' + refUrl + '" class="render flip-ref">' +
+                    '<img src="' + outUrl + '" class="render flip-out">' +
+                    '<span class="flip-label flip-label-ref">ref</span>' +
+                    '<span class="flip-label flip-label-out">out</span>' +
+                '</div>';
+            initFlipCells(panes.flip);
+        } else {
+            panes.flip.innerHTML = '<p style="color:#aaa">No output image to compare.</p>';
+        }
+
+        /* Swipe */
+        if (outUrl) {
+            panes.swipe.innerHTML =
+                '<div class="swipe-cell">' +
+                    '<img src="' + refUrl + '" class="render swipe-bg">' +
+                    '<div class="swipe-clip">' +
+                        '<img src="' + outUrl + '" class="render swipe-fg">' +
+                    '</div>' +
+                    '<div class="swipe-handle"></div>' +
+                    '<span class="swipe-label swipe-label-out">out</span>' +
+                    '<span class="swipe-label swipe-label-ref">ref</span>' +
+                '</div>';
+            initSwipeCells(panes.swipe);
+        } else {
+            panes.swipe.innerHTML = '<p style="color:#aaa">No output image to compare.</p>';
+        }
+
+        /* Reset to first tab */
+        detailTabs.querySelectorAll('.detail-tab').forEach(function(t, i) {
+            t.classList.toggle('active', i === 0);
+        });
+        Object.keys(panes).forEach(function(k, i) {
+            panes[k].classList.toggle('active', i === 0);
+        });
+
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeDetail() {
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.getElementById('detailClose').addEventListener('click', closeDetail);
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeDetail();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && overlay.classList.contains('active')) closeDetail();
+    });
+
+    /* Tab switching */
+    detailTabs.addEventListener('click', function(e) {
+        var tab = e.target.closest('.detail-tab');
+        if (!tab) return;
+        var tabName = tab.getAttribute('data-tab');
+        detailTabs.querySelectorAll('.detail-tab').forEach(function(t) {
+            t.classList.toggle('active', t === tab);
+        });
+        Object.keys(panes).forEach(function(k) {
+            panes[k].classList.toggle('active', k === tabName);
+        });
+    });
+
+    /* Row click to open detail */
+    document.querySelectorAll('tr[data-row]').forEach(function(tr) {
+        tr.addEventListener('click', function(e) {
+            /* Don't open if user is interacting with a swipe/flip cell */
+            if (e.target.closest('.swipe-cell') || e.target.closest('.flip-cell')) return;
+            openDetail(tr);
+        });
+    });
+})();
+</script>
+</body>
+</html>

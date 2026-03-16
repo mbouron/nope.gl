@@ -12,6 +12,17 @@ foreach line : probe_output.split('\n')
   endif
 endforeach
 
+report_dir = meson.project_build_root() / 'report'
+
+summary(
+  {
+    'report': report_dir,
+    'backends': backends,
+  },
+  list_sep: ',',
+  section: 'General',
+)
+
 foreach backend : backends
   cap_cmd = [ngl_probe, '-l', 'quiet', '-b', backend, '--cap']
   # ngl-probe may display garbage on stdout: typically Mesa does this on
@@ -539,7 +550,7 @@ foreach backend : backends
     'userlive':      {'tests': tests_userlive},
   }
 
-  env = ['BACKEND=' + backend]
+  env = ['BACKEND=' + backend, 'REPORT_DIR=' + report_dir]
 
   foreach category, test_specs : tests
     test_names = test_specs.get('tests')
@@ -567,3 +578,16 @@ foreach backend : backends
     endforeach
   endforeach
 endforeach
+
+
+# Print report file once all the tests have finished (this is achieved by
+# setting `priority` and  `is_parallel`)
+test(
+  report_dir,
+  find_program('python3'),
+  args: [files('report_summary.py')],
+  env: ['REPORT_DIR=' + report_dir],
+  is_parallel: false,
+  priority: -1000,
+  suite: ['report'],
+)

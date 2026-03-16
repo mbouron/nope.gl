@@ -23,12 +23,10 @@ import textwrap
 
 import pynopegl as ngl
 from pynopegl_utils.misc import load_media
-from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
-from pynopegl_utils.tests.cuepoints_utils import get_grid_points, get_points_nodes
+from pynopegl_utils.tests.cmp_render import test_render
 
 
-@test_fingerprint(width=256, height=256, keyframes=10, tolerance=1)
+@test_render(width=256, height=256, keyframes=10, tolerance=5)
 @ngl.scene()
 def blur_gaussian(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -50,7 +48,7 @@ def blur_gaussian(cfg: ngl.SceneCfg):
     return ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
 
 
-@test_fingerprint(width=800, height=800, keyframes=10, tolerance=5)
+@test_render(width=256, height=256, keyframes=10, tolerance=5)
 @ngl.scene()
 def blur_fast_gaussian(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -72,12 +70,9 @@ def blur_fast_gaussian(cfg: ngl.SceneCfg):
     return ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
 
 
-_BLUR_HEXAGONAL_CUEPOINTS = get_grid_points(10, 10)
-
-
-@test_cuepoints(width=540, height=808, points=_BLUR_HEXAGONAL_CUEPOINTS, keyframes=5, tolerance=5)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def blur_hexagonal(cfg: ngl.SceneCfg, show_dbg_points=False):
+@test_render(width=270, height=404, keyframes=5, tolerance=5)
+@ngl.scene()
+def blur_hexagonal(cfg: ngl.SceneCfg):
     mi = load_media("city")
     cfg.aspect_ratio = (mi.width, mi.height)
     cfg.duration = 5
@@ -95,26 +90,19 @@ def blur_hexagonal(cfg: ngl.SceneCfg, show_dbg_points=False):
         ),
     )
 
-    group = ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _BLUR_HEXAGONAL_CUEPOINTS))
-
-    return group
+    return ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
 
 
-_BLUR_HEXAGONAL_MAP_VERTEX = textwrap.dedent(
-    """
+_BLUR_HEXAGONAL_MAP_VERTEX = textwrap.dedent("""
     void main()
     {
         vec4 position = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
         uv = position.xy;
         ngl_out_pos = position;
     }
-    """
-)
+    """)
 
-_BLUR_HEXAGONAL_MAP_FRAGMENT = textwrap.dedent(
-    """
+_BLUR_HEXAGONAL_MAP_FRAGMENT = textwrap.dedent("""
     #define ngli_sat(x) clamp(x, 0.0, 1.0)
     #define ngli_linear(a, b, x) (((x) - (a)) / ((b) - (a)))
     #define ngli_linearstep(a, b, x) ngli_sat(ngli_linear(a, b, x))
@@ -131,13 +119,12 @@ _BLUR_HEXAGONAL_MAP_FRAGMENT = textwrap.dedent(
         float value = ngli_linearstep(0.0, 0.8, sd);
         ngl_out_color = vec4(value);
     }
-    """
-)
+    """)
 
 
-@test_cuepoints(width=540, height=808, points=_BLUR_HEXAGONAL_CUEPOINTS, keyframes=5, tolerance=5)
-@ngl.scene(controls=dict(show_dbg_points=ngl.scene.Bool()))
-def blur_hexagonal_with_map(cfg: ngl.SceneCfg, show_dbg_points=False):
+@test_render(width=270, height=404, keyframes=5, tolerance=5, diff_threshold=0.003)
+@ngl.scene()
+def blur_hexagonal_with_map(cfg: ngl.SceneCfg):
     mi = load_media("city")
     cfg.aspect_ratio = (mi.width, mi.height)
     cfg.duration = 5
@@ -162,8 +149,4 @@ def blur_hexagonal_with_map(cfg: ngl.SceneCfg, show_dbg_points=False):
         map=map_texture,
     )
 
-    group = ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
-    if show_dbg_points:
-        group.add_children(get_points_nodes(cfg, _BLUR_HEXAGONAL_CUEPOINTS))
-
-    return group
+    return ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])

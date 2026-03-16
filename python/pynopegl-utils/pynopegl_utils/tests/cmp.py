@@ -19,14 +19,13 @@
 # under the License.
 #
 
-import difflib
 import os
-import os.path as op
 from fractions import Fraction
-from typing import Any, Callable, Generator, Sequence, Tuple, Union
+from typing import Any, Callable, Generator, List, Optional, Sequence, Tuple, Union
 
 import pynopegl as ngl
 from pynopegl_utils.misc import get_backend, get_nopegl_tempdir
+from pynopegl_utils.tests.refgen import RefGen
 
 
 class CompareBase:
@@ -38,34 +37,8 @@ class CompareBase:
     def deserialize(data: str) -> Any:
         return data
 
-    def get_out_data(self, dump=False, func_name=None) -> Any:
+    def run_with_ref(self, func_name: str, ref_base: str, ref_gen: RefGen) -> Optional[List[str]]:
         raise NotImplementedError
-
-    def compare_data(self, test_name: str, ref_data: Any, out_data: Any) -> Sequence[str]:
-        ref_data = self.serialize(ref_data)
-        out_data = self.serialize(out_data)
-
-        err = []
-        if ref_data != out_data:
-            ref_data = ref_data.splitlines(True)
-            out_data = out_data.splitlines(True)
-            diff = "".join(
-                difflib.unified_diff(ref_data, out_data, fromfile=test_name + "-ref", tofile=test_name + "-out", n=10)
-            )
-            err.append(f"{test_name} fail:\n{diff}")
-        return err
-
-    @staticmethod
-    def dump_image(img, dump_index: int, func_name=None):
-        test_tmpdir = op.join(get_nopegl_tempdir(), "tests")
-        backend = os.environ.get("BACKEND")
-        if backend:
-            test_tmpdir = op.join(test_tmpdir, backend)
-        os.makedirs(test_tmpdir, exist_ok=True)
-        filename = op.join(test_tmpdir, f"{func_name}_{dump_index:03}.png")
-        print(f"Dumping output image to {filename}")
-        img.save(filename)
-        dump_index += 1
 
 
 class CompareSceneBase(CompareBase):

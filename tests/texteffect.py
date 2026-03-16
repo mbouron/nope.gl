@@ -20,10 +20,10 @@
 #
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cmp_render import test_render
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_color(cfg: ngl.SceneCfg):
     cfg.duration = 3
@@ -56,7 +56,7 @@ def texteffect_color(cfg: ngl.SceneCfg):
     return ngl.Text(text=text, effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_opacity(cfg: ngl.SceneCfg):
     cfg.duration = 3
@@ -78,7 +78,7 @@ def texteffect_opacity(cfg: ngl.SceneCfg):
     return ngl.Text("Ghost\nin the\nText", effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_transform(cfg: ngl.SceneCfg):
     cfg.duration = 3
@@ -104,7 +104,7 @@ def texteffect_transform(cfg: ngl.SceneCfg):
     return ngl.Text("Drop me down", effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_scale(cfg: ngl.SceneCfg):
     cfg.duration = 3
@@ -129,7 +129,7 @@ def texteffect_scale(cfg: ngl.SceneCfg):
     return ngl.Text("Zoom\nzoom\nzang", effects=effects)
 
 
-@test_fingerprint(width=360, height=360, keyframes=10, tolerance=1)
+@test_render(width=360, height=360, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_rotate(cfg: ngl.SceneCfg):
     cfg.duration = 4
@@ -154,7 +154,7 @@ def texteffect_rotate(cfg: ngl.SceneCfg):
     return ngl.Text("nd", bg_color=(1, 0, 0), box=(-0.5, 0, 1.5, 1), effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_box_anchor(cfg: ngl.SceneCfg):
     cfg.duration = 3
@@ -179,7 +179,7 @@ def texteffect_box_anchor(cfg: ngl.SceneCfg):
     return ngl.Text("ABC", bg_color=(1, 0, 0), box=(-1, 0, 2, 1), effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_vp_anchor(cfg: ngl.SceneCfg):
     cfg.duration = 3
@@ -204,7 +204,7 @@ def texteffect_vp_anchor(cfg: ngl.SceneCfg):
     return ngl.Text("ABC", bg_color=(1, 0, 0), box=(-1, 0, 2, 1), effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_combined_diff_anchors(cfg: ngl.SceneCfg):
     cfg.duration = 3
@@ -243,7 +243,7 @@ def texteffect_combined_diff_anchors(cfg: ngl.SceneCfg):
     return ngl.Text("ABC", bg_color=(1, 0, 0), box=(-1, 0, 2, 1), effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_chars_space_nospace(cfg: ngl.SceneCfg):
     cfg.duration = 5
@@ -265,7 +265,7 @@ def texteffect_chars_space_nospace(cfg: ngl.SceneCfg):
     )
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_blur(cfg: ngl.SceneCfg):
     cfg.duration = 5
@@ -279,7 +279,7 @@ def texteffect_blur(cfg: ngl.SceneCfg):
     return ngl.Text("B", effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_blur_outline(cfg: ngl.SceneCfg):
     cfg.duration = 5
@@ -293,7 +293,7 @@ def texteffect_blur_outline(cfg: ngl.SceneCfg):
     return ngl.Text("b", effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_glow(cfg: ngl.SceneCfg):
     cfg.duration = 5
@@ -307,7 +307,7 @@ def texteffect_glow(cfg: ngl.SceneCfg):
     return ngl.Text("G", effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=2)
+@test_render(width=320, height=180, keyframes=10, tolerance=2, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_glow_outline(cfg: ngl.SceneCfg):
     cfg.duration = 5
@@ -321,7 +321,7 @@ def texteffect_glow_outline(cfg: ngl.SceneCfg):
     return ngl.Text("g", effects=effects)
 
 
-@test_fingerprint(width=640, height=360, keyframes=10, tolerance=1)
+@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
 @ngl.scene()
 def texteffect_outline_pos(cfg: ngl.SceneCfg):
     cfg.duration = 5
