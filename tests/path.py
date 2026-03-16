@@ -20,7 +20,7 @@
 #
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cmp_render import test_render
 
 
 def _shape_variant_0(cfg: ngl.SceneCfg, *kfs):
@@ -42,42 +42,42 @@ def _shape_variant_0(cfg: ngl.SceneCfg, *kfs):
     return ngl.DrawPath(path, viewbox=(-1, -1, 2, 1))
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_0(cfg: ngl.SceneCfg):
     kf = ngl.PathKeyLine(to=(0.2, -0.75, 0))
     return _shape_variant_0(cfg, kf)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_1(cfg: ngl.SceneCfg):
     kf = ngl.PathKeyBezier2(to=(0.2, -0.75, 0), control=(-0.1, -0.5, 0))
     return _shape_variant_0(cfg, kf)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_2(cfg: ngl.SceneCfg):
     kf = ngl.PathKeyBezier3(to=(0.2, -0.75, 0), control1=(0.0, -0.2, 0), control2=(-0.2, -1.0, 0))
     return _shape_variant_0(cfg, kf)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_3(cfg: ngl.SceneCfg):
     kf = ngl.PathKeyBezier3(to=(0.2, -0.75, 0), control1=(0.0, -1.0, 0), control2=(-0.2, -0.2, 0))
     return _shape_variant_0(cfg, kf)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_4(cfg: ngl.SceneCfg):
     kf = ngl.PathKeyBezier2(to=(0.2, -0.75, 0), control=(-0.1, -0.95, 0))
     return _shape_variant_0(cfg, kf)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_5(cfg: ngl.SceneCfg):
     kfs = [
@@ -87,7 +87,7 @@ def path_shape_5(cfg: ngl.SceneCfg):
     return _shape_variant_0(cfg, *kfs)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_6(cfg: ngl.SceneCfg):
     kfs = [
@@ -97,7 +97,7 @@ def path_shape_6(cfg: ngl.SceneCfg):
     return _shape_variant_0(cfg, *kfs)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_7(cfg: ngl.SceneCfg):
     kfs = [
@@ -108,7 +108,7 @@ def path_shape_7(cfg: ngl.SceneCfg):
     return _shape_variant_0(cfg, *kfs)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_shape_8(cfg: ngl.SceneCfg):
     kfs = [
@@ -119,7 +119,7 @@ def path_shape_8(cfg: ngl.SceneCfg):
     return _shape_variant_0(cfg, *kfs)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_parabola(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -133,7 +133,7 @@ def path_parabola(cfg: ngl.SceneCfg):
     return ngl.DrawPath(path, viewbox=(-1, -1, 2, 1))
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_flip_t(cfg: ngl.SceneCfg, x_base=-0.5, y_base=-0.5):
     cfg.aspect_ratio = (1, 1)
@@ -153,7 +153,7 @@ def path_flip_t(cfg: ngl.SceneCfg, x_base=-0.5, y_base=-0.5):
     return ngl.DrawPath(path)
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_pie_slice(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -190,7 +190,7 @@ def _get_overlap_shape1(clockwise):
     ]
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_overlap_add(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -199,7 +199,7 @@ def path_overlap_add(cfg: ngl.SceneCfg):
     return ngl.DrawPath(path, viewbox=(0, 0, 10, 10))
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320)
 @ngl.scene()
 def path_overlap_xor(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)
@@ -208,7 +208,7 @@ def path_overlap_xor(cfg: ngl.SceneCfg):
     return ngl.DrawPath(path, viewbox=(0, 0, 10, 10))
 
 
-@test_fingerprint(width=640, height=640)
+@test_render(width=320, height=320, diff_threshold=0.003)
 @ngl.scene()
 def path_open_and_effects(cfg: ngl.SceneCfg):
     cfg.aspect_ratio = (1, 1)

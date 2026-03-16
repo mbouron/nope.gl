@@ -20,7 +20,7 @@
 #
 
 import pynopegl as ngl
-from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
+from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.toolbox.colors import COLORS
 from pynopegl_utils.toolbox.grid import autogrid_simple
 
@@ -105,7 +105,7 @@ def _get_compositing_scene(cfg: ngl.SceneCfg, op, show_label=False):
 
 
 def _get_compositing_func(op):
-    @test_fingerprint(width=320, height=320, keyframes=10, tolerance=1)
+    @test_render(width=320, height=320, keyframes=10, tolerance=1)
     @ngl.scene()
     def scene_func(cfg: ngl.SceneCfg):
         return _get_compositing_scene(cfg, op)

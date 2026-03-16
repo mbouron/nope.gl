@@ -24,100 +24,21 @@ import os.path as op
 import sys
 
 from pynopegl_utils.module import load_script
-
-
-def _run_test(func_name, tester, ref_data, out_data):
-    err = []
-    if len(ref_data) != len(out_data):
-        err = [f"{func_name}: data len mismatch (ref:{len(ref_data)} out:{len(out_data)})"]
-    err += tester.compare_data(func_name, ref_data, out_data)
-    return err
-
-
-def _set_ref_data(tester, ref_filepath, data):
-    with open(ref_filepath, "w") as ref_file:
-        ref_file.write(tester.serialize(data))
-
-
-def _get_ref_data(tester, ref_filepath):
-    with open(ref_filepath) as ref_file:
-        serialized_data = ref_file.read()
-    return tester.deserialize(serialized_data)
-
-
-def _run_test_default(func_name, tester, ref_filepath, dump=False):
-    if not op.exists(ref_filepath):
-        sys.stderr.write(f"{func_name}: reference file {ref_filepath} not found, use REFGEN=create to create it\n")
-        sys.exit(1)
-    ref_data = _get_ref_data(tester, ref_filepath)
-    out_data = tester.get_out_data(dump, func_name)
-    return _run_test(func_name, tester, ref_data, out_data)
-
-
-def _run_test_gen_create(func_name, tester, ref_filepath, dump=False):
-    out_data = tester.get_out_data(dump, func_name)
-    if not op.exists(ref_filepath):
-        sys.stderr.write(f"{func_name}: creating {ref_filepath}\n")
-        _set_ref_data(tester, ref_filepath, out_data)
-        return None
-    ref_data = _get_ref_data(tester, ref_filepath)
-    return _run_test(func_name, tester, ref_data, out_data)
-
-
-def _run_test_gen_update(func_name, tester, ref_filepath, dump=False):
-    out_data = tester.get_out_data(dump, func_name)
-    if not op.exists(ref_filepath):
-        sys.stderr.write(f"{func_name}: creating {ref_filepath}\n")
-        _set_ref_data(tester, ref_filepath, out_data)
-        return None
-    ref_data = _get_ref_data(tester, ref_filepath)
-    err = _run_test(func_name, tester, ref_data, out_data)
-    if err:
-        sys.stderr.write(f"{func_name}: re-generating {ref_filepath}\n")
-        _set_ref_data(tester, ref_filepath, out_data)
-    return None
-
-
-def _run_test_gen_force(func_name, tester, ref_filepath, dump=False):
-    if not op.exists(ref_filepath):
-        sys.stderr.write(f"{func_name}: creating {ref_filepath}\n")
-    else:
-        sys.stderr.write(f"{func_name}: re-generating {ref_filepath}\n")
-    out_data = tester.get_out_data(dump, func_name)
-    _set_ref_data(tester, ref_filepath, out_data)
-    return []
-
-
-_refgen_map = {
-    "no": _run_test_default,
-    "create": _run_test_gen_create,
-    "update": _run_test_gen_update,
-    "force": _run_test_gen_force,
-}
+from pynopegl_utils.tests.refgen import RefGen
 
 
 def run():
-    refgen_opt = os.environ.get("REFGEN", "no")
-
-    allowed_gen_opt = _refgen_map.keys()
-    if refgen_opt not in allowed_gen_opt:
-        allowed_str = ", ".join(allowed_gen_opt)
+    try:
+        refgen = RefGen(os.environ.get("REFGEN", RefGen.NO))
+    except ValueError:
+        allowed_str = ", ".join(e.value for e in RefGen)
         sys.stderr.write(f"REFGEN environment variable must be any of {allowed_str}\n")
         sys.exit(1)
 
-    tests_opts = os.environ.get("TESTS_OPTIONS")
-
-    allowed_tests_opts = ("dump",)
-    if tests_opts is not None and tests_opts not in allowed_tests_opts:
-        allowed_str = ", ".join(allowed_tests_opts)
-        sys.stderr.write(f"TESTS_OPTIONS environment variable must be any of {allowed_str}\n")
-        sys.exit(1)
-    dump = tests_opts == "dump"
-
     if len(sys.argv) not in (3, 4):
         sys.stderr.write(
-            "Usage: [TESTS_OPTIONS={} REFGEN={}] {} <script_path> <func_name> [<ref_filepath>]\n".format(
-                "|".join(allowed_tests_opts), "|".join(allowed_gen_opt), op.basename(sys.argv[0])
+            "Usage: [REFGEN={}] {} <script_path> <func_name> [<ref_filepath>]\n".format(
+                "|".join(e.value for e in RefGen), op.basename(sys.argv[0])
             )
         )
         sys.exit(1)
@@ -139,8 +60,7 @@ def run():
         sys.exit(0)
 
     tester = func.tester
-    test_func = _refgen_map[refgen_opt]
-    err = test_func(func_name, tester, ref_filepath, dump)
+    err = tester.run_with_ref(func_name, ref_filepath, refgen)
     if err:
         sys.stderr.write(f"{func_name} failed\n")
         sys.stderr.write("\n".join(err) + "\n")
