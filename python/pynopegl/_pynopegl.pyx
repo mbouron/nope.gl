@@ -21,8 +21,7 @@
 # under the License.
 #
 
-from cpython cimport array
-from cpython cimport pystate
+from cpython cimport array, pystate
 from libc.stdint cimport int32_t, uint8_t, uint32_t, uintptr_t
 from libc.stdlib cimport calloc, free
 from libc.string cimport memset
