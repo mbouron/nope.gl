@@ -383,7 +383,6 @@ def api_text_live_change_with_font():
     return _api_text_live_change(font_faces=[ngl.FontFace(font_faces.as_posix())])
 
 
-
 def api_media_sharing_failure():
     ctx = ngl.Context()
     ret = ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
