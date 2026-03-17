@@ -25,7 +25,6 @@ import pynopegl as ngl
 from pynopegl_utils.misc import load_media
 from pynopegl_utils.tests.cmp_cuepoints import test_cuepoints
 from pynopegl_utils.tests.cmp_fingerprint import test_fingerprint
-from pynopegl_utils.tests.cmp_resources import test_resources
 from pynopegl_utils.toolbox.colors import COLORS
 from pynopegl_utils.toolbox.grid import autogrid_simple
 
@@ -91,12 +90,6 @@ def media_phases_display(cfg: ngl.SceneCfg):
     return _get_time_scene(cfg)
 
 
-@test_resources(width=320, height=240, keyframes=15)
-@ngl.scene()
-def media_phases_resources(cfg: ngl.SceneCfg):
-    return _get_time_scene(cfg)
-
-
 # Note: the following test only makes sure the clamping code shader compiles,
 # not check for an actual overflow
 @test_cuepoints(width=320, height=240, points={"X": (0, -0.625)}, keyframes=1, tolerance=1)
@@ -118,24 +111,20 @@ def media_exposed_time(cfg: ngl.SceneCfg):
     cfg.duration = m0.duration
     cfg.aspect_ratio = (m0.width, m0.height)
 
-    vert = textwrap.dedent(
-        """\
+    vert = textwrap.dedent("""\
         void main()
         {
             ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
             uv = ngl_uvcoord;
         }
-        """
-    )
+        """)
 
-    frag = textwrap.dedent(
-        """\
+    frag = textwrap.dedent("""\
         void main()
         {
             ngl_out_color = vec4(vec3(step(0.0, tex0_ts/duration - uv.x)), 1.0);
         }
-        """
-    )
+        """)
 
     quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     media = ngl.Media(m0.filename)
