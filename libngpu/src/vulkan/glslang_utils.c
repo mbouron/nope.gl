@@ -51,7 +51,7 @@ int ngpu_glslang_init(void)
     return ret;
 }
 
-int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int debug, void **datap, size_t *sizep)
+int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int debug, int emit_nonsemantic_info, void **datap, size_t *sizep)
 {
     static const glslang_stage_t stages[] = {
         [NGPU_PROGRAM_STAGE_VERT] = GLSLANG_STAGE_VERTEX,
@@ -138,8 +138,8 @@ int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
         .optimize_size = false,
         .disassemble = false,
         .validate = true,
-        .emit_nonsemantic_shader_debug_info = dbg,
-        .emit_nonsemantic_shader_debug_source = dbg,
+        .emit_nonsemantic_shader_debug_info = dbg && emit_nonsemantic_info,
+        .emit_nonsemantic_shader_debug_source = dbg && emit_nonsemantic_info,
     };
     glslang_program_SPIRV_generate_with_options(program, glslc_input.stage, &options);
 #else

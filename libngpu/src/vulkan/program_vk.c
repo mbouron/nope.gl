@@ -32,6 +32,10 @@
 #include "utils/string.h"
 #include "utils/utils.h"
 
+#ifndef VK_KHR_SHADER_RELAXED_EXTENDED_INSTRUCTUON_EXTENSION_NAME
+#define VK_KHR_SHADER_RELAXED_EXTENDED_INSTRUCTION_EXTENSION_NAME "VK_KHR_shader_relaxed_extended_instruction"
+#endif
+
 struct ngpu_program *ngpu_program_vk_create(struct ngpu_ctx *gpu_ctx)
 {
     struct ngpu_program_vk *s = ngpu_calloc(1, sizeof(*s));
@@ -48,6 +52,9 @@ int ngpu_program_vk_init(struct ngpu_program *s, const struct ngpu_program_param
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_program_vk *s_priv = (struct ngpu_program_vk *)s;
 
+    const int emit_nonsemantic_info = ngpu_vkcontext_has_extension(vk, VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME, 1) &&
+                                      ngpu_vkcontext_has_extension(vk, VK_KHR_SHADER_RELAXED_EXTENDED_INSTRUCTION_EXTENSION_NAME, 1);
+
     const struct {
         enum ngpu_program_stage stage;
         const char *src;
@@ -63,7 +70,7 @@ int ngpu_program_vk_init(struct ngpu_program *s, const struct ngpu_program_param
 
         void *data = NULL;
         size_t size = 0;
-        int ret = ngpu_glslang_compile(shaders[i].stage, shaders[i].src, s->gpu_ctx->params.debug, &data, &size);
+        int ret = ngpu_glslang_compile(shaders[i].stage, shaders[i].src, s->gpu_ctx->params.debug, emit_nonsemantic_info, &data, &size);
         if (ret < 0) {
             char *s_with_numbers = ngpu_numbered_lines(shaders[i].src);
             if (s_with_numbers) {
