@@ -33,7 +33,6 @@ import os.path as op
 import tempfile
 
 from jinja2 import Environment, FileSystemLoader
-
 from pynopegl_utils.misc import get_nopegl_tempdir
 
 _TEMPLATE_DIR = op.dirname(__file__)
