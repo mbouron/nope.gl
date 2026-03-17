@@ -260,7 +260,6 @@ foreach backend : backends
     'exposed_time',
     'flat_remap',
     'phases_display',
-    'phases_resources',
     'queue',
     'timeranges_rtt',
   ]
@@ -508,17 +507,6 @@ foreach backend : backends
     'switch',
   ]
 
-  tests_benchmark = [
-    'fingerprint_without_compute',
-    'resources_without_compute',
-  ]
-  if has_compute
-    tests_benchmark += [
-      'fingerprint_with_compute',
-      'resources_with_compute',
-    ]
-  endif
-
   tests_noise = [
     'blocky',
     'perlin',
@@ -527,7 +515,6 @@ foreach backend : backends
   tests = {
     'api':           {'tests': tests_api, 'has_refs': false},
     'anim':          {'tests': tests_anim},
-    'benchmark':     {'tests': tests_benchmark},
     'blur':          {'tests': tests_blur},
     'blending':      {'tests': tests_blending},
     'color':         {'tests': tests_color},
