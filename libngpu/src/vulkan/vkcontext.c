@@ -62,6 +62,14 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverity
     if (cb_data->messageIdNumber == 0x7cd0911d)
         return VK_FALSE;
 
+    /*
+     * Silence VUID-VkShaderModuleCreateInfo-pCode-08737 as it can be
+     * considered a false positive. It happens when loading shader modules
+     * produced by 16.2.0 in the CI (Ubuntu 24.04).
+     */
+    if (cb_data->messageIdNumber == 0xa5625282)
+        return VK_FALSE;
+
     enum ngpu_log_level level = NGPU_LOG_INFO;
     if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)        level = NGPU_LOG_ERROR;
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) level = NGPU_LOG_WARNING;

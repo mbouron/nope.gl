@@ -30,7 +30,7 @@
 #include "ngpu/ngpu.h"
 
 int ngpu_glslang_init(void);
-int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int debug, void **datap, size_t *sizep);
+int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int debug, int emit_nonsemantic_info, void **datap, size_t *sizep);
 void ngpu_glslang_uninit(void);
 
 #endif
