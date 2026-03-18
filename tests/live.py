@@ -20,6 +20,7 @@
 #
 
 import textwrap
+from pathlib import Path
 
 import pynopegl as ngl
 from pynopegl_utils.misc import load_media
@@ -378,6 +379,44 @@ def _get_live_trf_function(spec, category, field_type, layout):
         return s
 
     return scene_func
+
+
+def _get_text_change_function():
+    _font = Path(__file__).resolve().parent / "assets" / "fonts" / "Quicksand-Medium.ttf"
+    text_node = ngl.Text(
+        text="Hello",
+        font_faces=[ngl.FontFace(_font.as_posix())],
+    )
+
+    def _change_text(t_id: int):
+        if t_id == 1:
+            text_node.set_text("Hello World")  # adds W, o, r, l, d, space
+        elif t_id == 2:
+            text_node.set_text("World")  # reuses existing glyphs
+        elif t_id == 3:
+            text_node.set_text("Hello World!")  # adds !
+        elif t_id == 4:
+            text_node.set_text("Greetings")  # adds G, t, i, n, g, s
+        elif t_id == 5:
+            text_node.set_text("Hello World! Greetings")  # all reused
+
+    @test_render(
+        width=320,
+        height=180,
+        tolerance=1,
+        exercise_serialization=False,
+        keyframes_callback=_change_text,
+        keyframes=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    )
+    @ngl.scene()
+    def live_text_change_func(cfg: ngl.SceneCfg):
+        cfg.aspect_ratio = (16, 9)
+        return text_node
+
+    return live_text_change_func
+
+
+live_text_change = _get_text_change_function()
 
 
 def _bootstrap():

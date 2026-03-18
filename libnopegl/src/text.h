@@ -1,4 +1,5 @@
 /*
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Nope Forge
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -25,6 +26,7 @@
 #include "box.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
+#include "slug.h"
 #include "utils/darray.h"
 
 #define NGLI_I32_TO_I26D6(x) ((x) * (1 << 6))     // convert i32 to 26.6 fixed point
@@ -67,16 +69,18 @@ enum {
 /* Exposed by text drivers  */
 struct char_info_internal {
     int32_t x, y, w, h; // pixels canvas coordinates encoded in 26.6 fixed point
-    struct ngli_aabb atlas_coords; // atlas coordinates
+    struct ngli_aabb atlas_coords; // atlas coordinates (distmap path)
     float scale[2]; // geometry scaling factors
     uint32_t tags; // combination of NGLI_TEXT_CHAR_TAG_*
+    struct slug_glyph_data slug; // slug rendering data
 };
 
 /* Exposed by the text API */
 struct char_info {
     struct ngli_aabb geom;  // vertices
-    struct ngli_aabb atlas_coords; // texture position
+    struct ngli_aabb atlas_coords; // texture position (used by distmap path)
     float real_dim[2];      // real dimension (without distance field padding)
+    struct slug_glyph_data slug; // slug rendering data
 };
 
 /* User-requested defaults for all the characters */
@@ -109,7 +113,9 @@ struct text;
 /* structure reserved for internal implementations */
 struct text_cls {
     int (*init)(struct text *text);
+    int (*prefetch)(struct text *text);
     int (*set_string)(struct text *text, const char *str, struct darray *chars_dst);
+    void (*release)(struct text *text);
     void (*reset)(struct text *text);
     size_t priv_size;
     uint32_t flags; // combination of NGLI_TEXT_FLAG_*
@@ -120,6 +126,11 @@ struct text_data_pointers {
     // geometry
     float *vertices;     // vec4[]
     float *atlas_coords; // vec4[]
+
+    // slug data
+    float *texcoord_bounds; // vec4[] (em-space bounding box per char)
+    float *band_transforms; // vec4[] (band scale+offset per char)
+    int32_t *glyph_data;    // ivec4[] (glyph_loc, band_max per char)
 
     // effects
     float *transform; // mat4[]
@@ -144,6 +155,8 @@ struct text {
     int32_t height;
     struct darray chars; // struct char_info
     struct ngpu_texture *atlas_texture;
+    struct ngpu_texture *curve_texture;
+    struct ngpu_texture *band_texture;
     struct text_data_pointers data_ptrs; // set of effect data pointers (in chars_data)
 
     /* effects specific */
@@ -161,6 +174,8 @@ struct text {
 
 struct text *ngli_text_create(struct ngl_ctx *ctx);
 int ngli_text_init(struct text *s, const struct text_config *cfg);
+int ngli_text_prefetch(struct text *s);
+void ngli_text_release(struct text *s);
 
 /* The specified new user defaults will be honored at the next ngli_text_set_{string,time}() call */
 void ngli_text_update_effects_defaults(struct text *s, const struct text_effects_defaults *defaults);

@@ -42,6 +42,7 @@
 
 #include "hud.h"
 #include <ngpu/ngpu.h>
+#include "slug.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "rnode.h"
@@ -72,8 +73,8 @@ struct api_impl {
 void ngli_free_text_builtin_atlas(void *user_arg, void *data);
 
 struct text_builtin_atlas {
-    struct distmap *distmap;
-    int32_t char_map[256];
+    struct slug *slug;
+    struct slug_glyph_data slug_data[256];
 };
 
 struct ngl_ctx {

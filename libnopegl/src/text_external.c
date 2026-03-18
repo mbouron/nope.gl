@@ -29,12 +29,12 @@
 #include <fribidi.h>
 #endif
 
-#include "distmap.h"
 #include "internal.h"
 #include "log.h"
 #include "node_text.h"
 #include "nopegl/nopegl.h"
 #include "path.h"
+#include "slug.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/memory.h"
@@ -45,7 +45,8 @@
 struct text_external {
     struct darray ft_faces; // FT_Face (hidden pointer)
     struct darray hb_fonts; // hb_font_t*
-    struct distmap *distmap;
+    struct slug *slug;
+    struct hmap *glyph_index; // persistent glyph cache across set_string calls
 };
 
 static int load_font(struct text *text, const char *font_file, int32_t face_index)
@@ -127,6 +128,8 @@ static void free_hb_font(void *user_arg, void *data)
     hb_font_destroy(*fontp);
 }
 
+static void free_glyph(void *user_arg, void *data);
+
 static int text_external_init(struct text *text)
 {
     struct text_external *s = text->priv_data;
@@ -145,11 +148,44 @@ static int text_external_init(struct text *text)
             return ret;
     }
 
+    s->slug = ngli_slug_create(text->ctx);
+    if (!s->slug)
+        return NGL_ERROR_MEMORY;
+    int ret = ngli_slug_init(s->slug);
+    if (ret < 0)
+        return ret;
+
+    s->glyph_index = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    if (!s->glyph_index)
+        return NGL_ERROR_MEMORY;
+    ngli_hmap_set_free_func(s->glyph_index, free_glyph, NULL);
+
     return 0;
 }
 
+static int text_external_prefetch(struct text *text)
+{
+    struct text_external *s = text->priv_data;
+
+    int ret = ngli_slug_prefetch(s->slug);
+    if (ret < 0)
+        return ret;
+
+    text->curve_texture = ngli_slug_get_curve_texture(s->slug);
+    text->band_texture = ngli_slug_get_band_texture(s->slug);
+    return 0;
+}
+
+static void text_external_release(struct text *text)
+{
+    struct text_external *s = text->priv_data;
+    ngli_slug_release(s->slug);
+    text->curve_texture = NULL;
+    text->band_texture = NULL;
+}
+
 struct glyph {
-    int32_t shape_id; // index in the distmap texture
+    int32_t slug_index; // index in the slug glyph array
     int32_t width, height; // in 26.6
     int32_t bearing_x, bearing_y; // in 26.6
 };
@@ -331,10 +367,14 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
             if (shape_w <= 0 || shape_h <= 0)
                 continue;
 
-            int32_t shape_id;
-            ret = ngli_distmap_add_shape(s->distmap, shape_w, shape_h, path, NGLI_DISTMAP_FLAG_PATH_AUTO_CLOSE, &shape_id);
-            if (ret < 0)
+            const float glyph_w = NGLI_I26D6_TO_F32(shape_w_26d6);
+            const float glyph_h = NGLI_I26D6_TO_F32(shape_h_26d6);
+            const int slug_idx = ngli_slug_add_glyph(s->slug, path, NGLI_SLUG_FLAG_PATH_AUTO_CLOSE,
+                                                    glyph_w, glyph_h);
+            if (slug_idx < 0) {
+                ret = slug_idx;
                 goto end;
+            }
 
             /* Save the rasterized glyph in the index */
             struct glyph *glyph = create_glyph();
@@ -343,7 +383,7 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
                 goto end;
             }
 
-            glyph->shape_id  = shape_id;
+            glyph->slug_index = slug_idx;
             glyph->width     = shape_w_26d6;
             glyph->height    = shape_h_26d6;
             glyph->bearing_x = (int32_t)ft_ctx.cbox.xMin;
@@ -737,8 +777,9 @@ static int register_chars(struct text *text, const char *str, struct darray *cha
                 chr.y = y_cur + glyph->bearing_y + pos->y_offset;
                 chr.w = glyph->width;
                 chr.h = glyph->height;
-                chr.atlas_coords = ngli_distmap_get_shape_coords(s->distmap, glyph->shape_id);
-                ngli_distmap_get_shape_scale(s->distmap, glyph->shape_id, chr.scale);
+                chr.scale[0] = 1.f;
+                chr.scale[1] = 1.f;
+                ngli_slug_get_glyph_data(s->slug, glyph->slug_index, &chr.slug);
             }
 
             if (!ngli_darray_push(chars_dst, &chr))
@@ -754,49 +795,34 @@ static int register_chars(struct text *text, const char *str, struct darray *cha
 static int text_external_set_string(struct text *text, const char *str, struct darray *chars_dst)
 {
     struct text_external *s = text->priv_data;
-    struct hmap *glyph_index = NULL;
 
     struct darray runs_array;
     ngli_darray_init(&runs_array, sizeof(struct text_run), 0);
-
-    /* Re-entrance reset */
-    ngli_distmap_freep(&s->distmap);
 
     int ret = build_text_runs(text, str, &runs_array);
     if (ret < 0)
         goto end;
 
-    s->distmap = ngli_distmap_create(text->ctx);
-    if (!s->distmap) {
-        ret = NGL_ERROR_MEMORY;
+    const size_t prev_glyph_count = ngli_slug_get_glyph_count(s->slug);
+    ret = build_glyph_index(text, s->glyph_index, &runs_array);
+    if (ret < 0)
         goto end;
+
+    /* Only rebuild GPU textures when new glyphs were added */
+    if (ngli_slug_get_glyph_count(s->slug) > prev_glyph_count) {
+        ret = ngli_slug_finalize(s->slug);
+        if (ret < 0)
+            goto end;
+        text->curve_texture = ngli_slug_get_curve_texture(s->slug);
+        text->band_texture = ngli_slug_get_band_texture(s->slug);
     }
-    ret = ngli_distmap_init(s->distmap, text->config.pt_size, text->config.dpi);
-    if (ret < 0)
-        goto end;
 
-    glyph_index = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
-    if (!glyph_index) {
-        ret = NGL_ERROR_MEMORY;
-        goto end;
-    }
-    ngli_hmap_set_free_func(glyph_index, free_glyph, NULL);
-    ret = build_glyph_index(text, glyph_index, &runs_array);
-    if (ret < 0)
-        goto end;
-
-    ret = ngli_distmap_finalize(s->distmap);
-    if (ret < 0)
-        goto end;
-    text->atlas_texture = ngli_distmap_get_texture(s->distmap);
-
-    ret = register_chars(text, str, chars_dst, &runs_array, glyph_index);
+    ret = register_chars(text, str, chars_dst, &runs_array, s->glyph_index);
     if (ret < 0)
         goto end;
 
 end:
     reset_runs(&runs_array);
-    ngli_hmap_freep(&glyph_index);
     return ret;
 }
 
@@ -804,15 +830,18 @@ static void text_external_reset(struct text *text)
 {
     struct text_external *s = text->priv_data;
 
+    ngli_hmap_freep(&s->glyph_index);
     ngli_darray_reset(&s->hb_fonts);
     ngli_darray_reset(&s->ft_faces);
-    ngli_distmap_freep(&s->distmap);
+    ngli_slug_freep(&s->slug);
 }
 
 const struct text_cls ngli_text_external = {
     .priv_size       = sizeof(struct text_external),
     .init            = text_external_init,
+    .prefetch        = text_external_prefetch,
     .set_string      = text_external_set_string,
+    .release         = text_external_release,
     .reset           = text_external_reset,
     .flags           = NGLI_TEXT_FLAG_MUTABLE_ATLAS,
 };
