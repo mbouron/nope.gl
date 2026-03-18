@@ -19,9 +19,9 @@
  * under the License.
  */
 
-#include "distmap.h"
 #include "internal.h"
 #include "path.h"
+#include "slug.h"
 #include "utils/hmap.h"
 #include "utils/memory.h"
 #include "text.h"
@@ -145,13 +145,13 @@ static int atlas_create(struct text *text, struct text_builtin_atlas *atlas)
     struct text_builtin *s = text->priv_data;
     struct path *path = NULL;
 
-    atlas->distmap = ngli_distmap_create(text->ctx);
-    if (!atlas->distmap) {
+    atlas->slug = ngli_slug_create(text->ctx);
+    if (!atlas->slug) {
         ret = NGL_ERROR_MEMORY;
         goto end;
     }
 
-    ret = ngli_distmap_init(atlas->distmap, text->config.pt_size, text->config.dpi);
+    ret = ngli_slug_init(atlas->slug);
     if (ret < 0)
         goto end;
 
@@ -185,19 +185,20 @@ static int atlas_create(struct text *text, struct text_builtin_atlas *atlas)
         if (ret < 0)
             goto end;
 
-        /* Register the glyph in the distmap atlas */
-        int32_t shape_id;
-        ret = ngli_distmap_add_shape(atlas->distmap, s->chr_w, s->chr_h, path, NGLI_DISTMAP_FLAG_PATH_AUTO_CLOSE, &shape_id);
+        /* Register the glyph in the slug atlas */
+        ret = ngli_slug_add_glyph(atlas->slug, path, NGLI_SLUG_FLAG_PATH_AUTO_CLOSE,
+                                  (float)s->chr_w, (float)s->chr_h);
         if (ret < 0)
             goto end;
-
-        /* Map the character codepoint to its shape ID in the atlas */
-        atlas->char_map[FIRST_CHAR + i] = shape_id;
     }
 
-    ret = ngli_distmap_finalize(atlas->distmap);
+    ret = ngli_slug_finalize(atlas->slug);
     if (ret < 0)
         goto end;
+
+    /* Retrieve glyph data after finalize (band_transform, glyph_loc, band_max are now valid) */
+    for (size_t i = 0; i < NGLI_ARRAY_NB(outlines); i++)
+        ngli_slug_get_glyph_data(atlas->slug, (int32_t)i, &atlas->slug_data[FIRST_CHAR + i]);
 
 end:
     ngli_path_freep(&path);
@@ -237,7 +238,8 @@ static int text_builtin_init(struct text *text)
 
     s->atlas = atlas;
 
-    text->atlas_texture = ngli_distmap_get_texture(atlas->distmap);
+    text->curve_texture = ngli_slug_get_curve_texture(atlas->slug);
+    text->band_texture = ngli_slug_get_band_texture(atlas->slug);
 
     return 0;
 }
@@ -307,19 +309,16 @@ static int text_builtin_set_string(struct text *text, const char *str, struct da
             continue;
         }
 
-        const int32_t atlas_id = s->atlas->char_map[(uint8_t)str[i]];
-
-        float scale[2];
-        ngli_distmap_get_shape_scale(s->atlas->distmap, atlas_id, scale);
+        const struct slug_glyph_data *glyph_data = &s->atlas->slug_data[(uint8_t)str[i]];
 
         const struct char_info_internal chr = {
             .x = NGLI_I32_TO_I26D6(s->chr_w * col),
             .y = NGLI_I32_TO_I26D6(s->chr_h * (text_rows - row - 1)),
             .w = NGLI_I32_TO_I26D6(s->chr_w),
             .h = NGLI_I32_TO_I26D6(s->chr_h),
-            .atlas_coords = ngli_distmap_get_shape_coords(s->atlas->distmap, atlas_id),
-            .scale = {NGLI_ARG_VEC2(scale)},
+            .scale = {1.f, 1.f},
             .tags = NGLI_TEXT_CHAR_TAG_GLYPH,
+            .slug = *glyph_data,
         };
 
         if (!ngli_darray_push(chars_dst, &chr))

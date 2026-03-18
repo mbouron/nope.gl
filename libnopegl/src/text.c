@@ -1,4 +1,5 @@
 /*
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Clément Bœsch <u pkh.me>
  * Copyright 2023 Nope Forge
  *
@@ -143,6 +144,19 @@ int ngli_text_init(struct text *s, const struct text_config *cfg)
     return s->cls->init(s);
 }
 
+int ngli_text_prefetch(struct text *s)
+{
+    if (s->cls->prefetch)
+        return s->cls->prefetch(s);
+    return 0;
+}
+
+void ngli_text_release(struct text *s)
+{
+    if (s->cls->release)
+        s->cls->release(s);
+}
+
 /* Apply the new defaults to the user exposed data */
 static void reset_chars_data_to_defaults(struct text *s)
 {
@@ -152,20 +166,26 @@ static void reset_chars_data_to_defaults(struct text *s)
 static struct text_data_pointers get_chr_data_pointers(float *base, size_t nb_chars)
 {
     struct text_data_pointers ptrs = {0};
-    ptrs.vertices     = base;
-    ptrs.atlas_coords = ptrs.vertices     + nb_chars * 4;
-    ptrs.transform    = ptrs.atlas_coords + nb_chars * 4;
-    ptrs.color        = ptrs.transform    + nb_chars * 4 * 4;
-    ptrs.outline      = ptrs.color        + nb_chars * 4;
-    ptrs.glow         = ptrs.outline      + nb_chars * 4;
-    ptrs.blur         = ptrs.glow         + nb_chars * 4;
-    ptrs.outline_pos  = ptrs.blur         + nb_chars;
+    ptrs.vertices        = base;
+    ptrs.atlas_coords    = ptrs.vertices        + nb_chars * 4;
+    ptrs.texcoord_bounds = ptrs.atlas_coords     + nb_chars * 4;
+    ptrs.band_transforms = ptrs.texcoord_bounds  + nb_chars * 4;
+    ptrs.glyph_data      = (int32_t *)(ptrs.band_transforms + nb_chars * 4);
+    ptrs.transform       = (float *)(ptrs.glyph_data + nb_chars * 4);
+    ptrs.color           = ptrs.transform        + nb_chars * 4 * 4;
+    ptrs.outline         = ptrs.color            + nb_chars * 4;
+    ptrs.glow            = ptrs.outline          + nb_chars * 4;
+    ptrs.blur            = ptrs.glow             + nb_chars * 4;
+    ptrs.outline_pos     = ptrs.blur             + nb_chars;
     return ptrs;
 }
 
 struct default_data {
     float pos_size[4];
     float atlas_coords[4];
+    float texcoord_bounds[4];
+    float band_transform[4];
+    int32_t glyph_data[4];
     float transform[4 * 4];
     float color[4];
     float outline[4];
@@ -222,14 +242,30 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
 
     const struct char_info *chars = ngli_darray_data(&s->chars);
 
-    /* character dimension and position */
+    /*
+     * Em-space padding around each character quad to allow effects (outline,
+     * glow, blur) to render beyond the tight glyph bounding box. The padding
+     * is 80% of the max glyph dimension (matching the distmap convention),
+     * which gives ~0.8 normalized distance units of spread after dist_scale.
+     */
+    #define EFFECT_PAD_RATIO 0.8f
+
+    /* character dimension and position (with effect padding) */
     for (size_t n = 0; n < ngli_darray_count(&s->chars); n++) {
         const struct char_info *chr = &chars[n];
         const float chr_x0 = corner_x + width  * chr->geom.x0;
         const float chr_y0 = corner_y + height * chr->geom.y0;
         const float chr_x1 = corner_x + width  * chr->geom.x1;
         const float chr_y1 = corner_y + height * chr->geom.y1;
-        const float vertices[] = {chr_x0, chr_y0, chr_x1, chr_y1};
+
+        const float *eb = chr->slug.em_bounds;
+        const float em_w = eb[2] - eb[0];
+        const float em_h = eb[3] - eb[1];
+        const float effect_pad = EFFECT_PAD_RATIO * NGLI_MAX(em_w, em_h);
+        const float pad_x = em_w > 0.f ? effect_pad * (chr_x1 - chr_x0) / em_w : 0.f;
+        const float pad_y = em_h > 0.f ? effect_pad * (chr_y1 - chr_y0) / em_h : 0.f;
+
+        const float vertices[] = {chr_x0 - pad_x, chr_y0 - pad_y, chr_x1 + pad_x, chr_y1 + pad_y};
         memcpy(ptrs.vertices + 4 * n, vertices, sizeof(vertices));
     }
 
@@ -237,6 +273,20 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
     for (size_t n = 0; n < ngli_darray_count(&s->chars); n++) {
         const struct char_info *chr = &chars[n];
         memcpy(ptrs.atlas_coords + 4 * n, (const float *)&chr->atlas_coords, sizeof(chr->atlas_coords));
+    }
+
+    /* slug per-instance data (texcoord bounds dilated to match vertex padding) */
+    for (size_t n = 0; n < ngli_darray_count(&s->chars); n++) {
+        const struct char_info *chr = &chars[n];
+        const float *eb = chr->slug.em_bounds;
+        const float em_w = eb[2] - eb[0];
+        const float em_h = eb[3] - eb[1];
+        const float effect_pad = EFFECT_PAD_RATIO * NGLI_MAX(em_w, em_h);
+        const float tc_bounds[] = {eb[0] - effect_pad, eb[1] - effect_pad, eb[2] + effect_pad, eb[3] + effect_pad};
+        memcpy(ptrs.texcoord_bounds + 4 * n, tc_bounds, sizeof(tc_bounds));
+        memcpy(ptrs.band_transforms + 4 * n, chr->slug.band_transform, sizeof(chr->slug.band_transform));
+        memcpy(ptrs.glyph_data + 4 * n, chr->slug.glyph_loc, sizeof(chr->slug.glyph_loc));
+        memcpy(ptrs.glyph_data + 4 * n + 2, chr->slug.band_max, sizeof(chr->slug.band_max));
     }
 }
 
@@ -627,6 +677,7 @@ int ngli_text_set_string(struct text *s, const char *str)
             },
             .atlas_coords = chr_internal->atlas_coords,
             .real_dim  = {w / (float)s->width, h / (float)s->height},
+            .slug = chr_internal->slug,
         };
 
         if (!ngli_darray_push(&s->chars, &chr)) {
