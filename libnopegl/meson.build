@@ -249,12 +249,14 @@ lib_src = files(
   'src/rnode.c',
   'src/scene.c',
   'src/serialize.c',
+  'src/slug.c',
   'src/text.c',
   'src/text_builtin.c',
   'src/text_external.c',
   'src/transforms.c',
   'src/utils/bstr.c',
   'src/utils/conic.c',
+  'src/utils/cubic_to_quad.c',
   'src/utils/crc32.c',
   'src/utils/darray.c',
   'src/utils/error.c',
@@ -593,6 +595,8 @@ shaders = {
   'text_bg.vert': 'text_bg_vert.h',
   'text_chars.frag': 'text_chars_frag.h',
   'text_chars.vert': 'text_chars_vert.h',
+  'text_slug.frag': 'text_slug_frag.h',
+  'text_slug.vert': 'text_slug_vert.h',
 }
 glsl2c = find_program('scripts/glsl2c.py')
 shaders_h = []
