@@ -437,7 +437,7 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
 void ngli_free_text_builtin_atlas(void *user_arg, void *data)
 {
     struct text_builtin_atlas *atlas = data;
-    ngli_distmap_freep(&atlas->distmap);
+    ngli_slug_freep(&atlas->slug);
     ngli_freep(&atlas);
 }
 
