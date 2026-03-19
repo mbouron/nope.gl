@@ -164,6 +164,7 @@ struct glfunctions {
     GLboolean (NGPU_GL_APIENTRY *UnmapBuffer)(GLenum target);
     void (NGPU_GL_APIENTRY *UseProgram)(GLuint program);
     void (NGPU_GL_APIENTRY *VertexAttribDivisor)(GLuint index, GLuint divisor);
+    void (NGPU_GL_APIENTRY *VertexAttribIPointer)(GLuint index, GLint size, GLenum type, GLsizei stride, const void * pointer);
     void (NGPU_GL_APIENTRY *VertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void * pointer);
     void (NGPU_GL_APIENTRY *Viewport)(GLint x, GLint y, GLsizei width, GLsizei height);
     void (NGPU_GL_APIENTRY *ViewportIndexedf)(GLuint index, GLfloat x, GLfloat y, GLfloat w, GLfloat h);
@@ -330,6 +331,7 @@ static const struct glfunction_load_info {
     {"glUnmapBuffer", offsetof(struct glfunctions, UnmapBuffer), false},
     {"glUseProgram", offsetof(struct glfunctions, UseProgram), false},
     {"glVertexAttribDivisor", offsetof(struct glfunctions, VertexAttribDivisor), false},
+    {"glVertexAttribIPointer", offsetof(struct glfunctions, VertexAttribIPointer), false},
     {"glVertexAttribPointer", offsetof(struct glfunctions, VertexAttribPointer), false},
     {"glViewport", offsetof(struct glfunctions, Viewport), false},
     {"glViewportIndexedf", offsetof(struct glfunctions, ViewportIndexedf), true},
