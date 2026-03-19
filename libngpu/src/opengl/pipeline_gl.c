@@ -100,6 +100,81 @@ static GLenum get_gl_indices_type(enum ngpu_format indices_format)
     return gl_indices_type_map[indices_format];
 }
 
+static int format_is_integer(enum ngpu_format format)
+{
+    switch (format) {
+    case NGPU_FORMAT_R8_UINT:
+    case NGPU_FORMAT_R8_SINT:
+    case NGPU_FORMAT_R8G8_UINT:
+    case NGPU_FORMAT_R8G8_SINT:
+    case NGPU_FORMAT_R8G8B8_UINT:
+    case NGPU_FORMAT_R8G8B8_SINT:
+    case NGPU_FORMAT_R8G8B8A8_UINT:
+    case NGPU_FORMAT_R8G8B8A8_SINT:
+    case NGPU_FORMAT_B8G8R8A8_UINT:
+    case NGPU_FORMAT_B8G8R8A8_SINT:
+    case NGPU_FORMAT_R16_UINT:
+    case NGPU_FORMAT_R16_SINT:
+    case NGPU_FORMAT_R16G16_UINT:
+    case NGPU_FORMAT_R16G16_SINT:
+    case NGPU_FORMAT_R16G16B16_UINT:
+    case NGPU_FORMAT_R16G16B16_SINT:
+    case NGPU_FORMAT_R16G16B16A16_UINT:
+    case NGPU_FORMAT_R16G16B16A16_SINT:
+    case NGPU_FORMAT_R32_UINT:
+    case NGPU_FORMAT_R32_SINT:
+    case NGPU_FORMAT_R32G32_UINT:
+    case NGPU_FORMAT_R32G32_SINT:
+    case NGPU_FORMAT_R32G32B32_UINT:
+    case NGPU_FORMAT_R32G32B32_SINT:
+    case NGPU_FORMAT_R32G32B32A32_UINT:
+    case NGPU_FORMAT_R32G32B32A32_SINT:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static GLenum get_gl_vertex_type(enum ngpu_format format)
+{
+    switch (format) {
+    case NGPU_FORMAT_R8_UINT:
+    case NGPU_FORMAT_R8G8_UINT:
+    case NGPU_FORMAT_R8G8B8_UINT:
+    case NGPU_FORMAT_R8G8B8A8_UINT:
+    case NGPU_FORMAT_B8G8R8A8_UINT:
+        return GL_UNSIGNED_BYTE;
+    case NGPU_FORMAT_R8_SINT:
+    case NGPU_FORMAT_R8G8_SINT:
+    case NGPU_FORMAT_R8G8B8_SINT:
+    case NGPU_FORMAT_R8G8B8A8_SINT:
+    case NGPU_FORMAT_B8G8R8A8_SINT:
+        return GL_BYTE;
+    case NGPU_FORMAT_R16_UINT:
+    case NGPU_FORMAT_R16G16_UINT:
+    case NGPU_FORMAT_R16G16B16_UINT:
+    case NGPU_FORMAT_R16G16B16A16_UINT:
+        return GL_UNSIGNED_SHORT;
+    case NGPU_FORMAT_R16_SINT:
+    case NGPU_FORMAT_R16G16_SINT:
+    case NGPU_FORMAT_R16G16B16_SINT:
+    case NGPU_FORMAT_R16G16B16A16_SINT:
+        return GL_SHORT;
+    case NGPU_FORMAT_R32_UINT:
+    case NGPU_FORMAT_R32G32_UINT:
+    case NGPU_FORMAT_R32G32B32_UINT:
+    case NGPU_FORMAT_R32G32B32A32_UINT:
+        return GL_UNSIGNED_INT;
+    case NGPU_FORMAT_R32_SINT:
+    case NGPU_FORMAT_R32G32_SINT:
+    case NGPU_FORMAT_R32G32B32_SINT:
+    case NGPU_FORMAT_R32G32B32A32_SINT:
+        return GL_INT;
+    default:
+        return GL_FLOAT;
+    }
+}
+
 static void bind_vertex_attribs(const struct ngpu_pipeline *s)
 {
     const struct ngpu_pipeline_gl *s_priv = (const struct ngpu_pipeline_gl *)s;
@@ -120,7 +195,12 @@ static void bind_vertex_attribs(const struct ngpu_pipeline *s)
         const void *offset = (void *)(uintptr_t)attribute_binding->offset;
         const struct ngpu_buffer_gl *buffer_gl = (const struct ngpu_buffer_gl *)vertex_buffers[binding];
         gl->funcs.BindBuffer(GL_ARRAY_BUFFER, buffer_gl->id);
-        gl->funcs.VertexAttribPointer(location, size, GL_FLOAT, GL_FALSE, stride, offset);
+        if (format_is_integer(attribute_binding->format)) {
+            const GLenum type = get_gl_vertex_type(attribute_binding->format);
+            gl->funcs.VertexAttribIPointer(location, size, type, stride, offset);
+        } else {
+            gl->funcs.VertexAttribPointer(location, size, GL_FLOAT, GL_FALSE, stride, offset);
+        }
     }
 }
 
