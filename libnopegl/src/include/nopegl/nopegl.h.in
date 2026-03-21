@@ -250,6 +250,19 @@ NGL_API char *ngl_scene_serialize(const struct ngl_scene *s);
 NGL_API char *ngl_scene_dot(const struct ngl_scene *s);
 
 /**
+ * Deep clone a scene and its entire node graph.
+ *
+ * The root node and all its children are deep cloned. The scene parameters
+ * (duration, framerate, aspect ratio) are copied. The returned scene has a
+ * reference count of 1 and is not associated with any rendering context.
+ *
+ * @param s  pointer to the scene to clone
+ *
+ * @return a new allocated deep copy of the scene or NULL on error
+ */
+NGL_API struct ngl_scene *ngl_scene_clone(struct ngl_scene *s);
+
+/**
  * Decrement the reference counter of a given scene by 1, and destroy its
  * content if the reference counter reaches 0. The passed scene pointer will
  * also be set to NULL.
@@ -521,6 +534,20 @@ NGL_API struct ngl_node *ngl_node_ref(struct ngl_node *node);
  * @param nodep  pointer to the pointer to the target node
  */
 NGL_API void ngl_node_unrefp(struct ngl_node **nodep);
+
+/**
+ * Deep clone a node and its entire subgraph.
+ *
+ * All child nodes referenced by the node parameters are recursively cloned.
+ * Diamond-shaped graphs are preserved (shared child nodes remain shared in the
+ * clone). The returned node has a reference count of 1 and is not associated
+ * with any scene or rendering context.
+ *
+ * @param node  pointer to the node to clone
+ *
+ * @return a new allocated deep copy of the node graph or NULL on error
+ */
+NGL_API struct ngl_node *ngl_node_clone(struct ngl_node *node);
 
 /**
  * Add nodes to a list-based parameter of an allocated node.

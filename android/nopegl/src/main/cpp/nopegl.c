@@ -833,6 +833,20 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeCreate(
     return (jlong)(uintptr_t)ngl_node_create((uint32_t)type);
 }
 
+JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeClone(
+    JNIEnv *env, jclass clazz, jlong native_ptr)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+    return (jlong)(uintptr_t)ngl_node_clone(node);
+}
+
+JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeClone(
+    JNIEnv *env, jobject thiz, jlong native_ptr)
+{
+    struct ngl_scene *scene = (struct ngl_scene *)(uintptr_t)native_ptr;
+    return (jlong)(uintptr_t)ngl_scene_clone(scene);
+}
+
 JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLError_nativeGetMessage(
     JNIEnv *env, jclass clazz, jint code)
 {

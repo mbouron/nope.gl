@@ -85,6 +85,9 @@ foreach backend : backends
     'caps',
     'get_backend',
     'viewport',
+    'node_clone',
+    'scene_clone',
+    'scene_clone_with_ctx',
     'transform_chain_check',
     'update_with_timeranges',
   ]

@@ -164,6 +164,12 @@ const struct param_specs ngli_params_specs[] = {
     },
 };
 
+const struct param_specs *ngli_params_get_type_specs(enum param_type type)
+{
+    ngli_assert(type >= 0 && type < NGLI_ARRAY_NB(ngli_params_specs));
+    return &ngli_params_specs[type];
+}
+
 const struct node_param *ngli_params_find(const struct node_param *params, const char *key)
 {
     if (!params)

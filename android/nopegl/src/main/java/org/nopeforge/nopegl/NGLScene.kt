@@ -88,6 +88,20 @@ class NGLScene {
         this.aspectRatio = NGLRational(num = aspectRatioNum, den = aspectRatioDen)
     }
 
+    fun clone(): NGLScene {
+        val clonedPtr = nativeClone(nativePtr)
+        require(clonedPtr != 0L) { "Failed to clone scene" }
+        return NGLScene(clonedPtr)
+    }
+
+    private constructor(clonedPtr: Long) {
+        nativePtr = clonedPtr
+        registerCleanable()
+
+        val ret = nativeAddLiveControls(nativePtr)
+        require(ret == 0) { "Failed to add native controls" }
+    }
+
     fun serialize(): String {
         return nativeSerialize(nativePtr)
     }
@@ -114,6 +128,8 @@ class NGLScene {
     private external fun nativeAddLiveControls(nativePtr: Long): Int
     private external fun nativeSerialize(nativePtr: Long): String
     private external fun nativeDot(nativePtr: Long): String
+
+    private external fun nativeClone(nativePtr: Long): Long
 
     companion object {
         @JvmStatic

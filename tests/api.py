@@ -668,6 +668,76 @@ def api_viewport():
     assert ctx.viewport == (0, 0, 640, 480)
 
 
+def api_node_clone():
+    """Test deep cloning a node graph"""
+    # Build a graph with shared nodes (diamond shape)
+    shared = ngl.UniformFloat(value=0.5)
+    child1 = ngl.DrawColor(opacity=shared)
+    child2 = ngl.DrawColor(opacity=shared)
+    root = ngl.Group(children=[child1, child2])
+
+    clone = root.clone()
+
+    # Verify the clone serializes to the same thing
+    scene_orig = ngl.Scene.from_params(root)
+    scene_clone = ngl.Scene.from_params(clone)
+    assert scene_orig.serialize() == scene_clone.serialize()
+
+    # Verify the clone is independent: mutating the clone doesn't affect the original
+    del scene_orig
+    del scene_clone
+
+
+def api_scene_clone():
+    """Test deep cloning a scene"""
+    shared = ngl.UniformFloat(value=0.75)
+    root = ngl.Group(
+        children=[
+            ngl.DrawColor(opacity=shared),
+            ngl.DrawColor(opacity=shared),
+        ]
+    )
+    scene = ngl.Scene.from_params(root, duration=15.0, framerate=(30, 1), aspect_ratio=(16, 9))
+
+    clone = scene.clone()
+
+    # Verify parameters are preserved
+    assert clone.duration == scene.duration
+    assert clone.framerate == scene.framerate
+    assert clone.aspect_ratio == scene.aspect_ratio
+
+    # Verify the graph is identical
+    assert clone.serialize() == scene.serialize()
+
+    # Verify the clone is independent: we can set both on different contexts
+    ctx = ngl.Context()
+    ret = ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
+    assert ret == 0
+    assert ctx.set_scene(clone) == 0
+    del ctx
+
+
+def api_scene_clone_with_ctx():
+    """Test cloning a scene that is currently attached to a rendering context"""
+    scene = _get_scene()
+    ctx = ngl.Context()
+    ret = ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
+    assert ret == 0
+    assert ctx.set_scene(scene) == 0
+
+    # Clone while scene is attached to a context
+    clone = scene.clone()
+    assert clone.serialize() == scene.serialize()
+
+    # Attach clone to a different context
+    ctx2 = ngl.Context()
+    ret = ctx2.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
+    assert ret == 0
+    assert ctx2.set_scene(clone) == 0
+    del ctx
+    del ctx2
+
+
 def api_transform_chain_check():
     invalid_chain = ngl.Translate(ngl.Rotate(ngl.Skew()))
     root = ngl.Camera(eye_transform=invalid_chain)

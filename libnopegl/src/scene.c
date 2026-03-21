@@ -556,6 +556,35 @@ void ngl_livectls_freep(struct ngl_livectl **livectlsp)
     ngli_freep(livectlsp);
 }
 
+struct ngl_scene *ngl_scene_clone(struct ngl_scene *s)
+{
+    if (!s->params.root) {
+        LOG(ERROR, "cannot clone a scene without root node");
+        return NULL;
+    }
+
+    struct ngl_node *cloned_root = ngl_node_clone(s->params.root);
+    if (!cloned_root)
+        return NULL;
+
+    struct ngl_scene *clone = ngl_scene_create();
+    if (!clone) {
+        ngl_node_unrefp(&cloned_root);
+        return NULL;
+    }
+
+    struct ngl_scene_params params = s->params;
+    params.root = cloned_root;
+    int ret = ngl_scene_init(clone, &params);
+    ngl_node_unrefp(&cloned_root);
+    if (ret < 0) {
+        ngl_scene_unrefp(&clone);
+        return NULL;
+    }
+
+    return clone;
+}
+
 void ngl_scene_unrefp(struct ngl_scene **sp)
 {
     struct ngl_scene *s = *sp;

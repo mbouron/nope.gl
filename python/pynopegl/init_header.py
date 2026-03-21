@@ -250,6 +250,9 @@ class Node(_Node):
     def _set_rational(self, param_name, ratio):
         return self._param_set_rational(param_name, ratio[0], ratio[1])
 
+    def clone(self) -> "Node":
+        return super()._clone()
+
     def get_type(self):
         return self._get_type()
 
@@ -271,6 +274,9 @@ class Scene(_ngl.Scene):
     @classmethod
     def from_string(cls, s: Union[str, bytes]) -> "Scene":
         return super().from_string(s)
+
+    def clone(self) -> "Scene":
+        return super().clone()
 
     def serialize(self) -> bytes:
         return super().serialize()

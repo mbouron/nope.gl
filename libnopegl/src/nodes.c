@@ -31,6 +31,7 @@
 #include "nodes_register.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
+#include "utils/hmap.h"
 #include "utils/memory.h"
 #include "utils/string.h"
 #include "utils/utils.h"
@@ -774,6 +775,179 @@ int ngl_node_get_label(struct ngl_node *node, const char **label)
     *label = node->label;
 
     return 0;
+}
+
+static void clone_hmap_free(void *user_arg, void *data)
+{
+    struct ngl_node *node = data;
+    ngl_node_unrefp(&node);
+}
+
+static struct ngl_node *clone_node(struct hmap *clonemap, const struct ngl_node *node)
+{
+    /* Check if this node was already cloned (diamond-shaped graph) */
+    const uint64_t key = (uint64_t)(uintptr_t)node;
+    struct ngl_node *clone = ngli_hmap_get_u64(clonemap, key);
+    if (clone)
+        return ngl_node_ref(clone);
+
+    clone = node_create(node->cls);
+    if (!clone)
+        return NULL;
+
+    int ret = ngli_hmap_set_u64(clonemap, key, clone);
+    if (ret < 0)
+        goto fail;
+
+    /* Copy label */
+    ngli_free(clone->label); /* free the default label set by node_create() */
+    clone->label = ngli_strdup(node->label);
+    if (!clone->label)
+        goto fail;
+
+    /* Copy all parameters */
+    const struct node_param *par = node->cls->params;
+    if (par) {
+        while (par->key) {
+            const uint8_t *src_base = node->opts;
+            uint8_t *dst_base = clone->opts;
+            const uint8_t *srcp = src_base + par->offset;
+            uint8_t *dstp = dst_base + par->offset;
+
+            if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE) {
+                /* Layout: [node_ptr][scalar_value] at offset */
+                const struct ngl_node *src_node = *(const struct ngl_node *const *)srcp;
+                if (src_node) {
+                    struct ngl_node *cloned_child = clone_node(clonemap, src_node);
+                    if (!cloned_child)
+                        goto fail;
+                    memcpy(dstp, &cloned_child, sizeof(struct ngl_node *));
+                }
+                /* Copy the scalar value after the node pointer */
+                const size_t scalar_offset = sizeof(struct ngl_node *);
+                memcpy(dstp + scalar_offset, srcp + scalar_offset,
+                       ngli_params_get_type_specs(par->type)->size);
+            } else {
+                switch (par->type) {
+                case NGLI_PARAM_TYPE_NODE: {
+                    const struct ngl_node *src_child = *(const struct ngl_node *const *)srcp;
+                    if (src_child) {
+                        struct ngl_node *cloned_child = clone_node(clonemap, src_child);
+                        if (!cloned_child)
+                            goto fail;
+                        memcpy(dstp, &cloned_child, sizeof(struct ngl_node *));
+                    }
+                    break;
+                }
+                case NGLI_PARAM_TYPE_NODELIST: {
+                    struct ngl_node *const *src_elems = *(struct ngl_node *const *const *)srcp;
+                    const size_t nb_elems = *(const size_t *)(srcp + sizeof(struct ngl_node **));
+                    if (nb_elems) {
+                        struct ngl_node **dst_elems = ngli_calloc(nb_elems, sizeof(*dst_elems));
+                        if (!dst_elems)
+                            goto fail;
+                        for (size_t i = 0; i < nb_elems; i++) {
+                            dst_elems[i] = clone_node(clonemap, src_elems[i]);
+                            if (!dst_elems[i]) {
+                                for (size_t j = 0; j < i; j++)
+                                    ngl_node_unrefp(&dst_elems[j]);
+                                ngli_free(dst_elems);
+                                goto fail;
+                            }
+                        }
+                        memcpy(dstp, &dst_elems, sizeof(struct ngl_node **));
+                        memcpy(dstp + sizeof(struct ngl_node **), &nb_elems, sizeof(nb_elems));
+                    }
+                    break;
+                }
+                case NGLI_PARAM_TYPE_F64LIST: {
+                    const double *src_elems = *(const double *const *)srcp;
+                    const size_t nb_elems = *(const size_t *)(srcp + sizeof(double *));
+                    if (nb_elems) {
+                        double *dst_elems = ngli_memdup(src_elems, nb_elems * sizeof(*dst_elems));
+                        if (!dst_elems)
+                            goto fail;
+                        memcpy(dstp, &dst_elems, sizeof(double *));
+                        memcpy(dstp + sizeof(double *), &nb_elems, sizeof(nb_elems));
+                    }
+                    break;
+                }
+                case NGLI_PARAM_TYPE_NODEDICT: {
+                    const struct hmap *src_hmap = *(const struct hmap *const *)srcp;
+                    if (src_hmap) {
+                        struct hmap *dst_hmap = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+                        if (!dst_hmap)
+                            goto fail;
+                        ngli_hmap_set_free_func(dst_hmap, clone_hmap_free, NULL);
+                        const struct hmap_entry *entry = NULL;
+                        while ((entry = ngli_hmap_next(src_hmap, entry))) {
+                            struct ngl_node *cloned_child = clone_node(clonemap, entry->data);
+                            if (!cloned_child) {
+                                ngli_hmap_freep(&dst_hmap);
+                                goto fail;
+                            }
+                            ret = ngli_hmap_set_str(dst_hmap, entry->key.str, cloned_child);
+                            if (ret < 0) {
+                                ngl_node_unrefp(&cloned_child);
+                                ngli_hmap_freep(&dst_hmap);
+                                goto fail;
+                            }
+                        }
+                        memcpy(dstp, &dst_hmap, sizeof(struct hmap *));
+                    }
+                    break;
+                }
+                case NGLI_PARAM_TYPE_STR: {
+                    const char *src_str = *(const char *const *)srcp;
+                    if (src_str) {
+                        char *dst_str = ngli_strdup(src_str);
+                        if (!dst_str)
+                            goto fail;
+                        memcpy(dstp, &dst_str, sizeof(char *));
+                    }
+                    break;
+                }
+                case NGLI_PARAM_TYPE_DATA: {
+                    const uint8_t *src_data = *(const uint8_t *const *)srcp;
+                    const size_t size = *(const size_t *)(srcp + sizeof(void *));
+                    if (src_data && size) {
+                        uint8_t *dst_data = ngli_memdup(src_data, size);
+                        if (!dst_data)
+                            goto fail;
+                        memcpy(dstp, &dst_data, sizeof(uint8_t *));
+                        memcpy(dstp + sizeof(void *), &size, sizeof(size));
+                    }
+                    break;
+                }
+                default:
+                    /* Scalar types: direct memory copy */
+                    memcpy(dstp, srcp, ngli_params_get_type_specs(par->type)->size);
+                    break;
+                }
+            }
+            par++;
+        }
+    }
+
+    return clone;
+
+fail:
+    ngl_node_unrefp(&clone);
+    return NULL;
+}
+
+struct ngl_node *ngl_node_clone(struct ngl_node *node)
+{
+    if (!node)
+        return NULL;
+
+    struct hmap *clonemap = ngli_hmap_create(NGLI_HMAP_TYPE_U64);
+    if (!clonemap)
+        return NULL;
+
+    struct ngl_node *clone = clone_node(clonemap, node);
+    ngli_hmap_freep(&clonemap);
+    return clone;
 }
 
 struct ngl_node *ngl_node_ref(struct ngl_node *node)

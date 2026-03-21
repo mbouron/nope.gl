@@ -49,6 +49,12 @@ open class NGLNode(
         }
     }
 
+    fun clone(): NGLNode {
+        val clonedPtr = nativeClone(nativePtr)
+        require(clonedPtr != 0L) { "Failed to clone node" }
+        return NGLNode(clonedPtr, stealRef = true)
+    }
+
     fun release() {
         cleanable?.clean()
         cleanable = null
@@ -306,6 +312,8 @@ open class NGLNode(
     companion object {
         @JvmStatic
         external fun nativeCreate(type: Int): Long
+        @JvmStatic
+        external fun nativeClone(nativePtr: Long): Long
         @JvmStatic
         external fun nativeRef(nativePtr: Long)
         @JvmStatic
