@@ -640,6 +640,30 @@ static int glcontext_check_driver(struct glcontext *glcontext)
     return 0;
 }
 
+static int glcontext_check_default_framebuffer_encoding(struct glcontext *glcontext)
+{
+    /*
+     * In offscreen mode there is no window surface, so the default framebuffer
+     * has no back buffer to query.
+     */
+    if (glcontext->offscreen)
+        return 0;
+
+    const int es = glcontext->backend == NGPU_BACKEND_OPENGLES;
+    const GLuint default_fbo_id = ngpu_glcontext_get_default_framebuffer(glcontext);
+    const GLenum default_color_attachment = default_fbo_id == 0 ? (es ? GL_BACK : GL_BACK_LEFT) : GL_COLOR_ATTACHMENT0;
+
+    GLint encoding = GL_LINEAR;
+    glcontext->funcs.BindFramebuffer(GL_FRAMEBUFFER, default_fbo_id);
+    glcontext->funcs.GetFramebufferAttachmentParameteriv(
+        GL_FRAMEBUFFER, default_color_attachment,
+        GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &encoding);
+
+    glcontext->default_framebuffer_is_srgb = (encoding == GL_SRGB);
+
+    return 0;
+}
+
 static int glcontext_load_extensions(struct glcontext *glcontext)
 {
     int ret = glcontext_load_functions(glcontext);
@@ -673,6 +697,10 @@ static int glcontext_load_extensions(struct glcontext *glcontext)
     ret = glcontext_check_driver(glcontext);
     if (ret < 0)
         return ret;
+
+    ret = glcontext_check_default_framebuffer_encoding(glcontext);
+    if (ret < 0)
+        return 0;
 
     return 0;
 }

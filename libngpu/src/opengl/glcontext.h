@@ -134,6 +134,9 @@ struct glcontext {
      * See: https://gitlab.freedesktop.org/mesa/mesa/-/issues/8906
      */
     int workaround_radeonsi_sync;
+
+    /* Whether the default framebuffer uses sRGB color encoding */
+    int default_framebuffer_is_srgb;
 };
 
 struct glcontext_class {

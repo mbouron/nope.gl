@@ -321,16 +321,16 @@ void ngpu_rendertarget_gl_begin_pass(struct ngpu_rendertarget *s)
 
     ngpu_glstate_enable_scissor_test(gl, glstate, GL_FALSE);
 
-#if defined(TARGET_DARWIN)
     /*
-     * The default framebuffer on macOS is sRGB compatible and there is no way
-     * to request a non-sRGB format, thus we need to disable the linear -> sRGB
-     * conversion (that is enabled by GL_FRAMEBUFFER_SRGB).
+     * If the default framebuffer uses sRGB encoding, disable the
+     * linear -> sRGB conversion (enabled by GL_FRAMEBUFFER_SRGB) to avoid
+     * double gamma encoding on the swapchain output.
      */
-    if (s_priv->id == ngpu_glcontext_get_default_framebuffer(gl)) {
+    if (gl->backend == NGPU_BACKEND_OPENGL &&
+        gl->default_framebuffer_is_srgb &&
+        s_priv->id == ngpu_glcontext_get_default_framebuffer(gl)) {
         gl->funcs.Disable(GL_FRAMEBUFFER_SRGB);
     }
-#endif
 
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->id);
 
@@ -376,11 +376,11 @@ void ngpu_rendertarget_gl_end_pass(struct ngpu_rendertarget *s)
         gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->id);
     }
 
-#if defined(TARGET_DARWIN)
-    if (s_priv->id == ngpu_glcontext_get_default_framebuffer(gl)) {
+    if (gl->backend == NGPU_BACKEND_OPENGL &&
+        gl->default_framebuffer_is_srgb &&
+        s_priv->id == ngpu_glcontext_get_default_framebuffer(gl)) {
         gl->funcs.Enable(GL_FRAMEBUFFER_SRGB);
     }
-#endif
 
     s_priv->invalidate(s);
 }

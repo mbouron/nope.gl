@@ -114,6 +114,7 @@ typedef void (NGPU_GL_APIENTRY *GLDEBUGPROC)(GLenum source, GLenum type, GLuint 
 # define GL_TIMESTAMP                          0x8E28
 # define GL_TEXTURE_CUBE_MAP_SEAMLESS          0x884F
 # define GL_FRONT_LEFT                         0x0400
+# define GL_BACK_LEFT                          0x0402
 
 /* Compute shaders */
 # define GL_COMPUTE_SHADER                     0x91B9
