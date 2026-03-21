@@ -251,6 +251,9 @@ foreach backend : backends
     'media_change',
     'timerangefilter_update',
   ]
+  if has_text_libraries
+    tests_live += 'text_change'
+  endif
   foreach test_name : live_names
     tests_live += test_name + '_uniform'
   endforeach
