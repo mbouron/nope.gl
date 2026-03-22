@@ -19,13 +19,18 @@
  * under the License.
  */
 
+#include <float.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "aabb.h"
 #include "internal.h"
+#include "node2d.h"
+#include "math_utils.h"
 #include "log.h"
 #include "node_uniform.h"
 #include "nodes_register.h"
@@ -498,6 +503,24 @@ void ngli_node_draw_children(struct ngl_node *node)
     }
 }
 
+static bool has_bounding_box(const struct ngl_node *node)
+{
+    return NGLI_HAS_ALL_FLAGS(node->cls->flags, NGLI_NODE_FLAG_2D);
+}
+
+struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children)
+{
+    struct aabb aabb = NGLI_AABB_EMPTY;
+    for (size_t i = 0; i < nb_children; i++) {
+        const struct ngl_node *child = children[i];
+        if (!has_bounding_box(child))
+            continue;
+        const struct ngli_node2d_info *child_info = child->priv_data;
+        aabb = ngli_aabb_union(&aabb, &child_info->screen_aabb);
+    }
+    return aabb;
+}
+
 void ngli_node_draw(struct ngl_node *node)
 {
     if (node->cls->draw) {
@@ -505,6 +528,9 @@ void ngli_node_draw(struct ngl_node *node)
         node->cls->draw(node);
         node->draw_count++;
     }
+
+    if (has_bounding_box(node))
+        ngli_darray_push(&node->ctx->bounding_box_nodes, &node);
 }
 
 const struct node_param *ngli_node_param_find(const struct ngl_node *node, const char *key,
@@ -804,6 +830,84 @@ int ngl_node_get_label(struct ngl_node *node, const char **label)
         return NGL_ERROR_INVALID_ARG;
 
     *label = node->label;
+
+    return 0;
+}
+
+NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding_box *box)
+{
+    if (!node)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (!has_bounding_box(node))
+        return NGL_ERROR_INVALID_ARG;
+
+    const struct ngli_node2d_info *info = node->priv_data;
+
+    memset(box, 0, sizeof(*box));
+    memcpy(box->center, info->screen_aabb.center, sizeof(box->center));
+    memcpy(box->extent, info->screen_aabb.extent, sizeof(box->extent));
+
+    return 0;
+}
+
+NGL_API int ngl_node_get_global_transform_matrix(struct ngl_node *node, float *matrix)
+{
+    if (!node || !matrix)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (!has_bounding_box(node))
+        return NGL_ERROR_INVALID_ARG;
+
+    const struct ngli_node2d_info *info = node->priv_data;
+    memcpy(matrix, info->transform_matrix, 4 * 4 * sizeof(float));
+
+    return 0;
+}
+
+NGL_API int ngl_node_get_global_position(struct ngl_node *node, float *position)
+{
+    if (!node || !position)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (!has_bounding_box(node))
+        return NGL_ERROR_INVALID_ARG;
+
+    const struct ngli_node2d_info *info = node->priv_data;
+    const float *m = info->transform_matrix;
+    position[0] = m[12];
+    position[1] = m[13];
+
+    return 0;
+}
+
+NGL_API int ngl_node_get_global_rotation(struct ngl_node *node, float *rotation)
+{
+    if (!node || !rotation)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (!has_bounding_box(node))
+        return NGL_ERROR_INVALID_ARG;
+
+    const struct ngli_node2d_info *info = node->priv_data;
+    const float *m = info->transform_matrix;
+    *rotation = NGLI_RAD2DEG(atan2f(m[1], m[0]));
+
+    return 0;
+}
+
+NGL_API int ngl_node_get_global_scale(struct ngl_node *node, float *scale)
+{
+    if (!node || !scale)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (!has_bounding_box(node))
+        return NGL_ERROR_INVALID_ARG;
+
+    const struct ngli_node2d_info *info = node->priv_data;
+    const float *m = info->transform_matrix;
+    scale[0] = sqrtf(m[0] * m[0] + m[1] * m[1]);
+    scale[1] = sqrtf(m[4] * m[4] + m[5] * m[5]);
 
     return 0;
 }

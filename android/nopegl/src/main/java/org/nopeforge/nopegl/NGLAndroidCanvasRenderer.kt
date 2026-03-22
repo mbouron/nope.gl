@@ -39,7 +39,7 @@ import androidx.annotation.RequiresApi
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-internal class NGLCanvasRenderer
+internal class NGLAndroidCanvasRenderer
 internal constructor(
     width: Int,
     height: Int,
@@ -51,10 +51,10 @@ internal constructor(
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && maxBuffers == 1
         ) {
-            NGLCanvasRendererV34(width, height, format, usage)
+            NGLAndroidCanvasRendererV34(width, height, format, usage)
 
         } else {
-            NGLCanvasRendererV29(width, height, format, usage, maxBuffers)
+            NGLAndroidCanvasRendererV29(width, height, format, usage, maxBuffers)
         }
 
     fun close() {
@@ -111,8 +111,8 @@ internal constructor(
             return this
         }
 
-        fun build(): NGLCanvasRenderer {
-            return NGLCanvasRenderer(
+        fun build(): NGLAndroidCanvasRenderer {
+            return NGLAndroidCanvasRenderer(
                 width,
                 height,
                 bufferFormat,
@@ -128,16 +128,16 @@ internal constructor(
     }
 }
 
-internal class NGLCanvasRendererV29
+internal class NGLAndroidCanvasRendererV29
 internal constructor(
     private val width: Int,
     private val height: Int,
     private val format: Int,
     private val usage: Long,
     private val maxBuffers: Int,
-) : NGLCanvasRenderer.Impl {
+) : NGLAndroidCanvasRenderer.Impl {
     private var contentRoot: RenderNode? = null
-    private var handlerThread: HandlerThread = HandlerThread("NGLCanvasRendererV29").apply { start() }
+    private var handlerThread: HandlerThread = HandlerThread("NGLAndroidCanvasRendererV29").apply { start() }
     private var imageReader: ImageReader = createImageReader(handlerThread)
     private var hardwareRenderer: HardwareRenderer = createHardwareRenderer(imageReader)
     private val buffers = HashMap<HardwareBuffer, Image>()
@@ -205,14 +205,14 @@ internal constructor(
 }
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-internal class NGLCanvasRendererV34
+internal class NGLAndroidCanvasRendererV34
 internal constructor(
     private val width: Int,
     private val height: Int,
     private val format: Int,
     private val usage: Long,
-) : NGLCanvasRenderer.Impl {
-    private var rootNode: RenderNode = RenderNode("NGLCanvasRendererRoot")
+) : NGLAndroidCanvasRenderer.Impl {
+    private var rootNode: RenderNode = RenderNode("NGLAndroidCanvasRendererRoot")
     private var contentNode: RenderNode? = null
     private var hardwareBuffer = createHardwareBuffer()
     private var hardwareRenderer = createHardwareRenderer(hardwareBuffer)

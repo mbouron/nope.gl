@@ -451,5 +451,6 @@ const struct node_class ngli_media_class = {
     .opts_size = sizeof(struct media_opts),
     .priv_size = sizeof(struct media_priv),
     .params    = media_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
