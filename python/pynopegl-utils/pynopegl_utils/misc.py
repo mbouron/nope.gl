@@ -88,6 +88,7 @@ _MEDIA_FILES_DB = dict(
     rooster="Unsplash-Michael_Anfang-Rooster-cropped.jpg",
     panda="Unsplash-Romane_Gautun-Red_Panda-cropped.jpg",
     city="Unsplash-Andreas-Rasmussen-white-and-black-kanji-lantern.jpg",
+    city_exif8="Unsplash-Andreas-Rasmussen-white-and-black-kanji-lantern-rotated90.jpg",
 )
 
 

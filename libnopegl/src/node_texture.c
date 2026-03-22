@@ -35,6 +35,7 @@
 #include "node_media.h"
 #include "node_rtt.h"
 #include "node_texture.h"
+#include "node_textureview.h"
 #include "nopegl/nopegl.h"
 #include "rtt.h"
 
@@ -60,6 +61,15 @@ struct texture_priv {
 };
 
 NGLI_STATIC_ASSERT(offsetof(struct texture_priv, texture_info) == 0, "texture_info is first");
+
+struct texture_info *ngli_node_texture_get_texture_info(const struct ngl_node *node)
+{
+    if (node->cls->id == NGL_NODE_TEXTUREVIEW) {
+        const struct textureview_opts *o = node->opts;
+        return o->texture->priv_data;
+    }   
+    return node->priv_data;
+}
 
 enum ngpu_pgcraft_texture_type ngli_node_texture_get_pgcraft_texture_type(const struct ngl_node *node)
 {

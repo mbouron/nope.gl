@@ -315,12 +315,15 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_BUFFERVEC4             NGLI_FOURCC('B','f','v','4')
 #define NGL_NODE_BUFFERMAT4             NGLI_FOURCC('B','f','m','4')
 #define NGL_NODE_CAMERA                 NGLI_FOURCC('C','m','r','a')
+#define NGL_NODE_CANVAS2D               NGLI_FOURCC('C','n','v','s')
 #define NGL_NODE_CIRCLE                 NGLI_FOURCC('C','r','c','l')
 #define NGL_NODE_COLORKEY               NGLI_FOURCC('C','K','e','y')
 #define NGL_NODE_COLORSTATS             NGLI_FOURCC('C','l','r','S')
 #define NGL_NODE_COMPUTE                NGLI_FOURCC('C','p','t',' ')
 #define NGL_NODE_COMPUTEPROGRAM         NGLI_FOURCC('C','p','t','P')
 #define NGL_NODE_CUSTOMTEXTURE          NGLI_FOURCC('C','s','t','T')
+#define NGL_NODE_COLORFILL              NGLI_FOURCC('C','l','F','l')
+#define NGL_NODE_CUSTOMFILL             NGLI_FOURCC('C','u','F','l')
 #define NGL_NODE_DRAW                   NGLI_FOURCC('D','r','a','w')
 #define NGL_NODE_DRAWCOLOR              NGLI_FOURCC('D','c','l','r')
 #define NGL_NODE_DRAWDISPLACE           NGLI_FOURCC('D','d','s','p')
@@ -332,6 +335,17 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_DRAWPATH               NGLI_FOURCC('D','P','t','h')
 #define NGL_NODE_DRAWTEXTURE            NGLI_FOURCC('D','t','e','x')
 #define NGL_NODE_DRAWWAVEFORM           NGLI_FOURCC('D','w','f','m')
+#define NGL_NODE_DRAWRECT2D             NGLI_FOURCC('D','R','c','t')
+#define NGL_NODE_EFFECT2D               NGLI_FOURCC('E','f','2','D')
+#define NGL_NODE_MASKTEXTURE            NGLI_FOURCC('M','T','e','x')
+#define NGL_NODE_MASKBLUR               NGLI_FOURCC('M','B','l','r')
+#define NGL_NODE_GRADIENT4FILL          NGLI_FOURCC('G','4','F','l')
+#define NGL_NODE_GRADIENTFILL           NGLI_FOURCC('G','r','F','l')
+#define NGL_NODE_NOISEFILL              NGLI_FOURCC('N','s','F','l')
+#define NGL_NODE_STROKE                 NGLI_FOURCC('S','t','r','k')
+#define NGL_NODE_STROKEGRADIENT         NGLI_FOURCC('S','G','r','d')
+#define NGL_NODE_STROKEGRADIENT4        NGLI_FOURCC('S','G','4','c')
+#define NGL_NODE_TEXTUREFILL            NGLI_FOURCC('T','x','F','l')
 #define NGL_NODE_EVALFLOAT              NGLI_FOURCC('E','v','f','1')
 #define NGL_NODE_EVALVEC2               NGLI_FOURCC('E','v','f','2')
 #define NGL_NODE_EVALVEC3               NGLI_FOURCC('E','v','f','3')
@@ -354,6 +368,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_GRAPHICCONFIG          NGLI_FOURCC('G','r','C','f')
 #define NGL_NODE_GRIDLAYOUT             NGLI_FOURCC('G','r','d','L')
 #define NGL_NODE_GROUP                  NGLI_FOURCC('G','r','p',' ')
+#define NGL_NODE_GROUP2D                NGLI_FOURCC('G','r','2','D')
 #define NGL_NODE_HEXAGONALBLUR          NGLI_FOURCC('H','G','B','l')
 #define NGL_NODE_IDENTITY               NGLI_FOURCC('I','d',' ',' ')
 #define NGL_NODE_IOINT                  NGLI_FOURCC('I','O','i','1')
@@ -373,6 +388,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_IOBOOL                 NGLI_FOURCC('I','O','b','1')
 #define NGL_NODE_MEDIA                  NGLI_FOURCC('M','d','i','a')
 #define NGL_NODE_NOISEFLOAT             NGLI_FOURCC('N','z','f','1')
+#define NGL_NODE_OFFSCREENCANVAS2D      NGLI_FOURCC('O','C','2','D')
 #define NGL_NODE_NOISEVEC2              NGLI_FOURCC('N','z','f','2')
 #define NGL_NODE_NOISEVEC3              NGLI_FOURCC('N','z','f','3')
 #define NGL_NODE_NOISEVEC4              NGLI_FOURCC('N','z','f','4')
@@ -612,6 +628,26 @@ NGL_API int ngl_node_get_type(struct ngl_node *node, uint32_t *type);
  * @return             0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_node_get_label(struct ngl_node *node, const char **label);
+
+/**
+ * Bounding box
+ */
+
+struct ngl_bounding_box {
+    float center[2];
+    float extent[2];
+};
+
+NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding_box *box);
+
+/**
+ * Global transform (accumulated from parent hierarchy)
+ */
+
+NGL_API int ngl_node_get_global_transform_matrix(struct ngl_node *node, float *matrix);
+NGL_API int ngl_node_get_global_position(struct ngl_node *node, float *position);
+NGL_API int ngl_node_get_global_rotation(struct ngl_node *node, float *rotation);
+NGL_API int ngl_node_get_global_scale(struct ngl_node *node, float *scale);
 
 /**
  * TimeRangeFilter
@@ -999,6 +1035,18 @@ NGL_API int ngl_update(struct ngl_ctx *s, double t);
  * @return 0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_draw(struct ngl_ctx *s, double t);
+
+/**
+ * Return the nodes at the specified point. Must be called after a draw. The
+ * returned array is valid until the next draw.
+ *
+ * @param s           context to query
+ * @param point       2D point coordinates (x, y) in pixel space, (0, 0) at top-left
+ * @param nb_nodesp   returned number of nodes at the point
+ * @param nodesp      returned array of nodes at the point (do not free)
+ * @return            0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t *nb_nodesp, struct ngl_node ***nodesp);
 
 /**
  * Serialize the current scene in Graphviz format (.dot) a node graph at the
