@@ -62,6 +62,33 @@ open class NGLNode(
         return NGLNodeType.values().first { it.type == nativeGetType(nativePtr) }
     }
 
+    fun getBoundingBox(): BoundingBox? {
+        val nativeBoundingBox = nativeGetBoundingBox(nativePtr) ?: return null
+
+        return BoundingBox(
+            centerX = nativeBoundingBox[0],
+            centerY = nativeBoundingBox[1],
+            extentWidth = nativeBoundingBox[2],
+            extentHeight = nativeBoundingBox[3],
+        )
+    }
+
+    fun getGlobalTransformMatrix(): FloatArray? {
+        return nativeGetGlobalTransformMatrix(nativePtr)
+    }
+
+    fun getGlobalPosition(): FloatArray? {
+        return nativeGetGlobalPosition(nativePtr)
+    }
+
+    fun getGlobalRotation(): Float {
+        return nativeGetGlobalRotation(nativePtr)
+    }
+
+    fun getGlobalScale(): FloatArray? {
+        return nativeGetGlobalScale(nativePtr)
+    }
+
     internal fun setBoolean(key: String, value: Boolean) {
         val returnCode = nativeSetBoolean(nativePtr, key, value)
         if (returnCode != 0) {
@@ -250,10 +277,20 @@ open class NGLNode(
         }
     }
 
+    internal fun setTimeRangeFilter2DRange(start: Double, end: Double) {
+        val returnCode = nativeTimeRangeFilter2DUpdate(nativePtr, start, end)
+        if (returnCode != 0) {
+            throw NGLError(returnCode)
+        }
+    }
+
     private external fun nativeGetLabel(nativePtr: Long): String
     private external fun nativeGetType(nativePtr: Long): Int
     private external fun nativeGetBoundingBox(nativePtr: Long): FloatArray?
-    private external fun nativeGetOrientedBoundingBox(nativePtr: Long): FloatArray?
+    private external fun nativeGetGlobalTransformMatrix(nativePtr: Long): FloatArray?
+    private external fun nativeGetGlobalPosition(nativePtr: Long): FloatArray?
+    private external fun nativeGetGlobalRotation(nativePtr: Long): Float
+    private external fun nativeGetGlobalScale(nativePtr: Long): FloatArray?
     private external fun nativeSetBoolean(nativePtr: Long, key: String, value: Boolean): Int
     private external fun nativeSetData(
         nativePtr: Long,
@@ -298,6 +335,12 @@ open class NGLNode(
     ): Int
 
     private external fun nativeTimeRangeFilterUpdate(
+        nativePtr: Long,
+        start: Double,
+        end: Double,
+    ): Int
+
+    private external fun nativeTimeRangeFilter2DUpdate(
         nativePtr: Long,
         start: Double,
         end: Double,

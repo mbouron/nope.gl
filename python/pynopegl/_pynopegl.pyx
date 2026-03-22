@@ -89,8 +89,17 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_node_param_set_vec3(ngl_node *node, const char *key, const float *value)
     int ngl_node_param_set_vec4(ngl_node *node, const char *key, const float *value)
     int ngl_anim_evaluate(ngl_node *anim, void *dst, double t)
+    cdef struct ngl_bounding_box:
+        float center[2]
+        float extent[2]
+
     int ngl_node_get_type(ngl_node *node, uint32_t *type)
     int ngl_node_get_label(ngl_node *node, const char **label)
+    int ngl_node_get_bounding_box(ngl_node *node, ngl_bounding_box *box)
+    int ngl_node_get_global_transform_matrix(ngl_node *node, float *matrix)
+    int ngl_node_get_global_position(ngl_node *node, float *position)
+    int ngl_node_get_global_rotation(ngl_node *node, float *rotation)
+    int ngl_node_get_global_scale(ngl_node *node, float *scale)
 
     cdef enum ngl_platform_type:
         NGL_PLATFORM_AUTO,
@@ -229,6 +238,7 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_set_scene(ngl_ctx *s, ngl_scene *scene)
     int ngl_update(ngl_ctx *s, double t) nogil
     int ngl_draw(ngl_ctx *s, double t) nogil
+    int ngl_get_nodes_at_point(ngl_ctx *s, const float *point, size_t *nb_nodesp, ngl_node ***nodesp)
     char *ngl_dot(ngl_ctx *s, double t) nogil
     int ngl_node_set_funcs(ngl_node *node, void *user_data, ngl_node_funcs *funcs)
     int ngl_livectls_get(ngl_scene *scene, size_t *nb_livectlsp, ngl_livectl **livectlsp)
@@ -243,6 +253,7 @@ cdef extern from "nopegl/nopegl.h":
                          const double *offsets, double v, double *t)
 
     int ngl_timerangefilter_set_range(ngl_node *node, double start, double end)
+    int ngl_timerangefilter2d_set_range(ngl_node *node, double start, double end)
 
 cdef extern from "nopegl/nopegl_opengl.h":
     cdef struct ngl_config_gl:
@@ -486,8 +497,50 @@ cdef class _Node:
         return str(label)
 
 
+    def _get_bounding_box(self):
+        cdef ngl_bounding_box box
+        cdef int ret = ngl_node_get_bounding_box(self.ctx, &box)
+        if ret < 0:
+            raise Exception("Failed to get node bounding box")
+        bounding_box = {
+            "center": (box.center[0], box.center[1]),
+            "extent": (box.extent[0], box.extent[1]),
+        }
+        return bounding_box
+
+    def _get_global_transform_matrix(self):
+        cdef float matrix[16]
+        cdef int ret = ngl_node_get_global_transform_matrix(self.ctx, matrix)
+        if ret < 0:
+            raise Exception("Failed to get node transform matrix")
+        return tuple(matrix[i] for i in range(16))
+
+    def _get_global_position(self):
+        cdef float position[2]
+        cdef int ret = ngl_node_get_global_position(self.ctx, position)
+        if ret < 0:
+            raise Exception("Failed to get node global position")
+        return (position[0], position[1])
+
+    def _get_global_rotation(self):
+        cdef float rotation
+        cdef int ret = ngl_node_get_global_rotation(self.ctx, &rotation)
+        if ret < 0:
+            raise Exception("Failed to get node global rotation")
+        return rotation
+
+    def _get_global_scale(self):
+        cdef float scale[2]
+        cdef int ret = ngl_node_get_global_scale(self.ctx, scale)
+        if ret < 0:
+            raise Exception("Failed to get node global scale")
+        return (scale[0], scale[1])
+
     def _timerangefilter_set_range(self, double start, double end):
         return ngl_timerangefilter_set_range(self.ctx, start, end)
+
+    def _timerangefilter2d_set_range(self, double start, double end):
+        return ngl_timerangefilter2d_set_range(self.ctx, start, end)
 
 ANIM_EVALUATE, ANIM_DERIVATE, ANIM_SOLVE = range(3)
 
@@ -570,6 +623,7 @@ def probe_backends(mode, py_config):
 
 
 LIVECTL_INFO = {}  # Filled dynamically by the Python side
+NODE_INFO = {}  # Filled dynamically by the Python side
 
 _TYPES_COUNT = {
     'bool': 1, 'mat4': 16, 'str': 0,
@@ -860,6 +914,20 @@ cdef class Context:
         with nogil:
             ret = ngl_draw(self.ctx, t)
         return ret
+
+    def get_nodes_at_point(self, point):
+        cdef float c_point[2]
+        c_point[0] = point[0]
+        c_point[1] = point[1]
+        cdef size_t nb_nodes = 0
+        cdef ngl_node **nodes = NULL
+        cdef int ret = ngl_get_nodes_at_point(self.ctx, c_point, &nb_nodes, &nodes)
+        if ret < 0:
+            return []
+        result = []
+        for i in range(nb_nodes):
+            result.append(<uintptr_t>nodes[i])
+        return result
 
     def dot(self, double t):
         cdef char *s

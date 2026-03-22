@@ -38,6 +38,24 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `CustomTexture` node which allows implementing custom rendering logic
 - Android binding and viewer
 - Automatic color conversions from one set of primaries to another
+- `Canvas2D` node to establish a 2D pixel coordinate space with an orthographic
+  projection, serving as the root for 2D scene hierarchies
+- `Group2D` node for grouping 2D children with shared transform (translate,
+  rotation, scale) and cascading opacity in pixel space
+- `DrawRect2D` node for drawing rounded rectangles in pixel coordinates with
+  composable fill, stroke, and mask, plus built-in transform, clipping, and
+  content reframing controls
+- `OffscreenCanvas2D` node to render offscreen a 2D graph
+- `Effect2D` node to apply custom effects to a 2D graph
+- `TimeRangeFilter2D`, `UserSelect2D` and `UserSwitch2D` nodes
+- Bounding box API for the 2D node hierarchy (`Canvas2D`, `Group2D`, `DrawRect2D`):
+  `ngl_node_get_bounding_box()` returns the pixel-space axis-aligned bounding
+  box, with containers automatically computing the union of their children
+- `ngl_get_nodes_at_point()` for hit-testing in pixel coordinates with
+  local-space narrow-phase for accurate rotated rectangle picking
+- `ngl_node_get_global_transform_matrix()`, `ngl_node_get_global_position()`,
+  `ngl_node_get_global_rotation()`, and `ngl_node_get_global_scale()` to query
+  the accumulated 2D transform of any node in the hierarchy
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges

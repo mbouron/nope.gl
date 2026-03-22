@@ -40,7 +40,9 @@
 #include FT_OUTLINE_H
 #endif
 
+#include "aabb.h"
 #include "hud.h"
+#include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "slug.h"
 #include "nopegl/nopegl.h"
@@ -97,6 +99,11 @@ struct ngl_ctx {
     float default_projection_matrix[16];
     struct darray modelview_matrix_stack;
     struct darray projection_matrix_stack;
+    struct darray transform_2d_stack;
+    struct darray opacity_2d_stack;
+    float projection_2d_matrix[16];
+    float canvas_2d_width;
+    float canvas_2d_height;
     struct staging_buffer update_staging_buffer;
     struct staging_buffer draw_staging_buffer;
     struct staging_buffer *current_staging_buffer;
@@ -107,6 +114,13 @@ struct ngl_ctx {
      * (root).
      */
     struct darray activitycheck_nodes;
+
+    /*
+     * Array of nodes that have a bounding box and that are candidate to
+     * spatial queries.
+     */
+    struct darray bounding_box_nodes;
+    struct darray intersecting_nodes;
 
     struct hmap *text_builtin_atlasses; // struct text_builtin_atlas
 #if HAVE_TEXT_LIBRARIES
@@ -213,6 +227,17 @@ enum node_category {
     NGLI_NODE_CATEGORY_TRANSFORM,
 };
 
+#define NGLI_NODE2D_TYPES_LIST (const uint32_t[]){ \
+    NGL_NODE_CANVAS2D,                             \
+    NGL_NODE_DRAWRECT2D,                           \
+    NGL_NODE_EFFECT2D,                             \
+    NGL_NODE_GROUP2D,                              \
+    NGL_NODE_OFFSCREENCANVAS2D,                    \
+    NGL_NODE_TIMERANGEFILTER2D,                    \
+    NGL_NODE_USERSELECT2D,                         \
+    NGL_NODE_USERSWITCH2D,                         \
+    NGLI_NODE_NONE}                                \
+
 /*
  * Node is an exposed live control.
  *
@@ -233,6 +258,17 @@ enum node_category {
  * Node is shareable
  */
 #define NGLI_NODE_FLAG_SHAREABLE (1 << 1)
+
+/*
+ * Node is a 2D node participating in the 2D scene graph.
+ *
+ * Important notes when setting this flag:
+ *
+ * - the first member of the private node context must be a ngli_node2d_info struct
+ * - the node must not be shared across multiple parents (the 2D hierarchy
+ *   must form a tree, not a DAG); this is enforced at attachment time
+ */
+#define NGLI_NODE_FLAG_2D  (1 << 2)
 
 /*
  * Specifications of a node.
@@ -423,6 +459,7 @@ struct node_class {
     const struct node_param *params;
     const char *params_id;
     size_t livectl_offset;
+    size_t node2d_offset;
     uint32_t flags;
     const char *file;
 };
@@ -432,6 +469,8 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str);
 char *ngli_scene_serialize(const struct ngl_scene *s);
 char *ngli_scene_dot(const struct ngl_scene *s);
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par);
+
+struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children);
 
 int ngli_node_prepare(struct ngl_node *node,
                       const struct ngpu_graphics_state *graphics_state,

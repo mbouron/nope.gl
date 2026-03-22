@@ -76,12 +76,15 @@ fun nodeType(name: String): NGLNodeType? {
         "BufferVec4" -> NGLNodeType.BUFFERVEC4
         "BufferMat4" -> NGLNodeType.BUFFERMAT4
         "Camera" -> NGLNodeType.CAMERA
+        "Canvas2D" -> NGLNodeType.CANVAS2D
         "Circle" -> NGLNodeType.CIRCLE
         "ColorKey" -> NGLNodeType.COLORKEY
         "ColorStats" -> NGLNodeType.COLORSTATS
         "Compute" -> NGLNodeType.COMPUTE
         "ComputeProgram" -> NGLNodeType.COMPUTEPROGRAM
         "CustomTexture" -> NGLNodeType.CUSTOMTEXTURE
+        "ColorFill" -> NGLNodeType.COLORFILL
+        "CustomFill" -> NGLNodeType.CUSTOMFILL
         "Draw" -> NGLNodeType.DRAW
         "DrawColor" -> NGLNodeType.DRAWCOLOR
         "DrawDisplace" -> NGLNodeType.DRAWDISPLACE
@@ -93,6 +96,8 @@ fun nodeType(name: String): NGLNodeType? {
         "DrawPath" -> NGLNodeType.DRAWPATH
         "DrawTexture" -> NGLNodeType.DRAWTEXTURE
         "DrawWaveform" -> NGLNodeType.DRAWWAVEFORM
+        "DrawRect2D" -> NGLNodeType.DRAWRECT2D
+        "Effect2D" -> NGLNodeType.EFFECT2D
         "FilterAlpha" -> NGLNodeType.FILTERALPHA
         "FilterColorMap" -> NGLNodeType.FILTERCOLORMAP
         "FilterContrast" -> NGLNodeType.FILTERCONTRAST
@@ -107,10 +112,13 @@ fun nodeType(name: String): NGLNodeType? {
         "FastGaussianBlur" -> NGLNodeType.FASTGAUSSIANBLUR
         "FontFace" -> NGLNodeType.FONTFACE
         "GaussianBlur" -> NGLNodeType.GAUSSIANBLUR
+        "Gradient4Fill" -> NGLNodeType.GRADIENT4FILL
+        "GradientFill" -> NGLNodeType.GRADIENTFILL
         "Geometry" -> NGLNodeType.GEOMETRY
         "GraphicConfig" -> NGLNodeType.GRAPHICCONFIG
         "GridLayout" -> NGLNodeType.GRIDLAYOUT
         "Group" -> NGLNodeType.GROUP
+        "Group2D" -> NGLNodeType.GROUP2D
         "HexagonalBlur" -> NGLNodeType.HEXAGONALBLUR
         "Identity" -> NGLNodeType.IDENTITY
         "IOInt" -> NGLNodeType.IOINT
@@ -133,10 +141,12 @@ fun nodeType(name: String): NGLNodeType? {
         "EvalVec3" -> NGLNodeType.EVALVEC3
         "EvalVec4" -> NGLNodeType.EVALVEC4
         "Media" -> NGLNodeType.MEDIA
+        "NoiseFill" -> NGLNodeType.NOISEFILL
         "NoiseFloat" -> NGLNodeType.NOISEFLOAT
         "NoiseVec2" -> NGLNodeType.NOISEVEC2
         "NoiseVec3" -> NGLNodeType.NOISEVEC3
         "NoiseVec4" -> NGLNodeType.NOISEVEC4
+        "OffscreenCanvas2D" -> NGLNodeType.OFFSCREENCANVAS2D
         "Path" -> NGLNodeType.PATH
         "PathKeyBezier2" -> NGLNodeType.PATHKEYBEZIER2
         "PathKeyBezier3" -> NGLNodeType.PATHKEYBEZIER3
@@ -152,6 +162,10 @@ fun nodeType(name: String): NGLNodeType? {
         "Scale" -> NGLNodeType.SCALE
         "Skew" -> NGLNodeType.SKEW
         "SmoothPath" -> NGLNodeType.SMOOTHPATH
+        "Stroke" -> NGLNodeType.STROKE
+        "StrokeGradient" -> NGLNodeType.STROKEGRADIENT
+        "StrokeGradient4" -> NGLNodeType.STROKEGRADIENT4
+        "TextureFill" -> NGLNodeType.TEXTUREFILL
         "Text" -> NGLNodeType.TEXT
         "TextEffect" -> NGLNodeType.TEXTEFFECT
         "Texture2D" -> NGLNodeType.TEXTURE2D
@@ -161,6 +175,7 @@ fun nodeType(name: String): NGLNodeType? {
         "TextureView" -> NGLNodeType.TEXTUREVIEW
         "Time" -> NGLNodeType.TIME
         "TimeRangeFilter" -> NGLNodeType.TIMERANGEFILTER
+        "TimeRangeFilter2D" -> NGLNodeType.TIMERANGEFILTER2D
         "Transform" -> NGLNodeType.TRANSFORM
         "Translate" -> NGLNodeType.TRANSLATE
         "Triangle" -> NGLNodeType.TRIANGLE
@@ -207,7 +222,9 @@ fun nodeType(name: String): NGLNodeType? {
         "UniformColor" -> NGLNodeType.UNIFORMCOLOR
         "UniformQuat" -> NGLNodeType.UNIFORMQUAT
         "UserSelect" -> NGLNodeType.USERSELECT
+        "UserSelect2D" -> NGLNodeType.USERSELECT2D
         "UserSwitch" -> NGLNodeType.USERSWITCH
+        "UserSwitch2D" -> NGLNodeType.USERSWITCH2D
         "VelocityFloat" -> NGLNodeType.VELOCITYFLOAT
         "VelocityVec2" -> NGLNodeType.VELOCITYVEC2
         "VelocityVec3" -> NGLNodeType.VELOCITYVEC3

@@ -75,6 +75,7 @@
     action(NGL_NODE_BUFFERVEC4,             ngli_buffervec4_class)              \
     action(NGL_NODE_BUFFERMAT4,             ngli_buffermat4_class)              \
     action(NGL_NODE_CAMERA,                 ngli_camera_class)                  \
+    action(NGL_NODE_CANVAS2D,               ngli_canvas2d_class)                \
     action(NGL_NODE_CIRCLE,                 ngli_circle_class)                  \
     action(NGL_NODE_COLORKEY,               ngli_colorkey_class)                \
     action(NGL_NODE_COLORSTATS,             ngli_colorstats_class)              \
@@ -103,13 +104,25 @@
     action(NGL_NODE_FILTERSATURATION,       ngli_filtersaturation_class)        \
     action(NGL_NODE_FILTERSELECTOR,         ngli_filterselector_class)          \
     action(NGL_NODE_FILTERSRGB2LINEAR,      ngli_filtersrgb2linear_class)       \
+    action(NGL_NODE_COLORFILL,              ngli_colorfill_class)               \
+    action(NGL_NODE_CUSTOMFILL,             ngli_customfill_class)              \
+    action(NGL_NODE_DRAWRECT2D,             ngli_drawrect2d_class)              \
+    action(NGL_NODE_EFFECT2D,               ngli_effect2d_class)                \
     action(NGL_NODE_FASTGAUSSIANBLUR,       ngli_fgblur_class)                  \
     action(NGL_NODE_FONTFACE,               ngli_fontface_class)                \
+    action(NGL_NODE_GRADIENT4FILL,          ngli_gradient4fill_class)           \
+    action(NGL_NODE_GRADIENTFILL,           ngli_gradientfill_class)            \
+    action(NGL_NODE_NOISEFILL,              ngli_noisefill_class)               \
+    action(NGL_NODE_STROKE,                 ngli_stroke_class)                  \
+    action(NGL_NODE_STROKEGRADIENT,         ngli_strokegradient_class)          \
+    action(NGL_NODE_STROKEGRADIENT4,        ngli_strokegradient4_class)         \
+    action(NGL_NODE_TEXTUREFILL,            ngli_texturefill_class)             \
     action(NGL_NODE_GAUSSIANBLUR,           ngli_gblur_class)                   \
     action(NGL_NODE_GEOMETRY,               ngli_geometry_class)                \
     action(NGL_NODE_GRAPHICCONFIG,          ngli_graphicconfig_class)           \
     action(NGL_NODE_GRIDLAYOUT,             ngli_gridlayout_class)              \
     action(NGL_NODE_GROUP,                  ngli_group_class)                   \
+    action(NGL_NODE_GROUP2D,                ngli_group2d_class)                 \
     action(NGL_NODE_HEXAGONALBLUR,          ngli_hblur_class)                   \
     action(NGL_NODE_IDENTITY,               ngli_identity_class)                \
     action(NGL_NODE_IOINT,                  ngli_ioint_class)                   \
@@ -133,6 +146,7 @@
     action(NGL_NODE_EVALVEC4,               ngli_evalvec4_class)                \
     action(NGL_NODE_MEDIA,                  ngli_media_class)                   \
     action(NGL_NODE_NOISEFLOAT,             ngli_noisefloat_class)              \
+    action(NGL_NODE_OFFSCREENCANVAS2D,      ngli_offscreencanvas2d_class)       \
     action(NGL_NODE_NOISEVEC2,              ngli_noisevec2_class)               \
     action(NGL_NODE_NOISEVEC3,              ngli_noisevec3_class)               \
     action(NGL_NODE_NOISEVEC4,              ngli_noisevec4_class)               \
@@ -160,6 +174,7 @@
     action(NGL_NODE_TEXTUREVIEW,            ngli_textureview_class)             \
     action(NGL_NODE_TIME,                   ngli_time_class)                    \
     action(NGL_NODE_TIMERANGEFILTER,        ngli_timerangefilter_class)         \
+    action(NGL_NODE_TIMERANGEFILTER2D,      ngli_timerangefilter2d_class)       \
     action(NGL_NODE_TRANSFORM,              ngli_transform_class)               \
     action(NGL_NODE_TRANSLATE,              ngli_translate_class)               \
     action(NGL_NODE_TRIANGLE,               ngli_triangle_class)                \
@@ -206,7 +221,9 @@
     action(NGL_NODE_UNIFORMCOLOR,           ngli_uniformcolor_class)            \
     action(NGL_NODE_UNIFORMQUAT,            ngli_uniformquat_class)             \
     action(NGL_NODE_USERSELECT,             ngli_userselect_class)              \
+    action(NGL_NODE_USERSELECT2D,           ngli_userselect2d_class)            \
     action(NGL_NODE_USERSWITCH,             ngli_userswitch_class)              \
+    action(NGL_NODE_USERSWITCH2D,           ngli_userswitch2d_class)            \
     action(NGL_NODE_VELOCITYFLOAT,          ngli_velocityfloat_class)           \
     action(NGL_NODE_VELOCITYVEC2,           ngli_velocityvec2_class)            \
     action(NGL_NODE_VELOCITYVEC3,           ngli_velocityvec3_class)            \

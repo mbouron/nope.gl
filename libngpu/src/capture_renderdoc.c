@@ -27,6 +27,7 @@
 #include <dlfcn.h>
 #endif
 
+#include <stdbool.h>
 #include "renderdoc_app.h"
 
 #include "capture.h"

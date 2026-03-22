@@ -160,6 +160,18 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                         ).build()
                 )
             }
+            if (type == NGLNodeType.TIMERANGEFILTER2D) {
+                it.addFunction(
+                    FunSpec.builder("setRange")
+                        .addParameter("startTime", Double::class)
+                        .addParameter("endTime", Double::class)
+                        .addCode(
+                            CodeBlock.of(
+                                "super.${NGLNode::setTimeRangeFilter2DRange.name}(startTime, endTime)"
+                            )
+                        ).build()
+                )
+            }
         }.addFunctions(parameterSpecs.filter { it.key.addSetter }
             .flatMap { (param, parameter) ->
                 val block = kotlinSetCall(

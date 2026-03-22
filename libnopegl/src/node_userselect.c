@@ -121,4 +121,3 @@ const struct node_class ngli_userselect_class = {
     .livectl_offset = OFFSET(live),
     .file           = __FILE__,
 };
-
