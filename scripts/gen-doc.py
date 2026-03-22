@@ -63,7 +63,8 @@ def _get_default_str(p) -> str:
     if "ivec" in p["type"]:
         return "(" + ",".join(f"`{x}`" for x in default) + ")"
     if "vec" in p["type"]:
-        return "(" + ",".join(f"`{x:g}`" for x in default) + ")"
+        fmt_component = lambda x: f"`{x:g}`" if isinstance(x, (int, float)) else f"`{x}`"
+        return "(" + ",".join(fmt_component(x) for x in default) + ")"
     if "mat4" in p["type"]:
         m = default
         return "(" + " ".join(f"`{m[x]:g}`,`{m[x+1]:g}`,`{m[x+2]:g}`,`{m[x+3]:g}`" for x in range(0, 16, 4)) + ")"
