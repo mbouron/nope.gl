@@ -787,6 +787,8 @@ struct ngl_ctx *ngl_create(void)
 
     ngli_darray_init(&s->modelview_matrix_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&s->projection_matrix_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&s->transform_2d_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&s->opacity_2d_stack, sizeof(float), 0);
     ngli_darray_init(&s->activitycheck_nodes, sizeof(struct ngl_node *), 0);
 
     static const NGLI_ALIGNED_MAT(id_matrix) = NGLI_MAT4_IDENTITY;
@@ -794,7 +796,12 @@ struct ngl_ctx *ngl_create(void)
     memcpy(s->default_projection_matrix, id_matrix, sizeof(id_matrix));
 
     if (!ngli_darray_push(&s->modelview_matrix_stack, id_matrix) ||
-        !ngli_darray_push(&s->projection_matrix_stack, id_matrix))
+        !ngli_darray_push(&s->projection_matrix_stack, id_matrix) ||
+        !ngli_darray_push(&s->transform_2d_stack, id_matrix))
+        goto fail;
+
+    const float default_opacity = 1.f;
+    if (!ngli_darray_push(&s->opacity_2d_stack, &default_opacity))
         goto fail;
 
     LOG(INFO, "context create in nope.gl v%d.%d.%d",
@@ -987,6 +994,8 @@ void ngl_freep(struct ngl_ctx **ss)
 
     ngli_darray_reset(&s->modelview_matrix_stack);
     ngli_darray_reset(&s->projection_matrix_stack);
+    ngli_darray_reset(&s->transform_2d_stack);
+    ngli_darray_reset(&s->opacity_2d_stack);
     ngli_darray_reset(&s->activitycheck_nodes);
     ngli_freep(ss);
 }

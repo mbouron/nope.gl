@@ -38,6 +38,13 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `CustomTexture` node which allows implementing custom rendering logic
 - Android binding and viewer
 - Automatic color conversions from one set of primaries to another
+- `Canvas` node to establish a 2D pixel coordinate space with an orthographic
+  projection, serving as the root for 2D scene hierarchies
+- `Group2D` node for grouping 2D children with shared transform (translate,
+  rotation, scale) and cascading opacity in pixel space
+- `DrawRect` node for drawing rounded rectangles in pixel coordinates with
+  composable fill, stroke, and mask, plus built-in transform, clipping, and
+  content reframing controls
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges

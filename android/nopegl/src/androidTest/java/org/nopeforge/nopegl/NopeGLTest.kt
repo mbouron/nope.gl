@@ -451,10 +451,10 @@ class NopeGLTest {
 
         val width = 256
         val height = 256
-        val canvas = NGLCanvas(
+        val canvas = NGLAndroidCanvas(
             width = width,
             height = height,
-            callback = object: NGLCanvas.Callback {
+            callback = object: NGLAndroidCanvas.Callback {
                 override fun onDraw(canvas: Canvas) {
                     canvas.drawColor(Color.WHITE)
                     super.onDraw(canvas)
