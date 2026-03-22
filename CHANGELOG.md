@@ -38,6 +38,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `CustomTexture` node which allows implementing custom rendering logic
 - Android binding and viewer
 - Automatic color conversions from one set of primaries to another
+- DrawRect node
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges
