@@ -1047,6 +1047,7 @@ NGPU_API const struct ngpu_limits *ngpu_ctx_get_limits(const struct ngpu_ctx *s)
 
 NGPU_API enum ngpu_cull_mode ngpu_ctx_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode);
 NGPU_API void ngpu_ctx_get_projection_matrix(struct ngpu_ctx *s, float *dst);
+NGPU_API void ngpu_ctx_get_projection_matrix_inverse(struct ngpu_ctx *s, float *dst);
 NGPU_API void ngpu_ctx_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst);
 
 NGPU_API struct ngpu_rendertarget *ngpu_ctx_get_default_rendertarget(struct ngpu_ctx *s, enum ngpu_load_op load_op);

@@ -164,6 +164,7 @@ inc_dir = include_directories(
 
 lib_version = '0.0.0'
 lib_src = files(
+  'src/aabb.c',
   'src/animation.c',
   'src/api.c',
   'src/atlas.c',
@@ -189,6 +190,7 @@ lib_src = files(
   'src/node_block.c',
   'src/node_buffer.c',
   'src/node_camera.c',
+  'src/node_canvas2d.c',
   'src/node_circle.c',
   'src/node_colorkey.c',
   'src/node_colorstats.c',
@@ -196,6 +198,10 @@ lib_src = files(
   'src/node_computeprogram.c',
   'src/node_customtexture.c',
   'src/node_draw.c',
+  'src/node_drawrect2d.c',
+  'src/node_fill.c',
+  'src/node_stroke.c',
+  'src/node_mask.c',
   'src/node_drawother.c',
   'src/node_drawpath.c',
   'src/node_fgblur.c',
@@ -206,6 +212,7 @@ lib_src = files(
   'src/node_graphicconfig.c',
   'src/node_gridlayout.c',
   'src/node_group.c',
+  'src/node_group2d.c',
   'src/node_hblur.c',
   'src/node_identity.c',
   'src/node_io.c',
@@ -550,6 +557,8 @@ shaders = {
   'colorstats_init.comp': 'colorstats_init_comp.h',
   'colorstats_sumscale.comp': 'colorstats_sumscale_comp.h',
   'colorstats_waveform.comp': 'colorstats_waveform_comp.h',
+  'drawrect.frag': 'drawrect_frag.h',
+  'drawrect.vert': 'drawrect_vert.h',
   'distmap.frag': 'distmap_frag.h',
   'distmap.vert': 'distmap_vert.h',
   'filter_alpha.glsl': 'filter_alpha.h',

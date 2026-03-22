@@ -606,6 +606,8 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t)
     s->available_rendertargets[1] = rt_resume;
     s->current_rendertarget = rt;
 
+    ngli_darray_clear(&s->bounding_box_nodes);
+
     struct ngl_scene *scene = s->scene;
     if (scene) {
         LOG(DEBUG, "draw scene %s @ t=%f", scene->params.root->label, t);
@@ -787,14 +789,23 @@ struct ngl_ctx *ngl_create(void)
 
     ngli_darray_init(&s->modelview_matrix_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&s->projection_matrix_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&s->transform_2d_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&s->opacity_2d_stack, sizeof(float), 0);
     ngli_darray_init(&s->activitycheck_nodes, sizeof(struct ngl_node *), 0);
+    ngli_darray_init(&s->bounding_box_nodes, sizeof(struct ngl_node *), 0);
+    ngli_darray_init(&s->intersecting_nodes, sizeof(struct ngl_node *), 0);
 
     static const NGLI_ALIGNED_MAT(id_matrix) = NGLI_MAT4_IDENTITY;
     memcpy(s->default_modelview_matrix, id_matrix, sizeof(id_matrix));
     memcpy(s->default_projection_matrix, id_matrix, sizeof(id_matrix));
 
     if (!ngli_darray_push(&s->modelview_matrix_stack, id_matrix) ||
-        !ngli_darray_push(&s->projection_matrix_stack, id_matrix))
+        !ngli_darray_push(&s->projection_matrix_stack, id_matrix) ||
+        !ngli_darray_push(&s->transform_2d_stack, id_matrix))
+        goto fail;
+
+    const float default_opacity = 1.f;
+    if (!ngli_darray_push(&s->opacity_2d_stack, &default_opacity))
         goto fail;
 
     LOG(INFO, "context create in nope.gl v%d.%d.%d",
@@ -945,6 +956,46 @@ int ngl_draw(struct ngl_ctx *s, double t)
     return s->api_impl->draw(s, t);
 }
 
+NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t *nb_nodesp, struct ngl_node ***nodesp)
+{
+    *nb_nodesp = 0;
+    *nodesp = NULL;
+
+    ngli_darray_clear(&s->intersecting_nodes);
+
+    const NGLI_ALIGNED_VEC(pixel_point) = {point[0], point[1], 0.f, 1.f};
+
+    struct ngl_node **bounding_box_nodes = ngli_darray_data(&s->bounding_box_nodes);
+    for (size_t i = 0; i < ngli_darray_count(&s->bounding_box_nodes); i++) {
+        struct ngl_node *bounding_box_node = bounding_box_nodes[i];
+        /* Only test leaf draw nodes, not containers */
+        if (bounding_box_node->cls->category != NGLI_NODE_CATEGORY_DRAW)
+            continue;
+
+        const struct draw_info *draw_info = bounding_box_node->priv_data;
+
+        /* Broadphase: pixel-space AABB */
+        if (!ngli_aabb_intersect_point(&draw_info->screen_aabb, pixel_point))
+            continue;
+
+        /* Narrow phase: inverse-transform point into local space */
+        NGLI_ALIGNED_MAT(inv);
+        ngli_mat4_inverse(inv, draw_info->transform_matrix);
+        NGLI_ALIGNED_VEC(local_point);
+        ngli_mat4_mul_vec4(local_point, inv, pixel_point);
+
+        if (ngli_aabb_intersect_point(&draw_info->aabb, local_point)) {
+            if (!ngli_darray_push(&s->intersecting_nodes, &bounding_box_node))
+                return NGL_ERROR_MEMORY;
+        }
+    }
+
+    *nodesp = ngli_darray_data(&s->intersecting_nodes);
+    *nb_nodesp = ngli_darray_count(&s->intersecting_nodes);
+
+    return 0;
+}
+
 int ngl_gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer)
 {
     if (!s->configured) {
@@ -987,6 +1038,10 @@ void ngl_freep(struct ngl_ctx **ss)
 
     ngli_darray_reset(&s->modelview_matrix_stack);
     ngli_darray_reset(&s->projection_matrix_stack);
+    ngli_darray_reset(&s->transform_2d_stack);
+    ngli_darray_reset(&s->opacity_2d_stack);
     ngli_darray_reset(&s->activitycheck_nodes);
+    ngli_darray_reset(&s->bounding_box_nodes);
+    ngli_darray_reset(&s->intersecting_nodes);
     ngli_freep(ss);
 }

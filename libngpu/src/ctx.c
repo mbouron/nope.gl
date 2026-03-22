@@ -298,6 +298,11 @@ void ngpu_ctx_get_projection_matrix(struct ngpu_ctx *s, float *dst)
     s->cls->get_projection_matrix(s, dst);
 }
 
+void ngpu_ctx_get_projection_matrix_inverse(struct ngpu_ctx *s, float *dst)
+{
+    s->cls->get_projection_matrix_inverse(s, dst);
+}
+
 void ngpu_ctx_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
 {
     ngpu_assert(rt);

@@ -74,6 +74,7 @@ struct drawpath_opts {
 };
 
 struct drawpath_priv {
+    struct draw_info draw_info;
     struct ngli_aabb atlas_coords;
     float vertices[4];
     struct distmap *distmap;

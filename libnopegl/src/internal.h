@@ -40,7 +40,9 @@
 #include FT_OUTLINE_H
 #endif
 
+#include "aabb.h"
 #include "hud.h"
+#include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "slug.h"
 #include "nopegl/nopegl.h"
@@ -98,6 +100,9 @@ struct ngl_ctx {
     float default_projection_matrix[16];
     struct darray modelview_matrix_stack;
     struct darray projection_matrix_stack;
+    struct darray transform_2d_stack;
+    struct darray opacity_2d_stack;
+    float projection_2d_matrix[16];
 
     /*
      * Array of nodes that are candidate to either prefetch (active) or release
@@ -105,6 +110,13 @@ struct ngl_ctx {
      * (root).
      */
     struct darray activitycheck_nodes;
+
+    /*
+     * Array of nodes that have a bounding box and that are candidate to
+     * spatial queries.
+     */
+    struct darray bounding_box_nodes;
+    struct darray intersecting_nodes;
 
     struct hmap *text_builtin_atlasses; // struct text_builtin_atlas
 #if HAVE_TEXT_LIBRARIES
@@ -225,6 +237,7 @@ enum node_category {
  *   flagged with NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE
  */
 #define NGLI_NODE_FLAG_LIVECTL (1 << 0)
+#define NGLI_NODE_FLAG_BOUNDS  (1 << 1)
 
 /*
  * Specifications of a node.
@@ -407,6 +420,14 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str);
 char *ngli_scene_serialize(const struct ngl_scene *s);
 char *ngli_scene_dot(const struct ngl_scene *s);
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par);
+
+struct draw_info {
+    NGLI_ATTR_ALIGNED struct aabb aabb;
+    NGLI_ALIGNED_MAT(transform_matrix);
+    NGLI_ATTR_ALIGNED struct aabb screen_aabb;
+};
+
+struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children);
 
 int ngli_node_prepare(struct ngl_node *node);
 int ngli_node_prepare_children(struct ngl_node *node);

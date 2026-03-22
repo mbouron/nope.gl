@@ -256,6 +256,21 @@ class Node(_Node):
     def get_label(self):
         return self._get_label()
 
+    def get_bounding_box(self):
+        return self._get_bounding_box()
+
+    def get_global_transform_matrix(self):
+        return self._get_global_transform_matrix()
+
+    def get_global_position(self):
+        return self._get_global_position()
+
+    def get_global_rotation(self):
+        return self._get_global_rotation()
+
+    def get_global_scale(self):
+        return self._get_global_scale()
+
 
 class Scene(_ngl.Scene):
     @classmethod

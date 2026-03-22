@@ -29,7 +29,7 @@ import android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
 import android.opengl.GLES11Ext.GL_TEXTURE_EXTERNAL_OES
 import android.opengl.GLES32
 
-class NGLCanvas(
+class NGLAndroidCanvas(
     // TODO: don't expose the size here
     val width: Int,
     val height: Int,
@@ -41,7 +41,7 @@ class NGLCanvas(
         get() = customTextureNode
 
     private val customTextureCallback: NGLCustomTexture.Callback = object : NGLCustomTexture.Callback() {
-        private var renderer: NGLCanvasRenderer? = null
+        private var renderer: NGLAndroidCanvasRenderer? = null
         private var renderNode: RenderNode? = null
         private val values = IntArray(1)
         private var texture: Int = 0
@@ -98,7 +98,7 @@ class NGLCanvas(
         }
 
         override fun prefetch() {
-            renderer = NGLCanvasRenderer.Builder(width, height)
+            renderer = NGLAndroidCanvasRenderer.Builder(width, height)
                 .setBufferFormat(HardwareBuffer.RGBA_8888)
                 .setUsageFlags(USAGE_FLAGS)
                 .setMaxBuffers(1)
