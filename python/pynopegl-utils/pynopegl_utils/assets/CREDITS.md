@@ -39,6 +39,12 @@ Re-encoded from original picture by Andreas Rasmussen:
 
 License: [Unsplash](https://unsplash.com/license)
 
+## `Unsplash-Andreas-Rasmussen-white-and-black-kanji-lantern-rotated90.jpg`
+
+Derived from the above: pixels rotated 90° CW with EXIF orientation 8 to compensate.
+
+License: [Unsplash](https://unsplash.com/license)
+
 ## `OpenMoji-1F342-Fallen_Leaf.png`
 
 OpenMoji project: https://openmoji.org/

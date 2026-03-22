@@ -493,10 +493,6 @@ static int set_node_params(struct darray *nodes_array, char *str,
                            const struct ngl_node *node)
 {
     uint8_t *base_ptr = node->opts;
-    const struct node_param *params = node->cls->params;
-
-    if (!params)
-        return 0;
 
     for (;;) {
         char *eok = strchr(str, ':');
