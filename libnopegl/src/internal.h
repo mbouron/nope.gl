@@ -98,6 +98,9 @@ struct ngl_ctx {
     float default_projection_matrix[16];
     struct darray modelview_matrix_stack;
     struct darray projection_matrix_stack;
+    struct darray transform_2d_stack;
+    struct darray opacity_2d_stack;
+    float projection_2d_matrix[16];
 
     /*
      * Array of nodes that are candidate to either prefetch (active) or release
