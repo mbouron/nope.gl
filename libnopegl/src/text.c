@@ -200,7 +200,7 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
 
     /* Text/Box ratio */
     const struct ngli_box box = s->config.box;
-    const int32_t *ar32 = ctx->scene->params.aspect_ratio;
+    const int32_t ar32[2] = {ctx->scene->params.width, ctx->scene->params.height};
     const float ar = ar32[1] ? (float)ar32[0] / (float)ar32[1] : 1.f;
     const float box_ratio = ar * box.w / box.h;
     const float text_ratio = (float)s->width / (float)s->height;

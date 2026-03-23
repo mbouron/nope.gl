@@ -289,7 +289,7 @@ def get_field_scene(cfg: ngl.SceneCfg, spec, category, field_type, seed, debug_p
       (because if they have the same data, it is hard to indiscriminate them).
     """
 
-    cfg.aspect_ratio = (1, 1)
+    cfg.width, cfg.height = 768, 768
 
     # Seed only defines the random for the position of the fields
     fields_pos = random.Random(seed).sample(range(len(spec)), len(spec))

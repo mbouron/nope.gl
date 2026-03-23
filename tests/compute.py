@@ -54,10 +54,9 @@ void main()
 """
 
 
-@test_render(width=400, height=400, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=400, height=400)
 def compute_particles(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 10
     workgroups = (2, 1, 4)
     local_size = (4, 4, 1)
@@ -171,11 +170,10 @@ void main()
 _N = 8
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def compute_histogram(cfg: ngl.SceneCfg):
     cfg.duration = 10
-    cfg.aspect_ratio = (1, 1)
     hsize, size, local_size = _N * _N, _N, _N // 2
     data = array.array("f")
     for _ in range(size * size):
@@ -252,7 +250,6 @@ void main()
 
 def _compute_animation(cfg: ngl.SceneCfg, animate_pre_draw=True):
     cfg.duration = 5
-    cfg.aspect_ratio = (1, 1)
     local_size = 2
 
     vertices_data = array.array(
@@ -294,14 +291,14 @@ def _compute_animation(cfg: ngl.SceneCfg, animate_pre_draw=True):
     return ngl.Group(children=children)
 
 
-@test_render(width=256, height=256, keyframes=5, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=256, height=256)
 def compute_animation(cfg: ngl.SceneCfg):
     return _compute_animation(cfg)
 
 
-@test_render(width=256, height=256, keyframes=5, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=256, height=256)
 def compute_animation_post_draw(cfg: ngl.SceneCfg):
     return _compute_animation(cfg, False)
 
@@ -321,10 +318,9 @@ void main()
 """
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def compute_image_load_store(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     size = _N
     texture_data = ngl.BufferFloat(data=array.array("f", [x / (size**2) for x in range(size**2)]))
     texture_r = ngl.Texture2D(
@@ -407,7 +403,6 @@ void main()
 
 
 def _get_compute_image_layered_load_store_scene(cfg: ngl.SceneCfg, texture_cls):
-    cfg.aspect_ratio = (1, 1)
     size = _N
     texture = texture_cls(
         format="r32_sfloat",
@@ -453,14 +448,14 @@ def _get_compute_image_layered_load_store_scene(cfg: ngl.SceneCfg, texture_cls):
     return group
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def compute_image_3d_load_store(cfg: ngl.SceneCfg):
     return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture3D)
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def compute_image_2d_array_load_store(cfg: ngl.SceneCfg):
     return _get_compute_image_layered_load_store_scene(cfg, ngl.Texture2DArray)
 
@@ -528,10 +523,9 @@ void main()
 """
 
 
-@test_render(width=128, height=128)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=128, height=128)
 def compute_image_cube_load_store(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     size = _N
     texture = ngl.TextureCube(format="r32g32b32a32_sfloat", size=size, min_filter="nearest", mag_filter="nearest")
     program_store = ngl.ComputeProgram(_IMAGE_CUBE_STORE_COMPUTE, workgroup_size=(size, size, 6))

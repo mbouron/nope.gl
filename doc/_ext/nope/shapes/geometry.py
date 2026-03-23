@@ -3,10 +3,8 @@ import array
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=360, height=360)
 def geometry(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     p0 = (cfg.rng.uniform(-1, 0), cfg.rng.uniform(0, 1), 0)
     p1 = (cfg.rng.uniform(0, 1), cfg.rng.uniform(0, 1), 0)
     p2 = (cfg.rng.uniform(-1, 0), cfg.rng.uniform(-1, 0), 0)

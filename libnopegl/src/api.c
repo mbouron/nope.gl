@@ -44,6 +44,7 @@
 #include "utils/hmap.h"
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"
+#include "utils/utils.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "ngpu/ngpu_opengl.h"
@@ -331,21 +332,16 @@ static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene
     if (!scene)
         return vp;
 
-    const int32_t *aspect_ratio = scene->params.aspect_ratio;
-    if (aspect_ratio[0] <= 0 || aspect_ratio[1] <= 0)
+    const int32_t canvas_w = scene->params.width;
+    const int32_t canvas_h = scene->params.height;
+    if (canvas_w <= 0 || canvas_h <= 0)
         return vp;
 
-    const float wd = width * (float)aspect_ratio[1];
-    const float hn = height * (float)aspect_ratio[0];
-    if (wd > hn) {
-        vp.width = hn / (float)aspect_ratio[1];
-        vp.height = height;
-    } else {
-        vp.width = width;
-        vp.height = wd / (float)aspect_ratio[0];
-    }
-    vp.x = (width  - vp.width) / 2.f;
-    vp.y = (height - vp.height) / 2.f;
+    const float scale = NGLI_MIN(width / (float)canvas_w, height / (float)canvas_h);
+    vp.width  = (float)canvas_w * scale;
+    vp.height = (float)canvas_h * scale;
+    vp.x = (width  - vp.width)  * 0.5f;
+    vp.y = (height - vp.height) * 0.5f;
 
     return vp;
 }

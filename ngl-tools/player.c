@@ -403,11 +403,10 @@ static int set_framerate(struct player *p, const int *rate)
     return 0;
 }
 
-static int set_aspect_ratio(struct player *p, const int32_t *aspect)
+static int set_canvas_size(struct player *p, int32_t canvas_w, int32_t canvas_h)
 {
-    memcpy(p->aspect, aspect, sizeof(p->aspect));
-    if (!p->aspect[0] || !p->aspect[1])
-        p->aspect[0] = p->aspect[1] = 1;
+    p->aspect[0] = canvas_w ? canvas_w : 1;
+    p->aspect[1] = canvas_h ? canvas_h : 1;
     int32_t width, height;
     SDL_GetWindowSize(p->window, &width, &height);
     size_callback(p, width, height);
@@ -433,7 +432,7 @@ static int set_scene(struct player *p, struct ngl_scene *scene)
     const struct ngl_scene_params *params = ngl_scene_get_params(scene);
     if ((ret = set_duration(p, params->duration)) < 0 ||
         (ret = set_framerate(p, params->framerate)) < 0 ||
-        (ret = set_aspect_ratio(p, params->aspect_ratio)) < 0)
+        (ret = set_canvas_size(p, params->width, params->height)) < 0)
         return ret;
 
     return 0;
@@ -473,8 +472,8 @@ int player_init(struct player *p, const char *win_title, struct ngl_scene *scene
 
     p->ngl_config = *cfg;
 
-    p->aspect[0] = params->aspect_ratio[0];
-    p->aspect[1] = params->aspect_ratio[1];
+    p->aspect[0] = params->width  ? params->width  : 1;
+    p->aspect[1] = params->height ? params->height : 1;
 
     static const int refresh_rate[2] = {1, 60};
     p->ngl_config.hud_refresh_rate[0] = refresh_rate[0];

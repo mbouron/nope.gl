@@ -37,8 +37,8 @@ def _get_colorstats(media):
     )
 
 
-@test_render(width=480, height=480, keyframes=5, tolerance=3, diff_threshold=0.01)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=3, diff_threshold=0.01)
+@ngl.scene(width=480, height=480)
 def scope_colorstats(cfg):
     vert = textwrap.dedent(
         """
@@ -78,7 +78,6 @@ def scope_colorstats(cfg):
     uzoom = ngl.UniformFloat(50)
 
     cfg.duration = media.duration
-    cfg.aspect_ratio = (1, 1)
 
     quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     program = ngl.Program(vertex=vert, fragment=frag)
@@ -89,12 +88,12 @@ def scope_colorstats(cfg):
 
 
 def _get_histogram_func(mode):
-    @test_render(width=320, height=240, keyframes=5, tolerance=5, diff_threshold=0.01)
-    @ngl.scene()
+    @test_render(keyframes=5, tolerance=5, diff_threshold=0.01)
+    @ngl.scene(width=320, height=240)
     def scene_func(cfg):
         media = load_media("mire")
         cfg.duration = media.duration
-        cfg.aspect_ratio = (media.width, media.height)
+        cfg.width, cfg.height = media.width, media.height
         return ngl.DrawHistogram(stats=_get_colorstats(media), mode=mode)
 
     return scene_func
@@ -106,12 +105,12 @@ scope_draw_histogram_parade = _get_histogram_func("parade")
 
 
 def _get_waveform_func(mode):
-    @test_render(width=320, height=240, keyframes=5, tolerance=3, diff_threshold=0.05)
-    @ngl.scene()
+    @test_render(keyframes=5, tolerance=3, diff_threshold=0.05)
+    @ngl.scene(width=320, height=240)
     def scene_func(cfg):
         media = load_media("mire")
         cfg.duration = media.duration
-        cfg.aspect_ratio = (media.width, media.height)
+        cfg.width, cfg.height = media.width, media.height
         return ngl.DrawWaveform(stats=_get_colorstats(media), mode=mode)
 
     return scene_func
@@ -122,14 +121,14 @@ scope_draw_waveform_mixed = _get_waveform_func("mixed")
 scope_draw_waveform_parade = _get_waveform_func("parade")
 
 
-@test_render(width=320, height=240, keyframes=5, tolerance=3, diff_threshold=0.20)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=3, diff_threshold=0.20)
+@ngl.scene(width=320, height=240)
 def scope_rtt(cfg):
     """This test makes sure the texture is analyzed after the RTT has written into it"""
 
     media = load_media("mire")
     cfg.duration = media.duration
-    cfg.aspect_ratio = (media.width, media.height)
+    cfg.width, cfg.height = media.width, media.height
 
     # Proxy scene
     src_texture = ngl.Texture2D(data_src=ngl.Media(media.filename), min_filter="nearest", mag_filter="nearest")

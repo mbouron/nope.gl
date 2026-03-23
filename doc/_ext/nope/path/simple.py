@@ -1,10 +1,8 @@
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=360, height=360)
 def simple(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     keyframes = [
         ngl.PathKeyMove(to=(-0.7, 0.0, 0.0)),  # starting point
         ngl.PathKeyBezier3(

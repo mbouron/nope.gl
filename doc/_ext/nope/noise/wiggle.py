@@ -1,9 +1,8 @@
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=360, height=360)
 def wiggle(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 3
 
     geometry = ngl.Circle(radius=0.25, npoints=6)

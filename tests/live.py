@@ -78,7 +78,6 @@ def _get_group_reorder_function():
     )
     @ngl.scene()
     def live_group_reorder_func(cfg: ngl.SceneCfg):
-        cfg.aspect_ratio = (1, 1)
         return group
 
     return live_group_reorder_func
@@ -147,7 +146,6 @@ def _get_live_shared_uniform_function(layout=None):
     @ngl.scene(controls=dict(debug_positions=ngl.scene.Bool()))
     def scene_func(cfg: ngl.SceneCfg, debug_positions=True):
         cfg.duration = 0
-        cfg.aspect_ratio = (1, 1)
         if layout:
             return _get_live_shared_uniform_with_block_scene(cfg, color, layout, debug_positions)
         else:
@@ -180,7 +178,6 @@ def _get_media_change_function():
     )
     @ngl.scene()
     def live_media_change_func(cfg: ngl.SceneCfg):
-        cfg.aspect_ratio = (1, 1)
         # Build a scene with 2 successive media displayed, 10 seconds each
         return ngl.Group(
             children=[
@@ -220,7 +217,6 @@ def _get_timerangefilter_update_function():
     )
     @ngl.scene()
     def live_timerangefilter_update_func(cfg: ngl.SceneCfg):
-        cfg.aspect_ratio = (1, 1)
         return range
 
     return live_timerangefilter_update_func
@@ -410,7 +406,7 @@ def _get_text_change_function():
     )
     @ngl.scene()
     def live_text_change_func(cfg: ngl.SceneCfg):
-        cfg.aspect_ratio = (16, 9)
+        cfg.width, cfg.height = 1280, 720
         return text_node
 
     return live_text_change_func

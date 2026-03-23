@@ -19,8 +19,6 @@
 # under the License.
 #
 
-from fractions import Fraction
-
 import pynopegl as ngl
 from pynopegl_utils.config import Config
 from pynopegl_utils.control_widgets import control_to_widget
@@ -30,7 +28,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 class Toolbar(QtWidgets.QWidget):
     sceneChanged = QtCore.Signal(str, str)
-    aspectRatioChanged = QtCore.Signal(tuple)
+    dimensionsChanged = QtCore.Signal(tuple)
     samplesChanged = QtCore.Signal(int)
     frameRateChanged = QtCore.Signal(tuple)
     logLevelChanged = QtCore.Signal(str)
@@ -52,26 +50,26 @@ class Toolbar(QtWidgets.QWidget):
 
         self._current_scene_data = None
 
-        all_ar = config.CHOICES["aspect_ratio"]
-        default_ar = config.get("aspect_ratio")
-        self._ar_cbbox = QtWidgets.QComboBox()
-        for ar in all_ar:
-            self._ar_cbbox.addItem("%d:%d" % ar)
-        self._ar_cbbox.setCurrentIndex(all_ar.index(default_ar))
-        ar_lbl = QtWidgets.QLabel("Aspect ratio:")
-        ar_hbox = QtWidgets.QHBoxLayout()
-        ar_hbox.addWidget(ar_lbl)
-        ar_hbox.addWidget(self._ar_cbbox)
+        all_dims = config.CHOICES["dimensions"]
+        default_dims = config.get("dimensions")
+        self._dim_cbbox = QtWidgets.QComboBox()
+        for dims in all_dims:
+            self._dim_cbbox.addItem("%dx%d" % dims)
+        self._dim_cbbox.setCurrentIndex(all_dims.index(default_dims))
+        dim_lbl = QtWidgets.QLabel("Dimensions:")
+        dim_hbox = QtWidgets.QHBoxLayout()
+        dim_hbox.addWidget(dim_lbl)
+        dim_hbox.addWidget(self._dim_cbbox)
 
-        self._far_lbl = QtWidgets.QLabel("Forced aspect ratio:")
-        self._far_lbl.setStyleSheet("color: red;")
-        self._far_lbl.setVisible(False)
-        self._far_lbl2 = QtWidgets.QLabel("1:1")
-        self._far_lbl2.setStyleSheet("color: red;")
-        self._far_lbl2.setVisible(False)
-        far_hbox = QtWidgets.QHBoxLayout()
-        far_hbox.addWidget(self._far_lbl)
-        far_hbox.addWidget(self._far_lbl2)
+        self._fdim_lbl = QtWidgets.QLabel("Forced dimensions:")
+        self._fdim_lbl.setStyleSheet("color: red;")
+        self._fdim_lbl.setVisible(False)
+        self._fdim_lbl2 = QtWidgets.QLabel("1:1")
+        self._fdim_lbl2.setStyleSheet("color: red;")
+        self._fdim_lbl2.setVisible(False)
+        fdim_hbox = QtWidgets.QHBoxLayout()
+        fdim_hbox.addWidget(self._fdim_lbl)
+        fdim_hbox.addWidget(self._fdim_lbl2)
 
         all_samples = config.CHOICES["samples"]
         default_samples = config.get("samples")
@@ -136,8 +134,8 @@ class Toolbar(QtWidgets.QWidget):
         self.reload_btn = QtWidgets.QPushButton("Force scripts reload")
 
         self._scene_toolbar_layout = QtWidgets.QVBoxLayout(self)
-        self._scene_toolbar_layout.addLayout(ar_hbox)
-        self._scene_toolbar_layout.addLayout(far_hbox)
+        self._scene_toolbar_layout.addLayout(dim_hbox)
+        self._scene_toolbar_layout.addLayout(fdim_hbox)
         self._scene_toolbar_layout.addLayout(samples_hbox)
         self._scene_toolbar_layout.addLayout(fr_hbox)
         self._scene_toolbar_layout.addLayout(loglevel_hbox)
@@ -148,7 +146,7 @@ class Toolbar(QtWidgets.QWidget):
 
         self._scn_view.clicked.connect(self._scn_view_selected)
         self._scn_view.activated.connect(self._scn_view_selected)
-        self._ar_cbbox.currentIndexChanged.connect(self._set_aspect_ratio)
+        self._dim_cbbox.currentIndexChanged.connect(self._set_dimensions)
         self._samples_cbbox.currentIndexChanged.connect(self._set_samples)
         self._fr_cbbox.currentIndexChanged.connect(self._set_frame_rate)
         self._loglevel_cbbox.currentIndexChanged.connect(self._set_loglevel)
@@ -188,8 +186,10 @@ class Toolbar(QtWidgets.QWidget):
 
     def get_cfg(self) -> ngl.SceneCfg:
         choices = Config.CHOICES
+        dims = choices["dimensions"][self._dim_cbbox.currentIndex()]
         return ngl.SceneCfg(
-            aspect_ratio=choices["aspect_ratio"][self._ar_cbbox.currentIndex()],
+            width=dims[0],
+            height=dims[1],
             framerate=choices["framerate"][self._fr_cbbox.currentIndex()],
             samples=choices["samples"][self._samples_cbbox.currentIndex()],
             clear_color=self._clear_color,
@@ -263,20 +263,15 @@ class Toolbar(QtWidgets.QWidget):
         self._load_current_scene()
 
     def set_scene_info(self, scene_info: ngl.SceneInfo):
-        try:
-            cfg_ar = Fraction(*scene_info.scene.aspect_ratio)
-            cfg_ar = (cfg_ar.numerator, cfg_ar.denominator)
-            ar = Fraction(*Config.CHOICES["aspect_ratio"][self._ar_cbbox.currentIndex()])
-            ar = (ar.numerator, ar.denominator)
-            if ar != cfg_ar:
-                self._far_lbl2.setText("%d:%d" % cfg_ar)
-                self._far_lbl.setVisible(True)
-                self._far_lbl2.setVisible(True)
-            else:
-                self._far_lbl.setVisible(False)
-                self._far_lbl2.setVisible(False)
-        except ValueError:
-            pass
+        cfg_dims = (scene_info.scene.width, scene_info.scene.height)
+        dims = Config.CHOICES["dimensions"][self._dim_cbbox.currentIndex()]
+        if dims != cfg_dims:
+            self._fdim_lbl2.setText("%dx%d" % cfg_dims)
+            self._fdim_lbl.setVisible(True)
+            self._fdim_lbl2.setVisible(True)
+        else:
+            self._fdim_lbl.setVisible(False)
+            self._fdim_lbl2.setVisible(False)
 
     @QtCore.Slot(int)
     def _set_loglevel(self, index):
@@ -286,9 +281,9 @@ class Toolbar(QtWidgets.QWidget):
         self.logLevelChanged.emit(level_str)
 
     @QtCore.Slot(int)
-    def _set_aspect_ratio(self, index):
-        ar = Config.CHOICES["aspect_ratio"][index]
-        self.aspectRatioChanged.emit(ar)
+    def _set_dimensions(self, index):
+        dims = Config.CHOICES["dimensions"][index]
+        self.dimensionsChanged.emit(dims)
         self._load_current_scene()
 
     @QtCore.Slot(int)

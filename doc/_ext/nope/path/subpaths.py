@@ -1,10 +1,8 @@
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=360, height=360)
 def subpaths(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     keyframes = [
         ngl.PathKeyMove(to=(0, 1, 0)),
         ngl.PathKeyBezier3(to=(3, 0, 0), control1=(1, 3, 0), control2=(3, 2, 0)),

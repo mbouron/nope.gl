@@ -1,7 +1,6 @@
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=360, height=360)
 def circle(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     return ngl.DrawColor(geometry=ngl.Circle(radius=0.7, npoints=64))

@@ -200,8 +200,8 @@ static int drawpath_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    const int32_t *ar32 = node->scene->params.aspect_ratio;
-    const float ar = ar32[1] ? (float)ar32[0] / (float)ar32[1] : 1.f;
+    const struct ngl_scene_params *params = &node->scene->params;
+    const float ar = params->height ? (float)params->width / (float)params->height : 1.f;
     const int32_t shape_w = (int32_t)lrintf(ar > 1.f ? res * ar : res);
     const int32_t shape_h = (int32_t)lrintf(ar > 1.f ? res : res / ar);
 

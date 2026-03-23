@@ -170,7 +170,6 @@ void main()
 
 def _get_data_streamed_buffer_vec4_scene(cfg: ngl.SceneCfg, size, keyframes, scale, single):
     cfg.duration = keyframes * scale
-    cfg.aspect_ratio = (1, 1)
     data_size = size * size
     assert not single or size == 2
 
@@ -244,10 +243,9 @@ data_streamed_buffer_vec4 = _get_data_streamed_buffer_function(1, False)
 data_streamed_buffer_vec4_time_anim = _get_data_streamed_buffer_function(2, False)
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def data_integer_iovars(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     vert = textwrap.dedent(
         """\
         void main()
@@ -273,10 +271,9 @@ def data_integer_iovars(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def data_mat_iovars(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     vert = textwrap.dedent(
         """\
         void main()
@@ -307,10 +304,9 @@ def data_mat_iovars(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_render(width=256, height=256, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=256, height=256)
 def data_noise_time(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 2
     vert = textwrap.dedent(
         """\
@@ -338,10 +334,9 @@ def data_noise_time(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_render(width=256, height=256, keyframes=30, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=30, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=256, height=256)
 def data_noise_wiggle(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 3
 
     geometry = ngl.Circle(radius=0.25, npoints=6)
@@ -351,11 +346,9 @@ def data_noise_wiggle(cfg: ngl.SceneCfg):
     return ngl.Translate(draw, vector=translate)
 
 
-@test_render(width=128, height=128, keyframes=10, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1)
+@ngl.scene(width=128, height=128)
 def data_eval(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     # Entangled dependencies between evals
     t = ngl.Time()
     vec = ngl.UniformVec3(value=(0.7, 0.3, 4.0))
@@ -402,7 +395,6 @@ def _data_vertex_and_fragment_blocks(cfg: ngl.SceneCfg, layout):
     This test ensures that the block bindings are properly set by pgcraft
     when UBOs or SSBOs are bound to different stages.
     """
-    cfg.aspect_ratio = (1, 1)
 
     src = ngl.Block(
         fields=[
@@ -448,13 +440,13 @@ def _data_vertex_and_fragment_blocks(cfg: ngl.SceneCfg, layout):
     return draw
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def data_vertex_and_fragment_blocks(cfg: ngl.SceneCfg):
     return _data_vertex_and_fragment_blocks(cfg, "std140")
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def data_vertex_and_fragment_blocks_std430(cfg: ngl.SceneCfg):
     return _data_vertex_and_fragment_blocks(cfg, "std430")

@@ -44,7 +44,7 @@ def _get_time_scene(cfg: ngl.SceneCfg):
     duration = range_stop + noop_duration
 
     cfg.duration = duration
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
 
     media_animkf = [
         ngl.AnimKeyFrameFloat(play_start, media_seek),
@@ -60,12 +60,12 @@ def _get_time_scene(cfg: ngl.SceneCfg):
     return rf
 
 
-@test_render(width=320, height=240, keyframes=3, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=3, tolerance=1)
+@ngl.scene(width=320, height=240)
 def media_flat_remap(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
     cfg.duration = m0.duration
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
 
     media_animkf = [
         ngl.AnimKeyFrameFloat(cfg.duration / 2, 1.833),
@@ -90,24 +90,24 @@ def media_phases_display(cfg: ngl.SceneCfg):
 
 # Note: the following test only makes sure the clamping code shader compiles,
 # not check for an actual overflow
-@test_render(width=320, height=240, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=320, height=240)
 def media_clamp(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
     cfg.duration = m0.duration
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
 
     media = ngl.Media(m0.filename)
     texture = ngl.Texture2D(data_src=media, clamp_video=True, min_filter="nearest", mag_filter="nearest")
     return ngl.DrawTexture(texture)
 
 
-@test_render(width=320, height=240, keyframes=5, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=1)
+@ngl.scene(width=320, height=240)
 def media_exposed_time(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
     cfg.duration = m0.duration
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
 
     vert = textwrap.dedent(
         """\
@@ -138,11 +138,14 @@ def media_exposed_time(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_render(width=256, height=256, keyframes=10, tolerance=4)
-@ngl.scene(controls=dict(overlap_time=ngl.scene.Range(range=[0, 10], unit_base=10), dim=ngl.scene.Range(range=[1, 10])))
+@test_render(keyframes=10, tolerance=4)
+@ngl.scene(
+    width=256,
+    height=256,
+    controls=dict(overlap_time=ngl.scene.Range(range=[0, 10], unit_base=10), dim=ngl.scene.Range(range=[1, 10])),
+)
 def media_queue(cfg: ngl.SceneCfg, overlap_time=7.0, dim=3):
     cfg.duration = 10
-    cfg.aspect_ratio = (1, 1)
 
     nb_medias = dim * dim
 
@@ -169,12 +172,12 @@ def media_queue(cfg: ngl.SceneCfg, overlap_time=7.0, dim=3):
     return autogrid_simple(queued_medias)
 
 
-@test_render(width=320, height=240, keyframes=20, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=20, tolerance=1)
+@ngl.scene(width=320, height=240)
 def media_timeranges_rtt(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
     cfg.duration = d = 10
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
 
     # Use a media/texture as leaf to exercise its prefetch/release mechanism
     media = ngl.Media(m0.filename)

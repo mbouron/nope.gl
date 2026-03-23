@@ -1,10 +1,9 @@
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=504, height=360)
 def palette_strip(cfg: ngl.SceneCfg):
     cols, rows = (7, 5)
-    cfg.aspect_ratio = (cols, rows)
 
     # The 2 colors to interpolate from
     c0_node = ngl.UniformColor(value=(1, 0.5, 0.5), live_id="c0")

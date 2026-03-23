@@ -170,7 +170,7 @@ def _get_easing_nodes(cfg: ngl.SceneCfg, color_program):
     nb = len(_easing_list)
     nb_rows = int(round(math.sqrt(nb)))
     nb_cols = int(math.ceil(nb / float(nb_rows)))
-    cfg.aspect_ratio = (nb_cols, nb_rows)
+    cfg.width, cfg.height = nb_cols * 128, nb_rows * 128
     scenes = []
     for easing in _easing_list:
         easing_name, zoom = easing
@@ -195,7 +195,7 @@ def easings(cfg: ngl.SceneCfg, easing_id="*"):
     if easing_id == "*":
         group.add_children(_get_easing_nodes(cfg, color_program))
     else:
-        cfg.aspect_ratio = (1, 1)
+        cfg.width, cfg.height = 768, 768
         easing_index = _easing_names.index(easing_id)
         cfg.rng.seed(easing_index)
         easing, zoom = _easing_list[easing_index]

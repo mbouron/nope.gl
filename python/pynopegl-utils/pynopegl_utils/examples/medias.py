@@ -10,7 +10,7 @@ def playback_speed(cfg: ngl.SceneCfg, speed=1.0):
     initial_seek = min(media_duration, 5)
     rush_duration = media_duration - initial_seek
     cfg.duration = rush_duration / speed
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
 
     q = ngl.Quad((-0.5, -0.5, 0), (1, 0, 0), (0, 1, 0))
     time_animkf = [ngl.AnimKeyFrameFloat(0, initial_seek), ngl.AnimKeyFrameFloat(cfg.duration, media_duration)]
@@ -44,7 +44,7 @@ def time_remapping(cfg: ngl.SceneCfg):
     duration = range_stop + noop_duration
 
     cfg.duration = duration
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
 
     media_animkf = [
         ngl.AnimKeyFrameFloat(play_start, media_seek),

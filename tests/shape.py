@@ -38,7 +38,6 @@ from pynopegl_utils.toolbox.shapes import equilateral_triangle_coords
 )
 @ngl.scene()
 def shape_precision_iovar(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     vert = textwrap.dedent(
         """\
         void main()
@@ -67,45 +66,49 @@ def _draw_shape(geometry, color):
     return ngl.DrawColor(color, geometry=geometry)
 
 
-@test_render(width=320, height=320)
-@ngl.scene(controls=dict(sz=ngl.scene.Range(range=[0.1, 2], unit_base=100), color=ngl.scene.Color()))
-def shape_triangle(cfg: ngl.SceneCfg, sz=1, color=COLORS.orange):
-    cfg.aspect_ratio = (1, 1)
-    p0, p1, p2 = equilateral_triangle_coords(sz)
-    geometry = ngl.Triangle(p0, p1, p2)
-    return _draw_shape(geometry, color)
-
-
-@test_render(width=320, height=320, samples=4, diff_threshold=0.003)
-@ngl.scene(controls=dict(sz=ngl.scene.Range(range=[0.1, 2], unit_base=100), color=ngl.scene.Color()))
-def shape_triangle_msaa(cfg: ngl.SceneCfg, sz=1, color=COLORS.orange):
-    cfg.aspect_ratio = (1, 1)
-    p0, p1, p2 = equilateral_triangle_coords(sz)
-    geometry = ngl.Triangle(p0, p1, p2)
-    return _draw_shape(geometry, color)
-
-
-@test_render(width=320, height=320)
+@test_render()
 @ngl.scene(
+    width=320, height=320, controls=dict(sz=ngl.scene.Range(range=[0.1, 2], unit_base=100), color=ngl.scene.Color())
+)
+def shape_triangle(cfg: ngl.SceneCfg, sz=1, color=COLORS.orange):
+    p0, p1, p2 = equilateral_triangle_coords(sz)
+    geometry = ngl.Triangle(p0, p1, p2)
+    return _draw_shape(geometry, color)
+
+
+@test_render(samples=4, diff_threshold=0.003)
+@ngl.scene(
+    width=320, height=320, controls=dict(sz=ngl.scene.Range(range=[0.1, 2], unit_base=100), color=ngl.scene.Color())
+)
+def shape_triangle_msaa(cfg: ngl.SceneCfg, sz=1, color=COLORS.orange):
+    p0, p1, p2 = equilateral_triangle_coords(sz)
+    geometry = ngl.Triangle(p0, p1, p2)
+    return _draw_shape(geometry, color)
+
+
+@test_render()
+@ngl.scene(
+    width=320,
+    height=320,
     controls=dict(
         corner=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
         width=ngl.scene.Vector(n=3, minv=(0, 0, 0), maxv=(2, 2, 2)),
         height=ngl.scene.Vector(n=3, minv=(0, 0, 0), maxv=(2, 2, 2)),
         color=ngl.scene.Color(),
-    )
+    ),
 )
 def shape_quad(
     cfg: ngl.SceneCfg, corner=(-0.5, -0.8, 0), width=(0.9, 0.2, 0), height=(0.1, 1.3, 0), color=COLORS.sgreen
 ):
-    cfg.aspect_ratio = (1, 1)
     geometry = ngl.Quad(corner, width, height)
     return _draw_shape(geometry, color)
 
 
-@test_render(width=320, height=320)
-@ngl.scene(controls=dict(radius=ngl.scene.Range(range=[0.1, 2], unit_base=100), color=ngl.scene.Color()))
+@test_render()
+@ngl.scene(
+    width=320, height=320, controls=dict(radius=ngl.scene.Range(range=[0.1, 2], unit_base=100), color=ngl.scene.Color())
+)
 def shape_circle(cfg: ngl.SceneCfg, radius=0.5, color=COLORS.azure):
-    cfg.aspect_ratio = (1, 1)
     geometry = ngl.Circle(radius, npoints=64)
     return _draw_shape(geometry, color)
 
@@ -147,7 +150,6 @@ def _shape_geometry(cfg: ngl.SceneCfg, set_normals=False, set_indices=False):
     vertices_buffer = ngl.BufferVec3(data=vertices)
     normals_buffer = ngl.BufferVec3(data=normals)
 
-    cfg.aspect_ratio = (1, 1)
     geometry = ngl.Geometry(vertices=vertices_buffer)
 
     if set_normals:
@@ -168,35 +170,33 @@ def _shape_geometry(cfg: ngl.SceneCfg, set_normals=False, set_indices=False):
     return ngl.Rotate(draw, 45, axis=(1, 1, 1))
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def shape_geometry(cfg: ngl.SceneCfg):
     return _shape_geometry(cfg, set_normals=False, set_indices=False)
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def shape_geometry_normals(cfg: ngl.SceneCfg):
     return _shape_geometry(cfg, set_normals=True, set_indices=False)
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def shape_geometry_indices(cfg: ngl.SceneCfg):
     return _shape_geometry(cfg, set_normals=False, set_indices=True)
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def shape_geometry_normals_indices(cfg: ngl.SceneCfg):
     return _shape_geometry(cfg, set_normals=True, set_indices=True)
 
 
-@test_render(width=320, height=320, diff_threshold=0.003)
-@ngl.scene()
+@test_render(diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def shape_geometry_with_drawother(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     vertices_data = array.array("f")
     uvcoords_data = array.array("f")
     boundaries = (
@@ -220,10 +220,9 @@ def shape_geometry_with_drawother(cfg: ngl.SceneCfg):
     return ngl.DrawColor(geometry=geometry)
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def shape_diamond_colormask(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     color_write_masks = ("r+g+b+a", "r+g+a", "g+b+a", "r+b+a")
     geometry = ngl.Circle(npoints=5)
     draw = ngl.DrawColor(COLORS.white, geometry=geometry)
@@ -237,10 +236,9 @@ def _get_morphing_coordinates(rng, n, x_off, y_off):
     return coords
 
 
-@test_render(width=320, height=320, keyframes=8, tolerance=1, diff_threshold=0.003)
-@ngl.scene(controls=dict(n=ngl.scene.Range(range=[2, 50])))
+@test_render(keyframes=8, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320, controls=dict(n=ngl.scene.Range(range=[2, 50])))
 def shape_morphing(cfg: ngl.SceneCfg, n=6):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 5.0
     vertices_tl = _get_morphing_coordinates(cfg.rng, n, -1, 0)
     vertices_tr = _get_morphing_coordinates(cfg.rng, n, 0, 0)
@@ -263,10 +261,13 @@ def shape_morphing(cfg: ngl.SceneCfg, n=6):
 
 
 def _get_cropboard_function(set_indices=False):
-    @test_render(width=400, height=400, keyframes=10, tolerance=1, diff_threshold=0.003)
-    @ngl.scene(controls=dict(dim_clr=ngl.scene.Range(range=[1, 50]), dim_cut=ngl.scene.Range(range=[1, 50])))
+    @test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+    @ngl.scene(
+        width=400,
+        height=400,
+        controls=dict(dim_clr=ngl.scene.Range(range=[1, 50]), dim_cut=ngl.scene.Range(range=[1, 50])),
+    )
     def cropboard(cfg: ngl.SceneCfg, dim_clr=3, dim_cut=9):
-        cfg.aspect_ratio = (1, 1)
         cfg.duration = 5.0 + 1.0
 
         nb_kf = 2
@@ -375,10 +376,9 @@ void main()
 """
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def shape_triangles_mat4_attribute(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     p0, p1, p2 = equilateral_triangle_coords(1)
     geometry = ngl.Triangle(p0, p1, p2)
     matrices = ngl.BufferMat4(
@@ -411,8 +411,6 @@ def shape_triangles_mat4_attribute(cfg: ngl.SceneCfg):
 
 
 def _get_shape_scene(cfg: ngl.SceneCfg, shape, cull_mode):
-    cfg.aspect_ratio = (1, 1)
-
     geometry_cls = dict(
         triangle=ngl.Triangle,
         quad=ngl.Quad,
@@ -425,8 +423,8 @@ def _get_shape_scene(cfg: ngl.SceneCfg, shape, cull_mode):
 
 
 def _get_shape_function(shape, cull_mode):
-    @test_render(width=320, height=320)
-    @ngl.scene()
+    @test_render()
+    @ngl.scene(width=320, height=320)
     def shape_function(cfg: ngl.SceneCfg):
         return _get_shape_scene(cfg, shape, cull_mode)
 

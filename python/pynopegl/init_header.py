@@ -264,9 +264,10 @@ class Scene(_ngl.Scene):
         root: Node,
         duration: Optional[float] = None,
         framerate: Optional[Tuple[int, int]] = None,
-        aspect_ratio: Optional[Tuple[int, int]] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
     ) -> "Scene":
-        return super().from_params(root, duration, framerate, aspect_ratio)
+        return super().from_params(root, duration, framerate, width, height)
 
     @classmethod
     def from_string(cls, s: Union[str, bytes]) -> "Scene":
@@ -290,8 +291,12 @@ class Scene(_ngl.Scene):
         return super().framerate
 
     @property
-    def aspect_ratio(self) -> Tuple[int, int]:
-        return super().aspect_ratio
+    def width(self) -> int:
+        return super().width
+
+    @property
+    def height(self) -> int:
+        return super().height
 
     @property
     def files(self) -> List[str]:
@@ -362,7 +367,8 @@ def get_livectls(scene: Node) -> Mapping[str, Mapping[str, Any]]:
 
 @dataclass
 class SceneCfg:
-    aspect_ratio: Tuple[int, int] = (16, 9)
+    width: int = 0
+    height: int = 0
     duration: float = 30.0
     framerate: Tuple[int, int] = (60, 1)
     backend: Backend = Backend.AUTO
@@ -377,7 +383,7 @@ class SceneCfg:
 
     @property
     def aspect_ratio_float(self) -> float:
-        return self.aspect_ratio[0] / self.aspect_ratio[1]
+        return self.width / self.height if self.height > 0 else 1.0
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -400,9 +406,17 @@ class scene:
     List = namedtuple("List", "choices")
     Text = namedtuple("Text", "")
 
-    def __init__(self, controls: Optional[Dict[str, Any]] = None, compat_specs: Optional[str] = None):
+    def __init__(
+        self,
+        controls: Optional[Dict[str, Any]] = None,
+        compat_specs: Optional[str] = None,
+        width: int = 0,
+        height: int = 0,
+    ):
         self._controls = controls
         self._compat_specs = compat_specs
+        self._width = width
+        self._height = height
 
     def __call__(self, scene_func: Callable[..., Node]) -> Callable[..., SceneInfo]:
         @wraps(scene_func)
@@ -430,8 +444,13 @@ class scene:
                 if ref_set != usr_set:
                     raise Exception("the specified capabilities set does not match the available capabilities")
 
+            if self._width:
+                scene_cfg.width = self._width
+            if self._height:
+                scene_cfg.height = self._height
+
             root = scene_func(scene_cfg, **extra_args)
-            scene = Scene.from_params(root, scene_cfg.duration, scene_cfg.framerate, scene_cfg.aspect_ratio)
+            scene = Scene.from_params(root, scene_cfg.duration, scene_cfg.framerate, scene_cfg.width, scene_cfg.height)
             return SceneInfo(
                 scene=scene,
                 backend=scene_cfg.backend,
@@ -458,6 +477,10 @@ class scene:
         # call its decorated scene function transparently inside his own code
         # without getting garbage along the return value.
         func_wrapper.widgets_specs = widgets_specs
+
+        # Expose canvas dimensions so test harnesses can derive render size
+        func_wrapper.width = self._width
+        func_wrapper.height = self._height
 
         # Flag the scene as a scene function so it's registered in the UI.
         func_wrapper.iam_a_ngl_scene_func = True

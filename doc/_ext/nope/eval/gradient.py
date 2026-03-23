@@ -1,7 +1,7 @@
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=640, height=360)
 def gradient(cfg: ngl.SceneCfg, mode="ramp"):
     cfg.duration = 15
 
