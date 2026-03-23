@@ -202,9 +202,13 @@ static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
         .pVertexAttributeDescriptions    = ngpu_darray_data(&s_priv->vertex_attribute_descs),
     };
 
+    const VkPrimitiveTopology topology = get_vk_topology(graphics->topology);
+    const VkBool32 primitive_restart = topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ||
+                                       topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     const VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {
-        .sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = get_vk_topology(graphics->topology),
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology               = topology,
+        .primitiveRestartEnable = primitive_restart,
     };
 
     const VkViewport viewport = {0};
