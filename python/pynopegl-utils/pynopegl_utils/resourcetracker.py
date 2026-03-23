@@ -48,12 +48,14 @@ class ResourceTracker:
 
     def _builtin_open_hook(self, file, *args, **kwargs):
         ret = self._builtin_open(file, *args, **kwargs)
-        self._register_file(file)
+        if not isinstance(file, int):  # file descriptors are not supported
+            self._register_file(file)
         return ret
 
     def _io_open_hook(self, file, *args, **kwargs):
         ret = self._io_open(file, *args, **kwargs)
-        self._register_file(file)
+        if not isinstance(file, int):  # file descriptors are not supported
+            self._register_file(file)
         return ret
 
     def _get_trackable_files(self):
