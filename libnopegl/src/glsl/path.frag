@@ -20,25 +20,20 @@
  */
 
 #include path.glsl
+#include slug.glsl
 
 void main()
 {
-    /*
-     * uv_* are normalized [0,1] quad coordinate which we map to the atlas
-     * element coordinate boundaries
-     */
-    vec2 uv = mix(coords.xy, coords.zw, uv);
+    bool needDist = outline != 0.0 || glow != 0.0 || blur != 0.0;
+    vec2 result = SlugRender(texcoord, banding, glyph, needDist);
+    float coverage = result.x;
 
-    /*
-     * The half texel clamping is here to prevent texture bleeding when the
-     * texture has bilinear filtering: we're preventing the filter from reading
-     * the neighbour atlas elements. The small delta is here to prevent the 0.5
-     * ambiguity and float inaccuracies. It could become an issue only in the
-     * case of a huge atlas.
-     */
-    vec2 half_texel = 0.5 / vec2(textureSize(tex, 0)) + 1e-8;
-    vec2 clamp_uv = clamp(uv, coords.xy + half_texel, coords.zw - half_texel);
-
-    float dist = texture(tex, clamp_uv).r;
-    ngl_out_color = get_path_color(dist, vec4(color, opacity), vec4(outline_color, outline), vec4(glow_color, glow), blur, outline_pos);
+    if (path_is_open) {
+        float dist = -abs(result.y) * dist_scale;
+        ngl_out_color = get_path_color(dist, vec4(color, opacity), vec4(outline_color, outline), vec4(glow_color, glow), blur, outline_pos);
+    } else if (!needDist) {
+        ngl_out_color = vec4(vec3(color) * opacity, opacity) * coverage;
+    } else {
+        ngl_out_color = get_path_color(result.y * dist_scale, vec4(color, opacity), vec4(outline_color, outline), vec4(glow_color, glow), blur, outline_pos);
+    }
 }

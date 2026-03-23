@@ -25,7 +25,6 @@
 
 #include "blending.h"
 #include "box.h"
-#include "distmap.h"
 #include "internal.h"
 #include <ngpu/ngpu.h>
 #include "node_uniform.h"
@@ -33,6 +32,7 @@
 #include "path.h"
 #include "pipeline_compat.h"
 #include <ngpu/ngpu.h>
+#include "slug.h"
 #include "utils/utils.h"
 
 /* GLSL fragments as string */
@@ -74,9 +74,13 @@ struct drawpath_opts {
 };
 
 struct drawpath_priv {
-    struct ngli_aabb atlas_coords;
     float vertices[4];
-    struct distmap *distmap;
+    float texcoord_bounds[4];
+    float banding[4];
+    int32_t glyph_data[4];
+    float dist_scale;
+    int32_t path_is_open;
+    struct slug *slug;
     struct path *path;
     struct darray uniforms_map; // struct uniform_map
     struct darray uniforms; // struct ngpu_pgcraft_uniform
@@ -84,7 +88,11 @@ struct drawpath_priv {
     int modelview_matrix_index;
     int projection_matrix_index;
     int vertices_index;
-    int coords_index;
+    int texcoord_bounds_index;
+    int banding_index;
+    int glyph_index;
+    int dist_scale_index;
+    int path_is_open_index;
     struct darray pipeline_descs;
 };
 
@@ -164,11 +172,11 @@ static int drawpath_init(struct ngl_node *node)
 
     ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
 
-    s->distmap = ngli_distmap_create(node->ctx);
-    if (!s->distmap)
+    s->slug = ngli_slug_create(node->ctx);
+    if (!s->slug)
         return NGL_ERROR_MEMORY;
 
-    int ret = ngli_distmap_init(s->distmap, o->pt_size, o->dpi);
+    int ret = ngli_slug_init(s->slug);
     if (ret < 0)
         return ret;
 
@@ -183,8 +191,9 @@ static int drawpath_init(struct ngl_node *node)
         return ret;
 
     /*
-     * Build a matrix to transform path into normalized coordinates, scaled up
-     * to the desired resolution.
+     * Build a matrix to transform the path from viewbox coordinates into
+     * resolution-scaled coordinates. This preserves backward compatibility
+     * with the effect parameter calibration (outline, glow, blur).
      */
     const float res = (float)o->pt_size * (float)o->dpi / 72.f;
     const struct ngli_box vb = {NGLI_ARG_VEC4(o->viewbox)};
@@ -200,41 +209,78 @@ static int drawpath_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    const int32_t *ar32 = node->scene->params.aspect_ratio;
-    const float ar = ar32[1] ? (float)ar32[0] / (float)ar32[1] : 1.f;
-    const int32_t shape_w = (int32_t)lrintf(ar > 1.f ? res * ar : res);
-    const int32_t shape_h = (int32_t)lrintf(ar > 1.f ? res : res / ar);
+    /* Detect whether the path is open (no closing segments) */
+    const struct darray *segments = ngli_path_get_segments(s->path);
+    const struct path_segment *segs = ngli_darray_data(segments);
+    s->path_is_open = 1;
+    for (size_t i = 0; i < ngli_darray_count(segments); i++) {
+        if (segs[i].flags & NGLI_PATH_SEGMENT_FLAG_CLOSING) {
+            s->path_is_open = 0;
+            break;
+        }
+    }
 
-    int32_t shape_id;
-    ret = ngli_distmap_add_shape(s->distmap, shape_w, shape_h, s->path, 0, &shape_id);
-    if (ret< 0)
-        return ret;
+    int shape_id = ngli_slug_add_shape(s->slug, s->path, 0);
+    if (shape_id < 0)
+        return shape_id;
 
-    ret = ngli_distmap_finalize(s->distmap);
+    ret = ngli_slug_finalize(s->slug);
     if (ret < 0)
         return ret;
 
-    s->atlas_coords = ngli_distmap_get_shape_coords(s->distmap, shape_id);
+    struct slug_glyph_data gd;
+    ngli_slug_get_glyph_data(s->slug, shape_id, &gd);
 
-    float scale[2];
-    ngli_distmap_get_shape_scale(s->distmap, shape_id, scale);
+    /*
+     * Padding around the shape quad to allow effects (outline, glow, blur)
+     * to render beyond the tight shape bounding box. Uses the same approach
+     * as text rendering: 80% of the max em-space dimension.
+     */
+    #define EFFECT_PAD_RATIO 0.8f
+    const float *eb = gd.em_bounds;
+    const float em_w = eb[2] - eb[0];
+    const float em_h = eb[3] - eb[1];
+    const float effect_pad = EFFECT_PAD_RATIO * NGLI_MAX(em_w, em_h);
 
-    /* Geometry scale up */
+    /* Geometry: map padded em-bounds to display box */
     const struct ngli_box box = {NGLI_ARG_VEC4(o->box)};
-    const float nw = box.w * scale[0];
-    const float nh = box.h * scale[1];
+    const float padded_em_w = em_w + 2.f * effect_pad;
+    const float padded_em_h = em_h + 2.f * effect_pad;
+    const float nw = padded_em_w > 0.f ? box.w * padded_em_w / res : box.w;
+    const float nh = padded_em_h > 0.f ? box.h * padded_em_h / res : box.h;
     const float bx = box.x + (box.w - nw) / 2.f;
     const float by = box.y + (box.h - nh) / 2.f;
-    const float vertices[] = {bx, by, bx + nw, by + nh};
-    memcpy(s->vertices, vertices, sizeof(s->vertices));
+
+    s->vertices[0] = bx;
+    s->vertices[1] = by;
+    s->vertices[2] = bx + nw;
+    s->vertices[3] = by + nh;
+
+    /* Texcoord bounds: em-bounds dilated by effect padding (same as text) */
+    s->texcoord_bounds[0] = eb[0] - effect_pad;
+    s->texcoord_bounds[1] = eb[1] - effect_pad;
+    s->texcoord_bounds[2] = eb[2] + effect_pad;
+    s->texcoord_bounds[3] = eb[3] + effect_pad;
+
+    memcpy(s->banding, gd.band_transform, sizeof(s->banding));
+
+    s->glyph_data[0] = gd.glyph_loc[0];
+    s->glyph_data[1] = gd.glyph_loc[1];
+    s->glyph_data[2] = gd.band_max[0];
+    s->glyph_data[3] = gd.band_max[1];
+
+    s->dist_scale = 1.f / res;
 
     const struct ngpu_pgcraft_uniform uniforms[] = {
         {.name="modelview_matrix",  .type=NGPU_TYPE_MAT4,  .stage=NGPU_PROGRAM_STAGE_VERT},
         {.name="projection_matrix", .type=NGPU_TYPE_MAT4,  .stage=NGPU_PROGRAM_STAGE_VERT},
         {.name="vertices",          .type=NGPU_TYPE_VEC4,  .stage=NGPU_PROGRAM_STAGE_VERT},
+        {.name="texcoord_bounds",   .type=NGPU_TYPE_VEC4,  .stage=NGPU_PROGRAM_STAGE_VERT},
 
-        {.name="debug",             .type=NGPU_TYPE_BOOL,  .stage=NGPU_PROGRAM_STAGE_FRAG},
-        {.name="coords",            .type=NGPU_TYPE_VEC4,  .stage=NGPU_PROGRAM_STAGE_FRAG},
+        {.name="banding",           .type=NGPU_TYPE_VEC4,  .stage=NGPU_PROGRAM_STAGE_FRAG},
+        {.name="glyph",             .type=NGPU_TYPE_IVEC4, .stage=NGPU_PROGRAM_STAGE_FRAG},
+        {.name="dist_scale",        .type=NGPU_TYPE_F32,   .stage=NGPU_PROGRAM_STAGE_FRAG},
+        {.name="path_is_open",      .type=NGPU_TYPE_BOOL,  .stage=NGPU_PROGRAM_STAGE_FRAG},
 
         {.name="color",             .type=NGPU_TYPE_VEC3,  .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->color_node, o->color)},
         {.name="opacity",           .type=NGPU_TYPE_F32,   .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->opacity_node, &o->opacity)},
@@ -252,21 +298,23 @@ static int drawpath_init(struct ngl_node *node)
         if (!ngli_darray_push(&s->uniforms, &uniforms[i]))
             return NGL_ERROR_MEMORY;
 
-    struct ngpu_texture *texture = ngli_distmap_get_texture(s->distmap);
     const struct ngpu_pgcraft_texture textures[] = {
         {
-            .name = "tex",
+            .name = "curve_tex",
             .type = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage = NGPU_PROGRAM_STAGE_FRAG,
-            .texture = texture,
+            .texture = ngli_slug_get_curve_texture(s->slug),
+        },
+        {
+            .name = "band_tex",
+            .type = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
+            .stage = NGPU_PROGRAM_STAGE_FRAG,
+            .texture = ngli_slug_get_band_texture(s->slug),
         },
     };
 
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {
-            .name = "uv",
-            .type = NGPU_TYPE_VEC2,
-        },
+        {.name = "texcoord", .type = NGPU_TYPE_VEC2},
     };
 
     const struct ngpu_pgcraft_params crafter_params = {
@@ -293,7 +341,11 @@ static int drawpath_init(struct ngl_node *node)
     s->modelview_matrix_index  = ngpu_pgcraft_get_uniform_index(s->crafter, "modelview_matrix", NGPU_PROGRAM_STAGE_VERT);
     s->projection_matrix_index = ngpu_pgcraft_get_uniform_index(s->crafter, "projection_matrix", NGPU_PROGRAM_STAGE_VERT);
     s->vertices_index          = ngpu_pgcraft_get_uniform_index(s->crafter, "vertices", NGPU_PROGRAM_STAGE_VERT);
-    s->coords_index            = ngpu_pgcraft_get_uniform_index(s->crafter, "coords", NGPU_PROGRAM_STAGE_FRAG);
+    s->texcoord_bounds_index   = ngpu_pgcraft_get_uniform_index(s->crafter, "texcoord_bounds", NGPU_PROGRAM_STAGE_VERT);
+    s->banding_index           = ngpu_pgcraft_get_uniform_index(s->crafter, "banding", NGPU_PROGRAM_STAGE_FRAG);
+    s->glyph_index             = ngpu_pgcraft_get_uniform_index(s->crafter, "glyph", NGPU_PROGRAM_STAGE_FRAG);
+    s->dist_scale_index        = ngpu_pgcraft_get_uniform_index(s->crafter, "dist_scale", NGPU_PROGRAM_STAGE_FRAG);
+    s->path_is_open_index      = ngpu_pgcraft_get_uniform_index(s->crafter, "path_is_open", NGPU_PROGRAM_STAGE_FRAG);
 
     ret = build_uniforms_map(s);
     if (ret < 0)
@@ -356,11 +408,14 @@ static void drawpath_draw(struct ngl_node *node)
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
-    ngli_pipeline_compat_update_uniform(desc->pipeline_compat, s->modelview_matrix_index, modelview_matrix);
-    ngli_pipeline_compat_update_uniform(desc->pipeline_compat, s->projection_matrix_index, projection_matrix);
-    ngli_pipeline_compat_update_uniform(desc->pipeline_compat, s->vertices_index, s->vertices);
-
-    ngli_pipeline_compat_update_uniform(desc->pipeline_compat, s->coords_index, (const float *)&s->atlas_coords);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->modelview_matrix_index, modelview_matrix);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->projection_matrix_index, projection_matrix);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->vertices_index, s->vertices);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->texcoord_bounds_index, s->texcoord_bounds);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->banding_index, s->banding);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->glyph_index, s->glyph_data);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->dist_scale_index, &s->dist_scale);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->path_is_open_index, &s->path_is_open);
 
     const struct uniform_map *map = ngli_darray_data(&s->uniforms_map);
     for (size_t i = 0; i < ngli_darray_count(&s->uniforms_map); i++)
@@ -374,7 +429,7 @@ static void drawpath_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_compat_draw(desc->pipeline_compat, 4, 1, 0);
+    ngli_pipeline_compat_draw(pl_compat, 4, 1, 0);
 }
 
 static void drawpath_uninit(struct ngl_node *node)
@@ -388,7 +443,7 @@ static void drawpath_uninit(struct ngl_node *node)
     ngli_darray_reset(&s->uniforms);
     ngli_darray_reset(&s->uniforms_map);
     ngpu_pgcraft_freep(&s->crafter);
-    ngli_distmap_freep(&s->distmap);
+    ngli_slug_freep(&s->slug);
     ngli_path_freep(&s->path);
     ngli_darray_reset(&s->pipeline_descs);
 }

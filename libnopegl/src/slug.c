@@ -282,6 +282,11 @@ int ngli_slug_add_glyph(struct slug *s, const struct path *path, uint32_t flags,
     return (int)ngli_darray_count(&s->glyphs) - 1;
 }
 
+int ngli_slug_add_shape(struct slug *s, const struct path *path, uint32_t flags)
+{
+    return ngli_slug_add_glyph(s, path, flags, 0.f, 0.f);
+}
+
 struct band_entry {
     int32_t curve_index;
     float sort_key; /* max-x for h-bands, max-y for v-bands */

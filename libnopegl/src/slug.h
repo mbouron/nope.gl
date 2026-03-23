@@ -52,6 +52,9 @@ size_t ngli_slug_get_glyph_count(const struct slug *s);
 void ngli_slug_get_glyph_data(const struct slug *s, int32_t index, struct slug_glyph_data *out);
 struct ngpu_texture *ngli_slug_get_curve_texture(const struct slug *s);
 struct ngpu_texture *ngli_slug_get_band_texture(const struct slug *s);
+/* Alias for general path rendering (uses path bounds for shape dimensions) */
+int ngli_slug_add_shape(struct slug *s, const struct path *path, uint32_t flags);
+
 void ngli_slug_freep(struct slug **sp);
 
 #endif
