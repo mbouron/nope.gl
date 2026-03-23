@@ -1,10 +1,9 @@
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=360, height=360)
 def animated(cfg: ngl.SceneCfg):
     cfg.duration = 3
-    cfg.aspect_ratio = (1, 1)
 
     keyframes = [
         ngl.PathKeyMove(to=(0, 1, 0)),

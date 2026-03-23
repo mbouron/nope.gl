@@ -1,10 +1,9 @@
 import pynopegl as ngl
 
 
-@ngl.scene()
+@ngl.scene(width=360, height=360)
 def chained_transforms(cfg: ngl.SceneCfg):
     cfg.duration = 5
-    cfg.aspect_ratio = (1, 1)
 
     group = ngl.Group()
     radius = 0.2

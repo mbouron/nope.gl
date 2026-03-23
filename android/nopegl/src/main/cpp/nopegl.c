@@ -771,8 +771,7 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeInitFromString(
 
     const struct ngl_scene_params *p = ngl_scene_get_params(s);
     (*env)->CallVoidMethod(env, thiz, set_id, p->duration, p->framerate[0],
-                           p->framerate[1], p->aspect_ratio[0],
-                           p->aspect_ratio[1]);
+                           p->framerate[1], p->width, p->height);
 
     return (jlong)s;
 }
@@ -842,16 +841,15 @@ JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLError_nativeGetMessage(
 
 JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeCreateScene(
     JNIEnv *env, jclass clazz, jlong node_ptr, jdouble duration,
-    jint framerate_num, jint framerate_den, jint aspect_ratio_num,
-    jint aspect_ratio_den)
+    jint framerate_num, jint framerate_den, jint width, jint height)
 {
     struct ngl_scene_params params = {
         .root = (struct ngl_node *)(uintptr_t)node_ptr,
         .duration = duration,
         .framerate[0] = framerate_num,
         .framerate[1] = framerate_den,
-        .aspect_ratio[0] = aspect_ratio_num,
-        .aspect_ratio[1] = aspect_ratio_den,
+        .width  = width,
+        .height = height,
     };
 
     struct ngl_scene *scene = ngl_scene_create();

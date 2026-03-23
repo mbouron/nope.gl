@@ -28,7 +28,9 @@ class NGLScene {
         private set
     var frameRate: NGLRational = NGLRational(num = 60, den = 1)
         private set
-    var aspectRatio: NGLRational = NGLRational(num = 1, den = 1)
+    var width: Int = 0
+        private set
+    var height: Int = 0
         private set
 
     private var cleanable: NGLCleaner.Cleanable? = null
@@ -49,15 +51,16 @@ class NGLScene {
         rootNode: NGLNode,
         duration: Double = 0.0,
         frameRate: NGLRational = NGLRational(num = 60, den = 1),
-        aspectRatio: NGLRational = NGLRational(num = 1, den = 1),
+        width: Int = 0,
+        height: Int = 0,
     ) {
         nativePtr = nativeCreateScene(
             nodePtr = rootNode.nativePtr,
             duration = duration,
             framerateNum = frameRate.num,
             framerateDen = frameRate.den,
-            aspectRatioNum = aspectRatio.num,
-            aspectRatioDen = aspectRatio.den
+            width = width,
+            height = height
         )
         require(nativePtr != 0L) { "Failed to create scene" }
 
@@ -66,7 +69,7 @@ class NGLScene {
         val ret = nativeAddLiveControls(nativePtr)
         require(ret == 0) { "Failed to add native controls" }
 
-        setFields(duration, frameRate.num, frameRate.den, aspectRatio.num, aspectRatio.den)
+        setFields(duration, frameRate.num, frameRate.den, width, height)
     }
 
     private fun registerCleanable() {
@@ -80,12 +83,13 @@ class NGLScene {
         duration: Double,
         frameRateNum: Int,
         framerateDen: Int,
-        aspectRatioNum: Int,
-        aspectRatioDen: Int,
+        width: Int,
+        height: Int,
     ) {
         this.duration = duration
         this.frameRate = NGLRational(num = frameRateNum, den = framerateDen)
-        this.aspectRatio = NGLRational(num = aspectRatioNum, den = aspectRatioDen)
+        this.width = width
+        this.height = height
     }
 
     fun serialize(): String {
@@ -122,8 +126,8 @@ class NGLScene {
             duration: Double,
             framerateNum: Int,
             framerateDen: Int,
-            aspectRatioNum: Int,
-            aspectRatioDen: Int,
+            width: Int,
+            height: Int,
         ): Long
 
         @JvmStatic

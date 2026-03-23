@@ -9,7 +9,7 @@ from pynopegl_utils.misc import get_shader
 def square2circle(cfg: ngl.SceneCfg, square_color=(0.9, 0.1, 0.3), circle_color=(1.0, 1.0, 1.0)):
     """Morphing of a square (composed of many vertices) into a circle"""
     cfg.duration = 5
-    cfg.aspect_ratio = (1, 1)
+    cfg.width, cfg.height = 768, 768
 
     n = 1024  # number of vertices
     s = 0.625  # shapes scale

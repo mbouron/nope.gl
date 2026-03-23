@@ -29,7 +29,6 @@ _CUEPOINTS = dict(c=(0, 0), bl=(-0.5, -0.5), br=(0.5, -0.5), tr=(0.5, 0.5), tl=(
 
 
 def _base_scene(cfg: ngl.SceneCfg, *filters):
-    cfg.aspect_ratio = (1, 1)
     return ngl.DrawGradient4(
         opacity_tl=0.3,
         opacity_tr=0.4,
@@ -39,8 +38,8 @@ def _base_scene(cfg: ngl.SceneCfg, *filters):
     )
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_alpha(cfg: ngl.SceneCfg):
     return _base_scene(cfg, ngl.FilterAlpha(0.4321))
 
@@ -53,7 +52,6 @@ def filter_alpha(cfg: ngl.SceneCfg):
 )
 @ngl.scene()
 def filter_colormap(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 5.0
     d = cfg.duration
 
@@ -110,38 +108,38 @@ def filter_colormap(cfg: ngl.SceneCfg):
     return ngl.Group(children=[bg, remapped])
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_contrast(cfg: ngl.SceneCfg):
     return _base_scene(cfg, ngl.FilterContrast(1.2, pivot=0.3))
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_exposure(cfg: ngl.SceneCfg):
     return _base_scene(cfg, ngl.FilterExposure(0.7))
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_inversealpha(cfg: ngl.SceneCfg):
     return _base_scene(cfg, ngl.FilterInverseAlpha())
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_opacity(cfg: ngl.SceneCfg):
     return _base_scene(cfg, ngl.FilterOpacity(0.4321))
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_saturation(cfg: ngl.SceneCfg):
     return _base_scene(cfg, ngl.FilterSaturation(1.5))
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_selector_light(cfg: ngl.SceneCfg):
     return _base_scene(
         cfg,
@@ -154,8 +152,8 @@ def filter_selector_light(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1, diff_threshold=0.005)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1, diff_threshold=0.005)
+@ngl.scene(width=128, height=128)
 def filter_selector_chroma(cfg: ngl.SceneCfg):
     return _base_scene(
         cfg,
@@ -168,8 +166,8 @@ def filter_selector_chroma(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_selector_hue(cfg: ngl.SceneCfg):
     return _base_scene(
         cfg,
@@ -182,10 +180,9 @@ def filter_selector_hue(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_composition_colors(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     return ngl.DrawGradient4(
         filters=[
             ngl.FilterExposure(exposure=0.9),
@@ -196,10 +193,9 @@ def filter_composition_colors(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=128, height=128, keyframes=1, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=128, height=128)
 def filter_composition_alpha(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     return ngl.DrawGradient(
         color0=(1, 0.5, 0),
         color1=(0, 1, 0.5),
@@ -216,11 +212,10 @@ def filter_composition_alpha(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=320, height=240, keyframes=1, tolerance=4)
-@ngl.scene(controls=dict(linear=ngl.scene.Bool()))
+@test_render(keyframes=1, tolerance=4)
+@ngl.scene(controls=dict(linear=ngl.scene.Bool()), width=320, height=240)
 def filter_gamma_correct(cfg: ngl.SceneCfg, linear=True):
     """This test operates a gamma correct blending (the blending happens in linear space)"""
-    cfg.aspect_ratio = (4, 3)
 
     # Hue colors rotated clockwise
     dst = ngl.DrawGradient4(

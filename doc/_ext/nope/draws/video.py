@@ -6,7 +6,7 @@ from pynopegl_utils.misc import load_media
 def video(cfg: ngl.SceneCfg):
     video = load_media("cat")  # Replace "cat" with a path to your video
 
-    cfg.aspect_ratio = video.width, video.height
+    cfg.width, cfg.height = video.width, video.height
     cfg.duration = max(video.duration, 5)  # Limit to 5 seconds maximum
 
     # Warning: the Texture can be shared, but not the Media

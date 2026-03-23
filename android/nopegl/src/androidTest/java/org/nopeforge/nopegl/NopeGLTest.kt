@@ -117,7 +117,7 @@ class NopeGLTest {
             """
             # Nope.GL v0.11.0
             # duration=403Z9000000000000
-            # aspect_ratio=320/240
+            # canvas=320x240
             # framerate=60/1
             Mdia filename:content://%s/medias%s
             Tex2 data_src:1
@@ -287,7 +287,7 @@ class NopeGLTest {
             """
             # Nope.GL v0.11.0
             # duration=402Z4000000000000
-            # aspect_ratio=16/9
+            # canvas=1280x720
             # framerate=60/1
             Unc3 value:7Fz0,7Fz0,7Fz0 live_id:color
             Dclr color:!1

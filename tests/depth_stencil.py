@@ -29,11 +29,9 @@ def _draw_quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 2, 0), color=(1, 
     return ngl.DrawColor(color, opacity=opacity, geometry=quad, blending="src_over")
 
 
-@test_render(width=16, height=16, keyframes=2, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=2, tolerance=1)
+@ngl.scene(width=16, height=16)
 def depth_stencil_depth(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     group = ngl.Group()
 
     count = 4
@@ -63,11 +61,9 @@ def depth_stencil_depth(cfg: ngl.SceneCfg):
     return group
 
 
-@test_render(width=16, height=16, keyframes=2, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=2, tolerance=1)
+@ngl.scene(width=16, height=16)
 def depth_stencil_stencil(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     group = ngl.Group()
 
     count = 4

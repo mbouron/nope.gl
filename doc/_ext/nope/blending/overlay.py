@@ -7,7 +7,7 @@ def overlay(cfg: ngl.SceneCfg):
     image = load_media("rooster")
     overlay = load_media("fallen_leaf")
 
-    cfg.aspect_ratio = image.width, image.height
+    cfg.width, cfg.height = image.width, image.height
 
     bg_tex = ngl.Texture2D(data_src=ngl.Media(image.filename))
     bg = ngl.DrawTexture(bg_tex)

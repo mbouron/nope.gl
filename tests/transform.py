@@ -32,10 +32,9 @@ def _transform_shape(w=0.75, h=0.45):
     return ngl.DrawColor(COLORS.rose, geometry=geometry)
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def transform_matrix(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     mat = (
         # fmt: off
@@ -48,11 +47,10 @@ def transform_matrix(cfg: ngl.SceneCfg):
     return ngl.Transform(shape, matrix=mat)
 
 
-@test_render(width=320, height=180, keyframes=8, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=8, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def transform_animated_camera(cfg: ngl.SceneCfg):
     cfg.duration = 5.0
-    cfg.aspect_ratio = (16, 9)
     g = ngl.Group()
 
     elems = (
@@ -96,11 +94,10 @@ def transform_animated_camera(cfg: ngl.SceneCfg):
     return camera
 
 
-@test_render(width=320, height=320, keyframes=12, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=12, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def transform_eye_camera(cfg: ngl.SceneCfg):
     cfg.duration = 3.0
-    cfg.aspect_ratio = (1, 1)
 
     node = ngl.DrawGradient4(geometry=ngl.Circle(radius=0.7, npoints=128))
     animkf = [
@@ -111,18 +108,16 @@ def transform_eye_camera(cfg: ngl.SceneCfg):
     return ngl.Camera(node, eye=ngl.AnimatedVec3(animkf))
 
 
-@test_render(width=320, height=320)
-@ngl.scene(controls=dict(vector=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1))))
+@test_render()
+@ngl.scene(width=320, height=320, controls=dict(vector=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1))))
 def transform_translate(cfg: ngl.SceneCfg, vector=(0.2, 0.7, -0.4)):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     return ngl.Translate(shape, vector)
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def transform_translate_animated(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 3.0
     p0, p1, p2 = equilateral_triangle_coords()
     anim = [
@@ -135,31 +130,30 @@ def transform_translate_animated(cfg: ngl.SceneCfg):
     return ngl.Translate(shape, vector=ngl.AnimatedVec3(anim))
 
 
-@test_render(width=320, height=320)
-@ngl.scene(controls=dict(factors=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1))))
+@test_render()
+@ngl.scene(width=320, height=320, controls=dict(factors=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1))))
 def transform_scale(cfg: ngl.SceneCfg, factors=(0.7, 1.4, 0)):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     return ngl.Scale(shape, factors)
 
 
-@test_render(width=320, height=320)
+@test_render()
 @ngl.scene(
+    width=320,
+    height=320,
     controls=dict(
         factors=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
         anchor=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
-    )
+    ),
 )
 def transform_scale_anchor(cfg: ngl.SceneCfg, factors=(0.7, 1.4, 0), anchor=(-0.4, 0.5, 0.7)):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     return ngl.Scale(shape, factors, anchor=anchor)
 
 
-@test_render(width=320, height=320)
-@ngl.scene(controls=dict(factors=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1))))
+@test_render()
+@ngl.scene(width=320, height=320, controls=dict(factors=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1))))
 def transform_scale_animated(cfg: ngl.SceneCfg, factors=(0.7, 1.4, 0)):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 2.0
     shape = _transform_shape()
     anim = [
@@ -170,15 +164,16 @@ def transform_scale_animated(cfg: ngl.SceneCfg, factors=(0.7, 1.4, 0)):
     return ngl.Scale(shape, factors=ngl.AnimatedVec3(anim))
 
 
-@test_render(width=320, height=320)
+@test_render()
 @ngl.scene(
+    width=320,
+    height=320,
     controls=dict(
         factors=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
         anchor=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
-    )
+    ),
 )
 def transform_scale_anchor_animated(cfg: ngl.SceneCfg, factors=(0.7, 1.4, 0), anchor=(-0.4, 0.5, 0.7)):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 2.0
     shape = _transform_shape()
     anim = [
@@ -189,28 +184,30 @@ def transform_scale_anchor_animated(cfg: ngl.SceneCfg, factors=(0.7, 1.4, 0), an
     return ngl.Scale(shape, factors=ngl.AnimatedVec3(anim), anchor=anchor)
 
 
-@test_render(width=320, height=320)
+@test_render()
 @ngl.scene(
+    width=320,
+    height=320,
     controls=dict(
         angles=ngl.scene.Vector(n=3, minv=(-360, -360, -360), maxv=(360, 360, 360)),
         axis=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
-    )
+    ),
 )
 def transform_skew(cfg: ngl.SceneCfg, angles=(0.0, -70, 14), axis=(1, 0, 0)):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     return ngl.Skew(shape, angles=angles, axis=axis)
 
 
-@test_render(width=320, height=320, keyframes=8)
+@test_render(keyframes=8)
 @ngl.scene(
+    width=320,
+    height=320,
     controls=dict(
         angles=ngl.scene.Vector(n=3, minv=(-360, -360, -360), maxv=(360, 360, 360)),
         axis=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
-    )
+    ),
 )
 def transform_skew_animated(cfg: ngl.SceneCfg, angles=(0, -60, 14), axis=(1, 0, 0), anchor=(0, 0.05, -0.5)):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 2.0
     shape = _transform_shape()
     anim = [
@@ -221,57 +218,58 @@ def transform_skew_animated(cfg: ngl.SceneCfg, angles=(0, -60, 14), axis=(1, 0, 
     return ngl.Skew(shape, angles=ngl.AnimatedVec3(anim), axis=axis, anchor=anchor)
 
 
-@test_render(width=320, height=320)
-@ngl.scene(controls=dict(angle=ngl.scene.Range(range=[0, 360], unit_base=10)))
+@test_render()
+@ngl.scene(width=320, height=320, controls=dict(angle=ngl.scene.Range(range=[0, 360], unit_base=10)))
 def transform_rotate(cfg: ngl.SceneCfg, angle=123.4):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     return ngl.Rotate(shape, angle)
 
 
-@test_render(width=320, height=320)
+@test_render()
 @ngl.scene(
+    width=320,
+    height=320,
     controls=dict(
         angle=ngl.scene.Range(range=[0, 360], unit_base=10),
         anchor=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
-    )
+    ),
 )
 def transform_rotate_anchor(cfg: ngl.SceneCfg, angle=123.4, anchor=(0.15, 0.35, 0.7)):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     return ngl.Rotate(shape, angle, anchor=anchor)
 
 
-@test_render(width=320, height=320)
-@ngl.scene(controls=dict(quat=ngl.scene.Vector(n=4, minv=(-1, -1, -1, -1), maxv=(1, 1, 1, 1))))
+@test_render()
+@ngl.scene(width=320, height=320, controls=dict(quat=ngl.scene.Vector(n=4, minv=(-1, -1, -1, -1), maxv=(1, 1, 1, 1))))
 def transform_rotate_quat(cfg: ngl.SceneCfg, quat=(0, 0, -0.474, 0.880)):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     return ngl.RotateQuat(shape, quat)
 
 
-@test_render(width=320, height=320)
+@test_render()
 @ngl.scene(
+    width=320,
+    height=320,
     controls=dict(
         quat=ngl.scene.Vector(n=4, minv=(-1, -1, -1, -1), maxv=(1, 1, 1, 1)),
         anchor=ngl.scene.Vector(n=3, minv=(-1, -1, -1), maxv=(1, 1, 1)),
-    )
+    ),
 )
 def transform_rotate_quat_anchor(cfg: ngl.SceneCfg, quat=(0, 0, -0.474, 0.880), anchor=(0.15, 0.35, 0.7)):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     return ngl.RotateQuat(shape, quat, anchor=anchor)
 
 
-@test_render(width=320, height=320, keyframes=8, diff_threshold=0.003)
+@test_render(keyframes=8, diff_threshold=0.003)
 @ngl.scene(
+    width=320,
+    height=320,
     controls=dict(
         quat0=ngl.scene.Vector(n=4, minv=(-1, -1, -1, -1), maxv=(1, 1, 1, 1)),
         quat1=ngl.scene.Vector(n=4, minv=(-1, -1, -1, -1), maxv=(1, 1, 1, 1)),
-    )
+    ),
 )
 def transform_rotate_quat_animated(cfg: ngl.SceneCfg, quat0=(0, 0, -0.474, 0.880), quat1=(0, 0, 0, 0)):
-    cfg.aspect_ratio = (1, 1)
     shape = _transform_shape()
     anim = [
         ngl.AnimKeyFrameQuat(0, quat0),
@@ -281,10 +279,9 @@ def transform_rotate_quat_animated(cfg: ngl.SceneCfg, quat0=(0, 0, -0.474, 0.880
     return ngl.RotateQuat(shape, quat=ngl.AnimatedQuat(anim))
 
 
-@test_render(width=320, height=320, keyframes=15)
-@ngl.scene()
+@test_render(keyframes=15)
+@ngl.scene(width=320, height=320)
 def transform_path(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 7
     shape = _transform_shape(w=0.2, h=0.5)
 
@@ -316,10 +313,9 @@ def transform_path(cfg: ngl.SceneCfg):
     return ngl.Translate(shape, vector=ngl.AnimatedPath(anim_kf, path))
 
 
-@test_render(width=320, height=320, keyframes=15, tolerance=2)
-@ngl.scene()
+@test_render(keyframes=15, tolerance=2)
+@ngl.scene(width=320, height=320)
 def transform_smoothpath(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 3
     shape = _transform_shape(w=0.3, h=0.3)
 
@@ -355,10 +351,9 @@ def transform_smoothpath(cfg: ngl.SceneCfg):
     return ngl.Translate(shape, vector=ngl.AnimatedPath(anim_kf, path))
 
 
-@test_render(width=320, height=320, keyframes=15, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=15, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def transform_shared_anim(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 6
 
     # Duplicate the same shape at different positions

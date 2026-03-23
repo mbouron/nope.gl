@@ -53,7 +53,6 @@ void main() {
 
 
 def _get_compositing_scene(cfg: ngl.SceneCfg, op, show_label=False):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 6
 
     # We can not use a circle geometry because the whole areas must be
@@ -105,8 +104,8 @@ def _get_compositing_scene(cfg: ngl.SceneCfg, op, show_label=False):
 
 
 def _get_compositing_func(op):
-    @test_render(width=320, height=320, keyframes=10, tolerance=1)
-    @ngl.scene()
+    @test_render(keyframes=10, tolerance=1)
+    @ngl.scene(width=320, height=320)
     def scene_func(cfg: ngl.SceneCfg):
         return _get_compositing_scene(cfg, op)
 

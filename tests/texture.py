@@ -50,18 +50,16 @@ def _draw_buffer(cfg: ngl.SceneCfg, w, h):
     return draw
 
 
-@test_render(width=128, height=128)
-@ngl.scene(controls=dict(w=ngl.scene.Range(range=[1, 128]), h=ngl.scene.Range(range=[1, 128])))
+@test_render()
+@ngl.scene(width=128, height=128, controls=dict(w=ngl.scene.Range(range=[1, 128]), h=ngl.scene.Range(range=[1, 128])))
 def texture_data(cfg: ngl.SceneCfg, w=4, h=5):
-    cfg.aspect_ratio = (1, 1)
     return _draw_buffer(cfg, w, h)
 
 
-@test_render(width=128, height=128)
-@ngl.scene(controls=dict(dim=ngl.scene.Range(range=[1, 100])))
+@test_render()
+@ngl.scene(width=128, height=128, controls=dict(dim=ngl.scene.Range(range=[1, 100])))
 def texture_data_animated(cfg: ngl.SceneCfg, dim=8):
     cfg.duration = 3.0
-    cfg.aspect_ratio = (1, 1)
     nb_kf = int(cfg.duration)
     buffers = [get_random_color_buffer(cfg.rng, dim) for _ in range(nb_kf)]
     random_animkf = []
@@ -79,28 +77,26 @@ def texture_data_animated(cfg: ngl.SceneCfg, dim=8):
     return ngl.DrawTexture(random_tex)
 
 
-@test_render(width=128, height=128)
-@ngl.scene(controls=dict(h=ngl.scene.Range(range=[1, 32])))
+@test_render()
+@ngl.scene(width=128, height=128, controls=dict(h=ngl.scene.Range(range=[1, 32])))
 def texture_data_unaligned_row(cfg: ngl.SceneCfg, h=32):
     """Tests upload of buffers with rows that are not 4-byte aligned"""
-    cfg.aspect_ratio = (1, 1)
     return _draw_buffer(cfg, 1, h)
 
 
-@test_render(width=128, height=128, keyframes=(0, 1, 0))
-@ngl.scene(controls=dict(w=ngl.scene.Range(range=[1, 128]), h=ngl.scene.Range(range=[1, 128])))
+@test_render(keyframes=(0, 1, 0))
+@ngl.scene(width=128, height=128, controls=dict(w=ngl.scene.Range(range=[1, 128]), h=ngl.scene.Range(range=[1, 128])))
 def texture_data_seek_timeranges(cfg: ngl.SceneCfg, w=4, h=5):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 1
     return ngl.TimeRangeFilter(_draw_buffer(cfg, w, h), end=1)
 
 
-@test_render(width=320, height=240, keyframes=5, diff_threshold=0.01)
-@ngl.scene()
+@test_render(keyframes=5, diff_threshold=0.01)
+@ngl.scene(width=320, height=240)
 def texture_displacement(cfg: ngl.SceneCfg):
     m0 = load_media("mire")
     cfg.duration = m0.duration
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
     m = ngl.Media(m0.filename)
     source_tex = ngl.Texture2D(data_src=m, min_filter="nearest", mag_filter="nearest")
 
@@ -163,7 +159,6 @@ void main()
 
 
 def _get_texture_cubemap_from_mrt_scene(cfg: ngl.SceneCfg, samples=0):
-    cfg.aspect_ratio = (1, 1)
     frag = dedent(
         """\
         void main()
@@ -193,7 +188,6 @@ def _get_texture_cubemap_from_mrt_scene(cfg: ngl.SceneCfg, samples=0):
 
 
 def _get_texture_cubemap_from_mrt_scene_2_pass(cfg: ngl.SceneCfg, samples=0):
-    cfg.aspect_ratio = (1, 1)
     group = ngl.Group()
     quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     cube = ngl.TextureCube(size=64, min_filter="linear", mag_filter="linear")
@@ -256,10 +250,9 @@ def _get_texture_cubemap(mipmap_filter="none"):
     return cube
 
 
-@test_render(width=400, height=400, tolerance=3)
-@ngl.scene()
+@test_render(tolerance=3)
+@ngl.scene(width=400, height=400)
 def texture_cubemap(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cube = _get_texture_cubemap()
     program = ngl.Program(vertex=_RENDER_CUBEMAP_VERT, fragment=_RENDER_CUBEMAP_FRAG)
     program.update_vert_out_vars(var_uvcoord=ngl.IOVec3())
@@ -269,10 +262,9 @@ def texture_cubemap(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_render(width=400, height=400, tolerance=3)
-@ngl.scene()
+@test_render(tolerance=3)
+@ngl.scene(width=400, height=400)
 def texture_cubemap_mipmap(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     frag = dedent(
         """\
         void main()
@@ -290,35 +282,33 @@ def texture_cubemap_mipmap(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_render(width=400, height=400, tolerance=3)
-@ngl.scene()
+@test_render(tolerance=3)
+@ngl.scene(width=400, height=400)
 def texture_cubemap_from_mrt(cfg: ngl.SceneCfg):
     return _get_texture_cubemap_from_mrt_scene(cfg)
 
 
-@test_render(width=400, height=400, tolerance=3)
-@ngl.scene()
+@test_render(tolerance=3)
+@ngl.scene(width=400, height=400)
 def texture_cubemap_from_mrt_msaa(cfg: ngl.SceneCfg):
     return _get_texture_cubemap_from_mrt_scene(cfg, 4)
 
 
-@test_render(width=400, height=400, tolerance=3)
-@ngl.scene()
+@test_render(tolerance=3)
+@ngl.scene(width=400, height=400)
 def texture_cubemap_from_mrt_2_pass(cfg: ngl.SceneCfg):
     return _get_texture_cubemap_from_mrt_scene_2_pass(cfg)
 
 
-@test_render(width=400, height=400, tolerance=3)
-@ngl.scene()
+@test_render(tolerance=3)
+@ngl.scene(width=400, height=400)
 def texture_cubemap_from_mrt_2_pass_msaa(cfg: ngl.SceneCfg):
     return _get_texture_cubemap_from_mrt_scene_2_pass(cfg, 4)
 
 
-@test_render(width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=32, height=32)
 def texture_clear_and_scissor(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     draw = ngl.DrawColor(COLORS.white)
     graphic_config = ngl.GraphicConfig(draw, scissor=(0, 0, 0, 0), color_write_mask="")
 
@@ -329,11 +319,9 @@ def texture_clear_and_scissor(cfg: ngl.SceneCfg):
     return ngl.Group(children=[graphic_config, rtt, draw])
 
 
-@test_render(width=64, height=64)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=64, height=64)
 def texture_scissor(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     draw = ngl.DrawColor(COLORS.orange)
     graphic_config = ngl.GraphicConfig(draw, scissor=(32, 32, 32, 32))
 
@@ -385,10 +373,9 @@ def _get_texture_2d_array(cfg: ngl.SceneCfg, mipmap_filter="none"):
     return texture
 
 
-@test_render(width=320, height=320)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=320, height=320)
 def texture_2d_array(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     texture = _get_texture_2d_array(cfg)
     quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     program = ngl.Program(vertex=_TEXTURE2D_ARRAY_VERT, fragment=_TEXTURE2D_ARRAY_FRAG)
@@ -398,10 +385,9 @@ def texture_2d_array(cfg: ngl.SceneCfg):
     return draw
 
 
-@test_render(width=320, height=180, tolerance=4)
-@ngl.scene()
+@test_render(tolerance=4)
+@ngl.scene(width=320, height=180)
 def texture_2d_array_mipmap(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (16, 9)
     frag = dedent(
         """\
         void main()
@@ -425,7 +411,6 @@ _STEPS = 4
 
 
 def _get_texture_2d_array_from_mrt_scene(cfg: ngl.SceneCfg, samples=0):
-    cfg.aspect_ratio = (1, 1)
     vert = dedent(
         """\
         void main()
@@ -465,14 +450,14 @@ def _get_texture_2d_array_from_mrt_scene(cfg: ngl.SceneCfg, samples=0):
     return ngl.Group(children=[rtt, draw])
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def texture_2d_array_from_mrt(cfg: ngl.SceneCfg):
     return _get_texture_2d_array_from_mrt_scene(cfg)
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def texture_2d_array_from_mrt_msaa(cfg: ngl.SceneCfg):
     return _get_texture_2d_array_from_mrt_scene(cfg, 4)
 
@@ -496,11 +481,9 @@ void main()
 """
 
 
-@test_render(width=400, height=400)
-@ngl.scene()
+@test_render()
+@ngl.scene(width=400, height=400)
 def texture_3d(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     width, height, depth = 9, 9, 3
     n = width * height
     data = array.array("B")
@@ -529,7 +512,6 @@ def texture_3d(cfg: ngl.SceneCfg):
 
 
 def _get_texture_3d_from_mrt_scene(cfg: ngl.SceneCfg, samples=0):
-    cfg.aspect_ratio = (1, 1)
     vert = dedent(
         """\
         void main()
@@ -568,14 +550,14 @@ def _get_texture_3d_from_mrt_scene(cfg: ngl.SceneCfg, samples=0):
     return ngl.Group(children=[rtt, draw])
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def texture_3d_from_mrt(cfg: ngl.SceneCfg):
     return _get_texture_3d_from_mrt_scene(cfg)
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def texture_3d_from_mrt_msaa(cfg: ngl.SceneCfg):
     return _get_texture_3d_from_mrt_scene(cfg, 4)
 
@@ -583,10 +565,9 @@ def texture_3d_from_mrt_msaa(cfg: ngl.SceneCfg):
 _N = 8
 
 
-@test_render(width=128, height=128, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=128, height=128)
 def texture_mipmap(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     black = (0, 0, 0, 255)
     white = (255, 255, 255, 255)
     p = _N // 2
@@ -647,26 +628,23 @@ def _get_texture_reframing_scene(d, wrap="default"):
     return ngl.DrawTexture(texture=tex, wrap=wrap, geometry=geometry)
 
 
-@test_render(width=320, height=320, keyframes=5, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=1)
+@ngl.scene(width=320, height=320)
 def texture_reframing(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = d = 3
     return _get_texture_reframing_scene(d)
 
 
-@test_render(width=320, height=320, keyframes=5, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=1)
+@ngl.scene(width=320, height=320)
 def texture_reframing_wrap_discard(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = d = 3
     return _get_texture_reframing_scene(d, "discard")
 
 
-@test_render(width=320, height=320, keyframes=5, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=1)
+@ngl.scene(width=320, height=320)
 def texture_reframing(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = d = 3
 
     media = load_media("hamster")
@@ -684,12 +662,12 @@ def texture_reframing(cfg: ngl.SceneCfg):
     return ngl.DrawTexture(texture=tex, geometry=geometry)
 
 
-@test_render(width=320, height=180, keyframes=5, tolerance=3, diff_threshold=0.005)
-@ngl.scene()
+@test_render(keyframes=5, tolerance=3, diff_threshold=0.005)
+@ngl.scene(width=320, height=180)
 def texture_masking(cfg: ngl.SceneCfg):
     media = load_media("cat")
 
-    cfg.aspect_ratio = (media.width, media.height)
+    cfg.width, cfg.height = media.width, media.height
     cfg.duration = d = media.duration
 
     animkf = [

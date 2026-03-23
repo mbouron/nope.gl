@@ -6,7 +6,7 @@ from pynopegl_utils.misc import get_shader, load_media
 def animated_uniform(cfg: ngl.SceneCfg):
     """Uniform mat4 animated with a transform chain"""
     m0 = load_media("mire")
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = m0.width, m0.height
 
     q = ngl.Quad((-0.5, -0.5, 0), (1, 0, 0), (0, 1, 0))
     m = ngl.Media(m0.filename)

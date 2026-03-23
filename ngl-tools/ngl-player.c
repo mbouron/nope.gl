@@ -82,8 +82,8 @@ static struct ngl_scene *get_scene(const struct ctx *s, const char *filename)
 
     struct ngl_scene_params params = ngl_scene_default_params(draw);
     params.duration = s->media_info.duration;
-    params.aspect_ratio[0] = s->media_info.width;
-    params.aspect_ratio[1] = s->media_info.height;
+    params.width  = s->media_info.width;
+    params.height = s->media_info.height;
     if (ngl_scene_init(scene, &params) < 0)
         ngl_scene_unrefp(&scene);
 

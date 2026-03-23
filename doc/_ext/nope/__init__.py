@@ -65,11 +65,13 @@ class _Nope(SphinxDirective):
         data = scene_func(cfg)
         scene = data.scene
 
-        ar = scene.aspect_ratio
+        width, height = scene.width, scene.height
+        if width == 0 or height == 0:
+            width, height = 640, 360
         fps = scene.framerate
-        height = self._RES
-        width = int(height * ar[0] / ar[1])
-        width &= ~1  # make sure it's a multiple of 2 for the h264 codec
+        # make sure dimensions are multiples of 2 for the h264 codec
+        width &= ~1
+        height &= ~1
 
         export_type = self.options.get("export_type", "video")
         if export_type == "image":

@@ -24,19 +24,17 @@ import pynopegl as ngl
 from pynopegl_utils.tests.cmp_render import test_render
 
 
-@test_render(width=320, height=320, keyframes=10, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1)
+@ngl.scene(width=320, height=320)
 def noise_blocky(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 5
 
     return ngl.DrawNoise(type="blocky", octaves=3, scale=(9, 9), evolution=ngl.Time())
 
 
-@test_render(width=320, height=320, keyframes=10, tolerance=1)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1)
+@ngl.scene(width=320, height=320)
 def noise_perlin(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 5
 
     return ngl.DrawNoise(type="perlin", octaves=3, scale=(2, 2), evolution=ngl.Time())

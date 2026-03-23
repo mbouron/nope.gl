@@ -9,7 +9,7 @@ import org.nopeforge.nopegl.NGLMedia
 import org.nopeforge.nopegl.NGLNode
 import org.nopeforge.nopegl.NGLNodeOrValue
 import org.nopeforge.nopegl.NGLQuad
-import org.nopeforge.nopegl.NGLRational
+
 import org.nopeforge.nopegl.NGLRotate
 import org.nopeforge.nopegl.NGLScale
 import org.nopeforge.nopegl.NGLScene
@@ -70,5 +70,5 @@ fun defaultScene(): NGLScene {
 
     scene = NGLGroup(children = listOf(drawTexture, scene))
 
-    return NGLScene(scene, duration = duration, aspectRatio = NGLRational(9, 16))
+    return NGLScene(scene, duration = duration, width = 1280, height = 720)
 }

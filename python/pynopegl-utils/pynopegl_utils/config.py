@@ -33,12 +33,12 @@ from .misc import get_nopegl_tempdir
 class Config(QtCore.QObject):
     FILEPATH = op.join(os.environ.get("XDG_DATA_HOME", op.expanduser("~/.local/share")), "nope.gl", "controller.json")
     CHOICES = {
-        "aspect_ratio": [
-            (16, 9),
-            (16, 10),
-            (4, 3),
-            (1, 1),
-            (9, 16),
+        "dimensions": [
+            (1280, 720),
+            (1280, 800),
+            (1024, 768),
+            (768, 768),
+            (720, 1280),
         ],
         "samples": [0, 2, 4, 8],
         "framerate": [
@@ -71,7 +71,7 @@ class Config(QtCore.QObject):
         super().__init__()
 
         self._cfg = {
-            "aspect_ratio": (16, 9),
+            "dimensions": (1280, 720),
             "samples": 0,
             "framerate": (60, 1),
             "log_level": "info",
@@ -157,8 +157,8 @@ class Config(QtCore.QObject):
         self._set_cfg("export_profile", profile)
 
     @QtCore.Slot(tuple)
-    def set_aspect_ratio(self, ar):
-        self._set_cfg("aspect_ratio", ar)
+    def set_dimensions(self, dims):
+        self._set_cfg("dimensions", dims)
 
     @QtCore.Slot(tuple)
     def set_frame_rate(self, fr):

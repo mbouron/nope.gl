@@ -28,11 +28,10 @@ from pynopegl_utils.toolbox.colors import COLORS
 from pynopegl_utils.toolbox.shapes import equilateral_triangle_coords
 
 
-@test_render(width=320, height=320, keyframes=20, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=20, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def velocity_triangle_rotate(cfg: ngl.SceneCfg):
     cfg.duration = 5.0
-    cfg.aspect_ratio = (1, 1)
 
     anim_kf = [
         ngl.AnimKeyFrameFloat(0, 0),
@@ -61,11 +60,10 @@ def velocity_triangle_rotate(cfg: ngl.SceneCfg):
     return ngl.Group(children=[circle, triangle])
 
 
-@test_render(width=320, height=320, keyframes=20, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=20, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def velocity_circle_distort_2d(cfg: ngl.SceneCfg):
     cfg.duration = 4.0
-    cfg.aspect_ratio = (1, 1)
 
     coords = list(equilateral_triangle_coords())
     coords.append(coords[0])
@@ -98,11 +96,10 @@ def velocity_circle_distort_2d(cfg: ngl.SceneCfg):
     return shape
 
 
-@test_render(width=320, height=320, keyframes=20, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=20, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def velocity_circle_distort_3d(cfg: ngl.SceneCfg):
     cfg.duration = 4.0
-    cfg.aspect_ratio = (1, 1)
 
     coords = list(equilateral_triangle_coords())
     coords.append(coords[0])

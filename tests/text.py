@@ -32,97 +32,94 @@ _LATIN_FONT = _FONT_DIR / "Quicksand-Medium.ttf"
 
 
 def _text(cfg: ngl.SceneCfg, **params):
-    cfg.aspect_ratio = (1, 1)
     return ngl.Text("This\nis\nnope.gl", font_scale=0.7, padding=8, **params)
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_colors(cfg: ngl.SceneCfg):
     return _text(cfg, fg_color=COLORS.rose, bg_color=COLORS.cgreen, bg_opacity=1)
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_cc(cfg: ngl.SceneCfg):
     return _text(cfg, valign="center", halign="center")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_cr(cfg: ngl.SceneCfg):
     return _text(cfg, valign="center", halign="right")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_cl(cfg: ngl.SceneCfg):
     return _text(cfg, valign="center", halign="left")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_bc(cfg: ngl.SceneCfg):
     return _text(cfg, valign="bottom", halign="center")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_br(cfg: ngl.SceneCfg):
     return _text(cfg, valign="bottom", halign="right")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_bl(cfg: ngl.SceneCfg):
     return _text(cfg, valign="bottom", halign="left")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_tc(cfg: ngl.SceneCfg):
     return _text(cfg, valign="top", halign="center")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_tr(cfg: ngl.SceneCfg):
     return _text(cfg, valign="top", halign="right")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_align_tl(cfg: ngl.SceneCfg):
     return _text(cfg, valign="top", halign="left")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_vertical_rl(cfg: ngl.SceneCfg):
     return _text(cfg, writing_mode="vertical-rl")
 
 
-@test_render(width=320, height=320, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=320)
 def text_vertical_lr(cfg: ngl.SceneCfg):
     return _text(cfg, writing_mode="vertical-lr")
 
 
-@test_render(width=320, height=240, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=240)
 def text_arabic_shaping(cfg: ngl.SceneCfg):
     """Advanced shaping that typically relies on the positioning of the diacritics"""
-    cfg.aspect_ratio = (4, 3)
     return ngl.Text(
         text="رَسْميّ",
         font_faces=[ngl.FontFace(_ARABIC_FONT.as_posix())],
     )
 
 
-@test_render(width=320, height=240, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=240)
 def text_bidi_arabic_english(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (4, 3)
     return ngl.Text(
         text="هذا مزيج من English و نص عربي",
         # The Latin font is placed first so the fallback is actually tested (the
@@ -131,10 +128,9 @@ def text_bidi_arabic_english(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=480, height=640, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=480, height=640)
 def text_vertical_japanese(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (3, 4)
     return ngl.Text(
         # "Only kana, because that's a small font" (this is not a haiku)
         text="かなだけ、\nちいさいのフォント\nだから。",
@@ -143,10 +139,9 @@ def text_vertical_japanese(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=640, height=480, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=640, height=480)
 def text_fixed(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (4, 3)
     return ngl.Text(
         "Fix",
         scale_mode="fixed",
@@ -154,10 +149,9 @@ def text_fixed(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=640, height=480, tolerance=1, keyframes=5, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, keyframes=5, diff_threshold=0.003)
+@ngl.scene(width=640, height=480)
 def text_animated(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (4, 3)
     cfg.duration = 2
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),
@@ -166,10 +160,9 @@ def text_animated(cfg: ngl.SceneCfg):
     return ngl.Rotate(ngl.Text("Hey"), angle=ngl.AnimatedFloat(animkf), axis=(1, 1, 1))
 
 
-@test_render(width=360, height=640, tolerance=1, keyframes=5, diff_threshold=0.003)
-@ngl.scene()
+@test_render(tolerance=1, keyframes=5, diff_threshold=0.003)
+@ngl.scene(width=360, height=640)
 def text_animated_fixed(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (0, 1)
     cfg.duration = 2
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),

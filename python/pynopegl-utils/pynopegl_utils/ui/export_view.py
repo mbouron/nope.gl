@@ -36,7 +36,7 @@ class ExportView(QtWidgets.QWidget):
 
         self._get_scene_info = get_scene_info
         self._framerate = config.get("framerate")
-        self._aspect_ratio = config.get("aspect_ratio")
+        self._dimensions = config.get("dimensions")
 
         self._ofile_text = QtWidgets.QLineEdit(config.get("export_filename"))
         ofile_btn = QtWidgets.QPushButton("Browse")
@@ -91,7 +91,7 @@ class ExportView(QtWidgets.QWidget):
 
         scene = scene_info.scene
         self._framerate = scene.framerate
-        self._aspect_ratio = scene.aspect_ratio
+        self._dimensions = (scene.width, scene.height)
 
         self._check_settings()
 

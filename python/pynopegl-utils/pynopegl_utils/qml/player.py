@@ -49,7 +49,7 @@ class NGLPlayer:
         self._ngl_widget.set_scene(scene)
         self._qml_player.setProperty("duration", scene.duration)
         self._qml_player.setProperty("framerate", list(scene.framerate))
-        self._qml_player.setProperty("aspect", list(scene.aspect_ratio))
+        self._qml_player.setProperty("aspect", [scene.width, scene.height])
 
     def set_callbacks(self, livectls_changed=None, mouse_down=None, zoom=None, pan=None):
         if livectls_changed:

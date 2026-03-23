@@ -138,7 +138,6 @@ def _get_rtt_scene(
     sample_depth=False,
 ):
     cfg.duration = 10
-    cfg.aspect_ratio = (1, 1)
 
     scene = _get_cube_scene(cfg, depth_test, stencil_test)
 
@@ -197,8 +196,8 @@ def _get_rtt_function(**kwargs):
     if kwargs.get("resizable", False):
         tolerance = 3
 
-    @test_render(width=256, height=256, keyframes=10, tolerance=tolerance, diff_threshold=0.003)
-    @ngl.scene()
+    @test_render(keyframes=10, tolerance=tolerance, diff_threshold=0.003)
+    @ngl.scene(width=256, height=256)
     def rtt_function(cfg: ngl.SceneCfg):
         return _get_rtt_scene(cfg, **kwargs)
 
@@ -233,8 +232,6 @@ for name, params in _rtt_tests.items():
 
 
 def _rtt_load_attachment(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     background = ngl.DrawColor(COLORS.white)
     draw = ngl.DrawColor(COLORS.orange)
 
@@ -250,14 +247,14 @@ def _rtt_load_attachment(cfg: ngl.SceneCfg):
     return ngl.Group(children=[background, rtt, rtt_noop, foreground])
 
 
-@test_render(width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=32, height=32)
 def rtt_load_attachment(cfg: ngl.SceneCfg):
     return _rtt_load_attachment(cfg)
 
 
-@test_render(samples=4, width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(samples=4, tolerance=1)
+@ngl.scene(width=32, height=32)
 def rtt_load_attachment_msaa(cfg: ngl.SceneCfg):
     return _rtt_load_attachment(cfg)
 
@@ -273,21 +270,19 @@ def _rtt_load_attachment_nested(cfg: ngl.SceneCfg, samples=0):
     return ngl.Group(children=[rtt, foreground])
 
 
-@test_render(width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=32, height=32)
 def rtt_load_attachment_nested(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_nested(cfg)
 
 
-@test_render(width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=32, height=32)
 def rtt_load_attachment_nested_msaa(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_nested(cfg, 4)
 
 
 def _rtt_load_attachment_implicit(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     background = ngl.DrawColor(COLORS.white)
 
     foreground = ngl.DrawTexture(
@@ -302,14 +297,14 @@ def _rtt_load_attachment_implicit(cfg: ngl.SceneCfg):
     return ngl.Group(children=[background, foreground])
 
 
-@test_render(width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=32, height=32)
 def rtt_load_attachment_implicit(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_implicit(cfg)
 
 
-@test_render(samples=4, width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(samples=4, tolerance=1)
+@ngl.scene(width=32, height=32)
 def rtt_load_attachment_msaa_implicit(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_implicit(cfg)
 
@@ -325,23 +320,21 @@ def _rtt_load_attachment_nested_implicit(cfg: ngl.SceneCfg, samples=0):
     return ngl.Group(children=[rtt, foreground])
 
 
-@test_render(width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=32, height=32)
 def rtt_load_attachment_nested_implicit(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_nested_implicit(cfg)
 
 
-@test_render(width=32, height=32, tolerance=1)
-@ngl.scene()
+@test_render(tolerance=1)
+@ngl.scene(width=32, height=32)
 def rtt_load_attachment_nested_msaa_implicit(cfg: ngl.SceneCfg):
     return _rtt_load_attachment_nested_implicit(cfg, 4)
 
 
-@test_render(width=256, height=256, keyframes=10, tolerance=3, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=256, height=256)
 def rtt_clear_attachment_with_timeranges(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     # Time-disabled full screen white quad
     draw = ngl.DrawColor(COLORS.white)
 
@@ -370,11 +363,9 @@ def rtt_clear_attachment_with_timeranges(cfg: ngl.SceneCfg):
     return ngl.Group(children=[rtt, draw])
 
 
-@test_render(width=256, height=256, keyframes=10, tolerance=3, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=256, height=256)
 def rtt_shared_subgraph_implicit(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
-
     scene = _get_cube_scene(cfg)
 
     texture = ngl.Texture2D(format="r8g8_unorm", data_src=scene)
@@ -388,10 +379,9 @@ def rtt_shared_subgraph_implicit(cfg: ngl.SceneCfg):
     return group
 
 
-@test_render(width=256, height=256, keyframes=10, tolerance=3, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=256, height=256)
 def rtt_resizable_with_timeranges(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 10
 
     scene = _get_cube_scene(cfg)
@@ -409,10 +399,9 @@ def rtt_resizable_with_timeranges(cfg: ngl.SceneCfg):
     return group
 
 
-@test_render(width=256, height=256, keyframes=10, tolerance=3, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=256, height=256)
 def rtt_resizable_with_timeranges_implicit(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 10
 
     scene = _get_cube_scene(cfg)
@@ -428,10 +417,9 @@ def rtt_resizable_with_timeranges_implicit(cfg: ngl.SceneCfg):
     return group
 
 
-@test_render(width=32, height=32, tolerance=3)
-@ngl.scene()
+@test_render(tolerance=3)
+@ngl.scene(width=32, height=32)
 def rtt_srgb(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = 1
 
     gradient = ngl.DrawGradient(

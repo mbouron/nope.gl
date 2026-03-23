@@ -370,10 +370,9 @@ struct ngl_scene *ngl_scene_create(void)
 struct ngl_scene_params ngl_scene_default_params(struct ngl_node *root)
 {
     const struct ngl_scene_params params = {
-        .root         = root,
-        .duration     = 30.0,
-        .framerate    = {60, 1},
-        .aspect_ratio = {1, 1},
+        .root      = root,
+        .duration  = 30.0,
+        .framerate = {60, 1},
     };
     return params;
 }
@@ -397,8 +396,12 @@ int ngl_scene_init(struct ngl_scene *s, const struct ngl_scene_params *params)
         LOG(ERROR, "invalid framerate %d/%d", NGLI_ARG_VEC2(params->framerate));
         return NGL_ERROR_INVALID_ARG;
     }
-    if (params->aspect_ratio[0] < 0 || params->aspect_ratio[1] < 0) {
-        LOG(ERROR, "invalid aspect ratio %d:%d", NGLI_ARG_VEC2(params->aspect_ratio));
+    if (params->width < 0 || params->height < 0) {
+        LOG(ERROR, "invalid canvas size %dx%d", params->width, params->height);
+        return NGL_ERROR_INVALID_ARG;
+    }
+    if ((params->width == 0) != (params->height == 0)) {
+        LOG(ERROR, "canvas width and height must both be zero or both be positive");
         return NGL_ERROR_INVALID_ARG;
     }
 

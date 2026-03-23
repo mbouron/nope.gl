@@ -6,7 +6,7 @@ from pynopegl_utils.misc import load_media
 def image(cfg: ngl.SceneCfg):
     image = load_media("rooster")  # Replace "rooster" with a path to your image
 
-    cfg.aspect_ratio = image.width, image.height
+    cfg.width, cfg.height = image.width, image.height
 
     # Warning: the texture can be shared, but not the media
     media = ngl.Media(image.filename)

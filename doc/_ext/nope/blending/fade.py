@@ -7,7 +7,7 @@ def fade(cfg: ngl.SceneCfg):
     image0 = load_media("rooster")
     image1 = load_media("panda")
 
-    cfg.aspect_ratio = image0.width, image0.height
+    cfg.width, cfg.height = image0.width, image0.height
     cfg.duration = 4
 
     bg_tex = ngl.Texture2D(data_src=ngl.Media(image0.filename))

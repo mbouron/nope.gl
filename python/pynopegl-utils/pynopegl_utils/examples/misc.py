@@ -24,7 +24,7 @@ def lut3d(cfg: ngl.SceneCfg, xsplit=0.3, trilinear=True):
 
     m0 = load_media("mire")
     cfg.duration = m0.duration
-    cfg.aspect_ratio = (m0.width, m0.height)
+    cfg.width, cfg.height = (m0.width, m0.height)
     video = ngl.Media(m0.filename)
     video_tex = ngl.Texture2D(data_src=video)
 
@@ -43,7 +43,7 @@ def lut3d(cfg: ngl.SceneCfg, xsplit=0.3, trilinear=True):
 def triangle(cfg: ngl.SceneCfg, size=4 / 3):
     """Rotating triangle with edge coloring specified in a vertex attribute"""
     cfg.duration = 3.0
-    cfg.aspect_ratio = (1, 1)
+    cfg.width, cfg.height = 768, 768
 
     colors_data = array.array("f", [0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0])
     colors_buffer = ngl.BufferVec3(data=colors_data)
@@ -341,7 +341,7 @@ def quaternion(cfg: ngl.SceneCfg):
 def mountain(cfg: ngl.SceneCfg, ndim=3, nb_layers=7, ref_color=(0.5, 0.75, 0.75), nb_mountains=6):
     """Mountain generated with a stack of noise shaders using Textures as random source"""
     random_dim = 1 << ndim
-    cfg.aspect_ratio = (16, 9)
+    cfg.width, cfg.height = 1280, 720
     cfg.duration = nb_mountains**2
 
     def get_rand():
@@ -405,7 +405,7 @@ def smptebars_glitch(cfg: ngl.SceneCfg):
     """SMPTE bars glitching at irregular intervals"""
 
     cfg.duration = 15
-    cfg.aspect_ratio = (4, 3)
+    cfg.width, cfg.height = 1024, 768
     quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     program = ngl.Program(vertex=get_shader("smptebars.vert"), fragment=get_shader("smptebars.frag"))
     program.update_vert_out_vars(var_uvcoord=ngl.IOVec2())

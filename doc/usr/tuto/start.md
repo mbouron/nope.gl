@@ -31,7 +31,7 @@ In this first example, all we did was to declare a function that returns a
 single node (the [Text] node). The `@ngl.scene()` decorator is used to make
 it discoverable by the viewer. The function receives a configuration of type
 `SceneCfg` which gives us access to various metadata of the scene such as
-`aspect_ratio`, `duration` or `framerate` (for both reading and sometimes
+`width`, `height`, `duration` or `framerate` (for both reading and sometimes
 writing).
 
 Try to modify the text in the script: the viewer should automatically update

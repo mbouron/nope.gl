@@ -80,7 +80,6 @@ def _get_blending_scene_with_args(colored_circles, circle, positions, bname, bco
 
 
 def _get_blending_scene(cfg: ngl.SceneCfg, bname, bcolor, **bparams):
-    cfg.aspect_ratio = (1, 1)
     colored_circles, circle, positions = _get_blending_base_objects()
     return _get_blending_scene_with_args(colored_circles, circle, positions, bname, bcolor, **bparams)
 
@@ -123,7 +122,6 @@ _NB_BLENDINGS = len(_BLENDINGS)
 
 
 def _get_blending_scenes(cfg: ngl.SceneCfg):
-    cfg.aspect_ratio = (1, 1)
     cfg.duration = len(_BLENDING_CFGS)
 
     # WARNING: it is important to keep the creation of these base objects
@@ -169,8 +167,8 @@ def _debug_overlay(cfg: ngl.SceneCfg, scene, grid_names, show_labels=False):
 _TEST_SETTINGS = dict(show_labels=False, clear_color=list(COLORS.azure) + [1], tolerance=1)
 
 
-@test_render(width=128, height=128, **_TEST_SETTINGS)
-@ngl.scene(controls=dict(show_labels=ngl.scene.Bool()))
+@test_render(**_TEST_SETTINGS)
+@ngl.scene(width=128, height=128, controls=dict(show_labels=ngl.scene.Bool()))
 def blending_all_diamond(cfg: ngl.SceneCfg, show_labels=True):
     scenes = _get_blending_scenes(cfg)
     scene = autogrid_simple(scenes)
@@ -191,8 +189,8 @@ def blending_all_timed_diamond(cfg: ngl.SceneCfg, show_labels=True):
 
 
 def _get_blending_function(bname, bcolor, **bparams):
-    @test_render(width=128, height=128, **_TEST_SETTINGS)
-    @ngl.scene(controls=dict(show_labels=ngl.scene.Bool()))
+    @test_render(**_TEST_SETTINGS)
+    @ngl.scene(width=128, height=128, controls=dict(show_labels=ngl.scene.Bool()))
     def scene_func(cfg: ngl.SceneCfg, show_labels=True):
         scene = _get_blending_scene(cfg, bname, bcolor, **bparams)
         return _debug_overlay(cfg, scene, [bname], show_labels)

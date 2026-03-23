@@ -81,7 +81,7 @@ class MainWindow(QtWidgets.QSplitter):
         self._scene_toolbar.sceneChanged.connect(self._scene_changed)
         self._scene_toolbar.sceneChanged.connect(self._scene_changed_hook)
         self._scene_toolbar.sceneChanged.connect(self._config.scene_changed)
-        self._scene_toolbar.aspectRatioChanged.connect(self._config.set_aspect_ratio)
+        self._scene_toolbar.dimensionsChanged.connect(self._config.set_dimensions)
         self._scene_toolbar.samplesChanged.connect(self._config.set_samples)
         self._scene_toolbar.frameRateChanged.connect(self._config.set_frame_rate)
         self._scene_toolbar.logLevelChanged.connect(self._config.set_log_level)

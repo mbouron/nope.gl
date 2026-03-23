@@ -132,9 +132,8 @@ def _export_worker(
     duration = scene.duration
     samples = scene_info.samples
 
-    ar = scene.aspect_ratio
     height = RESOLUTIONS[resolution]
-    width = int(height * ar[0] / ar[1])
+    width = int(height * scene.width / scene.height) if scene.height else height
     width &= ~1  # make sure it's a multiple of 2 for the h264 codec
 
     fd_r, fd_w = os.pipe()

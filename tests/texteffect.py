@@ -23,11 +23,10 @@ import pynopegl as ngl
 from pynopegl_utils.tests.cmp_render import test_render
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_color(cfg: ngl.SceneCfg):
     cfg.duration = 3
-    cfg.aspect_ratio = (16, 9)
 
     text = "Rainbow"
     n = len(text)
@@ -56,11 +55,10 @@ def texteffect_color(cfg: ngl.SceneCfg):
     return ngl.Text(text=text, effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_opacity(cfg: ngl.SceneCfg):
     cfg.duration = 3
-    cfg.aspect_ratio = (16, 9)
 
     animkf = [
         ngl.AnimKeyFrameFloat(0, 1),
@@ -78,11 +76,10 @@ def texteffect_opacity(cfg: ngl.SceneCfg):
     return ngl.Text("Ghost\nin the\nText", effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_transform(cfg: ngl.SceneCfg):
     cfg.duration = 3
-    cfg.aspect_ratio = (16, 9)
 
     animkf = [
         ngl.AnimKeyFrameVec3(0, (0.0, 1.5, 0.0)),
@@ -104,11 +101,10 @@ def texteffect_transform(cfg: ngl.SceneCfg):
     return ngl.Text("Drop me down", effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_scale(cfg: ngl.SceneCfg):
     cfg.duration = 3
-    cfg.aspect_ratio = (16, 9)
 
     animkf = [
         ngl.AnimKeyFrameVec3(0, (0.0, 0.0, 1.0)),
@@ -129,11 +125,10 @@ def texteffect_scale(cfg: ngl.SceneCfg):
     return ngl.Text("Zoom\nzoom\nzang", effects=effects)
 
 
-@test_render(width=360, height=360, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=360, height=360)  # FIXME rotation doesn't look good with non-square
 def texteffect_rotate(cfg: ngl.SceneCfg):
     cfg.duration = 4
-    cfg.aspect_ratio = (1, 1)  # FIXME rotation doesn't look good with non-square
 
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),
@@ -154,8 +149,8 @@ def texteffect_rotate(cfg: ngl.SceneCfg):
     return ngl.Text("nd", bg_color=(1, 0, 0), box=(-0.5, 0, 1.5, 1), effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_box_anchor(cfg: ngl.SceneCfg):
     cfg.duration = 3
 
@@ -179,8 +174,8 @@ def texteffect_box_anchor(cfg: ngl.SceneCfg):
     return ngl.Text("ABC", bg_color=(1, 0, 0), box=(-1, 0, 2, 1), effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_vp_anchor(cfg: ngl.SceneCfg):
     cfg.duration = 3
 
@@ -204,8 +199,8 @@ def texteffect_vp_anchor(cfg: ngl.SceneCfg):
     return ngl.Text("ABC", bg_color=(1, 0, 0), box=(-1, 0, 2, 1), effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_combined_diff_anchors(cfg: ngl.SceneCfg):
     cfg.duration = 3
 
@@ -243,11 +238,10 @@ def texteffect_combined_diff_anchors(cfg: ngl.SceneCfg):
     return ngl.Text("ABC", bg_color=(1, 0, 0), box=(-1, 0, 2, 1), effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_chars_space_nospace(cfg: ngl.SceneCfg):
     cfg.duration = 5
-    cfg.aspect_ratio = (16, 9)
 
     animkf = [
         ngl.AnimKeyFrameColor(0, (1, 1, 1)),
@@ -265,11 +259,10 @@ def texteffect_chars_space_nospace(cfg: ngl.SceneCfg):
     )
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_blur(cfg: ngl.SceneCfg):
     cfg.duration = 5
-    cfg.aspect_ratio = (16, 9)
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),
         ngl.AnimKeyFrameFloat(1 / 2, 0.2),
@@ -279,11 +272,10 @@ def texteffect_blur(cfg: ngl.SceneCfg):
     return ngl.Text("B", effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_blur_outline(cfg: ngl.SceneCfg):
     cfg.duration = 5
-    cfg.aspect_ratio = (16, 9)
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),
         ngl.AnimKeyFrameFloat(1 / 2, 0.2),
@@ -293,11 +285,10 @@ def texteffect_blur_outline(cfg: ngl.SceneCfg):
     return ngl.Text("b", effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_glow(cfg: ngl.SceneCfg):
     cfg.duration = 5
-    cfg.aspect_ratio = (16, 9)
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),
         ngl.AnimKeyFrameFloat(1 / 2, 1),
@@ -307,11 +298,10 @@ def texteffect_glow(cfg: ngl.SceneCfg):
     return ngl.Text("G", effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=2, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=2, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_glow_outline(cfg: ngl.SceneCfg):
     cfg.duration = 5
-    cfg.aspect_ratio = (16, 9)
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),
         ngl.AnimKeyFrameFloat(1 / 2, 1),
@@ -321,11 +311,10 @@ def texteffect_glow_outline(cfg: ngl.SceneCfg):
     return ngl.Text("g", effects=effects)
 
 
-@test_render(width=320, height=180, keyframes=10, tolerance=1, diff_threshold=0.003)
-@ngl.scene()
+@test_render(keyframes=10, tolerance=1, diff_threshold=0.003)
+@ngl.scene(width=320, height=180)
 def texteffect_outline_pos(cfg: ngl.SceneCfg):
     cfg.duration = 5
-    cfg.aspect_ratio = (16, 9)
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),
         ngl.AnimKeyFrameFloat(1 / 2, 1),

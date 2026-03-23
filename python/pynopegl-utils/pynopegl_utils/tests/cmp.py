@@ -45,8 +45,8 @@ class CompareSceneBase(CompareBase):
     def __init__(
         self,
         scene_func: Callable[..., ngl.SceneInfo],
-        width: int,
-        height: int,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
         keyframes: Union[int, Sequence[float]] = 1,  # either a number of keyframes or a sequence of absolute times
         keyframes_callback=None,
         clear_color: Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
@@ -55,6 +55,12 @@ class CompareSceneBase(CompareBase):
         samples: int = 0,
         **scene_kwargs,
     ):
+        # Derive render dimensions from the scene's canvas size if not specified
+        if width is None:
+            width = getattr(scene_func, "width", 0)
+        if height is None:
+            height = getattr(scene_func, "height", 0)
+        assert width > 0 and height > 0, "render dimensions must be specified via @test_render or @ngl.scene"
         self._width = width
         self._height = height
         self._keyframes = keyframes
@@ -94,9 +100,9 @@ class CompareSceneBase(CompareBase):
         scene = scene_info.scene
         duration = scene.duration
 
-        aspect_ratio = scene.aspect_ratio
-        if aspect_ratio[0] > 0 and aspect_ratio[1] > 1:
-            assert Fraction(*aspect_ratio) == Fraction(width, height)
+        scene_w, scene_h = scene.width, scene.height
+        if scene_w > 0 and scene_h > 0:
+            assert Fraction(scene_w, scene_h) == Fraction(width, height)
 
         if isinstance(self._keyframes, int):
             timescale = duration / self._keyframes
