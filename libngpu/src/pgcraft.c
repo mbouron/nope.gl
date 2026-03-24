@@ -875,6 +875,7 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
                         const struct token *token, const char *p, struct bstr *dst)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
+    const struct ngpu_ctx_params *gpu_ctx_params = &gpu_ctx->params;
 
     /* Skip "ngl_XXX(" and the whitespaces */
     p += strlen(token->id);
@@ -927,7 +928,8 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
         ngpu_bstr_print(dst, "(");
         ngpu_bstr_print(dst, "(");
 
-        if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
+        if (gpu_ctx_params->backend == NGPU_BACKEND_OPENGLES &&
+            NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
             ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_MEDIACODEC);
             ngpu_bstr_printf(dst, "texture(%.*s_oes, %.*s) : ", ARG_FMT(arg0), ARG_FMT(coords));
         }
