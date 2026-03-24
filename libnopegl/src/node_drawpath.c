@@ -31,7 +31,6 @@
 #include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline_compat.h"
-#include <ngpu/ngpu.h>
 #include "slug.h"
 #include "utils/utils.h"
 
