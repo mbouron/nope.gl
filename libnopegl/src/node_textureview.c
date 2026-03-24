@@ -43,11 +43,6 @@ static int textureview_init(struct ngl_node *node)
 {
     const struct textureview_opts *o = node->opts;
 
-    if (o->layer < 0) {
-        LOG(ERROR, "layer cannot be negative");
-        return NGL_ERROR_INVALID_ARG;
-    }
-
     if (o->texture->cls->id == NGL_NODE_TEXTURE2D && o->layer) {
         LOG(ERROR, "2d textures only have one layer");
         return NGL_ERROR_INVALID_ARG;

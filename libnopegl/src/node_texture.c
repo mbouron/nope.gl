@@ -716,8 +716,8 @@ static int texture2d_init(struct ngl_node *node)
 
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
     const uint32_t max_dimension = limits->max_texture_dimension_2d;
-    if (i->params.width  < 0 || i->params.width  > max_dimension ||
-        i->params.height < 0 || i->params.height > max_dimension) {
+    if (i->params.width  > max_dimension ||
+        i->params.height > max_dimension) {
         LOG(ERROR, "texture dimensions (%u,%u) are invalid or exceeds device limits (%u,%u)",
             i->params.width, i->params.height, max_dimension, max_dimension);
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
