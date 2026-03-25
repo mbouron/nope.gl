@@ -32,8 +32,8 @@ struct cubic_converter {
     struct point quadratics[1 + 2 * CUBIC_MAX_QUADRATIC_COUNT];
 };
 
-int cubic_compute_subdivision_count(const struct point cubic[4], float tolerance);
+int cubic_compute_subdivision_count(const struct point *cubic, float tolerance);
 
-void cubic_converter_to_quadratics(struct cubic_converter *converter, const struct point cubic[4], float tolerance);
+void cubic_converter_to_quadratics(struct cubic_converter *converter, const struct point *cubic, float tolerance);
 
 #endif
