@@ -1269,6 +1269,17 @@ static void vk_get_projection_matrix(struct ngpu_ctx *s, float *dst)
     memcpy(dst, matrix, 4 * 4 * sizeof(float));
 }
 
+static void vk_get_projection_matrix_inverse(struct ngpu_ctx *s, float *dst)
+{
+    static const NGPU_ALIGNED_MAT(matrix) = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f,-1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 2.0f, 0.0f,
+        0.0f, 0.0f,-1.0f, 1.0f,
+    };
+    memcpy(dst, matrix, 4 * 4 * sizeof(float));
+}
+
 static void vk_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
 {
     static const NGPU_ALIGNED_MAT(matrix) = {
@@ -1559,6 +1570,7 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
 
     .get_cull_mode                      = vk_get_cull_mode,
     .get_projection_matrix              = vk_get_projection_matrix,
+    .get_projection_matrix_inverse      = vk_get_projection_matrix_inverse,
     .get_rendertarget_uvcoord_matrix    = vk_get_rendertarget_uvcoord_matrix,
 
     .get_default_rendertarget           = vk_get_default_rendertarget,

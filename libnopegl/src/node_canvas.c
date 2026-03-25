@@ -35,6 +35,7 @@ struct canvas_opts {
 };
 
 struct canvas_priv {
+    struct draw_info draw_info;
     struct darray indices;
 };
 
@@ -155,6 +156,13 @@ static void canvas_draw(struct ngl_node *node)
     }
     ctx->rnode_pos = rnode_pos;
 
+    /* Compute union bounding box from children */
+    struct draw_info *draw_info = &s->draw_info;
+    draw_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
+
+    draw_info->aabb = draw_info->screen_aabb;
+    memcpy(draw_info->transform_matrix, id_matrix, sizeof(draw_info->transform_matrix));
+
 restore:
     /* Restore previous 2D state */
     ngli_darray_reset(&ctx->transform_2d_stack);
@@ -182,5 +190,6 @@ const struct node_class ngli_canvas_class = {
     .uninit    = canvas_uninit,
     .opts_size = sizeof(struct canvas_opts),
     .params    = canvas_params,
+    .flags     = NGLI_NODE_FLAG_BOUNDS,
     .file      = __FILE__,
 };

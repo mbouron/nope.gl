@@ -164,6 +164,7 @@ inc_dir = include_directories(
 
 lib_version = '0.0.0'
 lib_src = files(
+  'src/aabb.c',
   'src/animation.c',
   'src/api.c',
   'src/atlas.c',
