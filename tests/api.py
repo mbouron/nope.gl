@@ -39,6 +39,10 @@ _backend_str = os.environ.get("BACKEND")
 _backend = get_backend(_backend_str) if _backend_str else ngl.Backend.AUTO
 
 
+def _is_close(a, b, tol=1):
+    return abs(a - b) <= tol
+
+
 def _get_scene():
     return ngl.Scene.from_params(ngl.DrawColor(geometry=ngl.Quad()))
 
@@ -739,3 +743,574 @@ def api_update_with_timeranges(width=320, height=240):
 
     assert ctx.draw(0.0) == 0
     assert initial_hash == hashlib.md5(capture_buffer).hexdigest()
+
+
+def api_bounding_box_before_draw(width=256, height=256):
+    """Test that bounding box and transform APIs do not crash before the graph is initialized"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(0, 0, 100, 80), fill=fill, label="rect")
+    group = ngl.Group2D(children=[rect], translate=(50, 30), label="group")
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    # Query before set_scene: should return zeros without crashing
+    box = rect.get_bounding_box()
+    assert box["center"] == (0.0, 0.0)
+    assert box["extent"] == (0.0, 0.0)
+
+    pos = rect.get_global_position()
+    assert pos == (0.0, 0.0)
+
+    rot = rect.get_global_rotation()
+    assert rot == 0.0
+
+    scl = rect.get_global_scale()
+    assert scl == (0.0, 0.0)
+
+    m = rect.get_global_transform_matrix()
+    assert all(v == 0.0 for v in m)
+
+    # Same for group and canvas
+    box = group.get_bounding_box()
+    assert box["center"] == (0.0, 0.0)
+    box = canvas.get_bounding_box()
+    assert box["center"] == (0.0, 0.0)
+
+    # Query after set_scene but before draw: should still return zeros
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    box = rect.get_bounding_box()
+    assert box["center"] == (0.0, 0.0)
+
+    pos = group.get_global_position()
+    assert pos == (0.0, 0.0)
+
+    # After draw: should return actual values
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # rect (0,0,100,80) translated by (50,30): center=(100,70), extent=(50,40)
+    box = rect.get_bounding_box()
+    assert _is_close(box["center"][0], 100), f"center_x: {box['center'][0]} != 100"
+    assert _is_close(box["center"][1], 70), f"center_y: {box['center'][1]} != 70"
+    assert _is_close(box["extent"][0], 50), f"extent_x: {box['extent'][0]} != 50"
+    assert _is_close(box["extent"][1], 40), f"extent_y: {box['extent'][1]} != 40"
+
+    # group and canvas should have the same bounding box as the rect
+    gbox = group.get_bounding_box()
+    assert _is_close(gbox["center"][0], 100), f"group center_x: {gbox['center'][0]} != 100"
+    assert _is_close(gbox["center"][1], 70), f"group center_y: {gbox['center'][1]} != 70"
+    assert _is_close(gbox["extent"][0], 50), f"group extent_x: {gbox['extent'][0]} != 50"
+    assert _is_close(gbox["extent"][1], 40), f"group extent_y: {gbox['extent'][1]} != 40"
+
+    cbox = canvas.get_bounding_box()
+    assert _is_close(cbox["center"][0], 100), f"canvas center_x: {cbox['center'][0]} != 100"
+    assert _is_close(cbox["center"][1], 70), f"canvas center_y: {cbox['center'][1]} != 70"
+    assert _is_close(cbox["extent"][0], 50), f"canvas extent_x: {cbox['extent'][0]} != 50"
+    assert _is_close(cbox["extent"][1], 40), f"canvas extent_y: {cbox['extent'][1]} != 40"
+
+    pos = group.get_global_position()
+    assert _is_close(pos[0], 50), f"position_x: {pos[0]} != 50"
+    assert _is_close(pos[1], 30), f"position_y: {pos[1]} != 30"
+
+    ctx.set_scene(None)
+
+
+def api_bounding_box(width=256, height=256):
+    """Test the bounding box API with cascading 2D transforms"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.5, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(0, 0, 100, 80), fill=fill, label="rect")
+    group = ngl.Group2D(children=[rect], translate=(50, 30), label="group")
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    def check_bbox(node, expected_center, expected_extent):
+        box = node.get_bounding_box()
+        assert _is_close(box["center"][0], expected_center[0]), f"center_x: {box['center'][0]} != {expected_center[0]}"
+        assert _is_close(box["center"][1], expected_center[1]), f"center_y: {box['center'][1]} != {expected_center[1]}"
+        assert _is_close(box["extent"][0], expected_extent[0]), f"extent_x: {box['extent'][0]} != {expected_extent[0]}"
+        assert _is_close(box["extent"][1], expected_extent[1]), f"extent_y: {box['extent'][1]} != {expected_extent[1]}"
+
+    # DrawRect: translated by (50,30), so center = (50+50, 30+40) = (100, 70), extent = (50, 40)
+    check_bbox(rect, (100, 70), (50, 40))
+
+    # Group2D: same as its only child
+    check_bbox(group, (100, 70), (50, 40))
+
+    # Canvas: same as its only child
+    check_bbox(canvas, (100, 70), (50, 40))
+
+    ctx.set_scene(None)
+
+
+def api_bounding_box_drawrect(width=256, height=256):
+    """Test the bounding box API with a scaled DrawRect"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(0, 0, 100, 80), fill=fill, label="rect")
+    group = ngl.Group2D(children=[rect], scale=(2.0, 0.5), anchor=(0, 0))
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # rect (0,0,100,80) scaled by (2.0, 0.5) around anchor (0,0)
+    # center = (100*2/2, 80*0.5/2) = (100, 20), extent = (100, 20)
+    box = rect.get_bounding_box()
+    assert _is_close(box["center"][0], 100), f"center_x: {box['center'][0]} != 100"
+    assert _is_close(box["center"][1], 20), f"center_y: {box['center'][1]} != 20"
+    assert _is_close(box["extent"][0], 100), f"extent_x: {box['extent'][0]} != 100"
+    assert _is_close(box["extent"][1], 20), f"extent_y: {box['extent'][1]} != 20"
+
+    # Group2D and Canvas should have the same AABB
+    gbox = group.get_bounding_box()
+    assert _is_close(gbox["center"][0], 100), f"group center_x: {gbox['center'][0]} != 100"
+    assert _is_close(gbox["center"][1], 20), f"group center_y: {gbox['center'][1]} != 20"
+    assert _is_close(gbox["extent"][0], 100), f"group extent_x: {gbox['extent'][0]} != 100"
+    assert _is_close(gbox["extent"][1], 20), f"group extent_y: {gbox['extent'][1]} != 20"
+
+    cbox = canvas.get_bounding_box()
+    assert _is_close(cbox["center"][0], 100), f"canvas center_x: {cbox['center'][0]} != 100"
+    assert _is_close(cbox["center"][1], 20), f"canvas center_y: {cbox['center'][1]} != 20"
+    assert _is_close(cbox["extent"][0], 100), f"canvas extent_x: {cbox['extent'][0]} != 100"
+    assert _is_close(cbox["extent"][1], 20), f"canvas extent_y: {cbox['extent'][1]} != 20"
+
+    ctx.set_scene(None)
+
+
+def api_bounding_box_multiple_children(width=256, height=256):
+    """Test the bounding box union with multiple children"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    # Two non-overlapping rects:
+    # r0 at (10, 20, 40, 30) → center=(30, 35), extent=(20, 15), spans x=[10,50], y=[20,50]
+    # r1 at (100, 80, 60, 40) → center=(130, 100), extent=(30, 20), spans x=[100,160], y=[80,120]
+    r0 = ngl.DrawRect(rect=(10, 20, 40, 30), fill=fill, label="r0")
+    r1 = ngl.DrawRect(rect=(100, 80, 60, 40), fill=fill, label="r1")
+    group = ngl.Group2D(children=[r0, r1], label="group")
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # Individual rects
+    box0 = r0.get_bounding_box()
+    assert _is_close(box0["center"][0], 30), f"r0 center_x: {box0['center'][0]} != 30"
+    assert _is_close(box0["center"][1], 35), f"r0 center_y: {box0['center'][1]} != 35"
+    assert _is_close(box0["extent"][0], 20), f"r0 extent_x: {box0['extent'][0]} != 20"
+    assert _is_close(box0["extent"][1], 15), f"r0 extent_y: {box0['extent'][1]} != 15"
+
+    box1 = r1.get_bounding_box()
+    assert _is_close(box1["center"][0], 130), f"r1 center_x: {box1['center'][0]} != 130"
+    assert _is_close(box1["center"][1], 100), f"r1 center_y: {box1['center'][1]} != 100"
+    assert _is_close(box1["extent"][0], 30), f"r1 extent_x: {box1['extent'][0]} != 30"
+    assert _is_close(box1["extent"][1], 20), f"r1 extent_y: {box1['extent'][1]} != 20"
+
+    # Union: x=[10,160] → center_x=85, extent_x=75; y=[20,120] → center_y=70, extent_y=50
+    gbox = group.get_bounding_box()
+    assert _is_close(gbox["center"][0], 85), f"group center_x: {gbox['center'][0]} != 85"
+    assert _is_close(gbox["center"][1], 70), f"group center_y: {gbox['center'][1]} != 70"
+    assert _is_close(gbox["extent"][0], 75), f"group extent_x: {gbox['extent'][0]} != 75"
+    assert _is_close(gbox["extent"][1], 50), f"group extent_y: {gbox['extent'][1]} != 50"
+
+    cbox = canvas.get_bounding_box()
+    assert _is_close(cbox["center"][0], 85), f"canvas center_x: {cbox['center'][0]} != 85"
+    assert _is_close(cbox["center"][1], 70), f"canvas center_y: {cbox['center'][1]} != 70"
+    assert _is_close(cbox["extent"][0], 75), f"canvas extent_x: {cbox['extent'][0]} != 75"
+    assert _is_close(cbox["extent"][1], 50), f"canvas extent_y: {cbox['extent'][1]} != 50"
+
+    ctx.set_scene(None)
+
+
+def api_bounding_box_intersection(width=256, height=256):
+    """Test the node intersection API with a rotated DrawRect"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.5, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(78, 78, 100, 100), fill=fill, label="target")
+    canvas = ngl.Canvas(children=[rect], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # Center of rect (128, 128) should intersect
+    nodes = ctx.get_nodes_at_point((128, 128))
+    assert len(nodes) > 0, "center of rect should intersect"
+
+    # Inside the rect
+    nodes = ctx.get_nodes_at_point((100, 100))
+    assert len(nodes) > 0, "inside rect should intersect"
+
+    # Outside the rect
+    nodes = ctx.get_nodes_at_point((10, 10))
+    assert len(nodes) == 0, "outside rect should not intersect"
+
+    ctx.set_scene(None)
+
+
+def api_bounding_box_rotation(width=256, height=256):
+    """Test the bounding box API with a 90° rotated DrawRect"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    # 200x100 rect at origin, rotated 90° around its center (100, 50)
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(0, 0, 200, 100), fill=fill, label="rect")
+    group = ngl.Group2D(children=[rect], rotation=90.0, anchor=(100, 50))
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # After 90° rotation of a 200x100 rect around its center (100, 50):
+    # The AABB should swap width/height: center stays (100, 50), extent becomes (50, 100)
+    box = rect.get_bounding_box()
+    assert _is_close(box["center"][0], 100), f"center_x: {box['center'][0]} != 100"
+    assert _is_close(box["center"][1], 50), f"center_y: {box['center'][1]} != 50"
+    assert _is_close(box["extent"][0], 50), f"extent_x: {box['extent'][0]} != 50"
+    assert _is_close(box["extent"][1], 100), f"extent_y: {box['extent'][1]} != 100"
+
+    # Group2D and Canvas should have the same AABB
+    gbox = group.get_bounding_box()
+    assert _is_close(gbox["center"][0], 100), f"group center_x: {gbox['center'][0]} != 100"
+    assert _is_close(gbox["extent"][0], 50), f"group extent_x: {gbox['extent'][0]} != 50"
+    assert _is_close(gbox["extent"][1], 100), f"group extent_y: {gbox['extent'][1]} != 100"
+
+    ctx.set_scene(None)
+
+
+def api_bounding_box_intersection_rotated(width=256, height=256):
+    """Test hit-testing with a 45° rotated DrawRect (diamond shape)"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    # 100x100 square centered at (128, 128), rotated 45° → diamond shape
+    fill = ngl.ColorFill(color=(1.0, 0.5, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(78, 78, 100, 100), fill=fill, label="diamond")
+    group = ngl.Group2D(children=[rect], rotation=45.0, anchor=(128, 128))
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # Center of diamond should hit
+    nodes = ctx.get_nodes_at_point((128, 128))
+    assert len(nodes) > 0, "center should intersect"
+
+    # Point along the diagonal (still inside the rotated square)
+    nodes = ctx.get_nodes_at_point((128, 80))
+    assert len(nodes) > 0, "along diamond axis should intersect"
+
+    # Inside the AABB but outside the rotated square
+    nodes = ctx.get_nodes_at_point((60, 80))
+    assert len(nodes) == 0, "inside AABB but outside rotated square should not intersect"
+
+    # Outside everything
+    nodes = ctx.get_nodes_at_point((10, 10))
+    assert len(nodes) == 0, "far outside should not intersect"
+
+    ctx.set_scene(None)
+
+
+def _decompose_transform(matrix):
+    """Decompose a 2D TRS 4x4 column-major matrix into position, rotation, scale"""
+    # Column-major: m[0],m[1] = first column, m[4],m[5] = second column, m[12],m[13] = translation
+    sx = math.sqrt(matrix[0] ** 2 + matrix[1] ** 2)
+    sy = math.sqrt(matrix[4] ** 2 + matrix[5] ** 2)
+    rotation = math.degrees(math.atan2(matrix[1], matrix[0]))
+    position = (matrix[12], matrix[13])
+    return position, rotation, (sx, sy)
+
+
+def api_transform_matrix(width=256, height=256):
+    """Test the transform matrix API with translate + rotation + scale"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(0, 0, 100, 80), fill=fill, label="rect")
+    group = ngl.Group2D(
+        children=[rect],
+        translate=(50, 30),
+        rotation=45.0,
+        scale=(2.0, 0.5),
+        anchor=(0, 0),
+        label="group",
+    )
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # Canvas transform should be identity
+    m = canvas.get_global_transform_matrix()
+    assert _is_close(m[0], 1) and _is_close(m[5], 1), f"canvas should be identity: {m}"
+
+    # Group2D: translate=(50,30), rotation=45°, scale=(2.0, 0.5), anchor=(0,0)
+    m = group.get_global_transform_matrix()
+    position, rotation, scale = _decompose_transform(m)
+    assert _is_close(position[0], 50), f"group position_x: {position[0]} != 50"
+    assert _is_close(position[1], 30), f"group position_y: {position[1]} != 30"
+    assert _is_close(rotation, 45), f"group rotation: {rotation} != 45"
+    assert _is_close(scale[0] * 10, 20), f"group scale_x: {scale[0]} != 2.0"
+    assert _is_close(scale[1] * 10, 5), f"group scale_y: {scale[1]} != 0.5"
+
+    # DrawRect: same accumulated transform as Group2D (DrawRect has no own TRS)
+    m_rect = rect.get_global_transform_matrix()
+    position_r, rotation_r, scale_r = _decompose_transform(m_rect)
+    assert _is_close(position_r[0], 50), f"rect position_x: {position_r[0]} != 50"
+    assert _is_close(rotation_r, 45), f"rect rotation: {rotation_r} != 45"
+    assert _is_close(scale_r[0] * 10, 20), f"rect scale_x: {scale_r[0]} != 2.0"
+
+    ctx.set_scene(None)
+
+
+def api_transform_matrix_nested(width=256, height=256):
+    """Test the transform matrix API with nested Group2D transforms"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(0, 0, 50, 50), fill=fill, label="rect")
+
+    # Inner group: translate by (10, 20)
+    inner = ngl.Group2D(children=[rect], translate=(10, 20), label="inner")
+    # Outer group: translate by (100, 50)
+    outer = ngl.Group2D(children=[inner], translate=(100, 50), label="outer")
+    canvas = ngl.Canvas(children=[outer], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # Outer group: position should be (100, 50)
+    m = outer.get_global_transform_matrix()
+    position, _, _ = _decompose_transform(m)
+    assert _is_close(position[0], 100), f"outer position_x: {position[0]} != 100"
+    assert _is_close(position[1], 50), f"outer position_y: {position[1]} != 50"
+
+    # Inner group: accumulated position should be (110, 70)
+    m = inner.get_global_transform_matrix()
+    position, _, _ = _decompose_transform(m)
+    assert _is_close(position[0], 110), f"inner position_x: {position[0]} != 110"
+    assert _is_close(position[1], 70), f"inner position_y: {position[1]} != 70"
+
+    # DrawRect: same accumulated transform as inner group
+    m = rect.get_global_transform_matrix()
+    position, _, _ = _decompose_transform(m)
+    assert _is_close(position[0], 110), f"rect position_x: {position[0]} != 110"
+    assert _is_close(position[1], 70), f"rect position_y: {position[1]} != 70"
+
+    ctx.set_scene(None)
+
+
+def api_transform_matrix_rotation_stability(width=256, height=256):
+    """Test that rotation round-trips through the transform matrix for all angles"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(0, 0, 100, 80), fill=fill, label="rect")
+    group = ngl.Group2D(children=[rect], anchor=(0, 0), label="group")
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    for angle in range(-180, 181, 15):
+        group.set_rotation(float(angle))
+        ret = ctx.draw(0.0)
+        assert ret == 0
+
+        rotation = group.get_global_rotation()
+        # Compare using angular difference (handles ±180° wrap)
+        diff = (rotation - angle + 180) % 360 - 180
+        assert abs(diff) < 0.1, f"angle={angle}: got rotation={rotation:.2f} (diff={diff:.2f})"
+
+
+def api_global_transform_getters(width=256, height=256):
+    """Test the convenience getters for global position, rotation, scale"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    rect = ngl.DrawRect(rect=(0, 0, 100, 80), fill=fill, label="rect")
+    group = ngl.Group2D(
+        children=[rect],
+        translate=(50, 30),
+        rotation=30.0,
+        scale=(2.0, 0.5),
+        anchor=(0, 0),
+        label="group",
+    )
+    canvas = ngl.Canvas(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    # Canvas: identity transform
+    pos = canvas.get_global_position()
+    rot = canvas.get_global_rotation()
+    scl = canvas.get_global_scale()
+    assert _is_close(pos[0], 0) and _is_close(pos[1], 0), f"canvas position: {pos}"
+    assert _is_close(rot, 0), f"canvas rotation: {rot}"
+    assert _is_close(scl[0], 1) and _is_close(scl[1], 1), f"canvas scale: {scl}"
+
+    # Group2D: translate=(50,30), rotation=30, scale=(2.0, 0.5)
+    pos = group.get_global_position()
+    rot = group.get_global_rotation()
+    scl = group.get_global_scale()
+    assert _is_close(pos[0], 50), f"group position_x: {pos[0]} != 50"
+    assert _is_close(pos[1], 30), f"group position_y: {pos[1]} != 30"
+    assert _is_close(rot, 30), f"group rotation: {rot} != 30"
+    assert _is_close(scl[0] * 10, 20), f"group scale_x: {scl[0]} != 2.0"
+    assert _is_close(scl[1] * 10, 5), f"group scale_y: {scl[1]} != 0.5"
+
+    # DrawRect: inherits group transform (no own TRS)
+    pos = rect.get_global_position()
+    rot = rect.get_global_rotation()
+    scl = rect.get_global_scale()
+    assert _is_close(pos[0], 50), f"rect position_x: {pos[0]} != 50"
+    assert _is_close(pos[1], 30), f"rect position_y: {pos[1]} != 30"
+    assert _is_close(rot, 30), f"rect rotation: {rot} != 30"
+    assert _is_close(scl[0] * 10, 20), f"rect scale_x: {scl[0]} != 2.0"
+
+    ctx.set_scene(None)

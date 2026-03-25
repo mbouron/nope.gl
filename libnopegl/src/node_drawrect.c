@@ -23,6 +23,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "aabb.h"
 #include "blending.h"
 #include "geometry.h"
 #include "internal.h"
@@ -161,6 +162,7 @@ struct drawrect_opts {
 };
 
 struct drawrect_priv {
+    struct draw_info draw_info;
     struct ngpu_pgcraft_attribute position_attr;
     struct ngpu_pgcraft_attribute uvcoord_attr;
     uint32_t nb_vertices;
@@ -340,6 +342,13 @@ static int drawrect_init(struct ngl_node *node)
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct drawrect_priv *s = node->priv_data;
     const struct drawrect_opts *o = node->opts;
+
+    const float half_width = o->rect[2] / 2.0f;
+    const float half_height = o->rect[3] / 2.0f;
+    s->draw_info.aabb = (struct aabb) {
+        .center = {o->rect[0] + half_width, o->rect[1] + half_height, 0.0f, 1.0f},
+        .extent = {half_width, half_height},
+    };
 
     const struct fill_info *fi = (const struct fill_info *)o->fill_node->priv_data;
     s->fill_info = fi;
@@ -821,6 +830,10 @@ static void drawrect_draw(struct ngl_node *node)
     struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
+    struct draw_info *draw_info = &s->draw_info;
+    memcpy(draw_info->transform_matrix, modelview_matrix, sizeof(draw_info->transform_matrix));
+    draw_info->screen_aabb = ngli_aabb_apply_transform(&draw_info->aabb, modelview_matrix);
+
     ngli_pipeline_compat_update_uniform(pl_compat, s->modelview_matrix_index, modelview_matrix);
     ngli_pipeline_compat_update_uniform(pl_compat, s->projection_matrix_index, ctx->projection_2d_matrix);
 
@@ -989,5 +1002,6 @@ const struct node_class ngli_drawrect_class = {
     .opts_size = sizeof(struct drawrect_opts),
     .priv_size = sizeof(struct drawrect_priv),
     .params    = drawrect_params,
+    .flags     = NGLI_NODE_FLAG_BOUNDS,
     .file      = __FILE__,
 };

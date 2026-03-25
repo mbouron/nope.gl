@@ -38,6 +38,7 @@ struct group2d_opts {
 };
 
 struct group2d_priv {
+    struct draw_info draw_info;
     struct darray indices;
 };
 
@@ -185,6 +186,12 @@ static void group2d_draw(struct ngl_node *node)
     }
     ctx->rnode_pos = rnode_pos;
 
+    /* Compute union bounding box from children */
+    struct draw_info *draw_info = &s->draw_info;
+    draw_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
+
+    memcpy(draw_info->transform_matrix, next_matrix, sizeof(draw_info->transform_matrix));
+
     /* Pop the 2D stacks */
     ngli_darray_pop(&ctx->opacity_2d_stack);
     ngli_darray_pop(&ctx->transform_2d_stack);
@@ -208,5 +215,6 @@ const struct node_class ngli_group2d_class = {
     .uninit    = group2d_uninit,
     .opts_size = sizeof(struct group2d_opts),
     .params    = group2d_params,
+    .flags     = NGLI_NODE_FLAG_BOUNDS,
     .file      = __FILE__,
 };

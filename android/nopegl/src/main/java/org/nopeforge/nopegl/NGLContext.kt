@@ -60,6 +60,13 @@ class NGLContext {
         return nativeSetCaptureBuffer(nativePtr, buffer)
     }
 
+    fun getNodesAtPoint(point: android.graphics.PointF): List<NGLNode> {
+        val pointers = nativeNodesAtPoint(nativePtr, point.x, point.y)
+            ?.toList()
+            .orEmpty()
+        return pointers.map { pointer -> NGLNode(pointer, false) }
+    }
+
     fun release() {
         if (nativePtr != 0L) {
             nativeRelease(nativePtr)
@@ -128,4 +135,5 @@ class NGLContext {
 
     private external fun nativeSetCaptureBuffer(nativePtr: Long, buffer: ByteBuffer): Int
     private external fun nativeRelease(nativePtr: Long)
+    private external fun nativeNodesAtPoint(nativePtr: Long, x: Float, y: Float): LongArray?
 }

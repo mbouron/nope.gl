@@ -10,9 +10,13 @@ import android.test.mock.MockContentResolver
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.abs
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -397,6 +401,256 @@ class NopeGLTest {
             System.gc()
             i++
         }
+
+        ctx.release()
+    }
+
+    private fun isClose(a: Float, b: Float, tol: Float = 1.0f): Boolean {
+        return abs(a - b) <= tol
+    }
+
+    @Test
+    fun globalTransformGetters() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val rect = NGLDrawRect(rect = NGLVec4(0.0f, 0.0f, 100.0f, 80.0f), fill = fill, label = "rect")
+        val group = NGLGroup2D(
+            children = listOf(rect),
+            translate = NGLVec2(50.0f, 30.0f),
+            rotation = 45.0f,
+            scale = NGLVec2(2.0f, 0.5f),
+            anchor = NGLVec2(0.0f, 0.0f),
+            label = "group",
+        )
+        val canvas = NGLCanvas(children = listOf(group), width = width, height = height)
+
+        val scene = NGLScene(rootNode = canvas, width = width, height = height)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply { setScene(scene) }
+        ctx.draw(0.0)
+
+        // Group2D position
+        val pos = group.getGlobalPosition()
+        assertNotNull(pos)
+        assertTrue("position_x", isClose(pos!![0], 50.0f))
+        assertTrue("position_y", isClose(pos[1], 30.0f))
+
+        // Group2D rotation
+        val rot = group.getGlobalRotation()
+        assertTrue("rotation", isClose(rot, 45.0f))
+
+        // Group2D scale
+        val scl = group.getGlobalScale()
+        assertNotNull(scl)
+        assertTrue("scale_x", isClose(scl!![0] * 10, 20.0f))
+        assertTrue("scale_y", isClose(scl[1] * 10, 5.0f))
+
+        // Transform matrix
+        val matrix = group.getGlobalTransformMatrix()
+        assertNotNull(matrix)
+        assertEquals(16, matrix!!.size)
+
+        ctx.release()
+    }
+
+    @Test
+    fun globalRotationStability() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val rect = NGLDrawRect(rect = NGLVec4(0.0f, 0.0f, 100.0f, 80.0f), fill = fill)
+        val group = NGLGroup2D(children = listOf(rect), anchor = NGLVec2(0.0f, 0.0f))
+        val canvas = NGLCanvas(children = listOf(group), width = width, height = height)
+
+        val scene = NGLScene(rootNode = canvas, width = width, height = height)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply { setScene(scene) }
+
+        for (angle in -180..180 step 15) {
+            group.setRotation(angle.toFloat())
+            ctx.draw(0.0)
+
+            val rotation = group.getGlobalRotation()
+            val diff = ((rotation - angle + 180) % 360) - 180
+            assertTrue(
+                "angle=$angle: got rotation=$rotation (diff=$diff)",
+                abs(diff) < 0.1f
+            )
+        }
+
+        ctx.release()
+    }
+
+    @Test
+    fun boundingBox() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val rect = NGLDrawRect(rect = NGLVec4(0.0f, 0.0f, 100.0f, 80.0f), fill = fill, label = "rect")
+        val group = NGLGroup2D(children = listOf(rect), translate = NGLVec2(50.0f, 30.0f), label = "group")
+        val canvas = NGLCanvas(children = listOf(group), width = width, height = height)
+
+        val scene = NGLScene(rootNode = canvas, width = width, height = height)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply { setScene(scene) }
+        ctx.draw(0.0)
+
+        // DrawRect: translated by (50,30), center=(100,70), extent=(50,40)
+        val box = rect.getBoundingBox()
+        assertNotNull(box)
+        assertTrue("center_x", isClose(box!!.centerX, 100.0f))
+        assertTrue("center_y", isClose(box.centerY, 70.0f))
+        assertTrue("extent_w", isClose(box.extentWidth, 50.0f))
+        assertTrue("extent_h", isClose(box.extentHeight, 40.0f))
+
+        // Group2D should have the same AABB
+        val gbox = group.getBoundingBox()
+        assertNotNull(gbox)
+        assertTrue("group center_x", isClose(gbox!!.centerX, 100.0f))
+        assertTrue("group extent_w", isClose(gbox.extentWidth, 50.0f))
+
+        ctx.release()
+    }
+
+    @Test
+    fun boundingBoxBeforeDraw() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val rect = NGLDrawRect(rect = NGLVec4(0.0f, 0.0f, 100.0f, 80.0f), fill = fill)
+        val group = NGLGroup2D(children = listOf(rect), translate = NGLVec2(50.0f, 30.0f))
+        val canvas = NGLCanvas(children = listOf(group), width = width, height = height)
+
+        // Before set_scene: should return zeros without crashing
+        val boxBefore = rect.getBoundingBox()
+        assertNotNull(boxBefore)
+        assertTrue("before: center_x", isClose(boxBefore!!.centerX, 0.0f))
+        assertTrue("before: extent_w", isClose(boxBefore.extentWidth, 0.0f))
+
+        val scene = NGLScene(rootNode = canvas, width = width, height = height)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply { setScene(scene) }
+
+        // After set_scene but before draw: still zeros
+        val boxAfterScene = rect.getBoundingBox()
+        assertNotNull(boxAfterScene)
+        assertTrue("after scene: center_x", isClose(boxAfterScene!!.centerX, 0.0f))
+
+        ctx.draw(0.0)
+
+        // After draw: rect (0,0,100,80) translated by (50,30) → center=(100,70), extent=(50,40)
+        val box = rect.getBoundingBox()
+        assertNotNull(box)
+        assertTrue("center_x", isClose(box!!.centerX, 100.0f))
+        assertTrue("center_y", isClose(box.centerY, 70.0f))
+        assertTrue("extent_w", isClose(box.extentWidth, 50.0f))
+        assertTrue("extent_h", isClose(box.extentHeight, 40.0f))
+
+        val gbox = group.getBoundingBox()
+        assertNotNull(gbox)
+        assertTrue("group center_x", isClose(gbox!!.centerX, 100.0f))
+        assertTrue("group center_y", isClose(gbox.centerY, 70.0f))
+        assertTrue("group extent_w", isClose(gbox.extentWidth, 50.0f))
+        assertTrue("group extent_h", isClose(gbox.extentHeight, 40.0f))
+
+        val pos = group.getGlobalPosition()
+        assertNotNull(pos)
+        assertTrue("position_x", isClose(pos!![0], 50.0f))
+        assertTrue("position_y", isClose(pos[1], 30.0f))
+
+        ctx.release()
+    }
+
+    @Test
+    fun boundingBoxMultipleChildren() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        // r0 at (10,20,40,30) → center=(30,35), extent=(20,15), spans x=[10,50], y=[20,50]
+        // r1 at (100,80,60,40) → center=(130,100), extent=(30,20), spans x=[100,160], y=[80,120]
+        val r0 = NGLDrawRect(rect = NGLVec4(10.0f, 20.0f, 40.0f, 30.0f), fill = fill)
+        val r1 = NGLDrawRect(rect = NGLVec4(100.0f, 80.0f, 60.0f, 40.0f), fill = fill)
+        val group = NGLGroup2D(children = listOf(r0, r1))
+        val canvas = NGLCanvas(children = listOf(group), width = width, height = height)
+
+        val scene = NGLScene(rootNode = canvas, width = width, height = height)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply { setScene(scene) }
+        ctx.draw(0.0)
+
+        val box0 = r0.getBoundingBox()
+        assertNotNull(box0)
+        assertTrue("r0 center_x", isClose(box0!!.centerX, 30.0f))
+        assertTrue("r0 center_y", isClose(box0.centerY, 35.0f))
+        assertTrue("r0 extent_w", isClose(box0.extentWidth, 20.0f))
+        assertTrue("r0 extent_h", isClose(box0.extentHeight, 15.0f))
+
+        val box1 = r1.getBoundingBox()
+        assertNotNull(box1)
+        assertTrue("r1 center_x", isClose(box1!!.centerX, 130.0f))
+        assertTrue("r1 center_y", isClose(box1.centerY, 100.0f))
+        assertTrue("r1 extent_w", isClose(box1.extentWidth, 30.0f))
+        assertTrue("r1 extent_h", isClose(box1.extentHeight, 20.0f))
+
+        // Union: x=[10,160] → center_x=85, extent_x=75; y=[20,120] → center_y=70, extent_y=50
+        val gbox = group.getBoundingBox()
+        assertNotNull(gbox)
+        assertTrue("group center_x", isClose(gbox!!.centerX, 85.0f))
+        assertTrue("group center_y", isClose(gbox.centerY, 70.0f))
+        assertTrue("group extent_w", isClose(gbox.extentWidth, 75.0f))
+        assertTrue("group extent_h", isClose(gbox.extentHeight, 50.0f))
+
+        val cbox = canvas.getBoundingBox()
+        assertNotNull(cbox)
+        assertTrue("canvas center_x", isClose(cbox!!.centerX, 85.0f))
+        assertTrue("canvas center_y", isClose(cbox.centerY, 70.0f))
+        assertTrue("canvas extent_w", isClose(cbox.extentWidth, 75.0f))
+        assertTrue("canvas extent_h", isClose(cbox.extentHeight, 50.0f))
+
+        ctx.release()
+    }
+
+    @Test
+    fun boundingBoxRotation() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        // 200x100 rect rotated 90° around its center (100, 50)
+        val rect = NGLDrawRect(rect = NGLVec4(0.0f, 0.0f, 200.0f, 100.0f), fill = fill)
+        val group = NGLGroup2D(children = listOf(rect), rotation = 90.0f, anchor = NGLVec2(100.0f, 50.0f))
+        val canvas = NGLCanvas(children = listOf(group), width = width, height = height)
+
+        val scene = NGLScene(rootNode = canvas, width = width, height = height)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply { setScene(scene) }
+        ctx.draw(0.0)
+
+        // After 90° rotation: AABB swaps width/height → center=(100,50), extent=(50,100)
+        val box = rect.getBoundingBox()
+        assertNotNull(box)
+        assertTrue("center_x", isClose(box!!.centerX, 100.0f))
+        assertTrue("center_y", isClose(box.centerY, 50.0f))
+        assertTrue("extent_w", isClose(box.extentWidth, 50.0f))
+        assertTrue("extent_h", isClose(box.extentHeight, 100.0f))
+
+        val gbox = group.getBoundingBox()
+        assertNotNull(gbox)
+        assertTrue("group center_x", isClose(gbox!!.centerX, 100.0f))
+        assertTrue("group extent_w", isClose(gbox.extentWidth, 50.0f))
+        assertTrue("group extent_h", isClose(gbox.extentHeight, 100.0f))
 
         ctx.release()
     }

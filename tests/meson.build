@@ -87,6 +87,17 @@ foreach backend : backends
     'viewport',
     'transform_chain_check',
     'update_with_timeranges',
+    'bounding_box_before_draw',
+    'bounding_box',
+    'bounding_box_drawrect',
+    'bounding_box_multiple_children',
+    'bounding_box_intersection',
+    'bounding_box_rotation',
+    'bounding_box_intersection_rotated',
+    'transform_matrix',
+    'transform_matrix_nested',
+    'transform_matrix_rotation_stability',
+    'global_transform_getters',
   ]
   if has_text_libraries
     tests_api += 'text_live_change_with_font'

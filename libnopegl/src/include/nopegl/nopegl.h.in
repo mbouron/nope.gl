@@ -628,6 +628,26 @@ NGL_API int ngl_node_get_type(struct ngl_node *node, uint32_t *type);
 NGL_API int ngl_node_get_label(struct ngl_node *node, const char **label);
 
 /**
+ * Bounding box
+ */
+
+struct ngl_bounding_box {
+    float center[2];
+    float extent[2];
+};
+
+NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding_box *box);
+
+/**
+ * Global transform (accumulated from parent hierarchy)
+ */
+
+NGL_API int ngl_node_get_global_transform_matrix(struct ngl_node *node, float *matrix);
+NGL_API int ngl_node_get_global_position(struct ngl_node *node, float *position);
+NGL_API int ngl_node_get_global_rotation(struct ngl_node *node, float *rotation);
+NGL_API int ngl_node_get_global_scale(struct ngl_node *node, float *scale);
+
+/**
  * TimeRangeFilter
  */
 
@@ -1013,6 +1033,18 @@ NGL_API int ngl_update(struct ngl_ctx *s, double t);
  * @return 0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_draw(struct ngl_ctx *s, double t);
+
+/**
+ * Return the nodes at the specified point. Must be called after a draw. The
+ * returned array is valid until the next draw.
+ *
+ * @param s           context to query
+ * @param point       2D point coordinates (x, y) in pixel space, (0, 0) at top-left
+ * @param nb_nodesp   returned number of nodes at the point
+ * @param nodesp      returned array of nodes at the point (do not free)
+ * @return            0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t *nb_nodesp, struct ngl_node ***nodesp);
 
 /**
  * Serialize the current scene in Graphviz format (.dot) a node graph at the
