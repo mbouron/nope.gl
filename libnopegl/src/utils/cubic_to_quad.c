@@ -39,7 +39,7 @@
  * Each midpoint subdivision divides d by 8, so the error scales by 1/8 per
  * subdivision level.
  */
-static float compute_max_error(const struct point cubic[4])
+static float compute_max_error(const struct point *cubic)
 {
     const float dx = -cubic[0].x + 3.f * cubic[1].x - 3.f * cubic[2].x + cubic[3].x;
     const float dy = -cubic[0].y + 3.f * cubic[1].y - 3.f * cubic[2].y + cubic[3].y;
@@ -47,7 +47,7 @@ static float compute_max_error(const struct point cubic[4])
     return sqrtf(dx * dx + dy * dy) * k;
 }
 
-int cubic_compute_subdivision_count(const struct point cubic[4], float tolerance)
+int cubic_compute_subdivision_count(const struct point *cubic, float tolerance)
 {
     if (tolerance <= 0.f)
         return 0;
