@@ -24,6 +24,7 @@
 #define NODES_REGISTER_H
 
 #define NODE_MAP_TYPE2CLASS(action)                                             \
+    action(NGL_NODE_AFFINETRANSFORM,        ngli_affinetransform_class)         \
     action(NGL_NODE_ANIMATEDBUFFERFLOAT,    ngli_animatedbufferfloat_class)     \
     action(NGL_NODE_ANIMATEDBUFFERVEC2,     ngli_animatedbuffervec2_class)      \
     action(NGL_NODE_ANIMATEDBUFFERVEC3,     ngli_animatedbuffervec3_class)      \

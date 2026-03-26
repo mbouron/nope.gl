@@ -85,7 +85,7 @@ def texteffect_transform(cfg: ngl.SceneCfg):
         ngl.AnimKeyFrameVec3(0, (0.0, 1.5, 0.0)),
         ngl.AnimKeyFrameVec3(1, (0.0, 0.0, 0.0), "bounce_out"),
     ]
-    bounce_down = ngl.Translate(ngl.Identity(), vector=ngl.AnimatedVec3(animkf))
+    bounce_down = ngl.AffineTransform(translate=ngl.AnimatedVec3(animkf))
     effects = [
         ngl.TextEffect(
             start=0,
@@ -110,7 +110,7 @@ def texteffect_scale(cfg: ngl.SceneCfg):
         ngl.AnimKeyFrameVec3(0, (0.0, 0.0, 1.0)),
         ngl.AnimKeyFrameVec3(1, (1.0, 1.0, 1.0), "bounce_out"),
     ]
-    scale = ngl.Scale(ngl.Identity(), factors=ngl.AnimatedVec3(animkf))
+    scale = ngl.AffineTransform(scale_factors=ngl.AnimatedVec3(animkf))
     effects = [
         ngl.TextEffect(
             start=0,
@@ -134,7 +134,7 @@ def texteffect_rotate(cfg: ngl.SceneCfg):
         ngl.AnimKeyFrameFloat(0, 0),
         ngl.AnimKeyFrameFloat(0.5, -180, "bounce_out"),
     ]
-    rotate = ngl.Rotate(ngl.Identity(), angle=ngl.AnimatedFloat(animkf))
+    rotate = ngl.AffineTransform(rotate_angle=ngl.AnimatedFloat(animkf))
     effects = [
         ngl.TextEffect(
             start=0,
@@ -158,7 +158,7 @@ def texteffect_box_anchor(cfg: ngl.SceneCfg):
         ngl.AnimKeyFrameVec3(0, (0.0, 0.0, 1.0)),
         ngl.AnimKeyFrameVec3(1, (1.0, 1.0, 1.0), "exp_in_out"),
     ]
-    scale = ngl.Scale(ngl.Identity(), factors=ngl.AnimatedVec3(animkf))
+    scale = ngl.AffineTransform(scale_factors=ngl.AnimatedVec3(animkf))
     effects = [
         ngl.TextEffect(
             start=0,
@@ -183,7 +183,7 @@ def texteffect_vp_anchor(cfg: ngl.SceneCfg):
         ngl.AnimKeyFrameVec3(0, (0.0, 0.0, 1.0)),
         ngl.AnimKeyFrameVec3(1, (1.0, 1.0, 1.0), "exp_in_out"),
     ]
-    scale = ngl.Scale(ngl.Identity(), factors=ngl.AnimatedVec3(animkf))
+    scale = ngl.AffineTransform(scale_factors=ngl.AnimatedVec3(animkf))
     effects = [
         ngl.TextEffect(
             start=0,
@@ -212,8 +212,8 @@ def texteffect_combined_diff_anchors(cfg: ngl.SceneCfg):
         ngl.AnimKeyFrameVec3(0, (0.0, 0.0, 1.0)),
         ngl.AnimKeyFrameVec3(1, (1.0, 1.0, 1.0), "linear"),
     ]
-    rotate = ngl.Rotate(ngl.Identity(), angle=ngl.AnimatedFloat(animkf_rotate))
-    scale = ngl.Scale(ngl.Identity(), factors=ngl.AnimatedVec3(animkf_scale))
+    rotate = ngl.AffineTransform(rotate_angle=ngl.AnimatedFloat(animkf_rotate))
+    scale = ngl.AffineTransform(scale_factors=ngl.AnimatedVec3(animkf_scale))
     effects = [
         ngl.TextEffect(
             start=0,

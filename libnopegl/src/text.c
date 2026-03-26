@@ -34,7 +34,7 @@
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "text.h"
-#include "transforms.h"
+#include "node_transform.h"
 #include "utils/utils.h"
 
 extern const struct text_cls ngli_text_builtin;
@@ -405,7 +405,8 @@ static int set_transform(float *dst, const struct texteffect_opts *effect_opts,
     NGLI_ALIGNED_MAT(tmreloc0);
     NGLI_ALIGNED_MAT(tmreloc1);
 
-    ngli_transform_chain_compute(node, tm);
+    const struct transform *trf = node->priv_data;
+    memcpy(tm, trf->matrix, sizeof(tm));
     ngli_mat4_translate(tmreloc0,  anchor_x,  anchor_y, 0.f);
     ngli_mat4_translate(tmreloc1, -anchor_x, -anchor_y, 0.f);
 

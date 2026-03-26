@@ -53,7 +53,7 @@ struct fill_custom_uniform_def {
 
 struct fill_custom_texture_def {
     char name[64];
-    struct ngl_node *texture_node;   /* root of transform/texture chain */
+    struct ngl_node *texture_node;
 };
 
 struct fill_custom_block_def {
@@ -72,7 +72,8 @@ struct fill_info {
     size_t nb_custom_textures;
     struct fill_custom_block_def custom_blocks[FILL_MAX_TEXTURES];
     size_t nb_custom_blocks;
-    struct ngl_node *texture_transform;                      /* root of texture/transform chain (TextureFill only) */
+    struct ngl_node *texture_node_p;                         /* Texture2D/CustomTexture node (TextureFill only) */
+    struct ngl_node *reframing;                              /* AffineTransform node (TextureFill only) */
     int scaling;                                             /* FILL_SCALING_* (TextureFill only) */
     int wrap;                                                /* FILL_WRAP_* (TextureFill only) */
     size_t nb_frag_output;                                   /* MRT output count (0 = single output) */

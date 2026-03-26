@@ -36,7 +36,7 @@
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "pipeline_compat.h"
-#include "transforms.h"
+#include "node_transform.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -352,8 +352,7 @@ static int drawrect_init(struct ngl_node *node)
         : &default_stroke_info;
     s->stroke_info = si;
 
-    const struct ngl_node *texture_node = fi->texture_transform
-        ? ngli_transform_get_leaf_node(fi->texture_transform) : NULL;
+    const struct ngl_node *texture_node = fi->texture_node_p;
 
     ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
     ngli_darray_set_free_func(&s->pipeline_descs, reset_pipeline_desc, NULL);
@@ -524,10 +523,9 @@ static int drawrect_init(struct ngl_node *node)
     /* CustomFill user textures */
     for (size_t i = 0; i < fi->nb_custom_textures; i++) {
         const struct fill_custom_texture_def *ct = &fi->custom_textures[i];
-        const struct ngl_node *leaf = ngli_transform_get_leaf_node(ct->texture_node);
-        struct texture_info *texture_info = ngli_node_texture_get_texture_info(leaf);
+        struct texture_info *texture_info = ngli_node_texture_get_texture_info(ct->texture_node);
         struct ngpu_pgcraft_texture tex = {
-            .type        = ngli_node_texture_get_pgcraft_texture_type(leaf),
+            .type        = ngli_node_texture_get_pgcraft_texture_type(ct->texture_node),
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
             .image       = &texture_info->image,
             .format      = texture_info->params.format,
@@ -775,12 +773,13 @@ static int drawrect_prepare(struct ngl_node *node)
         return ret;
 
     const struct fill_info *fi = s->fill_info;
-    if (fi->texture_transform && !ngli_darray_push(&desc->reframing_nodes, &fi->texture_transform))
+    if (fi->texture_node_p && !ngli_darray_push(&desc->reframing_nodes, &fi->reframing))
         return NGL_ERROR_MEMORY;
 
-    /* CustomFill texture reframing */
+    /* CustomFill textures have no reframing support */
     for (size_t i = 0; i < fi->nb_custom_textures; i++) {
-        if (!ngli_darray_push(&desc->reframing_nodes, &fi->custom_textures[i].texture_node))
+        struct ngl_node *null_reframing = NULL;
+        if (!ngli_darray_push(&desc->reframing_nodes, &null_reframing))
             return NGL_ERROR_MEMORY;
     }
 
@@ -970,9 +969,11 @@ static void drawrect_draw(struct ngl_node *node)
             texture_map[i].image_rev = texture_map[i].image->rev;
         }
 
-        NGLI_ALIGNED_MAT(reframing_matrix);
-        ngli_transform_chain_compute(reframing_nodes[i], reframing_matrix);
-        ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, reframing_matrix);
+        const struct ngl_node *reframing_node = reframing_nodes[i];
+        if (reframing_node) {
+            const struct transform *trf = reframing_node->priv_data;
+            ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, trf->matrix);
+        }
     }
 
     /* CustomFill block buffer updates */

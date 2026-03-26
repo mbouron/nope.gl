@@ -183,6 +183,7 @@ lib_src = files(
   'src/image.c',
   'src/log.c',
   'src/ngl_config.c',
+  'src/node_affinetransform.c',
   'src/node_animatedbuffer.c',
   'src/node_animated.c',
   'src/node_animkeyframe.c',

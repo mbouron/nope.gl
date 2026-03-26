@@ -30,8 +30,8 @@
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "node_uniform.h"
+#include "node_transform.h"
 #include "nopegl/nopegl.h"
-#include "transforms.h"
 
 struct uniform_priv {
     struct variable_info var;
@@ -363,8 +363,9 @@ static const struct node_param uniformmat4_params[] = {
                   .desc=NGLI_DOCSTRING("value exposed to the shader")},
     {"live_id",  NGLI_PARAM_TYPE_STR, OFFSET(live.id),
                  .desc=NGLI_DOCSTRING("live control identifier")},
-    {"transform", NGLI_PARAM_TYPE_NODE, OFFSET(transform), .node_types=TRANSFORM_TYPES_LIST,
-                  .desc=NGLI_DOCSTRING("`value` transformation chain")},
+    {"transform", NGLI_PARAM_TYPE_NODE, OFFSET(transform),
+                  .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                  .desc=NGLI_DOCSTRING("`value` transformation")},
     {NULL}
 };
 
@@ -392,7 +393,8 @@ static int uniformmat4_update(struct ngl_node *node, double t)
         int ret = ngli_node_update(o->transform, t);
         if (ret < 0)
             return ret;
-        ngli_transform_chain_compute(o->transform, s->matrix);
+        const struct transform *trf = o->transform->priv_data;
+        memcpy(s->matrix, trf->matrix, sizeof(s->matrix));
     }
     return 0;
 }
@@ -446,19 +448,9 @@ static int uniformmat4_init(struct ngl_node *node)
     struct uniform_priv *s = node->priv_data;
     const struct variable_opts *o = node->opts;
 
-    int ret = ngli_transform_chain_check(o->transform);
-    if (ret < 0)
-        return ret;
-
     s->var.data = s->matrix;
     s->var.data_size = sizeof(s->matrix);
     s->var.data_type = NGPU_TYPE_MAT4;
-    /* Note: we assume here that a transformation chain includes at least one
-     * dynamic transform. We could crawl the chain to figure it out in the
-     * details, but that would be limited since we would have to also detect
-     * live changes in any of the transform node at update as well. That extra
-     * complexity is probably not worth just for handling the case of a static
-     * transformation list. */
     s->var.dynamic = !!o->transform;
     memcpy(s->var.data, o->live.val.m, s->var.data_size);
     return 0;

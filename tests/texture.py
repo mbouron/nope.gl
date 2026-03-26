@@ -621,11 +621,13 @@ def _get_texture_reframing_scene(d, wrap="default"):
     ]
     anim_angle_kf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(d, 360)]
     tex = ngl.Texture2D(data_src=ngl.Media(filename=media.filename))
-    tex = ngl.Scale(tex, factors=(1.2, 1.2, 1))
-    tex = ngl.Rotate(tex, angle=ngl.AnimatedFloat(anim_angle_kf))
-    tex = ngl.Translate(tex, vector=ngl.AnimatedVec3(anim_pos_kf))
+    reframing = ngl.AffineTransform(
+        scale_factors=(1.2, 1.2, 1),
+        rotate_angle=ngl.AnimatedFloat(anim_angle_kf),
+        translate=ngl.AnimatedVec3(anim_pos_kf),
+    )
     geometry = ngl.Quad(corner=(-0.8, -0.8, 0), width=(1.6, 0, 0), height=(0, 1.6, 0))
-    return ngl.DrawTexture(texture=tex, wrap=wrap, geometry=geometry)
+    return ngl.DrawTexture(texture=tex, reframing=reframing, wrap=wrap, geometry=geometry)
 
 
 @test_render(keyframes=5, tolerance=1)
@@ -655,11 +657,13 @@ def texture_reframing(cfg: ngl.SceneCfg):
     ]
     anim_angle_kf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(d, 360)]
     tex = ngl.Texture2D(data_src=ngl.Media(filename=media.filename))
-    tex = ngl.Scale(tex, factors=(1.2, 1.2, 1))
-    tex = ngl.Rotate(tex, angle=ngl.AnimatedFloat(anim_angle_kf))
-    tex = ngl.Translate(tex, vector=ngl.AnimatedVec3(anim_pos_kf))
+    reframing = ngl.AffineTransform(
+        scale_factors=(1.2, 1.2, 1),
+        rotate_angle=ngl.AnimatedFloat(anim_angle_kf),
+        translate=ngl.AnimatedVec3(anim_pos_kf),
+    )
     geometry = ngl.Quad(corner=(-0.8, -0.8, 0), width=(1.6, 0, 0), height=(0, 1.6, 0))
-    return ngl.DrawTexture(texture=tex, geometry=geometry)
+    return ngl.DrawTexture(texture=tex, reframing=reframing, geometry=geometry)
 
 
 @test_render(keyframes=5, tolerance=3, diff_threshold=0.005)

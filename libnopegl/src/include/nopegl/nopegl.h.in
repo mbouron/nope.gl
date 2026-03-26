@@ -264,6 +264,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 /**
  * Node FOURCC identifiers
  */
+#define NGL_NODE_AFFINETRANSFORM        NGLI_FOURCC('A','f','T','r')
 #define NGL_NODE_ANIMATEDBUFFERFLOAT    NGLI_FOURCC('A','B','f','1')
 #define NGL_NODE_ANIMATEDBUFFERVEC2     NGLI_FOURCC('A','B','f','2')
 #define NGL_NODE_ANIMATEDBUFFERVEC3     NGLI_FOURCC('A','B','f','3')

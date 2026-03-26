@@ -1124,6 +1124,46 @@
         }
       ]
     },
+    "AffineTransform": {
+      "file": "src/node_affinetransform.c",
+      "params": [
+        {
+          "name": "translate",
+          "type": "vec3",
+          "default": [0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "translation vector"
+        },
+        {
+          "name": "rotate_angle",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live", "node"],
+          "desc": "rotation angle in degrees"
+        },
+        {
+          "name": "rotate_axis",
+          "type": "vec3",
+          "default": [0.000000,0.000000,1.000000],
+          "flags": [],
+          "desc": "rotation axis"
+        },
+        {
+          "name": "scale_factors",
+          "type": "vec3",
+          "default": [1.000000,1.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "scaling factors"
+        },
+        {
+          "name": "anchor",
+          "type": "vec3",
+          "default": [0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "anchor point for rotation and scaling"
+        }
+      ]
+    },
     "_AnimatedBuffer": {
       "file": "src/node_animatedbuffer.c",
       "params": [
@@ -1783,23 +1823,23 @@
         {
           "name": "eye_transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "`eye` transformation chain"
+          "desc": "`eye` transformation"
         },
         {
           "name": "center_transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "`center` transformation chain"
+          "desc": "`center` transformation"
         },
         {
           "name": "up_transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "`up` transformation chain"
+          "desc": "`up` transformation"
         }
       ]
     },
@@ -2025,16 +2065,30 @@
         {
           "name": "source",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "source texture to displace"
         },
         {
           "name": "displacement",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "displacement vectors stored in a texture"
+        },
+        {
+          "name": "source_reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "source texture reframing transformation"
+        },
+        {
+          "name": "displacement_reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "displacement texture reframing transformation"
         },
         {
           "name": "blending",
@@ -2282,16 +2336,30 @@
         {
           "name": "content",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "content texture being masked"
         },
         {
           "name": "mask",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "texture serving as mask (only the red channel is used)"
+        },
+        {
+          "name": "content_reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "content texture reframing transformation"
+        },
+        {
+          "name": "mask_reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "mask texture reframing transformation"
         },
         {
           "name": "inverted",
@@ -2510,9 +2578,16 @@
         {
           "name": "texture",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D", "CustomTexture"],
+          "node_types": ["Texture2D", "CustomTexture"],
           "flags": ["nonull"],
           "desc": "texture to render"
+        },
+        {
+          "name": "reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "texture reframing transformation"
         },
         {
           "name": "wrap",
@@ -2760,7 +2835,7 @@
         {
           "name": "frag_resources",
           "type": "node_list",
-          "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "TextureView", "CustomTexture", "Block"],
+          "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "TextureView", "CustomTexture", "Block"],
           "flags": [],
           "desc": "uniform and texture nodes available to color_glsl; each node's label is used as the GLSL name"
         },
@@ -3402,9 +3477,16 @@
         {
           "name": "texture",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D", "CustomTexture"],
+          "node_types": ["Texture2D", "CustomTexture"],
           "flags": ["nonull"],
           "desc": "texture to draw"
+        },
+        {
+          "name": "reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "texture reframing transformation"
         },
         {
           "name": "wrap",
@@ -4620,9 +4702,9 @@
         {
           "name": "transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "transformation chain"
+          "desc": "transformation"
         },
         {
           "name": "anchor",
@@ -6446,9 +6528,9 @@
         {
           "name": "transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "`value` transformation chain"
+          "desc": "`value` transformation"
         }
       ]
     },

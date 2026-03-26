@@ -26,7 +26,7 @@
 #include "log.h"
 #include "node_fill.h"
 #include "node_texture.h"
-#include "transforms.h"
+
 #include "utils/bstr.h"
 #include "utils/memory.h"
 #include "nopegl/nopegl.h"
@@ -137,6 +137,7 @@ struct texturefill_priv {
 
 struct texturefill_opts {
     struct ngl_node *texture_node;
+    struct ngl_node *reframing;
     int wrap;
     int scaling;
 };
@@ -172,16 +173,10 @@ static int texturefill_init(struct ngl_node *node)
     struct texturefill_priv *s = node->priv_data;
     const struct texturefill_opts *o = node->opts;
 
-    const struct ngl_node *leaf = o->texture_node
-        ? ngli_transform_get_leaf_node(o->texture_node) : NULL;
-    if (!leaf) {
-        LOG(ERROR, "TextureFill: texture param is required");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
     struct fill_info *fi = &s->fi;
-    fi->glsl              = texturefill_glsl;
-    fi->texture_transform = o->texture_node;
+    fi->glsl           = texturefill_glsl;
+    fi->texture_node_p = o->texture_node;
+    fi->reframing      = o->reframing;
     fi->scaling           = o->scaling;
     fi->wrap              = o->wrap;
     fi->opts              = o;
@@ -198,13 +193,19 @@ static const struct node_param texturefill_params[] = {
         .type       = NGLI_PARAM_TYPE_NODE,
         .offset     = OFFSET(texture_node),
         .node_types = (const uint32_t[]){
-            TRANSFORM_TYPES_ARGS,
             NGL_NODE_TEXTURE2D,
             NGL_NODE_CUSTOMTEXTURE,
             NGLI_NODE_NONE,
         },
         .flags = NGLI_PARAM_FLAG_NON_NULL,
         .desc  = NGLI_DOCSTRING("texture to draw"),
+    },
+    {
+        .key        = "reframing",
+        .type       = NGLI_PARAM_TYPE_NODE,
+        .offset     = OFFSET(reframing),
+        .node_types = (const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+        .desc       = NGLI_DOCSTRING("texture reframing transformation"),
     },
     {
         .key       = "wrap",
@@ -733,8 +734,7 @@ static int customfill_init(struct ngl_node *node)
         struct ngl_node *res = o->frag_resources[i];
         enum ngpu_type type;
 
-        const struct ngl_node *leaf = ngli_transform_get_leaf_node(res);
-        if (leaf && node_is_texture(leaf)) {
+        if (node_is_texture(res)) {
             ngli_assert(fi->nb_custom_textures < FILL_MAX_TEXTURES);
             struct fill_custom_texture_def *ct = &fi->custom_textures[fi->nb_custom_textures++];
             snprintf(ct->name, sizeof(ct->name), "%s", res->label);
@@ -805,7 +805,6 @@ static const struct node_param customfill_params[] = {
             NGL_NODE_NOISEFLOAT,   NGL_NODE_NOISEVEC2,
             NGL_NODE_NOISEVEC3,    NGL_NODE_NOISEVEC4,
             NGL_NODE_TIME,
-            TRANSFORM_TYPES_ARGS,
             NGL_NODE_TEXTURE2D,    NGL_NODE_TEXTURE2DARRAY,
             NGL_NODE_TEXTURE3D,    NGL_NODE_TEXTURECUBE,
             NGL_NODE_TEXTUREVIEW,  NGL_NODE_CUSTOMTEXTURE,
