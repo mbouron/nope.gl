@@ -196,6 +196,27 @@ int ngli_params_set_uvec4(uint8_t *dstp, const struct node_param *par, const uin
 int ngli_params_set_vec2(uint8_t *dstp, const struct node_param *par, const float *value);
 int ngli_params_set_vec3(uint8_t *dstp, const struct node_param *par, const float *value);
 int ngli_params_set_vec4(uint8_t *dstp, const struct node_param *par, const float *value);
+int ngli_params_get_bool(const uint8_t *srcp, const struct node_param *par, int *value);
+int ngli_params_get_f32(const uint8_t *srcp, const struct node_param *par, float *value);
+int ngli_params_get_f64(const uint8_t *srcp, const struct node_param *par, double *value);
+int ngli_params_get_flags(const uint8_t *srcp, const struct node_param *par, const char **value);
+int ngli_params_get_i32(const uint8_t *srcp, const struct node_param *par, int32_t *value);
+int ngli_params_get_ivec2(const uint8_t *srcp, const struct node_param *par, int32_t *value);
+int ngli_params_get_ivec3(const uint8_t *srcp, const struct node_param *par, int32_t *value);
+int ngli_params_get_ivec4(const uint8_t *srcp, const struct node_param *par, int32_t *value);
+int ngli_params_get_mat4(const uint8_t *srcp, const struct node_param *par, float *value);
+int ngli_params_get_node(const uint8_t *srcp, const struct node_param *par, struct ngl_node **value);
+int ngli_params_get_rational(const uint8_t *srcp, const struct node_param *par, int32_t *num, int32_t *den);
+int ngli_params_get_select(const uint8_t *srcp, const struct node_param *par, const char **value);
+int ngli_params_get_str(const uint8_t *srcp, const struct node_param *par, const char **value);
+int ngli_params_get_u32(const uint8_t *srcp, const struct node_param *par, uint32_t *value);
+int ngli_params_get_uvec2(const uint8_t *srcp, const struct node_param *par, uint32_t *value);
+int ngli_params_get_uvec3(const uint8_t *srcp, const struct node_param *par, uint32_t *value);
+int ngli_params_get_uvec4(const uint8_t *srcp, const struct node_param *par, uint32_t *value);
+int ngli_params_get_vec2(const uint8_t *srcp, const struct node_param *par, float *value);
+int ngli_params_get_vec3(const uint8_t *srcp, const struct node_param *par, float *value);
+int ngli_params_get_vec4(const uint8_t *srcp, const struct node_param *par, float *value);
+
 int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params);
 int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par, size_t nb_nodes, struct ngl_node **nodes);
 int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par, size_t nb_f64s, const double *f64s);

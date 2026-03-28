@@ -250,6 +250,15 @@ class Node(_Node):
     def _set_rational(self, param_name, ratio):
         return self._param_set_rational(param_name, ratio[0], ratio[1])
 
+    def _arg_getter(self, cython_getter, param_name):
+        return cython_getter(param_name)
+
+    def _args_getter(self, cython_getter, param_name):
+        return cython_getter(param_name)
+
+    def _get_rational(self, param_name):
+        return self._param_get_rational(param_name)
+
     def get_type(self):
         return self._get_type()
 

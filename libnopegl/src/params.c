@@ -837,6 +837,200 @@ int ngli_params_set_vec4(uint8_t *dstp, const struct node_param *par, const floa
     return 0;
 }
 
+/*
+ * Get functions
+ */
+
+#define OFFSET_SRC(srcp, par) \
+    ((par)->flags & NGLI_PARAM_FLAG_ALLOW_NODE ? (srcp) + sizeof(struct ngl_node *) : (srcp))
+
+int ngli_params_get_bool(const uint8_t *srcp, const struct node_param *par, int *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_BOOL);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_f32(const uint8_t *srcp, const struct node_param *par, float *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_F32);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_f64(const uint8_t *srcp, const struct node_param *par, double *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_F64);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_i32(const uint8_t *srcp, const struct node_param *par, int32_t *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_I32);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_u32(const uint8_t *srcp, const struct node_param *par, uint32_t *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_U32);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_ivec2(const uint8_t *srcp, const struct node_param *par, int32_t *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_IVEC2);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 2 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_ivec3(const uint8_t *srcp, const struct node_param *par, int32_t *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_IVEC3);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 3 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_ivec4(const uint8_t *srcp, const struct node_param *par, int32_t *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_IVEC4);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 4 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_uvec2(const uint8_t *srcp, const struct node_param *par, uint32_t *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_UVEC2);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 2 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_uvec3(const uint8_t *srcp, const struct node_param *par, uint32_t *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_UVEC3);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 3 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_uvec4(const uint8_t *srcp, const struct node_param *par, uint32_t *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_UVEC4);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 4 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_vec2(const uint8_t *srcp, const struct node_param *par, float *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_VEC2);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 2 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_vec3(const uint8_t *srcp, const struct node_param *par, float *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_VEC3);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 3 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_vec4(const uint8_t *srcp, const struct node_param *par, float *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_VEC4);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 4 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_mat4(const uint8_t *srcp, const struct node_param *par, float *value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_MAT4);
+    if (ret < 0)
+        return ret;
+    memcpy(value, OFFSET_SRC(srcp, par), 4 * 4 * sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_rational(const uint8_t *srcp, const struct node_param *par, int32_t *num, int32_t *den)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_RATIONAL);
+    if (ret < 0)
+        return ret;
+    srcp = OFFSET_SRC(srcp, par);
+    memcpy(num, srcp, sizeof(*num));
+    memcpy(den, srcp + sizeof(*num), sizeof(*den));
+    return 0;
+}
+
+int ngli_params_get_select(const uint8_t *srcp, const struct node_param *par, const char **value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_SELECT);
+    if (ret < 0)
+        return ret;
+    int v;
+    memcpy(&v, srcp, sizeof(v));
+    *value = ngli_params_get_select_str(par->choices->consts, v);
+    return *value ? 0 : NGL_ERROR_NOT_FOUND;
+}
+
+int ngli_params_get_flags(const uint8_t *srcp, const struct node_param *par, const char **value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_FLAGS);
+    if (ret < 0)
+        return ret;
+    int v;
+    memcpy(&v, srcp, sizeof(v));
+    *value = ngli_params_get_flags_str(par->choices->consts, v);
+    return *value ? 0 : NGL_ERROR_MEMORY;
+}
+
+int ngli_params_get_str(const uint8_t *srcp, const struct node_param *par, const char **value)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_STR);
+    if (ret < 0)
+        return ret;
+    memcpy(value, srcp, sizeof(*value));
+    return 0;
+}
+
+int ngli_params_get_node(const uint8_t *srcp, const struct node_param *par, struct ngl_node **value)
+{
+    if (par->type != NGLI_PARAM_TYPE_NODE && !(par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)) {
+        LOG(ERROR, "parameter %s is not a node type", par->key);
+        return NGL_ERROR_INVALID_ARG;
+    }
+    memcpy(value, srcp, sizeof(*value));
+    return 0;
+}
+
 int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
 {
     size_t last_offset = 0;

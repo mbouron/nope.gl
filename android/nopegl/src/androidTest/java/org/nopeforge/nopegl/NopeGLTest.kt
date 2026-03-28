@@ -476,7 +476,8 @@ class NopeGLTest {
             ctx.draw(0.0)
 
             val rotation = group.getGlobalRotation()
-            val diff = ((rotation - angle + 180) % 360) - 180
+            // Normalize angular difference to [-180, 180] (double modulo handles Kotlin's signed %)
+            val diff = (((rotation - angle + 180) % 360) + 360) % 360 - 180
             assertTrue(
                 "angle=$angle: got rotation=$rotation (diff=$diff)",
                 abs(diff) < 0.1f
@@ -484,6 +485,41 @@ class NopeGLTest {
         }
 
         ctx.release()
+    }
+
+    @Test
+    fun nodeGetters() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val fill = NGLColorFill(color = NGLVec4(0.8f, 0.2f, 0.1f, 1.0f))
+        val rect = NGLDrawRect2D(rect = NGLVec4(10.0f, 20.0f, 100.0f, 80.0f), fill = fill)
+
+        val v = rect.getRect()
+        assertNotNull(v)
+        assertTrue("rect x", isClose(v!![0], 10.0f))
+        assertTrue("rect y", isClose(v[1], 20.0f))
+        assertTrue("rect w", isClose(v[2], 100.0f))
+        assertTrue("rect h", isClose(v[3], 80.0f))
+
+        assertTrue("rotation", isClose(rect.getRotation(), 0.0f))
+
+        val group = NGLGroup2D(children = listOf(rect), rotation = NGLNodeOrValue.value(45.0f), opacity = NGLNodeOrValue.value(0.5f))
+        assertTrue("group rotation", isClose(group.getRotation(), 45.0f))
+        assertTrue("group opacity", isClose(group.getOpacity(), 0.5f))
+
+        val group2 = NGLGroup2D(children = listOf(rect), translate = NGLNodeOrValue.value(NGLVec2(100.0f, 200.0f)))
+        val t = group2.getTranslate()
+        assertNotNull(t)
+        assertTrue("translate x", isClose(t!![0], 100.0f))
+        assertTrue("translate y", isClose(t[1], 200.0f))
+
+        val canvas = NGLCanvas2D(children = listOf(rect), width = 320, height = 240)
+        assertEquals(320, canvas.getWidth())
+        assertEquals(240, canvas.getHeight())
+
+        group.setRotation(NGLNodeOrValue.value(90.0f))
+        assertTrue("after set", isClose(group.getRotation(), 90.0f))
     }
 
     @Test
