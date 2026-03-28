@@ -530,6 +530,74 @@ JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetGlobalS
     return array;
 }
 
+#define DECLARE_GET_VEC_FUNC(ctype, jtype, jatype, name, count)                \
+    static jatype##Array get_##name(JNIEnv *env, jobject thiz,                 \
+                                  jlong native_ptr, jstring key)               \
+    {                                                                          \
+        struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;      \
+        const char *key_str = (*env)->GetStringUTFChars(env, key, 0);          \
+        assert(key_str);                                                       \
+                                                                               \
+        ctype vec[16] = {0};                                                   \
+        int ret = ngl_node_param_get_##name(node, key_str, vec);               \
+        (*env)->ReleaseStringUTFChars(env, key, key_str);                      \
+        if (ret < 0)                                                           \
+            return NULL;                                                       \
+                                                                               \
+        jatype##Array array = (*env)->New##jtype##Array(env, count);           \
+        if (!array)                                                            \
+            return NULL;                                                       \
+        (*env)->Set##jtype##ArrayRegion(env, array, 0, count, (void *)vec);    \
+        return array;                                                          \
+    }
+
+DECLARE_GET_VEC_FUNC(float, Float, jfloat, vec2, 2)
+DECLARE_GET_VEC_FUNC(float, Float, jfloat, vec3, 3)
+DECLARE_GET_VEC_FUNC(float, Float, jfloat, vec4, 4)
+DECLARE_GET_VEC_FUNC(int32_t, Int, jint, ivec2, 2)
+DECLARE_GET_VEC_FUNC(int32_t, Int, jint, ivec3, 3)
+DECLARE_GET_VEC_FUNC(int32_t, Int, jint, ivec4, 4)
+DECLARE_GET_VEC_FUNC(uint32_t, Int, jint, uvec2, 2)
+DECLARE_GET_VEC_FUNC(uint32_t, Int, jint, uvec3, 3)
+DECLARE_GET_VEC_FUNC(uint32_t, Int, jint, uvec4, 4)
+DECLARE_GET_VEC_FUNC(float, Float, jfloat, mat4, 16)
+
+#define DECLARE_GET_SCALAR_FUNC(ctype, jtype, name, jdefault)                  \
+    static j##jtype get_##name(JNIEnv *env, jobject thiz,                      \
+                               jlong native_ptr, jstring key)                  \
+    {                                                                          \
+        struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;      \
+        const char *key_str = (*env)->GetStringUTFChars(env, key, 0);          \
+        assert(key_str);                                                       \
+                                                                               \
+        ctype value = 0;                                                       \
+        int ret = ngl_node_param_get_##name(node, key_str, &value);            \
+        (*env)->ReleaseStringUTFChars(env, key, key_str);                      \
+        if (ret < 0)                                                           \
+            return jdefault;                                                   \
+        return (j##jtype)value;                                                \
+    }
+
+DECLARE_GET_SCALAR_FUNC(float, float, f32, 0.0f)
+DECLARE_GET_SCALAR_FUNC(double, double, f64, 0.0)
+DECLARE_GET_SCALAR_FUNC(int32_t, int, i32, 0)
+DECLARE_GET_SCALAR_FUNC(uint32_t, int, u32, 0)
+DECLARE_GET_SCALAR_FUNC(int, boolean, bool, 0)
+
+static jstring get_str(JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+    const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
+    assert(key_str);
+
+    const char *value = NULL;
+    int ret = ngl_node_param_get_str(node, key_str, &value);
+    (*env)->ReleaseStringUTFChars(env, key, key_str);
+    if (ret < 0 || !value)
+        return NULL;
+    return (*env)->NewStringUTF(env, value);
+}
+
 #define DECLARE_SET_VEC_FUNC(ctype, jtype, name, count)                        \
     static jint set_##name(JNIEnv *env, jobject thiz, jlong native_ptr,        \
                            jstring key, jfloatArray array)                     \
@@ -883,6 +951,104 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetVec4(
     JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jfloatArray value)
 {
     return set_vec4(env, thiz, native_ptr, key, value);
+}
+
+/* Param getters */
+
+JNIEXPORT jfloat JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetFloat(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_f32(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jdouble JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetDouble(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_f64(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetInt(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_i32(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetUInt(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_u32(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jboolean JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetBoolean(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_bool(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetString(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_str(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetVec2(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_vec2(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetVec3(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_vec3(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetVec4(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_vec4(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jintArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetIVec2(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_ivec2(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jintArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetIVec3(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_ivec3(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jintArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetIVec4(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_ivec4(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jintArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetUVec2(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_uvec2(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jintArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetUVec3(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_uvec3(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jintArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetUVec4(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_uvec4(env, thiz, native_ptr, key);
+}
+
+JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetMat4(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key)
+{
+    return get_mat4(env, thiz, native_ptr, key);
 }
 
 JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLScene_nativeInitFromString(

@@ -88,6 +88,18 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_node_param_set_vec2(ngl_node *node, const char *key, const float *value)
     int ngl_node_param_set_vec3(ngl_node *node, const char *key, const float *value)
     int ngl_node_param_set_vec4(ngl_node *node, const char *key, const float *value)
+    int ngl_node_param_get_bool(ngl_node *node, const char *key, int *value)
+    int ngl_node_param_get_f32(ngl_node *node, const char *key, float *value)
+    int ngl_node_param_get_f64(ngl_node *node, const char *key, double *value)
+    int ngl_node_param_get_i32(ngl_node *node, const char *key, int32_t *value)
+    int ngl_node_param_get_u32(ngl_node *node, const char *key, uint32_t *value)
+    int ngl_node_param_get_vec2(ngl_node *node, const char *key, float *value)
+    int ngl_node_param_get_vec3(ngl_node *node, const char *key, float *value)
+    int ngl_node_param_get_vec4(ngl_node *node, const char *key, float *value)
+    int ngl_node_param_get_mat4(ngl_node *node, const char *key, float *value)
+    int ngl_node_param_get_rational(ngl_node *node, const char *key, int32_t *num, int32_t *den)
+    int ngl_node_param_get_select(ngl_node *node, const char *key, const char **value)
+    int ngl_node_param_get_str(ngl_node *node, const char *key, const char **value)
     int ngl_anim_evaluate(ngl_node *anim, void *dst, double t)
     cdef struct ngl_bounding_box:
         float center[2]
@@ -436,6 +448,92 @@ cdef class _Node:
     def _param_set_vec4(self, const char *key, value):
         cdef float[4] vec = value
         return ngl_node_param_set_vec4(self.ctx, key, vec)
+
+    def _param_get_bool(self, const char *key):
+        cdef int value
+        cdef int ret = ngl_node_param_get_bool(self.ctx, key, &value)
+        if ret < 0:
+            raise Exception(f"Failed to get bool parameter '{key.decode()}'")
+        return value
+
+    def _param_get_f32(self, const char *key):
+        cdef float value
+        cdef int ret = ngl_node_param_get_f32(self.ctx, key, &value)
+        if ret < 0:
+            raise Exception(f"Failed to get f32 parameter '{key.decode()}'")
+        return value
+
+    def _param_get_f64(self, const char *key):
+        cdef double value
+        cdef int ret = ngl_node_param_get_f64(self.ctx, key, &value)
+        if ret < 0:
+            raise Exception(f"Failed to get f64 parameter '{key.decode()}'")
+        return value
+
+    def _param_get_i32(self, const char *key):
+        cdef int32_t value
+        cdef int ret = ngl_node_param_get_i32(self.ctx, key, &value)
+        if ret < 0:
+            raise Exception(f"Failed to get i32 parameter '{key.decode()}'")
+        return value
+
+    def _param_get_u32(self, const char *key):
+        cdef uint32_t value
+        cdef int ret = ngl_node_param_get_u32(self.ctx, key, &value)
+        if ret < 0:
+            raise Exception(f"Failed to get u32 parameter '{key.decode()}'")
+        return value
+
+    def _param_get_vec2(self, const char *key):
+        cdef float[2] vec
+        cdef int ret = ngl_node_param_get_vec2(self.ctx, key, vec)
+        if ret < 0:
+            raise Exception(f"Failed to get vec2 parameter '{key.decode()}'")
+        return (vec[0], vec[1])
+
+    def _param_get_vec3(self, const char *key):
+        cdef float[3] vec
+        cdef int ret = ngl_node_param_get_vec3(self.ctx, key, vec)
+        if ret < 0:
+            raise Exception(f"Failed to get vec3 parameter '{key.decode()}'")
+        return (vec[0], vec[1], vec[2])
+
+    def _param_get_vec4(self, const char *key):
+        cdef float[4] vec
+        cdef int ret = ngl_node_param_get_vec4(self.ctx, key, vec)
+        if ret < 0:
+            raise Exception(f"Failed to get vec4 parameter '{key.decode()}'")
+        return (vec[0], vec[1], vec[2], vec[3])
+
+    def _param_get_mat4(self, const char *key):
+        cdef float[16] mat
+        cdef int ret = ngl_node_param_get_mat4(self.ctx, key, mat)
+        if ret < 0:
+            raise Exception(f"Failed to get mat4 parameter '{key.decode()}'")
+        return tuple(mat[i] for i in range(16))
+
+    def _param_get_rational(self, const char *key):
+        cdef int32_t num, den
+        cdef int ret = ngl_node_param_get_rational(self.ctx, key, &num, &den)
+        if ret < 0:
+            raise Exception(f"Failed to get rational parameter '{key.decode()}'")
+        return (num, den)
+
+    def _param_get_select(self, const char *key):
+        cdef const char *value
+        cdef int ret = ngl_node_param_get_select(self.ctx, key, &value)
+        if ret < 0:
+            raise Exception(f"Failed to get select parameter '{key.decode()}'")
+        return value.decode()
+
+    def _param_get_str(self, const char *key):
+        cdef const char *value = NULL
+        cdef int ret = ngl_node_param_get_str(self.ctx, key, &value)
+        if ret < 0:
+            raise Exception("Failed to get str parameter")
+        if value is NULL:
+            return None
+        return (<bytes>value).decode()
 
     def _param_add_nodes(self, const char *key, size_t nb_nodes, nodes):
         nodes_c = <ngl_node **>calloc(nb_nodes, sizeof(ngl_node *))

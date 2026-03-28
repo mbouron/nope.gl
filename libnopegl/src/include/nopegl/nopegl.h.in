@@ -615,6 +615,35 @@ NGL_API int ngl_node_param_set_vec3(struct ngl_node *node, const char *key, cons
 NGL_API int ngl_node_param_set_vec4(struct ngl_node *node, const char *key, const float *value);
 
 /**
+ * All ngl_node_param_get_* functions read a parameter value from a node.
+ * The parameter is identified by its key (name). The value is written to the
+ * provided output pointer.
+ *
+ * For string parameters, the returned pointer is internal and must not be freed.
+ * For node parameters, the returned pointer's reference count is not modified.
+ */
+NGL_API int ngl_node_param_get_bool(struct ngl_node *node, const char *key, int *value);
+NGL_API int ngl_node_param_get_f32(struct ngl_node *node, const char *key, float *value);
+NGL_API int ngl_node_param_get_f64(struct ngl_node *node, const char *key, double *value);
+NGL_API int ngl_node_param_get_flags(struct ngl_node *node, const char *key, const char **value);
+NGL_API int ngl_node_param_get_i32(struct ngl_node *node, const char *key, int32_t *value);
+NGL_API int ngl_node_param_get_ivec2(struct ngl_node *node, const char *key, int32_t *value);
+NGL_API int ngl_node_param_get_ivec3(struct ngl_node *node, const char *key, int32_t *value);
+NGL_API int ngl_node_param_get_ivec4(struct ngl_node *node, const char *key, int32_t *value);
+NGL_API int ngl_node_param_get_mat4(struct ngl_node *node, const char *key, float *value);
+NGL_API int ngl_node_param_get_node(struct ngl_node *node, const char *key, struct ngl_node **value);
+NGL_API int ngl_node_param_get_rational(struct ngl_node *node, const char *key, int32_t *num, int32_t *den);
+NGL_API int ngl_node_param_get_select(struct ngl_node *node, const char *key, const char **value);
+NGL_API int ngl_node_param_get_str(struct ngl_node *node, const char *key, const char **value);
+NGL_API int ngl_node_param_get_u32(struct ngl_node *node, const char *key, uint32_t *value);
+NGL_API int ngl_node_param_get_uvec2(struct ngl_node *node, const char *key, uint32_t *value);
+NGL_API int ngl_node_param_get_uvec3(struct ngl_node *node, const char *key, uint32_t *value);
+NGL_API int ngl_node_param_get_uvec4(struct ngl_node *node, const char *key, uint32_t *value);
+NGL_API int ngl_node_param_get_vec2(struct ngl_node *node, const char *key, float *value);
+NGL_API int ngl_node_param_get_vec3(struct ngl_node *node, const char *key, float *value);
+NGL_API int ngl_node_param_get_vec4(struct ngl_node *node, const char *key, float *value);
+
+/**
  * Get the node type
  *
  * @param node         node to get the type from
