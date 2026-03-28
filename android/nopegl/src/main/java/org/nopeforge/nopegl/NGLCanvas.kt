@@ -142,6 +142,8 @@ class NGLCanvas(
             }
 
             if (eglImage != 0L) {
+                releaseTexture()
+                createTexture()
                 EGLHelper.nativeUploadEGLImage(eglImage, texture)
             }
         }
