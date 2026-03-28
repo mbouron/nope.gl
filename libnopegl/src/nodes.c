@@ -834,6 +834,115 @@ int ngl_node_get_label(struct ngl_node *node, const char **label)
     return 0;
 }
 
+#define FORWARD_TO_PARAM_GET(type, ...)                  \
+    uint8_t *base_ptr;                                   \
+    const struct node_param *par =                       \
+        ngli_node_param_find(node, key, &base_ptr);      \
+    if (!par)                                            \
+        return NGL_ERROR_NOT_FOUND;                      \
+    const uint8_t *src = base_ptr + par->offset;         \
+    return ngli_params_get_##type(src, par, __VA_ARGS__)
+
+int ngl_node_param_get_bool(struct ngl_node *node, const char *key, int *value)
+{
+    FORWARD_TO_PARAM_GET(bool, value);
+}
+
+int ngl_node_param_get_f32(struct ngl_node *node, const char *key, float *value)
+{
+    FORWARD_TO_PARAM_GET(f32, value);
+}
+
+int ngl_node_param_get_f64(struct ngl_node *node, const char *key, double *value)
+{
+    FORWARD_TO_PARAM_GET(f64, value);
+}
+
+int ngl_node_param_get_flags(struct ngl_node *node, const char *key, const char **value)
+{
+    FORWARD_TO_PARAM_GET(flags, value);
+}
+
+int ngl_node_param_get_i32(struct ngl_node *node, const char *key, int32_t *value)
+{
+    FORWARD_TO_PARAM_GET(i32, value);
+}
+
+int ngl_node_param_get_ivec2(struct ngl_node *node, const char *key, int32_t *value)
+{
+    FORWARD_TO_PARAM_GET(ivec2, value);
+}
+
+int ngl_node_param_get_ivec3(struct ngl_node *node, const char *key, int32_t *value)
+{
+    FORWARD_TO_PARAM_GET(ivec3, value);
+}
+
+int ngl_node_param_get_ivec4(struct ngl_node *node, const char *key, int32_t *value)
+{
+    FORWARD_TO_PARAM_GET(ivec4, value);
+}
+
+int ngl_node_param_get_mat4(struct ngl_node *node, const char *key, float *value)
+{
+    FORWARD_TO_PARAM_GET(mat4, value);
+}
+
+int ngl_node_param_get_node(struct ngl_node *node, const char *key, struct ngl_node **value)
+{
+    FORWARD_TO_PARAM_GET(node, value);
+}
+
+int ngl_node_param_get_rational(struct ngl_node *node, const char *key, int32_t *num, int32_t *den)
+{
+    FORWARD_TO_PARAM_GET(rational, num, den);
+}
+
+int ngl_node_param_get_select(struct ngl_node *node, const char *key, const char **value)
+{
+    FORWARD_TO_PARAM_GET(select, value);
+}
+
+int ngl_node_param_get_str(struct ngl_node *node, const char *key, const char **value)
+{
+    FORWARD_TO_PARAM_GET(str, value);
+}
+
+int ngl_node_param_get_u32(struct ngl_node *node, const char *key, uint32_t *value)
+{
+    FORWARD_TO_PARAM_GET(u32, value);
+}
+
+int ngl_node_param_get_uvec2(struct ngl_node *node, const char *key, uint32_t *value)
+{
+    FORWARD_TO_PARAM_GET(uvec2, value);
+}
+
+int ngl_node_param_get_uvec3(struct ngl_node *node, const char *key, uint32_t *value)
+{
+    FORWARD_TO_PARAM_GET(uvec3, value);
+}
+
+int ngl_node_param_get_uvec4(struct ngl_node *node, const char *key, uint32_t *value)
+{
+    FORWARD_TO_PARAM_GET(uvec4, value);
+}
+
+int ngl_node_param_get_vec2(struct ngl_node *node, const char *key, float *value)
+{
+    FORWARD_TO_PARAM_GET(vec2, value);
+}
+
+int ngl_node_param_get_vec3(struct ngl_node *node, const char *key, float *value)
+{
+    FORWARD_TO_PARAM_GET(vec3, value);
+}
+
+int ngl_node_param_get_vec4(struct ngl_node *node, const char *key, float *value)
+{
+    FORWARD_TO_PARAM_GET(vec4, value);
+}
+
 NGL_API int ngl_node_get_bounding_box(struct ngl_node *node, struct ngl_bounding_box *box)
 {
     if (!node)
