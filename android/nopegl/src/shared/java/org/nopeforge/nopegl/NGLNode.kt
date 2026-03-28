@@ -277,6 +277,40 @@ open class NGLNode(
         }
     }
 
+    internal fun getFloat(key: String): Float = nativeGetFloat(nativePtr, key)
+    internal fun getDouble(key: String): Double = nativeGetDouble(nativePtr, key)
+    internal fun getInt(key: String): Int = nativeGetInt(nativePtr, key)
+    internal fun getUInt(key: String): Int = nativeGetUInt(nativePtr, key)
+    internal fun getBoolean(key: String): Boolean = nativeGetBoolean(nativePtr, key)
+    internal fun getString(key: String): String? = nativeGetString(nativePtr, key)
+    internal fun getVec2(key: String): FloatArray? = nativeGetVec2(nativePtr, key)
+    internal fun getVec3(key: String): FloatArray? = nativeGetVec3(nativePtr, key)
+    internal fun getVec4(key: String): FloatArray? = nativeGetVec4(nativePtr, key)
+    internal fun getIVec2(key: String): IntArray? = nativeGetIVec2(nativePtr, key)
+    internal fun getIVec3(key: String): IntArray? = nativeGetIVec3(nativePtr, key)
+    internal fun getIVec4(key: String): IntArray? = nativeGetIVec4(nativePtr, key)
+    internal fun getUVec2(key: String): IntArray? = nativeGetUVec2(nativePtr, key)
+    internal fun getUVec3(key: String): IntArray? = nativeGetUVec3(nativePtr, key)
+    internal fun getUVec4(key: String): IntArray? = nativeGetUVec4(nativePtr, key)
+    internal fun getMat4(key: String): FloatArray? = nativeGetMat4(nativePtr, key)
+
+    private external fun nativeGetFloat(nativePtr: Long, key: String): Float
+    private external fun nativeGetDouble(nativePtr: Long, key: String): Double
+    private external fun nativeGetInt(nativePtr: Long, key: String): Int
+    private external fun nativeGetUInt(nativePtr: Long, key: String): Int
+    private external fun nativeGetBoolean(nativePtr: Long, key: String): Boolean
+    private external fun nativeGetString(nativePtr: Long, key: String): String?
+    private external fun nativeGetVec2(nativePtr: Long, key: String): FloatArray?
+    private external fun nativeGetVec3(nativePtr: Long, key: String): FloatArray?
+    private external fun nativeGetVec4(nativePtr: Long, key: String): FloatArray?
+    private external fun nativeGetIVec2(nativePtr: Long, key: String): IntArray?
+    private external fun nativeGetIVec3(nativePtr: Long, key: String): IntArray?
+    private external fun nativeGetIVec4(nativePtr: Long, key: String): IntArray?
+    private external fun nativeGetUVec2(nativePtr: Long, key: String): IntArray?
+    private external fun nativeGetUVec3(nativePtr: Long, key: String): IntArray?
+    private external fun nativeGetUVec4(nativePtr: Long, key: String): IntArray?
+    private external fun nativeGetMat4(nativePtr: Long, key: String): FloatArray?
+
     private external fun nativeGetLabel(nativePtr: Long): String
     private external fun nativeGetType(nativePtr: Long): Int
     private external fun nativeGetBoundingBox(nativePtr: Long): FloatArray?

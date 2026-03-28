@@ -1221,6 +1221,41 @@ def api_transform_matrix_nested(width=256, height=256):
     ctx.set_scene(None)
 
 
+def api_param_get(width=256, height=256):
+    """Test the ngl_node_param_get_* API via generated getter methods"""
+    fill = ngl.ColorFill(color=(0.8, 0.2, 0.1, 1.0))
+    rect = ngl.DrawRect2D(rect=(10, 20, 100, 80), fill=fill)
+
+    # vec4 getter
+    assert rect.get_rect() == (10.0, 20.0, 100.0, 80.0)
+
+    # f32 getter (default value)
+    assert rect.get_rotation() == 0.0
+
+    # Group2D with explicit values
+    group = ngl.Group2D(children=[rect], rotation=45.0, opacity=0.5)
+    assert group.get_rotation() == 45.0
+    assert group.get_opacity() == 0.5
+
+    # vec2 getter
+    group2 = ngl.Group2D(children=[rect], translate=(100, 200), scale=(2.0, 0.5))
+    assert group2.get_translate() == (100.0, 200.0)
+    assert group2.get_scale() == (2.0, 0.5)
+
+    # i32 getter
+    canvas = ngl.Canvas2D(children=[rect], width=320, height=240)
+    assert canvas.get_width() == 320
+    assert canvas.get_height() == 240
+
+    # str getter (label is a base node param)
+    labeled = ngl.DrawRect2D(rect=(0, 0, 10, 10), fill=fill, label="my-rect")
+    assert labeled.get_label() == "my-rect"
+
+    # Live-changed value round-trips
+    group.set_rotation(90.0)
+    assert group.get_rotation() == 90.0
+
+
 def api_transform_matrix_rotation_stability(width=256, height=256):
     """Test that rotation round-trips through the transform matrix for all angles"""
     ctx = ngl.Context()

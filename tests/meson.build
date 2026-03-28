@@ -98,6 +98,7 @@ foreach backend : backends
     'transform_matrix_nested',
     'transform_matrix_rotation_stability',
     'global_transform_getters',
+    'param_get',
   ]
   if has_text_libraries
     tests_api += 'text_live_change_with_font'
