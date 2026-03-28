@@ -491,7 +491,6 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
         gl->funcs.EGLImageTargetTexStorageEXT(s_priv->target, s_priv->egl_image, NULL);
     else
         gl->funcs.EGLImageTargetTexture2DOES(s_priv->target, s_priv->egl_image);
-    gl->funcs.EGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, s_priv->egl_image);
 
     return 0;
 #else
