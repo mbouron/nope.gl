@@ -57,6 +57,8 @@ class _WrapperGenerator:
 
     _ARG_TYPES = {"bool", "f32", "f64", "flags", "i32", "select", "str", "u32", "data", "node"}
     _ARGS_TYPES = {"ivec2", "ivec3", "ivec4", "mat4", "uvec2", "uvec3", "uvec4", "vec2", "vec3", "vec4"}
+    _ARG_GET_TYPES = {"bool", "f32", "f64", "flags", "i32", "select", "str", "u32"}
+    _ARGS_GET_TYPES = {"ivec2", "ivec3", "ivec4", "mat4", "uvec2", "uvec3", "uvec4", "vec2", "vec3", "vec4"}
 
     _TYPING_MAP = dict(
         bool="bool",
@@ -234,6 +236,49 @@ class _WrapperGenerator:
         return "".join(setters)
 
     @classmethod
+    def _get_getter_code(cls, param):
+        param_name = param["name"]
+        param_type = param["type"]
+
+        if param_type in cls._ARG_GET_TYPES:
+            return f'self._arg_getter(self._param_get_{param_type}, "{param_name}")'
+        if param_type in cls._ARGS_GET_TYPES:
+            return f'self._args_getter(self._param_get_{param_type}, "{param_name}")'
+        if param_type == "rational":
+            return f'self._get_rational("{param_name}")'
+        return None
+
+    @classmethod
+    def _get_getter_prototype(cls, param):
+        param_name = param["name"]
+        param_type = param["type"]
+
+        type_, _ = cls._get_param_type(param)
+        type_ = cls._TYPING_SINGLE_MAP.get(param_type, type_)
+        if param_type in cls._ARG_GET_TYPES:
+            return f"get_{param_name}(self) -> {type_}"
+        if param_type in cls._ARGS_GET_TYPES:
+            return f"get_{param_name}(self) -> Tuple[{type_}, ...]"
+        if param_type == "rational":
+            return f"get_{param_name}(self) -> Tuple[int, int]"
+        return None
+
+    def _get_class_getters(self, params):
+        getters = []
+        for param in params:
+            prototype = self._get_getter_prototype(param)
+            if prototype is None:
+                continue
+            getter_code = self._get_getter_code(param)
+
+            desc = f'"""\n{param["desc"]}\n"""'
+            desc = textwrap.indent(desc, " " * 4)
+
+            getters.append(f"\ndef {prototype}:\n{desc}\n    return {getter_code}\n")
+
+        return "".join(getters)
+
+    @classmethod
     def _get_class_evaluate(cls, class_name):
         animated_nodes = dict(
             AnimatedFloat="f32",
@@ -381,9 +426,10 @@ class _WrapperGenerator:
         inherited = class_name[0] == "_"
         type_id = None if inherited else self._get_type_id(class_name)
 
-        # Generate class code: init, setters and potential evaluate methods
+        # Generate class code: init, setters, getters and potential evaluate methods
         init_code = self._get_class_init(parent_params, params, inherited)
         setters_code = self._get_class_setters(params)
+        getters_code = self._get_class_getters(params)
         evaluate_code = self._get_class_evaluate(class_name)
         custom_code = self._get_class_custom(class_name)
 
@@ -393,6 +439,7 @@ class _WrapperGenerator:
             class_code += textwrap.indent(f"type_id = {type_id}\n", indent)
         class_code += textwrap.indent(init_code, indent)
         class_code += textwrap.indent(setters_code, indent)
+        class_code += textwrap.indent(getters_code, indent)
         class_code += textwrap.indent(evaluate_code, indent)
         class_code += textwrap.indent(custom_code, indent)
         return class_code
