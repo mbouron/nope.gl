@@ -200,6 +200,17 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                     else -> listOf(defaultFunction)
                 }
             })
+        .addFunctions(parameterSpecs.filter { it.key.addSetter }
+            .mapNotNull { (param, _) ->
+                kotlinGetCall(param.type, param.name)?.let { getCall ->
+                    val returnType = kotlinGetReturnType(param.type)
+                    FunSpec.builder("get${param.parameterName.toCamelCase(true)}")
+                        .addKdoc(param)
+                        .returns(returnType)
+                        .addCode(getCall)
+                        .build()
+                }
+            })
         .build()
 }
 
@@ -479,4 +490,48 @@ private fun NodeClass.Parameter.toKotlinParameter(choiceEnums: Map<String, Choic
             defaultValue("null")
         }
     }.build()
+}
+
+private fun kotlinGetCall(typeName: TypeName, name: String): CodeBlock? {
+    return when (typeName) {
+        TypeName.F32 -> CodeBlock.of("return ${NGLNode::getFloat.name}(%S)\n", name)
+        TypeName.F64 -> CodeBlock.of("return ${NGLNode::getDouble.name}(%S)\n", name)
+        TypeName.I32 -> CodeBlock.of("return ${NGLNode::getInt.name}(%S)\n", name)
+        TypeName.U32 -> CodeBlock.of("return ${NGLNode::getUInt.name}(%S)\n", name)
+        TypeName.Bool -> CodeBlock.of("return ${NGLNode::getBoolean.name}(%S)\n", name)
+        TypeName.Str -> CodeBlock.of("return ${NGLNode::getString.name}(%S)\n", name)
+        TypeName.Vec2 -> CodeBlock.of("return ${NGLNode::getVec2.name}(%S)\n", name)
+        TypeName.Vec3 -> CodeBlock.of("return ${NGLNode::getVec3.name}(%S)\n", name)
+        TypeName.Vec4 -> CodeBlock.of("return ${NGLNode::getVec4.name}(%S)\n", name)
+        TypeName.IVec -> CodeBlock.of("return ${NGLNode::getIVec2.name}(%S)\n", name)
+        TypeName.Ivec3 -> CodeBlock.of("return ${NGLNode::getIVec3.name}(%S)\n", name)
+        TypeName.Ivec4 -> CodeBlock.of("return ${NGLNode::getIVec4.name}(%S)\n", name)
+        TypeName.UVec2 -> CodeBlock.of("return ${NGLNode::getUVec2.name}(%S)\n", name)
+        TypeName.UVec3 -> CodeBlock.of("return ${NGLNode::getUVec3.name}(%S)\n", name)
+        TypeName.UVec4 -> CodeBlock.of("return ${NGLNode::getUVec4.name}(%S)\n", name)
+        TypeName.Mat4 -> CodeBlock.of("return ${NGLNode::getMat4.name}(%S)\n", name)
+        else -> null
+    }
+}
+
+private fun kotlinGetReturnType(typeName: TypeName): com.squareup.kotlinpoet.TypeName {
+    return when (typeName) {
+        TypeName.F32 -> Float::class.asTypeName()
+        TypeName.F64 -> Double::class.asTypeName()
+        TypeName.I32 -> Int::class.asTypeName()
+        TypeName.U32 -> Int::class.asTypeName()
+        TypeName.Bool -> Boolean::class.asTypeName()
+        TypeName.Str -> String::class.asTypeName().copy(nullable = true)
+        TypeName.Vec2 -> FloatArray::class.asTypeName().copy(nullable = true)
+        TypeName.Vec3 -> FloatArray::class.asTypeName().copy(nullable = true)
+        TypeName.Vec4 -> FloatArray::class.asTypeName().copy(nullable = true)
+        TypeName.IVec -> IntArray::class.asTypeName().copy(nullable = true)
+        TypeName.Ivec3 -> IntArray::class.asTypeName().copy(nullable = true)
+        TypeName.Ivec4 -> IntArray::class.asTypeName().copy(nullable = true)
+        TypeName.UVec2 -> IntArray::class.asTypeName().copy(nullable = true)
+        TypeName.UVec3 -> IntArray::class.asTypeName().copy(nullable = true)
+        TypeName.UVec4 -> IntArray::class.asTypeName().copy(nullable = true)
+        TypeName.Mat4 -> FloatArray::class.asTypeName().copy(nullable = true)
+        else -> Any::class.asTypeName().copy(nullable = true)
+    }
 }

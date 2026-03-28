@@ -55,6 +55,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_node_get_global_transform_matrix()`, `ngl_node_get_global_position()`,
   `ngl_node_get_global_rotation()`, and `ngl_node_get_global_scale()` to query
   the accumulated 2D transform of any node in the hierarchy
+- `ngl_node_param_get_*()` functions to read back node parameter values,
+  mirroring the existing `ngl_node_param_set_*()` API
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges
