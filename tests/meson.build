@@ -589,6 +589,20 @@ foreach backend : backends
     'fill_stroke_opacity',
   ]
 
+  tests_effect2d = [
+    'passthrough',
+    'multiple_children',
+    'opacity',
+    'blur',
+    'blur_large',
+    'fragment_invert',
+    'fragment_uniform',
+    'fragment_grayscale',
+    'blur_and_fragment',
+    'nested_in_group2d',
+    'visible_false',
+  ]
+
   tests_noise = [
     'blocky',
     'perlin',
@@ -605,6 +619,7 @@ foreach backend : backends
     'data':          {'tests': tests_data},
     'depth_stencil': {'tests': tests_depth_stencil},
     'drawrect':      {'tests': tests_drawrect},
+    'effect2d':      {'tests': tests_effect2d},
     'filter':        {'tests': tests_filter},
     'live':          {'tests': tests_live},
     'media':         {'tests': tests_media},
