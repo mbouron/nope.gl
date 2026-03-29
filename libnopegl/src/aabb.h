@@ -22,9 +22,15 @@
 #ifndef AABB_H
 #define AABB_H
 
+#include <float.h>
 #include <stdint.h>
 
 #include "utils/utils.h"
+
+#define NGLI_AABB_EMPTY (struct aabb){ \
+    .center = {0.f, 0.f, 0.f, 1.f},  \
+    .extent = {-FLT_MAX, -FLT_MAX, 0.f, 1.f}, \
+}
 
 struct ray {
     NGLI_ALIGNED_VEC(origin);

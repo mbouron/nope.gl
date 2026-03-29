@@ -477,10 +477,7 @@ static bool has_bounding_box(const struct ngl_node *node)
 
 struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children)
 {
-    struct aabb aabb = {
-        .center = {0.f, 0.f, 0.f, 1.f},
-        .extent = {-FLT_MAX, -FLT_MAX, 0.f, 1.f},
-    };
+    struct aabb aabb = NGLI_AABB_EMPTY;
     for (size_t i = 0; i < nb_children; i++) {
         const struct ngl_node *child = children[i];
         if (!has_bounding_box(child))
