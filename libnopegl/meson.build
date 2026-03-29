@@ -198,6 +198,7 @@ lib_src = files(
   'src/node_computeprogram.c',
   'src/node_customtexture.c',
   'src/node_draw.c',
+  'src/fgblur.c',
   'src/node_drawrect.c',
   'src/node_effect2d.c',
   'src/node_fill.c',

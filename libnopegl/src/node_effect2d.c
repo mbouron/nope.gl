@@ -24,43 +24,28 @@
 #include <string.h>
 
 #include "blending.h"
+#include "fgblur.h"
 #include "geometry.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
+#include "node_block.h"
+#include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
 #include "rtt.h"
-#include "node_block.h"
-#include "node_texture.h"
-#include "utils/bits.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
 /* GLSL fragments as string */
+#include "blur_common_vert.h"
 #include "effect2d_composite_frag.h"
 #include "effect2d_composite_vert.h"
-
-/* Blur shaders (shared with FastGaussianBlur) */
-#include "blur_common_vert.h"
-#include "blur_downsample_frag.h"
-#include "blur_upsample_frag.h"
-#include "blur_interpolate_frag.h"
-
-#define MAX_MIP_LEVELS 16
-
-struct down_up_data_block {
-    float offset;
-};
-
-struct interpolate_block {
-    float lod;
-};
 
 #define MAX_FRAG_UNIFORMS  16
 #define MAX_FRAG_TEXTURES  8
@@ -115,22 +100,8 @@ struct effect2d_priv {
     uint32_t fbo_width;
     uint32_t fbo_height;
 
-    /* Blur (internalized FastGaussianBlur) */
-    struct ngpu_rendertarget_layout blur_mip_layout;
-    struct ngpu_block blur_down_up_block;
-    struct rtt_ctx *blur_mip;
-    struct rtt_ctx *blur_mips[MAX_MIP_LEVELS];
-    struct rtt_ctx *blur_dst_rtt;
-    uint32_t blur_max_lod;
-    struct {
-        struct ngpu_pgcraft *crafter;
-        struct pipeline_compat *pl;
-    } blur_dws, blur_ups;
-    struct {
-        struct ngpu_block block;
-        struct ngpu_pgcraft *crafter;
-        struct pipeline_compat *pl;
-    } blur_interp;
+    /* Blur */
+    struct fgblur_ctx blur;
 
     /* Custom fragment pass */
     char *frag_glsl;
@@ -337,189 +308,6 @@ static const void *frag_node_get_data(const struct ngl_node *node)
     return var->data;
 }
 
-/*
- * Blur pipeline setup (internalized from node_fgblur.c)
- */
-static int setup_blur_down_up_pipeline(struct ngpu_pgcraft *crafter,
-                                       const char *name,
-                                       const char *frag_base,
-                                       struct pipeline_compat *pipeline,
-                                       const struct ngpu_rendertarget_layout *layout,
-                                       struct ngpu_block *block)
-{
-    const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
-    };
-
-    const struct ngpu_pgcraft_texture textures[] = {
-        {
-            .name      = "tex",
-            .type      = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
-            .precision = NGPU_PRECISION_HIGH,
-            .stage     = NGPU_PROGRAM_STAGE_FRAG,
-        },
-    };
-
-    const struct ngpu_pgcraft_block blocks[] = {
-        {
-            .name          = "data",
-            .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
-            .stage         = NGPU_PROGRAM_STAGE_FRAG,
-            .block         = &block->block_desc,
-            .buffer        = {
-                .buffer    = block->buffer,
-                .size      = block->block_size,
-            },
-        }
-    };
-
-    const struct ngpu_pgcraft_params crafter_params = {
-        .program_label    = name,
-        .vert_base        = blur_common_vert,
-        .frag_base        = frag_base,
-        .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
-        .blocks           = blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(blocks),
-        .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
-    };
-
-    int ret = ngpu_pgcraft_craft(crafter, &crafter_params);
-    if (ret < 0)
-        return ret;
-
-    const struct pipeline_compat_params params = {
-        .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
-        .graphics     = {
-            .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-            .state        = NGPU_GRAPHICS_STATE_DEFAULTS,
-            .rt_layout    = *layout,
-            .vertex_state = ngpu_pgcraft_get_vertex_state(crafter),
-        },
-        .program          = ngpu_pgcraft_get_program(crafter),
-        .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(crafter),
-        .compat_info      = ngpu_pgcraft_get_compat_info(crafter),
-    };
-
-    return ngli_pipeline_compat_init(pipeline, &params);
-}
-
-static int setup_blur_interpolate_pipeline(struct effect2d_priv *s, struct ngpu_ctx *gpu_ctx)
-{
-    const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
-    };
-
-    struct ngpu_pgcraft_texture textures[] = {
-        {.name = "tex0", .type = NGPU_PGCRAFT_TEXTURE_TYPE_2D, .precision = NGPU_PRECISION_HIGH, .stage = NGPU_PROGRAM_STAGE_FRAG},
-        {.name = "tex1", .type = NGPU_PGCRAFT_TEXTURE_TYPE_2D, .precision = NGPU_PRECISION_HIGH, .stage = NGPU_PROGRAM_STAGE_FRAG},
-    };
-
-    const struct ngpu_block_entry fields[] = {
-        NGPU_BLOCK_FIELD(struct interpolate_block, lod, NGPU_TYPE_F32, 0),
-    };
-    const struct ngpu_block_params block_params = {
-        .entries    = fields,
-        .nb_entries = NGLI_ARRAY_NB(fields),
-    };
-    int ret = ngpu_block_init(gpu_ctx, &s->blur_interp.block, &block_params);
-    if (ret < 0)
-        return ret;
-
-    const struct ngpu_pgcraft_block crafter_blocks[] = {
-        {
-            .name          = "interpolate",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
-            .stage         = NGPU_PROGRAM_STAGE_FRAG,
-            .block         = &s->blur_interp.block.block_desc,
-            .buffer        = {
-                .buffer    = s->blur_interp.block.buffer,
-                .size      = s->blur_interp.block.block_size,
-            },
-        }
-    };
-
-    const struct ngpu_pgcraft_params crafter_params = {
-        .program_label    = "nopegl/effect2d-blur-interpolate",
-        .vert_base        = blur_common_vert,
-        .frag_base        = blur_interpolate_frag,
-        .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
-        .blocks           = crafter_blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(crafter_blocks),
-        .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
-    };
-
-    ret = ngpu_pgcraft_craft(s->blur_interp.crafter, &crafter_params);
-    if (ret < 0)
-        return ret;
-
-    const struct pipeline_compat_params params = {
-        .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
-        .graphics     = {
-            .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-            .state        = NGPU_GRAPHICS_STATE_DEFAULTS,
-            .rt_layout    = s->blur_mip_layout,
-            .vertex_state = ngpu_pgcraft_get_vertex_state(s->blur_interp.crafter),
-        },
-        .program          = ngpu_pgcraft_get_program(s->blur_interp.crafter),
-        .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->blur_interp.crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->blur_interp.crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->blur_interp.crafter),
-        .compat_info      = ngpu_pgcraft_get_compat_info(s->blur_interp.crafter),
-    };
-
-    return ngli_pipeline_compat_init(s->blur_interp.pl, &params);
-}
-
-static int init_blur_pipelines(struct effect2d_priv *s, struct ngpu_ctx *gpu_ctx)
-{
-    s->blur_mip_layout.nb_colors = 1;
-    s->blur_mip_layout.colors[0].format = NGPU_FORMAT_R8G8B8A8_UNORM;
-
-    const struct ngpu_block_entry down_up_fields[] = {
-        NGPU_BLOCK_FIELD(struct down_up_data_block, offset, NGPU_TYPE_F32, 0),
-    };
-    const struct ngpu_block_params down_up_params = {
-        .entries    = down_up_fields,
-        .nb_entries = NGLI_ARRAY_NB(down_up_fields),
-    };
-    int ret = ngpu_block_init(gpu_ctx, &s->blur_down_up_block, &down_up_params);
-    if (ret < 0)
-        return ret;
-
-    ret = ngpu_block_update(&s->blur_down_up_block, 0, &(struct down_up_data_block){.offset=1.f});
-    if (ret < 0)
-        return ret;
-
-    s->blur_dws.crafter = ngpu_pgcraft_create(gpu_ctx);
-    s->blur_ups.crafter = ngpu_pgcraft_create(gpu_ctx);
-    s->blur_interp.crafter = ngpu_pgcraft_create(gpu_ctx);
-    if (!s->blur_dws.crafter || !s->blur_ups.crafter || !s->blur_interp.crafter)
-        return NGL_ERROR_MEMORY;
-
-    s->blur_dws.pl = ngli_pipeline_compat_create(gpu_ctx);
-    s->blur_ups.pl = ngli_pipeline_compat_create(gpu_ctx);
-    s->blur_interp.pl = ngli_pipeline_compat_create(gpu_ctx);
-    if (!s->blur_dws.pl || !s->blur_ups.pl || !s->blur_interp.pl)
-        return NGL_ERROR_MEMORY;
-
-    if ((ret = setup_blur_down_up_pipeline(s->blur_dws.crafter, "nopegl/effect2d-blur-downsample",
-                                           blur_downsample_frag, s->blur_dws.pl,
-                                           &s->blur_mip_layout, &s->blur_down_up_block)) < 0 ||
-        (ret = setup_blur_down_up_pipeline(s->blur_ups.crafter, "nopegl/effect2d-blur-upsample",
-                                           blur_upsample_frag, s->blur_ups.pl,
-                                           &s->blur_mip_layout, &s->blur_down_up_block)) < 0)
-        return ret;
-
-    return setup_blur_interpolate_pipeline(s, gpu_ctx);
-}
-
 static int effect2d_init(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -533,7 +321,10 @@ static int effect2d_init(struct ngl_node *node)
     s->children_layout.colors[0].format = NGPU_FORMAT_R8G8B8A8_UNORM;
 
     /* Initialize blur pipelines */
-    int ret = init_blur_pipelines(s, gpu_ctx);
+    struct ngpu_rendertarget_layout mip_layout = {0};
+    mip_layout.nb_colors = 1;
+    mip_layout.colors[0].format = NGPU_FORMAT_R8G8B8A8_UNORM;
+    int ret = ngli_fgblur_init(&s->blur, gpu_ctx, &mip_layout, &mip_layout);
     if (ret < 0)
         return ret;
 
@@ -902,145 +693,6 @@ static int resize_fbo(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
     return 0;
 }
 
-static int resize_blur(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t width, uint32_t height)
-{
-    /* Check if blur mips are already the right size */
-    if (s->blur_mips[0] && s->fbo_width == width && s->fbo_height == height)
-        return 0;
-
-    const struct ngpu_texture_params mip_tex_params = {
-        .type       = NGPU_TEXTURE_TYPE_2D,
-        .format     = NGPU_FORMAT_R8G8B8A8_UNORM,
-        .width      = width,
-        .height     = height,
-        .min_filter = NGPU_FILTER_LINEAR,
-        .mag_filter = NGPU_FILTER_LINEAR,
-        .wrap_s     = NGPU_WRAP_MIRRORED_REPEAT,
-        .wrap_t     = NGPU_WRAP_MIRRORED_REPEAT,
-        .usage      = NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT |
-                      NGPU_TEXTURE_USAGE_SAMPLED_BIT,
-    };
-
-    /* Create full-res mip for upsample result */
-    ngli_rtt_freep(&s->blur_mip);
-    s->blur_mip = ngli_rtt_create(ctx);
-    if (!s->blur_mip)
-        return NGL_ERROR_MEMORY;
-
-    struct ngpu_texture_params p = mip_tex_params;
-    int ret = ngli_rtt_from_texture_params(s->blur_mip, &p);
-    if (ret < 0)
-        return ret;
-
-    /* Create mip pyramid */
-    uint32_t mip_w = width;
-    uint32_t mip_h = height;
-    for (size_t i = 0; i < MAX_MIP_LEVELS; i++) {
-        ngli_rtt_freep(&s->blur_mips[i]);
-        s->blur_mips[i] = ngli_rtt_create(ctx);
-        if (!s->blur_mips[i])
-            return NGL_ERROR_MEMORY;
-
-        p.width = mip_w;
-        p.height = mip_h;
-        ret = ngli_rtt_from_texture_params(s->blur_mips[i], &p);
-        if (ret < 0)
-            return ret;
-
-        mip_w = NGLI_MAX(mip_w >> 1, 1);
-        mip_h = NGLI_MAX(mip_h >> 1, 1);
-    }
-
-    /* Create blur destination RTT (same size as source, for interpolation output) */
-    ngli_rtt_freep(&s->blur_dst_rtt);
-    s->blur_dst_rtt = ngli_rtt_create(ctx);
-    if (!s->blur_dst_rtt)
-        return NGL_ERROR_MEMORY;
-
-    p = mip_tex_params;
-    p.width = width;
-    p.height = height;
-    ret = ngli_rtt_from_texture_params(s->blur_dst_rtt, &p);
-    if (ret < 0)
-        return ret;
-
-    /* Set UV coordinate matrix on blur output */
-    struct image *dst_image = ngli_rtt_get_image(s->blur_dst_rtt, 0);
-    ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, dst_image->coordinates_matrix);
-
-    const uint32_t nb_mips = ngli_log2(NGLI_MAX(width, height)) + 1;
-    s->blur_max_lod = NGLI_MIN(nb_mips - 1, MAX_MIP_LEVELS - 2);
-
-    return 0;
-}
-
-static float compute_blur_lod(float radius)
-{
-    const float k = 5.17925f;
-    if (radius <= k)
-        return radius / k;
-    return 1.34508f * logf(0.406057f * radius);
-}
-
-static void execute_blur_pass(struct ngl_ctx *ctx,
-                              struct rtt_ctx *rtt_ctx,
-                              struct pipeline_compat *pipeline,
-                              const struct image *image)
-{
-    ngli_rtt_begin(rtt_ctx);
-    ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_compat_update_image(pipeline, 0, image);
-    ngli_pipeline_compat_draw(pipeline, 3, 1, 0);
-    ngli_rtt_end(rtt_ctx);
-}
-
-static const struct image *execute_blur(struct effect2d_priv *s, struct ngl_ctx *ctx,
-                                        const struct image *src_image, float blurriness,
-                                        uint32_t width, uint32_t height)
-{
-    const float diagonal = hypotf((float)width, (float)height);
-    const float radius = blurriness * diagonal / 2.f;
-    const float lod = NGLI_MIN(compute_blur_lod(radius), (float)s->blur_max_lod);
-    const int32_t lod_i = (int32_t)lod;
-    const float lod_f = lod - (float)lod_i;
-
-    /* Downsample source to mips[1] */
-    const struct image *mip = src_image;
-    execute_blur_pass(ctx, s->blur_mips[1], s->blur_dws.pl, mip);
-
-    /* Downsample successively until mips[lod_i+1] is generated */
-    for (int32_t i = 2; i <= lod_i + 1; i++)
-        execute_blur_pass(ctx, s->blur_mips[i], s->blur_dws.pl, ngli_rtt_get_image(s->blur_mips[i - 1], 0));
-
-    /*
-     * Upsample successively from mips[lod_i] back to full resolution.
-     * If lod == 0, we simply use the source.
-     */
-    if (lod_i > 0) {
-        for (int32_t i = lod_i - 1; i > 0; i--)
-            execute_blur_pass(ctx, s->blur_mips[i], s->blur_ups.pl, ngli_rtt_get_image(s->blur_mips[i + 1], 0));
-        execute_blur_pass(ctx, s->blur_mip, s->blur_ups.pl, ngli_rtt_get_image(s->blur_mips[1], 0));
-        mip = ngli_rtt_get_image(s->blur_mip, 0);
-    }
-
-    /* Upsample from mips[lod_i+1] back to full resolution in mips[0] */
-    for (int32_t i = lod_i; i >= 0; i--)
-        execute_blur_pass(ctx, s->blur_mips[i], s->blur_ups.pl, ngli_rtt_get_image(s->blur_mips[i + 1], 0));
-
-    /* Interpolate the two blurred layers */
-    const struct interpolate_block ib = {.lod = lod_f};
-    ngpu_block_update(&s->blur_interp.block, 0, &ib);
-
-    ngli_rtt_begin(s->blur_dst_rtt);
-    ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_compat_update_image(s->blur_interp.pl, 0, mip);
-    ngli_pipeline_compat_update_image(s->blur_interp.pl, 1, ngli_rtt_get_image(s->blur_mips[0], 0));
-    ngli_pipeline_compat_draw(s->blur_interp.pl, 3, 1, 0);
-    ngli_rtt_end(s->blur_dst_rtt);
-
-    return ngli_rtt_get_image(s->blur_dst_rtt, 0);
-}
-
 static void effect2d_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -1121,10 +773,14 @@ restore_2d_state:
     const float blur_raw = *(const float *)ngli_node_get_data_ptr(o->blur_node, &o->blur);
     const float blur_val = NGLI_CLAMP(blur_raw, 0.f, 1.f);
     if (blur_val > 0.f) {
-        ret = resize_blur(s, ctx, w, h);
+        ret = ngli_fgblur_resize(&s->blur, ctx, w, h, NGPU_FORMAT_R8G8B8A8_UNORM);
         if (ret < 0)
             return;
-        result_image = execute_blur(s, ctx, result_image, blur_val, w, h);
+        result_image = ngli_fgblur_execute(&s->blur, ctx, result_image, blur_val, w, h);
+
+        /* Set UV coordinate matrix on blur output */
+        struct image *blur_img = ngli_rtt_get_image(s->blur.dst_rtt, 0);
+        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, blur_img->coordinates_matrix);
     }
 
     /*
@@ -1251,10 +907,7 @@ static void effect2d_release(struct ngl_node *node)
     struct effect2d_priv *s = node->priv_data;
 
     ngli_rtt_freep(&s->children_rtt);
-    ngli_rtt_freep(&s->blur_mip);
-    for (size_t i = 0; i < MAX_MIP_LEVELS; i++)
-        ngli_rtt_freep(&s->blur_mips[i]);
-    ngli_rtt_freep(&s->blur_dst_rtt);
+    ngli_fgblur_release(&s->blur);
     ngli_rtt_freep(&s->frag_rtt);
     s->fbo_width = 0;
     s->fbo_height = 0;
@@ -1275,15 +928,7 @@ static void effect2d_uninit(struct ngl_node *node)
     ngli_freep(&s->frag_glsl);
     ngli_darray_reset(&s->frag_uniform_indices);
 
-    /* Blur cleanup */
-    ngli_pipeline_compat_freep(&s->blur_dws.pl);
-    ngpu_pgcraft_freep(&s->blur_dws.crafter);
-    ngli_pipeline_compat_freep(&s->blur_ups.pl);
-    ngpu_pgcraft_freep(&s->blur_ups.crafter);
-    ngli_pipeline_compat_freep(&s->blur_interp.pl);
-    ngpu_pgcraft_freep(&s->blur_interp.crafter);
-    ngpu_block_reset(&s->blur_interp.block);
-    ngpu_block_reset(&s->blur_down_up_block);
+    ngli_fgblur_uninit(&s->blur);
 }
 
 const struct node_class ngli_effect2d_class = {
