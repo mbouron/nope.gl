@@ -303,9 +303,6 @@ def drawrect_rotate(cfg: ngl.SceneCfg):
     return _canvas(cfg, ngl.DrawRect(rect=(64, 64, 128, 128), fill=fill, rotation=45.0))
 
 
-# ── Animation (multiple keyframes) ────────────────────────────────────────────
-
-
 @test_render(keyframes=4)
 @ngl.scene(width=W, height=H)
 def drawrect_animated_opacity(cfg: ngl.SceneCfg):
@@ -319,6 +316,121 @@ def drawrect_animated_opacity(cfg: ngl.SceneCfg):
         ]
     )
     return _canvas(cfg, ngl.DrawRect(rect=(0, 0, W, H), fill=fill, opacity=opacity_anim), duration=4.0)
+
+
+@test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=W, height=H)
+def drawrect_animated_trs(cfg: ngl.SceneCfg):
+    fill = ngl.TextureFill(texture=_make_texture(), scaling="fill")
+    stroke = ngl.Stroke(
+        width=2,
+        mode="inside",
+        color=(1.0, 1.0, 1.0, 1.0),
+        dash_length=24.0,
+        dash_ratio=0.5,
+        dash_cap="round",
+    )
+    translate_anim = ngl.AnimatedVec3(
+        [
+            ngl.AnimKeyFrameVec3(0.0, (0.0, 0.0, 0.0)),
+            ngl.AnimKeyFrameVec3(1.0, (32.0, 16.0, 0.0)),
+            ngl.AnimKeyFrameVec3(2.0, (-16.0, 32.0, 0.0)),
+            ngl.AnimKeyFrameVec3(3.0, (0.0, 0.0, 0.0)),
+        ]
+    )
+    rotation_anim = ngl.AnimatedFloat(
+        [
+            ngl.AnimKeyFrameFloat(0.0, 0.0),
+            ngl.AnimKeyFrameFloat(1.0, 15.0),
+            ngl.AnimKeyFrameFloat(2.0, -10.0),
+            ngl.AnimKeyFrameFloat(3.0, 0.0),
+        ]
+    )
+    scale_anim = ngl.AnimatedVec3(
+        [
+            ngl.AnimKeyFrameVec3(0.0, (1.0, 1.0, 1.0)),
+            ngl.AnimKeyFrameVec3(1.0, (0.8, 1.2, 1.0)),
+            ngl.AnimKeyFrameVec3(2.0, (1.2, 0.8, 1.0)),
+            ngl.AnimKeyFrameVec3(3.0, (1.0, 1.0, 1.0)),
+        ]
+    )
+    content_zoom_anim = ngl.AnimatedFloat(
+        [
+            ngl.AnimKeyFrameFloat(0.0, 1.0),
+            ngl.AnimKeyFrameFloat(1.0, 1.5),
+            ngl.AnimKeyFrameFloat(2.0, 1.2),
+            ngl.AnimKeyFrameFloat(3.0, 1.0),
+        ]
+    )
+    content_translate_anim = ngl.AnimatedVec2(
+        [
+            ngl.AnimKeyFrameVec2(0.0, (0.0, 0.0)),
+            ngl.AnimKeyFrameVec2(1.0, (0.15, 0.1)),
+            ngl.AnimKeyFrameVec2(2.0, (-0.1, 0.15)),
+            ngl.AnimKeyFrameVec2(3.0, (0.0, 0.0)),
+        ]
+    )
+    return _canvas(
+        cfg,
+        ngl.DrawRect(
+            rect=(48, 48, W - 96, H - 96),
+            fill=fill,
+            stroke=stroke,
+            corner_radius=8,
+            translate=translate_anim,
+            rotation=rotation_anim,
+            scale=scale_anim,
+            content_zoom=content_zoom_anim,
+            content_translate=content_translate_anim,
+        ),
+        duration=4.0,
+    )
+
+
+@test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=W, height=H)
+def drawrect_animated_content(cfg: ngl.SceneCfg):
+    fill = ngl.GradientFill(
+        color0=(0.9, 0.1, 0.1),
+        color1=(0.1, 0.1, 0.9),
+        pos0=(0.0, 0.0),
+        pos1=(1.0, 1.0),
+    )
+    stroke = ngl.Stroke(
+        width=2,
+        mode="outside",
+        color=(1.0, 1.0, 1.0, 1.0),
+        dash_length=16.0,
+        dash_ratio=0.5,
+        dash_cap="round",
+    )
+    content_zoom_anim = ngl.AnimatedFloat(
+        [
+            ngl.AnimKeyFrameFloat(0.0, 1.0),
+            ngl.AnimKeyFrameFloat(1.0, 2.0),
+            ngl.AnimKeyFrameFloat(2.0, 1.5),
+            ngl.AnimKeyFrameFloat(3.0, 1.0),
+        ]
+    )
+    content_translate_anim = ngl.AnimatedVec2(
+        [
+            ngl.AnimKeyFrameVec2(0.0, (0.0, 0.0)),
+            ngl.AnimKeyFrameVec2(1.0, (0.2, 0.1)),
+            ngl.AnimKeyFrameVec2(2.0, (-0.1, 0.2)),
+            ngl.AnimKeyFrameVec2(3.0, (0.0, 0.0)),
+        ]
+    )
+    return _canvas(
+        cfg,
+        ngl.DrawRect(
+            rect=(0, 0, W, H),
+            fill=fill,
+            stroke=stroke,
+            content_zoom=content_zoom_anim,
+            content_translate=content_translate_anim,
+        ),
+        duration=4.0,
+    )
 
 
 @test_render()

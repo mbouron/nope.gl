@@ -2850,28 +2850,28 @@
           "name": "translate",
           "type": "vec3",
           "default": [0.000000,0.000000,0.000000],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "translation vector"
         },
         {
           "name": "scale",
           "type": "vec3",
           "default": [1.000000,1.000000,1.000000],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "scale factors"
         },
         {
           "name": "rotation",
           "type": "f32",
           "default": 0.000000,
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "rotation angle in degrees (around the Z axis)"
         },
         {
           "name": "anchor",
           "type": "vec3",
           "default": ["nan","nan","nan"],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "pivot point for rotation and scale; defaults to the center of the rect"
         },
         {
@@ -2899,14 +2899,14 @@
           "name": "content_zoom",
           "type": "f32",
           "default": 1.000000,
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "zoom factor applied to the fill content (>1 zooms in; for fit scaling mode zoom is ignored)"
         },
         {
           "name": "content_translate",
           "type": "vec2",
           "default": [0.000000,0.000000],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "UV-space translation of the fill content; for fit scaling mode the translation is clamped to keep the content within the DrawRect bounds"
         }
       ]
@@ -3729,35 +3729,35 @@
           "name": "translate",
           "type": "vec2",
           "default": [0.000000,0.000000],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "translation in pixels"
         },
         {
           "name": "rotation",
           "type": "f32",
           "default": 0.000000,
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "rotation angle in degrees"
         },
         {
           "name": "scale",
           "type": "vec2",
           "default": [1.000000,1.000000],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "scale factors"
         },
         {
           "name": "anchor",
           "type": "vec2",
           "default": ["nan","nan"],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "anchor point in pixels (default: center of children)"
         },
         {
           "name": "opacity",
           "type": "f32",
           "default": 1.000000,
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "opacity applied to all children"
         }
       ]

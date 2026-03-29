@@ -534,6 +534,8 @@ foreach backend : backends
   ]
 
   tests_drawrect = [
+    'animated_trs',
+    'animated_content',
     'color_fill',
     'gradient_fill',
     'gradient_fill_diagonal',

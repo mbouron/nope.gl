@@ -149,15 +149,21 @@ struct drawrect_opts {
     struct ngl_node *fill_node;
     struct ngl_node *stroke_node;
     enum ngli_blending blending;
+    struct ngl_node *translate_node;
     float translate[3];
+    struct ngl_node *scale_node;
     float scale[3];
+    struct ngl_node *rotation_node;
     float rotation;
+    struct ngl_node *anchor_node;
     float anchor[3];
     float corner_radius;
     struct ngl_node *opacity_node;
     float opacity;
     float clip_rect[4];
+    struct ngl_node *content_zoom_node;
     float content_zoom;
+    struct ngl_node *content_translate_node;
     float content_translate[2];
 };
 
@@ -245,31 +251,31 @@ static const struct node_param drawrect_params[] = {
     {
         .key    = "translate",
         .type   = NGLI_PARAM_TYPE_VEC3,
-        .offset = OFFSET(translate),
-        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .offset = OFFSET(translate_node),
+        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc   = NGLI_DOCSTRING("translation vector"),
     },
     {
         .key       = "scale",
         .type      = NGLI_PARAM_TYPE_VEC3,
-        .offset    = OFFSET(scale),
+        .offset    = OFFSET(scale_node),
         .def_value = {.vec={1.f, 1.f, 1.f}},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("scale factors"),
     },
     {
         .key    = "rotation",
         .type   = NGLI_PARAM_TYPE_F32,
-        .offset = OFFSET(rotation),
-        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .offset = OFFSET(rotation_node),
+        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc   = NGLI_DOCSTRING("rotation angle in degrees (around the Z axis)"),
     },
     {
         .key       = "anchor",
         .type      = NGLI_PARAM_TYPE_VEC3,
-        .offset    = OFFSET(anchor),
+        .offset    = OFFSET(anchor_node),
         .def_value = {.vec={NAN, NAN, NAN}},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("pivot point for rotation and scale; defaults to the center of the rect"),
     },
     {
@@ -298,17 +304,17 @@ static const struct node_param drawrect_params[] = {
     {
         .key       = "content_zoom",
         .type      = NGLI_PARAM_TYPE_F32,
-        .offset    = OFFSET(content_zoom),
+        .offset    = OFFSET(content_zoom_node),
         .def_value = {.f32 = 1.f},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("zoom factor applied to the fill content (>1 zooms in; "
                                     "for fit scaling mode zoom is ignored)"),
     },
     {
         .key   = "content_translate",
         .type  = NGLI_PARAM_TYPE_VEC2,
-        .offset = OFFSET(content_translate),
-        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .offset = OFFSET(content_translate_node),
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc  = NGLI_DOCSTRING("UV-space translation of the fill content; "
                                 "for fit scaling mode the translation is clamped to keep "
                                 "the content within the DrawRect bounds"),
@@ -805,19 +811,24 @@ static void drawrect_draw(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
+    const float *anchor_value = ngli_node_get_data_ptr(o->anchor_node, o->anchor);
     const float anchor[3] = {
-        isnan(o->anchor[0]) ? o->rect[0] + o->rect[2] * 0.5f : o->anchor[0],
-        isnan(o->anchor[1]) ? o->rect[1] + o->rect[3] * 0.5f : o->anchor[1],
-        isnan(o->anchor[2]) ? 0.f                            : o->anchor[2],
+        isnan(anchor_value[0]) ? o->rect[0] + o->rect[2] * 0.5f : anchor_value[0],
+        isnan(anchor_value[1]) ? o->rect[1] + o->rect[3] * 0.5f : anchor_value[1],
+        isnan(anchor_value[2]) ? 0.f                            : anchor_value[2],
     };
+
+    const float *scale = ngli_node_get_data_ptr(o->scale_node, o->scale);
+    const float *rotation = ngli_node_get_data_ptr(o->rotation_node, &o->rotation);
+    const float *translate = ngli_node_get_data_ptr(o->translate_node, o->translate);
 
     NGLI_ALIGNED_MAT(SM);
     NGLI_ALIGNED_MAT(RM);
     NGLI_ALIGNED_MAT(TM);
-    ngli_mat4_scale(SM, o->scale[0], o->scale[1], o->scale[2], anchor);
+    ngli_mat4_scale(SM, scale[0], scale[1], scale[2], anchor);
     float z_axis[3] = {0.f, 0.f, 1.f};
-    ngli_mat4_rotate(RM, NGLI_DEG2RAD(o->rotation), z_axis, anchor);
-    ngli_mat4_translate(TM, o->translate[0], o->translate[1], o->translate[2]);
+    ngli_mat4_rotate(RM, NGLI_DEG2RAD(*rotation), z_axis, anchor);
+    ngli_mat4_translate(TM, translate[0], translate[1], translate[2]);
     NGLI_ALIGNED_MAT(trs_matrix);
     ngli_mat4_mul(trs_matrix, RM, SM);
     ngli_mat4_mul(trs_matrix, TM, trs_matrix);
@@ -887,8 +898,8 @@ static void drawrect_draw(struct ngl_node *node)
         const struct image *image = texture_map[0].image;
         const float tex_w = (float)image->params.width;
         const float tex_h = (float)image->params.height;
-        const float scaled_w = o->rect[2] * o->scale[0];
-        const float scaled_h = o->rect[3] * o->scale[1];
+        const float scaled_w = o->rect[2] * scale[0];
+        const float scaled_h = o->rect[3] * scale[1];
         if (tex_w > 0.f && tex_h > 0.f && scaled_w > 0.f && scaled_h > 0.f) {
             const float ratio = (scaled_w / scaled_h) / (tex_w / tex_h);
             if (fi->scaling == FILL_SCALING_FIT) {
@@ -906,8 +917,10 @@ static void drawrect_draw(struct ngl_node *node)
     /* Content transform: zoom+translate on the fill content.
      * For fit scaling: zoom is ignored (forced to 1.0) and translate is clamped
      * to (uv_scale - 1) / 2 per axis so the texture stays within the DrawRect. */
-    float content_zoom = o->content_zoom > 0.f ? o->content_zoom : 1.f;
-    float content_translate[2] = {o->content_translate[0], o->content_translate[1]};
+    const float content_zoom_val = *(const float *)ngli_node_get_data_ptr(o->content_zoom_node, &o->content_zoom);
+    const float *content_translate_val = ngli_node_get_data_ptr(o->content_translate_node, o->content_translate);
+    float content_zoom = content_zoom_val > 0.f ? content_zoom_val : 1.f;
+    float content_translate[2] = {content_translate_val[0], content_translate_val[1]};
     if (fi->scaling == FILL_SCALING_FIT) {
         content_zoom = 1.f;
         const float max_tx = (uv_scale[0] - 1.f) * 0.5f;

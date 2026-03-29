@@ -25,15 +25,21 @@
 
 #include "internal.h"
 #include "math_utils.h"
+#include "node_uniform.h"
 #include "nopegl/nopegl.h"
 
 struct group2d_opts {
     struct ngl_node **children;
     size_t nb_children;
+    struct ngl_node *translate_node;
     float translate[2];
+    struct ngl_node *rotation_node;
     float rotation;
+    struct ngl_node *scale_node;
     float scale[2];
+    struct ngl_node *anchor_node;
     float anchor[2];
+    struct ngl_node *opacity_node;
     float opacity;
 };
 
@@ -64,35 +70,35 @@ static const struct node_param group2d_params[] = {
     }, {
         .key       = "translate",
         .type      = NGLI_PARAM_TYPE_VEC2,
-        .offset    = OFFSET(translate),
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .offset    = OFFSET(translate_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("translation in pixels"),
     }, {
         .key       = "rotation",
         .type      = NGLI_PARAM_TYPE_F32,
-        .offset    = OFFSET(rotation),
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .offset    = OFFSET(rotation_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("rotation angle in degrees"),
     }, {
         .key       = "scale",
         .type      = NGLI_PARAM_TYPE_VEC2,
-        .offset    = OFFSET(scale),
+        .offset    = OFFSET(scale_node),
         .def_value = {.vec={1.f, 1.f}},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("scale factors"),
     }, {
         .key       = "anchor",
         .type      = NGLI_PARAM_TYPE_VEC2,
-        .offset    = OFFSET(anchor),
+        .offset    = OFFSET(anchor_node),
         .def_value = {.vec={NAN, NAN}},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("anchor point in pixels (default: center of children)"),
     }, {
         .key       = "opacity",
         .type      = NGLI_PARAM_TYPE_F32,
-        .offset    = OFFSET(opacity),
+        .offset    = OFFSET(opacity_node),
         .def_value = {.f32=1.f},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("opacity applied to all children"),
     },
     {NULL}
@@ -143,19 +149,24 @@ static void group2d_draw(struct ngl_node *node)
     const struct group2d_opts *o = node->opts;
 
     /* Compute TRS matrix in pixel space */
+    const float *anchor_val = ngli_node_get_data_ptr(o->anchor_node, o->anchor);
     const float anchor[3] = {
-        isnan(o->anchor[0]) ? 0.f : o->anchor[0],
-        isnan(o->anchor[1]) ? 0.f : o->anchor[1],
+        isnan(anchor_val[0]) ? 0.f : anchor_val[0],
+        isnan(anchor_val[1]) ? 0.f : anchor_val[1],
         0.f,
     };
+
+    const float *scale = ngli_node_get_data_ptr(o->scale_node, o->scale);
+    const float *rotation = ngli_node_get_data_ptr(o->rotation_node, &o->rotation);
+    const float *translate = ngli_node_get_data_ptr(o->translate_node, o->translate);
 
     NGLI_ALIGNED_MAT(SM);
     NGLI_ALIGNED_MAT(RM);
     NGLI_ALIGNED_MAT(TM);
-    ngli_mat4_scale(SM, o->scale[0], o->scale[1], 1.f, anchor);
+    ngli_mat4_scale(SM, scale[0], scale[1], 1.f, anchor);
     float z_axis[3] = {0.f, 0.f, 1.f};
-    ngli_mat4_rotate(RM, NGLI_DEG2RAD(o->rotation), z_axis, anchor);
-    ngli_mat4_translate(TM, o->translate[0], o->translate[1], 0.f);
+    ngli_mat4_rotate(RM, NGLI_DEG2RAD(*rotation), z_axis, anchor);
+    ngli_mat4_translate(TM, translate[0], translate[1], 0.f);
     NGLI_ALIGNED_MAT(trs_matrix);
     ngli_mat4_mul(trs_matrix, RM, SM);
     ngli_mat4_mul(trs_matrix, TM, trs_matrix);
@@ -172,7 +183,8 @@ static void group2d_draw(struct ngl_node *node)
     if (!next_opacity)
         return;
     const float *prev_opacity = next_opacity - 1;
-    *next_opacity = *prev_opacity * o->opacity;
+    const float opacity = *(const float *)ngli_node_get_data_ptr(o->opacity_node, &o->opacity);
+    *next_opacity = *prev_opacity * opacity;
 
     /* Draw children */
     struct rnode *rnode_pos = ctx->rnode_pos;
