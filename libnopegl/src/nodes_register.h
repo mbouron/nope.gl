@@ -93,6 +93,7 @@
     action(NGL_NODE_DRAWPATH,               ngli_drawpath_class)                \
     action(NGL_NODE_DRAWTEXTURE,            ngli_drawtexture_class)             \
     action(NGL_NODE_DRAWWAVEFORM,           ngli_drawwaveform_class)            \
+    action(NGL_NODE_EFFECT2D,               ngli_effect2d_class)                \
     action(NGL_NODE_FILTERALPHA,            ngli_filteralpha_class)             \
     action(NGL_NODE_FILTERCOLORMAP,         ngli_filtercolormap_class)          \
     action(NGL_NODE_FILTERCONTRAST,         ngli_filtercontrast_class)          \

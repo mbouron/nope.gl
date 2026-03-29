@@ -62,6 +62,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `GradientFill`, `Gradient4Fill`, `NoiseFill`, `CustomFill`) and stroke nodes
   (`Stroke`, `StrokeGradient`, `StrokeGradient4`) to independently control the
   opacity of fill and stroke content
+- `Effect2D` node for offscreen rendering of 2D children with post-processing
+  effects: built-in fast Gaussian blur (`blur` parameter) and custom fragment
+  shaders (`fragment`, `glsl_header`, `frag_resources` parameters), with
+  Group2D-like transforms (translate, rotation, scale, anchor) and opacity
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges

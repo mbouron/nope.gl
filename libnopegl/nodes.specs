@@ -2613,6 +2613,93 @@
         }
       ]
     },
+    "Effect2D": {
+      "file": "src/node_effect2d.c",
+      "params": [
+        {
+          "name": "children",
+          "type": "node_list",
+          "flags": ["live"],
+          "desc": "2D scenes to render offscreen"
+        },
+        {
+          "name": "blur",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live", "node"],
+          "desc": "blur amount in the range [0,1] (0 means no blur)"
+        },
+        {
+          "name": "fragment",
+          "type": "str",
+          "flags": [],
+          "desc": "custom fragment shader body; receives color (vec4) and uv (vec2), must return vec4"
+        },
+        {
+          "name": "glsl_header",
+          "type": "str",
+          "flags": [],
+          "desc": "optional GLSL helper functions prepended before the fragment body"
+        },
+        {
+          "name": "frag_resources",
+          "type": "node_list",
+          "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "TextureView", "CustomTexture", "Block"],
+          "flags": [],
+          "desc": "uniform and texture nodes available to fragment; each node's label is used as the GLSL name"
+        },
+        {
+          "name": "blending",
+          "type": "select",
+          "default": "src_over",
+          "choices": "blend_preset",
+          "flags": [],
+          "desc": "blending mode for the final composite"
+        },
+        {
+          "name": "visible",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "whether the effect and its children are visible"
+        },
+        {
+          "name": "translate",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "translation in pixels"
+        },
+        {
+          "name": "rotation",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live", "node"],
+          "desc": "rotation angle in degrees"
+        },
+        {
+          "name": "scale",
+          "type": "vec2",
+          "default": [1.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "scale factors"
+        },
+        {
+          "name": "anchor",
+          "type": "vec2",
+          "default": ["nan","nan"],
+          "flags": ["live", "node"],
+          "desc": "anchor point in pixels (default: center of children)"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live", "node"],
+          "desc": "opacity of the composited result"
+        }
+      ]
+    },
     "FilterAlpha": {
       "file": "src/node_filters.c",
       "params": [

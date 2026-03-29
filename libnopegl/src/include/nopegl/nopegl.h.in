@@ -336,6 +336,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_DRAWTEXTURE            NGLI_FOURCC('D','t','e','x')
 #define NGL_NODE_DRAWWAVEFORM           NGLI_FOURCC('D','w','f','m')
 #define NGL_NODE_DRAWRECT               NGLI_FOURCC('D','R','c','t')
+#define NGL_NODE_EFFECT2D               NGLI_FOURCC('E','f','2','D')
 #define NGL_NODE_MASKTEXTURE            NGLI_FOURCC('M','T','e','x')
 #define NGL_NODE_MASKBLUR               NGLI_FOURCC('M','B','l','r')
 #define NGL_NODE_GRADIENT4FILL          NGLI_FOURCC('G','4','F','l')
