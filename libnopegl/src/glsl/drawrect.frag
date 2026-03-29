@@ -58,26 +58,20 @@ void main()
     float inner_edge = (ngli_outline_mode == 2) ?  0.0 : (ngli_outline_mode == 1) ? -ngli_outline_width * 0.5 : -ngli_outline_width;
     float outer_edge = (ngli_outline_mode == 0) ?  0.0 : (ngli_outline_mode == 1) ?  ngli_outline_width * 0.5 :  ngli_outline_width;
 
-    /*
-     * Inner fill boundary: same ngli_corner_radius as the outer shape so both
-     * edges of the stroke ring share the same curvature.
-     * inner_width == 0 for outside mode so d_fill collapses to d (no change).
-     */
-    float inner_width = max(-inner_edge, 0.0);
-    float d_fill      = ngli_sdf_rounded_box(pos, half_size - inner_width, r);
-    float fill_alpha  = 1.0 - smoothstep(-aa, aa, d_fill);
+    /* Fill boundary: always the original rect (no stroke shrinkage) */
+    float fill_alpha  = 1.0 - smoothstep(-aa, aa, d);
 
     /*
-     * For the outer boundary, compute a fresh SDF for a rounded rect expanded by
-     * outer_edge but with the same ngli_corner_radius.  This prevents the outer stroke
-     * edge from acquiring extra corner rounding (radius = ngli_corner_radius + outer_edge)
-     * that the plain "d == outer_edge" threshold would produce.
-     * When outer_edge == 0 this collapses to d_outer == d, so the INSIDE mode is
-     * unaffected.
+     * Stroke ring: inner edge shrunk by inner_width, outer edge expanded by
+     * outer_edge, both with the same ngli_corner_radius so curvature is
+     * consistent across the two edges.
      */
-    float d_outer     = ngli_sdf_rounded_box(pos, half_size + outer_edge, r);
-    float shape_alpha = 1.0 - smoothstep(-aa, aa, d_outer);
-    float ol_mask     = clamp(shape_alpha - fill_alpha, 0.0, 1.0);
+    float inner_width  = max(-inner_edge, 0.0);
+    float d_inner      = ngli_sdf_rounded_box(pos, half_size - inner_width, r);
+    float inner_alpha  = 1.0 - smoothstep(-aa, aa, d_inner);
+    float d_outer      = ngli_sdf_rounded_box(pos, half_size + outer_edge, r);
+    float outer_alpha  = 1.0 - smoothstep(-aa, aa, d_outer);
+    float ol_mask      = clamp(outer_alpha - inner_alpha, 0.0, 1.0);
 
     /* Dash pattern (ngli_dash_length == 0 means solid) */
     if (ngli_dash_length > 0.0) {
