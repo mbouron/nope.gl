@@ -65,6 +65,7 @@ struct stroke_base_opts {
     float dash_ratio;
     float dash_offset;
     int dash_cap;
+    float opacity;
 };
 
 #endif

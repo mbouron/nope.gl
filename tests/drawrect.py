@@ -736,3 +736,27 @@ def drawrect_canvas_as_texture(cfg: ngl.SceneCfg):
     tex = ngl.Texture2D(data_src=offscreen)
     fill = ngl.TextureFill(texture=tex, scaling="none")
     return _canvas(cfg, ngl.DrawRect(rect=(0, 0, W, H), fill=fill))
+
+
+@test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=W, height=H)
+def drawrect_fill_stroke_opacity(cfg: ngl.SceneCfg):
+    content_translate_anim = ngl.AnimatedVec2(
+        [
+            ngl.AnimKeyFrameVec2(0.0, (0.0, 0.0)),
+            ngl.AnimKeyFrameVec2(1.0, (0.3, 0.0)),
+            ngl.AnimKeyFrameVec2(2.0, (0.3, 0.3)),
+            ngl.AnimKeyFrameVec2(3.0, (0.0, 0.3)),
+        ]
+    )
+    bg_fill = ngl.GradientFill(
+        color0=(0.9, 0.1, 0.1),
+        color1=(0.1, 0.9, 0.1),
+        pos0=(0.0, 0.0),
+        pos1=(1.0, 1.0),
+    )
+    bg = ngl.DrawRect(rect=(0, 0, W, H), fill=bg_fill, content_translate=content_translate_anim)
+    fill = ngl.ColorFill(color=(1.0, 1.0, 1.0, 1.0), opacity=0.25)
+    stroke = ngl.Stroke(width=20, mode="center", color=(1.0, 1.0, 1.0, 1.0), opacity=0.5)
+    fg = ngl.DrawRect(rect=(40, 40, W - 80, H - 80), fill=fill, stroke=stroke, corner_radius=5)
+    return _canvas(cfg, bg, fg, duration=4.0)

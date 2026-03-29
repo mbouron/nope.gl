@@ -77,6 +77,7 @@ struct fill_info {
     int wrap;                                                /* FILL_WRAP_* (TextureFill only) */
     size_t nb_frag_output;                                   /* MRT output count (0 = single output) */
     const void *opts;                                        /* pointer to fill node opts struct */
+    const float *opacity;                                    /* pointer to fill node opacity (in opts) */
 };
 
 #endif

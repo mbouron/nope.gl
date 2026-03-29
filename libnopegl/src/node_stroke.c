@@ -127,6 +127,14 @@ static const struct node_param stroke_params[] = {
         .desc    = NGLI_DOCSTRING("dash end cap style"),
     },
     {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(base_opts.opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the stroke content"),
+    },
+    {
         .key       = "color",
         .type      = NGLI_PARAM_TYPE_VEC4,
         .offset    = OFFSET(color),
@@ -262,6 +270,14 @@ static const struct node_param strokegradient_params[] = {
         .choices = &ngli_stroke_dash_cap_choices,
         .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc    = NGLI_DOCSTRING("dash end cap style"),
+    },
+    {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(base_opts.opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the stroke content"),
     },
     {
         .key    = "color0",
@@ -439,6 +455,14 @@ static const struct node_param strokegradient4_params[] = {
         .choices = &ngli_stroke_dash_cap_choices,
         .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc    = NGLI_DOCSTRING("dash end cap style"),
+    },
+    {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(base_opts.opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the stroke content"),
     },
     {
         .key       = "color_tl",
