@@ -73,6 +73,7 @@ static const struct stroke_base_opts default_stroke_base = {
     .dash_ratio  = 0.5f,
     .dash_offset = 0.f,
     .dash_cap    = STROKE_DASH_CAP_BUTT,
+    .opacity     = 1.f,
 };
 
 /* ngli_stroke_color() for the no-stroke case: transparent */
@@ -192,6 +193,8 @@ struct drawrect_priv {
     int32_t dash_offset_index;
     int32_t dash_cap_index;
     int32_t opacity_index;
+    int32_t fill_opacity_index;
+    int32_t stroke_opacity_index;
     int32_t clip_min_index;
     int32_t clip_max_index;
     int32_t content_zoom_index;
@@ -469,6 +472,8 @@ static int drawrect_init(struct ngl_node *node)
         {.name="ngli_dash_offset",       .type=NGPU_TYPE_F32,  .stage=NGPU_PROGRAM_STAGE_FRAG},
         {.name="ngli_dash_cap",          .type=NGPU_TYPE_I32,  .stage=NGPU_PROGRAM_STAGE_FRAG},
         {.name="ngli_opacity",           .type=NGPU_TYPE_F32,  .stage=NGPU_PROGRAM_STAGE_FRAG},
+        {.name="ngli_fill_opacity",     .type=NGPU_TYPE_F32,  .stage=NGPU_PROGRAM_STAGE_FRAG},
+        {.name="ngli_stroke_opacity",   .type=NGPU_TYPE_F32,  .stage=NGPU_PROGRAM_STAGE_FRAG},
         {.name="ngli_clip_min",          .type=NGPU_TYPE_VEC2, .stage=NGPU_PROGRAM_STAGE_FRAG},
         {.name="ngli_clip_max",          .type=NGPU_TYPE_VEC2, .stage=NGPU_PROGRAM_STAGE_FRAG},
         {.name="ngli_content_wrap",      .type=NGPU_TYPE_I32,  .stage=NGPU_PROGRAM_STAGE_FRAG},
@@ -675,6 +680,10 @@ static int drawrect_init(struct ngl_node *node)
         s->crafter, "ngli_dash_cap", NGPU_PROGRAM_STAGE_FRAG);
     s->opacity_index = ngpu_pgcraft_get_uniform_index(
         s->crafter, "ngli_opacity", NGPU_PROGRAM_STAGE_FRAG);
+    s->fill_opacity_index = ngpu_pgcraft_get_uniform_index(
+        s->crafter, "ngli_fill_opacity", NGPU_PROGRAM_STAGE_FRAG);
+    s->stroke_opacity_index = ngpu_pgcraft_get_uniform_index(
+        s->crafter, "ngli_stroke_opacity", NGPU_PROGRAM_STAGE_FRAG);
     s->clip_min_index = ngpu_pgcraft_get_uniform_index(
         s->crafter, "ngli_clip_min", NGPU_PROGRAM_STAGE_FRAG);
     s->clip_max_index = ngpu_pgcraft_get_uniform_index(
@@ -974,6 +983,10 @@ static void drawrect_draw(struct ngl_node *node)
     const float local_opacity = *(const float *)ngli_node_get_data_ptr(o->opacity_node, &o->opacity);
     const float final_opacity = local_opacity * *group_opacity;
     ngli_pipeline_compat_update_uniform(pl_compat, s->opacity_index, &final_opacity);
+
+    /* Fill and stroke content opacity */
+    ngli_pipeline_compat_update_uniform(pl_compat, s->fill_opacity_index, fi->opacity);
+    ngli_pipeline_compat_update_uniform(pl_compat, s->stroke_opacity_index, &so->opacity);
 
     /* Clip rect: convert pixel coordinates to UV space */
     float clip_min[2] = {-1e9f, -1e9f};

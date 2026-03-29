@@ -586,6 +586,7 @@ foreach backend : backends
     'group2d_opacity',
     'group2d_opacity_nested',
     'canvas_as_texture',
+    'fill_stroke_opacity',
   ]
 
   tests_noise = [

@@ -179,7 +179,7 @@ void main()
     }
 
     vec4 stroke_col = ngli_stroke_color(ngli_uv);
-    float ol_alpha  = ol_mask * stroke_col.a;
+    float ol_alpha  = ol_mask * stroke_col.a * ngli_stroke_opacity;
 
     /*
      * Content transform: zoom and translate the fill content (gradient, texture…)
@@ -206,7 +206,7 @@ void main()
      * non-zero rgb where alpha==0, causing fill colour to bleed into
      * transparent corner pixels (outside the rounded shape).
      */
-    float fill_a = tex_color.a * fill_alpha;
+    float fill_a = tex_color.a * fill_alpha * ngli_fill_opacity;
     ngl_out_color.rgb = stroke_col.rgb * ol_alpha + tex_color.rgb * fill_a * (1.0 - ol_alpha);
     ngl_out_color.a   = ol_alpha + fill_a * (1.0 - ol_alpha);
 

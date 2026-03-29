@@ -87,6 +87,7 @@ struct colorfill_priv {
 
 struct colorfill_opts {
     float color[4];
+    float opacity;
 };
 
 static const char colorfill_glsl[] =
@@ -99,6 +100,7 @@ static int colorfill_init(struct ngl_node *node)
     struct fill_info *fi = &s->fi;
     fi->glsl = colorfill_glsl;
     fi->opts = o;
+    fi->opacity = &o->opacity;
     REGISTER_UNIFORM(fi, "color", NGPU_TYPE_VEC4, struct colorfill_opts, color);
     return 0;
 }
@@ -115,6 +117,14 @@ static const struct node_param colorfill_params[] = {
         .def_value = {.vec={1.f, 1.f, 1.f, 1.f}},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc      = NGLI_DOCSTRING("fill color (RGBA)"),
+    },
+    {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
     },
     {NULL}
 };
@@ -138,6 +148,7 @@ struct texturefill_opts {
     struct ngl_node *texture_node;
     int wrap;
     int scaling;
+    float opacity;
 };
 
 static const struct param_choices texturefill_wrap_choices = {
@@ -202,6 +213,7 @@ static int texturefill_init(struct ngl_node *node)
     fi->scaling      = o->scaling;
     fi->wrap         = o->wrap;
     fi->opts         = o;
+    fi->opacity      = &o->opacity;
     return 0;
 }
 
@@ -237,6 +249,14 @@ static const struct node_param texturefill_params[] = {
         .choices = &texturefill_scaling_choices,
         .desc    = NGLI_DOCSTRING("texture scaling mode relative to the rect"),
     },
+    {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+    },
     {NULL}
 };
 #undef OFFSET
@@ -266,6 +286,7 @@ struct gradientfill_opts {
     float pos1[2];
     int gradient_mode;
     int gradient_linear;
+    float opacity;
 };
 
 static const struct param_choices gradientfill_mode_choices = {
@@ -314,6 +335,7 @@ static int gradientfill_init(struct ngl_node *node)
     fi->helper_flags = FILL_HELPER_SRGB;
     fi->glsl = gradientfill_glsl;
     fi->opts = o;
+    fi->opacity = &o->opacity;
     REGISTER_UNIFORM(fi, "color0",          NGPU_TYPE_VEC3, struct gradientfill_opts, color0);
     REGISTER_UNIFORM(fi, "color1",          NGPU_TYPE_VEC3, struct gradientfill_opts, color1);
     REGISTER_UNIFORM(fi, "opacity0",        NGPU_TYPE_F32,  struct gradientfill_opts, opacity0);
@@ -392,6 +414,14 @@ static const struct node_param gradientfill_params[] = {
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc      = NGLI_DOCSTRING("interpolate colors in linear light"),
     },
+    {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+    },
     {NULL}
 };
 #undef OFFSET
@@ -420,6 +450,7 @@ struct gradient4fill_opts {
     float opacity_br;
     float opacity_bl;
     int gradient_linear;
+    float opacity;
 };
 
 static const char gradient4fill_glsl[] =
@@ -446,6 +477,7 @@ static int gradient4fill_init(struct ngl_node *node)
     fi->helper_flags = FILL_HELPER_SRGB;
     fi->glsl = gradient4fill_glsl;
     fi->opts = o;
+    fi->opacity = &o->opacity;
     REGISTER_UNIFORM(fi, "color_tl",        NGPU_TYPE_VEC3, struct gradient4fill_opts, color_tl);
     REGISTER_UNIFORM(fi, "color_tr",        NGPU_TYPE_VEC3, struct gradient4fill_opts, color_tr);
     REGISTER_UNIFORM(fi, "color_br",        NGPU_TYPE_VEC3, struct gradient4fill_opts, color_br);
@@ -535,6 +567,14 @@ static const struct node_param gradient4fill_params[] = {
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc      = NGLI_DOCSTRING("interpolate colors in linear light"),
     },
+    {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+    },
     {NULL}
 };
 #undef OFFSET
@@ -562,6 +602,7 @@ struct noisefill_opts {
     uint32_t seed;
     float scale[2];
     float evolution;
+    float opacity;
 };
 
 static const struct param_choices noisefill_type_choices = {
@@ -598,6 +639,7 @@ static int noisefill_init(struct ngl_node *node)
     fi->helper_flags = FILL_HELPER_MISC_UTILS | FILL_HELPER_NOISE;
     fi->glsl = noisefill_glsl;
     fi->opts = o;
+    fi->opacity = &o->opacity;
     REGISTER_UNIFORM(fi, "noise_type",       NGPU_TYPE_I32,  struct noisefill_opts, noise_type);
     REGISTER_UNIFORM(fi, "noise_amplitude",  NGPU_TYPE_F32,  struct noisefill_opts, amplitude);
     REGISTER_UNIFORM(fi, "noise_octaves",    NGPU_TYPE_U32,  struct noisefill_opts, octaves);
@@ -673,6 +715,14 @@ static const struct node_param noisefill_params[] = {
         .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc  = NGLI_DOCSTRING("temporal evolution coordinate for the noise"),
     },
+    {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+    },
     {NULL}
 };
 #undef OFFSET
@@ -700,6 +750,7 @@ struct customfill_opts {
     int scaling;
     int wrap;
     int nb_frag_output;
+    float opacity;
 };
 
 static int node_is_texture(const struct ngl_node *node)
@@ -754,6 +805,7 @@ static int customfill_init(struct ngl_node *node)
     struct fill_info *fi = &s->fi;
     fi->glsl           = s->built_glsl;
     fi->opts           = o;
+    fi->opacity        = &o->opacity;
     fi->scaling        = o->scaling;
     fi->wrap           = o->wrap;
     fi->nb_frag_output = (size_t)o->nb_frag_output;
@@ -863,6 +915,14 @@ static const struct node_param customfill_params[] = {
         .desc   = NGLI_DOCSTRING("number of fragment outputs for MRT rendering "
                                  "(0 means single output using ngli_color(), "
                                  ">0 uses ngli_colors() writing to ngl_out_color[])"),
+    },
+    {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(opacity),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
     },
     {NULL}
 };

@@ -2764,6 +2764,13 @@
           "default": [1.000000,1.000000,1.000000,1.000000],
           "flags": ["live"],
           "desc": "fill color (RGBA)"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the fill content"
         }
       ]
     },
@@ -2811,6 +2818,13 @@
           "default": 0,
           "flags": [],
           "desc": "number of fragment outputs for MRT rendering (0 means single output using ngli_color(), >0 uses ngli_colors() writing to ngl_out_color[])"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the fill content"
         }
       ]
     },
@@ -3027,6 +3041,13 @@
           "default": 1,
           "flags": ["live"],
           "desc": "interpolate colors in linear light"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the fill content"
         }
       ]
     },
@@ -3089,6 +3110,13 @@
           "default": 1,
           "flags": ["live"],
           "desc": "interpolate colors in linear light"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the fill content"
         }
       ]
     },
@@ -3151,6 +3179,13 @@
           "default": 0.000000,
           "flags": ["live"],
           "desc": "temporal evolution coordinate for the noise"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the fill content"
         }
       ]
     },
@@ -3200,6 +3235,13 @@
           "choices": "stroke_dash_cap",
           "flags": ["live"],
           "desc": "dash end cap style"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the stroke content"
         },
         {
           "name": "color",
@@ -3256,6 +3298,13 @@
           "choices": "stroke_dash_cap",
           "flags": ["live"],
           "desc": "dash end cap style"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the stroke content"
         },
         {
           "name": "color0",
@@ -3364,6 +3413,13 @@
           "desc": "dash end cap style"
         },
         {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the stroke content"
+        },
+        {
           "name": "color_tl",
           "type": "vec3",
           "default": [1.000000,0.500000,0.000000],
@@ -3453,6 +3509,13 @@
           "choices": "fill_scaling",
           "flags": [],
           "desc": "texture scaling mode relative to the rect"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the fill content"
         }
       ]
     },

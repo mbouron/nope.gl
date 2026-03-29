@@ -58,6 +58,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `Group2D.visible` and `DrawRect.visible` boolean parameters to toggle
   visibility at runtime; when hidden, the node skips drawing entirely and
   reports an empty bounding box
+- `opacity` parameter on all fill nodes (`ColorFill`, `TextureFill`,
+  `GradientFill`, `Gradient4Fill`, `NoiseFill`, `CustomFill`) and stroke nodes
+  (`Stroke`, `StrokeGradient`, `StrokeGradient4`) to independently control the
+  opacity of fill and stroke content
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges
