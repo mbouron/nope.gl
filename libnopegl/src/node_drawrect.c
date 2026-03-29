@@ -887,8 +887,10 @@ static void drawrect_draw(struct ngl_node *node)
         const struct image *image = texture_map[0].image;
         const float tex_w = (float)image->params.width;
         const float tex_h = (float)image->params.height;
-        if (tex_w > 0.f && tex_h > 0.f && o->rect[2] > 0.f && o->rect[3] > 0.f) {
-            const float ratio = (o->rect[2] / o->rect[3]) / (tex_w / tex_h);
+        const float scaled_w = o->rect[2] * o->scale[0];
+        const float scaled_h = o->rect[3] * o->scale[1];
+        if (tex_w > 0.f && tex_h > 0.f && scaled_w > 0.f && scaled_h > 0.f) {
+            const float ratio = (scaled_w / scaled_h) / (tex_w / tex_h);
             if (fi->scaling == FILL_SCALING_FIT) {
                 uv_scale[0] = ratio > 1.f ? ratio : 1.f;
                 uv_scale[1] = ratio < 1.f ? 1.f / ratio : 1.f;
