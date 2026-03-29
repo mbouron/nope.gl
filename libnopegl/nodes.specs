@@ -2839,6 +2839,13 @@
           "desc": "optional outline stroke"
         },
         {
+          "name": "visible",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "whether the rectangle is visible"
+        },
+        {
           "name": "blending",
           "type": "select",
           "default": "src_over",
@@ -3724,6 +3731,13 @@
           "type": "node_list",
           "flags": ["live"],
           "desc": "2D scenes to draw"
+        },
+        {
+          "name": "visible",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "whether the group and its children are visible"
         },
         {
           "name": "translate",

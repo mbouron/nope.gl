@@ -31,6 +31,7 @@
 struct group2d_opts {
     struct ngl_node **children;
     size_t nb_children;
+    int visible;
     struct ngl_node *translate_node;
     float translate[2];
     struct ngl_node *rotation_node;
@@ -67,6 +68,13 @@ static const struct node_param group2d_params[] = {
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .swap_func = group2d_swap_children,
         .desc      = NGLI_DOCSTRING("2D scenes to draw"),
+    }, {
+        .key       = "visible",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(visible),
+        .def_value = {.i32=1},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("whether the group and its children are visible"),
     }, {
         .key       = "translate",
         .type      = NGLI_PARAM_TYPE_VEC2,
@@ -147,6 +155,11 @@ static void group2d_draw(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct group2d_priv *s = node->priv_data;
     const struct group2d_opts *o = node->opts;
+
+    if (!o->visible) {
+        s->draw_info.screen_aabb = NGLI_AABB_EMPTY;
+        return;
+    }
 
     /* Compute TRS matrix in pixel space */
     const float *anchor_val = ngli_node_get_data_ptr(o->anchor_node, o->anchor);

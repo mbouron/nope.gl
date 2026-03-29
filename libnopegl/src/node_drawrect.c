@@ -148,6 +148,7 @@ struct drawrect_opts {
     float rect[4];
     struct ngl_node *fill_node;
     struct ngl_node *stroke_node;
+    int visible;
     enum ngli_blending blending;
     struct ngl_node *translate_node;
     float translate[3];
@@ -238,6 +239,14 @@ static const struct node_param drawrect_params[] = {
             NGLI_NODE_NONE,
         },
         .desc = NGLI_DOCSTRING("optional outline stroke"),
+    },
+    {
+        .key       = "visible",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(visible),
+        .def_value = {.i32=1},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("whether the rectangle is visible"),
     },
     {
         .key       = "blending",
@@ -805,6 +814,11 @@ static void drawrect_draw(struct ngl_node *node)
 {
     struct drawrect_priv *s = node->priv_data;
     const struct drawrect_opts *o = node->opts;
+
+    if (!o->visible) {
+        s->draw_info.screen_aabb = NGLI_AABB_EMPTY;
+        return;
+    }
 
     ngli_node_draw_children(node);
 
