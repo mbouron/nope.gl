@@ -331,6 +331,7 @@ const struct node_class ngli_graphicconfig_class = {
     .init      = graphicconfig_init,
     .prepare   = graphicconfig_prepare,
     .update    = ngli_node_update_children,
+    .pre_draw  = ngli_node_pre_draw_children,
     .draw      = graphicconfig_draw,
     .opts_size = sizeof(struct graphicconfig_opts),
     .priv_size = sizeof(struct graphicconfig_priv),

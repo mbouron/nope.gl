@@ -236,6 +236,7 @@ const struct node_class ngli_group2d_class = {
     .init      = group2d_init,
     .prepare   = group2d_prepare,
     .update    = ngli_node_update_children,
+    .pre_draw  = ngli_node_pre_draw_children,
     .draw      = group2d_draw,
     .uninit    = group2d_uninit,
     .opts_size = sizeof(struct group2d_opts),

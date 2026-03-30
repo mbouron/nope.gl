@@ -351,6 +351,7 @@ static int resize(struct ngl_node *node)
     struct fgblur_priv *s = node->priv_data;
     const struct fgblur_opts *o = node->opts;
 
+    ngli_node_pre_draw(o->source);
     ngli_node_draw(o->source);
 
     struct texture_info *src_info = o->source->priv_data;
@@ -535,7 +536,7 @@ static float compute_lod(float radius)
     return 1.34508f * logf(0.406057f * radius);
 }
 
-static void fgblur_draw(struct ngl_node *node)
+static void fgblur_pre_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct fgblur_priv *s = node->priv_data;
@@ -639,7 +640,7 @@ const struct node_class ngli_fgblur_class = {
     .init      = fgblur_init,
     .prepare   = ngli_node_prepare_children,
     .update    = ngli_node_update_children,
-    .draw      = fgblur_draw,
+    .pre_draw  = fgblur_pre_draw,
     .release   = fgblur_release,
     .uninit    = fgblur_uninit,
     .opts_size = sizeof(struct fgblur_opts),

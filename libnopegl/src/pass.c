@@ -679,7 +679,6 @@ int ngli_pass_exec(struct pass *s)
 
         if (ngpu_ctx_is_render_pass_active(gpu_ctx)) {
             ngpu_ctx_end_render_pass(gpu_ctx);
-            ctx->current_rendertarget = ctx->available_rendertargets[1];
         }
 
         ngli_pipeline_compat_dispatch(pipeline_compat, NGLI_ARG_VEC3(params->workgroup_count));

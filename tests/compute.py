@@ -297,12 +297,6 @@ def compute_animation(cfg: ngl.SceneCfg):
     return _compute_animation(cfg)
 
 
-@test_render(keyframes=5, tolerance=1, diff_threshold=0.003)
-@ngl.scene(width=256, height=256)
-def compute_animation_post_draw(cfg: ngl.SceneCfg):
-    return _compute_animation(cfg, False)
-
-
 _IMAGE_LOAD_STORE_COMPUTE = """
 void main()
 {

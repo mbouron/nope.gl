@@ -110,6 +110,23 @@ static int canvas2d_prepare(struct ngl_node *node)
     return 0;
 }
 
+static void canvas2d_pre_draw(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct canvas2d_priv *s = node->priv_data;
+    const struct canvas2d_opts *o = node->opts;
+
+    struct rnode *rnode_pos = ctx->rnode_pos;
+    struct rnode *rnodes = ngli_darray_data(&rnode_pos->children);
+    const size_t *indices = ngli_darray_data(&s->indices);
+    for (size_t i = 0; i < o->nb_children; i++) {
+        const size_t index = indices[i];
+        ctx->rnode_pos = &rnodes[index];
+        ngli_node_pre_draw(o->children[i]);
+    }
+    ctx->rnode_pos = rnode_pos;
+}
+
 static void canvas2d_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -186,6 +203,7 @@ const struct node_class ngli_canvas2d_class = {
     .init      = canvas2d_init,
     .prepare   = canvas2d_prepare,
     .update    = ngli_node_update_children,
+    .pre_draw  = canvas2d_pre_draw,
     .draw      = canvas2d_draw,
     .uninit    = canvas2d_uninit,
     .opts_size = sizeof(struct canvas2d_opts),

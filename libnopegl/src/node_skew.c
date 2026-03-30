@@ -118,6 +118,7 @@ const struct node_class ngli_skew_class = {
     .name      = "Skew",
     .init      = skew_init,
     .update    = skew_update,
+    .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_transform_draw,
     .opts_size = sizeof(struct skew_opts),
     .priv_size = sizeof(struct skew_priv),

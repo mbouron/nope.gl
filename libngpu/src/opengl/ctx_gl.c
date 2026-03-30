@@ -153,7 +153,6 @@ static int create_rendertarget(struct ngpu_ctx *s,
                                struct ngpu_texture *color,
                                struct ngpu_texture *resolve_color,
                                struct ngpu_texture *depth_stencil,
-                               enum ngpu_load_op load_op,
                                struct ngpu_rendertarget **rendertargetp)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
@@ -172,7 +171,7 @@ static int create_rendertarget(struct ngpu_ctx *s,
         .colors[0] = {
             .attachment     = color,
             .resolve_target = resolve_color,
-            .load_op        = load_op,
+            .load_op        = NGPU_LOAD_OP_CLEAR,
             .clear_value[0] = ctx_params->clear_color[0],
             .clear_value[1] = ctx_params->clear_color[1],
             .clear_value[2] = ctx_params->clear_color[2],
@@ -181,7 +180,7 @@ static int create_rendertarget(struct ngpu_ctx *s,
         },
         .depth_stencil = {
             .attachment = depth_stencil,
-            .load_op    = load_op,
+            .load_op    = NGPU_LOAD_OP_CLEAR,
             .store_op   = NGPU_STORE_OP_STORE,
         },
     };
@@ -237,8 +236,7 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
         return NGPU_ERROR_UNSUPPORTED;
     }
 
-    int ret = create_rendertarget(s, s_priv->capture_texture, NULL, NULL,
-                                  NGPU_LOAD_OP_CLEAR, &s_priv->capture_rt);
+    int ret = create_rendertarget(s, s_priv->capture_texture, NULL, NULL, &s_priv->capture_rt);
     if (ret < 0)
         return ret;
 
@@ -260,10 +258,8 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
     struct ngpu_texture *resolve_color = s_priv->ms_color ? s_priv->color    : NULL;
     struct ngpu_texture *depth_stencil = s_priv->depth_stencil;
 
-    if ((ret = create_rendertarget(s, color, resolve_color, depth_stencil,
-                                   NGPU_LOAD_OP_CLEAR, &s_priv->default_rt)) < 0 ||
-        (ret = create_rendertarget(s, color, resolve_color, depth_stencil,
-                                   NGPU_LOAD_OP_LOAD, &s_priv->default_rt_load)) < 0)
+    ret = create_rendertarget(s, color, resolve_color, depth_stencil, &s_priv->default_rt);
+    if (ret < 0)
         return ret;
 
     static const capture_func_type capture_func_map[] = {
@@ -278,22 +274,13 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
 static int onscreen_rendertarget_init(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-
-    int ret;
-    if ((ret = create_rendertarget(s, NULL, NULL, NULL, NGPU_LOAD_OP_CLEAR,
-                                   &s_priv->default_rt)) < 0 ||
-        (ret = create_rendertarget(s, NULL, NULL, NULL, NGPU_LOAD_OP_LOAD,
-                                   &s_priv->default_rt_load)) < 0)
-        return ret;
-
-    return 0;
+    return create_rendertarget(s, NULL, NULL, NULL, &s_priv->default_rt);
 }
 
 static void rendertarget_reset(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     ngpu_rendertarget_freep(&s_priv->default_rt);
-    ngpu_rendertarget_freep(&s_priv->default_rt_load);
     ngpu_texture_freep(&s_priv->color);
     ngpu_texture_freep(&s_priv->ms_color);
     ngpu_texture_freep(&s_priv->depth_stencil);
@@ -642,8 +629,6 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 
     s_priv->default_rt->width = ctx_params->width;
     s_priv->default_rt->height = ctx_params->height;
-    s_priv->default_rt_load->width = ctx_params->width;
-    s_priv->default_rt_load->height = ctx_params->height;
 
     if (!external) {
         /*
@@ -651,8 +636,7 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
         * thus we need to update the rendertargets wrapping the default framebuffer
         */
         struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt;
-        struct ngpu_rendertarget_gl *rt_load_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt_load;
-        rt_gl->id = rt_load_gl->id = ngpu_glcontext_get_default_framebuffer(gl);
+        rt_gl->id = ngpu_glcontext_get_default_framebuffer(gl);
     }
 
     return 0;
@@ -664,7 +648,6 @@ static int update_capture_cvpixelbuffer(struct ngpu_ctx *s, CVPixelBufferRef cap
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
 
     ngpu_rendertarget_freep(&s_priv->default_rt);
-    ngpu_rendertarget_freep(&s_priv->default_rt_load);
     ngpu_texture_freep(&s_priv->color);
     reset_capture_cvpixelbuffer(s);
 
@@ -683,11 +666,8 @@ static int update_capture_cvpixelbuffer(struct ngpu_ctx *s, CVPixelBufferRef cap
     struct ngpu_texture *resolve_color = s_priv->ms_color ? s_priv->color : NULL;
     struct ngpu_texture *depth_stencil = s_priv->depth_stencil;
 
-    int ret;
-    if ((ret = create_rendertarget(s, color, resolve_color, depth_stencil,
-                                   NGPU_LOAD_OP_CLEAR, &s_priv->default_rt)) < 0 ||
-        (ret = create_rendertarget(s, color, resolve_color, depth_stencil,
-                                   NGPU_LOAD_OP_LOAD, &s_priv->default_rt_load)) < 0)
+    int ret = create_rendertarget(s, color, resolve_color, depth_stencil, &s_priv->default_rt);
+    if (ret < 0)
         return ret;
 
     return 0;
@@ -806,13 +786,9 @@ int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
     gl->funcs.BindFramebuffer(target, prev_fbo);
 
     ngpu_rendertarget_freep(&s_priv->default_rt);
-    ngpu_rendertarget_freep(&s_priv->default_rt_load);
 
-    int ret;
-    if ((ret = create_rendertarget(s, NULL, NULL, NULL,
-                                   NGPU_LOAD_OP_CLEAR, &s_priv->default_rt)) < 0 ||
-        (ret = create_rendertarget(s, NULL, NULL, NULL,
-                                   NGPU_LOAD_OP_LOAD, &s_priv->default_rt_load)) < 0)
+    int ret = create_rendertarget(s, NULL, NULL, NULL, &s_priv->default_rt);
+    if (ret < 0)
         return ret;
 
     ctx_params_gl->external_framebuffer = fbo;
@@ -1029,18 +1005,10 @@ static void gl_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
     memcpy(dst, matrix, 4 * 4 * sizeof(float));
 }
 
-static struct ngpu_rendertarget *gl_get_default_rendertarget(struct ngpu_ctx *s, enum ngpu_load_op load_op)
+static struct ngpu_rendertarget *gl_get_default_rendertarget(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-    switch (load_op) {
-    case NGPU_LOAD_OP_DONT_CARE:
-    case NGPU_LOAD_OP_CLEAR:
-        return s_priv->default_rt;
-    case NGPU_LOAD_OP_LOAD:
-        return s_priv->default_rt_load;
-    default:
-        ngpu_assert(0);
-    }
+    return s_priv->default_rt;
 }
 
 static const struct ngpu_rendertarget_layout *gl_get_default_rendertarget_layout(struct ngpu_ctx *s)

@@ -133,11 +133,6 @@ static int rtt_init(struct ngl_node *node)
     }
 
     ngli_node_get_renderpass_info(o->child, &s->renderpass_info);
-#if DEBUG_SCENE
-    if (s->renderpass_info.nb_interruptions) {
-        LOG(WARNING, "the underlying render pass might not be optimal as it contains a rtt or compute node in the middle of it");
-    }
-#endif
 
     s->layout.samples = o->samples;
 
@@ -278,7 +273,6 @@ static int rtt_prefetch(struct ngl_node *node)
         .width = s->width,
         .height = s->height,
         .samples = o->samples,
-        .nb_interruptions = s->renderpass_info.nb_interruptions,
     };
 
     for (size_t i = 0; i < o->nb_color_textures; i++) {
@@ -451,7 +445,7 @@ fail:
     return ret;
 }
 
-static void rtt_draw(struct ngl_node *node)
+static void rtt_pre_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct rtt_priv *s = node->priv_data;
@@ -469,6 +463,8 @@ static void rtt_draw(struct ngl_node *node)
             return;
     }
 
+    ngli_node_pre_draw(o->child);
+
     ngli_rtt_begin(s->rtt_ctx);
     ngli_node_draw(o->child);
     ngli_rtt_end(s->rtt_ctx);
@@ -477,6 +473,10 @@ static void rtt_draw(struct ngl_node *node)
         ngli_darray_pop(&ctx->modelview_matrix_stack);
         ngli_darray_pop(&ctx->projection_matrix_stack);
     }
+}
+
+static void rtt_draw(struct ngl_node *node)
+{
 }
 
 static void rtt_release(struct ngl_node *node)
@@ -492,6 +492,7 @@ const struct node_class ngli_rtt_class = {
     .prepare   = rtt_prepare,
     .prefetch  = rtt_prefetch,
     .update    = ngli_node_update_children,
+    .pre_draw  = rtt_pre_draw,
     .draw      = rtt_draw,
     .release   = rtt_release,
     .opts_size = sizeof(struct rtt_opts),

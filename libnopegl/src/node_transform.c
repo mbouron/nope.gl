@@ -92,6 +92,7 @@ const struct node_class ngli_transform_class = {
     .name      = "Transform",
     .init      = transform_init,
     .update    = transform_update,
+    .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_transform_draw,
     .opts_size = sizeof(struct transform_opts),
     .priv_size = sizeof(struct transform_priv),
