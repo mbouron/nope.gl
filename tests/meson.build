@@ -147,7 +147,6 @@ foreach backend : backends
   if has_compute
     tests_compute += [
       'animation',
-      'animation_post_draw',
       'histogram',
       'image_load_store',
       'image_2d_array_load_store',

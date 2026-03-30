@@ -62,13 +62,11 @@ struct ngpu_ctx_vk {
     struct ngpu_darray ms_colors;
     struct ngpu_darray depth_stencils;
     struct ngpu_darray rts;
-    struct ngpu_darray rts_load;
     struct ngpu_buffer *capture_buffer;
     size_t capture_buffer_size;
     void *mapped_data;
 
     struct ngpu_rendertarget *default_rt;
-    struct ngpu_rendertarget *default_rt_load;
     struct ngpu_rendertarget_layout default_rt_layout;
 
     /*

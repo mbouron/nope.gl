@@ -475,7 +475,6 @@ static int texture_prefetch(struct ngl_node *node)
         s->rtt_params = (struct rtt_params) {
             .width = params->width,
             .height = params->height,
-            .nb_interruptions = s->renderpass_info.nb_interruptions,
             .nb_colors = 1,
             .colors[0] = {
                 .attachment = i->texture,
@@ -659,7 +658,7 @@ fail:
     return ret;
 }
 
-static void texture_draw(struct ngl_node *node)
+static void texture_pre_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct texture_priv *s = node->priv_data;
@@ -680,6 +679,8 @@ static void texture_draw(struct ngl_node *node)
             return;
     }
 
+    ngli_node_pre_draw(o->data_src);
+
     ngli_rtt_begin(s->rtt_ctx);
     ngli_node_draw(o->data_src);
     ngli_rtt_end(s->rtt_ctx);
@@ -688,6 +689,10 @@ static void texture_draw(struct ngl_node *node)
         ngli_darray_pop(&ctx->modelview_matrix_stack);
         ngli_darray_pop(&ctx->projection_matrix_stack);
     }
+}
+
+static void texture_draw(struct ngl_node *node)
+{
 }
 
 static void texture_release(struct ngl_node *node)
@@ -877,6 +882,7 @@ const struct node_class ngli_texture2d_class = {
     .prefetch  = texture_prefetch,
     .invalidate = texture_invalidate,
     .update    = texture_update,
+    .pre_draw  = texture_pre_draw,
     .draw      = texture_draw,
     .release   = texture_release,
     .opts_size = sizeof(struct texture_opts),

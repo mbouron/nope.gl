@@ -427,9 +427,12 @@ static int resize(struct ngl_node *node)
     struct hblur_priv *s = node->priv_data;
     const struct hblur_opts *o = node->opts;
 
+    ngli_node_pre_draw(o->source);
     ngli_node_draw(o->source);
-    if (o->map)
+    if (o->map) {
+        ngli_node_pre_draw(o->map);
         ngli_node_draw(o->map);
+    }
 
     struct texture_info *src_info = o->source->priv_data;
     const uint32_t width = src_info->image.params.width;
@@ -565,7 +568,7 @@ fail:
 
 #define MAX_SAMPLES 32
 
-static void hblur_draw(struct ngl_node *node)
+static void hblur_pre_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
@@ -647,7 +650,7 @@ const struct node_class ngli_hblur_class = {
     .init      = hblur_init,
     .prepare   = ngli_node_prepare_children,
     .update    = ngli_node_update_children,
-    .draw      = hblur_draw,
+    .pre_draw  = hblur_pre_draw,
     .release   = hblur_release,
     .uninit    = hblur_uninit,
     .opts_size = sizeof(struct hblur_opts),

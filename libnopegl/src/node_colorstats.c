@@ -399,17 +399,17 @@ static int colorstats_update(struct ngl_node *node, double t)
     return 0;
 }
 
-static void colorstats_draw(struct ngl_node *node)
+static void colorstats_pre_draw(struct ngl_node *node)
 {
     struct colorstats_priv *s = node->priv_data;
     const struct colorstats_opts *o = node->opts;
 
+    ngli_node_pre_draw(o->texture_node);
     ngli_node_draw(o->texture_node);
 
     struct ngl_ctx *ctx = node->ctx;
     if (ngpu_ctx_is_render_pass_active(ctx->gpu_ctx)) {
         ngpu_ctx_end_render_pass(ctx->gpu_ctx);
-        ctx->current_rendertarget = ctx->available_rendertargets[1];
     }
 
     /* Init */
@@ -447,7 +447,7 @@ const struct node_class ngli_colorstats_class = {
     .name       = "ColorStats",
     .init       = colorstats_init,
     .update     = colorstats_update,
-    .draw       = colorstats_draw,
+    .pre_draw   = colorstats_pre_draw,
     .uninit     = colorstats_uninit,
     .opts_size  = sizeof(struct colorstats_opts),
     .priv_size  = sizeof(struct colorstats_priv),

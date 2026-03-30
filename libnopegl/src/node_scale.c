@@ -105,6 +105,7 @@ const struct node_class ngli_scale_class = {
     .name      = "Scale",
     .init      = scale_init,
     .update    = scale_update,
+    .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_transform_draw,
     .opts_size = sizeof(struct scale_opts),
     .priv_size = sizeof(struct scale_priv),

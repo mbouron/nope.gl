@@ -338,6 +338,7 @@ static int resize(struct ngl_node *node)
     struct gblur_priv *s = node->priv_data;
     const struct gblur_opts *o = node->opts;
 
+    ngli_node_pre_draw(o->source);
     ngli_node_draw(o->source);
 
     struct texture_info *src_info = o->source->priv_data;
@@ -452,7 +453,7 @@ fail:
     return ret;
 }
 
-static void gblur_draw(struct ngl_node *node)
+static void gblur_pre_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
@@ -511,7 +512,7 @@ const struct node_class ngli_gblur_class = {
     .init      = gblur_init,
     .prepare   = ngli_node_prepare_children,
     .update    = ngli_node_update_children,
-    .draw      = gblur_draw,
+    .pre_draw  = gblur_pre_draw,
     .release   = gblur_release,
     .uninit    = gblur_uninit,
     .opts_size = sizeof(struct gblur_opts),

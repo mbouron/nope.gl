@@ -123,6 +123,20 @@ done:
     return ret;
 }
 
+static void gridlayout_pre_draw(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    const struct gridlayout_opts *o = node->opts;
+
+    struct rnode *rnode_pos = ctx->rnode_pos;
+    struct rnode *rnodes = ngli_darray_data(&rnode_pos->children);
+    for (size_t i = 0; i < o->nb_children; i++) {
+        ctx->rnode_pos = &rnodes[i];
+        ngli_node_pre_draw(o->children[i]);
+    }
+    ctx->rnode_pos = rnode_pos;
+}
+
 static void gridlayout_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -158,6 +172,7 @@ const struct node_class ngli_gridlayout_class = {
     .init      = gridlayout_init,
     .prepare   = gridlayout_prepare,
     .update    = ngli_node_update_children,
+    .pre_draw  = gridlayout_pre_draw,
     .draw      = gridlayout_draw,
     .uninit    = gridlayout_uninit,
     .opts_size = sizeof(struct gridlayout_opts),

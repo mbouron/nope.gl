@@ -181,9 +181,10 @@ static void compute_uninit(struct ngl_node *node)
     ngli_pass_uninit(&s->pass);
 }
 
-static void compute_draw(struct ngl_node *node)
+static void compute_pre_draw(struct ngl_node *node)
 {
     struct compute_priv *s = node->priv_data;
+    ngli_node_pre_draw_children(node);
     ngli_node_draw_children(node);
     ngli_pass_exec(&s->pass);
 }
@@ -195,7 +196,7 @@ const struct node_class ngli_compute_class = {
     .prepare   = compute_prepare,
     .uninit    = compute_uninit,
     .update    = ngli_node_update_children,
-    .draw      = compute_draw,
+    .pre_draw  = compute_pre_draw,
     .opts_size = sizeof(struct compute_opts),
     .priv_size = sizeof(struct compute_priv),
     .params    = compute_params,

@@ -600,17 +600,14 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t)
 
     const int64_t cpu_start_time = s->hud ? ngli_gettime_relative() : 0;
 
-    struct ngpu_rendertarget *rt = ngpu_ctx_get_default_rendertarget(s->gpu_ctx, NGPU_LOAD_OP_CLEAR);
-    struct ngpu_rendertarget *rt_resume = ngpu_ctx_get_default_rendertarget(s->gpu_ctx, NGPU_LOAD_OP_LOAD);
-    s->available_rendertargets[0] = rt;
-    s->available_rendertargets[1] = rt_resume;
-    s->current_rendertarget = rt;
+    s->current_rendertarget = ngpu_ctx_get_default_rendertarget(s->gpu_ctx);
 
     ngli_darray_clear(&s->bounding_box_nodes);
 
     struct ngl_scene *scene = s->scene;
     if (scene) {
         LOG(DEBUG, "draw scene %s @ t=%f", scene->params.root->label, t);
+        ngli_node_pre_draw(scene->params.root);
         ngli_node_draw(scene->params.root);
     }
 
@@ -620,18 +617,15 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t)
 
     if (s->hud) {
         s->cpu_draw_time = ngli_gettime_relative() - cpu_start_time;
-
-        if (ngpu_ctx_is_render_pass_active(s->gpu_ctx)) {
-            ngpu_ctx_end_render_pass(s->gpu_ctx);
-            s->current_rendertarget = s->available_rendertargets[1];
-        }
-        ngpu_ctx_query_draw_time(s->gpu_ctx, &s->gpu_draw_time);
-
         ngli_hud_draw(s->hud);
     }
 
     if (ngpu_ctx_is_render_pass_active(s->gpu_ctx)) {
         ngpu_ctx_end_render_pass(s->gpu_ctx);
+    }
+
+    if (s->hud) {
+        ngpu_ctx_query_draw_time(s->gpu_ctx, &s->gpu_draw_time);
     }
 
     return ngpu_ctx_end_draw(s->gpu_ctx, t);

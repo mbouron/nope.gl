@@ -119,7 +119,6 @@ static VkResult create_rendertarget(struct ngpu_ctx *s,
                                     struct ngpu_texture *color,
                                     struct ngpu_texture *resolve_color,
                                     struct ngpu_texture *depth_stencil,
-                                    enum ngpu_load_op load_op,
                                     struct ngpu_rendertarget **rendertargetp)
 {
     const struct ngpu_ctx_params *ctx_params = &s->params;
@@ -135,7 +134,7 @@ static VkResult create_rendertarget(struct ngpu_ctx *s,
         .colors[0] = {
             .attachment     = color,
             .resolve_target = resolve_color,
-            .load_op        = load_op,
+            .load_op        = NGPU_LOAD_OP_CLEAR,
             .clear_value[0] = ctx_params->clear_color[0],
             .clear_value[1] = ctx_params->clear_color[1],
             .clear_value[2] = ctx_params->clear_color[2],
@@ -144,7 +143,7 @@ static VkResult create_rendertarget(struct ngpu_ctx *s,
         },
         .depth_stencil = {
             .attachment = depth_stencil,
-            .load_op    = load_op,
+            .load_op    = NGPU_LOAD_OP_CLEAR,
             .store_op   = NGPU_STORE_OP_STORE,
         },
     };
@@ -238,22 +237,12 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         struct ngpu_texture *resolve_color = ms_color ? color : NULL;
 
         struct ngpu_rendertarget *rt = NULL;
-        res = create_rendertarget(s, target_color, resolve_color, depth_stencil, NGPU_LOAD_OP_CLEAR, &rt);
+        res = create_rendertarget(s, target_color, resolve_color, depth_stencil, &rt);
         if (res != VK_SUCCESS)
             return res;
 
         if (!ngpu_darray_push(&s_priv->rts, &rt)) {
             ngpu_rendertarget_freep(&rt);
-            return VK_ERROR_OUT_OF_HOST_MEMORY;
-        }
-
-        struct ngpu_rendertarget *rt_load = NULL;
-        res = create_rendertarget(s, target_color, resolve_color, depth_stencil, NGPU_LOAD_OP_LOAD, &rt_load);
-        if (res != VK_SUCCESS)
-            return res;
-
-        if (!ngpu_darray_push(&s_priv->rts_load, &rt_load)) {
-            ngpu_rendertarget_freep(&rt_load);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
     }
@@ -287,7 +276,6 @@ static void destroy_render_resources(struct ngpu_ctx *s)
     ngpu_darray_reset(&s_priv->ms_colors);
     ngpu_darray_reset(&s_priv->depth_stencils);
     ngpu_darray_reset(&s_priv->rts);
-    ngpu_darray_reset(&s_priv->rts_load);
 
     if (s_priv->mapped_data) {
         ngpu_buffer_unmap(s_priv->capture_buffer);
@@ -633,7 +621,6 @@ static VkResult recreate_swapchain(struct ngpu_ctx *gpu_ctx, struct vkcontext *v
     ngpu_darray_clear(&s_priv->ms_colors);
     ngpu_darray_clear(&s_priv->depth_stencils);
     ngpu_darray_clear(&s_priv->rts);
-    ngpu_darray_clear(&s_priv->rts_load);
 
     vkDestroySwapchainKHR(vk->device, s_priv->swapchain, NULL);
     s_priv->swapchain = VK_NULL_HANDLE;
@@ -839,10 +826,7 @@ static int vk_init(struct ngpu_ctx *s)
     ngpu_darray_set_free_func(&s_priv->depth_stencils, free_texture, NULL);
 
     ngpu_darray_init(&s_priv->rts, sizeof(struct ngpu_rendertarget *), 0);
-    ngpu_darray_init(&s_priv->rts_load, sizeof(struct ngpu_rendertarget *), 0);
-
     ngpu_darray_set_free_func(&s_priv->rts, free_rendertarget, NULL);
-    ngpu_darray_set_free_func(&s_priv->rts_load, free_rendertarget, NULL);
 
     s_priv->vkcontext = ngpu_vkcontext_create();
     if (!s_priv->vkcontext)
@@ -1108,9 +1092,6 @@ static int vk_begin_draw(struct ngpu_ctx *s)
     if (ctx_params->offscreen) {
         struct ngpu_rendertarget **rts = ngpu_darray_data(&s_priv->rts);
         s_priv->default_rt = rts[s->current_frame_index];
-
-        struct ngpu_rendertarget **rts_load = ngpu_darray_data(&s_priv->rts_load);
-        s_priv->default_rt_load = rts_load[s->current_frame_index];
     } else {
         res = swapchain_acquire_image(s, &s_priv->cur_image_index);
         if (res != VK_SUCCESS)
@@ -1120,11 +1101,6 @@ static int vk_begin_draw(struct ngpu_ctx *s)
         s_priv->default_rt = rts[s_priv->cur_image_index];
         s_priv->default_rt->width = s_priv->width;
         s_priv->default_rt->height = s_priv->height;
-
-        struct ngpu_rendertarget **rts_load = ngpu_darray_data(&s_priv->rts_load);
-        s_priv->default_rt_load = rts_load[s_priv->cur_image_index];
-        s_priv->default_rt_load->width = s_priv->width;
-        s_priv->default_rt_load->height = s_priv->height;
     }
 
     if (ctx_params->timer_queries) {
@@ -1291,18 +1267,10 @@ static void vk_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
     memcpy(dst, matrix, 4 * 4 * sizeof(float));
 }
 
-static struct ngpu_rendertarget *vk_get_default_rendertarget(struct ngpu_ctx *s, enum ngpu_load_op load_op)
+static struct ngpu_rendertarget *vk_get_default_rendertarget(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
-    switch (load_op) {
-    case NGPU_LOAD_OP_DONT_CARE:
-    case NGPU_LOAD_OP_CLEAR:
-        return s_priv->default_rt;
-    case NGPU_LOAD_OP_LOAD:
-        return s_priv->default_rt_load;
-    default:
-        ngpu_assert(0);
-    }
+    return s_priv->default_rt;
 }
 
 static const struct ngpu_rendertarget_layout *vk_get_default_rendertarget_layout(struct ngpu_ctx *s)

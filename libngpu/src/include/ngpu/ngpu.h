@@ -1050,7 +1050,7 @@ NGPU_API void ngpu_ctx_get_projection_matrix(struct ngpu_ctx *s, float *dst);
 NGPU_API void ngpu_ctx_get_projection_matrix_inverse(struct ngpu_ctx *s, float *dst);
 NGPU_API void ngpu_ctx_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst);
 
-NGPU_API struct ngpu_rendertarget *ngpu_ctx_get_default_rendertarget(struct ngpu_ctx *s, enum ngpu_load_op load_op);
+NGPU_API struct ngpu_rendertarget *ngpu_ctx_get_default_rendertarget(struct ngpu_ctx *s);
 NGPU_API const struct ngpu_rendertarget_layout *ngpu_ctx_get_default_rendertarget_layout(struct ngpu_ctx *s);
 NGPU_API void ngpu_ctx_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width, uint32_t *height);
 

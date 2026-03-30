@@ -96,6 +96,7 @@ const struct node_class ngli_translate_class = {
     .name      = "Translate",
     .init      = translate_init,
     .update    = translate_update,
+    .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_transform_draw,
     .opts_size = sizeof(struct translate_opts),
     .priv_size = sizeof(struct translate_priv),
