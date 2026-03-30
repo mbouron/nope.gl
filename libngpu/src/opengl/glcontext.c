@@ -661,6 +661,10 @@ static int glcontext_check_default_framebuffer_encoding(struct glcontext *glcont
 
     glcontext->default_framebuffer_is_srgb = (encoding == GL_SRGB);
 
+#if defined(TARGET_DARWIN)
+    glcontext->default_framebuffer_is_srgb = 1;
+#endif
+
     return 0;
 }
 
