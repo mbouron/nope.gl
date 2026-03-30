@@ -263,7 +263,9 @@ static int gblur_init(struct ngl_node *node)
         .entries    = kernel_block_fields,
         .nb_entries = NGLI_ARRAY_NB(kernel_block_fields),
     };
-    ngpu_block_init(gpu_ctx, &s->kernel_block, &kernel_block_params);
+    ret = ngpu_block_init(gpu_ctx, &s->kernel_block, &kernel_block_params);
+    if (ret < 0)
+        return ret;
 
     const struct ngpu_pgcraft_iovar vert_out_vars[] = {
         {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
