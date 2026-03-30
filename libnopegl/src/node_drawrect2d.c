@@ -915,7 +915,6 @@ static void drawrect2d_draw(struct ngl_node *node)
         }
     }
 
-
     /* Texture scaling (uv_scale) */
     float uv_scale[] = {1.f, 1.f};
     if (fo->scaling != FILL_SCALING_NONE && ngli_darray_count(&desc->textures_map) > 0) {
