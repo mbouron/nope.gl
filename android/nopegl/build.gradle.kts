@@ -8,8 +8,8 @@ plugins {
 val buildEnv = "${rootProject.projectDir.parent}/build-android"
 
 afterEvaluate {
-    val url = "https://github.com/NopeForge/nope.gl"
-    val gitUrl = "https://github.com/NopeForge/nope.gl.git"
+    val url = "https://github.com/mbouron/nope.gl"
+    val gitUrl = "https://github.com/mbouron/nope.gl.git"
     val nopeGlVersion = rootProject.file("../VERSION").readText().trim()
     val bindingsVersion = rootProject.file("VERSION").readText().trim()
     publishing {
@@ -36,7 +36,7 @@ afterEvaluate {
         repositories {
             maven {
                 name = "GitHubPackages"
-                setUrl("https://maven.pkg.github.com/NopeForge/nope.gl")
+                setUrl("https://maven.pkg.github.com/mbouron/nope.gl")
                 credentials {
                     val githubUsername: String? by project
                     val githubToken: String? by project
