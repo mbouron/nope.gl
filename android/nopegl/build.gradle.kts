@@ -40,7 +40,7 @@ afterEvaluate {
                 credentials {
                     val githubUsername: String? by project
                     val githubToken: String? by project
-                    username = githubUsername ?: System.getenv("GITHUB_USERNAME")
+                    username = githubUsername ?: System.getenv("GITHUB_ACTOR")
                     password = githubToken ?: System.getenv("GITHUB_TOKEN")
                 }
             }
