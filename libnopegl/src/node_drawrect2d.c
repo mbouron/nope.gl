@@ -175,6 +175,7 @@ struct drawrect2d_priv {
     struct ngpu_pgcraft_attribute uvcoord_attr;
     uint32_t nb_vertices;
     struct geometry *geometry;
+    bool update_geometry;
     struct darray pipeline_descs;
     struct ngpu_pgcraft *crafter;
     int32_t modelview_matrix_index;
@@ -207,13 +208,24 @@ struct drawrect2d_priv {
     char *frag_shader;
 };
 
+
+static int update_rect(struct ngl_node *node)
+{
+    struct drawrect2d_priv *s = node->priv_data;
+    s->update_geometry = true;
+
+    return 0;
+}
+
 #define OFFSET(x) offsetof(struct drawrect2d_opts, x)
 static const struct node_param drawrect2d_params[] = {
     {
         .key  = "rect",
         .type = NGLI_PARAM_TYPE_VEC4,
         .offset = OFFSET(rect),
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc = NGLI_DOCSTRING("rect (x, y, width, height)"),
+        .update_func = update_rect,
     },
     {
         .key        = "fill",
@@ -819,6 +831,44 @@ static int drawrect2d_prepare(struct ngl_node *node)
     return 0;
 }
 
+static int drawrect2d_update(struct ngl_node *node, double t)
+{
+    struct drawrect2d_priv *s = node->priv_data;
+    const struct drawrect2d_opts *o = node->opts;
+
+    int ret = ngli_node_update_children(node, t);
+    if (ret < 0)
+        return ret;
+
+    if (!s->update_geometry)
+        return 0;
+
+    const float x = o->rect[0];
+    const float y = o->rect[1];
+    const float w = o->rect[2];
+    const float h = o->rect[3];
+    const float vertices[] = {
+        x,   y,   0.f,
+        x+w, y,   0.f,
+        x,   y+h, 0.f,
+        x+w, y+h, 0.f,
+    };
+    ret = ngpu_buffer_upload(s->geometry->vertices_buffer, vertices, 0, sizeof(vertices));
+    if (ret < 0)
+        return ret;
+
+    const float half_w = w / 2.0f;
+    const float half_h = h / 2.0f;
+    s->draw_info.aabb = (struct aabb) {
+        .center = {x + half_w, y + half_h, 0.0f, 1.0f},
+        .extent = {half_w, half_h},
+    };
+
+    s->update_geometry = false;
+
+    return 0;
+}
+
 static void drawrect2d_draw(struct ngl_node *node)
 {
     struct drawrect2d_priv *s = node->priv_data;
@@ -1038,7 +1088,7 @@ const struct node_class ngli_drawrect2d_class = {
     .name      = "DrawRect2D",
     .init      = drawrect2d_init,
     .prepare   = drawrect2d_prepare,
-    .update    = ngli_node_update_children,
+    .update    = drawrect2d_update,
     .draw      = drawrect2d_draw,
     .uninit    = drawrect2d_uninit,
     .opts_size = sizeof(struct drawrect2d_opts),

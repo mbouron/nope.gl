@@ -2835,7 +2835,7 @@
           "name": "rect",
           "type": "vec4",
           "default": [0.000000,0.000000,0.000000,0.000000],
-          "flags": [],
+          "flags": ["live"],
           "desc": "rect (x, y, width, height)"
         },
         {
