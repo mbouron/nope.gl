@@ -1078,11 +1078,13 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
     memcpy(s_priv->staging_buffer_ptr, data, s_priv->staging_buffer->size);
 
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
-    const int cmd_is_transient = cmd_buffer_vk ? 0 : 1;
+    const int cmd_is_transient = !cmd_buffer_vk || ngpu_ctx_is_render_pass_active(s->gpu_ctx);
     if (cmd_is_transient) {
-        VkResult res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &cmd_buffer_vk);
+        struct ngpu_cmd_buffer_vk *transient_cmd_buffer_vk;
+        VkResult res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &transient_cmd_buffer_vk);
         if (res != VK_SUCCESS)
             return res;
+        cmd_buffer_vk = transient_cmd_buffer_vk;
     }
     VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
@@ -1198,11 +1200,13 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
     ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
-    const int cmd_is_transient = cmd_buffer_vk ? 0 : 1;
+    const int cmd_is_transient = !cmd_buffer_vk || ngpu_ctx_is_render_pass_active(s->gpu_ctx);
     if (cmd_is_transient) {
-        VkResult res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &cmd_buffer_vk);
+        struct ngpu_cmd_buffer_vk *transient_cmd_buffer_vk;
+        VkResult res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &transient_cmd_buffer_vk);
         if (res != VK_SUCCESS)
             return res;
+        cmd_buffer_vk = transient_cmd_buffer_vk;
     }
     VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
