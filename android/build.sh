@@ -23,12 +23,13 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-debug_opts=""
+configure_opts="--build-id --host Android"
+gradle_rule=""
 
 case $build_opt in
     "debug")
         buildtype="debug"
-        debug_opts="gl vk mem scene"
+        configure_opts="$configure_opts -d gl vk mem scene"
         gradle_rule="assembleDebug"
     ;;
     "release")
@@ -70,7 +71,7 @@ fi
 
 archs="arm aarch64 x86_64"
 for arch in $archs; do
-    python configure.py --buildtype "$buildtype" -d $debug_opts --build-id --host Android --host-arch "$arch"
+    python configure.py --buildtype "$buildtype" $configure_opts --host-arch "$arch"
     make -f "Makefile.Android.$arch"
 done
 

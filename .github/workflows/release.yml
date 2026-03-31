@@ -7,6 +7,7 @@ on:
 
 jobs:
   release:
+    if: "!endsWith(github.ref_name, '-android')"
 
     permissions:
       contents: write

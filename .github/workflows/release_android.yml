@@ -1,0 +1,58 @@
+name: Release Android
+on:
+  push:
+    tags:
+      - 'v*-android'
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt -y update
+          sudo apt -y install meson ninja-build nasm pkg-config
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Setup Android
+        uses: android-actions/setup-android@00854ea68c109d98c75d956347303bf7c45b0277 # v3
+
+      - name: Install NDK
+        run: sdkmanager --install "ndk;28.1.13356709"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@417ae3ccd767c252f5661f1ace9f835f9654f2b5 # v3.1.0
+
+      - name: Release library
+        run: ./android/build.sh --buildtype=release-with-symbols --publish=remote
+        env:
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/28.1.13356709
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG_NAME: ${{ github.ref_name }}
+  bump:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump library
+        run: |
+          git config --global user.name "Matthieu Bouron"
+          git config --global user.email "matthieu.bouron@gmail.com"
+          ./android/bump.sh minor
+          branch_name=$(git branch --show-current)
+          git push origin "$branch_name"
+          gh pr create --title "android: bump from ${{ github.ref_name }}" --body "Bump android bindings version after ${{ github.ref_name }}" --head "$branch_name"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+
