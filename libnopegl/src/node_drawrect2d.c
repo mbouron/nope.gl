@@ -167,6 +167,7 @@ struct drawrect2d_opts {
     float content_zoom;
     struct ngl_node *content_translate_node;
     float content_translate[2];
+    float content_orientation;
 };
 
 struct drawrect2d_priv {
@@ -200,6 +201,7 @@ struct drawrect2d_priv {
     int32_t clip_max_index;
     int32_t content_zoom_index;
     int32_t content_translate_index;
+    int32_t content_orientation_index;
     struct darray user_uniforms;            /* struct user_uniform (CustomFill only) */
     struct darray prebuilt_uniforms;        /* struct prebuilt_uniform (fill) */
     struct darray stroke_prebuilt_uniforms; /* struct prebuilt_uniform (stroke) */
@@ -214,6 +216,23 @@ static int update_rect(struct ngl_node *node)
     struct drawrect2d_priv *s = node->priv_data;
     s->update_geometry = true;
 
+    return 0;
+}
+
+static int is_valid_orientation(float angle)
+{
+    return angle == 0.f ||
+           angle ==  90.f || angle ==  180.f || angle ==  270.f ||
+           angle == -90.f || angle == -180.f || angle == -270.f;
+}
+
+static int update_content_orientation(struct ngl_node *node)
+{
+    const struct drawrect2d_opts *o = node->opts;
+    if (!is_valid_orientation(o->content_orientation)) {
+        LOG(ERROR, "content_orientation must be 0, +/-90, +/-180 or +/-270, got %g", o->content_orientation);
+        return NGL_ERROR_INVALID_ARG;
+    }
     return 0;
 }
 
@@ -343,6 +362,15 @@ static const struct node_param drawrect2d_params[] = {
                                 "for fit scaling mode the translation is clamped to keep "
                                 "the content within the DrawRect2D bounds"),
     },
+    {
+        .key         = "content_orientation",
+        .type        = NGLI_PARAM_TYPE_F32,
+        .offset      = OFFSET(content_orientation),
+        .flags       = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .update_func = update_content_orientation,
+        .desc        = NGLI_DOCSTRING("rotation angle in degrees applied to the fill content "
+                                      "(must be 0, +/-90, +/-180 or +/-270)"),
+    },
     {NULL},
 };
 #undef OFFSET
@@ -372,6 +400,11 @@ static int drawrect2d_init(struct ngl_node *node)
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct drawrect2d_priv *s = node->priv_data;
     const struct drawrect2d_opts *o = node->opts;
+
+    if (!is_valid_orientation(o->content_orientation)) {
+        LOG(ERROR, "content_orientation must be 0, +/-90, +/-180 or +/-270, got %g", o->content_orientation);
+        return NGL_ERROR_INVALID_ARG;
+    }
 
     const float half_width = o->rect[2] / 2.0f;
     const float half_height = o->rect[3] / 2.0f;
@@ -491,6 +524,7 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name="ngli_content_wrap",      .type=NGPU_TYPE_I32,  .stage=NGPU_PROGRAM_STAGE_FRAG},
         {.name="ngli_content_zoom",      .type=NGPU_TYPE_F32,  .stage=NGPU_PROGRAM_STAGE_FRAG},
         {.name="ngli_content_translate", .type=NGPU_TYPE_VEC2, .stage=NGPU_PROGRAM_STAGE_FRAG},
+        {.name="ngli_content_orientation", .type=NGPU_TYPE_VEC2, .stage=NGPU_PROGRAM_STAGE_FRAG},
         {.name="ngli_frag_uv_scale",     .type=NGPU_TYPE_VEC2, .stage=NGPU_PROGRAM_STAGE_FRAG},
     };
 
@@ -706,6 +740,8 @@ static int drawrect2d_init(struct ngl_node *node)
         s->crafter, "ngli_content_zoom", NGPU_PROGRAM_STAGE_FRAG);
     s->content_translate_index = ngpu_pgcraft_get_uniform_index(
         s->crafter, "ngli_content_translate", NGPU_PROGRAM_STAGE_FRAG);
+    s->content_orientation_index = ngpu_pgcraft_get_uniform_index(
+        s->crafter, "ngli_content_orientation", NGPU_PROGRAM_STAGE_FRAG);
 
     /* Register fill prebuilt uniform indices */
     for (size_t i = 0; i < fi->nb_uniforms; i++) {
@@ -966,11 +1002,13 @@ static void drawrect2d_draw(struct ngl_node *node)
     }
 
     /* Texture scaling (uv_scale) */
+    const int orientation_quarter = ((int)o->content_orientation / 90) & 3;
+    const int orientation_is_transposed = orientation_quarter & 1;
     float uv_scale[] = {1.f, 1.f};
     if (fo->scaling != FILL_SCALING_NONE && ngli_darray_count(&desc->textures_map) > 0) {
         const struct image *image = texture_map[0].image;
-        const float tex_w = (float)image->params.width;
-        const float tex_h = (float)image->params.height;
+        const float tex_w = orientation_is_transposed ? (float)image->params.height : (float)image->params.width;
+        const float tex_h = orientation_is_transposed ? (float)image->params.width  : (float)image->params.height;
         const float scaled_w = o->rect[2] * scale[0];
         const float scaled_h = o->rect[3] * scale[1];
         if (tex_w > 0.f && tex_h > 0.f && scaled_w > 0.f && scaled_h > 0.f) {
@@ -1003,6 +1041,15 @@ static void drawrect2d_draw(struct ngl_node *node)
     }
     ngli_pipeline_compat_update_uniform(pl_compat, s->content_zoom_index,      &content_zoom);
     ngli_pipeline_compat_update_uniform(pl_compat, s->content_translate_index,  content_translate);
+
+    static const float orientation_cos_sin[][2] = {
+        [0] = { 1.f,  0.f}, /* 0°   */
+        [1] = { 0.f,  1.f}, /* 90°  */
+        [2] = {-1.f,  0.f}, /* 180° */
+        [3] = { 0.f, -1.f}, /* 270° */
+    };
+    ngli_pipeline_compat_update_uniform(pl_compat, s->content_orientation_index,
+                                        orientation_cos_sin[orientation_quarter]);
 
     /*
      * Geometry dilation: expand quad to cover outside stroke + AA border.

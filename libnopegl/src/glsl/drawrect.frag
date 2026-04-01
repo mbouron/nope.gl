@@ -182,12 +182,18 @@ void main()
     float ol_alpha  = ol_mask * stroke_col.a * ngli_stroke_opacity;
 
     /*
-     * Content transform: zoom and translate the fill content (gradient, texture…)
-     * independently of the shape.  ngli_content_zoom > 1 zooms in; ngli_content_translate
-     * pans in UV space.
+     * Content transform: orientation, zoom and translate applied to the fill
+     * content (gradient, texture…) independently of the shape.
+     *
+     * ngli_content_orientation is vec2(cos(angle), sin(angle)) for discrete
+     * 90° rotations applied around UV center (0.5, 0.5).
+     * ngli_content_zoom > 1 zooms in; ngli_content_translate pans in UV space.
      */
-    vec2 content_uv        = (ngli_uv        - 0.5) / ngli_content_zoom + 0.5 + ngli_content_translate;
-    vec2 content_tex_coord = (ngli_tex_coord - 0.5) / ngli_content_zoom + 0.5 + ngli_content_translate;
+    float co = ngli_content_orientation.x;
+    float so = ngli_content_orientation.y;
+    mat2 rot = mat2(co, so, -so, co);
+    vec2 content_uv        = rot * ((ngli_uv        - 0.5) / ngli_content_zoom + ngli_content_translate) + 0.5;
+    vec2 content_tex_coord = rot * ((ngli_tex_coord - 0.5) / ngli_content_zoom + ngli_content_translate) + 0.5;
 
     /*
      * Only sample the fill for fragments inside the original rect (ngli_uv in

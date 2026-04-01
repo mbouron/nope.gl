@@ -2929,6 +2929,13 @@
           "default": [0.000000,0.000000],
           "flags": ["live", "node"],
           "desc": "UV-space translation of the fill content; for fit scaling mode the translation is clamped to keep the content within the DrawRect2D bounds"
+        },
+        {
+          "name": "content_orientation",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "rotation angle in degrees applied to the fill content (must be 0, +/-90, +/-180 or +/-270)"
         }
       ]
     },

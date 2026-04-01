@@ -26,6 +26,7 @@ from pynopegl_utils.tests.cmp_render import test_render
 W, H = 256, 256
 
 _CITY = load_media("city").filename
+_CITY_EXIF8 = load_media("city_exif8").filename
 
 
 def _make_texture(path: str = _CITY) -> ngl.Texture2D:
@@ -784,3 +785,106 @@ def drawrect_fill_stroke_opacity(cfg: ngl.SceneCfg):
     stroke = ngl.Stroke(width=20, mode="center", color=(1.0, 1.0, 1.0, 1.0), opacity=0.5)
     fg = ngl.DrawRect2D(rect=(40, 40, W - 80, H - 80), fill=fill, stroke=stroke, corner_radius=5)
     return _canvas(cfg, bg, fg, duration=4.0)
+
+
+def _rect_with_margin(rect, margin):
+    return (
+        rect[0] + margin,
+        rect[1] + margin,
+        rect[2] - 2 * margin,
+        rect[3] - 2 * margin,
+    )
+
+
+@test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=W, height=H)
+def drawrect_content_orientation_fill(cfg: ngl.SceneCfg):
+    """Image with content_orientation=90 animated content_zoom and content_translate in fill scaling mode."""
+    margin = 5
+
+    content_zoom_anim = ngl.AnimatedFloat(
+        [
+            ngl.AnimKeyFrameFloat(0.0, 1.0),
+            ngl.AnimKeyFrameFloat(1.0, 2.0),
+            ngl.AnimKeyFrameFloat(2.0, 1.5),
+            ngl.AnimKeyFrameFloat(3.0, 1.0),
+        ]
+    )
+    content_translate_anim = ngl.AnimatedVec2(
+        [
+            ngl.AnimKeyFrameVec2(0.0, (0.0, 0.0)),
+            ngl.AnimKeyFrameVec2(1.0, (0.2, 0.1)),
+            ngl.AnimKeyFrameVec2(2.0, (-0.1, 0.2)),
+            ngl.AnimKeyFrameVec2(3.0, (0.0, 0.0)),
+        ]
+    )
+
+    stroke = ngl.Stroke(width=1, mode="outside", color=(1.0, 1.0, 1.0, 1.0))
+
+    fill_exif = ngl.TextureFill(texture=_make_texture(_CITY_EXIF8), scaling="fill")
+    rect_exif = ngl.DrawRect2D(
+        rect=_rect_with_margin((0, 0, W / 2, H), margin),
+        fill=fill_exif,
+        stroke=stroke,
+        content_orientation=90,
+        content_zoom=content_zoom_anim,
+        content_translate=content_translate_anim,
+    )
+
+    fill = ngl.TextureFill(texture=_make_texture(_CITY), scaling="fill")
+    rect = ngl.DrawRect2D(
+        rect=_rect_with_margin((W / 2, 0, W / 2, H), margin),
+        fill=fill,
+        stroke=stroke,
+        content_zoom=content_zoom_anim,
+        content_translate=content_translate_anim,
+    )
+
+    return _canvas(cfg, ngl.Group2D(children=[rect_exif, rect]), duration=4.0)
+
+
+@test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=W, height=H)
+def drawrect_content_orientation_fit(cfg: ngl.SceneCfg):
+    """Image with content_orientation=90 with animated scale and content_translate in fit scaling mode."""
+    margin = 5
+
+    scale_anim = ngl.AnimatedVec3(
+        [
+            ngl.AnimKeyFrameVec3(0.0, (1.0, 1.0, 1.0)),
+            ngl.AnimKeyFrameVec3(1.0, (1.0, 2.0, 1.0)),
+            ngl.AnimKeyFrameVec3(2.0, (1.0, 1.5, 1.0)),
+            ngl.AnimKeyFrameVec3(3.0, (1.0, 1.0, 1.0)),
+        ]
+    )
+    content_translate_anim = ngl.AnimatedVec2(
+        [
+            ngl.AnimKeyFrameVec2(0.0, (0.0, 0.0)),
+            ngl.AnimKeyFrameVec2(1.0, (0.25, 0.1)),
+            ngl.AnimKeyFrameVec2(2.0, (-0.25, 0.2)),
+            ngl.AnimKeyFrameVec2(3.0, (0.0, 0.0)),
+        ]
+    )
+
+    stroke = ngl.Stroke(width=1, mode="outside", color=(1.0, 1.0, 1.0, 1.0))
+
+    fill_exif = ngl.TextureFill(texture=_make_texture(_CITY_EXIF8), scaling="fit")
+    rect_exif = ngl.DrawRect2D(
+        rect=_rect_with_margin((0, H / 2 - H / 4, W / 2, H / 2), margin),
+        fill=fill_exif,
+        stroke=stroke,
+        content_orientation=90,
+        content_translate=content_translate_anim,
+        scale=scale_anim,
+    )
+
+    fill = ngl.TextureFill(texture=_make_texture(_CITY), scaling="fit")
+    rect = ngl.DrawRect2D(
+        rect=_rect_with_margin((W / 2, H / 2 - H / 4, W / 2, H / 2), margin),
+        fill=fill,
+        stroke=stroke,
+        content_translate=content_translate_anim,
+        scale=scale_anim,
+    )
+
+    return _canvas(cfg, ngl.Group2D(children=[rect_exif, rect]), duration=4.0)
