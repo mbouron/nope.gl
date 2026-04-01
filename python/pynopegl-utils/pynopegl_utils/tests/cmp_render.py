@@ -26,7 +26,6 @@ from typing import List, Optional
 
 from PIL import Image
 from pynopegl_utils.tests.cmp import CompareSceneBase, get_test_decorator
-from pynopegl_utils.tests.pixelmatch import pixelmatch
 from pynopegl_utils.tests.refgen import RefGen
 from pynopegl_utils.tests.report import generate_report, get_report_dir, save_test_result
 
@@ -56,6 +55,8 @@ class _CompareRender(CompareSceneBase):
         return data
 
     def _compare_data(self, test_name: str, ref_paths: List[str], out_images: List[Image.Image]) -> List[str]:
+        from pynopegl_utils.tests.pixelmatch import pixelmatch
+
         report_dir = get_report_dir()
         err = []
 
