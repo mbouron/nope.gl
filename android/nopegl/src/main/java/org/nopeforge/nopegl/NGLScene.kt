@@ -92,6 +92,20 @@ class NGLScene {
         this.height = height
     }
 
+    fun duplicate(): NGLScene {
+        val dupPtr = nativeDuplicate(nativePtr)
+        require(dupPtr != 0L) { "Failed to duplicate scene" }
+        return NGLScene(dupPtr)
+    }
+
+    private constructor(dupPtr: Long) {
+        nativePtr = dupPtr
+        registerCleanable()
+
+        val ret = nativeAddLiveControls(nativePtr)
+        require(ret == 0) { "Failed to add native controls" }
+    }
+
     fun serialize(): String {
         return nativeSerialize(nativePtr)
     }
@@ -118,6 +132,7 @@ class NGLScene {
     private external fun nativeAddLiveControls(nativePtr: Long): Int
     private external fun nativeSerialize(nativePtr: Long): String
     private external fun nativeDot(nativePtr: Long): String
+    private external fun nativeDuplicate(nativePtr: Long): Long
 
     companion object {
         @JvmStatic
