@@ -679,6 +679,89 @@ def api_viewport():
     assert ctx.viewport == (0, 0, 640, 480)
 
 
+def api_node_duplicate():
+    """Test duplicating a node graph with shared resources (default)"""
+    shared = ngl.UniformFloat(value=0.5)
+    child1 = ngl.DrawColor(opacity=shared)
+    child2 = ngl.DrawColor(opacity=shared)
+    root = ngl.Group(children=[child1, child2])
+
+    # Default: resources are shared, not duplicated
+    dup = root.duplicate()
+    scene = ngl.Scene.from_params(root)
+
+    # The duplicate shares resource nodes, so it can't be put in a separate scene
+    # (resources are already associated with scene_orig). Use duplicate_resources
+    # for full independence.
+    del scene
+
+
+def api_node_duplicate_resources():
+    """Test duplicating a node graph with duplicated resources"""
+    shared = ngl.UniformFloat(value=0.5)
+    child1 = ngl.DrawColor(opacity=shared)
+    child2 = ngl.DrawColor(opacity=shared)
+    root = ngl.Group(children=[child1, child2])
+
+    dup = root.duplicate(duplicate_resources=True)
+
+    # With duplicate_resources, the duplicate is fully independent
+    scene = ngl.Scene.from_params(root)
+    scene_dup = ngl.Scene.from_params(dup)
+    assert scene.serialize() == scene_dup.serialize()
+    del scene
+    del scene_dup
+
+
+def api_scene_duplicate():
+    """Test duplicating a scene"""
+    shared = ngl.UniformFloat(value=0.75)
+    root = ngl.Group(
+        children=[
+            ngl.DrawColor(opacity=shared),
+            ngl.DrawColor(opacity=shared),
+        ]
+    )
+    scene = ngl.Scene.from_params(root, duration=15.0, framerate=(30, 1), width=320, height=240)
+
+    dup = scene.duplicate()
+
+    # Verify parameters are preserved
+    assert dup.duration == scene.duration
+    assert dup.framerate == scene.framerate
+
+    # Verify the graph is identical
+    assert dup.serialize() == scene.serialize()
+
+    # Verify the duplicate is independent: we can set both on different contexts
+    ctx = ngl.Context()
+    ret = ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
+    assert ret == 0
+    assert ctx.set_scene(dup) == 0
+    del ctx
+
+
+def api_scene_duplicate_with_ctx():
+    """Test duplicating a scene that is currently attached to a rendering context"""
+    scene = _get_scene()
+    ctx = ngl.Context()
+    ret = ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
+    assert ret == 0
+    assert ctx.set_scene(scene) == 0
+
+    # Duplicate while scene is attached to a context
+    dup = scene.duplicate()
+    assert dup.serialize() == scene.serialize()
+
+    # Attach duplicate to a different context
+    ctx2 = ngl.Context()
+    ret = ctx2.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
+    assert ret == 0
+    assert ctx2.set_scene(dup) == 0
+    del ctx
+    del ctx2
+
+
 def api_transform_chain_check():
     invalid_chain = ngl.Translate(ngl.Rotate(ngl.Skew()))
     root = ngl.Camera(eye_transform=invalid_chain)

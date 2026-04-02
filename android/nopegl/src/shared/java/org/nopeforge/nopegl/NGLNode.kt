@@ -49,6 +49,13 @@ open class NGLNode(
         }
     }
 
+    fun duplicate(duplicateResources: Boolean = false): NGLNode {
+        val flags = if (duplicateResources) NODE_DUPLICATE_RESOURCES else 0
+        val dupPtr = nativeDuplicate(nativePtr, flags)
+        require(dupPtr != 0L) { "Failed to duplicate node" }
+        return NGLNode(dupPtr, stealRef = true)
+    }
+
     fun release() {
         cleanable?.clean()
         cleanable = null
@@ -370,6 +377,9 @@ open class NGLNode(
     companion object {
         @JvmStatic
         external fun nativeCreate(type: Int): Long
+        const val NODE_DUPLICATE_RESOURCES = 1 shl 0
+        @JvmStatic
+        external fun nativeDuplicate(nativePtr: Long, flags: Int): Long
         @JvmStatic
         external fun nativeRef(nativePtr: Long)
         @JvmStatic
