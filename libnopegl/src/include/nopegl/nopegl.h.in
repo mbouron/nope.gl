@@ -223,6 +223,17 @@ NGL_API int ngl_scene_init_from_str(struct ngl_scene *s, const char *str);
 NGL_API struct ngl_scene *ngl_scene_ref(struct ngl_scene *s);
 
 /**
+ * Create a deep copy of a scene. The returned scene is independent from the
+ * original and can be attached to a different context.
+ *
+ * @param s pointer to the scene to duplicate
+ *
+ * @return a new scene on success, NULL on error. Must be freed with
+ *         ngl_scene_unrefp().
+ */
+NGL_API struct ngl_scene *ngl_scene_duplicate(const struct ngl_scene *s);
+
+/**
  * Serialize scene in nope.gl format (.ngl).
  *
  * Must be destroyed using free().
@@ -537,6 +548,26 @@ NGL_API struct ngl_node *ngl_node_ref(struct ngl_node *node);
  * @param nodep  pointer to the pointer to the target node
  */
 NGL_API void ngl_node_unrefp(struct ngl_node **nodep);
+
+/**
+ * Flags for ngl_node_duplicate().
+ */
+#define NGL_NODE_DUPLICATE_RESOURCES (1 << 0) /* Duplicate shareable nodes (buffers, textures, etc.) */
+
+/**
+ * Duplicate a node and its subgraph.
+ *
+ * By default, structural nodes are recursively duplicated while shareable
+ * nodes (textures, fills, geometry, etc.) are shared. The returned node has a
+ * reference count of 1 and is not associated with any scene or rendering
+ * context.
+ *
+ * @param node  pointer to the node to duplicate
+ * @param flags combination of NGL_DUPLICATE_* flags, or 0 for default behavior
+ *
+ * @return a new allocated copy of the node graph or NULL on error
+ */
+NGL_API struct ngl_node *ngl_node_duplicate(struct ngl_node *node, uint32_t flags);
 
 /**
  * Add nodes to a list-based parameter of an allocated node.

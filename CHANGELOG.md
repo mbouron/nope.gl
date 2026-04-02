@@ -58,6 +58,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   the accumulated 2D transform of any node in the hierarchy
 - `ngl_node_param_get_*()` functions to read back node parameter values,
   mirroring the existing `ngl_node_param_set_*()` API
+- `ngl_node_duplicate()` and `ngl_scene_duplicate()` to duplicate a node graph
+  or scene
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges

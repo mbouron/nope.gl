@@ -63,6 +63,8 @@ cdef extern from "nopegl/nopegl.h":
     ngl_node *ngl_node_create(uint32_t type)
     ngl_node *ngl_node_ref(ngl_node *node)
     void ngl_node_unrefp(ngl_node **nodep)
+    int NGL_NODE_DUPLICATE_RESOURCES
+    ngl_node *ngl_node_duplicate(ngl_node *node, uint32_t flags)
     int ngl_node_param_add_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_add_f64s(ngl_node *node, const char *key, size_t nb_f64s, double *f64s)
     int ngl_node_param_swap_elem(ngl_node *node, const char *key, size_t from_, size_t to)
@@ -185,6 +187,7 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_scene_init_from_str(ngl_scene *s, const char *str)
     char *ngl_scene_serialize(const ngl_scene *scene)
     char *ngl_scene_dot(const ngl_scene *scene)
+    ngl_scene *ngl_scene_duplicate(ngl_scene *s)
     void ngl_scene_unrefp(ngl_scene **sp)
 
     cdef struct ngl_ctx
@@ -369,6 +372,15 @@ cdef class _Node:
 
     def __dealloc__(self):
         ngl_node_unrefp(&self.ctx)
+
+    def _duplicate(self, bint duplicate_resources=False):
+        cdef uint32_t flags = 0
+        if duplicate_resources:
+            flags |= NGL_NODE_DUPLICATE_RESOURCES
+        cdef ngl_node *dup = ngl_node_duplicate(self.ctx, flags)
+        if dup is NULL:
+            raise MemoryError()
+        return _Node(ctx=<uintptr_t>dup)
 
     def _param_set_bool(self, const char *key, bint value):
         return ngl_node_param_set_bool(self.ctx, key, value)
@@ -812,6 +824,17 @@ cdef class Scene:
             raise Exception("unable to initialize scene from string")
         cdef const ngl_scene_params *params = ngl_scene_get_params(scenep);
         # FIXME: this is limited because the node won't even have set_label()
+        scene.root = _Node(ctx=<uintptr_t>params.root)
+        return scene
+
+    def duplicate(self):
+        cdef ngl_scene *dup = ngl_scene_duplicate(self.ctx)
+        if dup is NULL:
+            raise MemoryError()
+        cdef Scene scene = Scene.__new__(Scene)
+        ngl_scene_unrefp(&scene.ctx)
+        scene.ctx = dup
+        cdef const ngl_scene_params *params = ngl_scene_get_params(dup)
         scene.root = _Node(ctx=<uintptr_t>params.root)
         return scene
 
