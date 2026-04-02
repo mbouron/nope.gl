@@ -564,6 +564,40 @@ void ngl_livectls_freep(struct ngl_livectl **livectlsp)
     ngli_freep(livectlsp);
 }
 
+struct ngl_scene *ngl_scene_duplicate(const struct ngl_scene *s)
+{
+    if (!s->params.root) {
+        LOG(ERROR, "cannot duplicate a scene without root node");
+        return NULL;
+    }
+
+    /*
+     * Always duplicate resources: the duplicated graph must be fully
+     * independent because ngl_scene_init() will claim ownership of every
+     * node, which would conflict with the original scene's nodes.
+     */
+    struct ngl_node *dup_root = ngl_node_duplicate(s->params.root, NGL_NODE_DUPLICATE_RESOURCES);
+    if (!dup_root)
+        return NULL;
+
+    struct ngl_scene *dup = ngl_scene_create();
+    if (!dup) {
+        ngl_node_unrefp(&dup_root);
+        return NULL;
+    }
+
+    struct ngl_scene_params params = s->params;
+    params.root = dup_root;
+    int ret = ngl_scene_init(dup, &params);
+    ngl_node_unrefp(&dup_root);
+    if (ret < 0) {
+        ngl_scene_unrefp(&dup);
+        return NULL;
+    }
+
+    return dup;
+}
+
 void ngl_scene_unrefp(struct ngl_scene **sp)
 {
     struct ngl_scene *s = *sp;

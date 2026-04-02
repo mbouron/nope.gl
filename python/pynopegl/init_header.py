@@ -259,6 +259,9 @@ class Node(_Node):
     def _get_rational(self, param_name):
         return self._param_get_rational(param_name)
 
+    def duplicate(self, duplicate_resources: bool = False) -> "Node":
+        return super()._duplicate(duplicate_resources=duplicate_resources)
+
     def get_type(self):
         return self._get_type()
 
@@ -296,6 +299,9 @@ class Scene(_ngl.Scene):
     @classmethod
     def from_string(cls, s: Union[str, bytes]) -> "Scene":
         return super().from_string(s)
+
+    def duplicate(self) -> "Scene":
+        return super().duplicate()
 
     def serialize(self) -> bytes:
         return super().serialize()
