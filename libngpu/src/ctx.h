@@ -54,7 +54,7 @@ struct ngpu_ctx_class {
     void (*get_projection_matrix)(struct ngpu_ctx *s, float *dst);
     void (*get_rendertarget_uvcoord_matrix)(struct ngpu_ctx *s, float *dst);
 
-    struct ngpu_rendertarget *(*get_default_rendertarget)(struct ngpu_ctx *s, enum ngpu_load_op load_op);
+    struct ngpu_rendertarget *(*get_default_rendertarget)(struct ngpu_ctx *s);
     const struct ngpu_rendertarget_layout *(*get_default_rendertarget_layout)(struct ngpu_ctx *s);
     void (*get_default_rendertarget_size)(struct ngpu_ctx *s, uint32_t *width, uint32_t *height);
 

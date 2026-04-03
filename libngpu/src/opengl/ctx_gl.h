@@ -50,10 +50,9 @@ struct ngpu_ctx_gl {
     struct ngpu_cmd_buffer_gl **draw_cmd_buffers;
     struct ngpu_cmd_buffer_gl *cur_cmd_buffer;
 
-    /* Default rendertargets */
+    /* Default rendertarget */
     struct ngpu_rendertarget_layout default_rt_layout;
     struct ngpu_rendertarget *default_rt;
-    struct ngpu_rendertarget *default_rt_load;
 
     /* Offscreen render target resources */
     struct ngpu_texture *color;

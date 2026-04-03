@@ -69,6 +69,7 @@ const struct node_class ngli_userswitch_class = {
     .name           = "UserSwitch",
     .visit          = userswitch_visit,
     .update         = userswitch_update,
+    .pre_draw       = ngli_node_pre_draw_children,
     .draw           = userswitch_draw,
     .opts_size      = sizeof(struct userswitch_opts),
     .params         = userswitch_params,

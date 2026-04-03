@@ -323,9 +323,9 @@ void ngpu_ctx_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
     s->cls->get_rendertarget_uvcoord_matrix(s, dst);
 }
 
-struct ngpu_rendertarget *ngpu_ctx_get_default_rendertarget(struct ngpu_ctx *s, enum ngpu_load_op load_op)
+struct ngpu_rendertarget *ngpu_ctx_get_default_rendertarget(struct ngpu_ctx *s)
 {
-    return s->cls->get_default_rendertarget(s, load_op);
+    return s->cls->get_default_rendertarget(s);
 }
 
 const struct ngpu_rendertarget_layout *ngpu_ctx_get_default_rendertarget_layout(struct ngpu_ctx *s)

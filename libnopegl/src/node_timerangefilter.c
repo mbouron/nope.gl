@@ -190,6 +190,17 @@ static int timerangefilter_update(struct ngl_node *node, double t)
     return ngli_node_update(o->child, t);
 }
 
+static void timerangefilter_pre_draw(struct ngl_node *node)
+{
+    struct timerangefilter_priv *s = node->priv_data;
+    const struct timerangefilter_opts *o = node->opts;
+
+    if (!s->drawme)
+        return;
+
+    ngli_node_pre_draw(o->child);
+}
+
 static void timerangefilter_draw(struct ngl_node *node)
 {
     struct timerangefilter_priv *s = node->priv_data;
@@ -209,6 +220,7 @@ const struct node_class ngli_timerangefilter_class = {
     .init      = timerangefilter_init,
     .visit     = timerangefilter_visit,
     .update    = timerangefilter_update,
+    .pre_draw  = timerangefilter_pre_draw,
     .draw      = timerangefilter_draw,
     .opts_size = sizeof(struct timerangefilter_opts),
     .priv_size = sizeof(struct timerangefilter_priv),

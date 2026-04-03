@@ -116,6 +116,21 @@ static int userselect_update(struct ngl_node *node, double t)
     return ngli_node_update(o->branches[branch_id], t);
 }
 
+static void userselect_pre_draw(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    const struct userselect_opts *o = node->opts;
+
+    const int branch_id = o->live.val.i[0];
+    if (branch_id < 0 || branch_id >= o->nb_branches)
+        return;
+    struct rnode *rnode_pos = ctx->rnode_pos;
+    struct rnode *rnodes = ngli_darray_data(&rnode_pos->children);
+    ctx->rnode_pos = &rnodes[branch_id];
+    ngli_node_pre_draw(o->branches[branch_id]);
+    ctx->rnode_pos = rnode_pos;
+}
+
 static void userselect_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -137,6 +152,7 @@ const struct node_class ngli_userselect_class = {
     .prepare        = userselect_prepare,
     .visit          = userselect_visit,
     .update         = userselect_update,
+    .pre_draw       = userselect_pre_draw,
     .draw           = userselect_draw,
     .opts_size      = sizeof(struct userselect_opts),
     .params         = userselect_params,

@@ -35,7 +35,6 @@ struct rtt_params {
     uint32_t width;
     uint32_t height;
     uint32_t samples;
-    int nb_interruptions;
 
     size_t nb_colors;
     struct ngpu_attachment colors[NGPU_MAX_COLOR_ATTACHMENTS];

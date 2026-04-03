@@ -104,6 +104,7 @@ const struct node_class ngli_rotatequat_class = {
     .name      = "RotateQuat",
     .init      = rotatequat_init,
     .update    = rotatequat_update,
+    .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_transform_draw,
     .opts_size = sizeof(struct rotatequat_opts),
     .priv_size = sizeof(struct rotatequat_priv),

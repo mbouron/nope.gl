@@ -134,6 +134,7 @@ const struct node_class ngli_rotate_class = {
     .name      = "Rotate",
     .init      = rotate_init,
     .update    = rotate_update,
+    .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_transform_draw,
     .opts_size = sizeof(struct rotate_opts),
     .priv_size = sizeof(struct rotate_priv),

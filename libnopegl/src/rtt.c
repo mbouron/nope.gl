@@ -36,8 +36,6 @@ struct rtt_ctx {
     struct ngpu_texture *color;
 
     struct ngpu_rendertarget *rt;
-    struct ngpu_rendertarget *rt_resume;
-    struct ngpu_rendertarget *available_rendertargets[2];
     struct ngpu_texture *depth;
 
     struct ngpu_texture *ms_colors[NGPU_MAX_COLOR_ATTACHMENTS];
@@ -49,7 +47,6 @@ struct rtt_ctx {
     int started;
     struct ngpu_viewport prev_viewport;
     struct ngpu_scissor prev_scissor;
-    struct ngpu_rendertarget *prev_rendertargets[2];
     struct ngpu_rendertarget *prev_rendertarget;
 };
 
@@ -69,9 +66,7 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
 
     s->params = *params;
 
-    uint32_t transient_usage = 0;
-    if (!params->nb_interruptions)
-        transient_usage |= NGPU_TEXTURE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    const uint32_t transient_usage = NGPU_TEXTURE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
     struct ngpu_rendertarget_params rt_params = {
         .width = s->params.width,
@@ -108,8 +103,7 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
             rt_params.colors[rt_params.nb_colors].load_op = NGPU_LOAD_OP_CLEAR;
             float *clear_value = rt_params.colors[rt_params.nb_colors].clear_value;
             memcpy(clear_value, attachment->clear_value, sizeof(attachment->clear_value));
-            const enum ngpu_store_op store_op = s->params.nb_interruptions ? NGPU_STORE_OP_STORE : NGPU_STORE_OP_DONT_CARE;
-            rt_params.colors[rt_params.nb_colors].store_op = store_op;
+            rt_params.colors[rt_params.nb_colors].store_op = NGPU_STORE_OP_DONT_CARE;
         } else {
             rt_params.colors[rt_params.nb_colors] = s->params.colors[i];
         }
@@ -153,8 +147,7 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
             rt_params.depth_stencil.resolve_target = texture;
             rt_params.depth_stencil.resolve_target_layer = texture_layer;
             rt_params.depth_stencil.load_op = NGPU_LOAD_OP_CLEAR;
-            const enum ngpu_store_op store_op = s->params.nb_interruptions ? NGPU_STORE_OP_STORE : NGPU_STORE_OP_DONT_CARE;
-            rt_params.depth_stencil.store_op = store_op;
+            rt_params.depth_stencil.store_op = NGPU_STORE_OP_DONT_CARE;
         } else {
             rt_params.depth_stencil = s->params.depth_stencil;
         }
@@ -178,15 +171,7 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
 
         rt_params.depth_stencil.attachment = depth;
         rt_params.depth_stencil.load_op = NGPU_LOAD_OP_CLEAR;
-        /*
-         * For the first rendertarget with load operations set to clear, if
-         * the depth attachment is not exposed in the graph (ie: it is not
-         * a user supplied texture) and if the renderpass is not
-         * interrupted we can discard the depth attachment at the end of
-         * the renderpass.
-         */
-        const enum ngpu_store_op store_op = s->params.nb_interruptions ? NGPU_STORE_OP_STORE : NGPU_STORE_OP_DONT_CARE;
-        rt_params.depth_stencil.store_op = store_op;
+        rt_params.depth_stencil.store_op = NGPU_STORE_OP_DONT_CARE;
     }
 
     s->rt = ngpu_rendertarget_create(gpu_ctx);
@@ -196,38 +181,6 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
     int ret = ngpu_rendertarget_init(s->rt, &rt_params);
     if (ret < 0)
         return ret;
-
-    s->available_rendertargets[0] = s->rt;
-    s->available_rendertargets[1] = s->rt;
-
-    if (s->params.nb_interruptions) {
-        for (size_t i = 0; i < rt_params.nb_colors; i++)
-            rt_params.colors[i].load_op = NGPU_LOAD_OP_LOAD;
-        rt_params.depth_stencil.load_op = NGPU_LOAD_OP_LOAD;
-
-        if (s->params.depth_stencil.attachment) {
-            rt_params.depth_stencil.store_op = NGPU_STORE_OP_STORE;
-        } else {
-            /*
-             * For the second rendertarget with load operations set to load, if
-             * the depth attachment is not exposed in the graph (ie: it is not
-             * a user supplied texture) and if the renderpass is interrupted
-             * *once*, we can discard the depth attachment at the end of the
-             * renderpass.
-             */
-            const enum ngpu_store_op store_op = s->params.nb_interruptions > 1 ? NGPU_STORE_OP_STORE : NGPU_STORE_OP_DONT_CARE;
-            rt_params.depth_stencil.store_op = store_op;
-        }
-
-        s->rt_resume = ngpu_rendertarget_create(gpu_ctx);
-        if (!s->rt_resume)
-            return NGL_ERROR_MEMORY;
-
-        ret = ngpu_rendertarget_init(s->rt_resume, &rt_params);
-        if (ret < 0)
-            return ret;
-        s->available_rendertargets[1] = s->rt_resume;
-    }
 
     return 0;
 }
@@ -286,13 +239,10 @@ void ngli_rtt_begin(struct rtt_ctx *s)
     s->started = 1;
     s->prev_viewport = ctx->viewport;
     s->prev_scissor = ctx->scissor;
-    s->prev_rendertargets[0] = ctx->available_rendertargets[0];
-    s->prev_rendertargets[1] = ctx->available_rendertargets[1];
     s->prev_rendertarget = ctx->current_rendertarget;
 
     if (ngpu_ctx_is_render_pass_active(gpu_ctx)) {
         ngpu_ctx_end_render_pass(gpu_ctx);
-        s->prev_rendertarget = ctx->available_rendertargets[1];
     }
 
     const uint32_t width = s->params.width;
@@ -300,9 +250,7 @@ void ngli_rtt_begin(struct rtt_ctx *s)
     ctx->viewport = (struct ngpu_viewport){0.f, 0.f, (float)width, (float)height};
     ctx->scissor = (struct ngpu_scissor){0, 0, width, height};
 
-    ctx->available_rendertargets[0] = s->available_rendertargets[0];
-    ctx->available_rendertargets[1] = s->available_rendertargets[1];
-    ctx->current_rendertarget = s->available_rendertargets[0];
+    ctx->current_rendertarget = s->rt;
 }
 
 void ngli_rtt_end(struct rtt_ctx *s)
@@ -319,8 +267,6 @@ void ngli_rtt_end(struct rtt_ctx *s)
     ngpu_ctx_end_render_pass(gpu_ctx);
 
     ctx->current_rendertarget = s->prev_rendertarget;
-    ctx->available_rendertargets[0] = s->prev_rendertargets[0];
-    ctx->available_rendertargets[1] = s->prev_rendertargets[1];
     ctx->viewport = s->prev_viewport;
     ctx->scissor = s->prev_scissor;
 
@@ -338,11 +284,7 @@ void ngli_rtt_freep(struct rtt_ctx **sp)
     if (!s)
         return;
 
-    s->available_rendertargets[0] = NULL;
-    s->available_rendertargets[1] = NULL;
-
     ngpu_rendertarget_freep(&s->rt);
-    ngpu_rendertarget_freep(&s->rt_resume);
     ngpu_texture_freep(&s->depth);
 
     for (size_t i = 0; i < s->nb_ms_colors; i++)

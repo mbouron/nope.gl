@@ -92,7 +92,6 @@ struct ngl_ctx {
     struct ngl_backend backend;
     struct ngpu_viewport viewport;
     struct ngpu_scissor scissor;
-    struct ngpu_rendertarget *available_rendertargets[2];
     struct ngpu_rendertarget *current_rendertarget;
     float default_modelview_matrix[16];
     float default_projection_matrix[16];
@@ -340,6 +339,16 @@ struct node_class {
     int (*update)(struct ngl_node *node, double t);
 
     /*
+     * Execute pre-render work (render-to-texture, compute dispatches, blur
+     * passes) before the main render pass begins.
+     *
+     * reentrant: yes
+     * execution-order: loose
+     * dispatch: delegated (default: ngli_node_pre_draw_children)
+     */
+    void (*pre_draw)(struct ngl_node *node);
+
+    /*
      * Apply transforms and execute graphics and compute pipelines.
      *
      * reentrant: yes (because the leaf of a diamond tree must be drawn for
@@ -414,6 +423,8 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t);
 int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t);
 int ngli_node_update(struct ngl_node *node, double t);
 int ngli_node_update_children(struct ngl_node *node, double t);
+void ngli_node_pre_draw(struct ngl_node *node);
+void ngli_node_pre_draw_children(struct ngl_node *node);
 int ngli_prepare_draw(struct ngl_ctx *s, double t);
 void ngli_node_draw(struct ngl_node *node);
 void ngli_node_draw_children(struct ngl_node *node);
