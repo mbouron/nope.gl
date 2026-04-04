@@ -135,5 +135,6 @@ const struct node_class ngli_smoothpath_class = {
     .opts_size = sizeof(struct smoothpath_opts),
     .priv_size = sizeof(struct smoothpath_priv),
     .params    = smoothpath_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

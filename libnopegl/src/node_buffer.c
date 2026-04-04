@@ -362,6 +362,7 @@ const struct node_class ngli_buffer##type_name##_class = {      \
     .priv_size = sizeof(struct buffer_priv),                    \
     .params    = buffer_params,                                 \
     .params_id = "Buffer",                                      \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,                      \
     .file      = __FILE__,                                      \
 };
 

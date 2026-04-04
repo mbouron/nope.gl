@@ -140,5 +140,6 @@ const struct node_class ngli_circle_class = {
     .opts_size = sizeof(struct circle_opts),
     .priv_size = sizeof(struct circle_priv),
     .params    = circle_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

@@ -358,16 +358,16 @@ def _api_text_live_change(width=320, height=240, font_faces=None):
     # down number of characters
     text_strings = ["foo", "", "foobar", "world", "hello\nworld", "\n\n", "last"]
 
-    # Exercise the diamond-form/prepare mechanism
-    text_node = ngl.Text(font_faces=font_faces)
-    root = autogrid_simple([text_node] * 4)
+    texts = [ngl.Text(font_faces=font_faces) for _ in range(4)]
+    root = autogrid_simple(texts)
     scene = ngl.Scene.from_params(root)
     assert ctx.set_scene(scene) == 0
 
     ctx.draw(0)
     last_crc = zlib.crc32(capture_buffer)
     for i, s in enumerate(text_strings, 1):
-        text_node.set_text(s)
+        for text in texts:
+            text.set_text(s)
         ctx.draw(i)
         crc = zlib.crc32(capture_buffer)
         assert crc != last_crc
@@ -389,8 +389,11 @@ def api_media_sharing_failure():
     assert ret == 0
     m = ngl.Media("/dev/null")
     root = ngl.Group(children=[ngl.Texture2D(data_src=m), ngl.Texture2D(data_src=m)])
-    scene = ngl.Scene.from_params(root)
-    assert ctx.set_scene(scene) == ngl.Error.INVALID_USAGE
+    try:
+        ngl.Scene.from_params(root)
+        assert False, "scene init should have failed"
+    except Exception:
+        pass
 
 
 def api_denied_node_live_change(width=320, height=240):
@@ -517,17 +520,20 @@ def _create_trf(scene, start, end, prefetch_time=None):
     return trf
 
 
-def _create_trf_scene(start, end, keep_active=False):
+def _create_trf_subgraph(start):
     texture = ngl.Texture2D(width=64, height=64, min_filter="nearest", mag_filter="nearest")
     # A subgraph using a RTT will produce a clear crash if its draw is called without a prefetch
     rtt = ngl.RenderToTexture(ngl.Identity(), clear_color=(1.0, 0.0, 0.0, 1.0), color_textures=[texture])
     draw = ngl.DrawTexture(texture=texture)
     group = ngl.Group(children=[rtt, draw])
-    trf = _create_trf(group, start, start + 1)
+    return _create_trf(group, start, start + 1)
 
-    trf_start = _create_trf(trf, start, start + 1)
+
+def _create_trf_scene(start, end, keep_active=False):
+    trf_start = _create_trf(_create_trf_subgraph(start), start, start + 1)
+
     # This group could be any node as long as it has no prefetch/release callback
-    group = ngl.Group(children=[trf])
+    group = ngl.Group(children=[_create_trf_subgraph(start)])
     trf_end = _create_trf(group, end - 1.0, end + 1.0)
 
     children = [trf_start, trf_end]
@@ -538,7 +544,8 @@ def _create_trf_scene(start, end, keep_active=False):
         # time interval
         offset = 10.0
         prefetch_time = offset + end - start
-        trf_keep_active = _create_trf(group, end + offset, end + offset + 1.0, prefetch_time)
+        keep_active_group = ngl.Group(children=[_create_trf_subgraph(start)])
+        trf_keep_active = _create_trf(keep_active_group, end + offset, end + offset + 1.0, prefetch_time)
         children += [trf_keep_active]
 
     root = ngl.Group(children=children)

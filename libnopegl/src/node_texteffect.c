@@ -139,5 +139,6 @@ const struct node_class ngli_texteffect_class = {
     .init      = texteffect_init,
     .opts_size = sizeof(struct texteffect_opts),
     .params    = texteffect_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

@@ -499,6 +499,7 @@ const struct node_class ngli_animated##type##_class = {         \
     .opts_size = sizeof(struct variable_opts),                  \
     .priv_size = sizeof(struct animated_priv),                  \
     .params    = animated##type##_params,                       \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,                      \
     .file      = __FILE__,                                      \
 };
 

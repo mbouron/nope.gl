@@ -398,5 +398,6 @@ const struct node_class ngli_block_class = {
     .opts_size = sizeof(struct block_opts),
     .priv_size = sizeof(struct block_priv),
     .params    = block_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

@@ -588,6 +588,7 @@ const struct node_class ngli_animkeyframe##type##_class = { \
     .opts_size = sizeof(struct animkeyframe_opts),          \
     .priv_size = sizeof(struct animkeyframe_priv),          \
     .params    = animkeyframe##type##_params,               \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,                  \
     .file      = __FILE__,                                  \
 };
 

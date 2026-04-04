@@ -357,9 +357,9 @@ def transform_shared_anim(cfg: ngl.SceneCfg):
     cfg.duration = 6
 
     # Duplicate the same shape at different positions
-    shape = ngl.DrawColor(geometry=ngl.Circle(radius=1 / 3, npoints=5))
-    shape0 = ngl.Translate(shape, vector=(-0.5, 0.5, 0))
-    shape1 = ngl.Translate(shape, vector=(-0.5, -0.5, 0))
+    geometry = ngl.Circle(radius=1 / 3, npoints=5)
+    shape0 = ngl.Translate(ngl.DrawColor(geometry=geometry), vector=(-0.5, 0.5, 0))
+    shape1 = ngl.Translate(ngl.DrawColor(geometry=geometry), vector=(-0.5, -0.5, 0))
 
     # Same animation, reused at different times
     anim_d = cfg.duration * 2 / 3

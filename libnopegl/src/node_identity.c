@@ -47,5 +47,6 @@ const struct node_class ngli_identity_class = {
     .name      = "Identity",
     .init      = identity_init,
     .priv_size = sizeof(struct identity_priv),
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

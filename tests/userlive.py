@@ -57,15 +57,24 @@ def _get_userlive_switch_func():
     return scene_func
 
 
+def _make_translated_quad(translate):
+    return ngl.Translate(
+        ngl.DrawColor(
+            COLORS.white,
+            opacity=0.5,
+            geometry=ngl.Quad(),
+        ),
+        vector=translate,
+    )
+
+
 def _get_userlive_select_func():
-    # We point on the same underlying draw to test the different draw paths
-    draw = ngl.DrawColor(COLORS.white, opacity=0.5, geometry=ngl.Quad())
-    below = ngl.Translate(draw, vector=(0.5 - 2 / 3, 0.5 - 1 / 3, 0))
-    above = ngl.Translate(draw, vector=(0.5 - 1 / 3, 0.5 - 2 / 3, 0))
+    below = (0.5 - 2 / 3, 0.5 - 1 / 3, 0)
+    above = (0.5 - 1 / 3, 0.5 - 2 / 3, 0)
 
     # Additive blending (for premultiplied values): lighten
     gc0 = ngl.GraphicConfig(
-        above,
+        _make_translated_quad(above),
         blend=True,
         blend_src_factor="one",
         blend_dst_factor="one",
@@ -75,7 +84,7 @@ def _get_userlive_select_func():
 
     # Multiply blending (for premultiplied values): darken
     gc1 = ngl.GraphicConfig(
-        above,
+        _make_translated_quad(above),
         blend=True,
         blend_src_factor="zero",
         blend_dst_factor="src_color",
@@ -85,7 +94,7 @@ def _get_userlive_select_func():
 
     # Select has 3 branches: simple over blending, additive blending, multiply
     # blending
-    select = ngl.UserSelect(branches=[above, gc0, gc1])
+    select = ngl.UserSelect(branches=[_make_translated_quad(above), gc0, gc1])
 
     def keyframes_callback(t_id):
         # 4 states: the for the 3 blending branches and one extra for nothing
@@ -103,7 +112,7 @@ def _get_userlive_select_func():
     @ngl.scene(controls=dict(branch=ngl.scene.Range([0, 3])))
     def scene_func(cfg: ngl.SceneCfg, branch=0):
         select.set_branch(branch)
-        return ngl.Group(children=[below, select])
+        return ngl.Group(children=[_make_translated_quad(below), select])
 
     return scene_func
 

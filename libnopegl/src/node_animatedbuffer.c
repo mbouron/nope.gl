@@ -194,6 +194,7 @@ const struct node_class ngli_animatedbuffer##type_name##_class = {              
     .priv_size = sizeof(struct animatedbuffer_priv),                               \
     .params    = animatedbuffer_params,                                            \
     .params_id = "AnimatedBuffer",                                                 \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,                                         \
     .file      = __FILE__,                                                         \
 };                                                                                 \
 

@@ -113,5 +113,6 @@ const struct node_class ngli_path_class = {
     .opts_size = sizeof(struct path_opts),
     .priv_size = sizeof(struct path_priv),
     .params    = path_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

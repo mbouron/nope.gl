@@ -81,5 +81,6 @@ const struct node_class ngli_computeprogram_class = {
     .priv_size = sizeof(struct program_priv),
     .params    = computeprogram_params,
     .init      = computeprogram_init,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

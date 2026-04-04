@@ -148,6 +148,7 @@ const struct node_class ngli_noise##type##_class = {                        \
     .priv_size = sizeof(struct noise_priv),                                 \
     .params    = noise_params,                                              \
     .params_id = "Noise",                                                   \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,                                  \
     .file      = __FILE__,                                                  \
 };
 

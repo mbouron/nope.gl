@@ -57,5 +57,6 @@ const struct node_class ngli_time_class = {
     .init      = time_init,
     .update    = time_update,
     .priv_size = sizeof(struct time_priv),
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

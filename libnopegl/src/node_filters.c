@@ -541,6 +541,7 @@ const struct node_class ngli_filtercolormap_class = {   \
     .opts_size = sizeof(struct filtercolormap_opts),    \
     .priv_size = sizeof(struct filtercolormap_priv),    \
     .params    = filtercolormap_params,                 \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,              \
     .file      = __FILE__,                              \
 };
 
@@ -554,6 +555,7 @@ const struct node_class ngli_filter##type##_class = {   \
     .opts_size = cls_opts_size,                         \
     .priv_size = sizeof(struct filter##type##_priv),    \
     .params    = filter##type##_params,                 \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,              \
     .file      = __FILE__,                              \
 };
 

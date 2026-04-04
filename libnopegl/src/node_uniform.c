@@ -483,7 +483,7 @@ const struct node_class ngli_uniform##type##_class = {          \
     .opts_size      = sizeof(struct variable_opts),             \
     .priv_size      = sizeof(struct uniform_priv),              \
     .params         = uniform##type##_params,                   \
-    .flags          = NGLI_NODE_FLAG_LIVECTL,                   \
+    .flags          = NGLI_NODE_FLAG_LIVECTL | NGLI_NODE_FLAG_SHAREABLE, \
     .livectl_offset = OFFSET(live),                             \
     .file           = __FILE__,                                 \
 };

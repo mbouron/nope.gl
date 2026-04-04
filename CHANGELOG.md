@@ -86,6 +86,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `nopegl/nopegl_android.h`, `nopegl/nopegl_opengl.h`
 - Android-specific APIs are now only available on Android
 - `scene_params.aspect_ratio` -> `scene_params.{width,height}`
+- Only resource nodes can be shared within the graph
 
 ### Removed
 - `Text.aspect_ratio` and `DrawPath.aspect_ratio`, they now match the scene

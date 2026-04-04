@@ -106,5 +106,6 @@ const struct node_class ngli_program_class = {
     .opts_size = sizeof(struct program_opts),
     .priv_size = sizeof(struct program_priv),
     .params    = program_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

@@ -126,5 +126,6 @@ const struct node_class ngli_quad_class = {
     .opts_size = sizeof(struct quad_opts),
     .priv_size = sizeof(struct quad_priv),
     .params    = quad_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
