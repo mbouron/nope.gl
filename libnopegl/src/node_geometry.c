@@ -167,5 +167,6 @@ const struct node_class ngli_geometry_class = {
     .opts_size = sizeof(struct geometry_opts),
     .priv_size = sizeof(struct geometry_priv),
     .params    = geometry_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

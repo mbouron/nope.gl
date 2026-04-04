@@ -75,5 +75,6 @@ const struct node_class ngli_textureview_class = {
     .params    = textureview_params,
     .init      = textureview_init,
     .update    = ngli_node_update_children,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

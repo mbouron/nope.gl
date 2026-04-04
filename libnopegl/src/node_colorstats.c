@@ -452,5 +452,6 @@ const struct node_class ngli_colorstats_class = {
     .opts_size  = sizeof(struct colorstats_opts),
     .priv_size  = sizeof(struct colorstats_priv),
     .params     = colorstats_params,
+    .flags      = NGLI_NODE_FLAG_SHAREABLE,
     .file       = __FILE__,
 };

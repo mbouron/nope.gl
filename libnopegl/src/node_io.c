@@ -63,6 +63,7 @@ const struct node_class ngli_io##type_id##_class = {            \
     .priv_size = sizeof(struct io_priv),                        \
     .params    = io_params,                                     \
     .params_id = "IOVar",                                       \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,                      \
     .file      = __FILE__,                                      \
 };
 

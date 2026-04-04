@@ -225,8 +225,10 @@ def shape_geometry_with_drawother(cfg: ngl.SceneCfg):
 def shape_diamond_colormask(cfg: ngl.SceneCfg):
     color_write_masks = ("r+g+b+a", "r+g+a", "g+b+a", "r+b+a")
     geometry = ngl.Circle(npoints=5)
-    draw = ngl.DrawColor(COLORS.white, geometry=geometry)
-    scenes = [ngl.GraphicConfig(draw, color_write_mask=cwm) for cwm in color_write_masks]
+    scenes = [
+        ngl.GraphicConfig(ngl.DrawColor(COLORS.white, geometry=geometry), color_write_mask=cwm)
+        for cwm in color_write_masks
+    ]
     return autogrid_simple(scenes)
 
 

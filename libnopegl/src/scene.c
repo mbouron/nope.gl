@@ -138,6 +138,11 @@ static int setup_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node 
             LOG(ERROR, "one or more nodes of the graph are associated with another scene already");
             return NGL_ERROR_INVALID_USAGE;
         }
+        if (!(node->cls->flags & NGLI_NODE_FLAG_SHAREABLE)) {
+            LOG(ERROR, "%s (%s) can not be shared within the graph",
+                node->label, node->cls->name);
+            return NGL_ERROR_INVALID_USAGE;
+        }
     } else {
         node->scene = s;
 

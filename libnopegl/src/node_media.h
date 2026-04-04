@@ -47,7 +47,6 @@ struct release_job {
 struct media_priv {
     struct nmd_ctx *player;
     struct nmd_frame *frame;
-    size_t nb_parents;
     double start_time;
     double end_time;
     struct release_job release_job;

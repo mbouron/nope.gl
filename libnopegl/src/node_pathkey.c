@@ -96,6 +96,7 @@ const struct node_class ngli_pathkeymove_class = {
     .info_str  = pathkey_info_str,
     .opts_size = sizeof(struct pathkey_move_opts),
     .params    = pathkey_move_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
@@ -105,6 +106,7 @@ const struct node_class ngli_pathkeyline_class = {
     .info_str  = pathkey_info_str,
     .opts_size = sizeof(struct pathkey_line_opts),
     .params    = pathkey_line_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
@@ -114,6 +116,7 @@ const struct node_class ngli_pathkeybezier2_class = {
     .info_str  = pathkey_info_str,
     .opts_size = sizeof(struct pathkey_bezier2_opts),
     .params    = pathkey_bezier2_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
@@ -123,6 +126,7 @@ const struct node_class ngli_pathkeybezier3_class = {
     .info_str  = pathkey_info_str,
     .opts_size = sizeof(struct pathkey_bezier3_opts),
     .params    = pathkey_bezier3_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
@@ -130,5 +134,6 @@ const struct node_class ngli_pathkeyclose_class = {
     .id        = NGL_NODE_PATHKEYCLOSE,
     .name      = "PathKeyClose",
     .info_str  = pathkey_info_str,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

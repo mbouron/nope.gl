@@ -226,6 +226,11 @@ enum node_category {
 #define NGLI_NODE_FLAG_LIVECTL (1 << 0)
 
 /*
+ * Node is shareable
+ */
+#define NGLI_NODE_FLAG_SHAREABLE (1 << 1)
+
+/*
  * Specifications of a node.
  *
  * Description of the callbacks attributes:

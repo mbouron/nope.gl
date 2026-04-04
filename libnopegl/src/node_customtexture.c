@@ -309,5 +309,6 @@ const struct node_class ngli_customtexture_class = {
     .priv_size      = sizeof(struct customtexture_priv),
     .opts_size      = sizeof(struct customtexture_opts),
     .params         = customtexture_params,
+    .flags          = NGLI_NODE_FLAG_SHAREABLE,
     .file           = __FILE__,
 };

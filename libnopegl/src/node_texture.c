@@ -733,20 +733,9 @@ static int texture2d_init(struct ngl_node *node)
     i->clamp_video = o->clamp_video;
     i->premult = o->premult;
 
-    /*
-     * On Android, the frame can only be uploaded once and each subsequent
-     * upload will be a noop which results in an empty texture. This limitation
-     * prevents us from sharing the Media node across multiple textures.
-     */
     struct ngl_node *data_src = o->data_src;
-    if (data_src && data_src->cls->id == NGL_NODE_MEDIA) {
-        struct media_priv *media_priv = data_src->priv_data;
-        if (media_priv->nb_parents++ > 0) {
-            LOG(ERROR, "a media node (label=%s) can not be shared, "
-                "the Texture should be shared instead", data_src->label);
-            return NGL_ERROR_INVALID_USAGE;
-        }
-    } else if (data_src && data_src->cls->category != NGLI_NODE_CATEGORY_BUFFER) {
+    if (data_src && data_src->cls->id != NGL_NODE_MEDIA &&
+        data_src->cls->category != NGLI_NODE_CATEGORY_BUFFER) {
         s->texture_info.rtt = 1;
         s->rtt_resizable = (i->params.width == 0 && i->params.height == 0);
 
@@ -878,6 +867,7 @@ const struct node_class ngli_texture2d_class = {
     .opts_size = sizeof(struct texture_opts),
     .priv_size = sizeof(struct texture_priv),
     .params    = texture2d_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
@@ -892,6 +882,7 @@ const struct node_class ngli_texture2darray_class = {
     .opts_size = sizeof(struct texture_opts),
     .priv_size = sizeof(struct texture_priv),
     .params    = texture2d_array_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
@@ -906,6 +897,7 @@ const struct node_class ngli_texture3d_class = {
     .opts_size = sizeof(struct texture_opts),
     .priv_size = sizeof(struct texture_priv),
     .params    = texture3d_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
@@ -920,5 +912,6 @@ const struct node_class ngli_texturecube_class = {
     .opts_size = sizeof(struct texture_opts),
     .priv_size = sizeof(struct texture_priv),
     .params    = texturecube_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

@@ -14,7 +14,13 @@ def animated(cfg: ngl.SceneCfg):
     ]
 
     path = ngl.Path(keyframes)
-    heart = ngl.DrawPath(path, viewbox=(-5, -5, 10, 10), color=(0.8, 0.1, 0.1), outline=0.03, outline_color=(1, 1, 1))
+    path_params = {
+        "viewbox": (-5, -5, 10, 10),
+        "color": (0.8, 0.1, 0.1),
+        "outline": 0.03,
+        "outline_color": (1, 1, 1),
+    }
+    heart = ngl.DrawPath(path, **path_params)
 
     # This animation defines the speed at which the path is walked
     anim_kf = [
@@ -22,8 +28,10 @@ def animated(cfg: ngl.SceneCfg):
         ngl.AnimKeyFrameFloat(cfg.duration, 1, "cubic_in_out"),
     ]
 
-    # We re-use the same shape but we could use anything
-    small_heart = ngl.Translate(heart, vector=ngl.AnimatedPath(anim_kf, path))
+    small_heart = ngl.Translate(
+        ngl.DrawPath(path, **path_params),
+        vector=ngl.AnimatedPath(anim_kf, path),
+    )
 
     # Readjust to fit the viewbox
     small_heart = ngl.Scale(small_heart, (1 / 5, 1 / 5, 1))

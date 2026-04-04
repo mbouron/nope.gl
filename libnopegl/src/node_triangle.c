@@ -103,5 +103,6 @@ const struct node_class ngli_triangle_class = {
     .opts_size = sizeof(struct triangle_opts),
     .priv_size = sizeof(struct triangle_priv),
     .params    = triangle_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

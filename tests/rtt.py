@@ -233,13 +233,12 @@ for name, params in _rtt_tests.items():
 
 def _rtt_load_attachment(cfg: ngl.SceneCfg):
     background = ngl.DrawColor(COLORS.white)
-    draw = ngl.DrawColor(COLORS.orange)
 
     texture = ngl.Texture2D(width=16, height=16, min_filter="nearest", mag_filter="nearest")
-    rtt = ngl.RenderToTexture(draw, [texture])
+    rtt = ngl.RenderToTexture(ngl.DrawColor(COLORS.orange), [texture])
 
     texture_noop = ngl.Texture2D(width=16, height=16, min_filter="nearest", mag_filter="nearest")
-    rtt_noop = ngl.RenderToTexture(draw, [texture_noop])
+    rtt_noop = ngl.RenderToTexture(ngl.DrawColor(COLORS.orange), [texture_noop])
 
     quad = ngl.Quad((0, 0, 0), (1, 0, 0), (0, 1, 0))
     foreground = ngl.DrawTexture(texture, geometry=quad)
@@ -386,17 +385,22 @@ def rtt_resizable_with_timeranges(cfg: ngl.SceneCfg):
 
     scene = _get_cube_scene(cfg)
 
-    texture = ngl.Texture2D()
-    rtt = ngl.RenderToTexture(scene, color_textures=[texture])
-    draw = ngl.DrawTexture(texture)
-    group = ngl.Group(children=[rtt, draw])
+    texture0 = ngl.Texture2D()
+    rtt0 = ngl.RenderToTexture(scene, color_textures=[texture0])
+    draw0 = ngl.DrawTexture(texture0)
+    group0 = ngl.Group(children=[rtt0, draw0])
 
-    time_range_filter1 = ngl.TimeRangeFilter(group, start=0, end=1)
-    time_range_filter2 = ngl.TimeRangeFilter(group, start=5)
+    texture1 = ngl.Texture2D()
+    rtt1 = ngl.RenderToTexture(_get_cube_scene(cfg), color_textures=[texture1])
+    draw1 = ngl.DrawTexture(texture1)
+    group1 = ngl.Group(children=[rtt1, draw1])
 
-    group = ngl.Group(children=[time_range_filter1, time_range_filter2])
+    time_range_filter1 = ngl.TimeRangeFilter(group0, start=0, end=1)
+    time_range_filter2 = ngl.TimeRangeFilter(group1, start=5)
 
-    return group
+    root = ngl.Group(children=[time_range_filter1, time_range_filter2])
+
+    return root
 
 
 @test_render(keyframes=10, tolerance=3, diff_threshold=0.003)
@@ -406,11 +410,14 @@ def rtt_resizable_with_timeranges_implicit(cfg: ngl.SceneCfg):
 
     scene = _get_cube_scene(cfg)
 
-    texture = ngl.Texture2D(data_src=scene)
-    draw = ngl.DrawTexture(texture)
+    texture0 = ngl.Texture2D(data_src=scene)
+    draw0 = ngl.DrawTexture(texture0)
 
-    time_range_filter1 = ngl.TimeRangeFilter(draw, start=0, end=1)
-    time_range_filter2 = ngl.TimeRangeFilter(draw, start=5)
+    texture1 = ngl.Texture2D(data_src=_get_cube_scene(cfg))
+    draw1 = ngl.DrawTexture(texture1)
+
+    time_range_filter1 = ngl.TimeRangeFilter(draw0, start=0, end=1)
+    time_range_filter2 = ngl.TimeRangeFilter(draw1, start=5)
 
     group = ngl.Group(children=[time_range_filter1, time_range_filter2])
 

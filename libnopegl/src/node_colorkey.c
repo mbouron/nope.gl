@@ -46,5 +46,6 @@ const struct node_class ngli_colorkey_class = {
     .update    = ngli_node_update_children,
     .opts_size = sizeof(struct colorkey_opts),
     .params    = colorkey_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

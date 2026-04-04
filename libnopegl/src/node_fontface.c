@@ -59,5 +59,6 @@ const struct node_class ngli_fontface_class = {
     .init      = fontface_init,
     .opts_size = sizeof(struct fontface_opts),
     .params    = fontface_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

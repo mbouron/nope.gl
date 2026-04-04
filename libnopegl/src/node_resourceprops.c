@@ -87,5 +87,6 @@ const struct node_class ngli_resourceprops_class = {
     .info_str  = resourceprops_info_str,
     .opts_size = sizeof(struct resourceprops_opts),
     .params    = resourceprops_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

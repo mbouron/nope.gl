@@ -257,6 +257,7 @@ const struct node_class ngli_streamedbuffer##class_suffix##_class = {       \
     .opts_size = sizeof(struct streamedbuffer_opts),                        \
     .priv_size = sizeof(struct streamedbuffer_priv),                        \
     .params    = streamedbuffer##class_suffix##_params,                     \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,                                  \
     .file      = __FILE__,                                                  \
 };                                                                          \
 
