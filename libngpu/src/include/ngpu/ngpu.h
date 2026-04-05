@@ -1080,15 +1080,6 @@ NGPU_API void ngpu_ctx_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_bu
  * Pgcraft
  */
 
-struct ngpu_pgcraft_uniform { // also buffers (for arrays)
-    char name[NGPU_ID_LEN];
-    enum ngpu_type type;
-    enum ngpu_program_stage stage;
-    enum ngpu_precision precision;
-    const void *data;
-    size_t count;
-};
-
 enum ngpu_pgcraft_texture_type {
     NGPU_PGCRAFT_TEXTURE_TYPE_NONE,
     NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO,
@@ -1120,7 +1111,7 @@ struct ngpu_pgcraft_texture {
      * associated with the pipeline straight after the pipeline initialization
      * (using ngpu_pipeline_set_resources()). In the case of the texture
      * though, there is one exception: if the specified type is
-     * NGPU_PGCRAFT_SHADER_TEX_TYPE_VIDEO, then the texture field must be NULL.
+     * NGPU_PGCRAFT_SHADER_TEX_TYPE_VIDEO, then this field must be NULL.
      * Indeed, this type implies the potential use of multiple samplers (which
      * can be hardware accelerated and platform/backend specific) depending on
      * the image layout. This means that a single texture cannot be used as a
@@ -1128,21 +1119,23 @@ struct ngpu_pgcraft_texture {
      * (which determines which samplers are used) is generally unknown at
      * pipeline initialization and it is only known once a frame has been
      * decoded/mapped. The image structure describes which layout to use and
-     * which textures to bind and the ngpu_pgcraft_texture_info.fields describes
-     * where to bind the textures and their associated data.
+     * which textures to bind and ngpu_pgcraft_texture_info.sampler_*_index
+     * fields describe where to bind the textures.
      */
     struct ngpu_texture *texture;
     /*
      * The image field is a bit special, it is not transmitted directly to the
-     * pipeline but instead to the corresponding ngpu_pgcraft_texture_info entry
-     * accessible through pgcraft.texture_infos. The user may optionally set it
-     * if they plan to have access to the image information directly through
-     * the ngpu_pgcraft_texture_info structure. The field is pretty much mandatory
-     * if the user plans to use ngpu_pipeline_compat_update_image() in
-     * conjunction with pgcraft.texture_infos to instruct a pipeline on which
-     * texture resources to use.
+     * pipeline but instead to the corresponding ngpu_pgcraft_texture_info
+     * entry. The user may optionally set it if they plan to have access to the
+     * image information directly through the ngpu_pgcraft_texture_info
+     * structure.
      */
     struct image *image;
+    /*
+     * When set, pgcraft only generates the sampler/image binding and skips
+     * metadata uniforms.
+     */
+    bool no_metadata;
 };
 
 struct ngpu_pgcraft_block {
@@ -1185,53 +1178,35 @@ enum ngpu_image_layout {
     NGPU_IMAGE_LAYOUT_MAX_ENUM       = 0x7FFFFFFF,
 };
 
-enum {
-    NGPU_INFO_FIELD_SAMPLING_MODE,
-    NGPU_INFO_FIELD_COORDINATE_MATRIX,
-    NGPU_INFO_FIELD_COLOR_MATRIX,
-    NGPU_INFO_FIELD_MAPPING_COLOR_MATRIX,
-    NGPU_INFO_FIELD_DIMENSIONS,
-    NGPU_INFO_FIELD_TIMESTAMP,
-    NGPU_INFO_FIELD_SAMPLER_0,
-    NGPU_INFO_FIELD_SAMPLER_1,
-    NGPU_INFO_FIELD_SAMPLER_2,
-    NGPU_INFO_FIELD_SAMPLER_OES,
-    NGPU_INFO_FIELD_SAMPLER_RECT_0,
-    NGPU_INFO_FIELD_SAMPLER_RECT_1,
-    NGPU_INFO_FIELD_NB,
-    NGPU_INFO_FIELD_MAX_ENUM = 0x7FFFFFFF
-};
-
-struct ngpu_pgcraft_texture_info_field {
-    enum ngpu_type type;
-    int32_t index;
-    enum ngpu_program_stage stage;
+/*
+ * Per-texture metadata block with std140 layout
+ */
+struct ngpu_pgcraft_texture_info_block {
+    _Alignas(16) float coord_matrix[4 * 4];
+    _Alignas(16) float color_matrix[4 * 4];
+    _Alignas(16) float mapping_color_matrix[4 * 4];
+    float dimensions[2];
+    float timestamp;
+    int32_t sampling_mode;
 };
 
 struct ngpu_pgcraft_texture_info {
-    size_t id;
-    struct ngpu_pgcraft_texture_info_field fields[NGPU_INFO_FIELD_NB];
+    /* Bindgroup texture index for each sampler/image field, -1 if unused */
+    int32_t sampler_index;          /* primary sampler (SAMPLER_2D, IMAGE_2D, etc.) */
+    int32_t sampler_1_index;        /* secondary plane (NV12/YUV) */
+    int32_t sampler_2_index;        /* third plane (YUV) */
+    int32_t sampler_oes_index;      /* Android MediaCodec external OES */
+    int32_t sampler_rect_0_index;   /* macOS IOSurface rectangle plane 0 */
+    int32_t sampler_rect_1_index;   /* macOS IOSurface rectangle plane 1 */
+    /* Buffer binding index containing per-texture metadata, -1 if no_metadata is set. */
+    int32_t block_index;
+    /* Image reference provided by the user via ngpu_pgcraft_texture.image */
+    struct image *image;
 };
 
-/*
- * Oldest OpenGL flavours exclusively support single uniforms (no concept of
- * blocks). And while OpenGL added support for blocks in addition to uniforms,
- * modern backends such as Vulkan do not support the concept of single uniforms
- * at all. This means there is no cross-API common ground.
- *
- * Since NopeGL still exposes some form of cross-backend uniform abstraction to
- * the user (through the Uniform* nodes), we have to make a compatibility
- * layer, which we name "ublock" (for uniform-block). This compatibility layer
- * maps single uniforms to dedicated uniform blocks.
- */
-struct ngpu_pgcraft_compat_info {
-    struct ngpu_block_desc ublocks[NGPU_PROGRAM_STAGE_NB];
-    int32_t ubindings[NGPU_PROGRAM_STAGE_NB];
-    int32_t uindices[NGPU_PROGRAM_STAGE_NB];
-
-    const struct ngpu_pgcraft_texture_info *texture_infos;
-    const struct image **images;
-    size_t nb_texture_infos;
+struct ngpu_pgcraft_texture_infos {
+    const struct ngpu_pgcraft_texture_info *infos;
+    size_t nb_infos;
 };
 
 struct ngpu_pgcraft_params {
@@ -1240,8 +1215,6 @@ struct ngpu_pgcraft_params {
     const char *frag_base;
     const char *comp_base;
 
-    const struct ngpu_pgcraft_uniform *uniforms;
-    size_t nb_uniforms;
     const struct ngpu_pgcraft_texture *textures;
     size_t nb_textures;
     const struct ngpu_pgcraft_block *blocks;
@@ -1261,10 +1234,9 @@ struct ngpu_pgcraft;
 
 NGPU_API struct ngpu_pgcraft *ngpu_pgcraft_create(struct ngpu_ctx *gpu_ctx);
 NGPU_API int ngpu_pgcraft_craft(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params);
-NGPU_API int32_t ngpu_pgcraft_get_uniform_index(const struct ngpu_pgcraft *s, const char *name, enum ngpu_program_stage stage);
 NGPU_API int32_t ngpu_pgcraft_get_block_index(const struct ngpu_pgcraft *s, const char *name, enum ngpu_program_stage stage);
 NGPU_API int32_t ngpu_pgcraft_get_image_index(const struct ngpu_pgcraft *s, const char *name);
-NGPU_API const struct ngpu_pgcraft_compat_info *ngpu_pgcraft_get_compat_info(const struct ngpu_pgcraft *s);
+NGPU_API struct ngpu_pgcraft_texture_infos ngpu_pgcraft_get_texture_infos(const struct ngpu_pgcraft *s);
 NGPU_API const char *ngpu_pgcraft_get_symbol_name(const struct ngpu_pgcraft *s, size_t id);
 NGPU_API struct ngpu_vertex_state ngpu_pgcraft_get_vertex_state(const struct ngpu_pgcraft *s);
 NGPU_API struct ngpu_vertex_resources ngpu_pgcraft_get_vertex_resources(const struct ngpu_pgcraft *s);

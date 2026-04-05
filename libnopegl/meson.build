@@ -252,6 +252,7 @@ lib_src = files(
   'src/path.c',
   'src/pipeline_compat.c',
   'src/precision.c',
+  'src/staging_buffer.c',
   'src/rtt.c',
   'src/scene.c',
   'src/serialize.c',

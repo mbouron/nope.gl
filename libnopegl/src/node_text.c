@@ -54,18 +54,22 @@
 struct pipeline_desc_common {
     struct ngpu_pgcraft *crafter;
     struct pipeline_compat *pipeline_compat;
-    int32_t modelview_matrix_index;
-    int32_t projection_matrix_index;
 };
 
 struct pipeline_desc_bg {
     struct pipeline_desc_common common;
-    int32_t color_index;
-    int32_t opacity_index;
+    struct ngpu_block_desc vert_block_desc;
+    struct ngpu_block_desc frag_block_desc;
+    int32_t vert_block_index;
+    int32_t frag_block_index;
 };
 
 struct pipeline_desc_fg {
     struct pipeline_desc_common common;
+    struct ngpu_block_desc vert_block_desc;
+    struct ngpu_block_desc frag_block_desc;
+    int32_t vert_block_index;
+    int32_t frag_block_index;
     int32_t vertices_index;
     int32_t atlas_coords_index;
     int32_t texcoord_bounds_index;
@@ -77,12 +81,31 @@ struct pipeline_desc_fg {
     int32_t glow_index;
     int32_t blur_index;
     int32_t outline_pos_index;
-    int32_t dist_scale_index;
 };
 
 struct pipeline_desc {
     struct pipeline_desc_bg bg; /* Background (bounding box) */
     struct pipeline_desc_fg fg; /* Foreground (characters) */
+};
+
+struct text_bg_vert_block {
+    NGLI_ALIGNED_MAT(modelview_matrix);
+    NGLI_ALIGNED_MAT(projection_matrix);
+};
+
+struct text_bg_frag_block {
+    float color[3];
+    float opacity;
+};
+
+struct text_fg_vert_block {
+    NGLI_ALIGNED_MAT(modelview_matrix);
+    NGLI_ALIGNED_MAT(projection_matrix);
+};
+
+struct text_fg_frag_block {
+    float dist_scale;
+    float _pad[3];
 };
 
 struct text_opts {
@@ -484,15 +507,12 @@ static int init_subdesc(struct ngl_node *node,
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(desc->crafter),
         .resources        = ngpu_pgcraft_get_bindgroup_resources(desc->crafter),
         .vertex_resources = ngpu_pgcraft_get_vertex_resources(desc->crafter),
-        .compat_info      = ngpu_pgcraft_get_compat_info(desc->crafter),
+        .texture_infos    = ngpu_pgcraft_get_texture_infos(desc->crafter),
     };
 
     ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
     if (ret < 0)
         return ret;
-
-    desc->modelview_matrix_index  = ngpu_pgcraft_get_uniform_index(desc->crafter, "modelview_matrix", NGPU_PROGRAM_STAGE_VERT);
-    desc->projection_matrix_index = ngpu_pgcraft_get_uniform_index(desc->crafter, "projection_matrix", NGPU_PROGRAM_STAGE_VERT);
 
     return 0;
 }
@@ -502,13 +522,44 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
                       const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct text_priv *s = node->priv_data;
-    const struct text_opts *o = node->opts;
+    struct ngpu_ctx *gpu_ctx = node->ctx->gpu_ctx;
 
-    const struct ngpu_pgcraft_uniform uniforms[] = {
-        {.name = "modelview_matrix",  .type = NGPU_TYPE_MAT4, .stage = NGPU_PROGRAM_STAGE_VERT, .data = NULL},
-        {.name = "projection_matrix", .type = NGPU_TYPE_MAT4, .stage = NGPU_PROGRAM_STAGE_VERT, .data = NULL},
-        {.name = "color",             .type = NGPU_TYPE_VEC3, .stage = NGPU_PROGRAM_STAGE_FRAG, .data = o->bg_color},
-        {.name = "opacity",           .type = NGPU_TYPE_F32,  .stage = NGPU_PROGRAM_STAGE_FRAG, .data = &o->bg_opacity},
+    struct ngl_ctx *ctx = node->ctx;
+    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+
+    /* Initialize vertex block descriptor */
+    ngpu_block_desc_init(gpu_ctx, &desc->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&desc->vert_block_desc, "modelview_matrix", NGPU_TYPE_MAT4, 0);
+    ngpu_block_desc_add_field(&desc->vert_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
+    ngli_assert(ngpu_block_desc_get_size(&desc->vert_block_desc, 0) == sizeof(struct text_bg_vert_block));
+
+    const size_t vert_size = ngpu_block_desc_get_size(&desc->vert_block_desc, 0);
+
+    /* Initialize fragment block descriptor */
+    ngpu_block_desc_init(gpu_ctx, &desc->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&desc->frag_block_desc, "color", NGPU_TYPE_VEC3, 0);
+    ngpu_block_desc_add_field(&desc->frag_block_desc, "opacity", NGPU_TYPE_F32, 0);
+    ngli_assert(ngpu_block_desc_get_size(&desc->frag_block_desc, 0) == sizeof(struct text_bg_frag_block));
+
+    const size_t frag_size = ngpu_block_desc_get_size(&desc->frag_block_desc, 0);
+
+    const struct ngpu_pgcraft_block blocks[] = {
+        {
+            .name          = "vert_params",
+            .instance_name = "",
+            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .stage         = NGPU_PROGRAM_STAGE_VERT,
+            .block         = &desc->vert_block_desc,
+            .buffer        = {.buffer = staging_buf, .size = vert_size},
+        },
+        {
+            .name          = "frag_params",
+            .instance_name = "",
+            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .stage         = NGPU_PROGRAM_STAGE_FRAG,
+            .block         = &desc->frag_block_desc,
+            .buffer        = {.buffer = staging_buf, .size = frag_size},
+        },
     };
 
     const struct ngpu_pgcraft_attribute attributes[] = {
@@ -533,8 +584,8 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
         .program_label    = "nopegl/text-bg",
         .vert_base        = text_bg_vert,
         .frag_base        = text_bg_frag,
-        .uniforms         = uniforms,
-        .nb_uniforms      = NGLI_ARRAY_NB(uniforms),
+        .blocks           = blocks,
+        .nb_blocks        = NGLI_ARRAY_NB(blocks),
         .attributes       = attributes,
         .nb_attributes    = NGLI_ARRAY_NB(attributes),
     };
@@ -543,8 +594,8 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
     if (ret < 0)
         return ret;
 
-    desc->color_index   = ngpu_pgcraft_get_uniform_index(desc->common.crafter, "color", NGPU_PROGRAM_STAGE_FRAG);
-    desc->opacity_index = ngpu_pgcraft_get_uniform_index(desc->common.crafter, "opacity", NGPU_PROGRAM_STAGE_FRAG);
+    desc->vert_block_index = ngpu_pgcraft_get_block_index(desc->common.crafter, "vert_params", NGPU_PROGRAM_STAGE_VERT);
+    desc->frag_block_index = ngpu_pgcraft_get_block_index(desc->common.crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
 
     return 0;
 }
@@ -554,25 +605,58 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
                       const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct text_priv *s = node->priv_data;
+    struct ngpu_ctx *gpu_ctx = node->ctx->gpu_ctx;
+    struct ngl_ctx *ctx = node->ctx;
+    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
-    const struct ngpu_pgcraft_uniform uniforms[] = {
-        {.name = "modelview_matrix",  .type = NGPU_TYPE_MAT4, .stage = NGPU_PROGRAM_STAGE_VERT, .data = NULL},
-        {.name = "projection_matrix", .type = NGPU_TYPE_MAT4, .stage = NGPU_PROGRAM_STAGE_VERT, .data = NULL},
-        {.name = "dist_scale",        .type = NGPU_TYPE_F32,  .stage = NGPU_PROGRAM_STAGE_FRAG, .data = NULL},
+    /* Initialize vertex block descriptor */
+    ngpu_block_desc_init(gpu_ctx, &desc->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&desc->vert_block_desc, "modelview_matrix", NGPU_TYPE_MAT4, 0);
+    ngpu_block_desc_add_field(&desc->vert_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
+    ngli_assert(ngpu_block_desc_get_size(&desc->vert_block_desc, 0) == sizeof(struct text_fg_vert_block));
+
+    const size_t vert_size = ngpu_block_desc_get_size(&desc->vert_block_desc, 0);
+
+    /* Initialize fragment block descriptor */
+    ngpu_block_desc_init(gpu_ctx, &desc->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&desc->frag_block_desc, "dist_scale", NGPU_TYPE_F32, 0);
+    ngli_assert(ngpu_block_desc_get_size(&desc->frag_block_desc, 0) == sizeof(struct text_fg_frag_block));
+
+    const size_t frag_size = ngpu_block_desc_get_size(&desc->frag_block_desc, 0);
+
+    const struct ngpu_pgcraft_block blocks[] = {
+        {
+            .name          = "vert_params",
+            .instance_name = "",
+            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .stage         = NGPU_PROGRAM_STAGE_VERT,
+            .block         = &desc->vert_block_desc,
+            .buffer        = {.buffer = staging_buf, .size = vert_size},
+        },
+        {
+            .name          = "frag_params",
+            .instance_name = "",
+            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .stage         = NGPU_PROGRAM_STAGE_FRAG,
+            .block         = &desc->frag_block_desc,
+            .buffer        = {.buffer = staging_buf, .size = frag_size},
+        },
     };
 
     const struct ngpu_pgcraft_texture textures[] = {
         {
-            .name     = "curve_tex",
-            .type     = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
-            .stage    = NGPU_PROGRAM_STAGE_FRAG,
-            .texture  = s->text_ctx->curve_texture,
+            .name        = "curve_tex",
+            .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
+            .stage       = NGPU_PROGRAM_STAGE_FRAG,
+            .texture     = s->text_ctx->curve_texture,
+            .no_metadata = true,
         },
         {
-            .name     = "band_tex",
-            .type     = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
-            .stage    = NGPU_PROGRAM_STAGE_FRAG,
-            .texture  = s->text_ctx->band_texture,
+            .name        = "band_tex",
+            .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
+            .stage       = NGPU_PROGRAM_STAGE_FRAG,
+            .texture     = s->text_ctx->band_texture,
+            .no_metadata = true,
         },
     };
 
@@ -680,8 +764,8 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
         .program_label    = "nopegl/text-fg",
         .vert_base        = text_slug_vert,
         .frag_base        = text_slug_frag,
-        .uniforms         = uniforms,
-        .nb_uniforms      = NGLI_ARRAY_NB(uniforms),
+        .blocks           = blocks,
+        .nb_blocks        = NGLI_ARRAY_NB(blocks),
         .textures         = textures,
         .nb_textures      = NGLI_ARRAY_NB(textures),
         .attributes       = attributes,
@@ -694,6 +778,9 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
     if (ret < 0)
         return ret;
 
+    desc->vert_block_index = ngpu_pgcraft_get_block_index(desc->common.crafter, "vert_params", NGPU_PROGRAM_STAGE_VERT);
+    desc->frag_block_index = ngpu_pgcraft_get_block_index(desc->common.crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
+
     desc->vertices_index       = ngpu_pgcraft_get_vertex_buffer_index(desc->common.crafter, "vertices");
     desc->atlas_coords_index   = ngpu_pgcraft_get_vertex_buffer_index(desc->common.crafter, "atlas_coords");
     desc->texcoord_bounds_index = ngpu_pgcraft_get_vertex_buffer_index(desc->common.crafter, "texcoord_bounds");
@@ -705,7 +792,6 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
     desc->glow_index           = ngpu_pgcraft_get_vertex_buffer_index(desc->common.crafter, "frag_glow");
     desc->blur_index           = ngpu_pgcraft_get_vertex_buffer_index(desc->common.crafter, "frag_blur");
     desc->outline_pos_index    = ngpu_pgcraft_get_vertex_buffer_index(desc->common.crafter, "frag_outline_pos");
-    desc->dist_scale_index     = ngpu_pgcraft_get_uniform_index(desc->common.crafter, "dist_scale", NGPU_PROGRAM_STAGE_FRAG);
 
     return 0;
 }
@@ -783,11 +869,30 @@ static void text_draw(struct ngl_node *node)
         ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     }
 
+    /* Fill and push background vertex block to staging buffer */
     struct pipeline_desc_bg *bg_desc = &desc->bg;
-    ngli_pipeline_compat_update_uniform(bg_desc->common.pipeline_compat, bg_desc->common.modelview_matrix_index, modelview_matrix);
-    ngli_pipeline_compat_update_uniform(bg_desc->common.pipeline_compat, bg_desc->common.projection_matrix_index, projection_matrix);
-    ngli_pipeline_compat_update_uniform(bg_desc->common.pipeline_compat, bg_desc->color_index, o->bg_color);
-    ngli_pipeline_compat_update_uniform(bg_desc->common.pipeline_compat, bg_desc->opacity_index, &o->bg_opacity);
+    struct text_bg_vert_block bg_vert_data;
+    memcpy(bg_vert_data.modelview_matrix, modelview_matrix, sizeof(bg_vert_data.modelview_matrix));
+    memcpy(bg_vert_data.projection_matrix, projection_matrix, sizeof(bg_vert_data.projection_matrix));
+
+    if (bg_desc->vert_block_index >= 0) {
+        const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &bg_vert_data, sizeof(bg_vert_data));
+        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        ngli_pipeline_compat_update_buffer(bg_desc->common.pipeline_compat, bg_desc->vert_block_index,
+                                           staging_buf, vert_offset, sizeof(bg_vert_data));
+    }
+
+    /* Fill and push background fragment block to staging buffer */
+    struct text_bg_frag_block bg_frag_data = {0};
+    memcpy(bg_frag_data.color, o->bg_color, sizeof(bg_frag_data.color));
+    bg_frag_data.opacity = o->bg_opacity;
+
+    if (bg_desc->frag_block_index >= 0) {
+        const size_t frag_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &bg_frag_data, sizeof(bg_frag_data));
+        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        ngli_pipeline_compat_update_buffer(bg_desc->common.pipeline_compat, bg_desc->frag_block_index,
+                                           staging_buf, frag_offset, sizeof(bg_frag_data));
+    }
 
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
@@ -796,10 +901,30 @@ static void text_draw(struct ngl_node *node)
     ngli_pipeline_compat_draw(bg_desc->common.pipeline_compat, 4, 1, 0);
 
     if (s->nb_chars) {
+        /* Fill and push foreground vertex block to staging buffer */
         struct pipeline_desc_fg *fg_desc = &desc->fg;
-        ngli_pipeline_compat_update_uniform(fg_desc->common.pipeline_compat, fg_desc->common.modelview_matrix_index, modelview_matrix);
-        ngli_pipeline_compat_update_uniform(fg_desc->common.pipeline_compat, fg_desc->common.projection_matrix_index, projection_matrix);
-        ngli_pipeline_compat_update_uniform(fg_desc->common.pipeline_compat, fg_desc->dist_scale_index, &s->dist_scale);
+        struct text_fg_vert_block fg_vert_data;
+        memcpy(fg_vert_data.modelview_matrix, modelview_matrix, sizeof(fg_vert_data.modelview_matrix));
+        memcpy(fg_vert_data.projection_matrix, projection_matrix, sizeof(fg_vert_data.projection_matrix));
+
+        if (fg_desc->vert_block_index >= 0) {
+            const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &fg_vert_data, sizeof(fg_vert_data));
+            struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+            ngli_pipeline_compat_update_buffer(fg_desc->common.pipeline_compat, fg_desc->vert_block_index,
+                                               staging_buf, vert_offset, sizeof(fg_vert_data));
+        }
+
+        /* Fill and push foreground fragment block to staging buffer */
+        struct text_fg_frag_block fg_frag_data = {0};
+        fg_frag_data.dist_scale = s->dist_scale;
+
+        if (fg_desc->frag_block_index >= 0) {
+            const size_t frag_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &fg_frag_data, sizeof(fg_frag_data));
+            struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+            ngli_pipeline_compat_update_buffer(fg_desc->common.pipeline_compat, fg_desc->frag_block_index,
+                                               staging_buf, frag_offset, sizeof(fg_frag_data));
+        }
+
         ngli_pipeline_compat_draw(fg_desc->common.pipeline_compat, 4, (uint32_t)s->nb_chars, 0);
     }
 }
@@ -819,6 +944,10 @@ static void text_uninit(struct ngl_node *node)
     ngli_pipeline_compat_freep(&desc->fg.common.pipeline_compat);
     ngpu_pgcraft_freep(&desc->bg.common.crafter);
     ngpu_pgcraft_freep(&desc->fg.common.crafter);
+    ngpu_block_desc_reset(&desc->bg.vert_block_desc);
+    ngpu_block_desc_reset(&desc->bg.frag_block_desc);
+    ngpu_block_desc_reset(&desc->fg.vert_block_desc);
+    ngpu_block_desc_reset(&desc->fg.frag_block_desc);
     ngpu_buffer_freep(&s->bg_vertices);
     destroy_characters_resources(s);
     ngli_text_freep(&s->text_ctx);

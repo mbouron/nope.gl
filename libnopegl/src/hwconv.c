@@ -138,7 +138,7 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(hwconv->crafter),
         .resources        = ngpu_pgcraft_get_bindgroup_resources(hwconv->crafter),
         .vertex_resources = ngpu_pgcraft_get_vertex_resources(hwconv->crafter),
-        .compat_info      = ngpu_pgcraft_get_compat_info(hwconv->crafter),
+        .texture_infos    = ngpu_pgcraft_get_texture_infos(hwconv->crafter),
     };
 
     ret = ngli_pipeline_compat_init(hwconv->pipeline_compat, &params);
@@ -159,7 +159,7 @@ int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image)
 
     ngpu_ctx_begin_render_pass(gpu_ctx, rt);
 
-    ngli_pipeline_compat_update_image(pipeline, 0, image);
+    ngli_pipeline_compat_update_image(pipeline, 0, image, ctx->current_staging_buffer);
     ngli_pipeline_compat_draw(pipeline, 3, 1, 0);
 
     ngpu_ctx_end_render_pass(gpu_ctx);
