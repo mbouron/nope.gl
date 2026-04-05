@@ -63,11 +63,6 @@
                                               NGL_NODE_FILTERSRGB2LINEAR,    \
                                               NGLI_NODE_NONE}
 
-struct uniform_map {
-    int32_t index;
-    const void *data;
-};
-
 struct resource_map {
     int32_t index;
     const struct block_info *info;
@@ -95,7 +90,19 @@ struct drawwaveform_opts {
     size_t nb_filters;
 };
 
+struct drawwaveform_vert_block {
+    NGLI_ALIGNED_MAT(modelview_matrix);
+    NGLI_ALIGNED_MAT(projection_matrix);
+};
+
+struct drawwaveform_frag_block {
+    float aspect;
+    int32_t mode;
+    float _pad0[2];
+};
+
 struct drawwaveform_priv {
+    size_t first_filter_field;
     struct filterschain *filterschain;
     char *combined_fragment;
     struct ngpu_pgcraft_attribute position_attr;
@@ -105,12 +112,11 @@ struct drawwaveform_priv {
     struct geometry *geometry;
     int own_geometry;
     struct pipeline_desc pipeline_desc;
-    struct darray uniforms; // struct ngpu_pgcraft_uniform
     struct ngpu_pgcraft *crafter;
-    int32_t modelview_matrix_index;
-    int32_t projection_matrix_index;
-    int32_t aspect_index;
-    struct darray uniforms_map; // struct uniform_map
+    struct ngpu_block_desc vert_block_desc;
+    struct ngpu_block_desc frag_block_desc;
+    int32_t vert_block_index;
+    int32_t frag_block_index;
 };
 
 static const float default_vertices[] = {
@@ -166,32 +172,6 @@ static const struct node_param drawwaveform_params[] = {
 #undef OFFSET
 
 
-static int build_uniforms_map(struct drawwaveform_priv *s)
-{
-    ngli_darray_init(&s->uniforms_map, sizeof(struct uniform_map), 0);
-
-    const struct ngpu_pgcraft_uniform *uniforms = ngli_darray_data(&s->uniforms);
-    for (size_t i = 0; i < ngli_darray_count(&s->uniforms); i++) {
-        const struct ngpu_pgcraft_uniform *uniform = &uniforms[i];
-        const int32_t index = ngpu_pgcraft_get_uniform_index(s->crafter, uniform->name, uniform->stage);
-
-        /* The following can happen if the driver makes optimisation (MESA is
-         * typically able to optimize several passes of the same filter) */
-        if (index < 0)
-            continue;
-
-        /* This skips unwanted uniforms such as modelview and projection which
-         * are handled separately */
-        if (!uniform->data)
-            continue;
-
-        const struct uniform_map map = {.index=index, .data=uniform->data};
-        if (!ngli_darray_push(&s->uniforms_map, &map))
-            return NGL_ERROR_MEMORY;
-    }
-
-    return 0;
-}
 
 static int drawwaveform_init(struct ngl_node *node)
 {
@@ -274,42 +254,79 @@ static int drawwaveform_init(struct ngl_node *node)
     if (!s->combined_fragment)
         return NGL_ERROR_MEMORY;
 
-    /* Register uniforms: common + source + filters */
-    ngli_darray_init(&s->uniforms, sizeof(struct ngpu_pgcraft_uniform), 0);
+    /* Initialize vertex block descriptor */
+    ngpu_block_desc_init(gpu_ctx, &s->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&s->vert_block_desc, "modelview_matrix", NGPU_TYPE_MAT4, 0);
+    ngpu_block_desc_add_field(&s->vert_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
 
-    const struct ngpu_pgcraft_uniform common_uniforms[] = {
-        {.name="modelview_matrix",  .type=NGPU_TYPE_MAT4,  .stage=NGPU_PROGRAM_STAGE_VERT},
-        {.name="projection_matrix", .type=NGPU_TYPE_MAT4,  .stage=NGPU_PROGRAM_STAGE_VERT},
-        {.name="aspect",            .type=NGPU_TYPE_F32,   .stage=NGPU_PROGRAM_STAGE_FRAG},
-    };
-    for (size_t i = 0; i < NGLI_ARRAY_NB(common_uniforms); i++)
-        if (!ngli_darray_push(&s->uniforms, &common_uniforms[i]))
-            return NGL_ERROR_MEMORY;
-
-    const struct ngpu_pgcraft_uniform source_uniforms[] = {
-        {.name="mode", .type=NGPU_TYPE_I32,  .stage=NGPU_PROGRAM_STAGE_FRAG, .data=&o->mode},
-    };
-    for (size_t i = 0; i < NGLI_ARRAY_NB(source_uniforms); i++)
-        if (!ngli_darray_push(&s->uniforms, &source_uniforms[i]))
-            return NGL_ERROR_MEMORY;
+    /* Initialize fragment block descriptor */
+    ngpu_block_desc_init(gpu_ctx, &s->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "aspect", NGPU_TYPE_F32, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "mode", NGPU_TYPE_I32, 0);
+    s->first_filter_field = s->frag_block_desc.nb_fields;
 
     const struct darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
-    const struct ngpu_pgcraft_uniform *comb_uniforms = ngli_darray_data(comb_uniforms_array);
+    const struct ngli_filter_resource *comb_uniforms = ngli_darray_data(comb_uniforms_array);
     for (size_t i = 0; i < ngli_darray_count(comb_uniforms_array); i++)
-        if (!ngli_darray_push(&s->uniforms, &comb_uniforms[i]))
-            return NGL_ERROR_MEMORY;
+        ngpu_block_desc_add_field(&s->frag_block_desc, comb_uniforms[i].name, comb_uniforms[i].type, 0);
 
-    /* Craft the program */
-    static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {.name = "uv", .type = NGPU_TYPE_VEC2},
-    };
+    ngli_node_block_extend_usage(o->stats, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+    return 0;
+}
+
+static int drawwaveform_prepare(struct ngl_node *node,
+                             const struct ngpu_graphics_state *graphics_state,
+                             const struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
+    struct drawwaveform_priv *s = node->priv_data;
+    const struct drawwaveform_opts *o = node->opts;
+
+    struct pipeline_desc *desc = &s->pipeline_desc;
+
+    ngli_darray_init(&desc->blocks_map, sizeof(struct resource_map), 0);
+    ngli_darray_init(&desc->textures_map, sizeof(struct texture_map), 0);
+    ngli_darray_init(&desc->reframing_nodes, sizeof(struct ngl_node *), 0);
+
+    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+
+    const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
+    const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
+    ngli_assert(vert_size == sizeof(struct drawwaveform_vert_block));
+    ngli_assert(frag_size >= sizeof(struct drawwaveform_frag_block));
 
     const struct block_info *block_info = o->stats->priv_data;
-    const struct ngpu_pgcraft_block crafter_block = {
+    const struct ngpu_pgcraft_block stats_block = {
         .name     = "stats",
         .type     = NGPU_TYPE_STORAGE_BUFFER,
         .stage    = NGPU_PROGRAM_STAGE_FRAG,
         .block    = &block_info->block,
+    };
+
+    const struct ngpu_pgcraft_block blocks[] = {
+        {
+            .name          = "vert_params",
+            .instance_name = "",
+            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .stage         = NGPU_PROGRAM_STAGE_VERT,
+            .block         = &s->vert_block_desc,
+            .buffer        = {.buffer = staging_buf, .size = vert_size},
+        },
+        {
+            .name          = "frag_params",
+            .instance_name = "",
+            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .stage         = NGPU_PROGRAM_STAGE_FRAG,
+            .block         = &s->frag_block_desc,
+            .buffer        = {.buffer = staging_buf, .size = frag_size},
+        },
+        stats_block,
+    };
+
+    static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
+        {.name = "uv", .type = NGPU_TYPE_VEC2},
     };
 
     const struct ngpu_pgcraft_attribute attributes[] = {
@@ -321,62 +338,30 @@ static int drawwaveform_init(struct ngl_node *node)
         .program_label    = "nopegl/drawwaveform",
         .vert_base        = source_waveform_vert,
         .frag_base        = s->combined_fragment,
-        .uniforms         = ngli_darray_data(&s->uniforms),
-        .nb_uniforms      = ngli_darray_count(&s->uniforms),
+        .blocks           = blocks,
+        .nb_blocks        = NGLI_ARRAY_NB(blocks),
         .attributes       = attributes,
         .nb_attributes    = NGLI_ARRAY_NB(attributes),
-        .blocks           = &crafter_block,
-        .nb_blocks        = 1,
         .vert_out_vars    = vert_out_vars,
         .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
     };
-
-    ngli_node_block_extend_usage(o->stats, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
     if (!s->crafter)
         return NGL_ERROR_MEMORY;
 
-    ret = ngpu_pgcraft_craft(s->crafter, &crafter_params);
+    int ret = ngpu_pgcraft_craft(s->crafter, &crafter_params);
     if (ret < 0)
         return ret;
 
-    s->modelview_matrix_index = ngpu_pgcraft_get_uniform_index(
-        s->crafter, "modelview_matrix", NGPU_PROGRAM_STAGE_VERT);
-    s->projection_matrix_index = ngpu_pgcraft_get_uniform_index(
-        s->crafter, "projection_matrix", NGPU_PROGRAM_STAGE_VERT);
-    s->aspect_index = ngpu_pgcraft_get_uniform_index(s->crafter, "aspect", NGPU_PROGRAM_STAGE_FRAG);
+    s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "vert_params", NGPU_PROGRAM_STAGE_VERT);
+    s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
 
-    ret = build_uniforms_map(s);
-    if (ret < 0)
-        return ret;
-
-    return 0;
-}
-
-static int drawwaveform_prepare(struct ngl_node *node,
-                                const struct ngpu_graphics_state *graphics_state,
-                                const struct ngpu_rendertarget_layout *rendertarget_layout)
-{
-    struct ngl_ctx *ctx = node->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct drawwaveform_priv *s = node->priv_data;
-    const struct drawwaveform_opts *o = node->opts;
-
-    struct pipeline_desc *desc = &s->pipeline_desc;
-
-    /* Init pipeline desc fields */
-    ngli_darray_init(&desc->blocks_map, sizeof(struct resource_map), 0);
-    ngli_darray_init(&desc->textures_map, sizeof(struct texture_map), 0);
-    ngli_darray_init(&desc->reframing_nodes, sizeof(struct ngl_node *), 0);
-
-    /* Apply blending preset */
     struct ngpu_graphics_state state = *graphics_state;
-    int ret = ngli_blending_apply_preset(&state, o->blending);
+    ret = ngli_blending_apply_preset(&state, o->blending);
     if (ret < 0)
         return ret;
 
-    /* Create and init pipeline */
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)
         return NGL_ERROR_MEMORY;
@@ -393,26 +378,17 @@ static int drawwaveform_prepare(struct ngl_node *node,
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
         .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
         .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
-        .compat_info      = ngpu_pgcraft_get_compat_info(s->crafter),
+        .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
     ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
     if (ret < 0)
         return ret;
 
-    /* Build texture map */
-    const struct ngpu_pgcraft_compat_info *info = ngpu_pgcraft_get_compat_info(s->crafter);
-    for (size_t i = 0; i < info->nb_texture_infos; i++) {
-        const struct texture_map map = {.image = info->images[i], .image_rev = SIZE_MAX};
-        if (!ngli_darray_push(&desc->textures_map, &map))
-            return NGL_ERROR_MEMORY;
-    }
-
     /* Build blocks map for stats */
-    const struct block_info *block_info = o->stats->priv_data;
-    const int32_t index = ngpu_pgcraft_get_block_index(s->crafter, "stats", NGPU_PROGRAM_STAGE_FRAG);
-    const struct resource_map map = {.index = index, .info = block_info, .buffer_rev = SIZE_MAX};
-    if (!ngli_darray_push(&desc->blocks_map, &map))
+    const int32_t stats_index = ngpu_pgcraft_get_block_index(s->crafter, "stats", NGPU_PROGRAM_STAGE_FRAG);
+    const struct resource_map rmap = {.index = stats_index, .info = block_info, .buffer_rev = SIZE_MAX};
+    if (!ngli_darray_push(&desc->blocks_map, &rmap))
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -421,6 +397,7 @@ static int drawwaveform_prepare(struct ngl_node *node,
 static void drawwaveform_draw(struct ngl_node *node)
 {
     struct drawwaveform_priv *s = node->priv_data;
+    const struct drawwaveform_opts *o = node->opts;
 
     ngli_node_draw_children(node);
 
@@ -431,29 +408,53 @@ static void drawwaveform_draw(struct ngl_node *node)
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
-    ngli_pipeline_compat_update_uniform(pl_compat, s->modelview_matrix_index, modelview_matrix);
-    ngli_pipeline_compat_update_uniform(pl_compat, s->projection_matrix_index, projection_matrix);
+    struct drawwaveform_vert_block vert_data;
+    memcpy(vert_data.modelview_matrix, modelview_matrix, sizeof(vert_data.modelview_matrix));
+    memcpy(vert_data.projection_matrix, projection_matrix, sizeof(vert_data.projection_matrix));
 
-    if (s->aspect_index >= 0) {
-        const float aspect = (float)ctx->viewport.width / (float)ctx->viewport.height;
-        ngli_pipeline_compat_update_uniform(pl_compat, s->aspect_index, &aspect);
+    if (s->vert_block_index >= 0) {
+        const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
+        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        ngli_pipeline_compat_update_buffer(pl_compat, s->vert_block_index,
+                                           staging_buf, vert_offset, sizeof(vert_data));
     }
 
-    const struct uniform_map *uniform_map = ngli_darray_data(&s->uniforms_map);
-    for (size_t i = 0; i < ngli_darray_count(&s->uniforms_map); i++)
-        ngli_pipeline_compat_update_uniform(pl_compat, uniform_map[i].index, uniform_map[i].data);
+    if (s->frag_block_index >= 0) {
+        const struct ngpu_block_desc *block = &s->frag_block_desc;
+        const size_t frag_size = ngpu_block_desc_get_size(block, 0);
+        size_t frag_offset = 0;
+        uint8_t *data = ngli_staging_buffer_reserve(ctx->current_staging_buffer, frag_size, &frag_offset);
+
+        const struct drawwaveform_frag_block frag_data = {
+            .aspect = (float)ctx->viewport.width / (float)ctx->viewport.height,
+            .mode   = o->mode,
+        };
+        memcpy(data, &frag_data, sizeof(frag_data));
+
+        const struct darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
+        const struct ngli_filter_resource *comb_uniforms = ngli_darray_data(comb_uniforms_array);
+        for (size_t i = 0; i < ngli_darray_count(comb_uniforms_array); i++) {
+            const size_t fi = s->first_filter_field + i;
+            if (comb_uniforms[i].data)
+                ngpu_block_field_copy(&block->fields[fi], data + block->fields[fi].offset, comb_uniforms[i].data);
+        }
+
+        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        ngli_pipeline_compat_update_buffer(pl_compat, s->frag_block_index,
+                                           staging_buf, frag_offset, frag_size);
+    }
 
     struct texture_map *texture_map = ngli_darray_data(&desc->textures_map);
     const struct ngl_node **reframing_nodes = ngli_darray_data(&desc->reframing_nodes);
     for (size_t i = 0; i < ngli_darray_count(&desc->textures_map); i++) {
         if (texture_map[i].image_rev != texture_map[i].image->rev) {
-            ngli_pipeline_compat_update_image(pl_compat, (int32_t)i, texture_map[i].image);
+            ngli_pipeline_compat_update_image(pl_compat, (int32_t)i, texture_map[i].image, ctx->current_staging_buffer);
             texture_map[i].image_rev = texture_map[i].image->rev;
         }
 
         NGLI_ALIGNED_MAT(reframing_matrix);
         ngli_transform_chain_compute(reframing_nodes[i], reframing_matrix);
-        ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, reframing_matrix);
+        ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, reframing_matrix, ctx->current_staging_buffer);
     }
 
     struct resource_map *resource_map = ngli_darray_data(&desc->blocks_map);
@@ -494,10 +495,10 @@ static void drawwaveform_uninit(struct ngl_node *node)
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
 
-    /* Free crafter and uniforms */
+    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
-    ngli_darray_reset(&s->uniforms);
-    ngli_darray_reset(&s->uniforms_map);
+    ngpu_block_desc_reset(&s->vert_block_desc);
+    ngpu_block_desc_reset(&s->frag_block_desc);
 
     /* Free filter chain */
     ngli_freep(&s->combined_fragment);

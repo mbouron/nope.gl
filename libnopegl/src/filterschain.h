@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 
+#include <ngpu/ngpu.h>
 #include "utils/darray.h"
 
 struct filterschain;
@@ -35,10 +36,19 @@ struct filterschain;
 #define NGLI_FILTER_HELPER_SRGB        (1U << 2)
 #define NGLI_FILTER_HELPER_OKLAB       (1U << 3)
 
+struct ngli_filter_resource {
+    char name[NGPU_ID_LEN];
+    enum ngpu_type type;
+    enum ngpu_program_stage stage;
+    enum ngpu_precision precision;
+    const void *data;
+    size_t count;
+};
+
 struct filter {
     const char *name;
     const char *code;
-    struct darray resources; // struct ngpu_pgcraft_uniform
+    struct darray resources; // struct ngli_filter_resource
     uint32_t helpers;
 };
 

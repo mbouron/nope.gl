@@ -45,6 +45,7 @@
 #include "slug.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
+#include "staging_buffer.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/job_queue.h"
@@ -96,6 +97,9 @@ struct ngl_ctx {
     float default_projection_matrix[16];
     struct darray modelview_matrix_stack;
     struct darray projection_matrix_stack;
+    struct staging_buffer update_staging_buffer;
+    struct staging_buffer draw_staging_buffer;
+    struct staging_buffer *current_staging_buffer;
 
     /*
      * Array of nodes that are candidate to either prefetch (active) or release
