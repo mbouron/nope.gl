@@ -34,6 +34,8 @@
 #include "pipeline_compat.h"
 #include "rtt.h"
 #include <ngpu/ngpu.h>
+#include "staging_buffer.h"
+#include "utils/memory.h"
 #include "utils/utils.h"
 
 /* GLSL shaders */
@@ -51,6 +53,7 @@ NGLI_STATIC_ASSERT(MAX_RADIUS_SIZE == (MAX_KERNEL_SIZE - 1), "radius size");
 
 struct direction_block {
     float direction[2];
+    float _pad[2];
 };
 
 struct kernel_block {
@@ -83,8 +86,16 @@ struct gblur_priv {
     struct ngpu_rendertarget_layout dst_layout;
     struct rtt_ctx *dst_rtt_ctx;
 
-    struct ngpu_block direction_block;
-    struct ngpu_block kernel_block;
+    struct ngpu_block_desc direction_block_desc;
+    size_t direction_block_size;
+    size_t direction_block_aligned_size;
+    int32_t direction_block_index;
+
+    struct ngpu_block_desc kernel_block_desc;
+    size_t kernel_block_size;
+    int32_t kernel_block_index;
+    uint8_t *kernel_staging_cache;
+
     struct ngpu_pgcraft *crafter;
     struct pipeline_compat *pl_blur_h;
     struct pipeline_compat *pl_blur_v;
@@ -167,27 +178,51 @@ static int update_kernel(struct ngl_node *node)
      * the number of texture fetches from (2*radius + 1) to (radius + 1). The
      * resulting offsets and weights are stored in a vec2.
      */
-    struct kernel_block kernel_block = {0};
+    struct kernel_block kernel_data = {0};
     for (int i = -radius; i < radius; i += 2) {
         const float w0 = weights[i + radius + 0];
         const float w1 = weights[i + radius + 1];
         const float w = w0 + w1;
-        kernel_block.weights[O(kernel_block.nb_weights)] = w > 0 ? (float)i + w1 / w : (float)i;
-        kernel_block.weights[W(kernel_block.nb_weights)] = w;
-        kernel_block.nb_weights++;
+        kernel_data.weights[O(kernel_data.nb_weights)] = w > 0 ? (float)i + w1 / w : (float)i;
+        kernel_data.weights[W(kernel_data.nb_weights)] = w;
+        kernel_data.nb_weights++;
     }
-    kernel_block.weights[O(kernel_block.nb_weights)] = (float)radius;
-    kernel_block.weights[W(kernel_block.nb_weights)] = weights[radius + radius];
-    kernel_block.nb_weights++;
+    kernel_data.weights[O(kernel_data.nb_weights)] = (float)radius;
+    kernel_data.weights[W(kernel_data.nb_weights)] = weights[radius + radius];
+    kernel_data.nb_weights++;
 
-    int ret = ngpu_block_update(&s->kernel_block, 0, &kernel_block);
-    if (ret < 0)
-        return ret;
+    if (!s->kernel_staging_cache) {
+        s->kernel_staging_cache = ngli_calloc(1, s->kernel_block_size);
+        if (!s->kernel_staging_cache)
+            return NGL_ERROR_MEMORY;
+    }
+    memset(s->kernel_staging_cache, 0, s->kernel_block_size);
+    const struct ngpu_block_field *fields = s->kernel_block_desc.fields;
+    ngpu_block_field_copy_count(&fields[0], s->kernel_staging_cache + fields[0].offset,
+                                (const uint8_t *)kernel_data.weights, 0);
+    ngpu_block_field_copy(&fields[1], s->kernel_staging_cache + fields[1].offset,
+                          (const uint8_t *)&kernel_data.nb_weights);
 
     return 0;
 }
 
-static int setup_pipeline(struct ngpu_pgcraft *crafter, struct pipeline_compat *pipeline, const struct ngpu_rendertarget_layout *layout)
+static void push_kernel_block(struct ngl_node *node)
+{
+    struct gblur_priv *s = node->priv_data;
+    struct ngl_ctx *ctx = node->ctx;
+
+    if (!s->kernel_staging_cache)
+        return;
+
+    const size_t kernel_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, s->kernel_staging_cache, s->kernel_block_size);
+    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    ngli_pipeline_compat_update_buffer(s->pl_blur_h, s->kernel_block_index,
+                                       buffer, kernel_offset, s->kernel_block_size);
+    ngli_pipeline_compat_update_buffer(s->pl_blur_v, s->kernel_block_index,
+                                       buffer, kernel_offset, s->kernel_block_size);
+}
+
+static int setup_pipeline(struct ngl_ctx *ctx, struct ngpu_pgcraft *crafter, struct pipeline_compat *pipeline, const struct ngpu_rendertarget_layout *layout)
 {
     const struct pipeline_compat_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
@@ -201,7 +236,7 @@ static int setup_pipeline(struct ngpu_pgcraft *crafter, struct pipeline_compat *
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(crafter),
         .resources        = ngpu_pgcraft_get_bindgroup_resources(crafter),
         .vertex_resources = ngpu_pgcraft_get_vertex_resources(crafter),
-        .compat_info      = ngpu_pgcraft_get_compat_info(crafter),
+        .texture_infos    = ngpu_pgcraft_get_texture_infos(crafter),
     };
 
     int ret = ngli_pipeline_compat_init(pipeline, &params);
@@ -241,31 +276,18 @@ static int gblur_init(struct ngl_node *node)
     s->dst_layout.colors[0].format = dst_info->params.format;
     s->dst_layout.nb_colors = 1;
 
-    const struct ngpu_block_entry direction_block_fields[] = {
-        NGPU_BLOCK_FIELD(struct direction_block, direction, NGPU_TYPE_VEC2, 0),
-    };
-    const struct ngpu_block_params direction_block_params = {
-        .count      = 2,
-        .entries    = direction_block_fields,
-        .nb_entries = NGLI_ARRAY_NB(direction_block_fields),
-    };
-    int ret = ngpu_block_init(gpu_ctx, &s->direction_block, &direction_block_params);
-    if (ret < 0)
-        return ret;
-    ngpu_block_update(&s->direction_block, 0, &(struct direction_block){.direction = {1.f, 0.f}});
-    ngpu_block_update(&s->direction_block, 1, &(struct direction_block){.direction = {0.f, 1.f}});
+    ngpu_block_desc_init(gpu_ctx, &s->direction_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&s->direction_block_desc, "direction", NGPU_TYPE_VEC2, 0);
+    s->direction_block_size = ngpu_block_desc_get_size(&s->direction_block_desc, 0);
+    ngli_assert(s->direction_block_size == sizeof(struct direction_block));
+    s->direction_block_aligned_size = ngpu_block_desc_get_aligned_size(&s->direction_block_desc, 0);
 
-    const struct ngpu_block_entry kernel_block_fields[] = {
-        NGPU_BLOCK_FIELD(struct kernel_block, weights,    NGPU_TYPE_VEC2, MAX_KERNEL_SIZE),
-        NGPU_BLOCK_FIELD(struct kernel_block, nb_weights, NGPU_TYPE_I32,  0),
-    };
-    const struct ngpu_block_params kernel_block_params = {
-        .entries    = kernel_block_fields,
-        .nb_entries = NGLI_ARRAY_NB(kernel_block_fields),
-    };
-    ret = ngpu_block_init(gpu_ctx, &s->kernel_block, &kernel_block_params);
-    if (ret < 0)
-        return ret;
+    ngpu_block_desc_init(gpu_ctx, &s->kernel_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&s->kernel_block_desc, "weights", NGPU_TYPE_VEC2, MAX_KERNEL_SIZE);
+    ngpu_block_desc_add_field(&s->kernel_block_desc, "nb_weights", NGPU_TYPE_I32, 0);
+    s->kernel_block_size = ngpu_block_desc_get_size(&s->kernel_block_desc, 0);
+
+    int ret;
 
     const struct ngpu_pgcraft_iovar vert_out_vars[] = {
         {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
@@ -273,31 +295,33 @@ static int gblur_init(struct ngl_node *node)
 
     const struct ngpu_pgcraft_texture textures[] = {
         {
-            .name      = "tex",
-            .type      = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
-            .precision = NGPU_PRECISION_HIGH,
-            .stage     = NGPU_PROGRAM_STAGE_FRAG,
+            .name        = "tex",
+            .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
+            .precision   = NGPU_PRECISION_HIGH,
+            .stage       = NGPU_PROGRAM_STAGE_FRAG,
         },
     };
+
+    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
             .name          = "direction",
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
-            .block         = &s->direction_block.block_desc,
+            .block         = &s->direction_block_desc,
             .buffer        = {
-                .buffer = s->direction_block.buffer,
-                .size   = s->direction_block.block_size,
+                .buffer = staging_buf,
+                .size   = s->direction_block_size,
             },
         }, {
             .name          = "kernel",
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
-            .block         = &s->kernel_block.block_desc,
+            .block         = &s->kernel_block_desc,
             .buffer        = {
-                .buffer = s->kernel_block.buffer,
-                .size   = s->kernel_block.block_size,
+                .buffer = staging_buf,
+                .size   = s->kernel_block_size,
             },
         },
     };
@@ -321,13 +345,16 @@ static int gblur_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
+    s->direction_block_index = ngpu_pgcraft_get_block_index(s->crafter, "direction", NGPU_PROGRAM_STAGE_FRAG);
+    s->kernel_block_index = ngpu_pgcraft_get_block_index(s->crafter, "kernel", NGPU_PROGRAM_STAGE_FRAG);
+
     s->pl_blur_h = ngli_pipeline_compat_create(gpu_ctx);
     s->pl_blur_v = ngli_pipeline_compat_create(gpu_ctx);
     if (!s->pl_blur_h || !s->pl_blur_v)
         return NGL_ERROR_MEMORY;
 
-    if ((ret = setup_pipeline(s->crafter, s->pl_blur_h, &s->tmp_layout)) < 0 ||
-        (ret = setup_pipeline(s->crafter, s->pl_blur_v, &s->dst_layout)) < 0)
+    if ((ret = setup_pipeline(ctx, s->crafter, s->pl_blur_h, &s->tmp_layout)) < 0 ||
+        (ret = setup_pipeline(ctx, s->crafter, s->pl_blur_v, &s->dst_layout)) < 0)
         return ret;
 
     return 0;
@@ -469,22 +496,31 @@ static void gblur_pre_draw(struct ngl_node *node)
     if (ret < 0)
         return;
 
+    push_kernel_block(node);
+
+    const struct direction_block dir_h = {.direction = {1.f, 0.f}};
+    const struct direction_block dir_v = {.direction = {0.f, 1.f}};
+    const size_t dir_h_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &dir_h, sizeof(dir_h));
+    const size_t dir_v_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &dir_v, sizeof(dir_v));
+    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    ngli_pipeline_compat_update_buffer(s->pl_blur_h, s->direction_block_index,
+                                       buffer, dir_h_offset, s->direction_block_size);
+    ngli_pipeline_compat_update_buffer(s->pl_blur_v, s->direction_block_index,
+                                       buffer, dir_h_offset, s->direction_block_size);
+
     ngli_rtt_begin(s->tmp);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     uint32_t offset = 0;
     ngli_pipeline_compat_update_dynamic_offsets(s->pl_blur_h, &offset, 1);
-    if (s->image_rev != s->image->rev) {
-        ngli_pipeline_compat_update_image(s->pl_blur_h, 0, s->image);
-        s->image_rev = s->image->rev;
-    }
+    ngli_pipeline_compat_update_image(s->pl_blur_h, 0, s->image, ctx->current_staging_buffer);
     ngli_pipeline_compat_draw(s->pl_blur_h, 3, 1, 0);
     ngli_rtt_end(s->tmp);
 
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    offset = (uint32_t)s->direction_block.block_size;
+    offset = (uint32_t)(dir_v_offset - dir_h_offset);
     ngli_pipeline_compat_update_dynamic_offsets(s->pl_blur_v, &offset, 1);
-    ngli_pipeline_compat_update_image(s->pl_blur_v, 0, ngli_rtt_get_image(s->tmp, 0));
+    ngli_pipeline_compat_update_image(s->pl_blur_v, 0, ngli_rtt_get_image(s->tmp, 0), ctx->current_staging_buffer);
     ngli_pipeline_compat_draw(s->pl_blur_v, 3, 1, 0);
     ngli_rtt_end(s->dst_rtt_ctx);
 }
@@ -501,8 +537,9 @@ static void gblur_uninit(struct ngl_node *node)
 {
     struct gblur_priv *s = node->priv_data;
 
-    ngpu_block_reset(&s->direction_block);
-    ngpu_block_reset(&s->kernel_block);
+    ngli_freep(&s->kernel_staging_cache);
+    ngpu_block_desc_reset(&s->direction_block_desc);
+    ngpu_block_desc_reset(&s->kernel_block_desc);
     ngli_pipeline_compat_freep(&s->pl_blur_h);
     ngli_pipeline_compat_freep(&s->pl_blur_v);
     ngpu_pgcraft_freep(&s->crafter);

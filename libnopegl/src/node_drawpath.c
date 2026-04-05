@@ -39,11 +39,6 @@
 #include "path_frag.h"
 #include "path_vert.h"
 
-struct uniform_map {
-    int index;
-    const void *data;
-};
-
 struct pipeline_desc {
     struct pipeline_compat *pipeline_compat;
 };
@@ -73,18 +68,36 @@ struct drawpath_opts {
     float blur;
 };
 
+struct drawpath_vert_block {
+    NGLI_ALIGNED_MAT(modelview_matrix);
+    NGLI_ALIGNED_MAT(projection_matrix);
+    float vertices[4];
+};
+
+struct drawpath_frag_block {
+    float coords[4];
+    float color[3];
+    float opacity;
+    float outline_color[3];
+    float outline;
+    float glow_color[3];
+    float glow;
+    float blur;
+    float outline_pos;
+    int32_t debug;
+    float _pad[1];
+};
+
 struct drawpath_priv {
     struct ngli_aabb atlas_coords;
     float vertices[4];
     struct distmap *distmap;
     struct path *path;
-    struct darray uniforms_map; // struct uniform_map
-    struct darray uniforms; // struct ngpu_pgcraft_uniform
     struct ngpu_pgcraft *crafter;
-    int modelview_matrix_index;
-    int projection_matrix_index;
-    int vertices_index;
-    int coords_index;
+    struct ngpu_block_desc vert_block_desc;
+    struct ngpu_block_desc frag_block_desc;
+    int32_t vert_block_index;
+    int32_t frag_block_index;
     struct pipeline_desc pipeline_desc;
 };
 
@@ -128,34 +141,6 @@ static const struct node_param drawpath_params[] = {
                      .desc=NGLI_DOCSTRING("path blur")},
     {NULL}
 };
-
-// TODO factor out with drawother and pass
-static int build_uniforms_map(struct drawpath_priv *s)
-{
-    ngli_darray_init(&s->uniforms_map, sizeof(struct uniform_map), 0);
-
-    const struct ngpu_pgcraft_uniform *uniforms = ngli_darray_data(&s->uniforms);
-    for (size_t i = 0; i < ngli_darray_count(&s->uniforms); i++) {
-        const struct ngpu_pgcraft_uniform *uniform = &uniforms[i];
-        const int index = ngpu_pgcraft_get_uniform_index(s->crafter, uniform->name, uniform->stage);
-
-        /* The following can happen if the driver makes optimisation (MESA is
-         * typically able to optimize several passes of the same filter) */
-        if (index < 0)
-            continue;
-
-        /* This skips unwanted uniforms such as modelview and projection which
-         * are handled separately */
-        if (!uniform->data)
-            continue;
-
-        const struct uniform_map map = {.index=index, .data=uniform->data};
-        if (!ngli_darray_push(&s->uniforms_map, &map))
-            return NGL_ERROR_MEMORY;
-    }
-
-    return 0;
-}
 
 static int drawpath_init(struct ngl_node *node)
 {
@@ -226,29 +211,26 @@ static int drawpath_init(struct ngl_node *node)
     const float vertices[] = {bx, by, bx + nw, by + nh};
     memcpy(s->vertices, vertices, sizeof(s->vertices));
 
-    const struct ngpu_pgcraft_uniform uniforms[] = {
-        {.name="modelview_matrix",  .type=NGPU_TYPE_MAT4,  .stage=NGPU_PROGRAM_STAGE_VERT},
-        {.name="projection_matrix", .type=NGPU_TYPE_MAT4,  .stage=NGPU_PROGRAM_STAGE_VERT},
-        {.name="vertices",          .type=NGPU_TYPE_VEC4,  .stage=NGPU_PROGRAM_STAGE_VERT},
+    struct ngpu_ctx *gpu_ctx = node->ctx->gpu_ctx;
 
-        {.name="debug",             .type=NGPU_TYPE_BOOL,  .stage=NGPU_PROGRAM_STAGE_FRAG},
-        {.name="coords",            .type=NGPU_TYPE_VEC4,  .stage=NGPU_PROGRAM_STAGE_FRAG},
+    /* Initialize vertex block descriptor */
+    ngpu_block_desc_init(gpu_ctx, &s->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&s->vert_block_desc, "modelview_matrix", NGPU_TYPE_MAT4, 0);
+    ngpu_block_desc_add_field(&s->vert_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
+    ngpu_block_desc_add_field(&s->vert_block_desc, "vertices", NGPU_TYPE_VEC4, 0);
 
-        {.name="color",             .type=NGPU_TYPE_VEC3,  .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->color_node, o->color)},
-        {.name="opacity",           .type=NGPU_TYPE_F32,   .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->opacity_node, &o->opacity)},
-        {.name="outline",           .type=NGPU_TYPE_F32,   .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->outline_node, &o->outline)},
-        {.name="outline_color",     .type=NGPU_TYPE_VEC3,  .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->outline_color_node, &o->outline_color)},
-        {.name="glow",              .type=NGPU_TYPE_F32,   .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->glow_node, &o->glow)},
-        {.name="glow_color",        .type=NGPU_TYPE_VEC3,  .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->glow_color_node, o->glow_color)},
-        {.name="blur",              .type=NGPU_TYPE_F32,   .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->blur_node, &o->blur)},
-        {.name="outline_pos",       .type=NGPU_TYPE_F32,   .stage=NGPU_PROGRAM_STAGE_FRAG, .data=ngli_node_get_data_ptr(o->outline_pos_node, &o->outline_pos)},
-    };
-
-    /* register source uniforms */
-    ngli_darray_init(&s->uniforms, sizeof(struct ngpu_pgcraft_uniform), 0);
-    for (size_t i = 0; i < NGLI_ARRAY_NB(uniforms); i++)
-        if (!ngli_darray_push(&s->uniforms, &uniforms[i]))
-            return NGL_ERROR_MEMORY;
+    /* Initialize fragment block descriptor */
+    ngpu_block_desc_init(gpu_ctx, &s->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "coords", NGPU_TYPE_VEC4, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "color", NGPU_TYPE_VEC3, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "opacity", NGPU_TYPE_F32, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "outline_color", NGPU_TYPE_VEC3, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "outline", NGPU_TYPE_F32, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "glow_color", NGPU_TYPE_VEC3, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "glow", NGPU_TYPE_F32, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "blur", NGPU_TYPE_F32, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "outline_pos", NGPU_TYPE_F32, 0);
+    ngpu_block_desc_add_field(&s->frag_block_desc, "debug", NGPU_TYPE_BOOL, 0);
 
     return 0;
 }
@@ -267,14 +249,34 @@ static int drawpath_prepare(struct ngl_node *node,
             .type = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage = NGPU_PROGRAM_STAGE_FRAG,
             .texture = texture,
+            .no_metadata = true,
+        },
+    };
+
+    const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
+    const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
+    ngli_assert(vert_size == sizeof(struct drawpath_vert_block));
+    ngli_assert(frag_size == sizeof(struct drawpath_frag_block));
+
+    const struct ngpu_pgcraft_block blocks[] = {
+        {
+            .name          = "vert_params",
+            .instance_name = "",
+            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .stage         = NGPU_PROGRAM_STAGE_VERT,
+            .block         = &s->vert_block_desc,
+        },
+        {
+            .name          = "frag_params",
+            .instance_name = "",
+            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .stage         = NGPU_PROGRAM_STAGE_FRAG,
+            .block         = &s->frag_block_desc,
         },
     };
 
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {
-            .name = "uv",
-            .type = NGPU_TYPE_VEC2,
-        },
+        {.name = "uv", .type = NGPU_TYPE_VEC2},
     };
 
     const struct ngpu_pgcraft_params crafter_params = {
@@ -283,8 +285,8 @@ static int drawpath_prepare(struct ngl_node *node,
         .frag_base        = path_frag,
         .textures         = textures,
         .nb_textures      = NGLI_ARRAY_NB(textures),
-        .uniforms         = ngli_darray_data(&s->uniforms),
-        .nb_uniforms      = ngli_darray_count(&s->uniforms),
+        .blocks           = blocks,
+        .nb_blocks        = NGLI_ARRAY_NB(blocks),
         .vert_out_vars    = vert_out_vars,
         .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
     };
@@ -297,14 +299,8 @@ static int drawpath_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
-    s->modelview_matrix_index  = ngpu_pgcraft_get_uniform_index(s->crafter, "modelview_matrix", NGPU_PROGRAM_STAGE_VERT);
-    s->projection_matrix_index = ngpu_pgcraft_get_uniform_index(s->crafter, "projection_matrix", NGPU_PROGRAM_STAGE_VERT);
-    s->vertices_index          = ngpu_pgcraft_get_uniform_index(s->crafter, "vertices", NGPU_PROGRAM_STAGE_VERT);
-    s->coords_index            = ngpu_pgcraft_get_uniform_index(s->crafter, "coords", NGPU_PROGRAM_STAGE_FRAG);
-
-    ret = build_uniforms_map(s);
-    if (ret < 0)
-        return ret;
+    s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "vert_params", NGPU_PROGRAM_STAGE_VERT);
+    s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 
@@ -329,7 +325,7 @@ static int drawpath_prepare(struct ngl_node *node,
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
         .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
         .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
-        .compat_info      = ngpu_pgcraft_get_compat_info(s->crafter),
+        .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
     ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
@@ -343,21 +339,53 @@ static void drawpath_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct drawpath_priv *s = node->priv_data;
+    const struct drawpath_opts *o = node->opts;
     struct pipeline_desc *desc = &s->pipeline_desc;
-    struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
-    ngli_pipeline_compat_update_uniform(desc->pipeline_compat, s->modelview_matrix_index, modelview_matrix);
-    ngli_pipeline_compat_update_uniform(desc->pipeline_compat, s->projection_matrix_index, projection_matrix);
-    ngli_pipeline_compat_update_uniform(desc->pipeline_compat, s->vertices_index, s->vertices);
+    /* Fill and push vertex block to staging buffer */
+    struct drawpath_vert_block vert_data;
+    memcpy(vert_data.modelview_matrix, modelview_matrix, sizeof(vert_data.modelview_matrix));
+    memcpy(vert_data.projection_matrix, projection_matrix, sizeof(vert_data.projection_matrix));
+    memcpy(vert_data.vertices, s->vertices, sizeof(vert_data.vertices));
 
-    ngli_pipeline_compat_update_uniform(desc->pipeline_compat, s->coords_index, (const float *)&s->atlas_coords);
+    if (s->vert_block_index >= 0) {
+        const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
+        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        ngli_pipeline_compat_update_buffer(desc->pipeline_compat, s->vert_block_index,
+                                           staging_buf, vert_offset, sizeof(vert_data));
+    }
 
-    const struct uniform_map *map = ngli_darray_data(&s->uniforms_map);
-    for (size_t i = 0; i < ngli_darray_count(&s->uniforms_map); i++)
-        ngli_pipeline_compat_update_uniform(pl_compat, map[i].index, map[i].data);
+    /* Fill and push fragment block to staging buffer */
+    const float *color_ptr         = ngli_node_get_data_ptr(o->color_node, o->color);
+    const float *opacity_ptr       = ngli_node_get_data_ptr(o->opacity_node, &o->opacity);
+    const float *outline_ptr       = ngli_node_get_data_ptr(o->outline_node, &o->outline);
+    const float *outline_color_ptr = ngli_node_get_data_ptr(o->outline_color_node, o->outline_color);
+    const float *outline_pos_ptr   = ngli_node_get_data_ptr(o->outline_pos_node, &o->outline_pos);
+    const float *glow_ptr          = ngli_node_get_data_ptr(o->glow_node, &o->glow);
+    const float *glow_color_ptr    = ngli_node_get_data_ptr(o->glow_color_node, o->glow_color);
+    const float *blur_ptr          = ngli_node_get_data_ptr(o->blur_node, &o->blur);
+
+    struct drawpath_frag_block frag_data = {0};
+    memcpy(frag_data.coords, &s->atlas_coords, sizeof(frag_data.coords));
+    memcpy(frag_data.color, color_ptr, sizeof(frag_data.color));
+    frag_data.opacity = *opacity_ptr;
+    memcpy(frag_data.outline_color, outline_color_ptr, sizeof(frag_data.outline_color));
+    frag_data.outline = *outline_ptr;
+    memcpy(frag_data.glow_color, glow_color_ptr, sizeof(frag_data.glow_color));
+    frag_data.glow = *glow_ptr;
+    frag_data.blur = *blur_ptr;
+    frag_data.outline_pos = *outline_pos_ptr;
+    frag_data.debug = 0;
+
+    if (s->frag_block_index >= 0) {
+        const size_t frag_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
+        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        ngli_pipeline_compat_update_buffer(desc->pipeline_compat, s->frag_block_index,
+                                           staging_buf, frag_offset, sizeof(frag_data));
+    }
 
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     if (!ngpu_ctx_is_render_pass_active(gpu_ctx)) {
@@ -374,9 +402,9 @@ static void drawpath_uninit(struct ngl_node *node)
 {
     struct drawpath_priv *s = node->priv_data;
     ngli_pipeline_compat_freep(&s->pipeline_desc.pipeline_compat);
-    ngli_darray_reset(&s->uniforms);
-    ngli_darray_reset(&s->uniforms_map);
     ngpu_pgcraft_freep(&s->crafter);
+    ngpu_block_desc_reset(&s->vert_block_desc);
+    ngpu_block_desc_reset(&s->frag_block_desc);
     ngli_distmap_freep(&s->distmap);
     ngli_path_freep(&s->path);
 }
