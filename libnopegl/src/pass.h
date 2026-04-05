@@ -64,6 +64,19 @@ struct pass_params {
     uint32_t workgroup_size[3];
 };
 
+enum {
+    PASS_BUILTIN_VERT_MODELVIEW_MATRIX,
+    PASS_BUILTIN_VERT_PROJECTION_MATRIX,
+    PASS_BUILTIN_VERT_NORMAL_MATRIX,
+    PASS_BUILTIN_VERT_NB_FIELDS,
+};
+
+struct user_uniform_entry {
+    enum ngpu_program_stage stage;
+    const void *data;
+    size_t field_index;
+};
+
 struct pass {
     struct ngl_ctx *ctx;
     struct pass_params params;
@@ -75,15 +88,17 @@ struct pass {
     enum ngpu_primitive_topology topology;
     enum ngpu_pipeline_type pipeline_type;
     struct darray crafter_attributes;
-    struct darray crafter_uniforms;
     struct darray crafter_textures;
     struct darray crafter_blocks;
     struct ngpu_pgcraft *crafter;
-    int32_t modelview_matrix_index;
-    int32_t projection_matrix_index;
-    int32_t normal_matrix_index;
-    int32_t resolution_index;
-    struct darray uniforms_map;
+    int32_t resolution_field_index;
+    struct ngpu_block_desc user_vert_block;
+    struct ngpu_block_desc user_frag_block;
+    struct ngpu_block_desc user_comp_block;
+    int32_t user_vert_block_index;
+    int32_t user_frag_block_index;
+    int32_t user_comp_block_index;
+    struct darray user_data_ptrs; /* struct user_uniform_entry */
     struct pipeline_desc pipeline_desc;
 };
 

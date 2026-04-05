@@ -279,7 +279,7 @@ static const struct node_param filterselector_params[] = {
 static int register_resource(struct darray *resources, const char *name,
                              const struct ngl_node *pnode, const void *data, enum ngpu_type data_type)
 {
-    struct ngpu_pgcraft_uniform res = {
+    struct ngli_filter_resource res = {
         .type  = data_type,
         .stage = NGPU_PROGRAM_STAGE_FRAG,
         .data  = ngli_node_get_data_ptr(pnode, data),
@@ -293,7 +293,7 @@ static int register_resource(struct darray *resources, const char *name,
 static int filter_init(struct ngl_node *node)
 {
     struct filter *s = node->priv_data;
-    ngli_darray_init(&s->resources, sizeof(struct ngpu_pgcraft_uniform), 0);
+    ngli_darray_init(&s->resources, sizeof(struct ngli_filter_resource), 0);
     return 0;
 }
 

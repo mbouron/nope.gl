@@ -50,6 +50,7 @@
 #include "node_texture.h"
 #include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
+#include "staging_buffer.h"
 #include "utils/memory.h"
 #include "utils/time.h"
 
@@ -80,7 +81,7 @@ struct hud {
     struct ngpu_pgcraft *crafter;
     struct ngpu_texture *texture;
     struct ngpu_buffer *coords;
-    struct ngpu_block transforms_block;
+    int32_t transforms_block_index;
     struct pipeline_compat *pipeline_compat;
     struct ngpu_graphics_state graphics_state;
 };
@@ -1239,22 +1240,13 @@ int ngli_hud_init(struct hud *s)
     if (ret < 0)
         return ret;
 
-    const struct ngpu_block_entry block_fields[] = {
-        NGPU_BLOCK_FIELD(struct transforms_block, modelview_matrix, NGPU_TYPE_MAT4, 0),
-        NGPU_BLOCK_FIELD(struct transforms_block, projection_matrix, NGPU_TYPE_MAT4, 0),
-    };
-    const struct ngpu_block_params block_params = {
-        .count      = 1,
-        .entries    = block_fields,
-        .nb_entries = NGLI_ARRAY_NB(block_fields),
-    };
-    ret = ngpu_block_init(gpu_ctx, &s->transforms_block, &block_params);
-    if (ret < 0)
-        return ret;
-    ngpu_block_update(&s->transforms_block, 0, &(struct transforms_block){
-        .modelview_matrix = NGLI_MAT4_IDENTITY,
-        .projection_matrix = NGLI_MAT4_IDENTITY,
-    });
+    struct ngpu_block_desc transforms_block_desc;
+    ngpu_block_desc_init(gpu_ctx, &transforms_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ngpu_block_desc_add_field(&transforms_block_desc, "modelview_matrix", NGPU_TYPE_MAT4, 0);
+    ngpu_block_desc_add_field(&transforms_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
+    ngli_assert(ngpu_block_desc_get_size(&transforms_block_desc, 0) == sizeof(struct transforms_block));
+
+    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct ngpu_pgcraft_block blocks[] = {
         {
@@ -1262,20 +1254,21 @@ int ngli_hud_init(struct hud *s)
             .instance_name = "",
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_VERT,
-            .block         = &s->transforms_block.block_desc,
+            .block         = &transforms_block_desc,
             .buffer = {
-                .buffer = s->transforms_block.buffer,
-                .size   = ngpu_buffer_get_size(s->transforms_block.buffer),
+                .buffer = staging_buf,
+                .size   = sizeof(struct transforms_block),
             }
         },
     };
 
     struct ngpu_pgcraft_texture textures[] = {
         {
-            .name     = "tex",
-            .type     = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
-            .stage    = NGPU_PROGRAM_STAGE_FRAG,
-            .texture  = s->texture,
+            .name        = "tex",
+            .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
+            .stage       = NGPU_PROGRAM_STAGE_FRAG,
+            .texture     = s->texture,
+            .no_metadata = true,
         },
     };
 
@@ -1311,16 +1304,22 @@ int ngli_hud_init(struct hud *s)
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
-    if (!s->crafter)
-        return NGL_ERROR_MEMORY;
+    if (!s->crafter) {
+        ret = NGL_ERROR_MEMORY;
+        goto done;
+    }
 
     ret = ngpu_pgcraft_craft(s->crafter, &crafter_params);
     if (ret < 0)
-        return ret;
+        goto done;
+
+    s->transforms_block_index = ngpu_pgcraft_get_block_index(s->crafter, "transforms", NGPU_PROGRAM_STAGE_VERT);
 
     s->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!s->pipeline_compat)
-        return NGL_ERROR_MEMORY;
+    if (!s->pipeline_compat) {
+        ret = NGL_ERROR_MEMORY;
+        goto done;
+    }
 
     const struct pipeline_compat_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
@@ -1334,14 +1333,14 @@ int ngli_hud_init(struct hud *s)
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
         .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
         .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
-        .compat_info      = ngpu_pgcraft_get_compat_info(s->crafter),
+        .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
     ret = ngli_pipeline_compat_init(s->pipeline_compat, &params);
-    if (ret < 0)
-        return ret;
 
-    return 0;
+done:
+    ngpu_block_desc_reset(&transforms_block_desc);
+    return ret;
 }
 
 void ngli_hud_draw(struct hud *s)
@@ -1390,12 +1389,15 @@ void ngli_hud_draw(struct hud *s)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    struct transforms_block transforms_block = {0};
     const float *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
-    memcpy(transforms_block.modelview_matrix, modelview_matrix, sizeof(transforms_block.modelview_matrix));
-    memcpy(transforms_block.projection_matrix, projection_matrix, sizeof(transforms_block.projection_matrix));
-    ngpu_block_update(&s->transforms_block, 0, &transforms_block);
+    struct transforms_block transforms_data = {0};
+    memcpy(transforms_data.modelview_matrix, modelview_matrix, sizeof(transforms_data.modelview_matrix));
+    memcpy(transforms_data.projection_matrix, projection_matrix, sizeof(transforms_data.projection_matrix));
+
+    const size_t offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &transforms_data, sizeof(transforms_data));
+    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    ngli_pipeline_compat_update_buffer(s->pipeline_compat, s->transforms_block_index, buffer, offset, sizeof(transforms_data));
 
     ngli_pipeline_compat_draw(s->pipeline_compat, 4, 1, 0);
 }
@@ -1410,8 +1412,6 @@ void ngli_hud_freep(struct hud **sp)
     ngpu_pgcraft_freep(&s->crafter);
     ngpu_texture_freep(&s->texture);
     ngpu_buffer_freep(&s->coords);
-    ngpu_block_reset(&s->transforms_block);
-
     widgets_uninit(s);
     ngli_free(s->canvas.buf);
     if (s->fp_export) {
