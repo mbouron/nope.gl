@@ -638,7 +638,6 @@ const struct node_class ngli_fgblur_class = {
     .id        = NGL_NODE_FASTGAUSSIANBLUR,
     .name      = "FastGaussianBlur",
     .init      = fgblur_init,
-    .prepare   = ngli_node_prepare_children,
     .update    = ngli_node_update_children,
     .pre_draw  = fgblur_pre_draw,
     .release   = fgblur_release,

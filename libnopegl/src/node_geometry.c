@@ -161,7 +161,6 @@ const struct node_class ngli_geometry_class = {
     .id        = NGL_NODE_GEOMETRY,
     .name      = "Geometry",
     .init      = geometry_init,
-    .prepare   = ngli_node_prepare_children,
     .uninit    = geometry_uninit,
     .update    = ngli_node_update_children,
     .opts_size = sizeof(struct geometry_opts),

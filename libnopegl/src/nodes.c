@@ -181,6 +181,7 @@ static void node_uninit(struct ngl_node *node)
     }
     memset(node->priv_data, 0, node->cls->priv_size);
     node->state = NGLI_NODE_STATE_UNINITIALIZED;
+    node->prepared = false;
     node->visit_time = -1.;
 }
 
@@ -257,7 +258,7 @@ int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     if (ret < 0)
         return ret;
 
-    ret = ngli_node_prepare(node);
+    ret = ngli_node_prepare(node, &ctx->default_graphics_state, &ctx->default_rendertarget_layout);
     if (ret < 0)
         return ret;
 
@@ -269,29 +270,41 @@ void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     node_reset_ctx(node, ctx);
 }
 
-int ngli_node_prepare_children(struct ngl_node *node)
+int ngli_node_prepare(struct ngl_node *node,
+                      const struct ngpu_graphics_state *graphics_state,
+                      const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
+    if (node->prepared)
+        return 0;
+    node->prepared = true;
+
+    /* Compute render state for children (may be overridden by this node) */
+    struct ngpu_graphics_state child_graphics_state = *graphics_state;
+    struct ngpu_rendertarget_layout child_rendertarget_layout = *rendertarget_layout;
+    if (node->cls->get_child_render_state) {
+        node->cls->get_child_render_state(node, graphics_state, rendertarget_layout,
+                                          &child_graphics_state, &child_rendertarget_layout);
+    }
+
+    /* Leaf-first: prepare all children before this node */
     struct ngl_node **children = ngli_darray_data(&node->children);
     for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        int ret = ngli_node_prepare(children[i]);
+        int ret = ngli_node_prepare(children[i], &child_graphics_state, &child_rendertarget_layout);
         if (ret < 0)
             return ret;
     }
-    return 0;
-}
 
-int ngli_node_prepare(struct ngl_node *node)
-{
+    /* Prepare this node */
     if (node->cls->prepare) {
         TRACE("PREPARE %s @ %p", node->label, node);
-        int ret = node->cls->prepare(node);
+        int ret = node->cls->prepare(node, graphics_state, rendertarget_layout);
         if (ret < 0) {
             LOG(ERROR, "preparing node %s failed: %s", node->label, NGLI_RET_STR(ret));
             return ret;
         }
-        return 0;
     }
-    return ngli_node_prepare_children(node);
+
+    return 0;
 }
 
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t)

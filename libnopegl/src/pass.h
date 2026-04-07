@@ -30,6 +30,13 @@
 #include "utils/darray.h"
 
 struct ngl_ctx;
+struct pipeline_compat;
+
+struct pipeline_desc {
+    struct pipeline_compat *pipeline_compat;
+    struct darray blocks_map;
+    struct darray textures_map;
+};
 
 struct pass_params {
     const char *label;
@@ -77,11 +84,13 @@ struct pass {
     int32_t normal_matrix_index;
     int32_t resolution_index;
     struct darray uniforms_map;
-    struct darray pipeline_descs;
+    struct pipeline_desc pipeline_desc;
 };
 
 int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params *params);
-int ngli_pass_prepare(struct pass *s);
+int ngli_pass_prepare(struct pass *s,
+                      const struct ngpu_graphics_state *graphics_state,
+                      const struct ngpu_rendertarget_layout *rendertarget_layout);
 void ngli_pass_uninit(struct pass *s);
 int ngli_pass_exec(struct pass *s);
 

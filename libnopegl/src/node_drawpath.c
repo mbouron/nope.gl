@@ -85,7 +85,7 @@ struct drawpath_priv {
     int projection_matrix_index;
     int vertices_index;
     int coords_index;
-    struct darray pipeline_descs;
+    struct pipeline_desc pipeline_desc;
 };
 
 #define OFFSET(x) offsetof(struct drawpath_opts, x)
@@ -161,8 +161,6 @@ static int drawpath_init(struct ngl_node *node)
 {
     struct drawpath_priv *s = node->priv_data;
     const struct drawpath_opts *o = node->opts;
-
-    ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
 
     s->distmap = ngli_distmap_create(node->ctx);
     if (!s->distmap)
@@ -252,6 +250,16 @@ static int drawpath_init(struct ngl_node *node)
         if (!ngli_darray_push(&s->uniforms, &uniforms[i]))
             return NGL_ERROR_MEMORY;
 
+    return 0;
+}
+
+static int drawpath_prepare(struct ngl_node *node,
+                            const struct ngpu_graphics_state *graphics_state,
+                            const struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    struct ngpu_ctx *gpu_ctx = node->ctx->gpu_ctx;
+    struct drawpath_priv *s = node->priv_data;
+
     struct ngpu_texture *texture = ngli_distmap_get_texture(s->distmap);
     const struct ngpu_pgcraft_texture textures[] = {
         {
@@ -281,12 +289,11 @@ static int drawpath_init(struct ngl_node *node)
         .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
     };
 
-    struct ngl_ctx *ctx = node->ctx;
-    s->crafter = ngpu_pgcraft_create(ctx->gpu_ctx);
+    s->crafter = ngpu_pgcraft_create(gpu_ctx);
     if (!s->crafter)
         return NGL_ERROR_MEMORY;
 
-    ret = ngpu_pgcraft_craft(s->crafter, &crafter_params);
+    int ret = ngpu_pgcraft_craft(s->crafter, &crafter_params);
     if (ret < 0)
         return ret;
 
@@ -299,23 +306,10 @@ static int drawpath_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    return 0;
-}
+    struct pipeline_desc *desc = &s->pipeline_desc;
 
-static int drawpath_prepare(struct ngl_node *node)
-{
-    struct ngl_ctx *ctx = node->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct drawpath_priv *s = node->priv_data;
-    struct rnode *rnode = node->ctx->rnode_pos;
-
-    struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
-    rnode->id = ngli_darray_count(&s->pipeline_descs) - 1;
-
-    struct ngpu_graphics_state state = rnode->graphics_state;
-    int ret = ngli_blending_apply_preset(&state, NGLI_BLENDING_SRC_OVER);
+    struct ngpu_graphics_state state = *graphics_state;
+    ret = ngli_blending_apply_preset(&state, NGLI_BLENDING_SRC_OVER);
     if (ret < 0)
         return ret;
 
@@ -328,7 +322,7 @@ static int drawpath_prepare(struct ngl_node *node)
         .graphics = {
             .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
             .state        = state,
-            .rt_layout    = rnode->rendertarget_layout,
+            .rt_layout    = *rendertarget_layout,
             .vertex_state = ngpu_pgcraft_get_vertex_state(s->crafter),
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
@@ -349,8 +343,7 @@ static void drawpath_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct drawpath_priv *s = node->priv_data;
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &s->pipeline_desc;
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
@@ -380,17 +373,12 @@ static void drawpath_draw(struct ngl_node *node)
 static void drawpath_uninit(struct ngl_node *node)
 {
     struct drawpath_priv *s = node->priv_data;
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    for (size_t i = 0; i < ngli_darray_count(&s->pipeline_descs); i++) {
-        struct pipeline_desc *desc = &descs[i];
-        ngli_pipeline_compat_freep(&desc->pipeline_compat);
-    }
+    ngli_pipeline_compat_freep(&s->pipeline_desc.pipeline_compat);
     ngli_darray_reset(&s->uniforms);
     ngli_darray_reset(&s->uniforms_map);
     ngpu_pgcraft_freep(&s->crafter);
     ngli_distmap_freep(&s->distmap);
     ngli_path_freep(&s->path);
-    ngli_darray_reset(&s->pipeline_descs);
 }
 
 const struct node_class ngli_drawpath_class = {

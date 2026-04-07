@@ -164,15 +164,12 @@ static int compute_init(struct ngl_node *node)
     return ngli_pass_init(&s->pass, ctx, &params);
 }
 
-static int compute_prepare(struct ngl_node *node)
+static int compute_prepare(struct ngl_node *node,
+                           const struct ngpu_graphics_state *graphics_state,
+                           const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct compute_priv *s = node->priv_data;
-
-    int ret = ngli_node_prepare_children(node);
-    if (ret < 0)
-        return ret;
-
-    return ngli_pass_prepare(&s->pass);
+    return ngli_pass_prepare(&s->pass, graphics_state, rendertarget_layout);
 }
 
 static void compute_uninit(struct ngl_node *node)

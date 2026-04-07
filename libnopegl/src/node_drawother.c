@@ -125,7 +125,7 @@ struct draw_common {
     enum ngpu_primitive_topology topology;
     struct geometry *geometry;
     int own_geometry;
-    struct darray pipeline_descs;
+    struct pipeline_desc pipeline_desc;
     struct darray uniforms; // struct ngpu_pgcraft_uniform
     struct ngpu_pgcraft *crafter;
     int32_t modelview_matrix_index;
@@ -566,9 +566,8 @@ static void draw_indexed(struct draw_common *s, struct pipeline_compat *pl_compa
                                       (uint32_t)s->geometry->indices_layout.count, 1);
 }
 
-static void reset_pipeline_desc(void *user_arg, void *data)
+static void reset_pipeline_desc(struct pipeline_desc *desc)
 {
-    struct pipeline_desc *desc = data;
     ngli_pipeline_compat_freep(&desc->pipeline_compat);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
@@ -581,9 +580,6 @@ static int init(struct ngl_node *node,
 {
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-
-    ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
-    ngli_darray_set_free_func(&s->pipeline_descs, reset_pipeline_desc, NULL);
 
     snprintf(s->position_attr.name, sizeof(s->position_attr.name), "position");
     s->position_attr.type   = NGPU_TYPE_VEC3;
@@ -1244,22 +1240,11 @@ static int drawwaveform_init(struct ngl_node *node)
     return 0;
 }
 
-static struct pipeline_desc *create_pipeline_desc(struct ngl_node *node)
+static void init_pipeline_desc_fields(struct pipeline_desc *desc)
 {
-    struct drawwaveform_priv *s = node->priv_data;
-    struct rnode *rnode = node->ctx->rnode_pos;
-
-    struct pipeline_desc *desc = ngli_darray_push(&s->common.pipeline_descs, NULL);
-    if (!desc)
-        return NULL;
-
-    rnode->id = ngli_darray_count(&s->common.pipeline_descs) - 1;
-
     ngli_darray_init(&desc->blocks_map, sizeof(struct resource_map), 0);
     ngli_darray_init(&desc->textures_map, sizeof(struct texture_map), 0);
     ngli_darray_init(&desc->reframing_nodes, sizeof(struct ngl_node *), 0);
-
-    return desc;
 }
 
 static int build_texture_map(struct draw_common *draw_common, struct pipeline_desc *desc)
@@ -1274,14 +1259,15 @@ static int build_texture_map(struct draw_common *draw_common, struct pipeline_de
     return 0;
 }
 
-static int init_pipeline_desc(struct ngl_node *node, struct pipeline_desc *desc, enum ngli_blending blending)
+static int init_pipeline_desc(struct ngl_node *node, struct pipeline_desc *desc, enum ngli_blending blending,
+                              const struct ngpu_graphics_state *graphics_state,
+                              const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct rnode *rnode = ctx->rnode_pos;
     struct draw_common *s = node->priv_data;
 
-    struct ngpu_graphics_state state = rnode->graphics_state;
+    struct ngpu_graphics_state state = *graphics_state;
     int ret = ngli_blending_apply_preset(&state, blending);
     if (ret < 0)
         return ret;
@@ -1295,7 +1281,7 @@ static int init_pipeline_desc(struct ngl_node *node, struct pipeline_desc *desc,
         .graphics = {
             .topology     = s->topology,
             .state        = state,
-            .rt_layout    = rnode->rendertarget_layout,
+            .rt_layout    = *rendertarget_layout,
             .vertex_state = ngpu_pgcraft_get_vertex_state(s->crafter),
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
@@ -1304,10 +1290,6 @@ static int init_pipeline_desc(struct ngl_node *node, struct pipeline_desc *desc,
         .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .compat_info      = ngpu_pgcraft_get_compat_info(s->crafter),
     };
-
-    ret = ngli_node_prepare_children(node);
-    if (ret < 0)
-        return ret;
 
     ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
     if (ret < 0)
@@ -1320,26 +1302,30 @@ static int init_pipeline_desc(struct ngl_node *node, struct pipeline_desc *desc,
     return 0;
 }
 
-static int drawcolor_prepare(struct ngl_node *node)
+static int drawcolor_prepare(struct ngl_node *node,
+                             const struct ngpu_graphics_state *graphics_state,
+                             const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
+    struct drawcolor_priv *s = node->priv_data;
     const struct drawcolor_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    return init_pipeline_desc(node, desc, o->common.blending);
+    return init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
 }
 
-static int drawdisplace_prepare(struct ngl_node *node)
+static int drawdisplace_prepare(struct ngl_node *node,
+                                const struct ngpu_graphics_state *graphics_state,
+                                const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
+    struct drawdisplace_priv *s = node->priv_data;
     const struct drawdisplace_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    int ret = init_pipeline_desc(node, desc, o->common.blending);
+    int ret = init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
     if (ret < 0)
         return ret;
 
@@ -1350,38 +1336,43 @@ static int drawdisplace_prepare(struct ngl_node *node)
     return 0;
 }
 
-static int drawgradient_prepare(struct ngl_node *node)
+static int drawgradient_prepare(struct ngl_node *node,
+                                const struct ngpu_graphics_state *graphics_state,
+                                const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
+    struct drawgradient_priv *s = node->priv_data;
     const struct drawgradient_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    return init_pipeline_desc(node, desc, o->common.blending);
+    return init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
 }
 
-static int drawgradient4_prepare(struct ngl_node *node)
+static int drawgradient4_prepare(struct ngl_node *node,
+                                 const struct ngpu_graphics_state *graphics_state,
+                                 const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
+    struct drawgradient4_priv *s = node->priv_data;
     const struct drawgradient4_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    return init_pipeline_desc(node, desc, o->common.blending);
+    return init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
 }
 
-static int drawhistogram_prepare(struct ngl_node *node)
+static int drawhistogram_prepare(struct ngl_node *node,
+                                 const struct ngpu_graphics_state *graphics_state,
+                                 const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct drawhistogram_priv *s = node->priv_data;
     const struct drawhistogram_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    int ret = init_pipeline_desc(node, desc, o->common.blending);
+    int ret = init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
     if (ret < 0)
         return ret;
 
@@ -1394,19 +1385,20 @@ static int drawhistogram_prepare(struct ngl_node *node)
     return 0;
 }
 
-static int drawmask_prepare(struct ngl_node *node)
+static int drawmask_prepare(struct ngl_node *node,
+                            const struct ngpu_graphics_state *graphics_state,
+                            const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
+    struct drawmask_priv *s = node->priv_data;
     const struct drawmask_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    int ret = init_pipeline_desc(node, desc, o->common.blending);
+    int ret = init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
     if (ret < 0)
         return ret;
 
-    ngli_darray_init(&desc->reframing_nodes, sizeof(struct ngl_node *), 0);
     if (!ngli_darray_push(&desc->reframing_nodes, &o->content) ||
         !ngli_darray_push(&desc->reframing_nodes, &o->mask))
         return NGL_ERROR_MEMORY;
@@ -1414,26 +1406,30 @@ static int drawmask_prepare(struct ngl_node *node)
     return 0;
 }
 
-static int drawnoise_prepare(struct ngl_node *node)
+static int drawnoise_prepare(struct ngl_node *node,
+                             const struct ngpu_graphics_state *graphics_state,
+                             const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
+    struct drawnoise_priv *s = node->priv_data;
     const struct drawnoise_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    return init_pipeline_desc(node, desc, o->common.blending);
+    return init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
 }
 
-static int drawtexture_prepare(struct ngl_node *node)
+static int drawtexture_prepare(struct ngl_node *node,
+                               const struct ngpu_graphics_state *graphics_state,
+                               const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
+    struct drawtexture_priv *s = node->priv_data;
     const struct drawtexture_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    int ret = init_pipeline_desc(node, desc, o->common.blending);
+    int ret = init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
     if (ret < 0)
         return ret;
 
@@ -1443,16 +1439,17 @@ static int drawtexture_prepare(struct ngl_node *node)
     return 0;
 }
 
-static int drawwaveform_prepare(struct ngl_node *node)
+static int drawwaveform_prepare(struct ngl_node *node,
+                                const struct ngpu_graphics_state *graphics_state,
+                                const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct drawwaveform_priv *s = node->priv_data;
     const struct drawwaveform_opts *o = node->opts;
 
-    struct pipeline_desc *desc = create_pipeline_desc(node);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
+    struct pipeline_desc *desc = &s->common.pipeline_desc;
+    init_pipeline_desc_fields(desc);
 
-    int ret = init_pipeline_desc(node, desc, o->common.blending);
+    int ret = init_pipeline_desc(node, desc, o->common.blending, graphics_state, rendertarget_layout);
     if (ret < 0)
         return ret;
 
@@ -1470,8 +1467,7 @@ static void drawother_draw(struct ngl_node *node, struct draw_common *s, const s
     ngli_node_draw_children(node);
 
     struct ngl_ctx *ctx = node->ctx;
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &s->pipeline_desc;
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
     const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
@@ -1525,7 +1521,7 @@ static void drawother_draw(struct ngl_node *node, struct draw_common *s, const s
 
 static void drawother_uninit(struct ngl_node *node, struct draw_common *s)
 {
-    ngli_darray_reset(&s->pipeline_descs);
+    reset_pipeline_desc(&s->pipeline_desc);
     ngpu_pgcraft_freep(&s->crafter);
     ngli_darray_reset(&s->uniforms);
     ngli_darray_reset(&s->uniforms_map);

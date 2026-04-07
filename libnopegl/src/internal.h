@@ -45,7 +45,6 @@
 #include "slug.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
-#include "rnode.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/job_queue.h"
@@ -85,8 +84,8 @@ struct ngl_ctx {
 
     /* Worker-only fields */
     struct ngpu_ctx *gpu_ctx;
-    struct rnode rnode;
-    struct rnode *rnode_pos;
+    struct ngpu_graphics_state default_graphics_state;
+    struct ngpu_rendertarget_layout default_rendertarget_layout;
     struct ngl_scene *scene;
     struct ngl_config config;
     struct ngl_backend backend;
@@ -169,6 +168,7 @@ struct ngl_node {
     void *opts;
 
     enum node_state state;
+    bool prepared;
     bool is_active;
 
     bool force_release_prefetch;
@@ -271,21 +271,28 @@ struct node_class {
     int (*init)(struct ngl_node *node);
 
     /*
-     * Handle render paths (for diamond shape in particular)
+     * Prepare the node rendering resources.
      *
-     * If the node splits the tree in branches (such as Group) that can end up
-     * with a render-based node in the leaves, it must create a new
-     * rnode per branch and forward the call in each branch.
-     *
-     * If the node is a pipeline based node, it has to configure in the
-     * callback each pipeline using ctx->rnode_pos.
-     *
-     * reentrant: yes (there is a different rnode per path)
-     * execution-order: loose
-     * dispatch: delegated
+     * reentrant: no
+     * execution-order: leaf first
+     * dispatch: managed
      * when: called during set_scene() / internal node_set_ctx() (after init)
      */
-    int (*prepare)(struct ngl_node *node);
+    int (*prepare)(struct ngl_node *node,
+                   const struct ngpu_graphics_state *graphics_state,
+                   const struct ngpu_rendertarget_layout *rendertarget_layout);
+
+    /*
+     * Override the render state passed to children during prepare.
+     *
+     * Useful for nodes that change the graphics state or rendertarget layout
+     * of their subtree (GraphicConfig, RenderToTexture, Texture2D).
+     */
+    void (*get_child_render_state)(const struct ngl_node *node,
+                                   const struct ngpu_graphics_state *graphics_state,
+                                   const struct ngpu_rendertarget_layout *rendertarget_layout,
+                                   struct ngpu_graphics_state *child_graphics_state,
+                                   struct ngpu_rendertarget_layout *child_rendertarget_layout);
 
 
     /*******************************
@@ -422,8 +429,9 @@ char *ngli_scene_serialize(const struct ngl_scene *s);
 char *ngli_scene_dot(const struct ngl_scene *s);
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par);
 
-int ngli_node_prepare(struct ngl_node *node);
-int ngli_node_prepare_children(struct ngl_node *node);
+int ngli_node_prepare(struct ngl_node *node,
+                      const struct ngpu_graphics_state *graphics_state,
+                      const struct ngpu_rendertarget_layout *rendertarget_layout);
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t);
 int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t);
 int ngli_node_update(struct ngl_node *node, double t);

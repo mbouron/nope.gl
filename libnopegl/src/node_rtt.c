@@ -251,14 +251,15 @@ void ngli_node_get_renderpass_info(const struct ngl_node *node, struct renderpas
     get_renderpass_info(node, RENDER_PASS_STATE_NONE, info);
 }
 
-static int rtt_prepare(struct ngl_node *node)
+static void rtt_get_child_render_state(const struct ngl_node *node,
+                                       const struct ngpu_graphics_state *graphics_state,
+                                       const struct ngpu_rendertarget_layout *rendertarget_layout,
+                                       struct ngpu_graphics_state *child_graphics_state,
+                                       struct ngpu_rendertarget_layout *child_rendertarget_layout)
 {
-    struct ngl_ctx *ctx = node->ctx;
-    struct rnode *rnode = ctx->rnode_pos;
-    struct rtt_priv *s = node->priv_data;
-
-    rnode->rendertarget_layout = s->layout;
-    return ngli_node_prepare_children(node);
+    const struct rtt_priv *s = node->priv_data;
+    *child_graphics_state = *graphics_state;
+    *child_rendertarget_layout = s->layout;
 }
 
 static int rtt_prefetch(struct ngl_node *node)
@@ -489,7 +490,7 @@ const struct node_class ngli_rtt_class = {
     .id        = NGL_NODE_RENDERTOTEXTURE,
     .name      = "RenderToTexture",
     .init      = rtt_init,
-    .prepare   = rtt_prepare,
+    .get_child_render_state = rtt_get_child_render_state,
     .prefetch  = rtt_prefetch,
     .update    = ngli_node_update_children,
     .pre_draw  = rtt_pre_draw,

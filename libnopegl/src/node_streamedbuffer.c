@@ -219,22 +219,21 @@ static int streamedbuffer_init(struct ngl_node *node)
     return 0;
 }
 
-static int streamedbuffer_prepare(struct ngl_node *node)
+static int streamedbuffer_prepare(struct ngl_node *node,
+                                   const struct ngpu_graphics_state *graphics_state,
+                                   const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct streamedbuffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
 
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
-        return ngli_node_prepare_children(node);
-
-    if (ngpu_buffer_get_size(info->buffer))
         return 0;
 
     int ret = ngpu_buffer_init(info->buffer, info->data_size, info->usage);
     if (ret < 0)
         return ret;
 
-    return ngli_node_prepare_children(node);
+    return 0;
 }
 
 static void streamedbuffer_uninit(struct ngl_node *node)
