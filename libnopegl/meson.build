@@ -246,7 +246,6 @@ lib_src = files(
   'src/pipeline_compat.c',
   'src/precision.c',
   'src/rtt.c',
-  'src/rnode.c',
   'src/scene.c',
   'src/serialize.c',
   'src/slug.c',

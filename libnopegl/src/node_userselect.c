@@ -64,34 +64,6 @@ static const struct node_param userselect_params[] = {
     {NULL}
 };
 
-/*
- * This is similar to what's being done in the Group node: even if they are
- * updated and drawn exclusively, each branch may still have its own specific
- * rendering / graphics configuration, so we need to create a render path for
- * each of them.
- */
-static int userselect_prepare(struct ngl_node *node)
-{
-    struct ngl_ctx *ctx = node->ctx;
-    const struct userselect_opts *o = node->opts;
-
-    int ret = 0;
-    struct rnode *rnode_pos = ctx->rnode_pos;
-    for (size_t i = 0; i < o->nb_branches; i++) {
-        struct rnode *rnode = ngli_rnode_add_child(rnode_pos);
-        if (!rnode)
-            return NGL_ERROR_MEMORY;
-        ctx->rnode_pos = rnode;
-
-        ret = ngli_node_prepare(o->branches[i]);
-        if (ret < 0)
-            break;
-    }
-
-    ctx->rnode_pos = rnode_pos;
-    return ret;
-}
-
 static int userselect_visit(struct ngl_node *node, bool is_active, double t)
 {
     const struct userselect_opts *o = node->opts;
@@ -118,38 +90,27 @@ static int userselect_update(struct ngl_node *node, double t)
 
 static void userselect_pre_draw(struct ngl_node *node)
 {
-    struct ngl_ctx *ctx = node->ctx;
     const struct userselect_opts *o = node->opts;
 
     const int branch_id = o->live.val.i[0];
     if (branch_id < 0 || branch_id >= o->nb_branches)
         return;
-    struct rnode *rnode_pos = ctx->rnode_pos;
-    struct rnode *rnodes = ngli_darray_data(&rnode_pos->children);
-    ctx->rnode_pos = &rnodes[branch_id];
     ngli_node_pre_draw(o->branches[branch_id]);
-    ctx->rnode_pos = rnode_pos;
 }
 
 static void userselect_draw(struct ngl_node *node)
 {
-    struct ngl_ctx *ctx = node->ctx;
     const struct userselect_opts *o = node->opts;
 
     const int branch_id = o->live.val.i[0];
     if (branch_id < 0 || branch_id >= o->nb_branches)
         return;
-    struct rnode *rnode_pos = ctx->rnode_pos;
-    struct rnode *rnodes = ngli_darray_data(&rnode_pos->children);
-    ctx->rnode_pos = &rnodes[branch_id];
     ngli_node_draw(o->branches[branch_id]);
-    ctx->rnode_pos = rnode_pos;
 }
 
 const struct node_class ngli_userselect_class = {
     .id             = NGL_NODE_USERSELECT,
     .name           = "UserSelect",
-    .prepare        = userselect_prepare,
     .visit          = userselect_visit,
     .update         = userselect_update,
     .pre_draw       = userselect_pre_draw,

@@ -297,14 +297,15 @@ static int graphicconfig_init(struct ngl_node *node)
     return 0;
 }
 
-static int graphicconfig_prepare(struct ngl_node *node)
+static void graphicconfig_get_child_render_state(const struct ngl_node *node,
+                                                 const struct ngpu_graphics_state *graphics_state,
+                                                 const struct ngpu_rendertarget_layout *rendertarget_layout,
+                                                 struct ngpu_graphics_state *child_graphics_state,
+                                                 struct ngpu_rendertarget_layout *child_rendertarget_layout)
 {
-    const struct graphicconfig_opts *o = node->opts;
-
-    struct rnode *rnode = node->ctx->rnode_pos;
-    ngli_node_graphicconfig_get_state(node, &rnode->graphics_state);
-
-    return ngli_node_prepare(o->child);
+    *child_graphics_state = *graphics_state;
+    ngli_node_graphicconfig_get_state(node, child_graphics_state);
+    *child_rendertarget_layout = *rendertarget_layout;
 }
 
 static void graphicconfig_draw(struct ngl_node *node)
@@ -329,7 +330,7 @@ const struct node_class ngli_graphicconfig_class = {
     .id        = NGL_NODE_GRAPHICCONFIG,
     .name      = "GraphicConfig",
     .init      = graphicconfig_init,
-    .prepare   = graphicconfig_prepare,
+    .get_child_render_state = graphicconfig_get_child_render_state,
     .update    = ngli_node_update_children,
     .pre_draw  = ngli_node_pre_draw_children,
     .draw      = graphicconfig_draw,

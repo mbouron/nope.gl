@@ -81,7 +81,9 @@ static int customtexture_prefetch(struct ngl_node *node)
     return 0;
 }
 
-static int customtexture_prepare(struct ngl_node *node)
+static int customtexture_prepare(struct ngl_node *node,
+                                 const struct ngpu_graphics_state *graphics_state,
+                                 const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     const struct customtexture_opts *o = node->opts;
     const struct ngl_node_funcs *funcs = &o->funcs;

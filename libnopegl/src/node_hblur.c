@@ -648,7 +648,6 @@ const struct node_class ngli_hblur_class = {
     .id        = NGL_NODE_HEXAGONALBLUR,
     .name      = "HexagonalBlur",
     .init      = hblur_init,
-    .prepare   = ngli_node_prepare_children,
     .update    = ngli_node_update_children,
     .pre_draw  = hblur_pre_draw,
     .release   = hblur_release,

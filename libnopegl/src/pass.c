@@ -62,12 +62,6 @@ struct texture_map {
     size_t image_rev;
 };
 
-struct pipeline_desc {
-    struct pipeline_compat *pipeline_compat;
-    struct darray blocks_map;
-    struct darray textures_map;
-};
-
 static int register_uniform(struct pass *s, const char *name, struct ngl_node *uniform, enum ngpu_program_stage stage)
 {
     struct ngpu_pgcraft_uniform crafter_uniform = {.stage = stage};
@@ -466,32 +460,30 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
     return 0;
 }
 
-int ngli_pass_prepare(struct pass *s)
+int ngli_pass_prepare(struct pass *s,
+                      const struct ngpu_graphics_state *graphics_state,
+                      const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct ngl_ctx *ctx = s->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    struct rnode *rnode = ctx->rnode_pos;
 
-    const enum ngpu_format format = rnode->rendertarget_layout.depth_stencil.format;
-    if (rnode->graphics_state.depth_test && !ngpu_format_has_depth(format)) {
+    const enum ngpu_format format = rendertarget_layout->depth_stencil.format;
+    if (graphics_state->depth_test && !ngpu_format_has_depth(format)) {
         LOG(ERROR, "depth testing is not supported on rendertargets with no depth attachment");
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    if (rnode->graphics_state.stencil_test && !ngpu_format_has_stencil(format)) {
+    if (graphics_state->stencil_test && !ngpu_format_has_stencil(format)) {
         LOG(ERROR, "stencil operations are not supported on rendertargets with no stencil attachment");
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    struct ngpu_graphics_state state = rnode->graphics_state;
+    struct ngpu_graphics_state state = *graphics_state;
     int ret = ngli_blending_apply_preset(&state, s->params.blending);
     if (ret < 0)
         return ret;
 
-    struct pipeline_desc *desc = ngli_darray_push(&s->pipeline_descs, NULL);
-    if (!desc)
-        return NGL_ERROR_MEMORY;
-    ctx->rnode_pos->id = ngli_darray_count(&s->pipeline_descs) - 1;
+    struct pipeline_desc *desc = &s->pipeline_desc;
 
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)
@@ -502,7 +494,7 @@ int ngli_pass_prepare(struct pass *s)
         .graphics = {
             .topology     = s->topology,
             .state        = state,
-            .rt_layout    = rnode->rendertarget_layout,
+            .rt_layout    = *rendertarget_layout,
             .vertex_state = ngpu_pgcraft_get_vertex_state(s->crafter),
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
@@ -539,7 +531,6 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
     ngli_darray_init(&s->crafter_textures, sizeof(struct ngpu_pgcraft_texture), 0);
     ngli_darray_init(&s->crafter_uniforms, sizeof(struct ngpu_pgcraft_uniform), 0);
     ngli_darray_init(&s->crafter_blocks, sizeof(struct ngpu_pgcraft_block), 0);
-    ngli_darray_init(&s->pipeline_descs, sizeof(struct pipeline_desc), 0);
 
     int ret = register_builtin_uniforms(s);
     if (ret < 0)
@@ -594,14 +585,10 @@ void ngli_pass_uninit(struct pass *s)
     if (!s->ctx)
         return;
 
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    for (size_t i = 0; i < ngli_darray_count(&s->pipeline_descs); i++) {
-        struct pipeline_desc *desc = &descs[i];
-        ngli_pipeline_compat_freep(&desc->pipeline_compat);
-        ngli_darray_reset(&desc->blocks_map);
-        ngli_darray_reset(&desc->textures_map);
-    }
-    ngli_darray_reset(&s->pipeline_descs);
+    struct pipeline_desc *desc = &s->pipeline_desc;
+    ngli_pipeline_compat_freep(&desc->pipeline_compat);
+    ngli_darray_reset(&desc->blocks_map);
+    ngli_darray_reset(&desc->textures_map);
 
     ngpu_pgcraft_freep(&s->crafter);
     ngli_darray_reset(&s->uniforms_map);
@@ -617,8 +604,7 @@ int ngli_pass_exec(struct pass *s)
 {
     struct ngl_ctx *ctx = s->ctx;
     const struct pass_params *params = &s->params;
-    struct pipeline_desc *descs = ngli_darray_data(&s->pipeline_descs);
-    struct pipeline_desc *desc = &descs[ctx->rnode_pos->id];
+    struct pipeline_desc *desc = &s->pipeline_desc;
     struct pipeline_compat *pipeline_compat = desc->pipeline_compat;
 
     const float *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
