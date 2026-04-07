@@ -38,6 +38,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `CustomTexture` node which allows implementing custom rendering logic
 - Android binding and viewer
 - Automatic color conversions from one set of primaries to another
+- DrawRect node
+- AffineTransform node
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges
@@ -86,6 +88,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `nopegl/nopegl_android.h`, `nopegl/nopegl_opengl.h`
 - Android-specific APIs are now only available on Android
 - `scene_params.aspect_ratio` -> `scene_params.{width,height}`
+- Texture reframing is now done through a separate parameter
 
 ### Removed
 - `Text.aspect_ratio` and `DrawPath.aspect_ratio`, they now match the scene
@@ -93,6 +96,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `GraphicConfig.scissor_test` parameter
 - Support for Android < 9.0
 - The `small` build option (enabled by default now)
+- Chained transforms
 
 ## [2024.0 / libnopegl 0.11.0][2024.0] - 2024-02-02
 ### Added

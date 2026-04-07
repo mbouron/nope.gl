@@ -273,8 +273,8 @@ def _compute_animation(cfg: ngl.SceneCfg, animate_pre_draw=True):
     output_block = ngl.Block(fields=[output_padding, output_vertices], layout="std140")
 
     rotate_animkf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(cfg.duration, 360)]
-    rotate = ngl.Rotate(ngl.Identity(), axis=(0, 0, 1), angle=ngl.AnimatedFloat(rotate_animkf))
-    transform = ngl.UniformMat4(transform=rotate)
+    trf = ngl.AffineTransform(rotate_angle=ngl.AnimatedFloat(rotate_animkf), rotate_axis=(0, 0, 1))
+    transform = ngl.UniformMat4(transform=trf)
 
     program = ngl.ComputeProgram(_ANIMATION_COMPUTE, workgroup_size=(local_size, local_size, 1))
     program.update_properties(dst=ngl.ResourceProps(writable=True))

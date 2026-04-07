@@ -20,12 +20,14 @@ def animated_uniform(cfg: ngl.SceneCfg):
         ngl.AnimKeyFrameVec3(0, (1, 1, 1)),
         ngl.AnimKeyFrameVec3(cfg.duration, (0.1, 0.1, 0.1), "quartic_out"),
     ]
-    s = ngl.Scale(ngl.Identity(), factors=ngl.AnimatedVec3(scale_animkf))
-
     rotate_animkf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(cfg.duration, 360, "exp_out")]
-    r = ngl.Rotate(s, axis=(0, 0, 1), angle=ngl.AnimatedFloat(rotate_animkf))
+    trf = ngl.AffineTransform(
+        scale_factors=ngl.AnimatedVec3(scale_animkf),
+        rotate_angle=ngl.AnimatedFloat(rotate_animkf),
+        rotate_axis=(0, 0, 1),
+    )
 
-    u = ngl.UniformMat4(transform=r)
+    u = ngl.UniformMat4(transform=trf)
     ts.update_frag_resources(matrix=u)
 
     return ts
@@ -63,13 +65,17 @@ def animated_camera(cfg: ngl.SceneCfg, rotate=True):
     camera.set_clipping(0.1, 10.0)
 
     tr_animkf = [ngl.AnimKeyFrameVec3(0, (0.0, 0.0, 0.0)), ngl.AnimKeyFrameVec3(10, (0.0, 0.0, 3.0), "exp_out")]
-    node = ngl.Translate(ngl.Identity(), vector=ngl.AnimatedVec3(tr_animkf))
-
     if rotate:
         rot_animkf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(cfg.duration, 360, "exp_out")]
-        node = ngl.Rotate(node, axis=(0, 1, 0), angle=ngl.AnimatedFloat(rot_animkf))
+        eye_transform = ngl.AffineTransform(
+            translate=ngl.AnimatedVec3(tr_animkf),
+            rotate_angle=ngl.AnimatedFloat(rot_animkf),
+            rotate_axis=(0, 1, 0),
+        )
+    else:
+        eye_transform = ngl.AffineTransform(translate=ngl.AnimatedVec3(tr_animkf))
 
-    camera.set_eye_transform(node)
+    camera.set_eye_transform(eye_transform)
 
     perspective_animkf = [
         ngl.AnimKeyFrameVec2(0.5, (60.0, cfg.aspect_ratio_float)),

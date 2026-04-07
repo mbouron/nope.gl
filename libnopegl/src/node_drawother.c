@@ -36,7 +36,7 @@
 #include "node_uniform.h"
 #include "pipeline_compat.h"
 #include <ngpu/ngpu.h>
-#include "transforms.h"
+#include "node_transform.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -149,6 +149,8 @@ struct drawcolor_priv {
 struct drawdisplace_opts {
     struct ngl_node *source_node;
     struct ngl_node *displacement_node;
+    struct ngl_node *source_reframing;
+    struct ngl_node *displacement_reframing;
     struct draw_common_opts common;
 };
 
@@ -218,6 +220,8 @@ struct drawhistogram_priv {
 struct drawmask_opts {
     struct ngl_node *content;
     struct ngl_node *mask;
+    struct ngl_node *content_reframing;
+    struct ngl_node *mask_reframing;
     int inverted;
     struct draw_common_opts common;
 };
@@ -228,6 +232,7 @@ struct drawmask_priv {
 
 struct drawtexture_opts {
     struct ngl_node *texture_node;
+    struct ngl_node *reframing;
     int wrap;
     struct draw_common_opts common;
 };
@@ -295,13 +300,19 @@ static const struct node_param drawcolor_params[] = {
 #define OFFSET(x) offsetof(struct drawdisplace_opts, x)
 static const struct node_param drawdisplace_params[] = {
     {"source",       NGLI_PARAM_TYPE_NODE, OFFSET(source_node),
-                     .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
+                     .node_types=(const uint32_t[]){NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
                      .flags=NGLI_PARAM_FLAG_NON_NULL,
                      .desc=NGLI_DOCSTRING("source texture to displace")},
     {"displacement", NGLI_PARAM_TYPE_NODE, OFFSET(displacement_node),
-                     .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
+                     .node_types=(const uint32_t[]){NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
                      .flags=NGLI_PARAM_FLAG_NON_NULL,
                      .desc=NGLI_DOCSTRING("displacement vectors stored in a texture")},
+    {"source_reframing", NGLI_PARAM_TYPE_NODE, OFFSET(source_reframing),
+                     .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                     .desc=NGLI_DOCSTRING("source texture reframing transformation")},
+    {"displacement_reframing", NGLI_PARAM_TYPE_NODE, OFFSET(displacement_reframing),
+                     .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                     .desc=NGLI_DOCSTRING("displacement texture reframing transformation")},
     COMMON_PARAMS
     {NULL}
 };
@@ -418,12 +429,18 @@ static const struct node_param drawhistogram_params[] = {
 static const struct node_param drawmask_params[] = {
     {"content",   NGLI_PARAM_TYPE_NODE, OFFSET(content),
                  .flags=NGLI_PARAM_FLAG_NON_NULL,
-                 .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
+                 .node_types=(const uint32_t[]){NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
                  .desc=NGLI_DOCSTRING("content texture being masked")},
     {"mask",      NGLI_PARAM_TYPE_NODE, OFFSET(mask),
                  .flags=NGLI_PARAM_FLAG_NON_NULL,
-                 .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
+                 .node_types=(const uint32_t[]){NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
                  .desc=NGLI_DOCSTRING("texture serving as mask (only the red channel is used)")},
+    {"content_reframing", NGLI_PARAM_TYPE_NODE, OFFSET(content_reframing),
+                 .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                 .desc=NGLI_DOCSTRING("content texture reframing transformation")},
+    {"mask_reframing", NGLI_PARAM_TYPE_NODE, OFFSET(mask_reframing),
+                 .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                 .desc=NGLI_DOCSTRING("mask texture reframing transformation")},
     {"inverted",  NGLI_PARAM_TYPE_BOOL, OFFSET(inverted),
                  .desc=NGLI_DOCSTRING("whether to dig into or keep")},
     COMMON_PARAMS
@@ -488,9 +505,12 @@ const struct param_choices texture_wrap_choices = {
 #define OFFSET(x) offsetof(struct drawtexture_opts, x)
 static const struct node_param drawtexture_params[] = {
     {"texture",  NGLI_PARAM_TYPE_NODE, OFFSET(texture_node),
-                 .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGL_NODE_CUSTOMTEXTURE, NGLI_NODE_NONE},
+                 .node_types=(const uint32_t[]){NGL_NODE_TEXTURE2D, NGL_NODE_CUSTOMTEXTURE, NGLI_NODE_NONE},
                  .flags=NGLI_PARAM_FLAG_NON_NULL,
                  .desc=NGLI_DOCSTRING("texture to render")},
+    {"reframing", NGLI_PARAM_TYPE_NODE, OFFSET(reframing),
+                 .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                 .desc=NGLI_DOCSTRING("texture reframing transformation")},
     {"wrap",     NGLI_PARAM_TYPE_SELECT, OFFSET(wrap),
                  .choices=&texture_wrap_choices,
                  .desc=NGLI_DOCSTRING("texture wrap behaviour")},
@@ -775,18 +795,6 @@ static int drawdisplace_init(struct ngl_node *node)
     struct drawdisplace_priv *s = node->priv_data;
     const struct drawdisplace_opts *o = node->opts;
 
-    const struct ngl_node *source_node = ngli_transform_get_leaf_node(o->source_node);
-    if (!source_node) {
-        LOG(ERROR, "no source texture found at the end of the transform chain");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    const struct ngl_node *displacement_node = ngli_transform_get_leaf_node(o->displacement_node);
-    if (!displacement_node) {
-        LOG(ERROR, "no source texture found at the end of the transform chain");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
     int ret = init(node, &s->common, &o->common, "source_displace", source_displace_frag);
     if (ret < 0)
         return ret;
@@ -1002,18 +1010,6 @@ static int drawmask_init(struct ngl_node *node)
     struct drawmask_priv *s = node->priv_data;
     const struct drawmask_opts *o = node->opts;
 
-    const struct ngl_node *content = ngli_transform_get_leaf_node(o->content);
-    if (!content) {
-        LOG(ERROR, "no content texture found at the end of the transform chain");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    const struct ngl_node *mask = ngli_transform_get_leaf_node(o->mask);
-    if (!mask) {
-        LOG(ERROR, "no mask texture found at the end of the transform chain");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
     int ret = init(node, &s->common, &o->common, "source_mask", source_mask_frag);
     if (ret < 0)
         return ret;
@@ -1133,12 +1129,7 @@ static int drawtexture_init(struct ngl_node *node)
     struct drawtexture_priv *s = node->priv_data;
     const struct drawtexture_opts *o = node->opts;
 
-    const struct ngl_node *texture_node = ngli_transform_get_leaf_node(o->texture_node);
-    if (!texture_node) {
-        LOG(ERROR, "no texture found at the end of the transform chain");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
+    const struct ngl_node *texture_node = o->texture_node;
     const char *base_frag = o->wrap == TEXTURE_WRAP_DISCARD ? source_texture_discard_frag : source_texture_frag;
     int ret = init(node, &s->common, &o->common, "source_texture", base_frag);
     if (ret < 0)
@@ -1343,8 +1334,8 @@ static int drawdisplace_prepare(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    if (!ngli_darray_push(&desc->reframing_nodes, &o->source_node) ||
-        !ngli_darray_push(&desc->reframing_nodes, &o->displacement_node))
+    if (!ngli_darray_push(&desc->reframing_nodes, &o->source_reframing) ||
+        !ngli_darray_push(&desc->reframing_nodes, &o->displacement_reframing))
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -1407,8 +1398,8 @@ static int drawmask_prepare(struct ngl_node *node)
         return ret;
 
     ngli_darray_init(&desc->reframing_nodes, sizeof(struct ngl_node *), 0);
-    if (!ngli_darray_push(&desc->reframing_nodes, &o->content) ||
-        !ngli_darray_push(&desc->reframing_nodes, &o->mask))
+    if (!ngli_darray_push(&desc->reframing_nodes, &o->content_reframing) ||
+        !ngli_darray_push(&desc->reframing_nodes, &o->mask_reframing))
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -1437,7 +1428,7 @@ static int drawtexture_prepare(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    if (!ngli_darray_push(&desc->reframing_nodes, &o->texture_node))
+    if (!ngli_darray_push(&desc->reframing_nodes, &o->reframing))
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -1497,9 +1488,11 @@ static void drawother_draw(struct ngl_node *node, struct draw_common *s, const s
             texture_map[i].image_rev = texture_map[i].image->rev;
         }
 
-        NGLI_ALIGNED_MAT(reframing_matrix);
-        ngli_transform_chain_compute(reframing_nodes[i], reframing_matrix);
-        ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, reframing_matrix);
+        const struct ngl_node *reframing_node = reframing_nodes[i];
+        if (reframing_node) {
+            const struct transform *trf = reframing_node->priv_data;
+            ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, trf->matrix);
+        }
     }
 
     struct resource_map *resource_map = ngli_darray_data(&desc->blocks_map);

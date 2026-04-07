@@ -432,6 +432,88 @@
         "desc": "same as `colorholes` but non-selected colors become `(1,1,1,1)`"
       }
     ],
+    "fill_scaling": [
+      {
+        "name": "none",
+        "desc": "no scaling, texture is stretched to fill the rect"
+      },
+      {
+        "name": "fit",
+        "desc": "scale to fit within the rect preserving aspect ratio (may leave empty areas)"
+      },
+      {
+        "name": "fill",
+        "desc": "scale to fill the rect preserving aspect ratio (may crop)"
+      }
+    ],
+    "fill_wrap": [
+      {
+        "name": "default",
+        "desc": "use texture wrap parameters"
+      },
+      {
+        "name": "discard",
+        "desc": "discard fragment if coordinates are outside texture boundaries"
+      }
+    ],
+    "fill_gradient_mode": [
+      {
+        "name": "ramp",
+        "desc": "straight line gradient"
+      },
+      {
+        "name": "radial",
+        "desc": "radial gradient between the two points"
+      }
+    ],
+    "fill_noise_type": [
+      {
+        "name": "blocky",
+        "desc": "blocky noise"
+      },
+      {
+        "name": "perlin",
+        "desc": "perlin noise"
+      }
+    ],
+    "stroke_mode": [
+      {
+        "name": "inside",
+        "desc": "outline inside the shape boundary"
+      },
+      {
+        "name": "center",
+        "desc": "outline centered on the shape boundary"
+      },
+      {
+        "name": "outside",
+        "desc": "outline outside the shape boundary"
+      }
+    ],
+    "stroke_dash_cap": [
+      {
+        "name": "butt",
+        "desc": "flat cap at the dash boundary"
+      },
+      {
+        "name": "round",
+        "desc": "semicircular cap extending past the dash boundary"
+      },
+      {
+        "name": "square",
+        "desc": "square cap extending past the dash boundary by half the stroke width"
+      }
+    ],
+    "stroke_gradient_mode": [
+      {
+        "name": "ramp",
+        "desc": "straight line gradient"
+      },
+      {
+        "name": "radial",
+        "desc": "radial gradient between the two points"
+      }
+    ],
     "topology": [
       {
         "name": "point_list",
@@ -1039,6 +1121,46 @@
           "type": "str",
           "flags": [],
           "desc": ""
+        }
+      ]
+    },
+    "AffineTransform": {
+      "file": "src/node_affinetransform.c",
+      "params": [
+        {
+          "name": "translate",
+          "type": "vec3",
+          "default": [0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "translation vector"
+        },
+        {
+          "name": "rotate_angle",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live", "node"],
+          "desc": "rotation angle in degrees"
+        },
+        {
+          "name": "rotate_axis",
+          "type": "vec3",
+          "default": [0.000000,0.000000,1.000000],
+          "flags": [],
+          "desc": "rotation axis"
+        },
+        {
+          "name": "scale_factors",
+          "type": "vec3",
+          "default": [1.000000,1.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "scaling factors"
+        },
+        {
+          "name": "anchor",
+          "type": "vec3",
+          "default": [0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "anchor point for rotation and scaling"
         }
       ]
     },
@@ -1701,23 +1823,23 @@
         {
           "name": "eye_transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "`eye` transformation chain"
+          "desc": "`eye` transformation"
         },
         {
           "name": "center_transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "`center` transformation chain"
+          "desc": "`center` transformation"
         },
         {
           "name": "up_transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "`up` transformation chain"
+          "desc": "`up` transformation"
         }
       ]
     },
@@ -1943,16 +2065,30 @@
         {
           "name": "source",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "source texture to displace"
         },
         {
           "name": "displacement",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "displacement vectors stored in a texture"
+        },
+        {
+          "name": "source_reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "source texture reframing transformation"
+        },
+        {
+          "name": "displacement_reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "displacement texture reframing transformation"
         },
         {
           "name": "blending",
@@ -2200,16 +2336,30 @@
         {
           "name": "content",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "content texture being masked"
         },
         {
           "name": "mask",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "texture serving as mask (only the red channel is used)"
+        },
+        {
+          "name": "content_reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "content texture reframing transformation"
+        },
+        {
+          "name": "mask_reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "mask texture reframing transformation"
         },
         {
           "name": "inverted",
@@ -2428,9 +2578,16 @@
         {
           "name": "texture",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D", "CustomTexture"],
+          "node_types": ["Texture2D", "CustomTexture"],
           "flags": ["nonull"],
           "desc": "texture to render"
+        },
+        {
+          "name": "reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "texture reframing transformation"
         },
         {
           "name": "wrap",
@@ -2648,6 +2805,162 @@
       "params": [
       ]
     },
+    "ColorFill": {
+      "file": "src/node_fill.c",
+      "params": [
+        {
+          "name": "color",
+          "type": "vec4",
+          "default": [1.000000,1.000000,1.000000,1.000000],
+          "flags": ["live"],
+          "desc": "fill color (RGBA)"
+        }
+      ]
+    },
+    "CustomFill": {
+      "file": "src/node_fill.c",
+      "params": [
+        {
+          "name": "glsl_header",
+          "type": "str",
+          "flags": [],
+          "desc": "GLSL code prepended before ngli_color() (helper functions, etc.)"
+        },
+        {
+          "name": "color_glsl",
+          "type": "str",
+          "flags": [],
+          "desc": "GLSL body of vec4 ngli_color(vec2 uv, vec2 tex_coord)"
+        },
+        {
+          "name": "frag_resources",
+          "type": "node_list",
+          "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "TextureView", "CustomTexture", "Block"],
+          "flags": [],
+          "desc": "uniform and texture nodes available to color_glsl; each node's label is used as the GLSL name"
+        },
+        {
+          "name": "scaling",
+          "type": "select",
+          "default": "none",
+          "choices": "fill_scaling",
+          "flags": [],
+          "desc": "texture scaling mode applied to custom fill content"
+        },
+        {
+          "name": "wrap",
+          "type": "select",
+          "default": "default",
+          "choices": "fill_wrap",
+          "flags": [],
+          "desc": "wrap mode for out-of-bounds coordinates"
+        },
+        {
+          "name": "nb_frag_output",
+          "type": "i32",
+          "default": 0,
+          "flags": [],
+          "desc": "number of fragment outputs for MRT rendering (0 means single output using ngli_color(), >0 uses ngli_colors() writing to ngl_out_color[])"
+        }
+      ]
+    },
+    "DrawRect": {
+      "file": "src/node_drawrect.c",
+      "params": [
+        {
+          "name": "rect",
+          "type": "vec4",
+          "default": [0.000000,0.000000,0.000000,0.000000],
+          "flags": [],
+          "desc": "rect (x, y, width, height)"
+        },
+        {
+          "name": "fill",
+          "type": "node",
+          "node_types": ["ColorFill", "TextureFill", "GradientFill", "Gradient4Fill", "NoiseFill", "CustomFill"],
+          "flags": ["nonull"],
+          "desc": "fill paint applied inside the rect"
+        },
+        {
+          "name": "stroke",
+          "type": "node",
+          "node_types": ["Stroke", "StrokeGradient", "StrokeGradient4"],
+          "flags": [],
+          "desc": "optional outline stroke"
+        },
+        {
+          "name": "blending",
+          "type": "select",
+          "default": "src_over",
+          "choices": "blend_preset",
+          "flags": [],
+          "desc": "define how this node and the current frame buffer are blending together"
+        },
+        {
+          "name": "translate",
+          "type": "vec3",
+          "default": [0.000000,0.000000,0.000000],
+          "flags": ["live"],
+          "desc": "translation vector"
+        },
+        {
+          "name": "scale",
+          "type": "vec3",
+          "default": [1.000000,1.000000,1.000000],
+          "flags": ["live"],
+          "desc": "scale factors"
+        },
+        {
+          "name": "rotate_angle",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "rotation angle in degrees (around the Z axis)"
+        },
+        {
+          "name": "anchor",
+          "type": "vec3",
+          "default": ["nan","nan","nan"],
+          "flags": ["live"],
+          "desc": "pivot point for rotation and scale; defaults to the center of the rect"
+        },
+        {
+          "name": "corner_radius",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "corner radius in pixels"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live", "node"],
+          "desc": "opacity of the rectangle (0 for fully transparent, 1 for fully opaque)"
+        },
+        {
+          "name": "clip_rect",
+          "type": "vec4",
+          "default": [0.000000,0.000000,0.000000,0.000000],
+          "flags": ["live"],
+          "desc": "clipping rectangle (x, y, width, height) in pixel coordinates; when width or height is 0 clipping is disabled"
+        },
+        {
+          "name": "content_zoom",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "zoom factor applied to the fill content (>1 zooms in; for fit scaling mode zoom is ignored)"
+        },
+        {
+          "name": "content_translate",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live"],
+          "desc": "UV-space translation of the fill content; for fit scaling mode the translation is clamped to keep the content within the DrawRect bounds"
+        }
+      ]
+    },
     "FastGaussianBlur": {
       "file": "src/node_fgblur.c",
       "params": [
@@ -2689,6 +3002,507 @@
           "default": 0,
           "flags": [],
           "desc": "index of the face in the font file"
+        }
+      ]
+    },
+    "Gradient4Fill": {
+      "file": "src/node_fill.c",
+      "params": [
+        {
+          "name": "color_tl",
+          "type": "vec3",
+          "default": [1.000000,0.500000,0.000000],
+          "flags": ["live"],
+          "desc": "top-left color"
+        },
+        {
+          "name": "color_tr",
+          "type": "vec3",
+          "default": [0.000000,1.000000,0.000000],
+          "flags": ["live"],
+          "desc": "top-right color"
+        },
+        {
+          "name": "color_br",
+          "type": "vec3",
+          "default": [0.000000,0.500000,1.000000],
+          "flags": ["live"],
+          "desc": "bottom-right color"
+        },
+        {
+          "name": "color_bl",
+          "type": "vec3",
+          "default": [1.000000,0.000000,1.000000],
+          "flags": ["live"],
+          "desc": "bottom-left color"
+        },
+        {
+          "name": "opacity_tl",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the top-left color"
+        },
+        {
+          "name": "opacity_tr",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the top-right color"
+        },
+        {
+          "name": "opacity_br",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the bottom-right color"
+        },
+        {
+          "name": "opacity_bl",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the bottom-left color"
+        },
+        {
+          "name": "linear",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "interpolate colors in linear light"
+        }
+      ]
+    },
+    "GradientFill": {
+      "file": "src/node_fill.c",
+      "params": [
+        {
+          "name": "color0",
+          "type": "vec3",
+          "default": [0.000000,0.000000,0.000000],
+          "flags": ["live"],
+          "desc": "first gradient color (linear RGB)"
+        },
+        {
+          "name": "color1",
+          "type": "vec3",
+          "default": [1.000000,1.000000,1.000000],
+          "flags": ["live"],
+          "desc": "second gradient color (linear RGB)"
+        },
+        {
+          "name": "opacity0",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the first gradient color"
+        },
+        {
+          "name": "opacity1",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the second gradient color"
+        },
+        {
+          "name": "pos0",
+          "type": "vec2",
+          "default": [0.000000,0.500000],
+          "flags": ["live"],
+          "desc": "first gradient point (UV space)"
+        },
+        {
+          "name": "pos1",
+          "type": "vec2",
+          "default": [1.000000,0.500000],
+          "flags": ["live"],
+          "desc": "second gradient point (UV space)"
+        },
+        {
+          "name": "mode",
+          "type": "select",
+          "default": "ramp",
+          "choices": "fill_gradient_mode",
+          "flags": [],
+          "desc": "gradient interpolation mode"
+        },
+        {
+          "name": "linear",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "interpolate colors in linear light"
+        }
+      ]
+    },
+    "NoiseFill": {
+      "file": "src/node_fill.c",
+      "params": [
+        {
+          "name": "type",
+          "type": "select",
+          "default": "blocky",
+          "choices": "fill_noise_type",
+          "flags": [],
+          "desc": "noise algorithm"
+        },
+        {
+          "name": "amplitude",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "noise amplitude"
+        },
+        {
+          "name": "octaves",
+          "type": "u32",
+          "default": 8,
+          "flags": [],
+          "desc": "number of noise octaves"
+        },
+        {
+          "name": "lacunarity",
+          "type": "f32",
+          "default": 2.000000,
+          "flags": ["live"],
+          "desc": "frequency multiplier between octaves"
+        },
+        {
+          "name": "gain",
+          "type": "f32",
+          "default": 0.500000,
+          "flags": ["live"],
+          "desc": "amplitude multiplier between octaves"
+        },
+        {
+          "name": "seed",
+          "type": "u32",
+          "default": 0,
+          "flags": [],
+          "desc": "noise seed"
+        },
+        {
+          "name": "scale",
+          "type": "vec2",
+          "default": [1.000000,1.000000],
+          "flags": ["live"],
+          "desc": "UV scale applied before noise sampling"
+        },
+        {
+          "name": "evolution",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "temporal evolution coordinate for the noise"
+        }
+      ]
+    },
+    "Stroke": {
+      "file": "src/node_stroke.c",
+      "params": [
+        {
+          "name": "width",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "outline width in pixels"
+        },
+        {
+          "name": "mode",
+          "type": "select",
+          "default": "inside",
+          "choices": "stroke_mode",
+          "flags": ["live"],
+          "desc": "outline position relative to the shape boundary"
+        },
+        {
+          "name": "dash_length",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "dash period in pixels (0 means solid)"
+        },
+        {
+          "name": "dash_ratio",
+          "type": "f32",
+          "default": 0.500000,
+          "flags": ["live"],
+          "desc": "fraction of dash_length that is filled (0..1)"
+        },
+        {
+          "name": "dash_offset",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "phase offset along the perimeter in pixels"
+        },
+        {
+          "name": "dash_cap",
+          "type": "select",
+          "default": "butt",
+          "choices": "stroke_dash_cap",
+          "flags": ["live"],
+          "desc": "dash end cap style"
+        },
+        {
+          "name": "color",
+          "type": "vec4",
+          "default": [1.000000,1.000000,1.000000,1.000000],
+          "flags": ["live"],
+          "desc": "outline color and opacity (RGBA)"
+        }
+      ]
+    },
+    "StrokeGradient": {
+      "file": "src/node_stroke.c",
+      "params": [
+        {
+          "name": "width",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "outline width in pixels"
+        },
+        {
+          "name": "mode",
+          "type": "select",
+          "default": "inside",
+          "choices": "stroke_mode",
+          "flags": ["live"],
+          "desc": "outline position relative to the shape boundary"
+        },
+        {
+          "name": "dash_length",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "dash period in pixels (0 means solid)"
+        },
+        {
+          "name": "dash_ratio",
+          "type": "f32",
+          "default": 0.500000,
+          "flags": ["live"],
+          "desc": "fraction of dash_length that is filled (0..1)"
+        },
+        {
+          "name": "dash_offset",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "phase offset along the perimeter in pixels"
+        },
+        {
+          "name": "dash_cap",
+          "type": "select",
+          "default": "butt",
+          "choices": "stroke_dash_cap",
+          "flags": ["live"],
+          "desc": "dash end cap style"
+        },
+        {
+          "name": "color0",
+          "type": "vec3",
+          "default": [0.000000,0.000000,0.000000],
+          "flags": ["live"],
+          "desc": "first gradient color (linear RGB)"
+        },
+        {
+          "name": "color1",
+          "type": "vec3",
+          "default": [1.000000,1.000000,1.000000],
+          "flags": ["live"],
+          "desc": "second gradient color (linear RGB)"
+        },
+        {
+          "name": "opacity0",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the first gradient color"
+        },
+        {
+          "name": "opacity1",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the second gradient color"
+        },
+        {
+          "name": "pos0",
+          "type": "vec2",
+          "default": [0.000000,0.500000],
+          "flags": ["live"],
+          "desc": "first gradient point (UV space)"
+        },
+        {
+          "name": "pos1",
+          "type": "vec2",
+          "default": [1.000000,0.500000],
+          "flags": ["live"],
+          "desc": "second gradient point (UV space)"
+        },
+        {
+          "name": "gradient_mode",
+          "type": "select",
+          "default": "ramp",
+          "choices": "stroke_gradient_mode",
+          "flags": [],
+          "desc": "gradient interpolation mode"
+        },
+        {
+          "name": "linear",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "interpolate colors in linear light"
+        }
+      ]
+    },
+    "StrokeGradient4": {
+      "file": "src/node_stroke.c",
+      "params": [
+        {
+          "name": "width",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "outline width in pixels"
+        },
+        {
+          "name": "mode",
+          "type": "select",
+          "default": "inside",
+          "choices": "stroke_mode",
+          "flags": ["live"],
+          "desc": "outline position relative to the shape boundary"
+        },
+        {
+          "name": "dash_length",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "dash period in pixels (0 means solid)"
+        },
+        {
+          "name": "dash_ratio",
+          "type": "f32",
+          "default": 0.500000,
+          "flags": ["live"],
+          "desc": "fraction of dash_length that is filled (0..1)"
+        },
+        {
+          "name": "dash_offset",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "phase offset along the perimeter in pixels"
+        },
+        {
+          "name": "dash_cap",
+          "type": "select",
+          "default": "butt",
+          "choices": "stroke_dash_cap",
+          "flags": ["live"],
+          "desc": "dash end cap style"
+        },
+        {
+          "name": "color_tl",
+          "type": "vec3",
+          "default": [1.000000,0.500000,0.000000],
+          "flags": ["live"],
+          "desc": "top-left color"
+        },
+        {
+          "name": "color_tr",
+          "type": "vec3",
+          "default": [0.000000,1.000000,0.000000],
+          "flags": ["live"],
+          "desc": "top-right color"
+        },
+        {
+          "name": "color_br",
+          "type": "vec3",
+          "default": [0.000000,0.500000,1.000000],
+          "flags": ["live"],
+          "desc": "bottom-right color"
+        },
+        {
+          "name": "color_bl",
+          "type": "vec3",
+          "default": [1.000000,0.000000,1.000000],
+          "flags": ["live"],
+          "desc": "bottom-left color"
+        },
+        {
+          "name": "opacity_tl",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the top-left color"
+        },
+        {
+          "name": "opacity_tr",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the top-right color"
+        },
+        {
+          "name": "opacity_br",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the bottom-right color"
+        },
+        {
+          "name": "opacity_bl",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the bottom-left color"
+        },
+        {
+          "name": "linear",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "interpolate colors in linear light"
+        }
+      ]
+    },
+    "TextureFill": {
+      "file": "src/node_fill.c",
+      "params": [
+        {
+          "name": "texture",
+          "type": "node",
+          "node_types": ["Texture2D", "CustomTexture"],
+          "flags": ["nonull"],
+          "desc": "texture to draw"
+        },
+        {
+          "name": "reframing",
+          "type": "node",
+          "node_types": ["AffineTransform"],
+          "flags": [],
+          "desc": "texture reframing transformation"
+        },
+        {
+          "name": "wrap",
+          "type": "select",
+          "default": "discard",
+          "choices": "fill_wrap",
+          "flags": [],
+          "desc": "texture wrap behaviour"
+        },
+        {
+          "name": "scaling",
+          "type": "select",
+          "default": "none",
+          "choices": "fill_scaling",
+          "flags": [],
+          "desc": "texture scaling mode relative to the rect"
         }
       ]
     },
@@ -2954,7 +3768,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "flags": [],
+          "flags": ["live"],
           "desc": "a set of scenes"
         }
       ]
@@ -3888,9 +4702,9 @@
         {
           "name": "transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "transformation chain"
+          "desc": "transformation"
         },
         {
           "name": "anchor",
@@ -5714,9 +6528,9 @@
         {
           "name": "transform",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Identity"],
+          "node_types": ["AffineTransform"],
           "flags": [],
-          "desc": "`value` transformation chain"
+          "desc": "`value` transformation"
         }
       ]
     },

@@ -24,6 +24,7 @@
 #define NODES_REGISTER_H
 
 #define NODE_MAP_TYPE2CLASS(action)                                             \
+    action(NGL_NODE_AFFINETRANSFORM,        ngli_affinetransform_class)         \
     action(NGL_NODE_ANIMATEDBUFFERFLOAT,    ngli_animatedbufferfloat_class)     \
     action(NGL_NODE_ANIMATEDBUFFERVEC2,     ngli_animatedbuffervec2_class)      \
     action(NGL_NODE_ANIMATEDBUFFERVEC3,     ngli_animatedbuffervec3_class)      \
@@ -103,8 +104,18 @@
     action(NGL_NODE_FILTERSATURATION,       ngli_filtersaturation_class)        \
     action(NGL_NODE_FILTERSELECTOR,         ngli_filterselector_class)          \
     action(NGL_NODE_FILTERSRGB2LINEAR,      ngli_filtersrgb2linear_class)       \
+    action(NGL_NODE_COLORFILL,              ngli_colorfill_class)               \
+    action(NGL_NODE_CUSTOMFILL,             ngli_customfill_class)              \
+    action(NGL_NODE_DRAWRECT,               ngli_drawrect_class)                \
     action(NGL_NODE_FASTGAUSSIANBLUR,       ngli_fgblur_class)                  \
     action(NGL_NODE_FONTFACE,               ngli_fontface_class)                \
+    action(NGL_NODE_GRADIENT4FILL,          ngli_gradient4fill_class)           \
+    action(NGL_NODE_GRADIENTFILL,           ngli_gradientfill_class)            \
+    action(NGL_NODE_NOISEFILL,              ngli_noisefill_class)               \
+    action(NGL_NODE_STROKE,                 ngli_stroke_class)                  \
+    action(NGL_NODE_STROKEGRADIENT,         ngli_strokegradient_class)          \
+    action(NGL_NODE_STROKEGRADIENT4,        ngli_strokegradient4_class)         \
+    action(NGL_NODE_TEXTUREFILL,            ngli_texturefill_class)             \
     action(NGL_NODE_GAUSSIANBLUR,           ngli_gblur_class)                   \
     action(NGL_NODE_GEOMETRY,               ngli_geometry_class)                \
     action(NGL_NODE_GRAPHICCONFIG,          ngli_graphicconfig_class)           \

@@ -26,7 +26,7 @@
 #include "log.h"
 #include "node_texteffect.h"
 #include "node_text.h"
-#include "transforms.h"
+#include "nopegl/nopegl.h"
 
 static const struct param_choices target_choices = {
     .name = "text_target",
@@ -72,9 +72,10 @@ static const struct node_param texteffect_params[] = {
     {"overlap",      NGLI_PARAM_TYPE_F32, OFFSET(overlap_node),
                      .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
                      .desc=NGLI_DOCSTRING("overlap factor between target elements")},
-    {"transform",    NGLI_PARAM_TYPE_NODE, OFFSET(transform_chain), .node_types=TRANSFORM_TYPES_LIST,
+    {"transform",    NGLI_PARAM_TYPE_NODE, OFFSET(transform_chain),
+                     .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
                      .flags=NGLI_PARAM_FLAG_DOT_DISPLAY_FIELDNAME,
-                     .desc=NGLI_DOCSTRING("transformation chain")},
+                     .desc=NGLI_DOCSTRING("transformation")},
     {"anchor",       NGLI_PARAM_TYPE_VEC2, OFFSET(anchor),
                      .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
                      .desc=NGLI_DOCSTRING("anchor coordinates for the transformations")},
@@ -125,10 +126,6 @@ static int texteffect_init(struct ngl_node *node)
         LOG(ERROR, "end time must be strictly superior to start time");
         return NGL_ERROR_INVALID_ARG;
     }
-
-    int ret = ngli_transform_chain_check(o->transform_chain);
-    if (ret < 0)
-        return ret;
 
     return 0;
 }

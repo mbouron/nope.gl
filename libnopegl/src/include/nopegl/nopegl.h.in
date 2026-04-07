@@ -264,6 +264,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 /**
  * Node FOURCC identifiers
  */
+#define NGL_NODE_AFFINETRANSFORM        NGLI_FOURCC('A','f','T','r')
 #define NGL_NODE_ANIMATEDBUFFERFLOAT    NGLI_FOURCC('A','B','f','1')
 #define NGL_NODE_ANIMATEDBUFFERVEC2     NGLI_FOURCC('A','B','f','2')
 #define NGL_NODE_ANIMATEDBUFFERVEC3     NGLI_FOURCC('A','B','f','3')
@@ -321,6 +322,8 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_COMPUTE                NGLI_FOURCC('C','p','t',' ')
 #define NGL_NODE_COMPUTEPROGRAM         NGLI_FOURCC('C','p','t','P')
 #define NGL_NODE_CUSTOMTEXTURE          NGLI_FOURCC('C','s','t','T')
+#define NGL_NODE_COLORFILL              NGLI_FOURCC('C','l','F','l')
+#define NGL_NODE_CUSTOMFILL             NGLI_FOURCC('C','u','F','l')
 #define NGL_NODE_DRAW                   NGLI_FOURCC('D','r','a','w')
 #define NGL_NODE_DRAWCOLOR              NGLI_FOURCC('D','c','l','r')
 #define NGL_NODE_DRAWDISPLACE           NGLI_FOURCC('D','d','s','p')
@@ -332,6 +335,16 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_DRAWPATH               NGLI_FOURCC('D','P','t','h')
 #define NGL_NODE_DRAWTEXTURE            NGLI_FOURCC('D','t','e','x')
 #define NGL_NODE_DRAWWAVEFORM           NGLI_FOURCC('D','w','f','m')
+#define NGL_NODE_DRAWRECT               NGLI_FOURCC('D','R','c','t')
+#define NGL_NODE_MASKTEXTURE            NGLI_FOURCC('M','T','e','x')
+#define NGL_NODE_MASKBLUR               NGLI_FOURCC('M','B','l','r')
+#define NGL_NODE_GRADIENT4FILL          NGLI_FOURCC('G','4','F','l')
+#define NGL_NODE_GRADIENTFILL           NGLI_FOURCC('G','r','F','l')
+#define NGL_NODE_NOISEFILL              NGLI_FOURCC('N','s','F','l')
+#define NGL_NODE_STROKE                 NGLI_FOURCC('S','t','r','k')
+#define NGL_NODE_STROKEGRADIENT         NGLI_FOURCC('S','G','r','d')
+#define NGL_NODE_STROKEGRADIENT4        NGLI_FOURCC('S','G','4','c')
+#define NGL_NODE_TEXTUREFILL            NGLI_FOURCC('T','x','F','l')
 #define NGL_NODE_EVALFLOAT              NGLI_FOURCC('E','v','f','1')
 #define NGL_NODE_EVALVEC2               NGLI_FOURCC('E','v','f','2')
 #define NGL_NODE_EVALVEC3               NGLI_FOURCC('E','v','f','3')

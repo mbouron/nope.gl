@@ -78,10 +78,12 @@ def transform_animated_camera(cfg: ngl.SceneCfg):
     camera.set_clipping(0.1, 10.0)
 
     tr_animkf = [ngl.AnimKeyFrameVec3(0, (0.0, 0.0, 0.0)), ngl.AnimKeyFrameVec3(cfg.duration, (0.0, 0.0, 3.0))]
-    eye_transform = ngl.Translate(ngl.Identity(), vector=ngl.AnimatedVec3(tr_animkf))
-
     rot_animkf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(cfg.duration, 360)]
-    eye_transform = ngl.Rotate(eye_transform, axis=(0, 1, 0), angle=ngl.AnimatedFloat(rot_animkf))
+    eye_transform = ngl.AffineTransform(
+        translate=ngl.AnimatedVec3(tr_animkf),
+        rotate_angle=ngl.AnimatedFloat(rot_animkf),
+        rotate_axis=(0, 1, 0),
+    )
 
     camera.set_eye_transform(eye_transform)
 

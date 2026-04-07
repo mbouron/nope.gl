@@ -19,52 +19,9 @@
  * under the License.
  */
 
-#include <string.h>
-
-#include "log.h"
 #include "math_utils.h"
 #include "node_transform.h"
-#include "nopegl/nopegl.h"
 #include "transforms.h"
-
-const struct ngl_node *ngli_transform_get_leaf_node(const struct ngl_node *node)
-{
-    while (node && node->cls->category == NGLI_NODE_CATEGORY_TRANSFORM) {
-        const struct transform *transform = node->priv_data;
-        node = transform->child;
-    }
-    return node;
-}
-
-int ngli_transform_chain_check(const struct ngl_node *node)
-{
-    if (!node) // it is ok for the transform chain not to be set
-        return 0;
-
-    const struct ngl_node *leaf = ngli_transform_get_leaf_node(node);
-
-    // All transform nodes are expected to have a non-null child parameter
-    ngli_assert(leaf);
-
-    if (leaf->cls->id != NGL_NODE_IDENTITY) {
-        LOG(ERROR, "%s (%s) is not an allowed type for a transformation chain",
-            node->label, node->cls->name);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    return 0;
-}
-
-void ngli_transform_chain_compute(const struct ngl_node *node, float *matrix)
-{
-    NGLI_ALIGNED_MAT(tmp) = NGLI_MAT4_IDENTITY;
-    while (node && node->cls->category == NGLI_NODE_CATEGORY_TRANSFORM) {
-        const struct transform *transform = node->priv_data;
-        ngli_mat4_mul(tmp, tmp, transform->matrix);
-        node = transform->child;
-    }
-    memcpy(matrix, tmp, sizeof(tmp));
-}
 
 void ngli_transform_draw(struct ngl_node *node)
 {

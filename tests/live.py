@@ -263,44 +263,26 @@ def _get_live_spec():
 
 
 def _get_live_trf_spec():
-    t0 = ngl.Identity()
-    t1 = ngl.Transform(t0)
-    t2 = ngl.Translate(t1)
-    t3 = ngl.Rotate(t2)
-    t4 = ngl.Scale(t3)
-    t5 = ngl.RotateQuat(t4)
-    t6 = ngl.Skew(t5)
+    trf = ngl.AffineTransform()
 
     return [
         dict(
             name="m4",
             type="mat4",
             category="single",
-            func=lambda data: ngl.UniformMat4(data, transform=t6),
+            func=lambda data: ngl.UniformMat4(data, transform=trf),
             livechange=(
                 # fmt: off
-                lambda: t1.set_matrix(                      # trf_step=1
-                    0.1, 0.2, 0.0, 0.0,
-                    0.0, 0.3, 0.4, 0.0,
-                    0.0, 0.0, 0.5, 0.0,
-                    0.8, 0.7, 0.0, 0.6,
-                ),
-                lambda: t2.set_vector(0.2, 0.7, -0.4),      # trf_step=2
-                lambda: t3.set_angle(123.4),                # trf_step=3
-                lambda: t4.set_factors(0.7, 1.4, 0.2),      # trf_step=4
-                lambda: t5.set_quat(0, 0, -0.474, 0.880),   # trf_step=5
-                lambda: t6.set_angles(0, 50, -145),         # trf_step=6
-                lambda: t6.set_angles(0, 0, 0),
-                lambda: t5.set_quat(0, 0, 0, 1),
-                lambda: t4.set_factors(1, 1, 1),
-                lambda: t3.set_angle(0),
-                lambda: t2.set_vector(0, 0, 0),
-                lambda: t1.set_matrix(
-                    1.0, 0.0, 0.0, 0.0,
-                    0.0, 1.0, 0.0, 0.0,
-                    0.0, 0.0, 1.0, 0.0,
-                    0.0, 0.0, 0.0, 1.0,
-                )
+                lambda: trf.set_translate(0.2, 0.7, -0.4),      # trf_step=1
+                lambda: trf.set_rotate_angle(123.4),             # trf_step=2
+                lambda: trf.set_scale_factors(0.7, 1.4, 0.2),   # trf_step=3
+                lambda: trf.set_anchor(0.1, -0.3, 0.0),         # trf_step=4
+                lambda: trf.set_scale_factors(1.2, 0.8, 0.5),   # trf_step=5
+                lambda: trf.set_rotate_angle(45.0),              # trf_step=6
+                lambda: trf.set_anchor(0, 0, 0),
+                lambda: trf.set_scale_factors(1, 1, 1),
+                lambda: trf.set_rotate_angle(0),
+                lambda: trf.set_translate(0, 0, 0),
                 # fmt: on
             ),
         ),

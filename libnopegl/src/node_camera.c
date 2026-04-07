@@ -28,8 +28,8 @@
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "node_uniform.h"
+#include "node_transform.h"
 #include "nopegl/nopegl.h"
-#include "transforms.h"
 
 struct camera_opts {
     struct ngl_node *child;
@@ -60,17 +60,16 @@ struct camera_priv {
     NGLI_ALIGNED_MAT(projection_matrix);
 };
 
-static int apply_transform(float *v, struct ngl_node *transform, double t)
+static int apply_transform(float *v, struct ngl_node *trf_node, double t)
 {
-    if (!transform)
+    if (!trf_node)
         return 0;
 
-    int ret = ngli_node_update(transform, t);
+    int ret = ngli_node_update(trf_node, t);
     if (ret < 0)
         return ret;
-    NGLI_ALIGNED_MAT(matrix) = NGLI_MAT4_IDENTITY;
-    ngli_transform_chain_compute(transform, matrix);
-    ngli_mat4_mul_vec4(v, matrix, v);
+    const struct transform *trf = trf_node->priv_data;
+    ngli_mat4_mul_vec4(v, trf->matrix, v);
 
     return 0;
 }
@@ -178,16 +177,16 @@ static const struct node_param camera_params[] = {
                  .desc=NGLI_DOCSTRING("the 2 following values: *near clipping plane*, *far clipping plane*")},
     {"eye_transform", NGLI_PARAM_TYPE_NODE, OFFSET(eye_transform),
                      .flags=NGLI_PARAM_FLAG_DOT_DISPLAY_FIELDNAME,
-                     .node_types=TRANSFORM_TYPES_LIST,
-                     .desc=NGLI_DOCSTRING("`eye` transformation chain")},
+                     .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                     .desc=NGLI_DOCSTRING("`eye` transformation")},
     {"center_transform", NGLI_PARAM_TYPE_NODE, OFFSET(center_transform),
                          .flags=NGLI_PARAM_FLAG_DOT_DISPLAY_FIELDNAME,
-                         .node_types=TRANSFORM_TYPES_LIST,
-                         .desc=NGLI_DOCSTRING("`center` transformation chain")},
+                         .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                         .desc=NGLI_DOCSTRING("`center` transformation")},
     {"up_transform", NGLI_PARAM_TYPE_NODE, OFFSET(up_transform),
                      .flags=NGLI_PARAM_FLAG_DOT_DISPLAY_FIELDNAME,
-                     .node_types=TRANSFORM_TYPES_LIST,
-                     .desc=NGLI_DOCSTRING("`up` transformation chain")},
+                     .node_types=(const uint32_t[]){NGL_NODE_AFFINETRANSFORM, NGLI_NODE_NONE},
+                     .desc=NGLI_DOCSTRING("`up` transformation")},
     {NULL}
 };
 
@@ -211,12 +210,6 @@ static int camera_init(struct ngl_node *node)
     struct ngl_ctx *ngl_ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ngl_ctx->gpu_ctx;
     ngpu_ctx_get_projection_matrix(gpu_ctx, s->default_projection_matrix);
-
-    int ret;
-    if ((ret = ngli_transform_chain_check(o->eye_transform)) < 0 ||
-        (ret = ngli_transform_chain_check(o->center_transform)) < 0 ||
-        (ret = ngli_transform_chain_check(o->up_transform)) < 0)
-        return ret;
 
     return 0;
 }
