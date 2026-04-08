@@ -37,6 +37,7 @@ void ngpu_block_desc_init(struct ngpu_ctx *gpu_ctx, struct ngpu_block_desc *s, e
     s->layout = layout;
     s->fields = NULL;
     s->nb_fields = 0;
+    s->size = 0;
 }
 
 static const size_t strides_map[NGPU_BLOCK_NB_LAYOUTS][NGPU_TYPE_NB] = {
