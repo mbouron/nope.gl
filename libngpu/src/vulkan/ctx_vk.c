@@ -374,16 +374,8 @@ static VkResult create_semaphores(struct ngpu_ctx *s)
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
 
-    s_priv->image_avail_sems = ngpu_calloc(s->nb_in_flight_frames, sizeof(VkSemaphore));
-    if (!s_priv->image_avail_sems)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
     s_priv->update_finished_sems = ngpu_calloc(s->nb_in_flight_frames, sizeof(VkSemaphore));
     if (!s_priv->update_finished_sems)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-    s_priv->render_finished_sems = ngpu_calloc(s->nb_in_flight_frames, sizeof(VkSemaphore));
-    if (!s_priv->render_finished_sems)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     const VkSemaphoreCreateInfo sem_create_info = {
@@ -393,13 +385,8 @@ static VkResult create_semaphores(struct ngpu_ctx *s)
     VkResult res;
     for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
         if ((res = vkCreateSemaphore(vk->device, &sem_create_info, NULL,
-                                     &s_priv->image_avail_sems[i])) != VK_SUCCESS ||
-            (res = vkCreateSemaphore(vk->device, &sem_create_info, NULL,
-                                     &s_priv->update_finished_sems[i])) != VK_SUCCESS ||
-            (res = vkCreateSemaphore(vk->device, &sem_create_info, NULL,
-                                     &s_priv->render_finished_sems[i])) != VK_SUCCESS) {
+                                     &s_priv->update_finished_sems[i])) != VK_SUCCESS)
             return res;
-        }
     }
 
     ngpu_darray_init(&s_priv->pending_wait_sems, sizeof(VkSemaphore), 0);
@@ -418,19 +405,54 @@ static void destroy_semaphores(struct ngpu_ctx *s)
         ngpu_freep(&s_priv->update_finished_sems);
     }
 
-    if (s_priv->render_finished_sems) {
-        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
-            vkDestroySemaphore(vk->device, s_priv->render_finished_sems[i], NULL);
-        ngpu_freep(&s_priv->render_finished_sems);
+    ngpu_darray_reset(&s_priv->pending_wait_sems);
+}
+
+static VkResult create_swapchain_semaphores(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
+    struct vkcontext *vk = s_priv->vkcontext;
+
+    s_priv->image_avail_sems = ngpu_calloc(s_priv->nb_images, sizeof(VkSemaphore));
+    if (!s_priv->image_avail_sems)
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    s_priv->image_present_sems = ngpu_calloc(s_priv->nb_images, sizeof(VkSemaphore));
+    if (!s_priv->image_present_sems)
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    const VkSemaphoreCreateInfo sem_create_info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+
+    VkResult res;
+    for (uint32_t i = 0; i < s_priv->nb_images; i++) {
+        if ((res = vkCreateSemaphore(vk->device, &sem_create_info, NULL,
+                                     &s_priv->image_avail_sems[i])) != VK_SUCCESS ||
+            (res = vkCreateSemaphore(vk->device, &sem_create_info, NULL,
+                                     &s_priv->image_present_sems[i])) != VK_SUCCESS)
+            return res;
     }
 
+    return VK_SUCCESS;
+}
+
+static void destroy_swapchain_semaphores(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
+    struct vkcontext *vk = s_priv->vkcontext;
+
     if (s_priv->image_avail_sems) {
-        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
+        for (uint32_t i = 0; i < s_priv->nb_images; i++)
             vkDestroySemaphore(vk->device, s_priv->image_avail_sems[i], NULL);
         ngpu_freep(&s_priv->image_avail_sems);
     }
 
-    ngpu_darray_reset(&s_priv->pending_wait_sems);
+    if (s_priv->image_present_sems) {
+        for (uint32_t i = 0; i < s_priv->nb_images; i++)
+            vkDestroySemaphore(vk->device, s_priv->image_present_sems[i], NULL);
+        ngpu_freep(&s_priv->image_present_sems);
+    }
 }
 
 static VkResult select_swapchain_surface_format(const struct vkcontext *vk, VkSurfaceFormatKHR *format)
@@ -580,13 +602,15 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return res;
 
-    return res;
+    return create_swapchain_semaphores(s);
 }
 
 static void destroy_swapchain(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
+
+    destroy_swapchain_semaphores(s);
 
     vkDestroySwapchainKHR(vk->device, s_priv->swapchain, NULL);
     s_priv->swapchain = VK_NULL_HANDLE;
@@ -622,10 +646,7 @@ static VkResult recreate_swapchain(struct ngpu_ctx *gpu_ctx, struct vkcontext *v
     ngpu_darray_clear(&s_priv->depth_stencils);
     ngpu_darray_clear(&s_priv->rts);
 
-    vkDestroySwapchainKHR(vk->device, s_priv->swapchain, NULL);
-    s_priv->swapchain = VK_NULL_HANDLE;
-
-    s_priv->nb_images = 0;
+    destroy_swapchain(gpu_ctx);
 
     if ((res = create_swapchain(gpu_ctx)) != VK_SUCCESS ||
         (res = create_render_resources(gpu_ctx) != VK_SUCCESS))
@@ -674,7 +695,7 @@ static VkResult swapchain_acquire_image(struct ngpu_ctx *s, uint32_t *image_inde
         return res;
 
     res = ngpu_cmd_buffer_vk_add_signal_sem(s_priv->cur_cmd_buffer,
-                                            &s_priv->render_finished_sems[s->current_frame_index]);
+                                            &s_priv->image_present_sems[*image_index]);
     if (res != VK_SUCCESS)
         return res;
 
@@ -687,7 +708,7 @@ static VkResult swapchain_present_buffer(struct ngpu_ctx *s, double t)
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
 
-    VkSemaphore sem = s_priv->render_finished_sems[s->current_frame_index];
+    VkSemaphore sem = s_priv->image_present_sems[s_priv->cur_image_index];
 
     VkPresentInfoKHR present_info = {
         .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
