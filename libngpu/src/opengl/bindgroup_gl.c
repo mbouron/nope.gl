@@ -301,6 +301,7 @@ void ngpu_bindgroup_gl_bind(struct ngpu_bindgroup *s, const uint32_t *dynamic_of
     const struct buffer_binding_gl *buffer_bindings = ngpu_darray_data(&s_priv->buffer_bindings);
     for (size_t i = 0; i < ngpu_darray_count(&s_priv->buffer_bindings); i++) {
         const struct buffer_binding_gl *buffer_binding = &buffer_bindings[i];
+        ngpu_assert(buffer_binding->buffer);
         const struct ngpu_buffer *buffer = buffer_binding->buffer;
         const struct ngpu_buffer_gl *buffer_gl = (const struct ngpu_buffer_gl *)buffer;
         const struct ngpu_bindgroup_layout_entry *layout_entry = &buffer_binding->layout_entry;

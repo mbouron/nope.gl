@@ -460,6 +460,7 @@ int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
     for (size_t i = 0; i < ngpu_darray_count(&s_priv->buffer_bindings); i++) {
         struct buffer_binding_vk *binding = &buffer_bindings[i];
         if (binding->update_desc) {
+            ngpu_assert(binding->buffer);
             const struct ngpu_bindgroup_layout_entry *desc = &binding->layout_entry;
             const struct ngpu_buffer_vk *buffer_vk = (struct ngpu_buffer_vk *)(binding->buffer);
             const VkDescriptorBufferInfo descriptor_buffer_info = {
