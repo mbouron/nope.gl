@@ -30,9 +30,7 @@ struct ngpu_ctx_vk {
     struct ngpu_ctx parent;
     struct vkcontext *vkcontext;
 
-    VkSemaphore *image_avail_sems;
     VkSemaphore *update_finished_sems;
-    VkSemaphore *render_finished_sems;
     struct ngpu_darray pending_wait_sems;
 
     VkCommandPool cmd_pool;
@@ -52,6 +50,8 @@ struct ngpu_ctx_vk {
     int recreate_swapchain;
     VkImage *images;
     uint32_t nb_images;
+    VkSemaphore *image_avail_sems;
+    VkSemaphore *image_present_sems;
     uint32_t cur_image_index;
     int64_t present_time_offset;
 
