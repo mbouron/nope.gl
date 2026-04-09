@@ -1491,7 +1491,6 @@ static void vk_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_gro
 static void vk_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struct ngpu_buffer *buffer)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
-    ngpu_assert(index < s->limits.max_vertex_attributes);
 
     struct ngpu_cmd_buffer_vk *cmd_buffer = s_priv->cur_cmd_buffer;
     ngpu_assert(cmd_buffer);
