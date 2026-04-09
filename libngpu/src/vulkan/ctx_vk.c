@@ -1495,6 +1495,8 @@ static void vk_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struc
     struct ngpu_cmd_buffer_vk *cmd_buffer = s_priv->cur_cmd_buffer;
     ngpu_assert(cmd_buffer);
 
+    NGPU_CMD_BUFFER_VK_REF(cmd_buffer, buffer);
+
     VkCommandBuffer cmd_buf = cmd_buffer->cmd_buf;
     const struct ngpu_buffer_vk *buffer_vk = (const struct ngpu_buffer_vk *)buffer;
     const VkBuffer vertex_buffer = buffer_vk->buffer;
@@ -1518,6 +1520,8 @@ static void vk_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *bu
 
     struct ngpu_cmd_buffer_vk *cmd_buffer = s_priv->cur_cmd_buffer;
     ngpu_assert(cmd_buffer);
+
+    NGPU_CMD_BUFFER_VK_REF(cmd_buffer, buffer);
 
     VkCommandBuffer cmd_buf = cmd_buffer->cmd_buf;
     const struct ngpu_buffer_vk *index_buffer = (const struct ngpu_buffer_vk *)buffer;
