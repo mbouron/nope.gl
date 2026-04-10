@@ -38,7 +38,6 @@
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "pipeline_compat.h"
-#include "staging_buffer.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -605,7 +604,7 @@ static int drawrect2d_init(struct ngl_node *node)
         s->user_block_size = ngpu_block_desc_get_size(&s->user_block_desc, 0);
     }
 
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     struct darray textures;
     ngli_darray_init(&textures, sizeof(struct ngpu_pgcraft_texture), 0);
@@ -1019,10 +1018,10 @@ static void drawrect2d_draw(struct ngl_node *node)
         vert_data.margin_px = margin_px;
         memcpy(vert_data.margin_uv, margin_uv, sizeof(vert_data.margin_uv));
 
-        const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
+        const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
         if (vert_offset == SIZE_MAX)
             return;
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pl_compat, s->vert_block_index,
                                            staging_buf, vert_offset, s->vert_block_size);
     }
@@ -1050,11 +1049,11 @@ static void drawrect2d_draw(struct ngl_node *node)
         memcpy(frag_data.content_orientation, orientation_cos_sin[orientation_quarter], sizeof(frag_data.content_orientation));
         memcpy(frag_data.frag_uv_scale, uv_scale, sizeof(frag_data.frag_uv_scale));
 
-        const size_t frag_offset = ngli_staging_buffer_push(ctx->current_staging_buffer,
+        const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer,
                                                             &frag_data, sizeof(frag_data));
         if (frag_offset == SIZE_MAX)
             return;
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pl_compat, s->frag_block_index,
                                            staging_buf, frag_offset, sizeof(frag_data));
     }
@@ -1062,7 +1061,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     /* Fill and push user block to staging buffer (if present) */
     if (s->user_block_index >= 0) {
         size_t offset = 0;
-        uint8_t *data = ngli_staging_buffer_reserve(ctx->current_staging_buffer, s->user_block_size, &offset);
+        uint8_t *data = ngpu_staging_buffer_reserve(ctx->current_staging_buffer, s->user_block_size, &offset);
 
 
         /* Fill prebuilt uniforms */
@@ -1083,7 +1082,7 @@ static void drawrect2d_draw(struct ngl_node *node)
             ngpu_block_field_copy(&fields[uu->field_index], data + fields[uu->field_index].offset, node_get_data_ptr(uu->node, uu->type));
         }
 
-        struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pl_compat, s->user_block_index,
                                            buffer, offset, s->user_block_size);
     }

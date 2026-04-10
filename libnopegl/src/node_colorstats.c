@@ -27,7 +27,6 @@
 #include "node_texture.h"
 #include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
-#include "staging_buffer.h"
 
 /* Compute shaders */
 #include "colorstats_init_comp.h"
@@ -419,8 +418,8 @@ static void colorstats_pre_draw(struct ngl_node *node)
         .depth = (int32_t)s->depth,
         .length_minus1 = (int32_t)s->length_minus1,
     };
-    const size_t offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &params, sizeof(params));
-    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    const size_t offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &params, sizeof(params));
+    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_compat_update_buffer(s->init.pipeline_compat, s->params_block_index_init,
                                        buffer, offset, sizeof(params));
     ngli_pipeline_compat_update_buffer(s->waveform.pipeline_compat, s->params_block_index_waveform,

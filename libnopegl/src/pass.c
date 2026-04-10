@@ -574,7 +574,7 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
         return ret;
 
     /* Register user uniform blocks (non-empty ones only) */
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct {
         struct ngpu_block_desc *desc;
@@ -654,7 +654,7 @@ int ngli_pass_exec(struct pass *s)
             continue;
 
         size_t offset = 0;
-        uint8_t *data = ngli_staging_buffer_reserve(ctx->current_staging_buffer, block_size, &offset);
+        uint8_t *data = ngpu_staging_buffer_reserve(ctx->current_staging_buffer, block_size, &offset);
 
         /* Write builtin uniforms directly into the staging buffer */
         if (user_block_infos[b].stage == NGPU_PROGRAM_STAGE_VERT) {
@@ -691,7 +691,7 @@ int ngli_pass_exec(struct pass *s)
                 ngpu_block_field_copy_count(field, data + field->offset, (const uint8_t *)entry->data, 0);
         }
 
-        struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pipeline_compat, block_idx, buffer, offset, block_size);
     }
 

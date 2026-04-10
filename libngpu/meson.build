@@ -174,6 +174,7 @@ lib_src = files(
   'src/pgcache.c',
   'src/pgcraft.c',
   'src/rendertarget.c',
+  'src/staging_buffer.c',
   'src/texture.c',
   'src/type.c',
   'src/utils/bstr.c',

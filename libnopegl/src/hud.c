@@ -50,7 +50,6 @@
 #include "node_texture.h"
 #include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
-#include "staging_buffer.h"
 #include "utils/memory.h"
 #include "utils/time.h"
 
@@ -1246,7 +1245,7 @@ int ngli_hud_init(struct hud *s)
     ngpu_block_desc_add_field(&transforms_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
     ngli_assert(ngpu_block_desc_get_size(&transforms_block_desc, 0) == sizeof(struct transforms_block));
 
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct ngpu_pgcraft_block blocks[] = {
         {
@@ -1395,8 +1394,8 @@ void ngli_hud_draw(struct hud *s)
     memcpy(transforms_data.modelview_matrix, modelview_matrix, sizeof(transforms_data.modelview_matrix));
     memcpy(transforms_data.projection_matrix, projection_matrix, sizeof(transforms_data.projection_matrix));
 
-    const size_t offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &transforms_data, sizeof(transforms_data));
-    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    const size_t offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &transforms_data, sizeof(transforms_data));
+    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_compat_update_buffer(s->pipeline_compat, s->transforms_block_index, buffer, offset, sizeof(transforms_data));
 
     ngli_pipeline_compat_draw(s->pipeline_compat, 4, 1, 0);

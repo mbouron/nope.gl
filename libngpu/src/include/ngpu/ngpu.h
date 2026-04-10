@@ -1211,4 +1211,18 @@ NGPU_API struct ngpu_bindgroup_layout_desc ngpu_pgcraft_get_bindgroup_layout_des
 NGPU_API struct ngpu_bindgroup_resources ngpu_pgcraft_get_bindgroup_resources(const struct ngpu_pgcraft *s);
 NGPU_API void ngpu_pgcraft_freep(struct ngpu_pgcraft **sp);
 
+/*
+ * Staging buffer
+ */
+
+struct ngpu_staging_buffer;
+
+NGPU_API struct ngpu_staging_buffer *ngpu_staging_buffer_create(struct ngpu_ctx *gpu_ctx);
+NGPU_API void *ngpu_staging_buffer_reserve(struct ngpu_staging_buffer *s, size_t size, size_t *offsetp);
+NGPU_API size_t ngpu_staging_buffer_push(struct ngpu_staging_buffer *s, const void *data, size_t size);
+NGPU_API int ngpu_staging_buffer_flush(struct ngpu_staging_buffer *s);
+NGPU_API void ngpu_staging_buffer_reset(struct ngpu_staging_buffer *s);
+NGPU_API struct ngpu_buffer *ngpu_staging_buffer_get_buffer(const struct ngpu_staging_buffer *s);
+NGPU_API void ngpu_staging_buffer_freep(struct ngpu_staging_buffer **sp);
+
 #endif

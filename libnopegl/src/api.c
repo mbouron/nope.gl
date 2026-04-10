@@ -418,8 +418,8 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
 #if defined(TARGET_ANDROID)
     ngli_android_ctx_reset(&s->android_ctx);
 #endif
-    ngli_staging_buffer_freep(&s->draw_staging_buffer);
-    ngli_staging_buffer_freep(&s->update_staging_buffer);
+    ngpu_staging_buffer_freep(&s->draw_staging_buffer);
+    ngpu_staging_buffer_freep(&s->update_staging_buffer);
     ngli_hmap_freep(&s->text_builtin_atlasses);
 #if HAVE_TEXT_LIBRARIES
     FT_Done_FreeType(s->ft_library);
@@ -489,15 +489,19 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
         LOG(WARNING, "could not initialize Android context");
 #endif
 
-    ret = ngli_staging_buffer_init(&s->update_staging_buffer, s->gpu_ctx);
-    if (ret < 0)
+    s->update_staging_buffer = ngpu_staging_buffer_create(s->gpu_ctx);
+    if (!s->update_staging_buffer) {
+        ret = NGL_ERROR_MEMORY;
         goto fail;
+    }
 
-    ret = ngli_staging_buffer_init(&s->draw_staging_buffer, s->gpu_ctx);
-    if (ret < 0)
+    s->draw_staging_buffer = ngpu_staging_buffer_create(s->gpu_ctx);
+    if (!s->draw_staging_buffer) {
+        ret = NGL_ERROR_MEMORY;
         goto fail;
+    }
 
-    s->current_staging_buffer = &s->update_staging_buffer;
+    s->current_staging_buffer = s->update_staging_buffer;
 
     ngpu_ctx_get_projection_matrix(s->gpu_ctx, s->default_projection_matrix);
     ngli_darray_clear(&s->projection_matrix_stack);
@@ -568,8 +572,8 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
     uint32_t frame_index = ngpu_ctx_advance_frame(s->gpu_ctx);
     LOG(DEBUG, "start frame @ index=%u t=%f", frame_index, t);
 
-    ngli_staging_buffer_reset(&s->update_staging_buffer);
-    s->current_staging_buffer = &s->update_staging_buffer;
+    ngpu_staging_buffer_reset(s->update_staging_buffer);
+    s->current_staging_buffer = s->update_staging_buffer;
 
     int ret = ngpu_ctx_begin_update(s->gpu_ctx);
     if (ret < 0)
@@ -591,7 +595,7 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
     if (ret < 0)
         return ret;
 
-    ret = ngli_staging_buffer_flush(&s->update_staging_buffer);
+    ret = ngpu_staging_buffer_flush(s->update_staging_buffer);
     if (ret < 0)
         return ret;
 
@@ -618,8 +622,8 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t)
 
     s->current_rendertarget = ngpu_ctx_get_default_rendertarget(s->gpu_ctx);
 
-    ngli_staging_buffer_reset(&s->draw_staging_buffer);
-    s->current_staging_buffer = &s->draw_staging_buffer;
+    ngpu_staging_buffer_reset(s->draw_staging_buffer);
+    s->current_staging_buffer = s->draw_staging_buffer;
 
     ngli_darray_clear(&s->bounding_box_nodes);
 
@@ -647,7 +651,7 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t)
         ngpu_ctx_query_draw_time(s->gpu_ctx, &s->gpu_draw_time);
     }
 
-    ret = ngli_staging_buffer_flush(&s->draw_staging_buffer);
+    ret = ngpu_staging_buffer_flush(s->draw_staging_buffer);
     if (ret < 0)
         return ret;
 
