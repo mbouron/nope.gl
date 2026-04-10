@@ -36,7 +36,6 @@
 #include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
 #include "rtt.h"
-#include "staging_buffer.h"
 #include "node_block.h"
 #include "node_texture.h"
 #include "utils/bstr.h"
@@ -810,8 +809,8 @@ static void effect2d_draw(struct ngl_node *node)
         memcpy(vert_data.projection_matrix, ctx->projection_2d_matrix, sizeof(vert_data.projection_matrix));
         memcpy(vert_data.modelview_matrix, modelview_matrix, sizeof(vert_data.modelview_matrix));
 
-        const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pl, s->vert_block_index, staging_buf, vert_offset, s->vert_block_size);
     }
 
@@ -823,15 +822,15 @@ static void effect2d_draw(struct ngl_node *node)
         struct effect2d_frag_block frag_data = {0};
         frag_data.opacity = local_opacity * *group_opacity;
 
-        const size_t frag_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pl, s->frag_block_index, staging_buf, frag_offset, sizeof(frag_data));
     }
 
     /* Fill and push user uniform block to staging buffer (if any) */
     if (s->user_block_index >= 0) {
         size_t offset = 0;
-        uint8_t *data = ngli_staging_buffer_reserve(ctx->current_staging_buffer, s->user_block_size, &offset);
+        uint8_t *data = ngpu_staging_buffer_reserve(ctx->current_staging_buffer, s->user_block_size, &offset);
         const struct ngpu_block_field *fields = s->user_block_desc.fields;
 
         const int32_t *field_indices = ngli_darray_data(&s->user_field_indices);
@@ -841,7 +840,7 @@ static void effect2d_draw(struct ngl_node *node)
             ngpu_block_field_copy(&fields[field_indices[i]], data + fields[field_indices[i]].offset, var->data);
         }
 
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pl, s->user_block_index, staging_buf, offset, s->user_block_size);
     }
 
