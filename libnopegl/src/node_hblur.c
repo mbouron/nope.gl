@@ -34,7 +34,6 @@
 #include "pipeline_compat.h"
 #include "rtt.h"
 #include <ngpu/ngpu.h>
-#include "staging_buffer.h"
 #include "utils/utils.h"
 
 /* GLSL shaders */
@@ -205,7 +204,7 @@ static int setup_pass1_pipeline(struct ngl_node *node)
         }
     };
 
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct ngpu_pgcraft_block blocks[] = {
         {
@@ -304,7 +303,7 @@ static int setup_pass2_pipeline(struct ngl_node *node)
         }
     };
 
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
@@ -593,8 +592,8 @@ static void hblur_pre_draw(struct ngl_node *node)
         .radius = radius,
         .nb_samples = nb_samples,
     };
-    const size_t blur_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &blur_data, sizeof(blur_data));
-    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    const size_t blur_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &blur_data, sizeof(blur_data));
+    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_compat_update_buffer(s->pass1.pl, s->pass1.blur_block_index,
                                        buffer, blur_offset, sizeof(blur_data));
     ngli_pipeline_compat_update_buffer(s->pass2.pl, s->pass2.blur_block_index,

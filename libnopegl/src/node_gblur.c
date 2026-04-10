@@ -34,7 +34,6 @@
 #include "pipeline_compat.h"
 #include "rtt.h"
 #include <ngpu/ngpu.h>
-#include "staging_buffer.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
@@ -214,8 +213,8 @@ static void push_kernel_block(struct ngl_node *node)
     if (!s->kernel_staging_cache)
         return;
 
-    const size_t kernel_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, s->kernel_staging_cache, s->kernel_block_size);
-    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    const size_t kernel_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, s->kernel_staging_cache, s->kernel_block_size);
+    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_compat_update_buffer(s->pl_blur_h, s->kernel_block_index,
                                        buffer, kernel_offset, s->kernel_block_size);
     ngli_pipeline_compat_update_buffer(s->pl_blur_v, s->kernel_block_index,
@@ -302,7 +301,7 @@ static int gblur_init(struct ngl_node *node)
         },
     };
 
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
@@ -500,9 +499,9 @@ static void gblur_pre_draw(struct ngl_node *node)
 
     const struct direction_block dir_h = {.direction = {1.f, 0.f}};
     const struct direction_block dir_v = {.direction = {0.f, 1.f}};
-    const size_t dir_h_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &dir_h, sizeof(dir_h));
-    const size_t dir_v_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &dir_v, sizeof(dir_v));
-    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    const size_t dir_h_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &dir_h, sizeof(dir_h));
+    const size_t dir_v_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &dir_v, sizeof(dir_v));
+    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_compat_update_buffer(s->pl_blur_h, s->direction_block_index,
                                        buffer, dir_h_offset, s->direction_block_size);
     ngli_pipeline_compat_update_buffer(s->pl_blur_v, s->direction_block_index,

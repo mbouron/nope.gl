@@ -34,7 +34,6 @@
 #include "pipeline_compat.h"
 #include "rtt.h"
 #include <ngpu/ngpu.h>
-#include "staging_buffer.h"
 #include "utils/bits.h"
 #include "utils/utils.h"
 
@@ -138,7 +137,7 @@ static int setup_down_up_pipeline(struct ngl_ctx *ctx,
                                   struct ngpu_block_desc *block_desc,
                                   size_t block_size)
 {
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct ngpu_pgcraft_iovar vert_out_vars[] = {
         {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
@@ -234,7 +233,7 @@ static int setup_interpolate_pipeline(struct ngl_node *node)
     s->interpolate.block_size = ngpu_block_desc_get_size(&s->interpolate.block_desc, 0);
     ngli_assert(s->interpolate.block_size == sizeof(struct interpolate_block));
 
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
@@ -561,8 +560,8 @@ static void fgblur_pre_draw(struct ngl_node *node)
 
     /* Push down/up data block to the staging buffer */
     const struct down_up_data_block down_up_data = {.offset = 1.f};
-    const size_t down_up_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &down_up_data, sizeof(down_up_data));
-    struct ngpu_buffer *buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    const size_t down_up_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &down_up_data, sizeof(down_up_data));
+    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_compat_update_buffer(s->dws.pl, s->down_up_block_index_dws,
                                        buffer, down_up_offset, sizeof(down_up_data));
     ngli_pipeline_compat_update_buffer(s->ups.pl, s->down_up_block_index_ups,
@@ -597,8 +596,8 @@ static void fgblur_pre_draw(struct ngl_node *node)
         execute_down_up_pass(ctx, s->mips[i], s->ups.pl, ngli_rtt_get_image(s->mips[i + 1], 0));
 
     const struct interpolate_block interp_data = {.lod = lod_f};
-    const size_t interp_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &interp_data, sizeof(interp_data));
-    buffer = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    const size_t interp_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &interp_data, sizeof(interp_data));
+    buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_compat_update_buffer(s->interpolate.pl, s->interpolate.block_index,
                                        buffer, interp_offset, sizeof(interp_data));
 
