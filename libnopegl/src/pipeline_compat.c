@@ -493,7 +493,7 @@ void ngli_pipeline_compat_draw_indexed(struct pipeline_compat *s, const struct n
         ngpu_ctx_set_vertex_buffer(gpu_ctx, (uint32_t)i, s->vertex_buffers[i]);
     ngpu_ctx_set_index_buffer(gpu_ctx, indices, indices_format);
     ngpu_ctx_set_bindgroup(gpu_ctx, s->cur_bindgroup, s->dynamic_offsets, s->nb_dynamic_offsets);
-    ngpu_ctx_draw_indexed(gpu_ctx, nb_indices, nb_instances);
+    ngpu_ctx_draw_indexed(gpu_ctx, nb_indices, nb_instances, 0);
 }
 
 void ngli_pipeline_compat_dispatch(struct pipeline_compat *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
