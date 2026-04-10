@@ -1149,7 +1149,7 @@ static void gl_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instan
                                         });
 }
 
-static void gl_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances)
+static void gl_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances, uint32_t first_index)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
@@ -1158,6 +1158,7 @@ static void gl_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb
                                             .type = NGPU_CMD_TYPE_GL_DRAW_INDEXED,
                                             .draw_indexed.nb_indices = nb_indices,
                                             .draw_indexed.nb_instances = nb_instances,
+                                            .draw_indexed.first_index = first_index,
                                         });
 }
 

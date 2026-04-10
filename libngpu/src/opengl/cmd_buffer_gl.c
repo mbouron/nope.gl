@@ -211,7 +211,8 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
             ngpu_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_draw_indexed(cur_pipeline,
                                           cmd->draw_indexed.nb_indices,
-                                          cmd->draw_indexed.nb_instances);
+                                          cmd->draw_indexed.nb_instances,
+                                          cmd->draw_indexed.first_index);
             break;
         }
         case NGPU_CMD_TYPE_GL_DISPATCH: {

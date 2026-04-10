@@ -482,7 +482,7 @@ void ngpu_pipeline_vk_draw(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32
     vkCmdDraw(cmd_buf, nb_vertices, nb_instances, first_vertex, 0);
 }
 
-void ngpu_pipeline_vk_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32_t nb_instances)
+void ngpu_pipeline_vk_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_index)
 {
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
@@ -497,7 +497,7 @@ void ngpu_pipeline_vk_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_vertices
     if (ret < 0)
         return;
 
-    vkCmdDrawIndexed(cmd_buf, nb_vertices, nb_instances, 0, 0, 0);
+    vkCmdDrawIndexed(cmd_buf, nb_vertices, nb_instances, first_index, 0, 0);
 }
 
 void ngpu_pipeline_vk_dispatch(struct ngpu_pipeline *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)

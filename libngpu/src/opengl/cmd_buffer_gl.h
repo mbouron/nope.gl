@@ -80,6 +80,7 @@ struct ngpu_cmd_gl {
         struct {
             uint32_t nb_indices;
             uint32_t nb_instances;
+            uint32_t first_index;
         } draw_indexed;
 
         struct {

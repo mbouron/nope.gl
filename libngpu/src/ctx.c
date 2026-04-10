@@ -415,7 +415,7 @@ void ngpu_ctx_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instanc
     s->cls->draw(s, nb_vertices, nb_instances, first_vertex);
 }
 
-void ngpu_ctx_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances)
+void ngpu_ctx_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances, uint32_t first_index)
 {
     ngpu_assert(s->pipeline);
     validate_vertex_buffers(s);
@@ -424,7 +424,7 @@ void ngpu_ctx_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_
     const struct ngpu_bindgroup_layout *b_layout = s->bindgroup->layout;
     ngpu_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
 
-    s->cls->draw_indexed(s, nb_indices, nb_instances);
+    s->cls->draw_indexed(s, nb_indices, nb_instances, first_index);
 }
 
 void ngpu_ctx_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
