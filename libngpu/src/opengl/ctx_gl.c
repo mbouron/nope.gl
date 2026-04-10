@@ -1017,7 +1017,7 @@ static void gl_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *r
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, rt);
+    NGPU_CMD_BUFFER_GL_REF(cmd_buffer, rt);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_BEGIN_RENDER_PASS,
@@ -1081,7 +1081,7 @@ static void gl_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, texture);
+    NGPU_CMD_BUFFER_GL_REF(cmd_buffer, texture);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_GENERATE_TEXTURE_MIPMAP,
@@ -1094,7 +1094,7 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, bindgroup);
+    NGPU_CMD_BUFFER_GL_REF(cmd_buffer, bindgroup);
 
     struct ngpu_bindgroup_gl *bindgroup_gl = (struct ngpu_bindgroup_gl *)bindgroup;
     for (size_t i = 0; i < ngpu_darray_count(&bindgroup_gl->buffer_bindings); i++) {
@@ -1117,7 +1117,7 @@ static void gl_set_pipeline(struct ngpu_ctx *s, struct ngpu_pipeline *pipeline)
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, pipeline);
+    NGPU_CMD_BUFFER_GL_REF(cmd_buffer, pipeline);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_SET_PIPELINE,
@@ -1168,7 +1168,7 @@ static void gl_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struc
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, buffer);
+    NGPU_CMD_BUFFER_GL_REF(cmd_buffer, buffer);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_SET_VERTEX_BUFFER,
@@ -1182,7 +1182,7 @@ static void gl_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *bu
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    NGPU_CMD_BUFFER_GL_CMD_REF(cmd_buffer, buffer);
+    NGPU_CMD_BUFFER_GL_REF(cmd_buffer, buffer);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_SET_INDEX_BUFFER,
