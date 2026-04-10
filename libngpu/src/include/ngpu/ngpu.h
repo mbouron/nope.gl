@@ -879,42 +879,6 @@ NGPU_API int ngpu_block_desc_add_fields(struct ngpu_block_desc *s, const struct 
 NGPU_API void ngpu_block_desc_reset(struct ngpu_block_desc *s);
 
 /*
- * Block
- */
-
-#define NGPU_BLOCK_FIELD(_st, _name, _type, _count) \
-    {.field={.name= #_name, .type=_type, .count=_count}, .offset=offsetof(_st, _name)}
-
-struct ngpu_block_entry {
-    struct ngpu_block_field field;
-    size_t offset;
-};
-
-struct ngpu_block_params {
-    enum ngpu_block_layout layout;
-    uint32_t usage;
-    size_t count;
-    const struct ngpu_block_entry *entries;
-    size_t nb_entries;
-};
-
-struct ngpu_block {
-    struct ngpu_ctx *gpu_ctx;
-    struct ngpu_block_desc block_desc;
-    size_t block_size;
-    size_t *offsets;
-    size_t nb_offsets;
-    struct ngpu_buffer *buffer;
-};
-
-NGPU_API int ngpu_block_init(struct ngpu_ctx *gpu_ctx, struct ngpu_block *s, const struct ngpu_block_params *params);
-NGPU_API int ngpu_block_update(struct ngpu_block *s, size_t index, const void *data);
-NGPU_API void ngpu_block_reset(struct ngpu_block *s);
-
-NGPU_API void ngpu_block_get_buffer_offsets(const struct ngpu_block *s, size_t *nb_offsets, size_t **offsets);
-NGPU_API struct ngpu_buffer *ngpu_block_get_buffer(const struct ngpu_block *s);
-
-/*
  * Context
  */
 
