@@ -525,7 +525,7 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
     struct ngpu_ctx *gpu_ctx = node->ctx->gpu_ctx;
 
     struct ngl_ctx *ctx = node->ctx;
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     /* Initialize vertex block descriptor */
     ngpu_block_desc_init(gpu_ctx, &desc->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
@@ -607,7 +607,7 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
     struct text_priv *s = node->priv_data;
     struct ngpu_ctx *gpu_ctx = node->ctx->gpu_ctx;
     struct ngl_ctx *ctx = node->ctx;
-    struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
     /* Initialize vertex block descriptor */
     ngpu_block_desc_init(gpu_ctx, &desc->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
@@ -876,8 +876,8 @@ static void text_draw(struct ngl_node *node)
     memcpy(bg_vert_data.projection_matrix, projection_matrix, sizeof(bg_vert_data.projection_matrix));
 
     if (bg_desc->vert_block_index >= 0) {
-        const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &bg_vert_data, sizeof(bg_vert_data));
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &bg_vert_data, sizeof(bg_vert_data));
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(bg_desc->common.pipeline_compat, bg_desc->vert_block_index,
                                            staging_buf, vert_offset, sizeof(bg_vert_data));
     }
@@ -888,8 +888,8 @@ static void text_draw(struct ngl_node *node)
     bg_frag_data.opacity = o->bg_opacity;
 
     if (bg_desc->frag_block_index >= 0) {
-        const size_t frag_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &bg_frag_data, sizeof(bg_frag_data));
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &bg_frag_data, sizeof(bg_frag_data));
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(bg_desc->common.pipeline_compat, bg_desc->frag_block_index,
                                            staging_buf, frag_offset, sizeof(bg_frag_data));
     }
@@ -908,8 +908,8 @@ static void text_draw(struct ngl_node *node)
         memcpy(fg_vert_data.projection_matrix, projection_matrix, sizeof(fg_vert_data.projection_matrix));
 
         if (fg_desc->vert_block_index >= 0) {
-            const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &fg_vert_data, sizeof(fg_vert_data));
-            struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+            const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &fg_vert_data, sizeof(fg_vert_data));
+            struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
             ngli_pipeline_compat_update_buffer(fg_desc->common.pipeline_compat, fg_desc->vert_block_index,
                                                staging_buf, vert_offset, sizeof(fg_vert_data));
         }
@@ -919,8 +919,8 @@ static void text_draw(struct ngl_node *node)
         fg_frag_data.dist_scale = s->dist_scale;
 
         if (fg_desc->frag_block_index >= 0) {
-            const size_t frag_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &fg_frag_data, sizeof(fg_frag_data));
-            struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+            const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &fg_frag_data, sizeof(fg_frag_data));
+            struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
             ngli_pipeline_compat_update_buffer(fg_desc->common.pipeline_compat, fg_desc->frag_block_index,
                                                staging_buf, frag_offset, sizeof(fg_frag_data));
         }

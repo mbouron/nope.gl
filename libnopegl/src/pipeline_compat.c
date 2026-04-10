@@ -27,7 +27,6 @@
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
-#include "staging_buffer.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -241,7 +240,7 @@ int ngli_pipeline_compat_update_dynamic_offsets(struct pipeline_compat *s, const
  * Fill and push a single per-texture metadata block to the staging buffer
  * using the fixed-layout ngpu_pgcraft_texture_info_block struct.
  */
-static void push_tex_blocks_for_image(struct pipeline_compat *s, struct staging_buffer *staging,
+static void push_tex_blocks_for_image(struct pipeline_compat *s, struct ngpu_staging_buffer *staging,
                                       size_t tex_index, const struct image *image,
                                       const void *coord_matrix_override)
 {
@@ -261,14 +260,14 @@ static void push_tex_blocks_for_image(struct pipeline_compat *s, struct staging_
     tex_info.timestamp = image->ts;
     tex_info.sampling_mode = (int32_t)image->params.layout;
 
-    const size_t offset = ngli_staging_buffer_push(staging, &tex_info, sizeof(tex_info));
-    struct ngpu_buffer *buf = ngli_staging_buffer_get_buffer(staging);
+    const size_t offset = ngpu_staging_buffer_push(staging, &tex_info, sizeof(tex_info));
+    struct ngpu_buffer *buf = ngpu_staging_buffer_get_buffer(staging);
     ngli_pipeline_compat_update_buffer(s, info->block_index, buf, offset, sizeof(tex_info));
 }
 
 void ngli_pipeline_compat_apply_reframing_matrix(struct pipeline_compat *s, int32_t index,
                                                  const struct image *image, const float *reframing,
-                                                 struct staging_buffer *staging)
+                                                 struct ngpu_staging_buffer *staging)
 {
     if (index == -1)
         return;
@@ -309,7 +308,7 @@ void ngli_pipeline_compat_apply_reframing_matrix(struct pipeline_compat *s, int3
 
 void ngli_pipeline_compat_update_image(struct pipeline_compat *s, int32_t index,
                                        const struct image *image,
-                                       struct staging_buffer *staging)
+                                       struct ngpu_staging_buffer *staging)
 {
     if (index == -1)
         return;

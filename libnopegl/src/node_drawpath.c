@@ -352,8 +352,8 @@ static void drawpath_draw(struct ngl_node *node)
     memcpy(vert_data.vertices, s->vertices, sizeof(vert_data.vertices));
 
     if (s->vert_block_index >= 0) {
-        const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(desc->pipeline_compat, s->vert_block_index,
                                            staging_buf, vert_offset, sizeof(vert_data));
     }
@@ -381,8 +381,8 @@ static void drawpath_draw(struct ngl_node *node)
     frag_data.debug = 0;
 
     if (s->frag_block_index >= 0) {
-        const size_t frag_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(desc->pipeline_compat, s->frag_block_index,
                                            staging_buf, frag_offset, sizeof(frag_data));
     }

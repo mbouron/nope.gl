@@ -410,8 +410,8 @@ static void drawhistogram_draw(struct ngl_node *node)
     memcpy(vert_data.projection_matrix, projection_matrix, sizeof(vert_data.projection_matrix));
 
     if (s->vert_block_index >= 0) {
-        const size_t vert_offset = ngli_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pl_compat, s->vert_block_index,
                                            staging_buf, vert_offset, sizeof(vert_data));
     }
@@ -421,7 +421,7 @@ static void drawhistogram_draw(struct ngl_node *node)
         const struct ngpu_block_desc *block = &s->frag_block_desc;
         const size_t frag_size = ngpu_block_desc_get_size(block, 0);
         size_t frag_offset = 0;
-        uint8_t *data = ngli_staging_buffer_reserve(ctx->current_staging_buffer, frag_size, &frag_offset);
+        uint8_t *data = ngpu_staging_buffer_reserve(ctx->current_staging_buffer, frag_size, &frag_offset);
 
         const struct drawhistogram_frag_block frag_data = {
             .aspect = (float)ctx->viewport.width / (float)ctx->viewport.height,
@@ -438,7 +438,7 @@ static void drawhistogram_draw(struct ngl_node *node)
                 ngpu_block_field_copy(&block->fields[fi], data + block->fields[fi].offset, comb_uniforms[i].data);
         }
 
-        struct ngpu_buffer *staging_buf = ngli_staging_buffer_get_buffer(ctx->current_staging_buffer);
+        struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
         ngli_pipeline_compat_update_buffer(pl_compat, s->frag_block_index,
                                            staging_buf, frag_offset, frag_size);
     }
