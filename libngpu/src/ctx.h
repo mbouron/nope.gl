@@ -77,7 +77,7 @@ struct ngpu_ctx_class {
     void (*set_pipeline)(struct ngpu_ctx *s, struct ngpu_pipeline *pipeline);
     void (*set_bindgroup)(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup, const uint32_t *offsets, size_t nb_offsets);
     void (*draw)(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex);
-    void (*draw_indexed)(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances);
+    void (*draw_indexed)(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances, uint32_t first_index);
     void (*dispatch)(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z);
 
     struct ngpu_buffer *(*buffer_create)(struct ngpu_ctx *ctx);

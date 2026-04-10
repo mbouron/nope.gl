@@ -289,7 +289,7 @@ void ngpu_pipeline_gl_draw(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32
         gl->funcs.MemoryBarrier(barriers);
 }
 
-void ngpu_pipeline_gl_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_indices, uint32_t nb_instances)
+void ngpu_pipeline_gl_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_indices, uint32_t nb_instances, uint32_t first_index)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
@@ -311,8 +311,11 @@ void ngpu_pipeline_gl_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_indices,
     if (barriers)
         gl->funcs.MemoryBarrier(barriers);
 
+    const size_t index_size = gpu_ctx->index_format == NGPU_FORMAT_R16_UNORM ? 2 : 4;
+    const void *indices_offset = (const void *)(uintptr_t)(first_index * index_size);
+
     const GLenum gl_topology = get_gl_topology(graphics->topology);
-    gl->funcs.DrawElementsInstanced(gl_topology, (GLint)nb_indices, gl_indices_type, 0, (GLint)nb_instances);
+    gl->funcs.DrawElementsInstanced(gl_topology, (GLint)nb_indices, gl_indices_type, indices_offset, (GLint)nb_instances);
 
     if (barriers)
         gl->funcs.MemoryBarrier(barriers);

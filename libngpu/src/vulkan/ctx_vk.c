@@ -1485,11 +1485,11 @@ static void vk_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instan
     ngpu_pipeline_vk_draw(pipeline, nb_vertices, nb_instances, first_vertex);
 }
 
-static void vk_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances)
+static void vk_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances, uint32_t first_index)
 {
     struct ngpu_pipeline *pipeline = s->pipeline;
 
-    ngpu_pipeline_vk_draw_indexed(pipeline, nb_indices, nb_instances);
+    ngpu_pipeline_vk_draw_indexed(pipeline, nb_indices, nb_instances, first_index);
 }
 
 static void vk_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
