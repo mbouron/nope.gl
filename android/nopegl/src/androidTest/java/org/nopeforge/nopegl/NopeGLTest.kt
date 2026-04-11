@@ -56,7 +56,7 @@ class NopeGLTest {
         assertEquals(ret, 0)
 
         ret = ctx.resize(256, 256)
-        assert(ret != 0)
+        assert(ret == 0)
 
         val captureBuffer = ByteBuffer.allocateDirect(256 * 256 * 4)
         ret = ctx.setCaptureBuffer(captureBuffer)

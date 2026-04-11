@@ -119,12 +119,12 @@ def api_reconfigure_fail():
     del ctx
 
 
-def api_resize_fail():
+def api_resize():
     ctx = ngl.Context()
     ret = ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
     assert ret == 0
     ret = ctx.resize(32, 32)
-    assert ret != 0
+    assert ret == 0
     del ctx
 
 
