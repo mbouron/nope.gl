@@ -639,8 +639,14 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
     const int external = ctx_params_gl ? ctx_params_gl->external : 0;
 
     if (ctx_params->offscreen) {
-        LOG(ERROR, "resize operation is not supported by offscreen context");
-        return NGPU_ERROR_UNSUPPORTED;
+        if (ctx_params->capture_buffer) {
+            LOG(ERROR, "resize is not supported while a capture buffer is set");
+            return NGPU_ERROR_UNSUPPORTED;
+        }
+        rendertarget_reset(s);
+        ctx_params->width = width;
+        ctx_params->height = height;
+        return offscreen_rendertarget_init(s);
     }
 
     if (external) {

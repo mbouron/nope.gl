@@ -971,12 +971,29 @@ static int vk_init(struct ngpu_ctx *s)
 
 static int vk_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 {
-    const struct ngpu_ctx_params *ctx_params = &s->params;
+    struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
+    struct vkcontext *vk = s_priv->vkcontext;
 
     if (ctx_params->offscreen) {
-        LOG(ERROR, "resize operation is not supported by offscreen context");
-        return NGPU_ERROR_UNSUPPORTED;
+        if (ctx_params->capture_buffer) {
+            LOG(ERROR, "resize is not supported while a capture buffer is set");
+            return NGPU_ERROR_UNSUPPORTED;
+        }
+        VkResult res = vk->funcs.DeviceWaitIdle(vk->device);
+        if (res != VK_SUCCESS)
+            return ngpu_vk_res2ret(res);
+
+        destroy_render_resources(s);
+
+        ctx_params->width = width;
+        ctx_params->height = height;
+        s_priv->width = width;
+        s_priv->height = height;
+        res = create_render_resources(s);
+        if (res != VK_SUCCESS)
+            return ngpu_vk_res2ret(res);
+        return 0;
     }
 
     s_priv->recreate_swapchain = 1;
