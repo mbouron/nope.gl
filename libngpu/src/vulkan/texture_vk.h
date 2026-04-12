@@ -58,6 +58,8 @@ struct ngpu_texture_vk {
     struct ngpu_buffer *staging_buffer;
     void *staging_buffer_ptr;
     struct ngpu_texture_transfer_params last_transfer_params;
+    struct ngpu_buffer *readback_buffer;
+    void *readback_buffer_ptr;
     int fd;
 };
 
@@ -71,6 +73,7 @@ int ngpu_texture_vk_generate_mipmap(struct ngpu_texture *s);
 void ngpu_texture_vk_transition_layout(struct ngpu_texture *s, VkImageLayout layout);
 void ngpu_texture_vk_transition_to_default_layout(struct ngpu_texture *s);
 void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *buffer);
+int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data);
 void ngpu_texture_vk_freep(struct ngpu_texture **sp);
 
 VkFilter ngpu_vk_get_filter(enum ngpu_filter filter);

@@ -115,6 +115,7 @@ struct ngpu_ctx_class {
     int (*texture_import)(struct ngpu_texture *s, const struct ngpu_texture_params *params);
     int (*texture_upload)(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize);
     int (*texture_upload_with_params)(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params);
+    int (*texture_read_pixels)(struct ngpu_texture *s, uint8_t *data);
     int (*texture_generate_mipmap)(struct ngpu_texture *s);
     void (*texture_freep)(struct ngpu_texture **sp);
 };

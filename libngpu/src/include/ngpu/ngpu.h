@@ -589,6 +589,7 @@ NGPU_API struct ngpu_texture *ngpu_texture_create(struct ngpu_ctx *gpu_ctx);
 NGPU_API int ngpu_texture_init(struct ngpu_texture *s, const struct ngpu_texture_params *params);
 NGPU_API int ngpu_texture_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize);
 NGPU_API int ngpu_texture_upload_with_params(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params);
+NGPU_API int ngpu_texture_read_pixels(struct ngpu_texture *s, uint8_t *data);
 NGPU_API int ngpu_texture_generate_mipmap(struct ngpu_texture *s);
 NGPU_API void ngpu_texture_freep(struct ngpu_texture **sp);
 
