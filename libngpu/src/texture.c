@@ -72,6 +72,12 @@ int ngpu_texture_upload_with_params(struct ngpu_texture *s, const uint8_t *data,
     return s->gpu_ctx->cls->texture_upload_with_params(s, data, transfer_params);
 }
 
+int ngpu_texture_read_pixels(struct ngpu_texture *s, uint8_t *data)
+{
+    ngpu_assert(s->params.type == NGPU_TEXTURE_TYPE_2D);
+    return s->gpu_ctx->cls->texture_read_pixels(s, data);
+}
+
 int ngpu_texture_generate_mipmap(struct ngpu_texture *s)
 {
     return s->gpu_ctx->cls->texture_generate_mipmap(s);

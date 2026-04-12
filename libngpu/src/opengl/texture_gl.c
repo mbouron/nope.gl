@@ -708,6 +708,57 @@ int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *da
     return 0;
 }
 
+int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
+{
+    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
+    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+    const struct ngpu_texture_params *params = &s->params;
+    const GLsizei w = (GLsizei)params->width;
+    const GLsizei h = (GLsizei)params->height;
+
+    if (!s_priv->readback_texture) {
+        gl->funcs.GenTextures(1, &s_priv->readback_texture);
+        gl->funcs.BindTexture(GL_TEXTURE_2D, s_priv->readback_texture);
+        if (gl->features & NGPU_FEATURE_GL_TEXTURE_STORAGE) {
+            gl->funcs.TexStorage2D(GL_TEXTURE_2D, 1, s_priv->internal_format, w, h);
+        } else {
+            gl->funcs.TexImage2D(GL_TEXTURE_2D, 0, (GLint)s_priv->internal_format, w, h, 0,
+                                 s_priv->format, s_priv->format_type, NULL);
+        }
+
+        gl->funcs.GenFramebuffers(1, &s_priv->readback_src_fbo);
+        gl->funcs.BindFramebuffer(GL_READ_FRAMEBUFFER, s_priv->readback_src_fbo);
+        if (s_priv->target == GL_RENDERBUFFER)
+            gl->funcs.FramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                              s_priv->target, s_priv->id);
+        else
+            gl->funcs.FramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                           s_priv->target, s_priv->id, 0);
+
+        gl->funcs.GenFramebuffers(1, &s_priv->readback_dst_fbo);
+        gl->funcs.BindFramebuffer(GL_DRAW_FRAMEBUFFER, s_priv->readback_dst_fbo);
+        gl->funcs.FramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                       GL_TEXTURE_2D, s_priv->readback_texture, 0);
+    }
+
+    gl->funcs.BindFramebuffer(GL_READ_FRAMEBUFFER, s_priv->readback_src_fbo);
+    gl->funcs.BindFramebuffer(GL_DRAW_FRAMEBUFFER, s_priv->readback_dst_fbo);
+
+    ngpu_glstate_enable_scissor_test(gl, &gpu_ctx_gl->glstate, GL_FALSE);
+
+    /* Blit with Y-flip: source (0,0,w,h) → dest (0,h,w,0) */
+    gl->funcs.BlitFramebuffer(0, 0, w, h, 0, h, w, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->readback_dst_fbo);
+    gl->funcs.ReadPixels(0, 0, w, h, s_priv->format, s_priv->format_type, data);
+
+    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, 0);
+    ngpu_glstate_enable_scissor_test(gl, &gpu_ctx_gl->glstate, GL_TRUE);
+
+    return 0;
+}
+
 int ngpu_texture_gl_generate_mipmap(struct ngpu_texture *s)
 {
     struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
@@ -738,6 +789,12 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
             gl->funcs.DeleteRenderbuffers(1, &s_priv->id);
         else
             gl->funcs.DeleteTextures(1, &s_priv->id);
+    }
+
+    if (s_priv->readback_texture) {
+        gl->funcs.DeleteFramebuffers(1, &s_priv->readback_src_fbo);
+        gl->funcs.DeleteFramebuffers(1, &s_priv->readback_dst_fbo);
+        gl->funcs.DeleteTextures(1, &s_priv->readback_texture);
     }
 
 #if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
