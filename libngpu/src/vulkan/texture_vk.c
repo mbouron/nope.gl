@@ -1000,6 +1000,52 @@ void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *
                            buffer_vk->buffer, 1, &region);
 }
 
+int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data)
+{
+    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+
+    const struct ngpu_texture_params *params = &s->params;
+    ngpu_assert(params->samples == 0);
+    
+    const size_t size = (size_t)params->width * (size_t)params->height *
+                        ngpu_format_get_bytes_per_pixel(params->format);
+
+    if (!s_priv->readback_buffer) {
+        s_priv->readback_buffer = ngpu_buffer_create(s->gpu_ctx);
+        if (!s_priv->readback_buffer)
+            return NGPU_ERROR_MEMORY;
+
+        int ret = ngpu_buffer_init(s_priv->readback_buffer, size,
+                                   NGPU_BUFFER_USAGE_MAP_READ |
+                                   NGPU_BUFFER_USAGE_TRANSFER_DST_BIT);
+        if (ret < 0)
+            return ret;
+
+        ret = ngpu_buffer_map(s_priv->readback_buffer, 0, size, &s_priv->readback_buffer_ptr);
+        if (ret < 0)
+            return ret;
+    }
+
+    struct ngpu_cmd_buffer_vk *transient;
+    VkResult res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &transient);
+    if (res != VK_SUCCESS)
+        return ngpu_vk_res2ret(res);
+
+    struct ngpu_cmd_buffer_vk *saved_cmd = gpu_ctx_vk->cur_cmd_buffer;
+    gpu_ctx_vk->cur_cmd_buffer = transient;
+    ngpu_texture_vk_copy_to_buffer(s, s_priv->readback_buffer);
+    gpu_ctx_vk->cur_cmd_buffer = saved_cmd;
+
+    res = ngpu_cmd_buffer_vk_execute_transient(&transient);
+    if (res != VK_SUCCESS)
+        return ngpu_vk_res2ret(res);
+
+    memcpy(data, s_priv->readback_buffer_ptr, size);
+
+    return 0;
+}
+
 static void destroy_staging_buffer(struct ngpu_texture *s)
 {
     struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
@@ -1356,6 +1402,12 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
     vk->funcs.FreeMemory(vk->device, s_priv->image_memory, NULL);
 
     destroy_staging_buffer(s);
+
+    if (s_priv->readback_buffer_ptr) {
+        ngpu_buffer_unmap(s_priv->readback_buffer);
+        s_priv->readback_buffer_ptr = NULL;
+    }
+    ngpu_buffer_freep(&s_priv->readback_buffer);
 
     ngpu_freep(sp);
 }

@@ -1633,6 +1633,7 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
     .texture_import                     = ngpu_texture_vk_import,
     .texture_upload                     = ngpu_texture_vk_upload,
     .texture_upload_with_params         = ngpu_texture_vk_upload_with_params,
+    .texture_read_pixels                = ngpu_texture_vk_read_pixels,
     .texture_generate_mipmap            = ngpu_texture_vk_generate_mipmap,
     .texture_freep                      = ngpu_texture_vk_freep,
 };
