@@ -52,6 +52,7 @@
 #include "utils/job_queue.h"
 #include "utils/pthread_compat.h"
 #include "utils/refcount.h"
+#include "utils/utils.h"
 
 struct node_class;
 
@@ -94,13 +95,13 @@ struct ngl_ctx {
     struct ngpu_viewport viewport;
     struct ngpu_scissor scissor;
     struct ngpu_rendertarget *current_rendertarget;
-    float default_modelview_matrix[16];
-    float default_projection_matrix[16];
+    NGLI_ALIGNED_MAT(default_modelview_matrix);
+    NGLI_ALIGNED_MAT(default_projection_matrix);
     struct darray modelview_matrix_stack;
     struct darray projection_matrix_stack;
     struct darray transform_2d_stack;
     struct darray opacity_2d_stack;
-    float projection_2d_matrix[16];
+    NGLI_ALIGNED_MAT(projection_2d_matrix);
     float canvas_2d_width;
     float canvas_2d_height;
     struct ngpu_staging_buffer *update_staging_buffer;
