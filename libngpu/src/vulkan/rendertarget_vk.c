@@ -84,7 +84,7 @@ static VkResult vk_create_compatible_renderpass(struct ngpu_ctx *s, const struct
         VkFormat format = ngpu_format_ngl_to_vk(layout->colors[i].format);
 
         VkFormatProperties properties;
-        vkGetPhysicalDeviceFormatProperties(vk->phy_device, format, &properties);
+        vk->funcs.GetPhysicalDeviceFormatProperties(vk->phy_device, format, &properties);
 
         const VkFormatFeatureFlags features = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
         if ((properties.optimalTilingFeatures & features) != features) {
@@ -137,7 +137,7 @@ static VkResult vk_create_compatible_renderpass(struct ngpu_ctx *s, const struct
         VkFormat format = ngpu_format_ngl_to_vk(layout->depth_stencil.format);
 
         VkFormatProperties properties;
-        vkGetPhysicalDeviceFormatProperties(vk->phy_device, format, &properties);
+        vk->funcs.GetPhysicalDeviceFormatProperties(vk->phy_device, format, &properties);
 
         const VkFormatFeatureFlags features = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
         if ((properties.optimalTilingFeatures & features) != features) {
@@ -210,7 +210,7 @@ static VkResult vk_create_compatible_renderpass(struct ngpu_ctx *s, const struct
         .pDependencies   = dependencies,
     };
 
-    return vkCreateRenderPass(vk->device, &render_pass_create_info, NULL, render_pass);
+    return vk->funcs.CreateRenderPass(vk->device, &render_pass_create_info, NULL, render_pass);
 }
 
 VkResult ngpu_vk_create_compatible_renderpass(struct ngpu_ctx *s, const struct ngpu_rendertarget_layout *layout, VkRenderPass *render_pass)
@@ -264,7 +264,7 @@ static VkResult create_image_view(const struct ngpu_rendertarget *s, const struc
             .layerCount     = 1,
         },
     };
-    return vkCreateImageView(vk->device, &view_info, NULL, view);
+    return vk->funcs.CreateImageView(vk->device, &view_info, NULL, view);
 }
 
 static VkResult add_attachment(struct ngpu_rendertarget *s, const struct ngpu_texture *texture, uint32_t layer, const VkClearValue *clear_value)
@@ -344,7 +344,7 @@ static VkResult rendertarget_vk_init(struct ngpu_rendertarget *s)
         .layers          = 1,
     };
 
-    return vkCreateFramebuffer(vk->device, &framebuffer_create_info, NULL, &s_priv->framebuffer);
+    return vk->funcs.CreateFramebuffer(vk->device, &framebuffer_create_info, NULL, &s_priv->framebuffer);
 }
 
 int ngpu_rendertarget_vk_init(struct ngpu_rendertarget *s)
@@ -365,16 +365,16 @@ void ngpu_rendertarget_vk_freep(struct ngpu_rendertarget **sp)
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
 
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    vkDestroyRenderPass(vk->device, s_priv->render_pass, NULL);
-    vkDestroyFramebuffer(vk->device, s_priv->framebuffer, NULL);
+    vk->funcs.DestroyRenderPass(vk->device, s_priv->render_pass, NULL);
+    vk->funcs.DestroyFramebuffer(vk->device, s_priv->framebuffer, NULL);
 
     for (uint32_t i = 0; i < s_priv->nb_attachments; i++) {
-        vkDestroyImageView(vk->device, s_priv->attachments[i], NULL);
+        vk->funcs.DestroyImageView(vk->device, s_priv->attachments[i], NULL);
         NGPU_RC_UNREFP(&s_priv->attachments_refs[i]);
     }
 
-    vkDestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
-    vkFreeMemory(vk->device, s_priv->staging_memory, NULL);
+    vk->funcs.DestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
+    vk->funcs.FreeMemory(vk->device, s_priv->staging_memory, NULL);
 
     ngpu_freep(sp);
 }

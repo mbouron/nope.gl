@@ -89,8 +89,8 @@ static void destroy_desc_pool(void *user_data, void *data)
     VkDescriptorPool *desc_pool = data;
     if (!desc_pool)
         return;
-    vkResetDescriptorPool(vk->device, *desc_pool, 0);
-    vkDestroyDescriptorPool(vk->device, *desc_pool, NULL);
+    vk->funcs.ResetDescriptorPool(vk->device, *desc_pool, 0);
+    vk->funcs.DestroyDescriptorPool(vk->device, *desc_pool, NULL);
     *desc_pool = VK_NULL_HANDLE;
 }
 
@@ -118,12 +118,12 @@ static VkResult allocate_desc_pool(struct ngpu_bindgroup_layout *s, uint32_t fac
     };
 
     VkDescriptorPool pool = VK_NULL_HANDLE;
-    VkResult res = vkCreateDescriptorPool(vk->device, &descriptor_pool_create_info, NULL, &pool);
+    VkResult res = vk->funcs.CreateDescriptorPool(vk->device, &descriptor_pool_create_info, NULL, &pool);
     if (res != VK_SUCCESS)
         return res;
 
     if (!ngpu_darray_push(&s_priv->desc_pools, &pool)) {
-        vkDestroyDescriptorPool(vk->device, pool, NULL);
+        vk->funcs.DestroyDescriptorPool(vk->device, pool, NULL);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -210,7 +210,7 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
         .pBindings    = ngpu_darray_data(&s_priv->desc_set_layout_bindings),
     };
 
-    VkResult res = vkCreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s_priv->desc_set_layout);
+    VkResult res = vk->funcs.CreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s_priv->desc_set_layout);
     if (res != VK_SUCCESS)
         return res;
 
@@ -253,7 +253,7 @@ static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layo
             .pSetLayouts        = &s_priv->desc_set_layout,
         };
 
-        VkResult res = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, desc_set);
+        VkResult res = vk->funcs.AllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, desc_set);
         if (res == VK_SUCCESS) {
             return VK_SUCCESS;
         } else if (res == VK_ERROR_OUT_OF_POOL_MEMORY || res == VK_ERROR_FRAGMENTED_POOL) {
@@ -275,7 +275,7 @@ static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layo
         .pSetLayouts        = &s_priv->desc_set_layout,
     };
 
-    res = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, desc_set);
+    res = vk->funcs.AllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, desc_set);
     if (res != VK_SUCCESS)
         return res;
 
@@ -305,7 +305,7 @@ void ngpu_bindgroup_layout_vk_freep(struct ngpu_bindgroup_layout **sp)
     ngpu_darray_reset(&s_priv->immutable_samplers);
     ngpu_darray_reset(&s_priv->desc_pools);
 
-    vkDestroyDescriptorSetLayout(vk->device, s_priv->desc_set_layout, NULL);
+    vk->funcs.DestroyDescriptorSetLayout(vk->device, s_priv->desc_set_layout, NULL);
 
     ngpu_freep(sp);
 }
@@ -451,7 +451,7 @@ int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
                 .descriptorCount  = 1,
                 .pImageInfo       = &image_info,
             };
-            vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
+            vk->funcs.UpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
             binding->update_desc = 0;
         }
     }
@@ -479,7 +479,7 @@ int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
                 .pImageInfo       = NULL,
                 .pTexelBufferView = NULL,
             };
-            vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
+            vk->funcs.UpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
             binding->update_desc = 0;
         }
     }

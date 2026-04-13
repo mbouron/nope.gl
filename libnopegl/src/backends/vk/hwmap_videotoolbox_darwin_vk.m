@@ -33,9 +33,6 @@
 #endif
 #include <Metal/Metal.h>
 
-#include <MoltenVK/mvk_vulkan.h>
-#include <vulkan/vulkan.h>
-
 #include "hwmap.h"
 #include "image.h"
 #include "internal.h"
@@ -194,18 +191,7 @@ static int vt_darwin_init(struct hwmap *hwmap, struct nmd_frame * frame)
     if (ret < 0)
         return ret;
 
-    VkExportMetalDeviceInfoEXT mtl_device_info = {
-        .sType = VK_STRUCTURE_TYPE_EXPORT_METAL_DEVICE_INFO_EXT,
-    };
-
-    VkExportMetalObjectsInfoEXT mtl_objects_info = {
-        .sType = VK_STRUCTURE_TYPE_EXPORT_METAL_OBJECTS_INFO_EXT,
-        .pNext = &mtl_device_info,
-    };
-
-    VkDevice device = ngpu_ctx_vk_get_device(gpu_ctx);
-    vkExportMetalObjectsEXT(device, &mtl_objects_info);
-    vt->device = mtl_device_info.mtlDevice;
+    vt->device = ngpu_ctx_vk_get_mtl_device(gpu_ctx);
 
     CVReturn status = CVMetalTextureCacheCreate(NULL, NULL, vt->device, NULL, &vt->texture_cache);
     if (status != kCVReturnSuccess) {
