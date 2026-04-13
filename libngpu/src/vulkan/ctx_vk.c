@@ -295,7 +295,7 @@ static VkResult create_query_pool(struct ngpu_ctx *s)
         .queryCount = 2,
     };
 
-    return vkCreateQueryPool(vk->device, &create_info, NULL, &s_priv->query_pool);
+    return vk->funcs.CreateQueryPool(vk->device, &create_info, NULL, &s_priv->query_pool);
 }
 
 static void destroy_query_pool(struct ngpu_ctx *s)
@@ -303,7 +303,7 @@ static void destroy_query_pool(struct ngpu_ctx *s)
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
 
-    vkDestroyQueryPool(vk->device, s_priv->query_pool, NULL);
+    vk->funcs.DestroyQueryPool(vk->device, s_priv->query_pool, NULL);
 }
 
 static VkResult create_command_pool_and_buffers(struct ngpu_ctx *s)
@@ -317,7 +317,7 @@ static VkResult create_command_pool_and_buffers(struct ngpu_ctx *s)
         .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
     };
 
-    VkResult res = vkCreateCommandPool(vk->device, &cmd_pool_create_info, NULL, &s_priv->cmd_pool);
+    VkResult res = vk->funcs.CreateCommandPool(vk->device, &cmd_pool_create_info, NULL, &s_priv->cmd_pool);
     if (res != VK_SUCCESS)
         return res;
 
@@ -364,7 +364,7 @@ static void destroy_command_pool_and_buffers(struct ngpu_ctx *s)
         ngpu_freep(&s_priv->update_cmd_buffers);
     }
 
-    vkDestroyCommandPool(vk->device, s_priv->cmd_pool, NULL);
+    vk->funcs.DestroyCommandPool(vk->device, s_priv->cmd_pool, NULL);
 
     ngpu_darray_reset(&s_priv->pending_cmd_buffers);
 }
@@ -384,7 +384,7 @@ static VkResult create_semaphores(struct ngpu_ctx *s)
 
     VkResult res;
     for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
-        if ((res = vkCreateSemaphore(vk->device, &sem_create_info, NULL,
+        if ((res = vk->funcs.CreateSemaphore(vk->device, &sem_create_info, NULL,
                                      &s_priv->update_finished_sems[i])) != VK_SUCCESS)
             return res;
     }
@@ -401,7 +401,7 @@ static void destroy_semaphores(struct ngpu_ctx *s)
 
     if (s_priv->update_finished_sems) {
         for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
-            vkDestroySemaphore(vk->device, s_priv->update_finished_sems[i], NULL);
+            vk->funcs.DestroySemaphore(vk->device, s_priv->update_finished_sems[i], NULL);
         ngpu_freep(&s_priv->update_finished_sems);
     }
 
@@ -427,9 +427,9 @@ static VkResult create_swapchain_semaphores(struct ngpu_ctx *s)
 
     VkResult res;
     for (uint32_t i = 0; i < s_priv->nb_images; i++) {
-        if ((res = vkCreateSemaphore(vk->device, &sem_create_info, NULL,
+        if ((res = vk->funcs.CreateSemaphore(vk->device, &sem_create_info, NULL,
                                      &s_priv->image_avail_sems[i])) != VK_SUCCESS ||
-            (res = vkCreateSemaphore(vk->device, &sem_create_info, NULL,
+            (res = vk->funcs.CreateSemaphore(vk->device, &sem_create_info, NULL,
                                      &s_priv->image_present_sems[i])) != VK_SUCCESS)
             return res;
     }
@@ -444,13 +444,13 @@ static void destroy_swapchain_semaphores(struct ngpu_ctx *s)
 
     if (s_priv->image_avail_sems) {
         for (uint32_t i = 0; i < s_priv->nb_images; i++)
-            vkDestroySemaphore(vk->device, s_priv->image_avail_sems[i], NULL);
+            vk->funcs.DestroySemaphore(vk->device, s_priv->image_avail_sems[i], NULL);
         ngpu_freep(&s_priv->image_avail_sems);
     }
 
     if (s_priv->image_present_sems) {
         for (uint32_t i = 0; i < s_priv->nb_images; i++)
-            vkDestroySemaphore(vk->device, s_priv->image_present_sems[i], NULL);
+            vk->funcs.DestroySemaphore(vk->device, s_priv->image_present_sems[i], NULL);
         ngpu_freep(&s_priv->image_present_sems);
     }
 }
@@ -535,7 +535,7 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
     struct vkcontext *vk = s_priv->vkcontext;
     struct ngpu_ctx_params *ctx_params = &s->params;
 
-    VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, vk->surface, &s_priv->surface_caps);
+    VkResult res = vk->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, vk->surface, &s_priv->surface_caps);
     if (res != VK_SUCCESS)
         return res;
 
@@ -585,11 +585,11 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
         swapchain_create_info.pQueueFamilyIndices = queue_family_indices;
     }
 
-    res = vkCreateSwapchainKHR(vk->device, &swapchain_create_info, NULL, &s_priv->swapchain);
+    res = vk->funcs.CreateSwapchainKHR(vk->device, &swapchain_create_info, NULL, &s_priv->swapchain);
     if (res != VK_SUCCESS)
         return res;
 
-    res = vkGetSwapchainImagesKHR(vk->device, s_priv->swapchain, &s_priv->nb_images, NULL);
+    res = vk->funcs.GetSwapchainImagesKHR(vk->device, s_priv->swapchain, &s_priv->nb_images, NULL);
     if (res != VK_SUCCESS)
         return res;
 
@@ -598,7 +598,7 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     s_priv->images = images;
 
-    res = vkGetSwapchainImagesKHR(vk->device, s_priv->swapchain, &s_priv->nb_images, s_priv->images);
+    res = vk->funcs.GetSwapchainImagesKHR(vk->device, s_priv->swapchain, &s_priv->nb_images, s_priv->images);
     if (res != VK_SUCCESS)
         return res;
 
@@ -612,7 +612,7 @@ static void destroy_swapchain(struct ngpu_ctx *s)
 
     destroy_swapchain_semaphores(s);
 
-    vkDestroySwapchainKHR(vk->device, s_priv->swapchain, NULL);
+    vk->funcs.DestroySwapchainKHR(vk->device, s_priv->swapchain, NULL);
     s_priv->swapchain = VK_NULL_HANDLE;
 
     ngpu_freep(&s_priv->images);
@@ -623,12 +623,12 @@ static VkResult recreate_swapchain(struct ngpu_ctx *gpu_ctx, struct vkcontext *v
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)gpu_ctx;
 
-    VkResult res = vkDeviceWaitIdle(vk->device);
+    VkResult res = vk->funcs.DeviceWaitIdle(vk->device);
     if (res != VK_SUCCESS)
         return res;
 
     VkSurfaceCapabilitiesKHR surface_caps;
-    res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, vk->surface, &surface_caps);
+    res = vk->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, vk->surface, &surface_caps);
     if (res != VK_SUCCESS)
         return res;
 
@@ -668,7 +668,7 @@ static VkResult swapchain_acquire_image(struct ngpu_ctx *s, uint32_t *image_inde
     }
 
     VkSemaphore sem = s_priv->image_avail_sems[s->current_frame_index];
-    VkResult res = vkAcquireNextImageKHR(vk->device, s_priv->swapchain,
+    VkResult res = vk->funcs.AcquireNextImageKHR(vk->device, s_priv->swapchain,
                                          UINT64_MAX, sem, VK_NULL_HANDLE, image_index);
     switch (res) {
     case VK_SUCCESS:
@@ -679,7 +679,7 @@ static VkResult swapchain_acquire_image(struct ngpu_ctx *s, uint32_t *image_inde
         if (res != VK_SUCCESS)
             return res;
 
-        res = vkAcquireNextImageKHR(vk->device, s_priv->swapchain,
+        res = vk->funcs.AcquireNextImageKHR(vk->device, s_priv->swapchain,
                                     UINT64_MAX, sem, VK_NULL_HANDLE, image_index);
         if (res != VK_SUCCESS)
             return res;
@@ -745,7 +745,7 @@ static VkResult swapchain_present_buffer(struct ngpu_ctx *s, double t)
         present_info.pNext = &present_time_info;
     }
 
-    VkResult res = vkQueuePresentKHR(vk->present_queue, &present_info);
+    VkResult res = vk->funcs.QueuePresentKHR(vk->present_queue, &present_info);
     switch (res) {
     case VK_SUCCESS:
     case VK_SUBOPTIMAL_KHR:
@@ -1125,8 +1125,9 @@ static int vk_begin_draw(struct ngpu_ctx *s)
     }
 
     if (ctx_params->timer_queries) {
-        vkCmdResetQueryPool(s_priv->cur_cmd_buffer->cmd_buf, s_priv->query_pool, 0, 2);
-        vkCmdWriteTimestamp(s_priv->cur_cmd_buffer->cmd_buf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s_priv->query_pool, 0);
+        struct vkcontext *vk = s_priv->vkcontext;
+        vk->funcs.CmdResetQueryPool(s_priv->cur_cmd_buffer->cmd_buf, s_priv->query_pool, 0, 2);
+        vk->funcs.CmdWriteTimestamp(s_priv->cur_cmd_buffer->cmd_buf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, s_priv->query_pool, 0);
     }
 
     return 0;
@@ -1143,7 +1144,7 @@ static int vk_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 
     ngpu_assert(s_priv->cur_cmd_buffer->cmd_buf);
     VkCommandBuffer cmd_buf = s_priv->cur_cmd_buffer->cmd_buf;
-    vkCmdWriteTimestamp(cmd_buf, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s_priv->query_pool, 1);
+    vk->funcs.CmdWriteTimestamp(cmd_buf, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s_priv->query_pool, 1);
 
     VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
     if (res != VK_SUCCESS)
@@ -1154,7 +1155,7 @@ static int vk_query_draw_time(struct ngpu_ctx *s, int64_t *time)
         return ngpu_vk_res2ret(res);
 
     uint64_t results[2];
-    vkGetQueryPoolResults(vk->device,
+    vk->funcs.GetQueryPoolResults(vk->device,
                           s_priv->query_pool, 0, 2,
                           sizeof(results), results, sizeof(results[0]),
                           VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
@@ -1218,7 +1219,7 @@ static void vk_destroy(struct ngpu_ctx *s)
     if (!vk)
         return;
 
-    vkDeviceWaitIdle(vk->device);
+    vk->funcs.DeviceWaitIdle(vk->device);
 
 #if DEBUG_GPU_CAPTURE
     if (s->gpu_capture)
@@ -1242,7 +1243,7 @@ static void vk_wait_idle(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
-    vkDeviceWaitIdle(vk->device);
+    vk->funcs.DeviceWaitIdle(vk->device);
 }
 
 static enum ngpu_cull_mode vk_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
@@ -1350,7 +1351,8 @@ static void vk_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *r
         .clearValueCount = rt_vk->nb_clear_values,
         .pClearValues    = rt_vk->clear_values,
     };
-    vkCmdBeginRenderPass(cmd_buf, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    struct vkcontext *vk = s_priv->vkcontext;
+    vk->funcs.CmdBeginRenderPass(cmd_buf, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
     const VkViewport viewport = {
         .x        = 0.f,
@@ -1360,7 +1362,7 @@ static void vk_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *r
         .minDepth = 0.f,
         .maxDepth = 1.f,
     };
-    vkCmdSetViewport(cmd_buf, 0, 1, &viewport);
+    vk->funcs.CmdSetViewport(cmd_buf, 0, 1, &viewport);
 
     const VkRect2D scissor = {
         .offset.x      = 0,
@@ -1368,17 +1370,18 @@ static void vk_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *r
         .extent.width  = rt->width,
         .extent.height = rt->height,
     };
-    vkCmdSetScissor(cmd_buf, 0, 1, &scissor);
+    vk->funcs.CmdSetScissor(cmd_buf, 0, 1, &scissor);
 
-    vkCmdSetLineWidth(cmd_buf, 1.0f);
+    vk->funcs.CmdSetLineWidth(cmd_buf, 1.0f);
 }
 
 static void vk_end_render_pass(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
+    struct vkcontext *vk = s_priv->vkcontext;
     VkCommandBuffer cmd_buf = s_priv->cur_cmd_buffer->cmd_buf;
-    vkCmdEndRenderPass(cmd_buf);
+    vk->funcs.CmdEndRenderPass(cmd_buf);
 
     const struct ngpu_rendertarget *rt = s->rendertarget;
     const struct ngpu_rendertarget_params *params = &rt->params;
@@ -1410,6 +1413,7 @@ static void vk_end_render_pass(struct ngpu_ctx *s)
 static void vk_set_viewport(struct ngpu_ctx *s, const struct ngpu_viewport *viewport)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
+    struct vkcontext *vk = s_priv->vkcontext;
     VkCommandBuffer cmd_buf = s_priv->cur_cmd_buffer->cmd_buf;
 
     const VkViewport vp = {
@@ -1420,12 +1424,13 @@ static void vk_set_viewport(struct ngpu_ctx *s, const struct ngpu_viewport *view
         .minDepth = 0.f,
         .maxDepth = 1.f,
     };
-    vkCmdSetViewport(cmd_buf, 0, 1, &vp);
+    vk->funcs.CmdSetViewport(cmd_buf, 0, 1, &vp);
 }
 
 static void vk_set_scissor(struct ngpu_ctx *s, const struct ngpu_scissor *scissor)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
+    struct vkcontext *vk = s_priv->vkcontext;
     VkCommandBuffer cmd_buf = s_priv->cur_cmd_buffer->cmd_buf;
 
     struct ngpu_rendertarget *rt = s->rendertarget;
@@ -1436,7 +1441,7 @@ static void vk_set_scissor(struct ngpu_ctx *s, const struct ngpu_scissor *scisso
         .extent.width  = scissor->width,
         .extent.height = scissor->height,
     };
-    vkCmdSetScissor(cmd_buf, 0, 1, &sc);
+    vk->funcs.CmdSetScissor(cmd_buf, 0, 1, &sc);
 }
 
 static enum ngpu_format vk_get_preferred_depth_format(struct ngpu_ctx *s)
@@ -1460,7 +1465,7 @@ static uint32_t vk_get_format_features(struct ngpu_ctx *s, enum ngpu_format form
 
     VkFormat vk_format = ngpu_format_ngl_to_vk(format);
     VkFormatProperties properties;
-    vkGetPhysicalDeviceFormatProperties(vk->phy_device, vk_format, &properties);
+    vk->funcs.GetPhysicalDeviceFormatProperties(vk->phy_device, vk_format, &properties);
 
     return ngpu_format_feature_vk_to_ngl(properties.optimalTilingFeatures);
 }
@@ -1512,7 +1517,8 @@ static void vk_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struc
     const struct ngpu_buffer_vk *buffer_vk = (const struct ngpu_buffer_vk *)buffer;
     const VkBuffer vertex_buffer = buffer_vk->buffer;
     const VkDeviceSize vertex_offset = 0;
-    vkCmdBindVertexBuffers(cmd_buf, index, 1, &vertex_buffer, &vertex_offset);
+    struct vkcontext *vk = s_priv->vkcontext;
+    vk->funcs.CmdBindVertexBuffers(cmd_buf, index, 1, &vertex_buffer, &vertex_offset);
 }
 
 static const VkIndexType vk_indices_type_map[NGPU_FORMAT_NB] = {
@@ -1537,7 +1543,8 @@ static void vk_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *bu
     VkCommandBuffer cmd_buf = cmd_buffer->cmd_buf;
     const struct ngpu_buffer_vk *index_buffer = (const struct ngpu_buffer_vk *)buffer;
     const VkIndexType indices_type = get_vk_indices_type(format);
-    vkCmdBindIndexBuffer(cmd_buf, index_buffer->buffer, 0, indices_type);
+    struct vkcontext *vk = s_priv->vkcontext;
+    vk->funcs.CmdBindIndexBuffer(cmd_buf, index_buffer->buffer, 0, indices_type);
 }
 
 VkDevice ngpu_ctx_vk_get_device(struct ngpu_ctx *s)

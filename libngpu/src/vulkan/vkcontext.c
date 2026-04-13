@@ -35,9 +35,17 @@
 #endif
 
 #include <limits.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <vulkan/vulkan.h>
+
+#if !NGPU_VULKAN_STATIC
+# if defined(TARGET_WINDOWS)
+#  include <windows.h>
+# else
+#  include <dlfcn.h>
+# endif
+#endif
 
 #include "utils/log.h"
 #include "ctx.h"
@@ -112,13 +120,112 @@ static const char *platform_ext_names[] = {
     [NGPU_PLATFORM_WAYLAND] = "VK_KHR_wayland_surface",
 };
 
+#define NGPU_VK_FN_LOAD_INFO(req_inst, req_dev, optional, name) \
+    {"vk" #name, offsetof(struct vk_functions, name), req_inst, req_dev, optional},
+
+static const struct vk_function_load_info vk_load_infos[] = {
+    NGPU_VK_FN_LIST(NGPU_VK_FN_LOAD_INFO)
+    NGPU_VK_FN_LIST_ANDROID(NGPU_VK_FN_LOAD_INFO)
+};
+#undef NGPU_VK_FN_LOAD_INFO
+
+static VkResult load_functions(struct vkcontext *s, bool instance, bool device)
+{
+    struct vk_functions *funcs = &s->funcs;
+
+    for (size_t i = 0; i < NGPU_ARRAY_NB(vk_load_infos); i++) {
+        const struct vk_function_load_info *info = &vk_load_infos[i];
+        if (info->instance != instance || info->device != device)
+            continue;
+
+        PFN_vkVoidFunction func = NULL;
+        if (info->device)
+            func = funcs->GetDeviceProcAddr(s->device, info->name);
+        else if (info->instance)
+            func = funcs->GetInstanceProcAddr(s->instance, info->name);
+        else
+            func = funcs->GetInstanceProcAddr(NULL, info->name);
+
+        if (!func && !info->optional) {
+            LOG(ERROR, "could not load required Vulkan function: %s", info->name);
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        *(PFN_vkVoidFunction *)((uintptr_t)funcs + info->offset) = func;
+    }
+    return VK_SUCCESS;
+}
+
+#if NGPU_VULKAN_STATIC
+/*
+ * vkGetInstanceProcAddr is statically linked (e.g. via libvulkan or
+ * libMoltenVK on iOS/macOS). Forward-declare it since we build with
+ * VK_NO_PROTOTYPES.
+ */
+VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance instance,
+                                                               const char *pName);
+
+static VkResult load_libvulkan(struct vkcontext *s)
+{
+    s->funcs.GetInstanceProcAddr = vkGetInstanceProcAddr;
+    return VK_SUCCESS;
+}
+#else
+static VkResult load_libvulkan(struct vkcontext *s)
+{
+    static const char *lib_names[] = {
+#if defined(TARGET_WINDOWS)
+        "vulkan-1.dll",
+#elif defined(TARGET_DARWIN)
+        "libvulkan.dylib",
+        "libvulkan.1.dylib",
+        "libMoltenVK.dylib",
+#elif defined(TARGET_IPHONE)
+        "libMoltenVK.dylib",
+#else
+        "libvulkan.so.1",
+        "libvulkan.so",
+#endif
+    };
+
+    for (size_t i = 0; i < NGPU_ARRAY_NB(lib_names); i++) {
+#if defined(TARGET_WINDOWS)
+        s->libvulkan = (void *)LoadLibraryA(lib_names[i]);
+#else
+        s->libvulkan = dlopen(lib_names[i], RTLD_NOW | RTLD_LOCAL);
+#endif
+        if (s->libvulkan)
+            break;
+    }
+
+    if (!s->libvulkan) {
+        LOG(ERROR, "could not load the Vulkan library");
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+#if defined(TARGET_WINDOWS)
+    s->funcs.GetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)(void *)
+        GetProcAddress((HMODULE)s->libvulkan, "vkGetInstanceProcAddr");
+#else
+    s->funcs.GetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)
+        dlsym(s->libvulkan, "vkGetInstanceProcAddr");
+#endif
+
+    if (!s->funcs.GetInstanceProcAddr) {
+        LOG(ERROR, "could not resolve vkGetInstanceProcAddr");
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    return VK_SUCCESS;
+}
+#endif
+
 static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type platform, int debug)
 {
     s->api_version = VK_API_VERSION_1_0;
 
-    VK_LOAD_FUNC(NULL, EnumerateInstanceVersion);
-    if (EnumerateInstanceVersion) {
-        VkResult res = EnumerateInstanceVersion(&s->api_version);
+    if (s->funcs.EnumerateInstanceVersion) {
+        VkResult res = s->funcs.EnumerateInstanceVersion(&s->api_version);
         if (res != VK_SUCCESS) {
             LOG(ERROR, "could not enumerate Vulkan instance version");
         }
@@ -140,7 +247,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
         return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
-    VkResult res = vkEnumerateInstanceLayerProperties(&s->nb_layers, NULL);
+    VkResult res = s->funcs.EnumerateInstanceLayerProperties(&s->nb_layers, NULL);
     if (res != VK_SUCCESS)
         return res;
 
@@ -148,7 +255,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     if (!s->layers)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    res = vkEnumerateInstanceLayerProperties(&s->nb_layers, s->layers);
+    res = s->funcs.EnumerateInstanceLayerProperties(&s->nb_layers, s->layers);
     if (res != VK_SUCCESS)
         return res;
 
@@ -156,7 +263,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     for (uint32_t i = 0; i < s->nb_layers; i++)
         LOG(DEBUG, "  %u/%u: %s", i+1, s->nb_layers, s->layers[i].layerName);
 
-    res = vkEnumerateInstanceExtensionProperties(NULL, &s->nb_extensions, NULL);
+    res = s->funcs.EnumerateInstanceExtensionProperties(NULL, &s->nb_extensions, NULL);
     if (res != VK_SUCCESS)
         return res;
 
@@ -164,7 +271,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     if (!s->extensions)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    res = vkEnumerateInstanceExtensionProperties(NULL, &s->nb_extensions, s->extensions);
+    res = s->funcs.EnumerateInstanceExtensionProperties(NULL, &s->nb_extensions, s->extensions);
     if (res != VK_SUCCESS)
         return res;
 
@@ -241,14 +348,19 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
         .ppEnabledLayerNames     = ngpu_darray_data(&layers),
     };
 
-    res = vkCreateInstance(&instance_create_info, NULL, &s->instance);
+    res = s->funcs.CreateInstance(&instance_create_info, NULL, &s->instance);
+    if (res != VK_SUCCESS)
+        goto end;
+
+    res = load_functions(s, true, false);
     if (res != VK_SUCCESS)
         goto end;
 
     if (debug && has_debug_extension) {
-        VK_LOAD_FUNC(s->instance, CreateDebugUtilsMessengerEXT);
-        if (!CreateDebugUtilsMessengerEXT)
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
+        if (!s->funcs.CreateDebugUtilsMessengerEXT) {
+            res = VK_ERROR_EXTENSION_NOT_PRESENT;
+            goto end;
+        }
 
         const VkDebugUtilsMessengerCreateInfoEXT info = {
             .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -263,7 +375,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
             .pUserData       = NULL,
         };
 
-        res = CreateDebugUtilsMessengerEXT(s->instance, &info, NULL, &s->debug_callback);
+        res = s->funcs.CreateDebugUtilsMessengerEXT(s->instance, &info, NULL, &s->debug_callback);
         if (res != VK_SUCCESS)
             goto end;
     }
@@ -302,7 +414,8 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
             .window = params->window,
         };
 
-        VK_LOAD_FUNC(s->instance, CreateXlibSurfaceKHR);
+        PFN_vkCreateXlibSurfaceKHR CreateXlibSurfaceKHR =
+            (PFN_vkCreateXlibSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateXlibSurfaceKHR");
         if (!CreateXlibSurfaceKHR) {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
@@ -320,7 +433,8 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
             .window = (struct ANativeWindow *)params->window,
         };
 
-        VK_LOAD_FUNC(s->instance, CreateAndroidSurfaceKHR);
+        PFN_vkCreateAndroidSurfaceKHR CreateAndroidSurfaceKHR =
+            (PFN_vkCreateAndroidSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateAndroidSurfaceKHR");
         if (!CreateAndroidSurfaceKHR) {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
@@ -343,7 +457,8 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
             .pLayer = layer,
         };
 
-        VK_LOAD_FUNC(s->instance, CreateMetalSurfaceEXT);
+        PFN_vkCreateMetalSurfaceEXT CreateMetalSurfaceEXT =
+            (PFN_vkCreateMetalSurfaceEXT)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateMetalSurfaceEXT");
         if (!CreateMetalSurfaceEXT) {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
@@ -359,7 +474,8 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
             .hwnd = (HWND)params->window,
         };
 
-        VK_LOAD_FUNC(s->instance, CreateWin32SurfaceKHR);
+        PFN_vkCreateWin32SurfaceKHR CreateWin32SurfaceKHR =
+            (PFN_vkCreateWin32SurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateWin32SurfaceKHR");
         if (!CreateWin32SurfaceKHR) {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
@@ -376,7 +492,8 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
             .surface = (struct wl_surface *)params->window,
         };
 
-        VK_LOAD_FUNC(s->instance, CreateWaylandSurfaceKHR);
+        PFN_vkCreateWaylandSurfaceKHR CreateWaylandSurfaceKHR =
+            (PFN_vkCreateWaylandSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateWaylandSurfaceKHR");
         if (!CreateWaylandSurfaceKHR) {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
@@ -396,7 +513,7 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
 
 static VkResult enumerate_physical_devices(struct vkcontext *s, const struct ngpu_ctx_params *ctx_params)
 {
-    VkResult res = vkEnumeratePhysicalDevices(s->instance, &s->nb_phy_devices, NULL);
+    VkResult res = s->funcs.EnumeratePhysicalDevices(s->instance, &s->nb_phy_devices, NULL);
     if (res != VK_SUCCESS)
         return res;
 
@@ -407,7 +524,7 @@ static VkResult enumerate_physical_devices(struct vkcontext *s, const struct ngp
     if (!s->phy_devices)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    return vkEnumeratePhysicalDevices(s->instance, &s->nb_phy_devices, s->phy_devices);
+    return s->funcs.EnumeratePhysicalDevices(s->instance, &s->nb_phy_devices, s->phy_devices);
 }
 
 static void get_memory_property_flags_str(struct bstr *bstr, VkMemoryPropertyFlags flags)
@@ -454,13 +571,13 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
         VkPhysicalDevice phy_device = s->phy_devices[i];
 
         VkPhysicalDeviceProperties dev_props;
-        vkGetPhysicalDeviceProperties(phy_device, &dev_props);
+        s->funcs.GetPhysicalDeviceProperties(phy_device, &dev_props);
 
         VkPhysicalDeviceFeatures dev_features;
-        vkGetPhysicalDeviceFeatures(phy_device, &dev_features);
+        s->funcs.GetPhysicalDeviceFeatures(phy_device, &dev_features);
 
         VkPhysicalDeviceMemoryProperties mem_props;
-        vkGetPhysicalDeviceMemoryProperties(phy_device, &mem_props);
+        s->funcs.GetPhysicalDeviceMemoryProperties(phy_device, &mem_props);
 
         if (dev_props.deviceType >= NGPU_ARRAY_NB(types)) {
             LOG(ERROR, "device %s has unknown type: 0x%x, skipping", dev_props.deviceName, dev_props.deviceType);
@@ -468,11 +585,11 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
         }
 
         uint32_t qfamily_count = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &qfamily_count, NULL);
+        s->funcs.GetPhysicalDeviceQueueFamilyProperties(phy_device, &qfamily_count, NULL);
         VkQueueFamilyProperties *qfamily_props = ngpu_calloc(qfamily_count, sizeof(*qfamily_props));
         if (!qfamily_props)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
-        vkGetPhysicalDeviceQueueFamilyProperties(phy_device, &qfamily_count, qfamily_props);
+        s->funcs.GetPhysicalDeviceQueueFamilyProperties(phy_device, &qfamily_count, qfamily_props);
 
         bool found_queues = false;
         uint32_t queue_family_graphics_id = UINT32_MAX;
@@ -484,7 +601,7 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
                 queue_family_graphics_id = j;
             if (s->surface) {
                 VkBool32 support;
-                vkGetPhysicalDeviceSurfaceSupportKHR(phy_device, j, s->surface, &support);
+                s->funcs.GetPhysicalDeviceSurfaceSupportKHR(phy_device, j, s->surface, &support);
                 if (support)
                     queue_family_present_id = j;
             }
@@ -539,7 +656,7 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
 
 static VkResult enumerate_extensions(struct vkcontext *s)
 {
-    VkResult res = vkEnumerateDeviceExtensionProperties(s->phy_device, NULL, &s->nb_device_extensions, NULL);
+    VkResult res = s->funcs.EnumerateDeviceExtensionProperties(s->phy_device, NULL, &s->nb_device_extensions, NULL);
     if (res != VK_SUCCESS)
         return res;
 
@@ -547,7 +664,7 @@ static VkResult enumerate_extensions(struct vkcontext *s)
     if (!s->device_extensions)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    res = vkEnumerateDeviceExtensionProperties(s->phy_device, NULL, &s->nb_device_extensions, s->device_extensions);
+    res = s->funcs.EnumerateDeviceExtensionProperties(s->phy_device, NULL, &s->nb_device_extensions, s->device_extensions);
     if (res != VK_SUCCESS)
         return res;
 
@@ -664,16 +781,20 @@ static VkResult create_device(struct vkcontext *s)
         .enabledExtensionCount   = (uint32_t)ngpu_darray_count(&enabled_extensions),
         .ppEnabledExtensionNames = ngpu_darray_data(&enabled_extensions),
     };
-    VkResult res = vkCreateDevice(s->phy_device, &device_create_info, NULL, &s->device);
+    VkResult res = s->funcs.CreateDevice(s->phy_device, &device_create_info, NULL, &s->device);
 
     ngpu_darray_reset(&enabled_extensions);
 
     if (res != VK_SUCCESS)
         return res;
 
-    vkGetDeviceQueue(s->device, s->graphics_queue_index, 0, &s->graphic_queue);
+    res = load_functions(s, true, true);
+    if (res != VK_SUCCESS)
+        return res;
+
+    s->funcs.GetDeviceQueue(s->device, s->graphics_queue_index, 0, &s->graphic_queue);
     if (s->present_queue_index != -1)
-        vkGetDeviceQueue(s->device, s->present_queue_index, 0, &s->present_queue);
+        s->funcs.GetDeviceQueue(s->device, s->present_queue_index, 0, &s->present_queue);
 
     return VK_SUCCESS;
 }
@@ -684,7 +805,7 @@ VkFormat ngpu_vkcontext_find_supported_format(struct vkcontext *s, const VkForma
     uint32_t i = 0;
     while (formats[i]) {
         VkFormatProperties properties;
-        vkGetPhysicalDeviceFormatProperties(s->phy_device, formats[i], &properties);
+        s->funcs.GetPhysicalDeviceFormatProperties(s->phy_device, formats[i], &properties);
         if (tiling == VK_IMAGE_TILING_LINEAR &&
             NGPU_HAS_ALL_FLAGS(properties.linearTilingFeatures, features))
             return formats[i];
@@ -709,25 +830,25 @@ static VkResult query_swapchain_support(struct vkcontext *s)
     if (!s->surface)
         return VK_SUCCESS;
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(s->phy_device, s->surface, &s->surface_caps);
+    s->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(s->phy_device, s->surface, &s->surface_caps);
 
-    vkGetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, s->surface, &s->nb_surface_formats, NULL);
+    s->funcs.GetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, s->surface, &s->nb_surface_formats, NULL);
     if (!s->nb_surface_formats)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
     s->surface_formats = ngpu_calloc(s->nb_surface_formats, sizeof(*s->surface_formats));
     if (!s->surface_formats)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, s->surface, &s->nb_surface_formats, s->surface_formats);
+    s->funcs.GetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, s->surface, &s->nb_surface_formats, s->surface_formats);
 
-    vkGetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, s->surface, &s->nb_present_modes, NULL);
+    s->funcs.GetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, s->surface, &s->nb_present_modes, NULL);
     if (!s->nb_present_modes)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
     s->present_modes = ngpu_calloc(s->nb_present_modes, sizeof(*s->present_modes));
     if (!s->present_modes)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, s->surface, &s->nb_present_modes, s->present_modes);
+    s->funcs.GetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, s->surface, &s->nb_present_modes, s->present_modes);
 
     return VK_SUCCESS;
 }
@@ -782,45 +903,45 @@ static VkResult select_preferred_formats(struct vkcontext *s)
     return VK_SUCCESS;
 }
 
-struct vk_function {
+struct vk_ext_function {
     const char *name;
     size_t offset;
     int device;
 };
 
-#define DECLARE_FUNC(n, d) {                 \
-    .name = "vk" #n,                         \
-    .offset = offsetof(struct vkcontext, n), \
-    .device = d,                             \
-}                                            \
+#define DECLARE_EXT_FUNC(n, d) {                         \
+    .name = "vk" #n,                                     \
+    .offset = offsetof(struct vk_functions, n),          \
+    .device = d,                                         \
+}                                                        \
 
 struct vk_extension {
     const char *name;
     int device;
-    const struct vk_function *functions;
+    const struct vk_ext_function *functions;
 } vk_extensions[] = {
     {
         .name = VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
         .device = 1,
-        .functions = (const struct vk_function[]) {
-            DECLARE_FUNC(GetMemoryFdKHR, 1),
-            DECLARE_FUNC(GetMemoryFdPropertiesKHR, 1),
+        .functions = (const struct vk_ext_function[]) {
+            DECLARE_EXT_FUNC(GetMemoryFdKHR, 1),
+            DECLARE_EXT_FUNC(GetMemoryFdPropertiesKHR, 1),
             {0},
         },
     }, {
         .name = VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
         .device = 1,
-        .functions = (const struct vk_function[]) {
-            DECLARE_FUNC(GetRefreshCycleDurationGOOGLE, 1),
-            DECLARE_FUNC(GetPastPresentationTimingGOOGLE, 1),
+        .functions = (const struct vk_ext_function[]) {
+            DECLARE_EXT_FUNC(GetRefreshCycleDurationGOOGLE, 1),
+            DECLARE_EXT_FUNC(GetPastPresentationTimingGOOGLE, 1),
             {0},
         },
     }, {
         .name = VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME,
         .device = 1,
-        .functions = (const struct vk_function[]) {
-            DECLARE_FUNC(CreateSamplerYcbcrConversionKHR, 1),
-            DECLARE_FUNC(DestroySamplerYcbcrConversionKHR, 1),
+        .functions = (const struct vk_ext_function[]) {
+            DECLARE_EXT_FUNC(CreateSamplerYcbcrConversionKHR, 1),
+            DECLARE_EXT_FUNC(DestroySamplerYcbcrConversionKHR, 1),
             {0},
         },
     },
@@ -828,22 +949,22 @@ struct vk_extension {
     {
         .name = VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME,
         .device = 1,
-        .functions = (const struct vk_function[]) {
-            DECLARE_FUNC(GetAndroidHardwareBufferPropertiesANDROID, 1),
-            DECLARE_FUNC(GetMemoryAndroidHardwareBufferANDROID, 1),
+        .functions = (const struct vk_ext_function[]) {
+            DECLARE_EXT_FUNC(GetAndroidHardwareBufferPropertiesANDROID, 1),
+            DECLARE_EXT_FUNC(GetMemoryAndroidHardwareBufferANDROID, 1),
             {0},
         },
     },
 #endif
 };
 
-static int load_function(struct vkcontext *s, const struct vk_function *func)
+static int load_ext_function(struct vkcontext *s, const struct vk_ext_function *func)
 {
-    PFN_vkVoidFunction *func_ptr = (void *)((uintptr_t)s + func->offset);
+    PFN_vkVoidFunction *func_ptr = (void *)((uintptr_t)&s->funcs + func->offset);
     if (func->device)
-        *func_ptr = vkGetDeviceProcAddr(s->device, func->name);
+        *func_ptr = s->funcs.GetDeviceProcAddr(s->device, func->name);
     else
-        *func_ptr = vkGetInstanceProcAddr(s->instance, func->name);
+        *func_ptr = s->funcs.GetInstanceProcAddr(s->instance, func->name);
 
     if (!*func_ptr)
         return 0;
@@ -851,14 +972,14 @@ static int load_function(struct vkcontext *s, const struct vk_function *func)
     return 1;
 }
 
-static VkResult load_functions(struct vkcontext *s)
+static VkResult load_ext_functions(struct vkcontext *s)
 {
     for (size_t i = 0; i < NGPU_ARRAY_NB(vk_extensions); i++) {
         struct vk_extension *ext = &vk_extensions[i];
         if (!ngpu_vkcontext_has_extension(s, ext->name, ext->device))
             continue;
-        for (const struct vk_function *func = ext->functions; func && func->name; func++) {
-            if (!load_function(s, func)) {
+        for (const struct vk_ext_function *func = ext->functions; func && func->name; func++) {
+            if (!load_ext_function(s, func)) {
                 LOG(ERROR, "could not load %s() required by extension %s",
                     func->name, ext->name);
                 return VK_ERROR_EXTENSION_NOT_PRESENT;
@@ -876,7 +997,17 @@ struct vkcontext *ngpu_vkcontext_create(void)
 
 VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params)
 {
-    VkResult res = create_instance(s, params->platform, params->debug);
+    VkResult res = load_libvulkan(s);
+    if (res != VK_SUCCESS)
+        return res;
+
+    res = load_functions(s, false, false);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "failed to load global Vulkan functions");
+        return res;
+    }
+
+    res = create_instance(s, params->platform, params->debug);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "failed to create instance: %s", ngpu_vk_res2str(res));
         return res;
@@ -904,7 +1035,7 @@ VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *
     if (res != VK_SUCCESS)
         return res;
 
-    res = load_functions(s);
+    res = load_ext_functions(s);
     if (res != VK_SUCCESS)
         return res;
 
@@ -921,7 +1052,7 @@ VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *
 
 void *ngpu_vkcontext_get_proc_addr(struct vkcontext *s, const char *name)
 {
-    return vkGetInstanceProcAddr(s->instance, name);
+    return (void *)s->funcs.GetInstanceProcAddr(s->instance, name);
 }
 
 int ngpu_vkcontext_has_extension(const struct vkcontext *s, const char *name, int device)
@@ -951,18 +1082,15 @@ void ngpu_vkcontext_freep(struct vkcontext **sp)
         return;
 
     if (s->device) {
-        vkDeviceWaitIdle(s->device);
-        vkDestroyDevice(s->device, NULL);
+        s->funcs.DeviceWaitIdle(s->device);
+        s->funcs.DestroyDevice(s->device, NULL);
     }
 
-    if (s->surface)
-        vkDestroySurfaceKHR(s->instance, s->surface, NULL);
+    if (s->surface && s->funcs.DestroySurfaceKHR)
+        s->funcs.DestroySurfaceKHR(s->instance, s->surface, NULL);
 
-    if (s->debug_callback) {
-        VK_LOAD_FUNC(s->instance, DestroyDebugUtilsMessengerEXT);
-        if (DestroyDebugUtilsMessengerEXT)
-            DestroyDebugUtilsMessengerEXT(s->instance, s->debug_callback, NULL);
-    }
+    if (s->debug_callback && s->funcs.DestroyDebugUtilsMessengerEXT)
+        s->funcs.DestroyDebugUtilsMessengerEXT(s->instance, s->debug_callback, NULL);
 
     ngpu_freep(&s->present_modes);
     ngpu_freep(&s->surface_formats);
@@ -971,11 +1099,22 @@ void ngpu_vkcontext_freep(struct vkcontext **sp)
     ngpu_freep(&s->layers);
     ngpu_freep(&s->extensions);
 
-    vkDestroyInstance(s->instance, NULL);
+    if (s->funcs.DestroyInstance)
+        s->funcs.DestroyInstance(s->instance, NULL);
 
 #if defined(TARGET_LINUX)
     if (s->own_x11_display)
         XCloseDisplay(s->x11_display);
+#endif
+
+#if !NGPU_VULKAN_STATIC
+    if (s->libvulkan) {
+# if defined(TARGET_WINDOWS)
+        FreeLibrary((HMODULE)s->libvulkan);
+# else
+        dlclose(s->libvulkan);
+# endif
+    }
 #endif
 
     ngpu_freep(sp);

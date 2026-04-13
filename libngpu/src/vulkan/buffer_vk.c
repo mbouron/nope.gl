@@ -46,12 +46,12 @@ static VkResult create_vk_buffer(struct vkcontext *vk,
         .usage       = usage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
-    VkResult res = vkCreateBuffer(vk->device, &buffer_create_info, NULL, &buffer);
+    VkResult res = vk->funcs.CreateBuffer(vk->device, &buffer_create_info, NULL, &buffer);
     if (res != VK_SUCCESS)
         goto fail;
 
     VkMemoryRequirements mem_reqs;
-    vkGetBufferMemoryRequirements(vk->device, buffer, &mem_reqs);
+    vk->funcs.GetBufferMemoryRequirements(vk->device, buffer, &mem_reqs);
 
     uint32_t mem_type_index = ngpu_vkcontext_find_memory_type(vk, mem_reqs.memoryTypeBits, mem_props);
     if (mem_type_index == UINT32_MAX) {
@@ -69,11 +69,11 @@ static VkResult create_vk_buffer(struct vkcontext *vk,
         .allocationSize  = mem_reqs.size,
         .memoryTypeIndex = mem_type_index,
     };
-    res = vkAllocateMemory(vk->device, &memory_allocate_info, NULL, &memory);
+    res = vk->funcs.AllocateMemory(vk->device, &memory_allocate_info, NULL, &memory);
     if (res != VK_SUCCESS)
         goto fail;
 
-    res = vkBindBufferMemory(vk->device, buffer, memory, 0);
+    res = vk->funcs.BindBufferMemory(vk->device, buffer, memory, 0);
     if (res != VK_SUCCESS)
         goto fail;
 
@@ -83,8 +83,8 @@ static VkResult create_vk_buffer(struct vkcontext *vk,
     return VK_SUCCESS;
 
 fail:
-    vkDestroyBuffer(vk->device, buffer, NULL);
-    vkFreeMemory(vk->device, memory, NULL);
+    vk->funcs.DestroyBuffer(vk->device, buffer, NULL);
+    vk->funcs.FreeMemory(vk->device, memory, NULL);
     return res;
 }
 
@@ -171,11 +171,11 @@ static VkResult buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t
         s->usage & NGPU_BUFFER_USAGE_MAP_WRITE ||
         s->usage & NGPU_BUFFER_USAGE_DYNAMIC_BIT) {
         void *mapped_data;
-        VkResult res = vkMapMemory(vk->device, s_priv->memory, offset, size, 0, &mapped_data);
+        VkResult res = vk->funcs.MapMemory(vk->device, s_priv->memory, offset, size, 0, &mapped_data);
         if (res != VK_SUCCESS)
             return res;
         memcpy(mapped_data, data, size);
-        vkUnmapMemory(vk->device, s_priv->memory);
+        vk->funcs.UnmapMemory(vk->device, s_priv->memory);
         return VK_SUCCESS;
     }
 
@@ -188,11 +188,11 @@ static VkResult buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t
         return res;
 
     uint8_t *mapped_data;
-    res = vkMapMemory(vk->device, s_priv->staging_memory, 0, s->size, 0, (void *)&mapped_data);
+    res = vk->funcs.MapMemory(vk->device, s_priv->staging_memory, 0, s->size, 0, (void *)&mapped_data);
     if (res != VK_SUCCESS)
         return res;
     memcpy(mapped_data + offset, data, size);
-    vkUnmapMemory(vk->device, s_priv->staging_memory);
+    vk->funcs.UnmapMemory(vk->device, s_priv->staging_memory);
 
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk;
     res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &cmd_buffer_vk);
@@ -204,15 +204,15 @@ static VkResult buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t
         .dstOffset = offset,
         .size      = size,
     };
-    vkCmdCopyBuffer(cmd_buffer_vk->cmd_buf, s_priv->staging_buffer, s_priv->buffer, 1, &region);
+    vk->funcs.CmdCopyBuffer(cmd_buffer_vk->cmd_buf, s_priv->staging_buffer, s_priv->buffer, 1, &region);
 
     res = ngpu_cmd_buffer_vk_execute_transient(&cmd_buffer_vk);
     if (res != VK_SUCCESS)
         return res;
 
-    vkDestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
+    vk->funcs.DestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
     s_priv->staging_buffer = VK_NULL_HANDLE;
-    vkFreeMemory(vk->device, s_priv->staging_memory, NULL);
+    vk->funcs.FreeMemory(vk->device, s_priv->staging_memory, NULL);
     s_priv->staging_memory = VK_NULL_HANDLE;
 
     return VK_SUCCESS;
@@ -232,7 +232,7 @@ static VkResult buffer_vk_map(struct ngpu_buffer *s, size_t offset, size_t size,
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
 
-    return vkMapMemory(vk->device, s_priv->memory, offset, size, 0, data);
+    return vk->funcs.MapMemory(vk->device, s_priv->memory, offset, size, 0, data);
 }
 
 int ngpu_buffer_vk_map(struct ngpu_buffer *s, size_t offset, size_t size, void **data)
@@ -249,7 +249,7 @@ void ngpu_buffer_vk_unmap(struct ngpu_buffer *s)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
 
-    vkUnmapMemory(vk->device, s_priv->memory);
+    vk->funcs.UnmapMemory(vk->device, s_priv->memory);
 }
 
 static size_t buffer_vk_find_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
@@ -307,9 +307,9 @@ void ngpu_buffer_vk_freep(struct ngpu_buffer **sp)
 
     ngpu_darray_reset(&s_priv->cmd_buffers);
 
-    vkDestroyBuffer(vk->device, s_priv->buffer, NULL);
-    vkFreeMemory(vk->device, s_priv->memory, NULL);
-    vkDestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
-    vkFreeMemory(vk->device, s_priv->staging_memory, NULL);
+    vk->funcs.DestroyBuffer(vk->device, s_priv->buffer, NULL);
+    vk->funcs.FreeMemory(vk->device, s_priv->memory, NULL);
+    vk->funcs.DestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
+    vk->funcs.FreeMemory(vk->device, s_priv->staging_memory, NULL);
     ngpu_freep(sp);
 }
