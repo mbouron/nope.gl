@@ -29,7 +29,7 @@ struct ngpu_ctx;
 
 struct ngpu_program_gl {
     struct ngpu_program parent;
-    GLuint id;
+    GLuint program;
 };
 
 struct ngpu_program *ngpu_program_gl_create(struct ngpu_ctx *gpu_ctx);

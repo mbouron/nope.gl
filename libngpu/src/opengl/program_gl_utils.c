@@ -48,16 +48,16 @@ int ngpu_program_gl_set_locations_and_bindings(struct ngpu_program *s,
             if (name && !strcmp(name, attribute_name))
                 continue;
             name = attribute_name;
-            const GLint location = gl->funcs.GetAttribLocation(s_priv->id, attribute_name);
+            const GLint location = gl->funcs.GetAttribLocation(s_priv->program, attribute_name);
             if (attribute->location != location) {
-                gl->funcs.BindAttribLocation(s_priv->id, attribute->location, attribute_name);
+                gl->funcs.BindAttribLocation(s_priv->program, attribute->location, attribute_name);
                 need_relink = 1;
             }
         }
     }
 
     if (need_relink)
-        gl->funcs.LinkProgram(s_priv->id);
+        gl->funcs.LinkProgram(s_priv->program);
 
     const struct ngpu_bindgroup_layout_desc layout_desc = ngpu_pgcraft_get_bindgroup_layout_desc(crafter);
     for (size_t i = 0; i < layout_desc.nb_buffers; i++) {
@@ -72,16 +72,16 @@ int ngpu_program_gl_set_locations_and_bindings(struct ngpu_program *s,
             LOG(ERROR, "block name \"%s\" is too long", buffer_name);
             return NGPU_ERROR_MEMORY;
         }
-        const GLuint block_index = gl->funcs.GetUniformBlockIndex(s_priv->id, block_name);
-        gl->funcs.UniformBlockBinding(s_priv->id, block_index, entry->binding);
+        const GLuint block_index = gl->funcs.GetUniformBlockIndex(s_priv->program, block_name);
+        gl->funcs.UniformBlockBinding(s_priv->program, block_index, entry->binding);
     }
 
     struct ngpu_glstate *glstate = &gpu_ctx_gl->glstate;
-    ngpu_glstate_use_program(gl, glstate, s_priv->id);
+    ngpu_glstate_use_program(gl, glstate, s_priv->program);
     for (size_t i = 0; i < layout_desc.nb_textures; i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &layout_desc.textures[i];
         const char *texture_name = ngpu_pgcraft_get_symbol_name(crafter, entry->id);
-        const GLint location = gl->funcs.GetUniformLocation(s_priv->id, texture_name);
+        const GLint location = gl->funcs.GetUniformLocation(s_priv->program, texture_name);
         gl->funcs.Uniform1i(location, (GLint)entry->binding);
     }
 

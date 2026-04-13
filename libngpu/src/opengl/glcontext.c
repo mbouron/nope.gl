@@ -650,11 +650,11 @@ static int glcontext_check_default_framebuffer_encoding(struct glcontext *glcont
         return 0;
 
     const int es = glcontext->backend == NGPU_BACKEND_OPENGLES;
-    const GLuint default_fbo_id = ngpu_glcontext_get_default_framebuffer(glcontext);
-    const GLenum default_color_attachment = default_fbo_id == 0 ? (es ? GL_BACK : GL_BACK_LEFT) : GL_COLOR_ATTACHMENT0;
+    const GLuint default_fbo = ngpu_glcontext_get_default_framebuffer(glcontext);
+    const GLenum default_color_attachment = default_fbo == 0 ? (es ? GL_BACK : GL_BACK_LEFT) : GL_COLOR_ATTACHMENT0;
 
     GLint encoding = GL_LINEAR;
-    glcontext->funcs.BindFramebuffer(GL_FRAMEBUFFER, default_fbo_id);
+    glcontext->funcs.BindFramebuffer(GL_FRAMEBUFFER, default_fbo);
     glcontext->funcs.GetFramebufferAttachmentParameteriv(
         GL_FRAMEBUFFER, default_color_attachment,
         GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &encoding);
@@ -882,12 +882,12 @@ uintptr_t ngpu_glcontext_get_handle(struct glcontext *glcontext)
 
 GLuint ngpu_glcontext_get_default_framebuffer(struct glcontext *glcontext)
 {
-    GLuint fbo_id = 0;
+    GLuint fbo = 0;
 
     if (glcontext->cls->get_default_framebuffer)
-        fbo_id = glcontext->cls->get_default_framebuffer(glcontext);
+        fbo = glcontext->cls->get_default_framebuffer(glcontext);
 
-    return fbo_id;
+    return fbo;
 }
 
 int ngpu_glcontext_check_extension(const char *extension, const char *extensions)
