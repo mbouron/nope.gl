@@ -32,13 +32,13 @@
 #include "utils/memory.h"
 #include "utils/string.h"
 
-static int program_check_status(const struct glcontext *gl, GLuint id, GLenum status)
+static int program_check_status(const struct glcontext *gl, GLuint shader, GLenum status)
 {
     char *info_log = NULL;
     int info_log_length = 0;
 
-    void (NGPU_GL_APIENTRY *get_info)(GLuint id, GLenum pname, GLint *params);
-    void (NGPU_GL_APIENTRY *get_log)(GLuint id, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+    void (NGPU_GL_APIENTRY *get_info)(GLuint shader, GLenum pname, GLint *params);
+    void (NGPU_GL_APIENTRY *get_log)(GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
     const char *type_str;
 
     if (status == GL_COMPILE_STATUS) {
@@ -54,11 +54,11 @@ static int program_check_status(const struct glcontext *gl, GLuint id, GLenum st
     }
 
     GLint result = GL_FALSE;
-    get_info(id, status, &result);
+    get_info(shader, status, &result);
     if (result == GL_TRUE)
         return 0;
 
-    get_info(id, GL_INFO_LOG_LENGTH, &info_log_length);
+    get_info(shader, GL_INFO_LOG_LENGTH, &info_log_length);
     if (!info_log_length)
         return NGPU_ERROR_BUG;
 
@@ -66,7 +66,7 @@ static int program_check_status(const struct glcontext *gl, GLuint id, GLenum st
     if (!info_log)
         return NGPU_ERROR_MEMORY;
 
-    get_log(id, info_log_length, NULL, info_log);
+    get_log(shader, info_log_length, NULL, info_log);
     while (info_log_length && strchr(" \r\n", info_log[info_log_length - 1]))
         info_log_length--;
 
@@ -93,7 +93,7 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
         const char *name;
         GLenum type;
         const char *src;
-        GLuint id;
+        GLuint shader;
     } shaders[] = {
         [NGPU_PROGRAM_STAGE_VERT] = {"vertex", GL_VERTEX_SHADER, params->vertex, 0},
         [NGPU_PROGRAM_STAGE_FRAG] = {"fragment", GL_FRAGMENT_SHADER, params->fragment, 0},
@@ -109,13 +109,13 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
         return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
-    s_priv->id = gl->funcs.CreateProgram();
+    s_priv->program = gl->funcs.CreateProgram();
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++) {
         if (!shaders[i].src)
             continue;
         GLuint shader = gl->funcs.CreateShader(shaders[i].type);
-        shaders[i].id = shader;
+        shaders[i].shader = shader;
         gl->funcs.ShaderSource(shader, 1, &shaders[i].src, NULL);
         gl->funcs.CompileShader(shader);
         ret = program_check_status(gl, shader, GL_COMPILE_STATUS);
@@ -128,11 +128,11 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
             }
             goto fail;
         }
-        gl->funcs.AttachShader(s_priv->id, shader);
+        gl->funcs.AttachShader(s_priv->program, shader);
     }
 
-    gl->funcs.LinkProgram(s_priv->id);
-    ret = program_check_status(gl, s_priv->id, GL_LINK_STATUS);
+    gl->funcs.LinkProgram(s_priv->program);
+    ret = program_check_status(gl, s_priv->program, GL_LINK_STATUS);
     if (ret < 0) {
         struct bstr *bstr = ngpu_bstr_create();
         if (bstr) {
@@ -154,14 +154,14 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
     }
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++)
-        if (shaders[i].id != 0)
-            gl->funcs.DeleteShader(shaders[i].id);
+        if (shaders[i].shader != 0)
+            gl->funcs.DeleteShader(shaders[i].shader);
 
     return 0;
 
 fail:
     for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++)
-        gl->funcs.DeleteShader(shaders[i].id);
+        gl->funcs.DeleteShader(shaders[i].shader);
 
     return ret;
 }
@@ -174,6 +174,6 @@ void ngpu_program_gl_freep(struct ngpu_program **sp)
     struct ngpu_program_gl *s_priv = (struct ngpu_program_gl *)s;
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    gl->funcs.DeleteProgram(s_priv->id);
+    gl->funcs.DeleteProgram(s_priv->program);
     ngpu_freep(sp);
 }

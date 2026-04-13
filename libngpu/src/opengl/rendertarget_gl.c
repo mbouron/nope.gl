@@ -96,11 +96,11 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
     const struct ngpu_limits *limits = &gl->limits;
     const struct ngpu_rendertarget_params *params = &s->params;
 
-    GLuint id = 0;
+    GLuint fbo = 0;
     uint32_t nb_color_attachments = 0;
 
-    gl->funcs.GenFramebuffers(1, &id);
-    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, id);
+    gl->funcs.GenFramebuffers(1, &fbo);
+    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, fbo);
 
     for (size_t i = 0; i < params->nb_colors; i++) {
         const struct ngpu_attachment *attachment = &params->colors[i];
@@ -118,19 +118,19 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
 
         switch (texture_gl->target) {
         case GL_RENDERBUFFER:
-            gl->funcs.FramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_index, GL_RENDERBUFFER, texture_gl->id);
+            gl->funcs.FramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_index, GL_RENDERBUFFER, texture_gl->texture);
             break;
         case GL_TEXTURE_2D:
-            gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_2D, texture_gl->id, 0);
+            gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_2D, texture_gl->texture, 0);
             break;
         case GL_TEXTURE_2D_ARRAY:
-            gl->funcs.FramebufferTextureLayer(GL_FRAMEBUFFER, attachment_index, texture_gl->id, 0, (GLint)layer);
+            gl->funcs.FramebufferTextureLayer(GL_FRAMEBUFFER, attachment_index, texture_gl->texture, 0, (GLint)layer);
             break;
         case GL_TEXTURE_3D:
-            gl->funcs.FramebufferTextureLayer(GL_FRAMEBUFFER, attachment_index, texture_gl->id, 0, (GLint)layer);
+            gl->funcs.FramebufferTextureLayer(GL_FRAMEBUFFER, attachment_index, texture_gl->texture, 0, (GLint)layer);
             break;
         case GL_TEXTURE_CUBE_MAP:
-            gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index++, GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer, texture_gl->id, 0);
+            gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index++, GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer, texture_gl->texture, 0);
             break;
         default:
             ngpu_assert(0);
@@ -146,10 +146,10 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
 
         switch (texture_gl->target) {
         case GL_RENDERBUFFER:
-            gl->funcs.FramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_index, GL_RENDERBUFFER, texture_gl->id);
+            gl->funcs.FramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_index, GL_RENDERBUFFER, texture_gl->texture);
             break;
         case GL_TEXTURE_2D:
-            gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_2D, texture_gl->id, 0);
+            gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_2D, texture_gl->texture, 0);
             break;
         default:
             ngpu_assert(0);
@@ -157,16 +157,16 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
     }
 
     if (gl->funcs.CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        LOG(ERROR, "framebuffer %u is not complete", id);
+        LOG(ERROR, "framebuffer %u is not complete", fbo);
         goto fail;
     }
 
-    *idp = id;
+    *idp = fbo;
 
     return 0;
 
 fail:
-    gl->funcs.DeleteFramebuffers(1, &id);
+    gl->funcs.DeleteFramebuffers(1, &fbo);
     return ret;
 }
 
@@ -236,12 +236,12 @@ int ngpu_rendertarget_gl_init(struct ngpu_rendertarget *s)
 
     int ret;
     if (require_resolve_fbo(s)) {
-        ret = create_fbo(s, 1, &s_priv->resolve_id);
+        ret = create_fbo(s, 1, &s_priv->resolve_fbo);
         if (ret < 0)
             goto done;
     }
 
-    ret = create_fbo(s, 0, &s_priv->id);
+    ret = create_fbo(s, 0, &s_priv->fbo);
     if (ret < 0)
         goto done;
 
@@ -288,8 +288,8 @@ int ngpu_rendertarget_gl_init(struct ngpu_rendertarget *s)
 done:;
     struct ngpu_rendertarget *rt = gpu_ctx->rendertarget;
     struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)rt;
-    const GLuint fbo_id = rt_gl ? rt_gl->id : ngpu_glcontext_get_default_framebuffer(gl);
-    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, fbo_id);
+    const GLuint fbo = rt_gl ? rt_gl->fbo : ngpu_glcontext_get_default_framebuffer(gl);
+    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, fbo);
 
     return ret;
 }
@@ -328,11 +328,11 @@ void ngpu_rendertarget_gl_begin_pass(struct ngpu_rendertarget *s)
      */
     if (gl->backend == NGPU_BACKEND_OPENGL &&
         gl->default_framebuffer_is_srgb &&
-        s_priv->id == ngpu_glcontext_get_default_framebuffer(gl)) {
+        s_priv->fbo == ngpu_glcontext_get_default_framebuffer(gl)) {
         gl->funcs.Disable(GL_FRAMEBUFFER_SRGB);
     }
 
-    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->id);
+    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->fbo);
 
     const struct ngpu_viewport viewport = {
         .x      = 0.f,
@@ -363,9 +363,9 @@ void ngpu_rendertarget_gl_end_pass(struct ngpu_rendertarget *s)
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct ngpu_glstate *glstate = &gpu_ctx_gl->glstate;
 
-    if (s_priv->resolve_id) {
-        gl->funcs.BindFramebuffer(GL_READ_FRAMEBUFFER, s_priv->id);
-        gl->funcs.BindFramebuffer(GL_DRAW_FRAMEBUFFER, s_priv->resolve_id);
+    if (s_priv->resolve_fbo) {
+        gl->funcs.BindFramebuffer(GL_READ_FRAMEBUFFER, s_priv->fbo);
+        gl->funcs.BindFramebuffer(GL_DRAW_FRAMEBUFFER, s_priv->resolve_fbo);
 
         ngpu_glstate_enable_scissor_test(gl, glstate, GL_FALSE);
 
@@ -373,12 +373,12 @@ void ngpu_rendertarget_gl_end_pass(struct ngpu_rendertarget *s)
 
         ngpu_glstate_enable_scissor_test(gl, glstate, GL_TRUE);
 
-        gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->id);
+        gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->fbo);
     }
 
     if (gl->backend == NGPU_BACKEND_OPENGL &&
         gl->default_framebuffer_is_srgb &&
-        s_priv->id == ngpu_glcontext_get_default_framebuffer(gl)) {
+        s_priv->fbo == ngpu_glcontext_get_default_framebuffer(gl)) {
         gl->funcs.Enable(GL_FRAMEBUFFER_SRGB);
     }
 
@@ -396,14 +396,14 @@ void ngpu_rendertarget_gl_freep(struct ngpu_rendertarget **sp)
     struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
 
     if (!s_priv->wrapped) {
-        gl->funcs.DeleteFramebuffers(1, &s_priv->id);
-        gl->funcs.DeleteFramebuffers(1, &s_priv->resolve_id);
+        gl->funcs.DeleteFramebuffers(1, &s_priv->fbo);
+        gl->funcs.DeleteFramebuffers(1, &s_priv->resolve_fbo);
     }
 
     ngpu_freep(sp);
 }
 
-int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_rendertarget_params *params, GLuint id)
+int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_rendertarget_params *params, GLuint fbo)
 {
     struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
@@ -420,7 +420,7 @@ int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_ren
     s->height = params->height;
 
     s_priv->wrapped = 1;
-    s_priv->id = id;
+    s_priv->fbo = fbo;
 
     if (gl->features & NGPU_FEATURE_GL_INVALIDATE_SUBDATA) {
         s_priv->invalidate = invalidate;
@@ -437,7 +437,7 @@ int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_ren
         s_priv->clear_flags |= GL_COLOR_BUFFER_BIT;
     }
     if (color->store_op == NGPU_STORE_OP_DONT_CARE) {
-        s_priv->invalidate_attachments[s_priv->nb_invalidate_attachments++] = s_priv->id ? GL_COLOR_ATTACHMENT0 : GL_COLOR;
+        s_priv->invalidate_attachments[s_priv->nb_invalidate_attachments++] = s_priv->fbo ? GL_COLOR_ATTACHMENT0 : GL_COLOR;
     }
 
     const struct ngpu_attachment *depth_stencil = &params->depth_stencil;
@@ -446,8 +446,8 @@ int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_ren
         s_priv->clear_flags |= (GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     }
     if (depth_stencil->store_op == NGPU_STORE_OP_DONT_CARE) {
-        s_priv->invalidate_attachments[s_priv->nb_invalidate_attachments++] = s_priv->id ? GL_DEPTH_ATTACHMENT : GL_DEPTH;
-        s_priv->invalidate_attachments[s_priv->nb_invalidate_attachments++] = s_priv->id ? GL_STENCIL_ATTACHMENT : GL_STENCIL;
+        s_priv->invalidate_attachments[s_priv->nb_invalidate_attachments++] = s_priv->fbo ? GL_DEPTH_ATTACHMENT : GL_DEPTH;
+        s_priv->invalidate_attachments[s_priv->nb_invalidate_attachments++] = s_priv->fbo ? GL_STENCIL_ATTACHMENT : GL_STENCIL;
     }
 
     return 0;

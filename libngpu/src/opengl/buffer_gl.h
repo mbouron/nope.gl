@@ -30,7 +30,7 @@
 
 struct ngpu_buffer_gl {
     struct ngpu_buffer parent;
-    GLuint id;
+    GLuint buffer;
     GLbitfield map_flags;
     GLbitfield barriers;
     struct ngpu_darray cmd_buffers;

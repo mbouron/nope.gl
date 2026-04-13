@@ -101,8 +101,8 @@ int ngpu_buffer_gl_init(struct ngpu_buffer *s)
 
     GLsizeiptr size = (GLsizeiptr)s->size;
 
-    gl->funcs.GenBuffers(1, &s_priv->id);
-    gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->id);
+    gl->funcs.GenBuffers(1, &s_priv->buffer);
+    gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->buffer);
     if (gl->features & NGPU_FEATURE_GL_BUFFER_STORAGE) {
         const GLbitfield storage_flags = GL_DYNAMIC_STORAGE_BIT;
         gl->funcs.BufferStorage(GL_ARRAY_BUFFER, size, NULL, storage_flags | s_priv->map_flags);
@@ -136,7 +136,7 @@ int ngpu_buffer_gl_upload(struct ngpu_buffer *s, const void *data, size_t offset
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
-    gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->id);
+    gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->buffer);
     gl->funcs.BufferSubData(GL_ARRAY_BUFFER, (GLsizeiptr)offset, (GLsizeiptr)size, data);
     return 0;
 }
@@ -146,7 +146,7 @@ int ngpu_buffer_gl_map(struct ngpu_buffer *s, size_t offset, size_t size, void *
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
-    gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->id);
+    gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->buffer);
     void *data = gl->funcs.MapBufferRange(GL_ARRAY_BUFFER, (GLsizeiptr)offset, (GLsizeiptr)size, s_priv->map_flags);
     if (!data)
         return NGPU_ERROR_GRAPHICS_GENERIC;
@@ -159,7 +159,7 @@ void ngpu_buffer_gl_unmap(struct ngpu_buffer *s)
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
-    gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->id);
+    gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->buffer);
     gl->funcs.UnmapBuffer(GL_ARRAY_BUFFER);
 }
 
@@ -218,6 +218,6 @@ void ngpu_buffer_gl_freep(struct ngpu_buffer **sp)
 
     ngpu_darray_reset(&s_priv->cmd_buffers);
 
-    gl->funcs.DeleteBuffers(1, &s_priv->id);
+    gl->funcs.DeleteBuffers(1, &s_priv->buffer);
     ngpu_freep(sp);
 }

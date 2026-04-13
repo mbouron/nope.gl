@@ -204,7 +204,7 @@ void ngpu_glstate_reset(const struct glcontext *gl, struct ngpu_glstate *glstate
 
     /* Program */
     gl->funcs.UseProgram(0);
-    glstate->program_id = 0;
+    glstate->program = 0;
 
     /* VAO */
     gl->funcs.BindVertexArray(0);
@@ -383,11 +383,11 @@ void ngpu_glstate_update(const struct glcontext *gl, struct ngpu_glstate *glstat
     }
 }
 
-void ngpu_glstate_use_program(const struct glcontext *gl, struct ngpu_glstate *glstate, GLuint program_id)
+void ngpu_glstate_use_program(const struct glcontext *gl, struct ngpu_glstate *glstate, GLuint program)
 {
-    if (glstate->program_id != program_id) {
-        gl->funcs.UseProgram(program_id);
-        glstate->program_id = program_id;
+    if (glstate->program != program) {
+        gl->funcs.UseProgram(program);
+        glstate->program = program;
     }
 }
 

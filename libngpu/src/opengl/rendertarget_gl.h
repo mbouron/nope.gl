@@ -29,8 +29,8 @@
 struct ngpu_rendertarget_gl {
     struct ngpu_rendertarget parent;
     int wrapped;
-    GLuint id;
-    GLuint resolve_id;
+    GLuint fbo;
+    GLuint resolve_fbo;
     GLenum draw_buffers[NGPU_MAX_COLOR_ATTACHMENTS];
     GLenum clear_flags;
     GLenum invalidate_attachments[NGPU_MAX_COLOR_ATTACHMENTS + 2]; // max color attachments + depth and stencil attachments
@@ -46,6 +46,6 @@ void ngpu_rendertarget_gl_begin_pass(struct ngpu_rendertarget *s);
 void ngpu_rendertarget_gl_end_pass(struct ngpu_rendertarget *s);
 void ngpu_rendertarget_gl_freep(struct ngpu_rendertarget **sp);
 
-int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_rendertarget_params *params, GLuint id);
+int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_rendertarget_params *params, GLuint fbo);
 
 #endif

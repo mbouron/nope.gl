@@ -43,7 +43,7 @@ GLint ngpu_texture_get_gl_wrap(enum ngpu_wrap wrap);
 struct ngpu_texture_gl {
     struct ngpu_texture parent;
     GLenum target;
-    GLuint id;
+    GLuint texture;
     GLenum format;
     GLenum internal_format;
     GLenum format_type;

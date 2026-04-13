@@ -270,11 +270,11 @@ void ngpu_bindgroup_gl_bind(struct ngpu_bindgroup *s, const uint32_t *dynamic_of
             layout_entry->type == NGPU_TYPE_IMAGE_2D_ARRAY ||
             layout_entry->type == NGPU_TYPE_IMAGE_3D ||
             layout_entry->type == NGPU_TYPE_IMAGE_CUBE) {
-            GLuint texture_id = 0;
+            GLuint id = 0;
             const GLenum access = get_gl_access(texture_binding->layout_entry.access);
             GLenum internal_format = GL_RGBA8;
             if (texture_gl) {
-                texture_id = texture_gl->id;
+                id = texture_gl->texture;
                 internal_format = texture_gl->internal_format;
             }
             GLboolean layered = GL_FALSE;
@@ -282,11 +282,11 @@ void ngpu_bindgroup_gl_bind(struct ngpu_bindgroup *s, const uint32_t *dynamic_of
                 texture_binding->layout_entry.type == NGPU_TYPE_IMAGE_3D ||
                 texture_binding->layout_entry.type == NGPU_TYPE_IMAGE_CUBE)
                 layered = GL_TRUE;
-            gl->funcs.BindImageTexture(texture_binding->layout_entry.binding, texture_id, 0, layered, 0, access, internal_format);
+            gl->funcs.BindImageTexture(texture_binding->layout_entry.binding, id, 0, layered, 0, access, internal_format);
         } else {
             gl->funcs.ActiveTexture(GL_TEXTURE0 + texture_binding->layout_entry.binding);
             if (texture_gl) {
-                gl->funcs.BindTexture(texture_gl->target, texture_gl->id);
+                gl->funcs.BindTexture(texture_gl->target, texture_gl->texture);
             } else {
                 gl->funcs.BindTexture(GL_TEXTURE_2D, 0);
                 gl->funcs.BindTexture(GL_TEXTURE_2D_ARRAY, 0);
@@ -312,7 +312,7 @@ void ngpu_bindgroup_gl_bind(struct ngpu_bindgroup *s, const uint32_t *dynamic_of
             offset += dynamic_offsets[current_dynamic_offset++];
         }
         const size_t size = buffer_binding->size;
-        gl->funcs.BindBufferRange(target, layout_entry->binding, buffer_gl->id, (GLsizeiptr)offset, (GLsizeiptr)size);
+        gl->funcs.BindBufferRange(target, layout_entry->binding, buffer_gl->buffer, (GLsizeiptr)offset, (GLsizeiptr)size);
     }
 }
 

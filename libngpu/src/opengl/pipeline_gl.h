@@ -34,7 +34,7 @@ struct ngpu_pipeline_gl {
 
     struct ngpu_darray attribute_bindings; // attribute_binding_gl
 
-    GLuint vao_id;
+    GLuint vao;
 };
 
 struct ngpu_pipeline *ngpu_pipeline_gl_create(struct ngpu_ctx *gpu_ctx);
