@@ -71,7 +71,7 @@ struct ngpu_glstate {
     struct ngpu_viewport viewport;
 
     /* Common state */
-    GLuint program_id;
+    GLuint program;
 };
 
 void ngpu_glstate_reset(const struct glcontext *gl,
@@ -83,7 +83,7 @@ void ngpu_glstate_update(const struct glcontext *gl,
 
 void ngpu_glstate_use_program(const struct glcontext *gl,
                               struct ngpu_glstate *glstate,
-                              GLuint program_id);
+                              GLuint program);
 
 void ngpu_glstate_update_scissor(const struct glcontext *gl,
                                  struct ngpu_glstate *glstate,

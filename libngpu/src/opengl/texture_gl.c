@@ -365,14 +365,14 @@ static int texture_init(struct ngpu_texture *s, const struct ngpu_texture_params
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     if (s_priv->target == GL_RENDERBUFFER) {
-        gl->funcs.GenRenderbuffers(1, &s_priv->id);
-        gl->funcs.BindRenderbuffer(s_priv->target, s_priv->id);
+        gl->funcs.GenRenderbuffers(1, &s_priv->texture);
+        gl->funcs.BindRenderbuffer(s_priv->target, s_priv->texture);
         renderbuffer_allocate_storage(s);
         return 0;
     }
 
-    gl->funcs.GenTextures(1, &s_priv->id);
-    gl->funcs.BindTexture(s_priv->target, s_priv->id);
+    gl->funcs.GenTextures(1, &s_priv->texture);
+    gl->funcs.BindTexture(s_priv->target, s_priv->texture);
     const GLint min_filter = ngpu_texture_get_gl_min_filter(params->min_filter, s->params.mipmap_filter);
     const GLint mag_filter = ngpu_texture_get_gl_mag_filter(params->mag_filter);
     const GLint wrap_s = ngpu_texture_get_gl_wrap(params->wrap_s);
@@ -446,7 +446,7 @@ static int texture_import_dma_buf(struct ngpu_texture *s)
         return NGPU_ERROR_EXTERNAL;
     }
 
-    gl->funcs.BindTexture(s_priv->target, s_priv->id);
+    gl->funcs.BindTexture(s_priv->target, s_priv->texture);
     if (gl->features & NGPU_FEATURE_GL_EXT_EGL_IMAGE_STORAGE)
         gl->funcs.EGLImageTargetTexStorageEXT(s_priv->target, s_priv->egl_image, NULL);
     else
@@ -486,7 +486,7 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
         return NGPU_ERROR_EXTERNAL;
     }
 
-    gl->funcs.BindTexture(GL_TEXTURE_EXTERNAL_OES, s_priv->id);
+    gl->funcs.BindTexture(GL_TEXTURE_EXTERNAL_OES, s_priv->texture);
     if (gl->features & NGPU_FEATURE_GL_EXT_EGL_IMAGE_STORAGE)
         gl->funcs.EGLImageTargetTexStorageEXT(s_priv->target, s_priv->egl_image, NULL);
     else
@@ -513,12 +513,12 @@ static int texture_import_iosurface(struct ngpu_texture *s)
     /* CGLTexImageIOSurface2D() requires GL_UNSIGNED_INT_8_8_8_8_REV instead of GL_UNSIGNED_SHORT to map BGRA IOSurface2D */
     const GLenum format_type = s_priv->format == GL_BGRA ? GL_UNSIGNED_INT_8_8_8_8_REV : s_priv->format_type;
 
-    gl->funcs.BindTexture(GL_TEXTURE_RECTANGLE, s_priv->id);
+    gl->funcs.BindTexture(GL_TEXTURE_RECTANGLE, s_priv->texture);
     CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(), GL_TEXTURE_RECTANGLE,
                                           s_priv->internal_format, (GLsizei)s->params.width, (GLsizei)s->params.height,
                                           s_priv->format, format_type, surface, (GLuint)index);
     if (err != kCGLNoError) {
-        LOG(ERROR, "could not bind IOSurface plane %zu to texture %u: %s", index, s_priv->id, CGLErrorString(err));
+        LOG(ERROR, "could not bind IOSurface plane %zu to texture %u: %s", index, s_priv->texture, CGLErrorString(err));
         return NGPU_ERROR_EXTERNAL;
     }
 
@@ -569,12 +569,12 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
     s_priv->cv_pixel_buffer = CFRetain(cv_pixel_buffer);
 
     /* Delete pre-allocated texture handle */
-    gl->funcs.DeleteTextures(1, &s_priv->id);
+    gl->funcs.DeleteTextures(1, &s_priv->texture);
 
-    s_priv->id = CVOpenGLESTextureGetName(s_priv->cv_texture);
+    s_priv->texture = CVOpenGLESTextureGetName(s_priv->cv_texture);
     s_priv->wrapped = 1;
 
-    gl->funcs.BindTexture(GL_TEXTURE_2D, s_priv->id);
+    gl->funcs.BindTexture(GL_TEXTURE_2D, s_priv->texture);
     const GLint min_filter = ngpu_texture_get_gl_min_filter(s->params.min_filter, s->params.mipmap_filter);
     const GLint mag_filter = ngpu_texture_get_gl_mag_filter(s->params.mag_filter);
     const GLint wrap_s = ngpu_texture_get_gl_wrap(s->params.wrap_s);
@@ -601,9 +601,9 @@ static int texture_import_opengl_texture(struct ngpu_texture *s)
     const struct ngpu_import_opengl_texture_params *opengl_texture_params = &import_params->opengl_texture;
 
     /* Delete pre-allocated texture handle */
-    gl->funcs.DeleteTextures(1, &s_priv->id);
+    gl->funcs.DeleteTextures(1, &s_priv->texture);
 
-    s_priv->id = opengl_texture_params->texture;
+    s_priv->texture = opengl_texture_params->texture;
     s_priv->target = opengl_texture_params->target;
 
     s_priv->wrapped = 1;
@@ -697,7 +697,7 @@ int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *da
     ngpu_assert(!s_priv->wrapped);
     ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
-    gl->funcs.BindTexture(s_priv->target, s_priv->id);
+    gl->funcs.BindTexture(s_priv->target, s_priv->texture);
     if (data) {
         texture_upload(s, data, transfer_params);
         if (params->mipmap_filter != NGPU_MIPMAP_FILTER_NONE)
@@ -731,10 +731,10 @@ int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
         gl->funcs.BindFramebuffer(GL_READ_FRAMEBUFFER, s_priv->readback_src_fbo);
         if (s_priv->target == GL_RENDERBUFFER)
             gl->funcs.FramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                              s_priv->target, s_priv->id);
+                                              s_priv->target, s_priv->texture);
         else
             gl->funcs.FramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                           s_priv->target, s_priv->id, 0);
+                                           s_priv->target, s_priv->texture, 0);
 
         gl->funcs.GenFramebuffers(1, &s_priv->readback_dst_fbo);
         gl->funcs.BindFramebuffer(GL_DRAW_FRAMEBUFFER, s_priv->readback_dst_fbo);
@@ -769,7 +769,7 @@ int ngpu_texture_gl_generate_mipmap(struct ngpu_texture *s)
     ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_SRC_BIT);
     ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
-    gl->funcs.BindTexture(s_priv->target, s_priv->id);
+    gl->funcs.BindTexture(s_priv->target, s_priv->texture);
     gl->funcs.GenerateMipmap(s_priv->target);
     return 0;
 }
@@ -786,9 +786,9 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
 
     if (!s_priv->wrapped) {
         if (s_priv->target == GL_RENDERBUFFER)
-            gl->funcs.DeleteRenderbuffers(1, &s_priv->id);
+            gl->funcs.DeleteRenderbuffers(1, &s_priv->texture);
         else
-            gl->funcs.DeleteTextures(1, &s_priv->id);
+            gl->funcs.DeleteTextures(1, &s_priv->texture);
     }
 
     if (s_priv->readback_texture) {

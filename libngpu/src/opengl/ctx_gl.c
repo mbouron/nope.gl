@@ -55,7 +55,7 @@ static void capture_cpu(struct ngpu_ctx *s)
     struct ngpu_rendertarget *rt = s_priv->capture_rt;
     struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)rt;
 
-    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, rt_gl->id);
+    gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, rt_gl->fbo);
     const GLint w = (GLint)rt->width, h = (GLint)rt->height;
     gl->funcs.ReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, params->capture_buffer);
 }
@@ -190,9 +190,9 @@ static int create_rendertarget(struct ngpu_ctx *s,
         ret = ngpu_rendertarget_init(rendertarget, &params);
     } else {
         const int external = ctx_params_gl ? ctx_params_gl->external : 0;
-        const GLuint default_fbo_id = ngpu_glcontext_get_default_framebuffer(gl);
-        const GLuint fbo_id = external ? ctx_params_gl->external_framebuffer : default_fbo_id;
-        ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, fbo_id);
+        const GLuint default_fbo = ngpu_glcontext_get_default_framebuffer(gl);
+        const GLuint fbo = external ? ctx_params_gl->external_framebuffer : default_fbo;
+        ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, fbo);
     }
     if (ret < 0) {
         ngpu_rendertarget_freep(&rendertarget);
@@ -636,7 +636,7 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
         * thus we need to update the rendertargets wrapping the default framebuffer
         */
         struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt;
-        rt_gl->id = ngpu_glcontext_get_default_framebuffer(gl);
+        rt_gl->fbo = ngpu_glcontext_get_default_framebuffer(gl);
     }
 
     return 0;
@@ -855,10 +855,10 @@ static void blit_vflip(struct ngpu_ctx *s, struct ngpu_rendertarget *src, struct
     struct ngpu_glstate *glstate = &s_priv->glstate;
 
     struct ngpu_rendertarget_gl *src_gl = (struct ngpu_rendertarget_gl *)src;
-    const GLuint src_fbo = src_gl->resolve_id ? src_gl->resolve_id : src_gl->id;
+    const GLuint src_fbo = src_gl->resolve_fbo ? src_gl->resolve_fbo : src_gl->fbo;
 
     struct ngpu_rendertarget_gl *dst_gl = (struct ngpu_rendertarget_gl *)dst;
-    const GLuint dst_fbo = dst_gl->id;
+    const GLuint dst_fbo = dst_gl->fbo;
 
     const int32_t w = (int32_t)src->width, h = (int32_t)dst->height;
 
