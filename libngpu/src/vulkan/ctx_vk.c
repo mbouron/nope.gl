@@ -247,24 +247,6 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         }
     }
 
-    if (ctx_params->offscreen) {
-        s_priv->capture_buffer = ngpu_buffer_create(s);
-        if (!s_priv->capture_buffer)
-            return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-        s_priv->capture_buffer_size = (size_t)s_priv->width * (size_t)s_priv->height * ngpu_format_get_bytes_per_pixel(color_format);
-        int ret = ngpu_buffer_init(s_priv->capture_buffer,
-                                       s_priv->capture_buffer_size,
-                                       NGPU_BUFFER_USAGE_MAP_READ |
-                                       NGPU_BUFFER_USAGE_TRANSFER_DST_BIT);
-        if (ret < 0)
-            return VK_ERROR_UNKNOWN;
-
-        ret = ngpu_buffer_map(s_priv->capture_buffer, 0, s_priv->capture_buffer_size, &s_priv->mapped_data);
-        if (ret < 0)
-            return VK_ERROR_UNKNOWN;
-    }
-
     return VK_SUCCESS;
 }
 
@@ -276,12 +258,6 @@ static void destroy_render_resources(struct ngpu_ctx *s)
     ngpu_darray_reset(&s_priv->ms_colors);
     ngpu_darray_reset(&s_priv->depth_stencils);
     ngpu_darray_reset(&s_priv->rts);
-
-    if (s_priv->mapped_data) {
-        ngpu_buffer_unmap(s_priv->capture_buffer);
-        s_priv->mapped_data = NULL;
-    }
-    ngpu_buffer_freep(&s_priv->capture_buffer);
 }
 
 static VkResult create_query_pool(struct ngpu_ctx *s)
@@ -1175,24 +1151,20 @@ static int vk_end_draw(struct ngpu_ctx *s, double t)
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
     if (ctx_params->offscreen) {
+        VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
+        if (res != VK_SUCCESS)
+            return ngpu_vk_res2ret(res);
+
         if (ctx_params->capture_buffer) {
-            struct ngpu_texture **colors = ngpu_darray_data(&s_priv->colors);
-            struct ngpu_texture *color = colors[s->current_frame_index];
-            ngpu_texture_vk_copy_to_buffer(color, s_priv->capture_buffer);
-
-            VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
-            if (res != VK_SUCCESS)
-                return ngpu_vk_res2ret(res);
-
             res = ngpu_cmd_buffer_vk_wait(s_priv->cur_cmd_buffer);
             if (res != VK_SUCCESS)
                 return ngpu_vk_res2ret(res);
 
-            memcpy(ctx_params->capture_buffer, s_priv->mapped_data, s_priv->capture_buffer_size);
-        } else {
-            VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
-            if (res != VK_SUCCESS)
-                return ngpu_vk_res2ret(res);
+            struct ngpu_texture **colors = ngpu_darray_data(&s_priv->colors);
+            struct ngpu_texture *color = colors[s->current_frame_index];
+            int ret = ngpu_texture_read_pixels(color, ctx_params->capture_buffer);
+            if (ret < 0)
+                return ret;
         }
     } else {
         struct ngpu_texture **colors = ngpu_darray_data(&s_priv->colors);
