@@ -951,6 +951,9 @@ def _ngpu_setup(cfg):
         renderdoc_dir = cfg.externals[_RENDERDOC_ID]
         ngpu_opts += [f"-Drenderdoc_dir={renderdoc_dir}"]
 
+    if cfg.host in ("Darwin", "iOS"):
+        ngpu_opts += ["-Dvulkan-static=enabled"]
+
     extra_library_dirs = []
     extra_include_dirs = []
     if cfg.host == "Windows":

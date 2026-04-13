@@ -30,6 +30,7 @@
 struct AHardwareBuffer;
 
 NGPU_API VkDevice ngpu_ctx_vk_get_device(struct ngpu_ctx *ctx);
+NGPU_API void *ngpu_ctx_vk_get_mtl_device(struct ngpu_ctx *ctx);
 
 struct ngpu_ycbcr_sampler_vk_params {
     /* Conversion params */

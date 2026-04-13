@@ -186,7 +186,8 @@ static VkAccessFlagBits get_vk_access_mask_from_image_layout(VkImageLayout layou
     return access_mask;
 }
 
-static void transition_image_layout(VkCommandBuffer cmd_buf,
+static void transition_image_layout(const struct vk_functions *funcs,
+                                    VkCommandBuffer cmd_buf,
                                     VkImage image,
                                     VkImageLayout old_layout,
                                     VkImageLayout new_layout,
@@ -207,7 +208,7 @@ static void transition_image_layout(VkCommandBuffer cmd_buf,
         .subresourceRange    = *subres_range,
     };
 
-    vkCmdPipelineBarrier(cmd_buf, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &barrier);
+    funcs->CmdPipelineBarrier(cmd_buf, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &barrier);
 }
 
 VkImageUsageFlags ngpu_vk_get_image_usage_flags(uint32_t usage)
@@ -312,7 +313,7 @@ static VkResult create_image_view(struct ngpu_texture *s)
         }
     };
 
-    return vkCreateImageView(vk->device, &view_info, NULL, &s_priv->image_view);
+    return vk->funcs.CreateImageView(vk->device, &view_info, NULL, &s_priv->image_view);
 }
 
 static VkResult create_sampler(struct ngpu_texture *s)
@@ -339,7 +340,7 @@ static VkResult create_sampler(struct ngpu_texture *s)
         .maxLod                  = (float)s_priv->mipmap_levels,
         .mipLodBias              = 0.0f,
     };
-    return vkCreateSampler(vk->device, &sampler_info, NULL, &s_priv->sampler);
+    return vk->funcs.CreateSampler(vk->device, &sampler_info, NULL, &s_priv->sampler);
 }
 
 struct ngpu_texture *ngpu_texture_vk_create(struct ngpu_ctx *gpu_ctx)
@@ -362,7 +363,7 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
         return res;
 
     VkFormatProperties properties;
-    vkGetPhysicalDeviceFormatProperties(vk->phy_device, s_priv->format, &properties);
+    vk->funcs.GetPhysicalDeviceFormatProperties(vk->phy_device, s_priv->format, &properties);
     const VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
 
     VkFormatFeatureFlags supported_features;
@@ -404,14 +405,14 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
         .flags         = flags,
     };
 
-    res = vkCreateImage(vk->device, &image_create_info, NULL, &s_priv->image);
+    res = vk->funcs.CreateImage(vk->device, &image_create_info, NULL, &s_priv->image);
     if (res != VK_SUCCESS)
        return res;
 
     s_priv->image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     VkMemoryRequirements mem_reqs;
-    vkGetImageMemoryRequirements(vk->device, s_priv->image, &mem_reqs);
+    vk->funcs.GetImageMemoryRequirements(vk->device, s_priv->image, &mem_reqs);
 
     uint32_t mem_type_index = UINT32_MAX;
     if (s->params.usage & NGPU_TEXTURE_USAGE_TRANSIENT_ATTACHMENT_BIT) {
@@ -432,11 +433,11 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
         .allocationSize  = mem_reqs.size,
         .memoryTypeIndex = mem_type_index,
     };
-    res = vkAllocateMemory(vk->device, &alloc_info, NULL, &s_priv->image_memory);
+    res = vk->funcs.AllocateMemory(vk->device, &alloc_info, NULL, &s_priv->image_memory);
     if (res != VK_SUCCESS)
         return res;
 
-    res = vkBindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
+    res = vk->funcs.BindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
     if (res != VK_SUCCESS)
         return res;
 
@@ -453,7 +454,7 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
         .layerCount     = VK_REMAINING_ARRAY_LAYERS,
     };
 
-    transition_image_layout(cmd_buffer_vk->cmd_buf,
+    transition_image_layout(&vk->funcs, cmd_buffer_vk->cmd_buf,
                             s_priv->image,
                             s_priv->image_layout,
                             s_priv->default_image_layout,
@@ -553,7 +554,7 @@ static int import_dma_buf(struct ngpu_texture *s)
         .sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2_KHR,
     };
 
-    VkResult res = vkGetPhysicalDeviceImageFormatProperties2(vk->phy_device, &fmt_info, &fmt_props);
+    VkResult res = vk->funcs.GetPhysicalDeviceImageFormatProperties2(vk->phy_device, &fmt_info, &fmt_props);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not get image format properties: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_GENERIC;
@@ -566,7 +567,7 @@ static int import_dma_buf(struct ngpu_texture *s)
         return NGPU_ERROR_GRAPHICS_LIMIT_EXCEEDED;
     }
 
-    res = vkCreateImage(vk->device, &img_info, NULL, &s_priv->image);
+    res = vk->funcs.CreateImage(vk->device, &img_info, NULL, &s_priv->image);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "failed to create image: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_GENERIC;
@@ -585,12 +586,12 @@ static int import_dma_buf(struct ngpu_texture *s)
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2_KHR,
         .image = s_priv->image,
     };
-    vkGetImageMemoryRequirements2(vk->device, &mem_reqs_info, &mem_reqs);
+    vk->funcs.GetImageMemoryRequirements2(vk->device, &mem_reqs_info, &mem_reqs);
 
     VkMemoryFdPropertiesKHR fd_props = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
     };
-    res = vk->GetMemoryFdPropertiesKHR(vk->device,
+    res = vk->funcs.GetMemoryFdPropertiesKHR(vk->device,
                                        VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
                                        dma_buf_params->fd,
                                        &fd_props);
@@ -626,7 +627,7 @@ static int import_dma_buf(struct ngpu_texture *s)
         mem_alloc_info.allocationSize = mem_reqs.memoryRequirements.size;
     }
 
-    res = vkAllocateMemory(vk->device, &mem_alloc_info, NULL, &s_priv->image_memory);
+    res = vk->funcs.AllocateMemory(vk->device, &mem_alloc_info, NULL, &s_priv->image_memory);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not allocate memory: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_MEMORY;
@@ -641,7 +642,7 @@ static int import_dma_buf(struct ngpu_texture *s)
      */
     s_priv->fd = -1;
 
-    res = vkBindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
+    res = vk->funcs.BindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not bind image memory: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_GENERIC;
@@ -674,7 +675,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         .pNext = &ahb_format_props,
     };
 
-    VkResult res = vk->GetAndroidHardwareBufferPropertiesANDROID(vk->device, hardware_buffer, &ahb_props);
+    VkResult res = vk->funcs.GetAndroidHardwareBufferPropertiesANDROID(vk->device, hardware_buffer, &ahb_props);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not get android hardware buffer properties: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_GENERIC;
@@ -714,7 +715,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
     };
 
-    res = vkCreateImage(vk->device, &img_info, NULL, &s_priv->image);
+    res = vk->funcs.CreateImage(vk->device, &img_info, NULL, &s_priv->image);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create image: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_GENERIC;
@@ -745,13 +746,13 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         .memoryTypeIndex = mem_type_index,
     };
 
-    res = vkAllocateMemory(vk->device, &mem_info, NULL, &s_priv->image_memory);
+    res = vk->funcs.AllocateMemory(vk->device, &mem_info, NULL, &s_priv->image_memory);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not allocate memory: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_MEMORY;
     }
 
-    res = vkBindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
+    res = vk->funcs.BindImageMemory(vk->device, s_priv->image, s_priv->image_memory, 0);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not bind image memory: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_GENERIC;
@@ -783,7 +784,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         .subresourceRange = subres_range,
     };
 
-    res = vkCreateImageView(vk->device, &view_info, NULL, &s_priv->image_view);
+    res = vk->funcs.CreateImageView(vk->device, &view_info, NULL, &s_priv->image_view);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create image view: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_GENERIC;
@@ -802,7 +803,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     };
 
     VkCommandBuffer cmd_buf = gpu_ctx_vk->cur_cmd_buffer->cmd_buf;
-    vkCmdPipelineBarrier(cmd_buf,
+    vk->funcs.CmdPipelineBarrier(cmd_buf,
                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                          0,
@@ -849,7 +850,7 @@ static int import_metal_texture(struct ngpu_texture *s)
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 
-    VkResult res = vkCreateImage(vk->device, &image_create_info, NULL, &s_priv->image);
+    VkResult res = vk->funcs.CreateImage(vk->device, &image_create_info, NULL, &s_priv->image);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create image: %s", ngpu_vk_res2str(res));
         return ngpu_vk_res2ret(res);
@@ -959,7 +960,8 @@ void ngpu_texture_vk_transition_layout(struct ngpu_texture *s, VkImageLayout lay
         .baseArrayLayer = 0,
         .layerCount     = VK_REMAINING_ARRAY_LAYERS,
     };
-    transition_image_layout(cmd_buf, s_priv->image, s_priv->image_layout, layout, &subres_range);
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    transition_image_layout(&vk->funcs, cmd_buf, s_priv->image, s_priv->image_layout, layout, &subres_range);
 
     s_priv->image_layout = layout;
 }
@@ -992,8 +994,9 @@ void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *
         .imageExtent = {s->params.width, s->params.height, 1},
     };
 
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     VkCommandBuffer cmd_buf = gpu_ctx_vk->cur_cmd_buffer->cmd_buf;
-    vkCmdCopyImageToBuffer(cmd_buf, s_priv->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+    vk->funcs.CmdCopyImageToBuffer(cmd_buf, s_priv->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                            buffer_vk->buffer, 1, &region);
 }
 
@@ -1097,7 +1100,8 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
         .baseArrayLayer = 0,
         .layerCount     = VK_REMAINING_ARRAY_LAYERS,
     };
-    transition_image_layout(cmd_buf,
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    transition_image_layout(&vk->funcs, cmd_buf,
                             s_priv->image,
                             s_priv->image_layout,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1140,7 +1144,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
     }
 
     struct ngpu_buffer_vk *staging_buffer_vk = (struct ngpu_buffer_vk *)s_priv->staging_buffer;
-    vkCmdCopyBufferToImage(cmd_buf,
+    vk->funcs.CmdCopyBufferToImage(cmd_buf,
                            staging_buffer_vk->buffer,
                            s_priv->image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1149,7 +1153,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
 
     ngpu_darray_reset(&copy_regions);
 
-    transition_image_layout(cmd_buf,
+    transition_image_layout(&vk->funcs, cmd_buf,
                             s_priv->image,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                             s_priv->image_layout,
@@ -1218,7 +1222,8 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
         .baseArrayLayer = 0,
         .layerCount     = VK_REMAINING_ARRAY_LAYERS,
     };
-    transition_image_layout(cmd_buf,
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    transition_image_layout(&vk->funcs, cmd_buf,
                             s_priv->image,
                             s_priv->image_layout,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1246,7 +1251,7 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-        vkCmdPipelineBarrier(cmd_buf,
+        vk->funcs.CmdPipelineBarrier(cmd_buf,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0,
@@ -1277,7 +1282,7 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
             },
         };
 
-        vkCmdBlitImage(cmd_buf,
+        vk->funcs.CmdBlitImage(cmd_buf,
                        s_priv->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                        s_priv->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                        1, &blit,
@@ -1288,7 +1293,7 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-        vkCmdPipelineBarrier(cmd_buf,
+        vk->funcs.CmdPipelineBarrier(cmd_buf,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                              0,
@@ -1306,7 +1311,7 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-    vkCmdPipelineBarrier(cmd_buf,
+    vk->funcs.CmdPipelineBarrier(cmd_buf,
                          VK_PIPELINE_STAGE_TRANSFER_BIT,
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          0,
@@ -1343,12 +1348,12 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
 
     ngpu_ycbcr_sampler_vk_unrefp(&s_priv->ycbcr_sampler);
     if (!s_priv->wrapped_sampler)
-        vkDestroySampler(vk->device, s_priv->sampler, NULL);
+        vk->funcs.DestroySampler(vk->device, s_priv->sampler, NULL);
     if (!s_priv->wrapped_image_view)
-        vkDestroyImageView(vk->device, s_priv->image_view, NULL);
+        vk->funcs.DestroyImageView(vk->device, s_priv->image_view, NULL);
     if (!s_priv->wrapped_image)
-        vkDestroyImage(vk->device, s_priv->image, NULL);
-    vkFreeMemory(vk->device, s_priv->image_memory, NULL);
+        vk->funcs.DestroyImage(vk->device, s_priv->image, NULL);
+    vk->funcs.FreeMemory(vk->device, s_priv->image_memory, NULL);
 
     destroy_staging_buffer(s);
 

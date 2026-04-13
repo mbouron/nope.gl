@@ -42,8 +42,8 @@ static void cmd_buffer_vk_freep(void **sp)
     ngpu_darray_reset(&s->wait_stages);
     ngpu_darray_reset(&s->signal_sems);
 
-    vkFreeCommandBuffers(vk->device, s->pool, 1, &s->cmd_buf);
-    vkDestroyFence(vk->device, s->fence, NULL);
+    vk->funcs.FreeCommandBuffers(vk->device, s->pool, 1, &s->cmd_buf);
+    vk->funcs.DestroyFence(vk->device, s->fence, NULL);
 
     ngpu_freep(sp);
 }
@@ -95,7 +95,7 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     };
-    VkResult res = vkAllocateCommandBuffers(vk->device, &allocate_info, &s->cmd_buf);
+    VkResult res = vk->funcs.AllocateCommandBuffers(vk->device, &allocate_info, &s->cmd_buf);
     if (res != VK_SUCCESS)
         return res;
 
@@ -104,7 +104,7 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
         .pNext = NULL,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
-    res = vkCreateFence(vk->device, &fence_create_info, NULL, &s->fence);
+    res = vk->funcs.CreateFence(vk->device, &fence_create_info, NULL, &s->fence);
     if (res != VK_SUCCESS)
         return res;
 
@@ -171,13 +171,16 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
     ngpu_darray_clear(&s->wait_stages);
     ngpu_darray_clear(&s->signal_sems);
 
-    vkResetCommandBuffer(s->cmd_buf, 0);
+    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    vk->funcs.ResetCommandBuffer(s->cmd_buf, 0);
 
     const VkCommandBufferBeginInfo cmd_buf_begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
     };
-    return vkBeginCommandBuffer(s->cmd_buf, &cmd_buf_begin_info);
+    return vk->funcs.BeginCommandBuffer(s->cmd_buf, &cmd_buf_begin_info);
 }
 
 VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
@@ -185,11 +188,11 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
-    VkResult res = vkEndCommandBuffer(s->cmd_buf);
+    VkResult res = vk->funcs.EndCommandBuffer(s->cmd_buf);
     if (res != VK_SUCCESS)
         return res;
 
-    res = vkResetFences(vk->device, 1, &s->fence);
+    res = vk->funcs.ResetFences(vk->device, 1, &s->fence);
     if (res != VK_SUCCESS)
         return res;
 
@@ -204,7 +207,7 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
         .pSignalSemaphores    = ngpu_darray_data(&s->signal_sems),
     };
 
-    res = vkQueueSubmit(vk->graphic_queue, 1, &submit_info, s->fence);
+    res = vk->funcs.QueueSubmit(vk->graphic_queue, 1, &submit_info, s->fence);
     if (res != VK_SUCCESS)
         return res;
 
@@ -226,7 +229,7 @@ VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     if (s->submitted) {
-        VkResult res = vkWaitForFences(vk->device, 1, &s->fence, VK_TRUE, UINT64_MAX);
+        VkResult res = vk->funcs.WaitForFences(vk->device, 1, &s->fence, VK_TRUE, UINT64_MAX);
         if (res != VK_SUCCESS)
             return res;
     }
