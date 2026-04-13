@@ -86,7 +86,7 @@ int ngpu_program_vk_init(struct ngpu_program *s, const struct ngpu_program_param
             .codeSize = size,
             .pCode    = data,
         };
-        VkResult res = vkCreateShaderModule(vk->device, &shader_module_create_info, NULL, &s_priv->shaders[i]);
+        VkResult res = vk->funcs.CreateShaderModule(vk->device, &shader_module_create_info, NULL, &s_priv->shaders[i]);
         ngpu_freep(&data);
         if (res != VK_SUCCESS) {
             char *s_with_numbers = ngpu_numbered_lines(shaders[i].src);
@@ -113,6 +113,6 @@ void ngpu_program_vk_freep(struct ngpu_program **sp)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(s_priv->shaders); i++)
-        vkDestroyShaderModule(vk->device, s_priv->shaders[i], NULL);
+        vk->funcs.DestroyShaderModule(vk->device, s_priv->shaders[i], NULL);
     ngpu_freep(sp);
 }

@@ -28,12 +28,7 @@
 
 #include "ctx.h"
 #include "ngpu/ngpu.h"
-
-#define VK_FUNC(name) PFN_vk##name
-#define VK_DECLARE_FUNC(name) VK_FUNC(name) name
-
-#define VK_LOAD_FUNC(instance, name) \
-    VK_DECLARE_FUNC(name) = (VK_FUNC(name))(void *)vkGetInstanceProcAddr(instance, "vk" #name);
+#include "vulkan/vkfunctions.h"
 
 struct vkcontext {
     uint32_t api_version;
@@ -76,17 +71,10 @@ struct vkcontext {
     VkPresentModeKHR *present_modes;
     uint32_t nb_present_modes;
 
-    /* Device functions */
-    VK_DECLARE_FUNC(CreateSamplerYcbcrConversionKHR);
-    VK_DECLARE_FUNC(DestroySamplerYcbcrConversionKHR);
-#if defined(TARGET_ANDROID)
-    VK_DECLARE_FUNC(GetAndroidHardwareBufferPropertiesANDROID);
-    VK_DECLARE_FUNC(GetMemoryAndroidHardwareBufferANDROID);
+    struct vk_functions funcs;
+#if !NGPU_VULKAN_STATIC
+    void *libvulkan;
 #endif
-    VK_DECLARE_FUNC(GetMemoryFdKHR);
-    VK_DECLARE_FUNC(GetMemoryFdPropertiesKHR);
-    VK_DECLARE_FUNC(GetRefreshCycleDurationGOOGLE);
-    VK_DECLARE_FUNC(GetPastPresentationTimingGOOGLE);
 };
 
 struct vkcontext *ngpu_vkcontext_create(void);

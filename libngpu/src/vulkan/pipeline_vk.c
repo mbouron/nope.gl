@@ -333,9 +333,9 @@ static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
         .renderPass          = render_pass,
         .subpass             = 0,
     };
-    res = vkCreateGraphicsPipelines(vk->device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &s_priv->pipeline);
+    res = vk->funcs.CreateGraphicsPipelines(vk->device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &s_priv->pipeline);
 
-    vkDestroyRenderPass(vk->device, render_pass, NULL);
+    vk->funcs.DestroyRenderPass(vk->device, render_pass, NULL);
 
     return res;
 }
@@ -362,7 +362,7 @@ static VkResult pipeline_compute_init(struct ngpu_pipeline *s)
         .layout = s_priv->pipeline_layout,
     };
 
-    return vkCreateComputePipelines(vk->device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &s_priv->pipeline);
+    return vk->funcs.CreateComputePipelines(vk->device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &s_priv->pipeline);
 }
 
 static VkResult create_pipeline_layout(struct ngpu_pipeline *s)
@@ -379,7 +379,7 @@ static VkResult create_pipeline_layout(struct ngpu_pipeline *s)
         .pSetLayouts    = &layout->desc_set_layout,
     };
 
-    return vkCreatePipelineLayout(vk->device, &pipeline_layout_create_info, NULL, &s_priv->pipeline_layout);
+    return vk->funcs.CreatePipelineLayout(vk->device, &pipeline_layout_create_info, NULL, &s_priv->pipeline_layout);
 }
 
 static VkResult create_pipeline(struct ngpu_pipeline *s)
@@ -446,7 +446,8 @@ static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuf
             struct buffer_binding_vk *binding = &bindings[i];
             ngpu_cmd_buffer_vk_ref_buffer(cmd_buffer_vk, (struct ngpu_buffer *)binding->buffer);
         }
-        vkCmdBindDescriptorSets(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline_layout, 0,
+        struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+        vk->funcs.CmdBindDescriptorSets(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline_layout, 0,
                                 1, &bindgroup_vk->desc_set,
                                 (uint32_t)gpu_ctx->nb_dynamic_offsets, gpu_ctx->dynamic_offsets);
     }
@@ -458,7 +459,9 @@ static int prepare_and_bind_graphics_pipeline(struct ngpu_pipeline *s, VkCommand
 {
     struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
 
-    vkCmdBindPipeline(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline);
+    struct ngpu_ctx_vk *gpu_ctx_vk2 = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct vkcontext *vk = gpu_ctx_vk2->vkcontext;
+    vk->funcs.CmdBindPipeline(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline);
 
     return 0;
 }
@@ -479,7 +482,8 @@ void ngpu_pipeline_vk_draw(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32
     if (ret < 0)
         return;
 
-    vkCmdDraw(cmd_buf, nb_vertices, nb_instances, first_vertex, 0);
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    vk->funcs.CmdDraw(cmd_buf, nb_vertices, nb_instances, first_vertex, 0);
 }
 
 void ngpu_pipeline_vk_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_index)
@@ -497,7 +501,8 @@ void ngpu_pipeline_vk_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_vertices
     if (ret < 0)
         return;
 
-    vkCmdDrawIndexed(cmd_buf, nb_vertices, nb_instances, first_index, 0, 0);
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    vk->funcs.CmdDrawIndexed(cmd_buf, nb_vertices, nb_instances, first_index, 0, 0);
 }
 
 void ngpu_pipeline_vk_dispatch(struct ngpu_pipeline *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
@@ -519,8 +524,9 @@ void ngpu_pipeline_vk_dispatch(struct ngpu_pipeline *s, uint32_t nb_group_x, uin
     if (ret < 0)
         return;
 
-    vkCmdBindPipeline(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline);
-    vkCmdDispatch(cmd_buf, nb_group_x, nb_group_y, nb_group_z);
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    vk->funcs.CmdBindPipeline(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline);
+    vk->funcs.CmdDispatch(cmd_buf, nb_group_x, nb_group_y, nb_group_z);
 
     const VkMemoryBarrier barrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -538,7 +544,7 @@ void ngpu_pipeline_vk_dispatch(struct ngpu_pipeline *s, uint32_t nb_group_x, uin
     };
     const VkPipelineStageFlags src_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     const VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-    vkCmdPipelineBarrier(cmd_buf, src_stage, dst_stage, 0, 1, &barrier, 0, NULL, 0, NULL);
+    vk->funcs.CmdPipelineBarrier(cmd_buf, src_stage, dst_stage, 0, 1, &barrier, 0, NULL, 0, NULL);
 
     if (cmd_is_transient) {
         ngpu_cmd_buffer_vk_execute_transient(&cmd_buffer_vk);
@@ -558,8 +564,8 @@ void ngpu_pipeline_vk_freep(struct ngpu_pipeline **sp)
 
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    vkDestroyPipeline(vk->device, s_priv->pipeline, NULL);
-    vkDestroyPipelineLayout(vk->device, s_priv->pipeline_layout, NULL);
+    vk->funcs.DestroyPipeline(vk->device, s_priv->pipeline, NULL);
+    vk->funcs.DestroyPipelineLayout(vk->device, s_priv->pipeline_layout, NULL);
 
     ngpu_freep(sp);
 }

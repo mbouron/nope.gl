@@ -427,6 +427,10 @@ foreach gbackend_name, gbackend_cfg : gbackends_cfg
   endif
   host_backend_cfg = hosts_backend_cfg.get(host_system)
   gbackend_deps = []
+  # Vulkan is loaded dynamically via dlopen at runtime by default. With
+  # -Dvulkan-static=enabled, libvulkan is linked at build time instead.
+  opt_vulkan_static = get_option('vulkan-static')
+  gbackend_vulkan_static = opt_vulkan_static.enabled()
   foreach dep : host_backend_cfg.get('deps', [])
     if dep == 'glslang'
       add_languages('cpp')
@@ -484,6 +488,23 @@ foreach gbackend_name, gbackend_cfg : gbackends_cfg
           gbackend_deps += disabler()
         endif
       endif
+    elif dep == 'vulkan'
+      # Default: load Vulkan dynamically via dlopen(libvulkan) at runtime,
+      # only the headers are required at compile time. With -Dvulkan-static=
+      # enabled, link against libvulkan instead.
+      vulkan_dep = dependency('vulkan', required: opt_gbackend)
+      if vulkan_dep.found()
+        if gbackend_vulkan_static
+          gbackend_deps += vulkan_dep
+        else
+          gbackend_deps += declare_dependency(
+            dependencies: vulkan_dep.partial_dependency(includes: true, compile_args: true),
+            compile_args: ['-DVK_NO_PROTOTYPES'],
+          )
+        endif
+      else
+        gbackend_deps += disabler()
+      endif
     else
       gbackend_deps += dependency(dep, required: opt_gbackend)
     endif
@@ -518,6 +539,9 @@ foreach gbackend_name, gbackend_cfg : gbackends_cfg
     conf_data.set10(gbackend_cfg.get('cfg'), true)
     if 'cfg' in host_backend_cfg
       conf_data.set10(host_backend_cfg.get('cfg'), true)
+    endif
+    if gbackend_name == 'vk'
+      conf_data.set10('NGPU_VULKAN_STATIC', gbackend_vulkan_static)
     endif
   endif
 endforeach
