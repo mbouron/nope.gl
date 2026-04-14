@@ -240,27 +240,38 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
     if (ret < 0)
         return ret;
 
-    ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->color);
-    if (ret < 0)
-        return ret;
+    const uint32_t nb_frames = s->nb_in_flight_frames;
+    s_priv->colors         = ngpu_calloc(nb_frames, sizeof(*s_priv->colors));
+    s_priv->ms_colors      = ngpu_calloc(nb_frames, sizeof(*s_priv->ms_colors));
+    s_priv->depth_stencils = ngpu_calloc(nb_frames, sizeof(*s_priv->depth_stencils));
+    s_priv->rts            = ngpu_calloc(nb_frames, sizeof(*s_priv->rts));
+    if (!s_priv->colors || !s_priv->ms_colors || !s_priv->depth_stencils || !s_priv->rts)
+        return NGPU_ERROR_MEMORY;
 
-    if (ctx_params->samples) {
-        ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, ctx_params->samples, COLOR_USAGE, &s_priv->ms_color);
+    for (uint32_t i = 0; i < nb_frames; i++) {
+        ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->colors[i]);
+        if (ret < 0)
+            return ret;
+
+        if (ctx_params->samples) {
+            ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, ctx_params->samples, COLOR_USAGE, &s_priv->ms_colors[i]);
+            if (ret < 0)
+                return ret;
+        }
+
+        ret = create_texture(s, NGPU_FORMAT_D24_UNORM_S8_UINT, ctx_params->samples, DEPTH_USAGE, &s_priv->depth_stencils[i]);
+        if (ret < 0)
+            return ret;
+
+        struct ngpu_texture *color         = s_priv->ms_colors[i] ? s_priv->ms_colors[i] : s_priv->colors[i];
+        struct ngpu_texture *resolve_color = s_priv->ms_colors[i] ? s_priv->colors[i]    : NULL;
+
+        ret = create_rendertarget(s, color, resolve_color, s_priv->depth_stencils[i], &s_priv->rts[i]);
         if (ret < 0)
             return ret;
     }
 
-    ret = create_texture(s, NGPU_FORMAT_D24_UNORM_S8_UINT, ctx_params->samples, DEPTH_USAGE, &s_priv->depth_stencil);
-    if (ret < 0)
-        return ret;
-
-    struct ngpu_texture *color         = s_priv->ms_color ? s_priv->ms_color : s_priv->color;
-    struct ngpu_texture *resolve_color = s_priv->ms_color ? s_priv->color    : NULL;
-    struct ngpu_texture *depth_stencil = s_priv->depth_stencil;
-
-    ret = create_rendertarget(s, color, resolve_color, depth_stencil, &s_priv->default_rt);
-    if (ret < 0)
-        return ret;
+    s_priv->default_rt = s_priv->rts[s->current_frame_index];
 
     static const capture_func_type capture_func_map[] = {
         [NGPU_CAPTURE_BUFFER_TYPE_CPU]       = capture_cpu,
@@ -280,10 +291,22 @@ static int onscreen_rendertarget_init(struct ngpu_ctx *s)
 static void rendertarget_reset(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-    ngpu_rendertarget_freep(&s_priv->default_rt);
-    ngpu_texture_freep(&s_priv->color);
-    ngpu_texture_freep(&s_priv->ms_color);
-    ngpu_texture_freep(&s_priv->depth_stencil);
+
+    for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
+        if (s_priv->rts)
+            ngpu_rendertarget_freep(&s_priv->rts[i]);
+        if (s_priv->colors)
+            ngpu_texture_freep(&s_priv->colors[i]);
+        if (s_priv->ms_colors)
+            ngpu_texture_freep(&s_priv->ms_colors[i]);
+        if (s_priv->depth_stencils)
+            ngpu_texture_freep(&s_priv->depth_stencils[i]);
+    }
+    ngpu_freep(&s_priv->rts);
+    ngpu_freep(&s_priv->colors);
+    ngpu_freep(&s_priv->ms_colors);
+    ngpu_freep(&s_priv->depth_stencils);
+    s_priv->default_rt = NULL;
 
     ngpu_rendertarget_freep(&s_priv->capture_rt);
     ngpu_texture_freep(&s_priv->capture_texture);
@@ -828,6 +851,9 @@ static int gl_begin_draw(struct ngpu_ctx *s)
 #else
         gl->timer_funcs.QueryCounter(s_priv->queries[0], GL_TIMESTAMP);
 #endif
+
+    if (ctx_params->offscreen && s_priv->rts)
+        s_priv->default_rt = s_priv->rts[s->current_frame_index];
 
     s_priv->cur_cmd_buffer = s_priv->draw_cmd_buffers[s->current_frame_index];
     int ret = ngpu_cmd_buffer_gl_wait(s_priv->cur_cmd_buffer);
