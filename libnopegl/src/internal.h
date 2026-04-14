@@ -50,13 +50,10 @@
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/job_queue.h"
-#include "utils/pthread_compat.h"
 #include "utils/refcount.h"
 #include "utils/utils.h"
 
 struct node_class;
-
-typedef int (*cmd_func_type)(struct ngl_ctx *s, void *arg);
 
 struct api_impl {
     int (*configure)(struct ngl_ctx *s, const struct ngl_config *config);
@@ -80,12 +77,8 @@ struct text_builtin_atlas {
 };
 
 struct ngl_ctx {
-    /* Controller-only fields */
     int configured;
-    pthread_t worker_tid;
     const struct api_impl *api_impl;
-
-    /* Worker-only fields */
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_graphics_state default_graphics_state;
     struct ngpu_rendertarget_layout default_rendertarget_layout;
@@ -138,21 +131,12 @@ struct ngl_ctx {
     int64_t cpu_draw_time;
     int64_t gpu_draw_time;
 
-    /* Shared fields */
-    pthread_mutex_t lock;
-    pthread_cond_t cond_ctl;
-    pthread_cond_t cond_wkr;
-    cmd_func_type cmd_func;
-    void *cmd_arg;
-    int cmd_ret;
-
     struct ngli_queue background_queue;
 };
 
 #define NGLI_ACTION_KEEP_SCENE  0
 #define NGLI_ACTION_UNREF_SCENE 1
 
-int ngli_ctx_dispatch_cmd(struct ngl_ctx *s, cmd_func_type cmd_func, void *arg);
 int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config);
 int ngli_ctx_resize(struct ngl_ctx *s, uint32_t width, uint32_t height);
 int ngli_ctx_get_viewport(struct ngl_ctx *s, int32_t *viewport);

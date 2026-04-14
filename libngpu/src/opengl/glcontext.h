@@ -23,11 +23,13 @@
 #ifndef GLCONTEXT_H
 #define GLCONTEXT_H
 
+#include <stdbool.h>
 #include <stdlib.h>
 
 #include "ctx.h"
 #include "ngpu/ngpu.h"
 #include "opengl/format_gl.h"
+#include "utils/pthread_compat.h"
 #include "opengl/glfunctions.h"
 
 #define NGPU_FEATURE_GL_TEXTURE_STORAGE                            (1ULL << 2)
@@ -137,6 +139,10 @@ struct glcontext {
 
     /* Whether the default framebuffer uses sRGB color encoding */
     int default_framebuffer_is_srgb;
+
+    /* Thread-affinity tracking */
+    pthread_t owner_thread;
+    bool is_active;
 };
 
 struct glcontext_class {
