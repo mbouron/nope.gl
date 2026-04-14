@@ -1226,4 +1226,16 @@ NGPU_API void ngpu_staging_buffer_reset(struct ngpu_staging_buffer *s);
 NGPU_API struct ngpu_buffer *ngpu_staging_buffer_get_buffer(const struct ngpu_staging_buffer *s);
 NGPU_API void ngpu_staging_buffer_freep(struct ngpu_staging_buffer **sp);
 
+/*
+ * Fence
+ */
+
+struct ngpu_fence;
+
+NGPU_API struct ngpu_fence *ngpu_fence_create(struct ngpu_ctx *gpu_ctx);
+NGPU_API int ngpu_fence_reset(struct ngpu_fence *fence);
+NGPU_API int ngpu_fence_wait(struct ngpu_fence *fence);
+NGPU_API int ngpu_fence_is_signaled(struct ngpu_fence *fence);
+NGPU_API void ngpu_fence_freep(struct ngpu_fence **sp);
+
 #endif

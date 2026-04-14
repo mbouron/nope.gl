@@ -35,6 +35,7 @@
 #include "opengl/bindgroup_gl.h"
 #include "opengl/buffer_gl.h"
 #include "opengl/ctx_gl.h"
+#include "opengl/fence_gl.h"
 #include "opengl/glcontext.h"
 #include "opengl/pipeline_gl.h"
 #include "opengl/program_gl.h"
@@ -510,6 +511,7 @@ static void destroy_command_buffers(struct ngpu_ctx *s)
             ngpu_cmd_buffer_gl_freep(&s_priv->draw_cmd_buffers[i]);
         ngpu_freep(&s_priv->draw_cmd_buffers);
     }
+
 }
 
 static int gl_init(struct ngpu_ctx *s)
@@ -1267,6 +1269,12 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
                                                                                  \
     .set_vertex_buffer                  = gl_set_vertex_buffer,                  \
     .set_index_buffer                   = gl_set_index_buffer,                   \
+                                                                                 \
+    .fence_create                       = ngpu_fence_gl_create,                  \
+    .fence_reset                        = ngpu_fence_gl_reset,                   \
+    .fence_wait                         = ngpu_fence_gl_wait,                    \
+    .fence_is_signaled                  = ngpu_fence_gl_is_signaled,             \
+    .fence_freep                        = ngpu_fence_gl_freep,                   \
                                                                                  \
     .buffer_create                      = ngpu_buffer_gl_create,                 \
     .buffer_init                        = ngpu_buffer_gl_init,                   \

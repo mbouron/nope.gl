@@ -80,6 +80,12 @@ struct ngpu_ctx_class {
     void (*draw_indexed)(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances, uint32_t first_index);
     void (*dispatch)(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z);
 
+    struct ngpu_fence *(*fence_create)(struct ngpu_ctx *ctx);
+    int (*fence_reset)(struct ngpu_fence *fence);
+    int (*fence_wait)(struct ngpu_fence *fence);
+    int (*fence_is_signaled)(struct ngpu_fence *fence);
+    void (*fence_freep)(struct ngpu_fence **sp);
+
     struct ngpu_buffer *(*buffer_create)(struct ngpu_ctx *ctx);
     int (*buffer_init)(struct ngpu_buffer *s);
     int (*buffer_wait)(struct ngpu_buffer *s);

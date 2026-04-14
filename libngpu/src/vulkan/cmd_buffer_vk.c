@@ -22,6 +22,7 @@
 
 #include "vulkan/buffer_vk.h"
 #include "vulkan/cmd_buffer_vk.h"
+#include "vulkan/fence_vk.h"
 #include "vulkan/ctx_vk.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -43,8 +44,8 @@ static void cmd_buffer_vk_freep(void **sp)
     ngpu_darray_reset(&s->signal_sems);
 
     vk->funcs.FreeCommandBuffers(vk->device, s->pool, 1, &s->cmd_buf);
-    vk->funcs.DestroyFence(vk->device, s->fence, NULL);
 
+    ngpu_fence_freep(&s->fence);
     ngpu_freep(sp);
 }
 
@@ -83,7 +84,8 @@ void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp)
 
 VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     s->type = type;
@@ -99,14 +101,9 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
     if (res != VK_SUCCESS)
         return res;
 
-    const VkFenceCreateInfo fence_create_info = {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .pNext = NULL,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    };
-    res = vk->funcs.CreateFence(vk->device, &fence_create_info, NULL, &s->fence);
-    if (res != VK_SUCCESS)
-        return res;
+    s->fence = ngpu_fence_create(gpu_ctx);
+    if (!s->fence)
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     ngpu_darray_init(&s->wait_sems, sizeof(VkSemaphore), 0);
     ngpu_darray_init(&s->wait_stages, sizeof(VkPipelineStageFlags), 0);
@@ -194,9 +191,9 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
     if (res != VK_SUCCESS)
         return res;
 
-    res = vk->funcs.ResetFences(vk->device, 1, &s->fence);
-    if (res != VK_SUCCESS)
-        return res;
+    int ret = ngpu_fence_reset(s->fence);
+    if (ret < 0)
+        return VK_ERROR_UNKNOWN;
 
     const VkSubmitInfo submit_info = {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -209,7 +206,8 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
         .pSignalSemaphores    = ngpu_darray_data(&s->signal_sems),
     };
 
-    res = vk->funcs.QueueSubmit(vk->graphic_queue, 1, &submit_info, s->fence);
+    struct ngpu_fence_vk *fence_vk = (struct ngpu_fence_vk *)s->fence;
+    res = vk->funcs.QueueSubmit(vk->graphic_queue, 1, &submit_info, fence_vk->fence);
     if (res != VK_SUCCESS)
         return res;
 
@@ -231,7 +229,8 @@ VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     if (s->submitted) {
-        VkResult res = vk->funcs.WaitForFences(vk->device, 1, &s->fence, VK_TRUE, UINT64_MAX);
+        struct ngpu_fence_vk *fence_vk = (struct ngpu_fence_vk *)s->fence;
+        VkResult res = vk->funcs.WaitForFences(vk->device, 1, &fence_vk->fence, VK_TRUE, UINT64_MAX);
         if (res != VK_SUCCESS)
             return res;
     }

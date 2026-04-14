@@ -22,6 +22,7 @@
 #include "utils/log.h"
 
 #include "ctx.h"
+#include "fence.h"
 
 #include "opengl/bindgroup_gl.h"
 #include "opengl/buffer_gl.h"
@@ -37,7 +38,7 @@
 struct ngpu_cmd_buffer_gl {
     struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
-    struct ngpu_fence_gl *fence;
+    struct ngpu_fence *fence;
     struct ngpu_darray cmds; // array of cmd_gl
     struct ngpu_darray refs; // array of ngpu_rc pointers
     struct ngpu_darray buffer_refs; // array of ngpu_buffer pointers
@@ -50,6 +51,8 @@ static void cmd_buffer_gl_freep(void **sp)
         return;
 
     ngpu_cmd_buffer_gl_wait(s);
+
+    ngpu_fence_freep(&s->fence);
 
     ngpu_darray_reset(&s->refs);
     ngpu_darray_reset(&s->cmds);
@@ -92,6 +95,10 @@ void ngpu_cmd_buffer_gl_freep(struct ngpu_cmd_buffer_gl **sp)
 
 int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s)
 {
+    s->fence = ngpu_fence_create(s->gpu_ctx);
+    if (!s->fence)
+        return NGPU_ERROR_MEMORY;
+
     ngpu_darray_init(&s->cmds, sizeof(struct ngpu_cmd_gl), 0);
     ngpu_darray_init(&s->refs, sizeof(struct ngpu_rc *), 0);
     ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
@@ -230,9 +237,10 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
         }
     }
 
-    s->fence = ngpu_fence_gl_create(gpu_ctx);
-    if (!s->fence)
-        return NGPU_ERROR_GRAPHICS_GENERIC;
+    if (s->fence) {
+        ngpu_fence_reset(s->fence);
+        ngpu_fence_gl_insert(s->fence);
+    }
 
     ngpu_darray_clear(&s->cmds);
 
@@ -241,13 +249,11 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
 
 int ngpu_cmd_buffer_gl_wait(struct ngpu_cmd_buffer_gl *s)
 {
-    if (s->fence == NULL) {
+    if (!s->fence)
         return 0;
-    }
 
-    int ret = ngpu_fence_gl_wait(s->fence);
+    int ret = ngpu_fence_wait(s->fence);
 
-    ngpu_fence_gl_freep(&s->fence);
     ngpu_darray_clear(&s->refs);
     ngpu_darray_clear(&s->buffer_refs);
 

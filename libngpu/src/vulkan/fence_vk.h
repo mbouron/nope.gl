@@ -1,5 +1,5 @@
 /*
- * Copyright 2025-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,24 +19,24 @@
  * under the License.
  */
 
-#ifndef NGPU_FENCE_GL_H
-#define NGPU_FENCE_GL_H
+#ifndef NGPU_FENCE_VK_H
+#define NGPU_FENCE_VK_H
+
+#include <vulkan/vulkan.h>
 
 #include "fence.h"
-#include "opengl/glincludes.h"
 
 struct ngpu_ctx;
 
-struct ngpu_fence_gl {
+struct ngpu_fence_vk {
     struct ngpu_fence parent;
-    GLsync fence;
+    VkFence fence;
 };
 
-struct ngpu_fence *ngpu_fence_gl_create(struct ngpu_ctx *ctx);
-int ngpu_fence_gl_reset(struct ngpu_fence *fence);
-int ngpu_fence_gl_insert(struct ngpu_fence *fence);
-int ngpu_fence_gl_wait(struct ngpu_fence *fence);
-int ngpu_fence_gl_is_signaled(struct ngpu_fence *fence);
-void ngpu_fence_gl_freep(struct ngpu_fence **sp);
+struct ngpu_fence *ngpu_fence_vk_create(struct ngpu_ctx *ctx);
+int ngpu_fence_vk_reset(struct ngpu_fence *fence);
+int ngpu_fence_vk_wait(struct ngpu_fence *fence);
+int ngpu_fence_vk_is_signaled(struct ngpu_fence *fence);
+void ngpu_fence_vk_freep(struct ngpu_fence **sp);
 
 #endif
