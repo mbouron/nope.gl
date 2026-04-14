@@ -647,26 +647,22 @@ static int update_capture_cvpixelbuffer(struct ngpu_ctx *s, CVPixelBufferRef cap
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
 
-    ngpu_rendertarget_freep(&s_priv->default_rt);
-    ngpu_texture_freep(&s_priv->color);
+    ngpu_rendertarget_freep(&s_priv->capture_rt);
+    ngpu_texture_freep(&s_priv->capture_texture);
     reset_capture_cvpixelbuffer(s);
 
     if (capture_buffer) {
         s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(capture_buffer);
-        int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer, &s_priv->color);
+        int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer, &s_priv->capture_texture);
         if (ret < 0)
             return ret;
     } else {
-        int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->color);
+        int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
         if (ret < 0)
             return ret;
     }
 
-    struct ngpu_texture *color         = s_priv->ms_color ? s_priv->ms_color : s_priv->color;
-    struct ngpu_texture *resolve_color = s_priv->ms_color ? s_priv->color : NULL;
-    struct ngpu_texture *depth_stencil = s_priv->depth_stencil;
-
-    int ret = create_rendertarget(s, color, resolve_color, depth_stencil, &s_priv->default_rt);
+    int ret = create_rendertarget(s, s_priv->capture_texture, NULL, NULL, &s_priv->capture_rt);
     if (ret < 0)
         return ret;
 
