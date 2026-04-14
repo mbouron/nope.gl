@@ -55,9 +55,10 @@ struct ngpu_ctx_gl {
     struct ngpu_rendertarget *default_rt;
 
     /* Offscreen render target resources */
-    struct ngpu_texture *color;
-    struct ngpu_texture *ms_color;
-    struct ngpu_texture *depth_stencil;
+    struct ngpu_texture **colors;
+    struct ngpu_texture **ms_colors;
+    struct ngpu_texture **depth_stencils;
+    struct ngpu_rendertarget **rts;
 
     /* Offscreen capture callback and resources */
     capture_func_type capture_func;
