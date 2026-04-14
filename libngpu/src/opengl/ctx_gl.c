@@ -708,22 +708,19 @@ static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 int ngpu_ctx_gl_make_current(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-    struct glcontext *gl = s_priv->glcontext;
-    return ngpu_glcontext_make_current(gl, 1);
+    return ngpu_glcontext_make_current(s_priv->glcontext, 1);
 }
 
 int ngpu_ctx_gl_release_current(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-    struct glcontext *gl = s_priv->glcontext;
-    return ngpu_glcontext_make_current(gl, 0);
+    return ngpu_glcontext_make_current(s_priv->glcontext, 0);
 }
 
 void ngpu_ctx_gl_reset_state(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
-    struct glcontext *gl = s_priv->glcontext;
-    ngpu_glstate_reset(gl, &s_priv->glstate);
+    ngpu_glstate_reset(s_priv->glcontext, &s_priv->glstate);
 }
 
 int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)

@@ -780,8 +780,25 @@ fail:
 
 int ngpu_glcontext_make_current(struct glcontext *glcontext, int current)
 {
-    if (glcontext->cls->make_current)
-        return glcontext->cls->make_current(glcontext, current);
+    if (current) {
+        if (glcontext->is_active) {
+            ngpu_assert(pthread_equal(pthread_self(), glcontext->owner_thread));
+            return 0;
+        }
+        int ret = 0;
+        if (glcontext->cls->make_current)
+            ret = glcontext->cls->make_current(glcontext, 1);
+        if (ret < 0)
+            return ret;
+        glcontext->owner_thread = pthread_self();
+        glcontext->is_active = true;
+    } else {
+        ngpu_assert(glcontext->is_active);
+        ngpu_assert(pthread_equal(pthread_self(), glcontext->owner_thread));
+        glcontext->is_active = false;
+        if (glcontext->cls->make_current)
+            return glcontext->cls->make_current(glcontext, 0);
+    }
 
     return 0;
 }

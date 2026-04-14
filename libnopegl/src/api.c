@@ -29,7 +29,6 @@
 #include "config.h"
 #include "ngl_config.h"
 #include "utils/error.h"
-#include "utils/thread.h"
 #include "utils/time.h"
 
 #include "distmap.h"
@@ -43,7 +42,6 @@
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/memory.h"
-#include "utils/pthread_compat.h"
 #include "utils/utils.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
@@ -304,11 +302,6 @@ static void backend_reset(struct ngl_backend *backend)
 {
     ngli_free(backend->caps);
     memset(backend, 0, sizeof(*backend));
-}
-
-static int cmd_stop(struct ngl_ctx *s, void *arg)
-{
-    return 0;
 }
 
 static void reset_scene(struct ngl_ctx *s, int action)
@@ -658,44 +651,6 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t)
     return ngpu_ctx_end_draw(s->gpu_ctx, t);
 }
 
-int ngli_ctx_dispatch_cmd(struct ngl_ctx *s, cmd_func_type cmd_func, void *arg)
-{
-    int ret = 0;
-    pthread_mutex_lock(&s->lock);
-    s->cmd_func = cmd_func;
-    s->cmd_arg = arg;
-    pthread_cond_signal(&s->cond_wkr);
-    while (s->cmd_func)
-        pthread_cond_wait(&s->cond_ctl, &s->lock);
-    ret = s->cmd_ret;
-    pthread_mutex_unlock(&s->lock);
-
-    return ret;
-}
-
-static void *worker_thread(void *arg)
-{
-    struct ngl_ctx *s = arg;
-
-    ngli_thread_set_name("ngl-thread");
-
-    pthread_mutex_lock(&s->lock);
-    for (;;) {
-        while (!s->cmd_func)
-            pthread_cond_wait(&s->cond_wkr, &s->lock);
-        s->cmd_ret = s->cmd_func(s, s->cmd_arg);
-        int need_stop = s->cmd_func == cmd_stop;
-        s->cmd_func = s->cmd_arg = NULL;
-        pthread_cond_signal(&s->cond_ctl);
-
-        if (need_stop)
-            break;
-    }
-    pthread_mutex_unlock(&s->lock);
-
-    return NULL;
-}
-
 enum probe_mode {
     PROBE_MODE_FULL,
     PROBE_MODE_NO_GRAPHICS,
@@ -792,17 +747,6 @@ struct ngl_ctx *ngl_create(void)
     struct ngl_ctx *s = ngli_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-
-    if (pthread_mutex_init(&s->lock, NULL) ||
-        pthread_cond_init(&s->cond_ctl, NULL) ||
-        pthread_cond_init(&s->cond_wkr, NULL) ||
-        pthread_create(&s->worker_tid, NULL, worker_thread, s)) {
-        pthread_cond_destroy(&s->cond_ctl);
-        pthread_cond_destroy(&s->cond_wkr);
-        pthread_mutex_destroy(&s->lock);
-        ngli_free(s);
-        return NULL;
-    }
 
     int ret = ngli_queue_init(&s->background_queue, "ngl-bg-thread", 32, 1, s);
     if (ret < 0)
@@ -1050,12 +994,6 @@ void ngl_freep(struct ngl_ctx **ss)
     }
 
     ngli_queue_destroy(&s->background_queue);
-
-    ngli_ctx_dispatch_cmd(s, cmd_stop, NULL);
-    pthread_join(s->worker_tid, NULL);
-    pthread_cond_destroy(&s->cond_ctl);
-    pthread_cond_destroy(&s->cond_wkr);
-    pthread_mutex_destroy(&s->lock);
 
     ngli_darray_reset(&s->modelview_matrix_stack);
     ngli_darray_reset(&s->projection_matrix_stack);
