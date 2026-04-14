@@ -37,7 +37,7 @@ struct ngpu_cmd_buffer_vk {
     int type;
     VkCommandPool pool;
     VkCommandBuffer cmd_buf;
-    VkFence fence;
+    struct ngpu_fence *fence;
     VkBool32 submitted;
     struct ngpu_darray wait_sems;
     struct ngpu_darray wait_stages;

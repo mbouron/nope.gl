@@ -1,5 +1,5 @@
 /*
- * Copyright 2025-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,24 +19,20 @@
  * under the License.
  */
 
-#ifndef NGPU_FENCE_GL_H
-#define NGPU_FENCE_GL_H
+#ifndef NGPU_FENCE_H
+#define NGPU_FENCE_H
 
-#include "fence.h"
-#include "opengl/glincludes.h"
+#include "ngpu/ngpu.h"
+
+#include "utils/refcount.h"
 
 struct ngpu_ctx;
 
-struct ngpu_fence_gl {
-    struct ngpu_fence parent;
-    GLsync fence;
+struct ngpu_fence {
+    struct ngpu_rc rc;
+    struct ngpu_ctx *gpu_ctx;
 };
 
-struct ngpu_fence *ngpu_fence_gl_create(struct ngpu_ctx *ctx);
-int ngpu_fence_gl_reset(struct ngpu_fence *fence);
-int ngpu_fence_gl_insert(struct ngpu_fence *fence);
-int ngpu_fence_gl_wait(struct ngpu_fence *fence);
-int ngpu_fence_gl_is_signaled(struct ngpu_fence *fence);
-void ngpu_fence_gl_freep(struct ngpu_fence **sp);
+NGPU_RC_CHECK_STRUCT(ngpu_fence);
 
 #endif

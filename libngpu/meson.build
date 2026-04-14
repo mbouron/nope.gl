@@ -368,6 +368,7 @@ gbackends_cfg = {
       'src/vulkan/bindgroup_vk.c',
       'src/vulkan/buffer_vk.c',
       'src/vulkan/ctx_vk.c',
+      'src/vulkan/fence_vk.c',
       'src/vulkan/format_vk.c',
       'src/vulkan/pipeline_vk.c',
       'src/vulkan/program_vk.c',

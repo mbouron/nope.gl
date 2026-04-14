@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include "ctx.h"
+#include "fence.h"
 #include "rendertarget.h"
 #include "utils/memory.h"
 #include "utils/log.h"
@@ -451,4 +452,31 @@ void ngpu_ctx_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *buf
     s->index_buffer = buffer;
     s->index_format = format;
     s->cls->set_index_buffer(s, buffer, format);
+}
+
+struct ngpu_fence *ngpu_fence_create(struct ngpu_ctx *s)
+{
+    return s->cls->fence_create(s);
+}
+
+int ngpu_fence_reset(struct ngpu_fence *fence)
+{
+    return fence->gpu_ctx->cls->fence_reset(fence);
+}
+
+int ngpu_fence_wait(struct ngpu_fence *fence)
+{
+    return fence->gpu_ctx->cls->fence_wait(fence);
+}
+
+int ngpu_fence_is_signaled(struct ngpu_fence *fence)
+{
+    return fence->gpu_ctx->cls->fence_is_signaled(fence);
+}
+
+void ngpu_fence_freep(struct ngpu_fence **sp)
+{
+    if (!*sp)
+        return;
+    (*sp)->gpu_ctx->cls->fence_freep(sp);
 }

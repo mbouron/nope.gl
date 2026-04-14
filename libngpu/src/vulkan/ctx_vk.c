@@ -41,6 +41,7 @@
 #include "vulkan/pipeline_vk.h"
 #include "vulkan/program_vk.h"
 #include "vulkan/rendertarget_vk.h"
+#include "vulkan/fence_vk.h"
 #include "vulkan/texture_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
@@ -1592,6 +1593,12 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
 
     .set_vertex_buffer                  = vk_set_vertex_buffer,
     .set_index_buffer                   = vk_set_index_buffer,
+
+    .fence_create                       = ngpu_fence_vk_create,
+    .fence_reset                        = ngpu_fence_vk_reset,
+    .fence_wait                         = ngpu_fence_vk_wait,
+    .fence_is_signaled                  = ngpu_fence_vk_is_signaled,
+    .fence_freep                        = ngpu_fence_vk_freep,
 
     .buffer_create                      = ngpu_buffer_vk_create,
     .buffer_init                        = ngpu_buffer_vk_init,
