@@ -82,7 +82,6 @@ foreach backend : backends
     'trf_seek_keep_alive',
     'dot',
     'probing',
-    'caps',
     'get_backend',
     'viewport',
     'node_duplicate',
