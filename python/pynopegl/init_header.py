@@ -405,7 +405,6 @@ class SceneCfg:
     samples: int = 0
     system: str = platform.system()
     clear_color: Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-    caps: Optional[Mapping[Cap, int]] = None
 
     def __post_init__(self):
         # Predictible random number generator
@@ -463,16 +462,6 @@ class scene:
             # Make sure the SceneCfg backend has a concrete value
             if scene_cfg.backend == Backend.AUTO:
                 scene_cfg.backend = next(k for k, v in get_backends().items() if v["is_default"])
-
-            # Provide the capabilities of the selected backend
-            if scene_cfg.caps is None:
-                backends = probe_backends()
-                scene_cfg.caps = backends[scene_cfg.backend]["caps"]
-            else:
-                ref_set = set(cap.value for cap in Cap)
-                usr_set = set(scene_cfg.caps.keys())
-                if ref_set != usr_set:
-                    raise Exception("the specified capabilities set does not match the available capabilities")
 
             if self._width:
                 scene_cfg.width = self._width
