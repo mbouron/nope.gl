@@ -23,6 +23,7 @@
 #define NGPU_REFCOUNT_H
 
 #include <assert.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -30,7 +31,7 @@
 typedef void (*ngpu_freep_func)(void **sp);
 
 struct ngpu_rc {
-    size_t count;
+    _Atomic(size_t) count;
     ngpu_freep_func freep;
 };
 
