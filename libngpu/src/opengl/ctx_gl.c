@@ -250,7 +250,7 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
         return NGPU_ERROR_MEMORY;
 
     for (uint32_t i = 0; i < nb_frames; i++) {
-        ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->colors[i]);
+        ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE | NGPU_TEXTURE_USAGE_SAMPLED_BIT, &s_priv->colors[i]);
         if (ret < 0)
             return ret;
 
