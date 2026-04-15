@@ -23,7 +23,7 @@
 
 struct ngpu_rc *ngpu_rc_ref(struct ngpu_rc *s)
 {
-    s->count++;
+    atomic_fetch_add_explicit(&s->count, 1, memory_order_relaxed);
     return s;
 }
 
@@ -33,8 +33,10 @@ void ngpu_rc_unrefp(struct ngpu_rc **sp)
     if (!s)
         return;
 
-    if (s->count-- == 1)
+    if (atomic_fetch_sub_explicit(&s->count, 1, memory_order_release) == 1) {
+        atomic_thread_fence(memory_order_acquire);
         s->freep((void **)sp);
+    }
 
     *sp = NULL;
 }
