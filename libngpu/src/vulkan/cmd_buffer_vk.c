@@ -159,6 +159,8 @@ VkResult ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu
 
     NGPU_RC_REF(buffer);
 
+    ngpu_buffer_vk_ref_cmd_buffer(buffer, s);
+
     return VK_SUCCESS;
 }
 

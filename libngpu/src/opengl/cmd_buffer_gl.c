@@ -122,6 +122,8 @@ int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buff
 
     NGPU_RC_REF(buffer);
 
+    ngpu_buffer_gl_ref_cmd_buffer(buffer, s);
+
     return 0;
 }
 
