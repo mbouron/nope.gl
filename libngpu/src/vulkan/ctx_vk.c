@@ -202,7 +202,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
     for (uint32_t i = 0; i < nb_images; i++) {
         struct ngpu_texture *color = NULL;
         if (ctx_params->offscreen) {
-            VkResult res = create_texture(s, color_format, 0, COLOR_USAGE, &color);
+            VkResult res = create_texture(s, color_format, 0, COLOR_USAGE | NGPU_TEXTURE_USAGE_SAMPLED_BIT, &color);
             if (res != VK_SUCCESS)
                 return res;
         } else {
