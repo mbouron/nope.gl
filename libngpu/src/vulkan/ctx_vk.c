@@ -90,7 +90,7 @@ static void destroy_dummy_texture(struct ngpu_ctx *s)
 
 static VkResult create_texture(struct ngpu_ctx *s, enum ngpu_format format, uint32_t samples, uint32_t usage, struct ngpu_texture **texturep)
 {
-    struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
+    const struct ngpu_ctx_params *ctx_params = &s->params;
 
     struct ngpu_texture *texture = ngpu_texture_create(s);
     if (!texture)
@@ -99,8 +99,8 @@ static VkResult create_texture(struct ngpu_ctx *s, enum ngpu_format format, uint
     const struct ngpu_texture_params params = {
         .type    = NGPU_TEXTURE_TYPE_2D,
         .format  = format,
-        .width   = s_priv->width,
-        .height  = s_priv->height,
+        .width   = ctx_params->width,
+        .height  = ctx_params->height,
         .samples = samples,
         .usage   = usage,
     };
@@ -129,8 +129,8 @@ static VkResult create_rendertarget(struct ngpu_ctx *s,
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     const struct ngpu_rendertarget_params params = {
-        .width = (uint32_t)ctx_params->width,
-        .height = (uint32_t)ctx_params->height,
+        .width = ctx_params->width,
+        .height = ctx_params->height,
         .nb_colors = 1,
         .colors[0] = {
             .attachment     = color,
@@ -213,8 +213,8 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
             const struct ngpu_texture_params params = {
                 .type             = NGPU_TEXTURE_TYPE_2D,
                 .format           = color_format,
-                .width            = s_priv->width,
-                .height           = s_priv->height,
+                .width            = ctx_params->width,
+                .height           = ctx_params->height,
                 .usage            = COLOR_USAGE,
             };
 
@@ -546,11 +546,9 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
 
     const VkSurfaceCapabilitiesKHR caps = s_priv->surface_caps;
     s_priv->present_mode = select_swapchain_present_mode(vk, ctx_params->swap_interval);
-    s_priv->width  = NGPU_CLAMP(s_priv->width,  caps.minImageExtent.width,  caps.maxImageExtent.width),
-    s_priv->height = NGPU_CLAMP(s_priv->height, caps.minImageExtent.height, caps.maxImageExtent.height),
-    ctx_params->width = s_priv->width;
-    ctx_params->height = s_priv->height;
-    LOG(DEBUG, "current extent: %ux%u", s_priv->width, s_priv->height);
+    ctx_params->width  = NGPU_CLAMP(ctx_params->width,  caps.minImageExtent.width,  caps.maxImageExtent.width);
+    ctx_params->height = NGPU_CLAMP(ctx_params->height, caps.minImageExtent.height, caps.maxImageExtent.height);
+    LOG(DEBUG, "current extent: %ux%u", ctx_params->width, ctx_params->height);
 
     uint32_t img_count = caps.minImageCount + 1;
     if (caps.maxImageCount && img_count > caps.maxImageCount)
@@ -564,8 +562,8 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
         .imageFormat      = s_priv->surface_format.format,
         .imageColorSpace  = s_priv->surface_format.colorSpace,
         .imageExtent      = {
-            .width  = s_priv->width,
-            .height = s_priv->height
+            .width  = ctx_params->width,
+            .height = ctx_params->height
         },
         .imageArrayLayers = 1,
         .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -911,8 +909,6 @@ static int vk_init(struct ngpu_ctx *s)
         return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
-    s_priv->width = ctx_params->width;
-    s_priv->height = ctx_params->height;
     s->nb_in_flight_frames = 2;
 
     int ret = ngpu_glslang_init();
@@ -988,8 +984,6 @@ static int vk_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 
         ctx_params->width = width;
         ctx_params->height = height;
-        s_priv->width = width;
-        s_priv->height = height;
         res = create_render_resources(s);
         if (res != VK_SUCCESS)
             return ngpu_vk_res2ret(res);
@@ -997,8 +991,8 @@ static int vk_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
     }
 
     s_priv->recreate_swapchain = 1;
-    s_priv->width = width;
-    s_priv->height = height;
+    ctx_params->width = width;
+    ctx_params->height = height;
 
     return 0;
 }
@@ -1109,8 +1103,8 @@ static int vk_begin_draw(struct ngpu_ctx *s)
 
         struct ngpu_rendertarget **rts = ngpu_darray_data(&s_priv->rts);
         s_priv->default_rt = rts[s_priv->cur_image_index];
-        s_priv->default_rt->width = s_priv->width;
-        s_priv->default_rt->height = s_priv->height;
+        s_priv->default_rt->width = ctx_params->width;
+        s_priv->default_rt->height = ctx_params->height;
     }
 
     if (ctx_params->timer_queries) {
@@ -1288,9 +1282,8 @@ static const struct ngpu_rendertarget_layout *vk_get_default_rendertarget_layout
 
 static void vk_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width, uint32_t *height)
 {
-    struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
-    *width = s_priv->width;
-    *height = s_priv->height;
+    *width = s->params.width;
+    *height = s->params.height;
 }
 
 static void vk_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
