@@ -90,6 +90,20 @@ static inline int pthread_join(pthread_t thread, void **retval)
     return 0;
 }
 
+static inline pthread_t pthread_self(void)
+{
+    return (pthread_t) {
+        .handle = GetCurrentThread(),
+    };
+}
+
+static inline int pthread_equal(pthread_t t1, pthread_t t2)
+{
+    const DWORD id1 = GetThreadId(t1.handle);
+    const DWORD id2 = GetThreadId(t2.handle);
+    return id1 == id2;
+}
+
 static inline int pthread_attr_init(pthread_attr_t *attr)
 {
     memset(attr, 0, sizeof(*attr));
