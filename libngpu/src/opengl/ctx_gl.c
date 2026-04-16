@@ -638,31 +638,33 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
     struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
     const int external = ctx_params_gl ? ctx_params_gl->external : 0;
 
-    if (external) {
-        ctx_params->width = width;
-        ctx_params->height = height;
-    } else if (!ctx_params->offscreen) {
-        int ret = ngpu_glcontext_resize(gl, width, height);
-        if (ret < 0)
-            return ret;
-        ctx_params->width = gl->width;
-        ctx_params->height = gl->height;
-    } else {
+    if (ctx_params->offscreen) {
         LOG(ERROR, "resize operation is not supported by offscreen context");
         return NGPU_ERROR_UNSUPPORTED;
     }
 
-    s_priv->default_rt->width = ctx_params->width;
-    s_priv->default_rt->height = ctx_params->height;
-
-    if (!external) {
-        /*
-        * The default framebuffer id can change after a resize operation on EAGL,
-        * thus we need to update the rendertargets wrapping the default framebuffer
-        */
-        struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt;
-        rt_gl->fbo = ngpu_glcontext_get_default_framebuffer(gl);
+    if (external) {
+        ctx_params->width = width;
+        ctx_params->height = height;
+        s_priv->default_rt->width = width;
+        s_priv->default_rt->height = height;
+        return 0;
     }
+
+    int ret = ngpu_glcontext_resize(gl, width, height);
+    if (ret < 0)
+        return ret;
+    ctx_params->width = gl->width;
+    ctx_params->height = gl->height;
+    s_priv->default_rt->width = gl->width;
+    s_priv->default_rt->height = gl->height;
+
+    /*
+    * The default framebuffer id can change after a resize operation on EAGL,
+    * thus we need to update the rendertargets wrapping the default framebuffer
+    */
+    struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt;
+    rt_gl->fbo = ngpu_glcontext_get_default_framebuffer(gl);
 
     return 0;
 }
