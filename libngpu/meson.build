@@ -104,6 +104,7 @@ if host_system == 'windows'
   if cc.get_id() == 'msvc'
     conf_data.set10('TARGET_MSVC', true)
     msvc_args = [
+      '/experimental:c11atomics',
       # Ignore several spurious warnings
       '/wd4018', # comparison between signed and unsigned numbers
       '/wd4146', # unary minus operator applied to unsigned type when its result is still unsigned (INT_MIN)
