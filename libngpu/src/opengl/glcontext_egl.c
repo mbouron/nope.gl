@@ -53,6 +53,7 @@
 #define EGL_GL_COLORSPACE_KHR 0x309D
 #define EGL_GL_COLORSPACE_SRGB_KHR 0x3089
 #define EGL_GL_COLORSPACE_LINEAR_KHR 0x308A
+#define EGL_TRACK_REFERENCES_KHR 0x3352
 
 struct egl_priv {
     EGLNativeDisplayType native_display;
@@ -80,6 +81,8 @@ struct egl_priv {
     int has_create_context_ext;
     int has_image_dma_buf_import_modifiers_ext;
     int has_gl_colorspace_ext;
+    int has_display_reference_ext;
+    int has_display_reference;
 #if defined(HAVE_WAYLAND)
     struct wl_egl_window *wl_egl_window;
 #endif
@@ -248,7 +251,18 @@ static int egl_probe_client_extensions(struct egl_priv *egl)
         egl->has_device_base_ext = 1;
     }
 
+    if (ngpu_glcontext_check_extension("EGL_KHR_display_reference", client_extensions)) {
+        egl->has_display_reference_ext = 1;
+        egl->has_display_reference = 1;
+    }
+
     return 0;
+}
+
+static const EGLint *egl_get_display_attribs(const struct egl_priv *egl)
+{
+    static const EGLint attribs[] = {EGL_TRACK_REFERENCES_KHR, EGL_TRUE, EGL_NONE};
+    return egl->has_display_reference_ext ? attribs : NULL;
 }
 
 static int egl_check_display(struct egl_priv *egl, EGLDisplay display)
@@ -257,7 +271,8 @@ static int egl_check_display(struct egl_priv *egl, EGLDisplay display)
     EGLBoolean ret = eglInitialize(display, &major, &minor);
     if (!ret)
         return NGPU_ERROR_EXTERNAL;
-    eglTerminate(display);
+    if (egl->has_display_reference)
+        eglTerminate(display);
     return 0;
 }
 
@@ -273,7 +288,7 @@ static EGLDisplay egl_get_device_display(struct egl_priv *egl)
     }
 
     for (EGLint i = 0; i < nb_devices; i++) {
-        EGLDisplay display = egl->GetPlatformDisplay(EGL_PLATFORM_DEVICE_EXT, devices[i], NULL);
+        EGLDisplay display = egl->GetPlatformDisplay(EGL_PLATFORM_DEVICE_EXT, devices[i], egl_get_display_attribs(egl));
         if (!display)
             continue;
 
@@ -291,6 +306,7 @@ static EGLDisplay egl_get_display(struct glcontext *ctx, EGLNativeDisplayType na
 {
 #if defined(TARGET_ANDROID)
     struct egl_priv *egl = ctx->priv_data;
+    egl->has_display_reference = 1; /* Android EGL is always refcounted */
     egl->native_display = native_display ? native_display : EGL_DEFAULT_DISPLAY;
     return eglGetDisplay(egl->native_display);
 #elif defined(TARGET_LINUX)
@@ -312,7 +328,7 @@ static EGLDisplay egl_get_display(struct glcontext *ctx, EGLNativeDisplayType na
                 LOG(ERROR, "EGL_EXT_platform_x11 is not supported");
                 return EGL_NO_DISPLAY;
             }
-            return egl->GetPlatformDisplay(EGL_PLATFORM_X11, egl->native_display, NULL);
+            return egl->GetPlatformDisplay(EGL_PLATFORM_X11, egl->native_display, egl_get_display_attribs(egl));
         }
     } else if (ctx->platform == NGPU_PLATFORM_WAYLAND) {
 #if defined(HAVE_WAYLAND)
@@ -325,7 +341,7 @@ static EGLDisplay egl_get_display(struct glcontext *ctx, EGLNativeDisplayType na
             LOG(ERROR, "EGL_EXT_platform_wayland is not supported");
             return EGL_NO_DISPLAY;
         }
-        return egl->GetPlatformDisplay(EGL_PLATFORM_WAYLAND, egl->native_display, NULL);
+        return egl->GetPlatformDisplay(EGL_PLATFORM_WAYLAND, egl->native_display, egl_get_display_attribs(egl));
 #else
         LOG(ERROR, "Wayland platform is not supported");
         return EGL_NO_DISPLAY;
@@ -342,7 +358,7 @@ static EGLDisplay egl_get_display(struct glcontext *ctx, EGLNativeDisplayType na
 
         if (egl->has_platform_mesa_surfaceless_ext) {
             LOG(DEBUG, "no display available, falling back on Mesa surfaceless platform");
-            return egl->GetPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, NULL);
+            return egl->GetPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, egl_get_display_attribs(egl));
         }
     }
     return EGL_NO_DISPLAY;
@@ -572,7 +588,7 @@ static void egl_uninit(struct glcontext *ctx)
     if (egl->handle)
         eglDestroyContext(egl->display, egl->handle);
 
-    if (egl->display)
+    if (egl->display && egl->has_display_reference)
         eglTerminate(egl->display);
 
 #if defined(TARGET_LINUX)
