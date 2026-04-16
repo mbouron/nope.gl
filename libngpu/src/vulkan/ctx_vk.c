@@ -160,6 +160,18 @@ static VkResult create_rendertarget(struct ngpu_ctx *s,
     return VK_SUCCESS;
 }
 
+static void free_texture(void *user_arg, void *data)
+{
+    struct ngpu_texture **texturep = data;
+    ngpu_texture_freep(texturep);
+}
+
+static void free_rendertarget(void *user_arg, void *data)
+{
+    struct ngpu_rendertarget **rtp = data;
+    ngpu_rendertarget_freep(rtp);
+}
+
 #define COLOR_USAGE (NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT | NGPU_TEXTURE_USAGE_TRANSFER_SRC_BIT)
 #define DEPTH_USAGE NGPU_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
 
@@ -168,6 +180,18 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
     const struct ngpu_ctx_params *ctx_params = &s->params;
+
+    ngpu_darray_init(&s_priv->colors, sizeof(struct ngpu_texture *), 0);
+    ngpu_darray_set_free_func(&s_priv->colors, free_texture, NULL);
+
+    ngpu_darray_init(&s_priv->ms_colors, sizeof(struct ngpu_texture *), 0);
+    ngpu_darray_set_free_func(&s_priv->ms_colors, free_texture, NULL);
+
+    ngpu_darray_init(&s_priv->depth_stencils, sizeof(struct ngpu_texture *), 0);
+    ngpu_darray_set_free_func(&s_priv->depth_stencils, free_texture, NULL);
+
+    ngpu_darray_init(&s_priv->rts, sizeof(struct ngpu_rendertarget *), 0);
+    ngpu_darray_set_free_func(&s_priv->rts, free_rendertarget, NULL);
 
     const enum ngpu_format color_format = ctx_params->offscreen
                            ? NGPU_FORMAT_R8G8B8A8_UNORM
@@ -598,8 +622,6 @@ static void destroy_swapchain(struct ngpu_ctx *s)
 
 static VkResult recreate_swapchain(struct ngpu_ctx *gpu_ctx, struct vkcontext *vk)
 {
-    struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)gpu_ctx;
-
     VkResult res = vk->funcs.DeviceWaitIdle(vk->device);
     if (res != VK_SUCCESS)
         return res;
@@ -618,11 +640,7 @@ static VkResult recreate_swapchain(struct ngpu_ctx *gpu_ctx, struct vkcontext *v
     if (!surface_caps.currentExtent.width || !surface_caps.currentExtent.height)
         return VK_SUCCESS;
 
-    ngpu_darray_clear(&s_priv->colors);
-    ngpu_darray_clear(&s_priv->ms_colors);
-    ngpu_darray_clear(&s_priv->depth_stencils);
-    ngpu_darray_clear(&s_priv->rts);
-
+    destroy_render_resources(gpu_ctx);
     destroy_swapchain(gpu_ctx);
 
     if ((res = create_swapchain(gpu_ctx)) != VK_SUCCESS ||
@@ -767,18 +785,6 @@ static uint32_t get_max_vertex_attributes(const VkPhysicalDeviceLimits *limits)
     return NGPU_MIN(limits->maxVertexInputAttributes, NGPU_MAX_VERTEX_BUFFERS);
 }
 
-static void free_texture(void *user_arg, void *data)
-{
-    struct ngpu_texture **texturep = data;
-    ngpu_texture_freep(texturep);
-}
-
-static void free_rendertarget(void *user_arg, void *data)
-{
-    struct ngpu_rendertarget **rtp = data;
-    ngpu_rendertarget_freep(rtp);
-}
-
 static int vk_init(struct ngpu_ctx *s)
 {
     const struct ngpu_ctx_params *ctx_params = &s->params;
@@ -814,17 +820,6 @@ static int vk_init(struct ngpu_ctx *s)
         }
     }
 #endif
-
-    ngpu_darray_init(&s_priv->colors, sizeof(struct ngpu_texture *), 0);
-    ngpu_darray_init(&s_priv->ms_colors, sizeof(struct ngpu_texture *), 0);
-    ngpu_darray_init(&s_priv->depth_stencils, sizeof(struct ngpu_texture *), 0);
-
-    ngpu_darray_set_free_func(&s_priv->colors, free_texture, NULL);
-    ngpu_darray_set_free_func(&s_priv->ms_colors, free_texture, NULL);
-    ngpu_darray_set_free_func(&s_priv->depth_stencils, free_texture, NULL);
-
-    ngpu_darray_init(&s_priv->rts, sizeof(struct ngpu_rendertarget *), 0);
-    ngpu_darray_set_free_func(&s_priv->rts, free_rendertarget, NULL);
 
     s_priv->vkcontext = ngpu_vkcontext_create();
     if (!s_priv->vkcontext)
