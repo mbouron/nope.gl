@@ -580,7 +580,7 @@ static void egl_uninit(struct glcontext *ctx)
 {
     struct egl_priv *egl = ctx->priv_data;
 
-    ngpu_glcontext_make_current(ctx, 0);
+    eglMakeCurrent(egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 
     if (egl->surface)
         eglDestroySurface(egl->display, egl->surface);
