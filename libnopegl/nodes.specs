@@ -1809,7 +1809,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D"],
+          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["live"],
           "desc": "2D scenes to draw"
         },
@@ -2946,7 +2946,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D"],
+          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["live"],
           "desc": "2D scenes to render offscreen"
         },
@@ -3888,7 +3888,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D"],
+          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["live"],
           "desc": "2D scenes to draw"
         },
@@ -4273,7 +4273,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D"],
+          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["live"],
           "desc": "2D scenes to render offscreen"
         },
@@ -5387,6 +5387,46 @@
         {
           "name": "child",
           "type": "node",
+          "flags": ["nonull"],
+          "desc": "time filtered scene"
+        },
+        {
+          "name": "start",
+          "type": "f64",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "start time (included) for the scene to be drawn"
+        },
+        {
+          "name": "end",
+          "type": "f64",
+          "default": -1.000000,
+          "flags": ["live"],
+          "desc": "end time (excluded) for the scene to be drawn, a negative value implies forever"
+        },
+        {
+          "name": "render_time",
+          "type": "f64",
+          "default": -1.000000,
+          "flags": ["live"],
+          "desc": "chosen time to draw for a \"once\" mode, negative to ignore"
+        },
+        {
+          "name": "prefetch_time",
+          "type": "f64",
+          "default": 1.000000,
+          "flags": [],
+          "desc": "`child` is prefetched `prefetch_time` seconds in advance"
+        }
+      ]
+    },
+    "TimeRangeFilter2D": {
+      "file": "src/node_timerangefilter2d.c",
+      "params": [
+        {
+          "name": "child",
+          "type": "node",
+          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["nonull"],
           "desc": "time filtered scene"
         },
@@ -6996,12 +7036,76 @@
         }
       ]
     },
+    "UserSelect2D": {
+      "file": "src/node_userselect2d.c",
+      "params": [
+        {
+          "name": "branches",
+          "type": "node_list",
+          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "flags": [],
+          "desc": "a set of branches to pick from"
+        },
+        {
+          "name": "branch",
+          "type": "i32",
+          "default": 0,
+          "flags": ["live"],
+          "desc": "controls which branch is taken"
+        },
+        {
+          "name": "live_id",
+          "type": "str",
+          "flags": [],
+          "desc": "live control identifier"
+        },
+        {
+          "name": "live_min",
+          "type": "i32",
+          "default": 0,
+          "flags": [],
+          "desc": "minimum value allowed during live change (only honored when live_id is set)"
+        },
+        {
+          "name": "live_max",
+          "type": "i32",
+          "default": 10,
+          "flags": [],
+          "desc": "maximum value allowed during live change (only_honored when live_id is set)"
+        }
+      ]
+    },
     "UserSwitch": {
       "file": "src/node_userswitch.c",
       "params": [
         {
           "name": "child",
           "type": "node",
+          "flags": ["nonull"],
+          "desc": "scene to be rendered or not"
+        },
+        {
+          "name": "enabled",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "set if the scene should be rendered"
+        },
+        {
+          "name": "live_id",
+          "type": "str",
+          "flags": [],
+          "desc": "live control identifier"
+        }
+      ]
+    },
+    "UserSwitch2D": {
+      "file": "src/node_userswitch2d.c",
+      "params": [
+        {
+          "name": "child",
+          "type": "node",
+          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["nonull"],
           "desc": "scene to be rendered or not"
         },

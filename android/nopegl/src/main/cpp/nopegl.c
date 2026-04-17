@@ -874,6 +874,15 @@ Java_org_nopeforge_nopegl_NGLNode_nativeTimeRangeFilterUpdate(
     return ngl_timerangefilter_set_range(node, start_time, end_time);
 }
 
+JNIEXPORT jint JNICALL
+Java_org_nopeforge_nopegl_NGLNode_nativeTimeRangeFilter2DUpdate(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jdouble start_time,
+    jdouble end_time)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+    return ngl_timerangefilter2d_set_range(node, start_time, end_time);
+}
+
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetRational(
     JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jint num,
     jint den)

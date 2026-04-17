@@ -284,6 +284,13 @@ open class NGLNode(
         }
     }
 
+    internal fun setTimeRangeFilter2DRange(start: Double, end: Double) {
+        val returnCode = nativeTimeRangeFilter2DUpdate(nativePtr, start, end)
+        if (returnCode != 0) {
+            throw NGLError(returnCode)
+        }
+    }
+
     internal fun getFloat(key: String): Float = nativeGetFloat(nativePtr, key)
     internal fun getDouble(key: String): Double = nativeGetDouble(nativePtr, key)
     internal fun getInt(key: String): Int = nativeGetInt(nativePtr, key)
@@ -369,6 +376,12 @@ open class NGLNode(
     ): Int
 
     private external fun nativeTimeRangeFilterUpdate(
+        nativePtr: Long,
+        start: Double,
+        end: Double,
+    ): Int
+
+    private external fun nativeTimeRangeFilter2DUpdate(
         nativePtr: Long,
         start: Double,
         end: Double,

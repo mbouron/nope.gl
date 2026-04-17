@@ -59,6 +59,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   mirroring the existing `ngl_node_param_set_*()` API
 - `ngl_node_duplicate()` and `ngl_scene_duplicate()` to duplicate a node graph
   or scene
+- `TimeRangeFilter2D`, `UserSelect2D` and `UserSwitch2D` nodes
 
 ### Fixed
 - Crash when using resizable RTTs with time ranges

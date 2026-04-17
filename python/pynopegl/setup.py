@@ -313,6 +313,14 @@ class _WrapperGenerator:
                 """
             )
 
+        if class_name == "TimeRangeFilter2D":
+            return textwrap.dedent(
+                f"""
+                def set_range(self, start: float, end: float) -> int:
+                    return self._timerangefilter2d_set_range(start, end)
+                """
+            )
+
         return ""
 
     @classmethod

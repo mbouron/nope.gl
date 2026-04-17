@@ -175,6 +175,7 @@ fun nodeType(name: String): NGLNodeType? {
         "TextureView" -> NGLNodeType.TEXTUREVIEW
         "Time" -> NGLNodeType.TIME
         "TimeRangeFilter" -> NGLNodeType.TIMERANGEFILTER
+        "TimeRangeFilter2D" -> NGLNodeType.TIMERANGEFILTER2D
         "Transform" -> NGLNodeType.TRANSFORM
         "Translate" -> NGLNodeType.TRANSLATE
         "Triangle" -> NGLNodeType.TRIANGLE
@@ -221,7 +222,9 @@ fun nodeType(name: String): NGLNodeType? {
         "UniformColor" -> NGLNodeType.UNIFORMCOLOR
         "UniformQuat" -> NGLNodeType.UNIFORMQUAT
         "UserSelect" -> NGLNodeType.USERSELECT
+        "UserSelect2D" -> NGLNodeType.USERSELECT2D
         "UserSwitch" -> NGLNodeType.USERSWITCH
+        "UserSwitch2D" -> NGLNodeType.USERSWITCH2D
         "VelocityFloat" -> NGLNodeType.VELOCITYFLOAT
         "VelocityVec2" -> NGLNodeType.VELOCITYVEC2
         "VelocityVec3" -> NGLNodeType.VELOCITYVEC3

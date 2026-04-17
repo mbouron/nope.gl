@@ -174,6 +174,7 @@
     action(NGL_NODE_TEXTUREVIEW,            ngli_textureview_class)             \
     action(NGL_NODE_TIME,                   ngli_time_class)                    \
     action(NGL_NODE_TIMERANGEFILTER,        ngli_timerangefilter_class)         \
+    action(NGL_NODE_TIMERANGEFILTER2D,      ngli_timerangefilter2d_class)       \
     action(NGL_NODE_TRANSFORM,              ngli_transform_class)               \
     action(NGL_NODE_TRANSLATE,              ngli_translate_class)               \
     action(NGL_NODE_TRIANGLE,               ngli_triangle_class)                \
@@ -220,7 +221,9 @@
     action(NGL_NODE_UNIFORMCOLOR,           ngli_uniformcolor_class)            \
     action(NGL_NODE_UNIFORMQUAT,            ngli_uniformquat_class)             \
     action(NGL_NODE_USERSELECT,             ngli_userselect_class)              \
+    action(NGL_NODE_USERSELECT2D,           ngli_userselect2d_class)            \
     action(NGL_NODE_USERSWITCH,             ngli_userswitch_class)              \
+    action(NGL_NODE_USERSWITCH2D,           ngli_userswitch2d_class)            \
     action(NGL_NODE_VELOCITYFLOAT,          ngli_velocityfloat_class)           \
     action(NGL_NODE_VELOCITYVEC2,           ngli_velocityvec2_class)            \
     action(NGL_NODE_VELOCITYVEC3,           ngli_velocityvec3_class)            \

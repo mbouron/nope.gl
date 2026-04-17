@@ -217,6 +217,9 @@ enum node_category {
     NGL_NODE_EFFECT2D,                             \
     NGL_NODE_GROUP2D,                              \
     NGL_NODE_OFFSCREENCANVAS2D,                    \
+    NGL_NODE_TIMERANGEFILTER2D,                    \
+    NGL_NODE_USERSELECT2D,                         \
+    NGL_NODE_USERSWITCH2D,                         \
     NGLI_NODE_NONE}                                \
 
 /*
