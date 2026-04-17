@@ -776,4 +776,54 @@ class NopeGLTest {
 
         ctx.release()
     }
+
+    @Test
+    fun canvasWith2DNodes() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val canvas = NGLAndroidCanvas(
+            width = width,
+            height = height,
+            callback = object: NGLAndroidCanvas.Callback {
+                override fun onDraw(canvas: Canvas) {
+                    canvas.drawColor(Color.WHITE)
+                    super.onDraw(canvas)
+                }
+            },
+            tag = "canvas",
+        )
+
+        val group = NGLCanvas2D(
+            width = width,
+            height = height,
+            children = listOf(
+                NGLDrawRect2D(
+                    rect = NGLVec4(0f, 0f, 256f, 256f),
+                    fill = NGLTextureFill(
+                        texture = canvas.node,
+                    ),
+                )
+            )
+        )
+
+        val scene = NGLScene(rootNode = group, duration = 2.0)
+
+        val captureBuffer = ByteBuffer.allocateDirect(width * height * 4)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
+            val ret = setCaptureBuffer(captureBuffer)
+            assertEquals(ret, 0)
+            setScene(scene)
+        }
+
+        val ret = ctx.draw(0.0)
+        assertEquals(ret, 0)
+
+        val buffer = captureBuffer.asIntBuffer()
+        assertEquals((0xFFFFFFFF).toUInt(), buffer[0].toUInt())
+
+        ctx.release()
+    }
 }
