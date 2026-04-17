@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "blending.h"
+#include "scope.h"
 #include "filterschain.h"
 #include "geometry.h"
 #include "image.h"
@@ -118,21 +119,6 @@ struct drawhistogram_priv {
     int32_t frag_block_index;
 };
 
-enum {
-    SCOPE_MODE_MIXED,
-    SCOPE_MODE_PARADE,
-    SCOPE_MODE_LUMA_ONLY,
-};
-
-const struct param_choices scope_mode_choices = {
-    .name = "scope_mode",
-    .consts = {
-        {"mixed",     SCOPE_MODE_MIXED,     .desc=NGLI_DOCSTRING("R, G and B channels overlap on each others")},
-        {"parade",    SCOPE_MODE_PARADE,    .desc=NGLI_DOCSTRING("split R, G and B channels")},
-        {"luma_only", SCOPE_MODE_LUMA_ONLY, .desc=NGLI_DOCSTRING("only the luma channel")},
-        {NULL}
-    }
-};
 
 static const float default_vertices[] = {
    -1.f,-1.f, 0.f,
