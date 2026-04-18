@@ -2005,7 +2005,7 @@
       ]
     },
     "DrawColor": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawcolor.c",
       "params": [
         {
           "name": "color",
@@ -2046,7 +2046,7 @@
       ]
     },
     "DrawDisplace": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawdisplace.c",
       "params": [
         {
           "name": "source",
@@ -2087,7 +2087,7 @@
       ]
     },
     "DrawGradient": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawgradient.c",
       "params": [
         {
           "name": "color0",
@@ -2171,7 +2171,7 @@
       ]
     },
     "DrawGradient4": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawgradient.c",
       "params": [
         {
           "name": "color_tl",
@@ -2261,7 +2261,7 @@
       ]
     },
     "DrawHistogram": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawhistogram.c",
       "params": [
         {
           "name": "stats",
@@ -2303,7 +2303,7 @@
       ]
     },
     "DrawMask": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawmask.c",
       "params": [
         {
           "name": "content",
@@ -2351,7 +2351,7 @@
       ]
     },
     "DrawNoise": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawnoise.c",
       "params": [
         {
           "name": "type",
@@ -2531,7 +2531,7 @@
       ]
     },
     "DrawTexture": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawtexture.c",
       "params": [
         {
           "name": "texture",
@@ -2573,7 +2573,7 @@
       ]
     },
     "DrawWaveform": {
-      "file": "src/node_drawother.c",
+      "file": "src/node_drawwaveform.c",
       "params": [
         {
           "name": "stats",
@@ -3877,7 +3877,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "flags": [],
+          "flags": ["live"],
           "desc": "a set of scenes"
         }
       ]
