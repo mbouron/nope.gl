@@ -174,7 +174,7 @@ def effect2d_blur(cfg: ngl.SceneCfg):
     effect = ngl.Effect2D(
         children=_animated_scene(),
         glsl_color=_GAUSSIAN_BLUR_GLSL,
-        resources=[kernel, radius_uniform],
+        resources={"kernel": kernel, "radius": radius_uniform},
         dilation=math.ceil(3 * sigma),
     )
     return _canvas(cfg, effect, duration=4.0)

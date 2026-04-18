@@ -522,11 +522,11 @@ def drawrect2d_custom_checkerboard(cfg: ngl.SceneCfg):
             float checker = mod(tx + ty, 2.0);
             return mix(color0, color1, checker);
         """,
-        resources=[
-            ngl.UniformFloat(value=8.0, label="tile_count"),
-            ngl.UniformVec4(value=(0.9, 0.9, 0.9, 1.0), label="color0"),
-            ngl.UniformVec4(value=(0.15, 0.15, 0.15, 1.0), label="color1"),
-        ],
+        resources={
+            "tile_count": ngl.UniformFloat(value=8.0),
+            "color0": ngl.UniformVec4(value=(0.9, 0.9, 0.9, 1.0)),
+            "color1": ngl.UniformVec4(value=(0.15, 0.15, 0.15, 1.0)),
+        },
     )
     return _canvas(cfg, ngl.DrawRect2D(rect=(0, 0, W, H), fill=fill))
 
@@ -540,12 +540,12 @@ def drawrect2d_custom_radial_gradient(cfg: ngl.SceneCfg):
             float d = length(uv - center) / radius;
             return mix(inner_color, outer_color, clamp(d, 0.0, 1.0));
         """,
-        resources=[
-            ngl.UniformVec2(value=(0.5, 0.5), label="center"),
-            ngl.UniformFloat(value=0.6, label="radius"),
-            ngl.UniformVec4(value=(1.0, 0.9, 0.2, 1.0), label="inner_color"),
-            ngl.UniformVec4(value=(0.05, 0.1, 0.5, 1.0), label="outer_color"),
-        ],
+        resources={
+            "center": ngl.UniformVec2(value=(0.5, 0.5)),
+            "radius": ngl.UniformFloat(value=0.6),
+            "inner_color": ngl.UniformVec4(value=(1.0, 0.9, 0.2, 1.0)),
+            "outer_color": ngl.UniformVec4(value=(0.05, 0.1, 0.5, 1.0)),
+        },
     )
     return _canvas(cfg, ngl.DrawRect2D(rect=(0, 0, W, H), fill=fill))
 
@@ -560,13 +560,13 @@ def drawrect2d_custom_wave(cfg: ngl.SceneCfg):
             float t = clamp((uv.y - 0.5 + wave) * sharpness + 0.5, 0.0, 1.0);
             return mix(color0, color1, t);
         """,
-        resources=[
-            ngl.UniformFloat(value=20.0, label="frequency"),
-            ngl.UniformFloat(value=0.08, label="amplitude"),
-            ngl.UniformFloat(value=20.0, label="sharpness"),
-            ngl.UniformVec4(value=(0.1, 0.4, 0.9, 1.0), label="color0"),
-            ngl.UniformVec4(value=(0.9, 0.3, 0.1, 1.0), label="color1"),
-        ],
+        resources={
+            "frequency": ngl.UniformFloat(value=20.0),
+            "amplitude": ngl.UniformFloat(value=0.08),
+            "sharpness": ngl.UniformFloat(value=20.0),
+            "color0": ngl.UniformVec4(value=(0.1, 0.4, 0.9, 1.0)),
+            "color1": ngl.UniformVec4(value=(0.9, 0.3, 0.1, 1.0)),
+        },
     )
     return _canvas(cfg, ngl.DrawRect2D(rect=(0, 0, W, H), fill=fill))
 
@@ -581,10 +581,10 @@ def drawrect2d_custom_vignette(cfg: ngl.SceneCfg):
             float v = 1.0 - clamp(dot(d, d) * strength, 0.0, 1.0);
             return vec4(base_color.rgb * v, base_color.a);
         """,
-        resources=[
-            ngl.UniformVec4(value=(0.6, 0.8, 1.0, 1.0), label="base_color"),
-            ngl.UniformFloat(value=6.0, label="strength"),
-        ],
+        resources={
+            "base_color": ngl.UniformVec4(value=(0.6, 0.8, 1.0, 1.0)),
+            "strength": ngl.UniformFloat(value=6.0),
+        },
     )
     return _canvas(cfg, ngl.DrawRect2D(rect=(0, 0, W, H), fill=fill))
 
@@ -595,9 +595,9 @@ def drawrect2d_custom_texture(cfg: ngl.SceneCfg):
     """CustomFill sampling a texture resource."""
     fill = ngl.CustomFill(
         glsl_color="return ngl_texvideo(tex, tex_coord);",
-        resources=[
-            ngl.Texture2D(data_src=ngl.Media(filename=_CITY), min_filter="linear", mag_filter="linear", label="tex"),
-        ],
+        resources={
+            "tex": ngl.Texture2D(data_src=ngl.Media(filename=_CITY), min_filter="linear", mag_filter="linear"),
+        },
     )
     return _canvas(cfg, ngl.DrawRect2D(rect=(0, 0, W, H), fill=fill))
 
@@ -619,7 +619,7 @@ def drawrect2d_custom_block(cfg: ngl.SceneCfg):
             float t = smoothstep(0.0, 1.0, uv.x);
             return mix(palette.color_a, palette.color_b, t);
         """,
-        resources=[block],
+        resources={"palette": block},
     )
     return _canvas(cfg, ngl.DrawRect2D(rect=(0, 0, W, H), fill=fill))
 

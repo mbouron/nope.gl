@@ -80,8 +80,7 @@ struct effect2d_opts {
     size_t nb_children;
     const char *glsl_header;
     const char *glsl_color;
-    struct ngl_node **resources;
-    size_t nb_resources;
+    struct hmap *resources;
     float dilation;
     struct ngli_node2d_opts node2d;
 };
@@ -148,7 +147,7 @@ static const struct node_param effect2d_params[] = {
         .desc      = NGLI_DOCSTRING("custom fragment shader body; receives uv (vec2), must return vec4"),
     }, {
         .key        = "resources",
-        .type       = NGLI_PARAM_TYPE_NODELIST,
+        .type       = NGLI_PARAM_TYPE_NODEDICT,
         .offset     = OFFSET(resources),
         .node_types = (const uint32_t[]){
             NGL_NODE_UNIFORMFLOAT,
@@ -272,10 +271,10 @@ static int node_is_texture(const struct ngl_node *node)
            node->cls->id == NGL_NODE_CUSTOMTEXTURE;
 }
 
-static int register_uniform(struct ngl_node *res, struct effect2d_priv *s)
+static int register_uniform(const char *name, struct ngl_node *res, struct effect2d_priv *s)
 {
     const struct variable_info *var = res->priv_data;
-    const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, res->label, var->data_type, 0);
+    const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, var->data_type, 0);
     if (field_idx < 0)
         return field_idx;
     if (!ngli_darray_push(&s->user_field_indices, &field_idx))
@@ -285,7 +284,7 @@ static int register_uniform(struct ngl_node *res, struct effect2d_priv *s)
     return 0;
 }
 
-static int register_texture(struct ngl_node *res, struct darray *textures)
+static int register_texture(const char *name, struct ngl_node *res, struct darray *textures)
 {
     struct texture_info *texture_info = res->priv_data;
     struct ngpu_pgcraft_texture tex = {
@@ -296,11 +295,11 @@ static int register_texture(struct ngl_node *res, struct darray *textures)
         .clamp_video = texture_info->clamp_video,
         .premult     = texture_info->premult,
     };
-    snprintf(tex.name, sizeof(tex.name), "%s", res->label);
+    snprintf(tex.name, sizeof(tex.name), "%s", name);
     return ngli_darray_push(textures, &tex) ? 0 : NGL_ERROR_MEMORY;
 }
 
-static int register_block(struct ngl_node *res, struct ngpu_ctx *gpu_ctx, struct darray *blocks)
+static int register_block(const char *name, struct ngl_node *res, struct ngpu_ctx *gpu_ctx, struct darray *blocks)
 {
     struct block_info *block_info = res->priv_data;
     struct ngpu_block_desc *block = &block_info->block;
@@ -328,26 +327,27 @@ static int register_block(struct ngl_node *res, struct ngpu_ctx *gpu_ctx, struct
         .block  = block,
         .buffer = {.buffer = buffer, .size = buffer_size},
     };
-    snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", res->label);
+    snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", name);
     return ngli_darray_push(blocks, &crafter_block) ? 0 : NGL_ERROR_MEMORY;
 }
 
-static int register_resource(struct ngl_node *res, struct ngpu_ctx *gpu_ctx,
+static int register_resource(const char *name, struct ngl_node *res, struct ngpu_ctx *gpu_ctx,
                              struct effect2d_priv *s, struct darray *textures, struct darray *blocks)
 {
     if (node_is_texture(res))
-        return register_texture(res, textures);
+        return register_texture(name, res, textures);
     if (res->cls->id == NGL_NODE_BLOCK)
-        return register_block(res, gpu_ctx, blocks);
-    return register_uniform(res, s);
+        return register_block(name, res, gpu_ctx, blocks);
+    return register_uniform(name, res, s);
 }
 
 static int register_resources(struct ngl_node *node, struct ngpu_ctx *gpu_ctx,
                               struct effect2d_priv *s, struct darray *textures, struct darray *blocks)
 {
     const struct effect2d_opts *o = node->opts;
-    for (size_t i = 0; i < o->nb_resources; i++) {
-        int ret = register_resource(o->resources[i], gpu_ctx, s, textures, blocks);
+    const struct hmap_entry *entry = NULL;
+    while ((entry = ngli_hmap_next(o->resources, entry))) {
+        int ret = register_resource(entry->key.str, entry->data, gpu_ctx, s, textures, blocks);
         if (ret < 0)
             return ret;
     }
@@ -373,15 +373,6 @@ static int effect2d_init(struct ngl_node *node)
 
     /* Build the composite fragment shader */
     if (o->glsl_color && o->glsl_color[0]) {
-        /* Validate resources */
-        for (size_t i = 0; i < o->nb_resources; i++) {
-            const struct ngl_node *res = o->resources[i];
-            if (!res->label || !res->label[0]) {
-                LOG(ERROR, "resources[%zu]: node label is required as GLSL name", i);
-                return NGL_ERROR_INVALID_USAGE;
-            }
-        }
-
         struct bstr *bstr = ngli_bstr_create();
         if (!bstr)
             return NGL_ERROR_MEMORY;
@@ -623,13 +614,14 @@ static int effect2d_prepare(struct ngl_node *node,
     }
 
     /* Build block map */
-    for (size_t i = 0; i < o->nb_resources; i++) {
-        const struct ngl_node *res = o->resources[i];
+    const struct hmap_entry *entry = NULL;
+    while ((entry = ngli_hmap_next(o->resources, entry))) {
+        const struct ngl_node *res = entry->data;
         if (res->cls->category != NGLI_NODE_CATEGORY_BLOCK)
             continue;
         const struct block_info *info = res->priv_data;
         const struct block_map bm = {
-            .index      = ngpu_pgcraft_get_block_index(s->crafter, res->label, NGPU_PROGRAM_STAGE_FRAG),
+            .index      = ngpu_pgcraft_get_block_index(s->crafter, entry->key.str, NGPU_PROGRAM_STAGE_FRAG),
             .info       = info,
             .buffer_rev = SIZE_MAX,
         };

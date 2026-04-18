@@ -705,47 +705,46 @@ struct customfill_opts {
     struct fill_base_opts base_opts;
     char *glsl_header;
     char *glsl_color;
-    struct ngl_node **resources;
-    size_t nb_resources;
+    struct hmap *resources;
     int color_output_count;
 };
 
 
-static int register_uniform(struct fill_info *fi, struct ngl_node *res)
+static int register_uniform(struct fill_info *fi, const char *name, struct ngl_node *res)
 {
     ngli_assert(fi->nb_custom_uniforms < FILL_MAX_UNIFORMS);
     const struct variable_info *var = res->priv_data;
     struct fill_custom_uniform_def *cu = &fi->custom_uniforms[fi->nb_custom_uniforms++];
-    snprintf(cu->name, sizeof(cu->name), "%s", res->label);
+    snprintf(cu->name, sizeof(cu->name), "%s", name);
     cu->type = var->data_type;
     cu->node = res;
     return 0;
 }
 
-static int register_texture(struct fill_info *fi, struct ngl_node *res)
+static int register_texture(struct fill_info *fi, const char *name, struct ngl_node *res)
 {
     ngli_assert(fi->nb_custom_textures < FILL_MAX_TEXTURES);
     struct fill_custom_texture_def *ct = &fi->custom_textures[fi->nb_custom_textures++];
-    snprintf(ct->name, sizeof(ct->name), "%s", res->label);
+    snprintf(ct->name, sizeof(ct->name), "%s", name);
     ct->texture_node = res;
     return 0;
 }
 
-static int register_block(struct fill_info *fi, struct ngl_node *res)
+static int register_block(struct fill_info *fi, const char *name, struct ngl_node *res)
 {
     ngli_assert(fi->nb_custom_blocks < FILL_MAX_TEXTURES);
     struct fill_custom_block_def *cb = &fi->custom_blocks[fi->nb_custom_blocks++];
-    snprintf(cb->name, sizeof(cb->name), "%s", res->label);
+    snprintf(cb->name, sizeof(cb->name), "%s", name);
     cb->node = res;
     return 0;
 }
 
-static int register_resource(struct fill_info *fi, struct ngl_node *res)
+static int register_resource(struct fill_info *fi, const char *name, struct ngl_node *res)
 {
     switch (res->cls->category) {
-    case NGLI_NODE_CATEGORY_VARIABLE: return register_uniform(fi, res);
-    case NGLI_NODE_CATEGORY_TEXTURE:  return register_texture(fi, res);
-    case NGLI_NODE_CATEGORY_BLOCK:    return register_block(fi, res);
+    case NGLI_NODE_CATEGORY_VARIABLE: return register_uniform(fi, name, res);
+    case NGLI_NODE_CATEGORY_TEXTURE:  return register_texture(fi, name, res);
+    case NGLI_NODE_CATEGORY_BLOCK:    return register_block(fi, name, res);
     default:
         ngli_assert(0);
     }
@@ -759,14 +758,6 @@ static int customfill_init(struct ngl_node *node)
     if (!o->glsl_color || !o->glsl_color[0]) {
         LOG(ERROR, "CustomFill: glsl_color param is required");
         return NGL_ERROR_INVALID_USAGE;
-    }
-
-    for (size_t i = 0; i < o->nb_resources; i++) {
-        const struct ngl_node *res = o->resources[i];
-        if (!res->label || !res->label[0]) {
-            LOG(ERROR, "CustomFill: frag_resources[%zu]: node label is required as GLSL name", i);
-            return NGL_ERROR_INVALID_USAGE;
-        }
     }
 
     /* Build GLSL: optional header + ngli_color()/ngli_colors() body */
@@ -795,9 +786,9 @@ static int customfill_init(struct ngl_node *node)
     fi->opts = o;
     fi->color_output_count = (size_t)o->color_output_count;
 
-    for (size_t i = 0; i < o->nb_resources; i++) {
-        struct ngl_node *res = o->resources[i];
-        int ret = register_resource(fi, res);
+    const struct hmap_entry *entry = NULL;
+    while ((entry = ngli_hmap_next(o->resources, entry))) {
+        int ret = register_resource(fi, entry->key.str, entry->data);
         if (ret < 0)
             return ret;
     }
@@ -852,7 +843,7 @@ static const struct node_param customfill_params[] = {
     },
     {
         .key        = "resources",
-        .type       = NGLI_PARAM_TYPE_NODELIST,
+        .type       = NGLI_PARAM_TYPE_NODEDICT,
         .offset     = OFFSET(resources),
         .node_types = (const uint32_t[]){
             NGL_NODE_UNIFORMFLOAT,
