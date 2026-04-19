@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <ngpu/ngpu.h>
 #include "params.h"
+#include "utils/darray.h"
 
 #define STROKE_INSIDE  0
 #define STROKE_CENTER  1
@@ -33,8 +34,6 @@
 #define STROKE_DASH_CAP_BUTT   0
 #define STROKE_DASH_CAP_ROUND  1
 #define STROKE_DASH_CAP_SQUARE 2
-
-#define STROKE_MAX_UNIFORMS 16
 
 #define STROKE_HELPER_SRGB       (1u << 0)
 #define STROKE_HELPER_MISC_UTILS (1u << 1)
@@ -53,10 +52,12 @@ struct stroke_uniform_def {
 struct stroke_info {
     uint32_t helper_flags;                              /* STROKE_HELPER_* bitmask */
     const char *glsl;                                   /* ngli_stroke_color() function body */
-    struct stroke_uniform_def uniforms[STROKE_MAX_UNIFORMS];
-    size_t nb_uniforms;
+    struct darray uniforms;                             /* array of struct stroke_uniform_def */
     const void *opts;                                   /* pointer to stroke node opts struct */
 };
+
+void ngli_stroke_info_init(struct stroke_info *si);
+void ngli_stroke_info_reset(struct stroke_info *si);
 
 struct stroke_base_opts {
     float width;

@@ -25,12 +25,25 @@
 #include "node_stroke.h"
 #include "nopegl/nopegl.h"
 
-#define REGISTER_STROKE_UNIFORM(si_, name_, type_, opts_struct_, field_) do {   \
-    ngli_assert((si_)->nb_uniforms < STROKE_MAX_UNIFORMS);                      \
-    struct stroke_uniform_def *_ud = &(si_)->uniforms[(si_)->nb_uniforms++];    \
-    snprintf(_ud->name, sizeof(_ud->name), "%s", (name_));                      \
-    _ud->type = (type_);                                                        \
-    _ud->opts_offset = offsetof(opts_struct_, field_);                          \
+void ngli_stroke_info_init(struct stroke_info *si)
+{
+    ngli_darray_init(&si->uniforms, sizeof(struct stroke_uniform_def), 0);
+}
+
+void ngli_stroke_info_reset(struct stroke_info *si)
+{
+    ngli_darray_reset(&si->uniforms);
+}
+
+#define REGISTER_STROKE_UNIFORM(si_, name_, type_, opts_struct_, field_) do {    \
+    const struct stroke_uniform_def _ud = {                                      \
+        .type = (type_),                                                         \
+        .opts_offset = offsetof(opts_struct_, field_),                           \
+    };                                                                           \
+    struct stroke_uniform_def *_p = ngli_darray_push(&(si_)->uniforms, &_ud);   \
+    if (!_p)                                                                     \
+        return NGL_ERROR_MEMORY;                                                 \
+    snprintf(_p->name, sizeof(_p->name), "%s", (name_));                         \
 } while (0)
 
 const struct param_choices ngli_stroke_mode_choices = {
@@ -70,10 +83,17 @@ static int stroke_init(struct ngl_node *node)
     struct stroke_priv *s = node->priv_data;
     const struct stroke_opts *o = node->opts;
     struct stroke_info *si = &s->si;
+    ngli_stroke_info_init(si);
     si->glsl = stroke_glsl;
     si->opts = o;
     REGISTER_STROKE_UNIFORM(si, "stroke_color", NGPU_TYPE_VEC4, struct stroke_opts, color);
     return 0;
+}
+
+static void stroke_uninit(struct ngl_node *node)
+{
+    struct stroke_info *si = node->priv_data;
+    ngli_stroke_info_reset(si);
 }
 
 NGLI_STATIC_ASSERT(offsetof(struct stroke_priv, si) == 0,
@@ -150,6 +170,7 @@ const struct node_class ngli_stroke_class = {
     .id        = NGL_NODE_STROKE,
     .name      = "Stroke",
     .init      = stroke_init,
+    .uninit    = stroke_uninit,
     .opts_size = sizeof(struct stroke_opts),
     .priv_size = sizeof(struct stroke_priv),
     .params    = stroke_params,
@@ -208,6 +229,7 @@ static int strokegradient_init(struct ngl_node *node)
     struct strokegradient_priv *s = node->priv_data;
     const struct strokegradient_opts *o = node->opts;
     struct stroke_info *si = &s->si;
+    ngli_stroke_info_init(si);
     si->helper_flags = STROKE_HELPER_SRGB;
     si->glsl = strokegradient_glsl;
     si->opts = o;
@@ -350,6 +372,7 @@ const struct node_class ngli_strokegradient_class = {
     .id        = NGL_NODE_STROKEGRADIENT,
     .name      = "StrokeGradient",
     .init      = strokegradient_init,
+    .uninit    = stroke_uninit,
     .opts_size = sizeof(struct strokegradient_opts),
     .priv_size = sizeof(struct strokegradient_priv),
     .params    = strokegradient_params,
@@ -393,6 +416,7 @@ static int strokegradient4_init(struct ngl_node *node)
     struct strokegradient4_priv *s = node->priv_data;
     const struct strokegradient4_opts *o = node->opts;
     struct stroke_info *si = &s->si;
+    ngli_stroke_info_init(si);
     si->helper_flags = STROKE_HELPER_SRGB;
     si->glsl = strokegradient4_glsl;
     si->opts = o;
@@ -546,6 +570,7 @@ const struct node_class ngli_strokegradient4_class = {
     .id        = NGL_NODE_STROKEGRADIENT4,
     .name      = "StrokeGradient4",
     .init      = strokegradient4_init,
+    .uninit    = stroke_uninit,
     .opts_size = sizeof(struct strokegradient4_opts),
     .priv_size = sizeof(struct strokegradient4_priv),
     .params    = strokegradient4_params,

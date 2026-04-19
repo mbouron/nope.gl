@@ -345,11 +345,13 @@ static int register_resources(struct ngl_node *node, struct ngpu_ctx *gpu_ctx,
                               struct effect2d_priv *s, struct darray *textures, struct darray *blocks)
 {
     const struct effect2d_opts *o = node->opts;
-    const struct hmap_entry *entry = NULL;
-    while ((entry = ngli_hmap_next(o->resources, entry))) {
-        int ret = register_resource(entry->key.str, entry->data, gpu_ctx, s, textures, blocks);
-        if (ret < 0)
-            return ret;
+    if (o->resources) {
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(o->resources, entry))) {
+            int ret = register_resource(entry->key.str, entry->data, gpu_ctx, s, textures, blocks);
+            if (ret < 0)
+                return ret;
+        }
     }
     return 0;
 }
@@ -614,19 +616,21 @@ static int effect2d_prepare(struct ngl_node *node,
     }
 
     /* Build block map */
-    const struct hmap_entry *entry = NULL;
-    while ((entry = ngli_hmap_next(o->resources, entry))) {
-        const struct ngl_node *res = entry->data;
-        if (res->cls->category != NGLI_NODE_CATEGORY_BLOCK)
-            continue;
-        const struct block_info *info = res->priv_data;
-        const struct block_map bm = {
-            .index      = ngpu_pgcraft_get_block_index(s->crafter, entry->key.str, NGPU_PROGRAM_STAGE_FRAG),
-            .info       = info,
-            .buffer_rev = SIZE_MAX,
-        };
-        if (!ngli_darray_push(&s->blocks_map, &bm))
-            return NGL_ERROR_MEMORY;
+    if (o->resources) {
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(o->resources, entry))) {
+            const struct ngl_node *res = entry->data;
+            if (res->cls->category != NGLI_NODE_CATEGORY_BLOCK)
+                continue;
+            const struct block_info *info = res->priv_data;
+            const struct block_map bm = {
+                .index      = ngpu_pgcraft_get_block_index(s->crafter, entry->key.str, NGPU_PROGRAM_STAGE_FRAG),
+                .info       = info,
+                .buffer_rev = SIZE_MAX,
+            };
+            if (!ngli_darray_push(&s->blocks_map, &bm))
+                return NGL_ERROR_MEMORY;
+        }
     }
 
     return 0;

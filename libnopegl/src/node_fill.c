@@ -33,12 +33,31 @@
 
 #include <ngpu/ngpu.h>
 
-#define REGISTER_UNIFORM(fi_, name_, type_, opts_struct_, field_) do {     \
-    ngli_assert((fi_)->nb_uniforms < FILL_MAX_UNIFORMS);                   \
-    struct fill_uniform_def *_ud = &(fi_)->uniforms[(fi_)->nb_uniforms++]; \
-    snprintf(_ud->name, sizeof(_ud->name), "%s", (name_));                 \
-    _ud->type = (type_);                                                   \
-    _ud->opts_offset = offsetof(opts_struct_, field_);                     \
+void ngli_fill_info_init(struct fill_info *fi)
+{
+    ngli_darray_init(&fi->uniforms, sizeof(struct fill_uniform_def), 0);
+    ngli_darray_init(&fi->custom_uniforms, sizeof(struct fill_custom_uniform_def), 0);
+    ngli_darray_init(&fi->custom_textures, sizeof(struct fill_custom_texture_def), 0);
+    ngli_darray_init(&fi->custom_blocks, sizeof(struct fill_custom_block_def), 0);
+}
+
+void ngli_fill_info_reset(struct fill_info *fi)
+{
+    ngli_darray_reset(&fi->uniforms);
+    ngli_darray_reset(&fi->custom_uniforms);
+    ngli_darray_reset(&fi->custom_textures);
+    ngli_darray_reset(&fi->custom_blocks);
+}
+
+#define REGISTER_UNIFORM(fi_, name_, type_, opts_struct_, field_) do {      \
+    const struct fill_uniform_def _ud = {                                   \
+        .type = (type_),                                                    \
+        .opts_offset = offsetof(opts_struct_, field_),                      \
+    };                                                                      \
+    struct fill_uniform_def *_p = ngli_darray_push(&(fi_)->uniforms, &_ud); \
+    if (!_p)                                                                \
+        return NGL_ERROR_MEMORY;                                            \
+    snprintf(_p->name, sizeof(_p->name), "%s", (name_));                    \
 } while (0)
 
 struct colorfill_priv {
@@ -58,10 +77,17 @@ static int colorfill_init(struct ngl_node *node)
     struct colorfill_priv *s = node->priv_data;
     const struct colorfill_opts *o = node->opts;
     struct fill_info *fi = &s->fi;
+    ngli_fill_info_init(fi);
     fi->glsl = colorfill_glsl;
     fi->opts = o;
     REGISTER_UNIFORM(fi, "color", NGPU_TYPE_VEC4, struct colorfill_opts, color);
     return 0;
+}
+
+static void fill_uninit(struct ngl_node *node)
+{
+    struct fill_info *fi = node->priv_data;
+    ngli_fill_info_reset(fi);
 }
 
 NGLI_STATIC_ASSERT(offsetof(struct colorfill_priv, fi) == 0,
@@ -93,6 +119,7 @@ const struct node_class ngli_colorfill_class = {
     .id        = NGL_NODE_COLORFILL,
     .name      = "ColorFill",
     .init      = colorfill_init,
+    .uninit    = fill_uninit,
     .opts_size = sizeof(struct colorfill_opts),
     .priv_size = sizeof(struct colorfill_priv),
     .params    = colorfill_params,
@@ -166,6 +193,7 @@ static int texturefill_init(struct ngl_node *node)
     }
 
     struct fill_info *fi = &s->fi;
+    ngli_fill_info_init(fi);
     fi->glsl         = texturefill_glsl;
     fi->texture = o->texture;
     fi->opts         = o;
@@ -220,6 +248,7 @@ const struct node_class ngli_texturefill_class = {
     .id        = NGL_NODE_TEXTUREFILL,
     .name      = "TextureFill",
     .init      = texturefill_init,
+    .uninit    = fill_uninit,
     .update    = ngli_node_update_children,
     .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_node_draw_children,
@@ -289,6 +318,7 @@ static int gradientfill_init(struct ngl_node *node)
     struct gradientfill_priv *s = node->priv_data;
     const struct gradientfill_opts *o = node->opts;
     struct fill_info *fi = &s->fi;
+    ngli_fill_info_init(fi);
     fi->helper_flags = FILL_HELPER_SRGB;
     fi->glsl = gradientfill_glsl;
     fi->opts = o;
@@ -386,6 +416,7 @@ const struct node_class ngli_gradientfill_class = {
     .id        = NGL_NODE_GRADIENTFILL,
     .name      = "GradientFill",
     .init      = gradientfill_init,
+    .uninit    = fill_uninit,
     .opts_size = sizeof(struct gradientfill_opts),
     .priv_size = sizeof(struct gradientfill_priv),
     .params    = gradientfill_params,
@@ -431,6 +462,7 @@ static int gradient4fill_init(struct ngl_node *node)
     struct gradient4fill_priv *s = node->priv_data;
     const struct gradient4fill_opts *o = node->opts;
     struct fill_info *fi = &s->fi;
+    ngli_fill_info_init(fi);
     fi->helper_flags = FILL_HELPER_SRGB;
     fi->glsl = gradient4fill_glsl;
     fi->opts = o;
@@ -539,6 +571,7 @@ const struct node_class ngli_gradient4fill_class = {
     .id        = NGL_NODE_GRADIENT4FILL,
     .name      = "Gradient4Fill",
     .init      = gradient4fill_init,
+    .uninit    = fill_uninit,
     .opts_size = sizeof(struct gradient4fill_opts),
     .priv_size = sizeof(struct gradient4fill_priv),
     .params    = gradient4fill_params,
@@ -593,6 +626,7 @@ static int noisefill_init(struct ngl_node *node)
     struct noisefill_priv *s = node->priv_data;
     const struct noisefill_opts *o = node->opts;
     struct fill_info *fi = &s->fi;
+    ngli_fill_info_init(fi);
     fi->helper_flags = FILL_HELPER_MISC_UTILS | FILL_HELPER_NOISE;
     fi->glsl = noisefill_glsl;
     fi->opts = o;
@@ -687,6 +721,7 @@ const struct node_class ngli_noisefill_class = {
     .id        = NGL_NODE_NOISEFILL,
     .name      = "NoiseFill",
     .init      = noisefill_init,
+    .uninit    = fill_uninit,
     .opts_size = sizeof(struct noisefill_opts),
     .priv_size = sizeof(struct noisefill_priv),
     .params    = noisefill_params,
@@ -710,31 +745,31 @@ struct customfill_opts {
 
 static int register_uniform(struct fill_info *fi, const char *name, struct ngl_node *res)
 {
-    ngli_assert(fi->nb_custom_uniforms < FILL_MAX_UNIFORMS);
     const struct variable_info *var = res->priv_data;
-    struct fill_custom_uniform_def *cu = &fi->custom_uniforms[fi->nb_custom_uniforms++];
-    snprintf(cu->name, sizeof(cu->name), "%s", name);
-    cu->type = var->data_type;
-    cu->node = res;
-    return 0;
+    struct fill_custom_uniform_def cu = {
+        .type = var->data_type,
+        .node = res,
+    };
+    snprintf(cu.name, sizeof(cu.name), "%s", name);
+    return ngli_darray_push(&fi->custom_uniforms, &cu) ? 0 : NGL_ERROR_MEMORY;
 }
 
 static int register_texture(struct fill_info *fi, const char *name, struct ngl_node *res)
 {
-    ngli_assert(fi->nb_custom_textures < FILL_MAX_TEXTURES);
-    struct fill_custom_texture_def *ct = &fi->custom_textures[fi->nb_custom_textures++];
-    snprintf(ct->name, sizeof(ct->name), "%s", name);
-    ct->texture_node = res;
-    return 0;
+    struct fill_custom_texture_def ct = {
+        .texture_node = res,
+    };
+    snprintf(ct.name, sizeof(ct.name), "%s", name);
+    return ngli_darray_push(&fi->custom_textures, &ct) ? 0 : NGL_ERROR_MEMORY;
 }
 
 static int register_block(struct fill_info *fi, const char *name, struct ngl_node *res)
 {
-    ngli_assert(fi->nb_custom_blocks < FILL_MAX_TEXTURES);
-    struct fill_custom_block_def *cb = &fi->custom_blocks[fi->nb_custom_blocks++];
-    snprintf(cb->name, sizeof(cb->name), "%s", name);
-    cb->node = res;
-    return 0;
+    struct fill_custom_block_def cb = {
+        .node = res,
+    };
+    snprintf(cb.name, sizeof(cb.name), "%s", name);
+    return ngli_darray_push(&fi->custom_blocks, &cb) ? 0 : NGL_ERROR_MEMORY;
 }
 
 static int register_resource(struct fill_info *fi, const char *name, struct ngl_node *res)
@@ -780,15 +815,18 @@ static int customfill_init(struct ngl_node *node)
         return NGL_ERROR_MEMORY;
 
     struct fill_info *fi = &s->fi;
+    ngli_fill_info_init(fi);
     fi->glsl = s->built_glsl;
     fi->opts = o;
     fi->color_output_count = (size_t)o->color_output_count;
 
-    const struct hmap_entry *entry = NULL;
-    while ((entry = ngli_hmap_next(o->resources, entry))) {
-        int ret = register_resource(fi, entry->key.str, entry->data);
-        if (ret < 0)
-            return ret;
+    if (o->resources) {
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(o->resources, entry))) {
+            int ret = register_resource(fi, entry->key.str, entry->data);
+            if (ret < 0)
+                return ret;
+        }
     }
 
     return 0;
@@ -797,6 +835,7 @@ static int customfill_init(struct ngl_node *node)
 static void customfill_uninit(struct ngl_node *node)
 {
     struct customfill_priv *s = node->priv_data;
+    ngli_fill_info_reset(&s->fi);
     ngli_freep(&s->built_glsl);
 }
 

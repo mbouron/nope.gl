@@ -96,19 +96,39 @@ struct maskblur_priv {
 
 #define OFFSET_BLUR(x) offsetof(struct maskblur_opts, x)
 
+void ngli_mask_info_init(struct mask_info *mi)
+{
+    ngli_darray_init(&mi->uniforms, sizeof(struct mask_uniform_def), 0);
+}
+
+void ngli_mask_info_reset(struct mask_info *mi)
+{
+    ngli_darray_reset(&mi->uniforms);
+}
+
+static void mask_uninit(struct ngl_node *node)
+{
+    struct mask_info *mi = node->priv_data;
+    ngli_mask_info_reset(mi);
+}
+
 static int maskblur_init(struct ngl_node *node)
 {
     struct maskblur_priv *s = node->priv_data;
     const struct maskblur_opts *o = node->opts;
 
+    ngli_mask_info_init(&s->info);
     s->info.glsl      = maskblur_glsl_table[o->style];
     s->info.dilation  = o->sigma * 3.0f;
     s->info.opts      = o;
 
-    snprintf(s->info.uniforms[0].name, sizeof(s->info.uniforms[0].name), "mask_sigma");
-    s->info.uniforms[0].type        = NGPU_TYPE_F32;
-    s->info.uniforms[0].opts_offset = OFFSET_BLUR(sigma);
-    s->info.nb_uniforms = 1;
+    struct mask_uniform_def ud = {
+        .type        = NGPU_TYPE_F32,
+        .opts_offset = OFFSET_BLUR(sigma),
+    };
+    snprintf(ud.name, sizeof(ud.name), "mask_sigma");
+    if (!ngli_darray_push(&s->info.uniforms, &ud))
+        return NGL_ERROR_MEMORY;
 
     return 0;
 }
@@ -136,6 +156,7 @@ const struct node_class ngli_maskblur_class = {
     .id        = NGL_NODE_MASKBLUR,
     .name      = "MaskBlur",
     .init      = maskblur_init,
+    .uninit    = mask_uninit,
     .opts_size = sizeof(struct maskblur_opts),
     .priv_size = sizeof(struct maskblur_priv),
     .params    = maskblur_params,
@@ -215,6 +236,7 @@ static int masktexture_init(struct ngl_node *node)
     struct masktexture_priv *s = node->priv_data;
     const struct masktexture_opts *o = node->opts;
 
+    ngli_mask_info_init(&s->info);
     s->info.glsl         = masktexture_glsl_table[o->channel];
     s->info.texture_node = o->texture_node;
     s->info.dilation     = 0.0f;
@@ -246,6 +268,7 @@ const struct node_class ngli_masktexture_class = {
     .id        = NGL_NODE_MASKTEXTURE,
     .name      = "MaskTexture",
     .init      = masktexture_init,
+    .uninit    = mask_uninit,
     .opts_size = sizeof(struct masktexture_opts),
     .priv_size = sizeof(struct masktexture_priv),
     .params    = masktexture_params,

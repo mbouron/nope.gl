@@ -24,9 +24,7 @@
 
 #include <stddef.h>
 #include <ngpu/ngpu.h>
-
-#define FILL_MAX_UNIFORMS 16
-#define FILL_MAX_TEXTURES 8
+#include "utils/darray.h"
 
 #define FILL_HELPER_SRGB        (1u << 0)
 #define FILL_HELPER_MISC_UTILS  (1u << 1)
@@ -70,17 +68,16 @@ struct fill_base_opts {
 struct fill_info {
     uint32_t helper_flags;                                   /* FILL_HELPER_* bitmask */
     const char *glsl;                                        /* ngli_color() function body */
-    struct fill_uniform_def uniforms[FILL_MAX_UNIFORMS];
-    size_t nb_uniforms;
-    struct fill_custom_uniform_def custom_uniforms[FILL_MAX_UNIFORMS];
-    size_t nb_custom_uniforms;
-    struct fill_custom_texture_def custom_textures[FILL_MAX_TEXTURES];
-    size_t nb_custom_textures;
-    struct fill_custom_block_def custom_blocks[FILL_MAX_TEXTURES];
-    size_t nb_custom_blocks;
+    struct darray uniforms;                                  /* array of struct fill_uniform_def */
+    struct darray custom_uniforms;                           /* array of struct fill_custom_uniform_def */
+    struct darray custom_textures;                           /* array of struct fill_custom_texture_def */
+    struct darray custom_blocks;                             /* array of struct fill_custom_block_def */
     struct ngl_node *texture;
     size_t color_output_count;
     const void *opts;                                        /* pointer to fill node opts struct */
 };
+
+void ngli_fill_info_init(struct fill_info *fi);
+void ngli_fill_info_reset(struct fill_info *fi);
 
 #endif

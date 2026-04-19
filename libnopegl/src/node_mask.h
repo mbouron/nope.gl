@@ -25,8 +25,7 @@
 #include <stddef.h>
 #include <ngpu/ngpu.h>
 #include "params.h"
-
-#define MASK_MAX_UNIFORMS 4
+#include "utils/darray.h"
 
 #define MASK_BLUR_NORMAL 0
 #define MASK_BLUR_SOLID  1
@@ -50,11 +49,13 @@ struct mask_uniform_def {
 
 struct mask_info {
     const char *glsl;                                   /* ngl_mask_alpha() function */
-    struct mask_uniform_def uniforms[MASK_MAX_UNIFORMS];
-    size_t nb_uniforms;
+    struct darray uniforms;                             /* array of struct mask_uniform_def */
     float dilation;                                     /* extra margin expansion in pixels */
     struct ngl_node *texture_node;                      /* non-NULL for MaskTexture */
     const void *opts;                                   /* pointer to mask node opts */
 };
+
+void ngli_mask_info_init(struct mask_info *mi);
+void ngli_mask_info_reset(struct mask_info *mi);
 
 #endif
