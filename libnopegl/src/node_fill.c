@@ -33,8 +33,6 @@
 
 #include <ngpu/ngpu.h>
 
-
-
 #define REGISTER_UNIFORM(fi_, name_, type_, opts_struct_, field_) do {     \
     ngli_assert((fi_)->nb_uniforms < FILL_MAX_UNIFORMS);                   \
     struct fill_uniform_def *_ud = &(fi_)->uniforms[(fi_)->nb_uniforms++]; \
