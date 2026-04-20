@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "utils/darray.h"
 #include "utils/log.h"
 #include "vulkan/bindgroup_vk.h"
 #include "vulkan/ctx_vk.h"
@@ -33,7 +34,6 @@
 #include "vulkan/rendertarget_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
-#include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
@@ -152,9 +152,6 @@ static VkResult create_attribute_descs(struct ngpu_pipeline *s)
 {
     struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
 
-    ngpu_darray_init(&s_priv->vertex_attribute_descs, sizeof(VkVertexInputAttributeDescription), 0);
-    ngpu_darray_init(&s_priv->vertex_binding_descs,   sizeof(VkVertexInputBindingDescription), 0);
-
     const struct ngpu_pipeline_graphics *graphics = &s->graphics;
     const struct ngpu_vertex_state *state = &graphics->vertex_state;
     for (size_t i = 0; i < state->nb_buffers; i++) {
@@ -165,7 +162,7 @@ static VkResult create_attribute_descs(struct ngpu_pipeline *s)
             .stride    = (uint32_t)buffer->stride,
             .inputRate = buffer->rate ? VK_VERTEX_INPUT_RATE_INSTANCE : VK_VERTEX_INPUT_RATE_VERTEX,
         };
-        if (!ngpu_darray_push(&s_priv->vertex_binding_descs, &binding_desc))
+        if (ngpu_darray_push(&s_priv->vertex_binding_descs, binding_desc) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
 
         for (size_t j = 0; j < buffer->nb_attributes; j++) {
@@ -176,7 +173,7 @@ static VkResult create_attribute_descs(struct ngpu_pipeline *s)
                 .format   = ngpu_format_ngl_to_vk(attribute->format),
                 .offset   = (uint32_t)attribute->offset,
             };
-            if (!ngpu_darray_push(&s_priv->vertex_attribute_descs, &attr_desc))
+            if (ngpu_darray_push(&s_priv->vertex_attribute_descs, attr_desc) < 0)
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
     }
@@ -196,10 +193,10 @@ static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
 
     const VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {
         .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount   = (uint32_t)ngpu_darray_count(&s_priv->vertex_binding_descs),
-        .pVertexBindingDescriptions      = ngpu_darray_data(&s_priv->vertex_binding_descs),
-        .vertexAttributeDescriptionCount = (uint32_t)ngpu_darray_count(&s_priv->vertex_attribute_descs),
-        .pVertexAttributeDescriptions    = ngpu_darray_data(&s_priv->vertex_attribute_descs),
+        .vertexBindingDescriptionCount   = (uint32_t)s_priv->vertex_binding_descs.count,
+        .pVertexBindingDescriptions      = s_priv->vertex_binding_descs.data,
+        .vertexAttributeDescriptionCount = (uint32_t)s_priv->vertex_attribute_descs.count,
+        .pVertexAttributeDescriptions    = s_priv->vertex_attribute_descs.data,
     };
 
     const VkPrimitiveTopology topology = get_vk_topology(graphics->topology);
@@ -441,11 +438,8 @@ static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuf
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, gpu_ctx->bindgroup);
     struct ngpu_bindgroup_vk *bindgroup_vk = (struct ngpu_bindgroup_vk *)gpu_ctx->bindgroup;
     if (bindgroup_vk->desc_set) {
-        struct buffer_binding_vk *bindings = ngpu_darray_data(&bindgroup_vk->buffer_bindings);
-        for (size_t i = 0; i < ngpu_darray_count(&bindgroup_vk->buffer_bindings); i++) {
-            struct buffer_binding_vk *binding = &bindings[i];
+        ngpu_darray_foreach(binding, &bindgroup_vk->buffer_bindings)
             ngpu_cmd_buffer_vk_ref_buffer(cmd_buffer_vk, (struct ngpu_buffer *)binding->buffer);
-        }
         struct vkcontext *vk = gpu_ctx_vk->vkcontext;
         vk->funcs.CmdBindDescriptorSets(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline_layout, 0,
                                 1, &bindgroup_vk->desc_set,

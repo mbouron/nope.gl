@@ -33,7 +33,7 @@ struct ngpu_buffer_gl {
     GLuint buffer;
     GLbitfield map_flags;
     GLbitfield barriers;
-    struct ngpu_darray cmd_buffers;
+    NGPU_DARRAY(struct ngpu_cmd_buffer_gl *) cmd_buffers;
 };
 
 struct ngpu_ctx;

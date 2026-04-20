@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdint.h>
 
+#include "utils/darray.h"
 #include "utils/log.h"
 #include "vulkan/buffer_vk.h"
 #include "vulkan/ctx_vk.h"
@@ -119,7 +120,6 @@ static VkResult buffer_vk_init(struct ngpu_buffer *s)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
 
-    ngpu_darray_init(&s_priv->cmd_buffers, sizeof(struct ngpu_cmd_buffer_vk *), 0);
     ngpu_darray_set_free_func(&s_priv->cmd_buffers, unref_cmd_buffer, NULL);
 
     VkMemoryPropertyFlags mem_props;
@@ -151,11 +151,8 @@ int ngpu_buffer_vk_wait(struct ngpu_buffer *s)
 {
     struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
 
-    struct ngpu_cmd_buffer_vk **cmd_buffers = ngpu_darray_data(&s_priv->cmd_buffers);
-    for (size_t i = 0; i < ngpu_darray_count(&s_priv->cmd_buffers); i++) {
-        struct ngpu_cmd_buffer_vk *cmd_buffer = cmd_buffers[i];
-        ngpu_cmd_buffer_vk_wait(cmd_buffer);
-    }
+    ngpu_darray_foreach(it, &s_priv->cmd_buffers)
+        ngpu_cmd_buffer_vk_wait(*it);
     ngpu_darray_clear(&s_priv->cmd_buffers);
 
     return 0;
@@ -256,9 +253,8 @@ static size_t buffer_vk_find_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_b
 {
     struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
 
-    struct ngpu_cmd_buffer_vk **cmd_buffers = ngpu_darray_data(&s_priv->cmd_buffers);
-    for (size_t i = 0; i < ngpu_darray_count(&s_priv->cmd_buffers); i++) {
-        if (cmd_buffers[i] == cmd_buffer)
+    for (size_t i = 0; i < s_priv->cmd_buffers.count; i++) {
+        if (s_priv->cmd_buffers.data[i] == cmd_buffer)
             return i;
     }
 
@@ -273,7 +269,7 @@ int ngpu_buffer_vk_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_
     if (index != SIZE_MAX)
         return 0;
 
-    if (!ngpu_darray_push(&s_priv->cmd_buffers, &cmd_buffer))
+    if (ngpu_darray_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
     NGPU_RC_REF(cmd_buffer);

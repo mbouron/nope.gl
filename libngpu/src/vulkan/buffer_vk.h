@@ -35,7 +35,7 @@ struct ngpu_buffer_vk {
     VkDeviceMemory memory;
     VkBuffer staging_buffer;
     VkDeviceMemory staging_memory;
-    struct ngpu_darray cmd_buffers;
+    NGPU_DARRAY(struct ngpu_cmd_buffer_vk *) cmd_buffers;
 };
 
 struct ngpu_buffer *ngpu_buffer_vk_create(struct ngpu_ctx *gpu_ctx);

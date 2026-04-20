@@ -35,7 +35,7 @@ struct ngpu_staging_buffer {
     uint8_t *mapped_data;
     size_t offset;
     size_t capacity;
-    struct ngpu_darray prev_buffers;
+    NGPU_DARRAY(struct ngpu_buffer *) prev_buffers;
     size_t alignment;
     bool persistent;
 };
@@ -92,8 +92,6 @@ struct ngpu_staging_buffer *ngpu_staging_buffer_create(struct ngpu_ctx *gpu_ctx)
         return NULL;
     }
 
-    ngpu_darray_init(&s->prev_buffers, sizeof(struct ngpu_buffer *), 0);
-
     return s;
 }
 
@@ -109,7 +107,7 @@ static int grow(struct ngpu_staging_buffer *s, size_t min_capacity)
      * get_buffer() earlier remain valid until next reset().
      */
     ngpu_buffer_unmap(s->buffer);
-    if (!ngpu_darray_push(&s->prev_buffers, &s->buffer))
+    if (ngpu_darray_push(&s->prev_buffers, s->buffer) < 0)
         return NGPU_ERROR_MEMORY;
     s->buffer = NULL;
     s->mapped_data = NULL;
@@ -165,10 +163,9 @@ int ngpu_staging_buffer_flush(struct ngpu_staging_buffer *s)
 
 static void ngpu_staging_buffer_free_prev_buffers(struct ngpu_staging_buffer *s)
 {
-    struct ngpu_buffer **prev = ngpu_darray_data(&s->prev_buffers);
-    for (size_t i = 0; i < ngpu_darray_count(&s->prev_buffers); i++) {
-        ngpu_buffer_wait(prev[i]);
-        ngpu_buffer_freep(&prev[i]);
+    ngpu_darray_foreach(p, &s->prev_buffers) {
+        ngpu_buffer_wait(*p);
+        ngpu_buffer_freep(p);
     }
     ngpu_darray_clear(&s->prev_buffers);
 }

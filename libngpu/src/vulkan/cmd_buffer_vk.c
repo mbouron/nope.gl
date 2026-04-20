@@ -105,12 +105,7 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
     if (!s->fence)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    ngpu_darray_init(&s->wait_sems, sizeof(VkSemaphore), 0);
-    ngpu_darray_init(&s->wait_stages, sizeof(VkPipelineStageFlags), 0);
-    ngpu_darray_init(&s->signal_sems, sizeof(VkSemaphore), 0);
-    ngpu_darray_init(&s->refs, sizeof(struct ngpu_rc *), 0);
     ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
-    ngpu_darray_init(&s->buffer_refs, sizeof(struct ngpu_buffer *), 0);
     ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
 
     return VK_SUCCESS;
@@ -118,10 +113,10 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
 
 VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore *sem, VkPipelineStageFlags stage)
 {
-    if (!ngpu_darray_push(&s->wait_sems, sem))
+    if (ngpu_darray_push(&s->wait_sems, *sem) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    if (!ngpu_darray_push(&s->wait_stages, &stage))
+    if (ngpu_darray_push(&s->wait_stages, stage) < 0)
         return NGPU_ERROR_MEMORY;
 
     return VK_SUCCESS;
@@ -129,7 +124,7 @@ VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemapho
 
 VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore *sem)
 {
-    if (!ngpu_darray_push(&s->signal_sems, sem))
+    if (ngpu_darray_push(&s->signal_sems, *sem) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     return VK_SUCCESS;
@@ -137,7 +132,7 @@ VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemap
 
 VkResult ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc)
 {
-    if (!ngpu_darray_push(&s->refs, &rc))
+    if (ngpu_darray_push(&s->refs, rc) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     NGPU_RC_REF(rc);
@@ -151,7 +146,7 @@ VkResult ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu
     if (res != VK_SUCCESS)
         return res;
 
-    if (!ngpu_darray_push(&s->buffer_refs, &buffer))
+    if (ngpu_darray_push(&s->buffer_refs, buffer) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     NGPU_RC_REF(buffer);
@@ -197,13 +192,13 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
 
     const VkSubmitInfo submit_info = {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount   = (uint32_t)ngpu_darray_count(&s->wait_sems),
-        .pWaitSemaphores      = ngpu_darray_data(&s->wait_sems),
-        .pWaitDstStageMask    = ngpu_darray_data(&s->wait_stages),
+        .waitSemaphoreCount   = (uint32_t)s->wait_sems.count,
+        .pWaitSemaphores      = s->wait_sems.data,
+        .pWaitDstStageMask    = s->wait_stages.data,
         .commandBufferCount   = 1,
         .pCommandBuffers      = &s->cmd_buf,
-        .signalSemaphoreCount = (uint32_t)ngpu_darray_count(&s->signal_sems),
-        .pSignalSemaphores    = ngpu_darray_data(&s->signal_sems),
+        .signalSemaphoreCount = (uint32_t)s->signal_sems.count,
+        .pSignalSemaphores    = s->signal_sems.data,
     };
 
     struct ngpu_fence_vk *fence_vk = (struct ngpu_fence_vk *)s->fence;
@@ -213,7 +208,7 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
 
     s->submitted = VK_TRUE;
 
-    if (!ngpu_darray_push(&gpu_ctx_vk->pending_cmd_buffers, &s))
+    if (ngpu_darray_push(&gpu_ctx_vk->pending_cmd_buffers, s) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     ngpu_darray_clear(&s->wait_sems);
@@ -240,9 +235,8 @@ VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
     ngpu_darray_clear(&s->buffer_refs);
 
     size_t i = 0;
-    while (i < ngpu_darray_count(&gpu_ctx_vk->pending_cmd_buffers)) {
-        struct ngpu_cmd_buffer_vk **cmds = ngpu_darray_data(&gpu_ctx_vk->pending_cmd_buffers);
-        if (cmds[i] == s) {
+    while (i < gpu_ctx_vk->pending_cmd_buffers.count) {
+        if (gpu_ctx_vk->pending_cmd_buffers.data[i] == s) {
             ngpu_darray_remove(&gpu_ctx_vk->pending_cmd_buffers, i);
             continue;
         }

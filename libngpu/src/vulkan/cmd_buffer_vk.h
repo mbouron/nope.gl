@@ -39,11 +39,11 @@ struct ngpu_cmd_buffer_vk {
     VkCommandBuffer cmd_buf;
     struct ngpu_fence *fence;
     VkBool32 submitted;
-    struct ngpu_darray wait_sems;
-    struct ngpu_darray wait_stages;
-    struct ngpu_darray signal_sems;
-    struct ngpu_darray refs; // array of ngpu_rc pointers
-    struct ngpu_darray buffer_refs; // array of ngpu_buffer pointers
+    NGPU_DARRAY(VkSemaphore) wait_sems;
+    NGPU_DARRAY(VkPipelineStageFlags) wait_stages;
+    NGPU_DARRAY(VkSemaphore) signal_sems;
+    NGPU_DARRAY(struct ngpu_rc *) refs;
+    NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
 };
 
 struct ngpu_cmd_buffer_vk *ngpu_cmd_buffer_vk_create(struct ngpu_ctx *gpu_ctx);

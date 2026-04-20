@@ -621,6 +621,35 @@ pkg.generate(
 
 
 #
+# Tests
+#
+
+if get_option('tests')
+  test_utils_src = files(
+    'src/utils/darray.c',
+    'src/utils/memory.c',
+  )
+  test_progs = {
+    'Dynamic array': {
+      'exe': 'test_darray',
+      'src': files('src/test_darray.c') + test_utils_src,
+    },
+  }
+  foreach test_key, test_data : test_progs
+    exe = executable(
+      test_data.get('exe'),
+      test_data.get('src'),
+      dependencies: lib_deps,
+      build_by_default: false,
+      install: false,
+      include_directories: inc_dir,
+    )
+    test(test_key, exe, args: test_data.get('args', []))
+  endforeach
+endif
+
+
+#
 # OpenGL specifications
 #
  

@@ -25,14 +25,16 @@
 
 #include "opengl/glincludes.h"
 #include "pipeline.h"
+#include "utils/darray.h"
 
 struct ngpu_ctx;
 struct glcontext;
+struct attribute_binding_gl;
 
 struct ngpu_pipeline_gl {
     struct ngpu_pipeline parent;
 
-    struct ngpu_darray attribute_bindings; // attribute_binding_gl
+    NGPU_DARRAY(struct attribute_binding_gl) attribute_bindings;
 
     GLuint vao;
 };

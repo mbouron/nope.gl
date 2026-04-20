@@ -34,6 +34,7 @@
 #include "vulkan/vkutils.h"
 #include "vulkan/ycbcr_sampler_vk.h"
 #include "utils/bits.h"
+#include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
@@ -1153,8 +1154,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                             &subres_range);
 
-    struct ngpu_darray copy_regions;
-    ngpu_darray_init(&copy_regions, sizeof(VkBufferImageCopy), 0);
+    NGPU_DARRAY(VkBufferImageCopy) copy_regions = {0};
 
     for (uint32_t i = transfer_params->base_layer; i < transfer_params->layer_count; i++) {
         const VkDeviceSize offset = i * transfer_layer_size;
@@ -1180,7 +1180,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
             },
         };
 
-        if (!ngpu_darray_push(&copy_regions, &region)) {
+        if (ngpu_darray_push(&copy_regions, region) < 0) {
             ngpu_darray_reset(&copy_regions);
             if (cmd_is_transient) {
                 ngpu_cmd_buffer_vk_freep(&cmd_buffer_vk);
@@ -1194,8 +1194,8 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
                            staging_buffer_vk->buffer,
                            s_priv->image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           (uint32_t)ngpu_darray_count(&copy_regions),
-                           ngpu_darray_data(&copy_regions));
+                           (uint32_t)copy_regions.count,
+                           copy_regions.data);
 
     ngpu_darray_reset(&copy_regions);
 

@@ -32,8 +32,8 @@ struct ngpu_ctx;
 struct ngpu_pipeline_vk {
     struct ngpu_pipeline parent;
 
-    struct ngpu_darray vertex_attribute_descs;   // array of VkVertexInputAttributeDescription
-    struct ngpu_darray vertex_binding_descs;     // array of VkVertexInputBindingDescription
+    NGPU_DARRAY(VkVertexInputAttributeDescription) vertex_attribute_descs;
+    NGPU_DARRAY(VkVertexInputBindingDescription) vertex_binding_descs;
 
     VkPipelineLayout pipeline_layout;
     VkPipelineBindPoint pipeline_bind_point;

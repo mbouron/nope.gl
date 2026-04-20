@@ -48,8 +48,8 @@ struct ngpu_bindgroup_layout_gl {
 
 struct ngpu_bindgroup_gl {
     struct ngpu_bindgroup parent;
-    struct ngpu_darray texture_bindings;   // texture_binding_gl
-    struct ngpu_darray buffer_bindings;    // buffer_binding_gl
+    NGPU_DARRAY(struct texture_binding_gl) texture_bindings;
+    NGPU_DARRAY(struct buffer_binding_gl) buffer_bindings;
     int use_barriers;
 };
 
