@@ -45,17 +45,16 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 # define ngpu_unused __attribute__((unused))
+# define ngpu_may_alias __attribute__((may_alias))
 #else
 # define ngpu_unused
+# define ngpu_may_alias
 #endif
 
-#define ngpu_assert(cond) do {                          \
-    if (!(cond)) {                                      \
-        fprintf(stderr, "Assert %s @ %s:%d\n",          \
-                #cond, __FILE__, __LINE__);             \
-        abort();                                        \
-    }                                                   \
-} while (0)
+#define ngpu_assert(cond) \
+    ((void)((cond) || (fprintf(stderr, "Assert %s @ %s:%d\n", \
+                               #cond, __FILE__, __LINE__),    \
+                       abort(), 0)))
 
 #define NGPU_STATIC_ASSERT(c, id) static_assert(c, id)
 

@@ -27,6 +27,7 @@
 #include "opengl/ctx_gl.h"
 #include "opengl/glcontext.h"
 #include "opengl/glincludes.h"
+#include "utils/darray.h"
 #include "utils/memory.h"
 
 static GLbitfield get_gl_barriers(uint32_t usage)
@@ -93,7 +94,6 @@ int ngpu_buffer_gl_init(struct ngpu_buffer *s)
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
 
-    ngpu_darray_init(&s_priv->cmd_buffers, sizeof(struct ngpu_cmd_buffer_gl *), 0);
     ngpu_darray_set_free_func(&s_priv->cmd_buffers, unref_cmd_buffer, NULL);
 
     s_priv->map_flags = get_gl_map_flags(s->usage);
@@ -121,11 +121,8 @@ int ngpu_buffer_gl_wait(struct ngpu_buffer *s)
 {
     struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
 
-    struct ngpu_cmd_buffer_gl **cmd_buffers = ngpu_darray_data(&s_priv->cmd_buffers);
-    for (size_t i = 0; i < ngpu_darray_count(&s_priv->cmd_buffers); i++) {
-        struct ngpu_cmd_buffer_gl *cmd_buffer = cmd_buffers[i];
-        ngpu_cmd_buffer_gl_wait(cmd_buffer);
-    }
+    ngpu_darray_foreach(it, &s_priv->cmd_buffers)
+        ngpu_cmd_buffer_gl_wait(*it);
     ngpu_darray_clear(&s_priv->cmd_buffers);
 
     return 0;
@@ -167,9 +164,8 @@ static size_t buffer_gl_find_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_b
 {
     struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
 
-    struct ngpu_cmd_buffer_gl **cmd_buffers = ngpu_darray_data(&s_priv->cmd_buffers);
-    for (size_t i = 0; i < ngpu_darray_count(&s_priv->cmd_buffers); i++) {
-        if (cmd_buffers[i] == cmd_buffer)
+    for (size_t i = 0; i < s_priv->cmd_buffers.count; i++) {
+        if (s_priv->cmd_buffers.data[i] == cmd_buffer)
             return i;
     }
 
@@ -184,7 +180,7 @@ int ngpu_buffer_gl_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_
     if (index != SIZE_MAX)
         return 0;
 
-    if (!ngpu_darray_push(&s_priv->cmd_buffers, &cmd_buffer))
+    if (ngpu_darray_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
     NGPU_RC_REF(cmd_buffer);

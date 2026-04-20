@@ -27,7 +27,7 @@
 
 void *ngpu_malloc(size_t size);
 void *ngpu_calloc(size_t n, size_t size);
-void *ngpu_malloc_aligned(size_t size);
+void *ngpu_malloc_aligned(size_t alignment, size_t size);
 
 void *ngpu_realloc(void *ptr, size_t n, size_t size);
 

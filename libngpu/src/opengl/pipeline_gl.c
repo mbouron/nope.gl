@@ -30,6 +30,7 @@
 #include "opengl/glcontext.h"
 #include "opengl/pipeline_gl.h"
 #include "opengl/program_gl.h"
+#include "utils/darray.h"
 #include "utils/memory.h"
 
 struct attribute_binding_gl {
@@ -63,7 +64,7 @@ static int build_attribute_bindings(struct ngpu_pipeline *s)
                 .stride   = buffer->stride,
                 .offset   = attribute->offset,
             };
-            if (!ngpu_darray_push(&s_priv->attribute_bindings, &binding))
+            if (ngpu_darray_push(&s_priv->attribute_bindings, binding) < 0)
                 return NGPU_ERROR_MEMORY;
 
             const GLuint location = attribute->location;
@@ -185,9 +186,7 @@ static void bind_vertex_attribs(const struct ngpu_pipeline *s)
     gl->funcs.BindVertexArray(s_priv->vao);
 
     const struct ngpu_buffer **vertex_buffers = gpu_ctx->vertex_buffers;
-    const struct attribute_binding_gl *bindings = ngpu_darray_data(&s_priv->attribute_bindings);
-    for (size_t i = 0; i < ngpu_darray_count(&s_priv->attribute_bindings); i++) {
-        const struct attribute_binding_gl *attribute_binding = &bindings[i];
+    ngpu_darray_foreach(attribute_binding, &s_priv->attribute_bindings) {
         const size_t binding = attribute_binding->binding;
         const GLuint location = attribute_binding->location;
         const GLint size = (GLint)ngpu_format_get_nb_comp(attribute_binding->format);
@@ -234,10 +233,6 @@ struct ngpu_pipeline *ngpu_pipeline_gl_create(struct ngpu_ctx *gpu_ctx)
 
 int ngpu_pipeline_gl_init(struct ngpu_pipeline *s)
 {
-    struct ngpu_pipeline_gl *s_priv = (struct ngpu_pipeline_gl *)s;
-
-    ngpu_darray_init(&s_priv->attribute_bindings, sizeof(struct attribute_binding_gl), 0);
-
     if (s->type == NGPU_PIPELINE_TYPE_GRAPHICS) {
         int ret = pipeline_graphics_init(s);
         if (ret < 0)

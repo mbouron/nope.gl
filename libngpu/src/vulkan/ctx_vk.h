@@ -23,6 +23,7 @@
 #define NGPU_CTX_VK_H
 
 #include "ctx.h"
+#include "utils/darray.h"
 #include "vulkan/cmd_buffer_vk.h"
 #include "vulkan/vkcontext.h"
 
@@ -31,13 +32,13 @@ struct ngpu_ctx_vk {
     struct vkcontext *vkcontext;
 
     VkSemaphore *update_finished_sems;
-    struct ngpu_darray pending_wait_sems;
+    NGPU_DARRAY(VkSemaphore) pending_wait_sems;
 
     VkCommandPool cmd_pool;
 
     struct ngpu_cmd_buffer_vk **cmd_buffers;
     struct ngpu_cmd_buffer_vk **update_cmd_buffers;
-    struct ngpu_darray pending_cmd_buffers;
+    NGPU_DARRAY(struct ngpu_cmd_buffer_vk *) pending_cmd_buffers;
     struct ngpu_cmd_buffer_vk *cur_cmd_buffer;
     int cur_cmd_buffer_is_transient;
 
@@ -55,10 +56,10 @@ struct ngpu_ctx_vk {
     uint32_t cur_image_index;
     int64_t present_time_offset;
 
-    struct ngpu_darray colors;
-    struct ngpu_darray ms_colors;
-    struct ngpu_darray depth_stencils;
-    struct ngpu_darray rts;
+    NGPU_DARRAY(struct ngpu_texture *) colors;
+    NGPU_DARRAY(struct ngpu_texture *) ms_colors;
+    NGPU_DARRAY(struct ngpu_texture *) depth_stencils;
+    NGPU_DARRAY(struct ngpu_rendertarget *) rts;
 
     struct ngpu_rendertarget *default_rt;
     struct ngpu_rendertarget_layout default_rt_layout;

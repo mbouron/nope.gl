@@ -294,14 +294,11 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
 #endif
     };
 
-    struct ngpu_darray extensions;
-    ngpu_darray_init(&extensions, sizeof(const char **), 0);
-
-    struct ngpu_darray layers;
-    ngpu_darray_init(&layers, sizeof(const char **), 0);
+    NGPU_DARRAY(const char *) extensions = {0};
+    NGPU_DARRAY(const char *) layers = {0};
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(mandatory_extensions); i++) {
-        if (!ngpu_darray_push(&extensions, &mandatory_extensions[i])) {
+        if (ngpu_darray_push(&extensions, mandatory_extensions[i]) < 0) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
@@ -310,14 +307,14 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     static const char *debug_ext = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     const int has_debug_extension = ngpu_vkcontext_has_extension(s, debug_ext, 0);
     if (debug) {
-        if (has_debug_extension && !ngpu_darray_push(&extensions, &debug_ext)) {
+        if (has_debug_extension && ngpu_darray_push(&extensions, debug_ext) < 0) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
 
         static const char *debug_layer = "VK_LAYER_KHRONOS_validation";
         const int has_validation_layer = has_layer(s, debug_layer);
-        if (has_validation_layer && !ngpu_darray_push(&layers, &debug_layer)) {
+        if (has_validation_layer && ngpu_darray_push(&layers, debug_layer) < 0) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
@@ -336,10 +333,10 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     const VkInstanceCreateInfo instance_create_info = {
         .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo        = &app_info,
-        .enabledExtensionCount   = (uint32_t)ngpu_darray_count(&extensions),
-        .ppEnabledExtensionNames = ngpu_darray_data(&extensions),
-        .enabledLayerCount       = (uint32_t)ngpu_darray_count(&layers),
-        .ppEnabledLayerNames     = ngpu_darray_data(&layers),
+        .enabledExtensionCount   = (uint32_t)extensions.count,
+        .ppEnabledExtensionNames = extensions.data,
+        .enabledLayerCount       = (uint32_t)layers.count,
+        .ppEnabledLayerNames     = layers.data,
     };
 
     res = s->funcs.CreateInstance(&instance_create_info, NULL, &s->instance);
@@ -715,8 +712,7 @@ static VkResult create_device(struct vkcontext *s)
 
 #undef ENABLE_FEATURE
 
-    struct ngpu_darray enabled_extensions;
-    ngpu_darray_init(&enabled_extensions, sizeof(const char *), 0);
+    NGPU_DARRAY(const char *) enabled_extensions = {0};
 
     static const char *mandatory_device_extensions[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -726,7 +722,7 @@ static VkResult create_device(struct vkcontext *s)
     };
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(mandatory_device_extensions); i++) {
-        if (!ngpu_darray_push(&enabled_extensions, &mandatory_device_extensions[i])) {
+        if (ngpu_darray_push(&enabled_extensions, mandatory_device_extensions[i]) < 0) {
             ngpu_darray_reset(&enabled_extensions);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
@@ -747,7 +743,7 @@ static VkResult create_device(struct vkcontext *s)
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(optional_device_extensions); i++) {
         if (ngpu_vkcontext_has_extension(s, optional_device_extensions[i], 1)) {
-            if (!ngpu_darray_push(&enabled_extensions, &optional_device_extensions[i])) {
+            if (ngpu_darray_push(&enabled_extensions, optional_device_extensions[i]) < 0) {
                 ngpu_darray_reset(&enabled_extensions);
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
             }
@@ -772,8 +768,8 @@ static VkResult create_device(struct vkcontext *s)
         .pNext                   = &dev_features2,
         .pQueueCreateInfos       = queues_create_info,
         .queueCreateInfoCount    = nb_queues,
-        .enabledExtensionCount   = (uint32_t)ngpu_darray_count(&enabled_extensions),
-        .ppEnabledExtensionNames = ngpu_darray_data(&enabled_extensions),
+        .enabledExtensionCount   = (uint32_t)enabled_extensions.count,
+        .ppEnabledExtensionNames = enabled_extensions.data,
     };
     VkResult res = s->funcs.CreateDevice(s->phy_device, &device_create_info, NULL, &s->device);
 

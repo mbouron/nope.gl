@@ -29,6 +29,7 @@
 #include "utils/darray.h"
 
 struct ngpu_ctx;
+struct ngpu_ycbcr_sampler_vk;
 
 struct texture_binding_vk {
     struct ngpu_bindgroup_layout_entry layout_entry;
@@ -48,22 +49,22 @@ struct buffer_binding_vk {
 
 struct ngpu_bindgroup_layout_vk {
     struct ngpu_bindgroup_layout parent;
-    struct ngpu_darray desc_set_layout_bindings; // array of VkDescriptorSetLayoutBinding
-    struct ngpu_darray immutable_samplers;       // array of ycbcr_sampler_vk pointers
+    NGPU_DARRAY(VkDescriptorSetLayoutBinding) desc_set_layout_bindings;
+    NGPU_DARRAY(struct ngpu_ycbcr_sampler_vk *) immutable_samplers;
     VkDescriptorSetLayout desc_set_layout;
     uint32_t desc_pool_size_count;
     VkDescriptorPoolSize desc_pool_sizes[NGPU_TYPE_NB];
     uint32_t max_desc_sets;
-    struct ngpu_darray desc_pools;
+    NGPU_DARRAY(VkDescriptorPool) desc_pools;
     size_t desc_pool_index;
 };
 
 struct ngpu_bindgroup_vk {
     struct ngpu_bindgroup parent;
-    struct ngpu_darray texture_bindings;   // array of texture_binding_vk
-    struct ngpu_darray buffer_bindings;    // array of buffer_binding_vk
+    NGPU_DARRAY(struct texture_binding_vk) texture_bindings;
+    NGPU_DARRAY(struct buffer_binding_vk) buffer_bindings;
     VkDescriptorSet desc_set;
-    struct ngpu_darray write_desc_sets;    // array of VkWriteDescriptrSet
+    NGPU_DARRAY(VkWriteDescriptorSet) write_desc_sets;
 };
 
 struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_vk_create(struct ngpu_ctx *gpu_ctx);

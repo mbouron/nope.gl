@@ -76,15 +76,15 @@ void *ngpu_calloc(size_t n, size_t size)
     return calloc(n, size);
 }
 
-void *ngpu_malloc_aligned(size_t size)
+void *ngpu_malloc_aligned(size_t alignment, size_t size)
 {
     if (failure_requested())
         return NULL;
 
 #ifdef _WIN32
-    return _aligned_malloc(size, NGPU_ALIGN_VAL);
+    return _aligned_malloc(size, alignment);
 #else
-    return aligned_alloc(NGPU_ALIGN_VAL, size);
+    return aligned_alloc(alignment, size);
 #endif
 }
 

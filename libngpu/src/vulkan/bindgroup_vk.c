@@ -27,6 +27,7 @@
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
 #include "vulkan/ycbcr_sampler_vk.h"
+#include "utils/darray.h"
 #include "utils/memory.h"
 
 #define INITIAL_MAX_DESC_SETS 32
@@ -122,13 +123,12 @@ static VkResult allocate_desc_pool(struct ngpu_bindgroup_layout *s, uint32_t fac
     if (res != VK_SUCCESS)
         return res;
 
-    if (!ngpu_darray_push(&s_priv->desc_pools, &pool)) {
+    if (ngpu_darray_push(&s_priv->desc_pools, pool) < 0) {
         vk->funcs.DestroyDescriptorPool(vk->device, pool, NULL);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
-    const size_t desc_pool_count = ngpu_darray_count(&s_priv->desc_pools);
-    s_priv->desc_pool_index = desc_pool_count - 1;
+    s_priv->desc_pool_index = s_priv->desc_pools.count - 1;
 
     return VK_SUCCESS;
 }
@@ -139,9 +139,6 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
     const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_bindgroup_layout_vk *s_priv = (struct ngpu_bindgroup_layout_vk *)s;
-
-    ngpu_darray_init(&s_priv->desc_set_layout_bindings, sizeof(VkDescriptorSetLayoutBinding), 0);
-    ngpu_darray_init(&s_priv->immutable_samplers, sizeof(struct ycbcr_sampler_vk *), 0);
 
     ngpu_darray_set_free_func(&s_priv->immutable_samplers, unref_immutable_sampler, NULL);
 
@@ -172,7 +169,7 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
             .descriptorCount = 1,
             .stageFlags      = get_vk_stage_flags(entry->stage_flags),
         };
-        if (!ngpu_darray_push(&s_priv->desc_set_layout_bindings, &binding))
+        if (ngpu_darray_push(&s_priv->desc_set_layout_bindings, binding) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
 
         ngpu_assert(desc_pool_size_map[entry->type].type);
@@ -193,11 +190,11 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
             struct ngpu_ycbcr_sampler_vk *ycbcr_sampler = entry->immutable_sampler;
             binding.pImmutableSamplers =  &ycbcr_sampler->sampler;
 
-            if (!ngpu_darray_push(&s_priv->immutable_samplers, &ycbcr_sampler))
+            if (ngpu_darray_push(&s_priv->immutable_samplers, ycbcr_sampler) < 0)
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
             ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler);
         }
-        if (!ngpu_darray_push(&s_priv->desc_set_layout_bindings, &binding))
+        if (ngpu_darray_push(&s_priv->desc_set_layout_bindings, binding) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
 
         ngpu_assert(desc_pool_size_map[entry->type].type);
@@ -206,8 +203,8 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
 
     const VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = (uint32_t)ngpu_darray_count(&s_priv->desc_set_layout_bindings),
-        .pBindings    = ngpu_darray_data(&s_priv->desc_set_layout_bindings),
+        .bindingCount = (uint32_t)s_priv->desc_set_layout_bindings.count,
+        .pBindings    = s_priv->desc_set_layout_bindings.data,
     };
 
     VkResult res = vk->funcs.CreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s_priv->desc_set_layout);
@@ -220,7 +217,6 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
             s_priv->desc_pool_sizes[s_priv->desc_pool_size_count++] = desc_pool_size_map[i];
     }
 
-    ngpu_darray_init(&s_priv->desc_pools, sizeof(VkDescriptorPool), 0);
     ngpu_darray_set_free_func(&s_priv->desc_pools, destroy_desc_pool, (void *)gpu_ctx);
 
     if (!s_priv->desc_pool_size_count)
@@ -242,10 +238,10 @@ static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layo
 
     *desc_set = VK_NULL_HANDLE;
 
-    for (size_t i = 0; i < ngpu_darray_count(&s_priv->desc_pools); i++) {
-        const size_t pool_index = (i + s_priv->desc_pool_index) % ngpu_darray_count(&s_priv->desc_pools);
+    for (size_t i = 0; i < s_priv->desc_pools.count; i++) {
+        const size_t pool_index = (i + s_priv->desc_pool_index) % s_priv->desc_pools.count;
 
-        VkDescriptorPool *desc_pool = ngpu_darray_get(&s_priv->desc_pools, pool_index);
+        VkDescriptorPool *desc_pool = &s_priv->desc_pools.data[pool_index];
         const VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
             .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool     = *desc_pool,
@@ -267,7 +263,7 @@ static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layo
     if (res != VK_SUCCESS)
         return res;
 
-    VkDescriptorPool *desc_pool = ngpu_darray_get(&s_priv->desc_pools, s_priv->desc_pool_index);
+    VkDescriptorPool *desc_pool = &s_priv->desc_pools.data[s_priv->desc_pool_index];
     const VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool     = *desc_pool,
@@ -343,9 +339,6 @@ int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup
 
     s->layout = NGPU_RC_REF(params->layout);
 
-    ngpu_darray_init(&s_priv->texture_bindings, sizeof(struct texture_binding_vk), 0);
-    ngpu_darray_init(&s_priv->buffer_bindings, sizeof(struct buffer_binding_vk), 0);
-
     ngpu_darray_set_free_func(&s_priv->texture_bindings, unref_texture_binding, NULL);
     ngpu_darray_set_free_func(&s_priv->buffer_bindings, unref_buffer_binding, NULL);
 
@@ -357,15 +350,13 @@ int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup
     const struct ngpu_bindgroup_layout *layout = s->layout;
     for (size_t i = 0; i < layout->nb_buffers; i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &layout->buffers[i];
-        const struct buffer_binding_vk binding = {.layout_entry = *entry};
-        if (!ngpu_darray_push(&s_priv->buffer_bindings, &binding))
+        if (ngpu_darray_push(&s_priv->buffer_bindings, (struct buffer_binding_vk){.layout_entry = *entry}) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     for (size_t i = 0; i < layout->nb_textures; i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &layout->textures[i];
-        const struct texture_binding_vk binding = {.layout_entry = *entry};
-        if (!ngpu_darray_push(&s_priv->texture_bindings, &binding))
+        if (ngpu_darray_push(&s_priv->texture_bindings, (struct texture_binding_vk){.layout_entry = *entry}) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -391,7 +382,7 @@ int ngpu_bindgroup_vk_update_texture(struct ngpu_bindgroup *s, uint32_t index, c
     struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
 
-    struct texture_binding_vk *binding_vk = ngpu_darray_get(&s_priv->texture_bindings, index);
+    struct texture_binding_vk *binding_vk = &s_priv->texture_bindings.data[index];
 
     NGPU_RC_UNREFP(&binding_vk->texture);
 
@@ -409,7 +400,7 @@ int ngpu_bindgroup_vk_update_buffer(struct ngpu_bindgroup *s, uint32_t index, co
 {
     struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
 
-    struct buffer_binding_vk *binding_vk = ngpu_darray_get(&s_priv->buffer_bindings, index);
+    struct buffer_binding_vk *binding_vk = &s_priv->buffer_bindings.data[index];
 
     NGPU_RC_UNREFP(&binding_vk->buffer);
 
@@ -431,9 +422,7 @@ int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
-    struct texture_binding_vk *texture_bindings = ngpu_darray_data(&s_priv->texture_bindings);
-    for (size_t i = 0; i < ngpu_darray_count(&s_priv->texture_bindings); i++) {
-        struct texture_binding_vk *binding = &texture_bindings[i];
+    ngpu_darray_foreach(binding, &s_priv->texture_bindings) {
         if (binding->update_desc) {
             const struct ngpu_texture_vk *texture_vk = (struct ngpu_texture_vk *)binding->texture;
             const VkDescriptorImageInfo image_info = {
@@ -456,9 +445,7 @@ int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
         }
     }
 
-    struct buffer_binding_vk *buffer_bindings = ngpu_darray_data(&s_priv->buffer_bindings);
-    for (size_t i = 0; i < ngpu_darray_count(&s_priv->buffer_bindings); i++) {
-        struct buffer_binding_vk *binding = &buffer_bindings[i];
+    ngpu_darray_foreach(binding, &s_priv->buffer_bindings) {
         if (binding->update_desc) {
             ngpu_assert(binding->buffer);
             const struct ngpu_bindgroup_layout_entry *desc = &binding->layout_entry;

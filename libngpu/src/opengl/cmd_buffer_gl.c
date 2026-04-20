@@ -32,6 +32,7 @@
 #include "opengl/pipeline_gl.h"
 #include "opengl/rendertarget_gl.h"
 
+#include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/refcount.h"
 
@@ -39,9 +40,9 @@ struct ngpu_cmd_buffer_gl {
     struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_fence *fence;
-    struct ngpu_darray cmds; // array of cmd_gl
-    struct ngpu_darray refs; // array of ngpu_rc pointers
-    struct ngpu_darray buffer_refs; // array of ngpu_buffer pointers
+    NGPU_DARRAY(struct ngpu_cmd_gl) cmds;
+    NGPU_DARRAY(struct ngpu_rc *) refs;
+    NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
 };
 
 static void cmd_buffer_gl_freep(void **sp)
@@ -99,10 +100,7 @@ int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s)
     if (!s->fence)
         return NGPU_ERROR_MEMORY;
 
-    ngpu_darray_init(&s->cmds, sizeof(struct ngpu_cmd_gl), 0);
-    ngpu_darray_init(&s->refs, sizeof(struct ngpu_rc *), 0);
     ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
-    ngpu_darray_init(&s->buffer_refs, sizeof(struct ngpu_buffer *), 0);
     ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
 
     return 0;
@@ -110,7 +108,7 @@ int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s)
 
 int ngpu_cmd_buffer_gl_ref(struct ngpu_cmd_buffer_gl *s, struct ngpu_rc *rc)
 {
-    if (!ngpu_darray_push(&s->refs, &rc))
+    if (ngpu_darray_push(&s->refs, rc) < 0)
         return NGPU_ERROR_MEMORY;
 
     NGPU_RC_REF(rc);
@@ -124,7 +122,7 @@ int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buff
     if (ret < 0)
         return ret;
 
-    if (!ngpu_darray_push(&s->buffer_refs, &buffer))
+    if (ngpu_darray_push(&s->buffer_refs, buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
     NGPU_RC_REF(buffer);
@@ -144,7 +142,7 @@ int ngpu_cmd_buffer_gl_begin(struct ngpu_cmd_buffer_gl *s)
 
 int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_gl *cmd)
 {
-    if (!ngpu_darray_push(&s->cmds, cmd))
+    if (ngpu_darray_push(&s->cmds, *cmd) < 0)
         return NGPU_ERROR_MEMORY;
 
     return 0;
@@ -159,10 +157,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
     struct ngpu_rendertarget *cur_rendertarget = NULL;
     struct ngpu_pipeline *cur_pipeline = NULL;
 
-    const struct ngpu_cmd_gl *cmds = ngpu_darray_data(&s->cmds);
-    for (size_t i = 0; i < ngpu_darray_count(&s->cmds); i++) {
-        const struct ngpu_cmd_gl *cmd = &cmds[i];
-
+    ngpu_darray_foreach(cmd, &s->cmds) {
         switch (cmd->type) {
         case NGPU_CMD_TYPE_GL_SET_INDEX_BUFFER: {
             gpu_ctx->index_buffer = cmd->set_index_buffer.buffer;
