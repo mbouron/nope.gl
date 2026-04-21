@@ -33,6 +33,8 @@
 
 #define NB_BINDGROUPS 16
 
+NGLI_DECLARE_DARRAY_WITH_NAME(bindgroup_darray, struct ngpu_bindgroup *);
+
 struct pipeline_compat {
     struct ngpu_ctx *gpu_ctx;
     enum ngpu_pipeline_type type;
@@ -41,7 +43,7 @@ struct pipeline_compat {
     struct ngpu_pipeline *pipeline;
     struct ngpu_bindgroup_layout_desc bindgroup_layout_desc;
     struct ngpu_bindgroup_layout *bindgroup_layout;
-    struct darray bindgroups;
+    struct bindgroup_darray bindgroups;
     struct ngpu_bindgroup *cur_bindgroup;
     size_t cur_bindgroup_index;
     const struct ngpu_buffer **vertex_buffers;
@@ -76,9 +78,8 @@ static int grow_bindgroup_array(struct pipeline_compat *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
-    size_t count = ngli_darray_count(&s->bindgroups);
+    size_t count = s->bindgroups.count;
     if (count == 0) {
-        ngli_darray_init(&s->bindgroups, sizeof(struct ngpu_bindgroup *), 0);
         ngli_darray_set_free_func(&s->bindgroups, free_bindgroup, NULL);
         count = NB_BINDGROUPS;
     }
@@ -104,7 +105,7 @@ static int grow_bindgroup_array(struct pipeline_compat *s)
             return ret;
         }
 
-        if (!ngli_darray_push(&s->bindgroups, &bindgroup)) {
+        if (ngli_darray_push(&s->bindgroups, bindgroup) < 0) {
             ngpu_bindgroup_freep(&bindgroup);
             return NGL_ERROR_MEMORY;
         }
@@ -146,7 +147,7 @@ static int create_pipeline(struct pipeline_compat *s)
     if (ret < 0)
         return ret;
 
-    s->cur_bindgroup = *(struct ngpu_bindgroup **)ngli_darray_get(&s->bindgroups, 0);
+    s->cur_bindgroup = *ngli_darray_get(&s->bindgroups, 0);
     s->cur_bindgroup_index = 0;
 
     /* Initialize bindgroup before first pipeline execution */
@@ -393,8 +394,8 @@ static int select_next_available_bindgroup(struct pipeline_compat *s)
         return 0;
 
     /* Otherwhise, check if next bindgroup is available  */
-    size_t bindgroup_index = (s->cur_bindgroup_index + 1) % ngli_darray_count(&s->bindgroups);
-    struct ngpu_bindgroup *bindgroup = *(struct ngpu_bindgroup **)ngli_darray_get(&s->bindgroups, bindgroup_index);
+    size_t bindgroup_index = (s->cur_bindgroup_index + 1) % s->bindgroups.count;
+    struct ngpu_bindgroup *bindgroup = *ngli_darray_get(&s->bindgroups, bindgroup_index);
     if (ngpu_bindgroup_get_refcount(bindgroup) == 1) {
         s->cur_bindgroup = bindgroup;
         s->cur_bindgroup_index = bindgroup_index;
@@ -405,14 +406,14 @@ static int select_next_available_bindgroup(struct pipeline_compat *s)
      * If it is not, save next newly-allocated bind group index and increase
      * our bindgroup pool size
      */
-    bindgroup_index = ngli_darray_count(&s->bindgroups);
+    bindgroup_index = s->bindgroups.count;
 
     int ret = grow_bindgroup_array(s);
     if (ret < 0)
         return ret;
 
     /* Select bindgroup and assert that it is not in use */
-    s->cur_bindgroup = *(struct ngpu_bindgroup **)ngli_darray_get(&s->bindgroups, bindgroup_index);
+    s->cur_bindgroup = *ngli_darray_get(&s->bindgroups, bindgroup_index);
     s->cur_bindgroup_index = bindgroup_index;
     ngli_assert(ngpu_bindgroup_get_refcount(s->cur_bindgroup) == 1);
 

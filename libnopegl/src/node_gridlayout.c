@@ -40,7 +40,7 @@ struct gridlayout_opts {
 
 struct gridlayout_priv {
     struct transform trf;
-    struct darray matrices; // float[4*4]
+    struct ngli_mat4_darray matrices;
 };
 
 #define OFFSET(x) offsetof(struct gridlayout_opts, x)
@@ -72,8 +72,6 @@ static int gridlayout_init(struct ngl_node *node)
 
     ngli_assert((int32_t)n <= rows * cols);
 
-    ngli_darray_init(&s->matrices, sizeof(float[4 * 4]), NGLI_DARRAY_FLAG_ALIGNED);
-
     const float scale_x = 1.f / (float)cols;
     const float scale_y = 1.f / (float)rows;
 
@@ -89,7 +87,7 @@ static int gridlayout_init(struct ngl_node *node)
                 0, 0, 1, 0,
                 pos_x, pos_y, 0, 1,
             }};
-            if (!ngli_darray_push(&s->matrices, matrix.m))
+            if (ngli_darray_push(&s->matrices, matrix) < 0)
                 return NGL_ERROR_MEMORY;
             if (++i == o->nb_children)
                 return 0;
@@ -104,11 +102,9 @@ static void gridlayout_draw(struct ngl_node *node)
     struct gridlayout_priv *s = node->priv_data;
     const struct gridlayout_opts *o = node->opts;
 
-    const float *matrices = ngli_darray_data(&s->matrices);
     for (size_t i = 0; i < o->nb_children; i++) {
         s->trf.child = o->children[i];
-        const float *matrix = &matrices[i * 4 * 4];
-        memcpy(s->trf.matrix.m, matrix, sizeof(s->trf.matrix.m));
+        s->trf.matrix = s->matrices.data[i];
         ngli_transform_draw(node);
     }
 }

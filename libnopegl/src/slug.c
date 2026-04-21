@@ -42,18 +42,21 @@ struct curve {
     float p3[2]; /* end point */
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(curve_darray, struct curve);
+NGLI_DECLARE_DARRAY_WITH_NAME(slug_texel_darray, struct ngli_vec4);
+
 struct glyph_entry {
     struct slug_glyph_data data;
-    struct darray curves; /* struct curve */
+    struct curve_darray curves; /* struct curve */
 };
 
 struct slug {
     struct ngl_ctx *ctx;
-    struct darray glyphs; /* struct glyph_entry */
+    NGLI_DARRAY(struct glyph_entry) glyphs;
 
     /* Packed texture data (built during finalize) */
-    struct darray curve_texels; /* float[4] per texel */
-    struct darray band_texels;  /* float[4] per texel */
+    struct slug_texel_darray curve_texels; /* float[4] per texel */
+    struct slug_texel_darray band_texels;  /* float[4] per texel */
     int32_t curve_texture_height;
     int32_t band_texture_height;
 
@@ -109,9 +112,6 @@ static int ensure_texture_capacity(struct slug *s, struct ngpu_texture **texture
 
 int ngli_slug_init(struct slug *s)
 {
-    ngli_darray_init(&s->glyphs, sizeof(struct glyph_entry), 0);
-    ngli_darray_init(&s->curve_texels, 4 * sizeof(float), 0);
-    ngli_darray_init(&s->band_texels, 4 * sizeof(float), 0);
     return 0;
 }
 
@@ -140,11 +140,11 @@ void ngli_slug_release(struct slug *s)
  * Convert path segments to quadratic bezier curves and collect them.
  */
 static int collect_curves(struct slug *s, const struct path *path, uint32_t flags,
-                          struct darray *curves_out, float bounds[4])
+                          struct curve_darray *curves_out, float bounds[4])
 {
-    const struct darray *segments = ngli_path_get_segments(path);
-    const struct path_segment *segs = ngli_darray_data(segments);
-    const size_t nb_segs = ngli_darray_count(segments);
+    const struct ngli_path_segment_darray *segments = ngli_path_get_segments(path);
+    const struct path_segment *segs = segments->data;
+    const size_t nb_segs = segments->count;
 
     float last[2] = {0.f, 0.f};
     float subpath_start[2] = {0.f, 0.f};
@@ -164,7 +164,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                         .p2 = {(last[0] + subpath_start[0]) * .5f, (last[1] + subpath_start[1]) * .5f},
                         .p3 = {subpath_start[0], subpath_start[1]},
                     };
-                    if (!ngli_darray_push(curves_out, &closing))
+                    if (ngli_darray_push(curves_out, closing) < 0)
                         return NGL_ERROR_MEMORY;
                 }
             }
@@ -182,7 +182,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {(start[0] + end[0]) * .5f, (start[1] + end[1]) * .5f},
                 .p3 = {end[0], end[1]},
             };
-            if (!ngli_darray_push(curves_out, &c))
+            if (ngli_darray_push(curves_out, c) < 0)
                 return NGL_ERROR_MEMORY;
             last[0] = end[0];
             last[1] = end[1];
@@ -193,7 +193,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {seg->bezier_x[1], seg->bezier_y[1]},
                 .p3 = {seg->bezier_x[2], seg->bezier_y[2]},
             };
-            if (!ngli_darray_push(curves_out, &c))
+            if (ngli_darray_push(curves_out, c) < 0)
                 return NGL_ERROR_MEMORY;
             last[0] = seg->bezier_x[2];
             last[1] = seg->bezier_y[2];
@@ -214,7 +214,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                     .p2 = {quads[2 * j + 1].x, quads[2 * j + 1].y},
                     .p3 = {quads[2 * j + 2].x, quads[2 * j + 2].y},
                 };
-                if (!ngli_darray_push(curves_out, &c))
+                if (ngli_darray_push(curves_out, c) < 0)
                     return NGL_ERROR_MEMORY;
             }
             last[0] = seg->bezier_x[3];
@@ -238,7 +238,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {(last[0] + subpath_start[0]) * .5f, (last[1] + subpath_start[1]) * .5f},
                 .p3 = {subpath_start[0], subpath_start[1]},
             };
-            if (!ngli_darray_push(curves_out, &closing))
+            if (ngli_darray_push(curves_out, closing) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -250,7 +250,6 @@ int ngli_slug_add_glyph(struct slug *s, const struct path *path, uint32_t flags,
                         float glyph_w, float glyph_h)
 {
     struct glyph_entry entry = {0};
-    ngli_darray_init(&entry.curves, sizeof(struct curve), 0);
 
     float bounds[4];
     int ret = collect_curves(s, path, flags, &entry.curves, bounds);
@@ -272,13 +271,13 @@ int ngli_slug_add_glyph(struct slug *s, const struct path *path, uint32_t flags,
         entry.data.em_bounds[3] = bounds[3];
     }
 
-    if (!ngli_darray_push(&s->glyphs, &entry)) {
+    if (ngli_darray_push(&s->glyphs, entry) < 0) {
         ngli_darray_reset(&entry.curves);
         return NGL_ERROR_MEMORY;
     }
 
     /* Return glyph index; full data available after ngli_slug_finalize() via ngli_slug_get_glyph_data() */
-    return (int)ngli_darray_count(&s->glyphs) - 1;
+    return (int)s->glyphs.count - 1;
 }
 
 struct band_entry {
@@ -297,19 +296,19 @@ static int cmp_band_entry_desc(const void *a, const void *b)
     return 0;
 }
 
-static int push_texel(struct darray *texels, float x, float y, float z, float w)
+static int push_texel(struct slug_texel_darray *texels, float x, float y, float z, float w)
 {
-    const float v[4] = {x, y, z, w};
-    if (!ngli_darray_push(texels, v))
+    const struct ngli_vec4 v = {{x, y, z, w}};
+    if (ngli_darray_push(texels, v) < 0)
         return NGL_ERROR_MEMORY;
     return 0;
 }
 
-static int upload_texture(struct slug *s, struct darray *texels,
+static int upload_texture(struct slug *s, struct slug_texel_darray *texels,
                           struct ngpu_texture **texturep, int32_t *capacity,
                           int32_t *texture_height)
 {
-    const size_t nb_texels = ngli_darray_count(texels);
+    const size_t nb_texels = texels->count;
     *texture_height = nb_texels > 0 ? (int32_t)((nb_texels + NGLI_SLUG_BAND_TEX_WIDTH - 1) / NGLI_SLUG_BAND_TEX_WIDTH) : 1;
 
     int ret = ensure_texture_capacity(s, texturep, capacity, *texture_height);
@@ -317,32 +316,30 @@ static int upload_texture(struct slug *s, struct darray *texels,
         return ret;
 
     /* Pad to full allocated capacity */
-    while (ngli_darray_count(texels) < (size_t)(*capacity * NGLI_SLUG_BAND_TEX_WIDTH)) {
+    while (texels->count < (size_t)(*capacity * NGLI_SLUG_BAND_TEX_WIDTH)) {
         ret = push_texel(texels, 0.f, 0.f, 0.f, 0.f);
         if (ret < 0)
             return NGL_ERROR_MEMORY;
     }
 
-    return ngpu_texture_upload(*texturep, (const uint8_t *)ngli_darray_data(texels), 0);
+    return ngpu_texture_upload(*texturep, (const uint8_t *)texels->data, 0);
 }
 
 static int finalize_internal(struct slug *s)
 {
     int ret = 0;
 
-    struct glyph_entry *glyphs = ngli_darray_data(&s->glyphs);
-    const size_t nb_glyphs = ngli_darray_count(&s->glyphs);
+    const size_t nb_glyphs = s->glyphs.count;
 
     int32_t curve_pos = 0;
     int32_t band_pos = 0;
 
-    struct darray band_entries;
-    ngli_darray_init(&band_entries, sizeof(struct band_entry), 0);
+    NGLI_DARRAY(struct band_entry) band_entries = {0};
 
     for (size_t g = 0; g < nb_glyphs; g++) {
-        struct glyph_entry *glyph = &glyphs[g];
-        const struct curve *curves = ngli_darray_data(&glyph->curves);
-        const size_t nb_curves = ngli_darray_count(&glyph->curves);
+        struct glyph_entry *glyph = &s->glyphs.data[g];
+        const struct curve *curves = glyph->curves.data;
+        const size_t nb_curves = glyph->curves.count;
 
         /* Write all curves for this glyph to the curve texture */
         const int32_t glyph_curve_start = curve_pos;
@@ -424,7 +421,7 @@ static int finalize_internal(struct slug *s)
                 if (max_y >= band_y0 && min_y <= band_y1) {
                     const float max_x = NGLI_MAX(NGLI_MAX(c->p1[0], c->p2[0]), c->p3[0]);
                     const struct band_entry e = {.curve_index = (int32_t)ci, .sort_key = max_x};
-                    if (!ngli_darray_push(&band_entries, &e)) {
+                    if (ngli_darray_push(&band_entries, e) < 0) {
                         ret = NGL_ERROR_MEMORY;
                         goto end;
                     }
@@ -432,20 +429,19 @@ static int finalize_internal(struct slug *s)
             }
 
             /* Sort by descending max-x */
-            struct band_entry *entries = ngli_darray_data(&band_entries);
-            const size_t nb_entries = ngli_darray_count(&band_entries);
+            const size_t nb_entries = band_entries.count;
             if (nb_entries > 1)
-                qsort(entries, nb_entries, sizeof(*entries), cmp_band_entry_desc);
+                qsort(band_entries.data, nb_entries, sizeof(*band_entries.data), cmp_band_entry_desc);
 
             /* Write band header: (count, offset_to_curve_list, 0, 0) */
             const int32_t offset = band_pos - header_start;
-            float *header = (float *)ngli_darray_data(&s->band_texels) + (size_t)(header_start + j) * 4;
+            float *header = (float *)s->band_texels.data + (size_t)(header_start + j) * 4;
             header[0] = (float)nb_entries;
             header[1] = (float)offset;
 
             /* Write curve locations for this band */
             for (size_t ei = 0; ei < nb_entries; ei++) {
-                const int32_t ci = entries[ei].curve_index;
+                const int32_t ci = band_entries.data[ei].curve_index;
                 const int32_t curve_texel = glyph_curve_start + ci * 2;
                 const int32_t cx = curve_texel % NGLI_SLUG_BAND_TEX_WIDTH;
                 const int32_t cy = curve_texel / NGLI_SLUG_BAND_TEX_WIDTH;
@@ -469,26 +465,25 @@ static int finalize_internal(struct slug *s)
                 if (max_x >= band_x0 && min_x <= band_x1) {
                     const float max_y = NGLI_MAX(NGLI_MAX(c->p1[1], c->p2[1]), c->p3[1]);
                     const struct band_entry e = {.curve_index = (int32_t)ci, .sort_key = max_y};
-                    if (!ngli_darray_push(&band_entries, &e)) {
+                    if (ngli_darray_push(&band_entries, e) < 0) {
                         ret = NGL_ERROR_MEMORY;
                         goto end;
                     }
                 }
             }
 
-            struct band_entry *entries = ngli_darray_data(&band_entries);
-            const size_t nb_entries = ngli_darray_count(&band_entries);
+            const size_t nb_entries = band_entries.count;
             if (nb_entries > 1)
-                qsort(entries, nb_entries, sizeof(*entries), cmp_band_entry_desc);
+                qsort(band_entries.data, nb_entries, sizeof(*band_entries.data), cmp_band_entry_desc);
 
             /* Write band header at offset nb_hbands + j from glyph start */
             const int32_t offset = band_pos - header_start;
-            float *header = (float *)ngli_darray_data(&s->band_texels) + (size_t)(header_start + nb_hbands + j) * 4;
+            float *header = (float *)s->band_texels.data + (size_t)(header_start + nb_hbands + j) * 4;
             header[0] = (float)nb_entries;
             header[1] = (float)offset;
 
             for (size_t ei = 0; ei < nb_entries; ei++) {
-                const int32_t ci = entries[ei].curve_index;
+                const int32_t ci = band_entries.data[ei].curve_index;
                 const int32_t curve_texel = glyph_curve_start + ci * 2;
                 const int32_t cx = curve_texel % NGLI_SLUG_BAND_TEX_WIDTH;
                 const int32_t cy = curve_texel / NGLI_SLUG_BAND_TEX_WIDTH;
@@ -522,13 +517,12 @@ int ngli_slug_finalize(struct slug *s)
 
 size_t ngli_slug_get_glyph_count(const struct slug *s)
 {
-    return ngli_darray_count(&s->glyphs);
+    return s->glyphs.count;
 }
 
 void ngli_slug_get_glyph_data(const struct slug *s, int32_t index, struct slug_glyph_data *out)
 {
-    const struct glyph_entry *glyphs = ngli_darray_data(&s->glyphs);
-    *out = glyphs[index].data;
+    *out = s->glyphs.data[index].data;
 }
 
 struct ngpu_texture *ngli_slug_get_curve_texture(const struct slug *s)
@@ -547,9 +541,8 @@ void ngli_slug_freep(struct slug **sp)
     if (!s)
         return;
 
-    struct glyph_entry *glyphs = ngli_darray_data(&s->glyphs);
-    for (size_t i = 0; i < ngli_darray_count(&s->glyphs); i++)
-        ngli_darray_reset(&glyphs[i].curves);
+    for (size_t i = 0; i < s->glyphs.count; i++)
+        ngli_darray_reset(&s->glyphs.data[i].curves);
     ngli_darray_reset(&s->glyphs);
     ngli_darray_reset(&s->curve_texels);
     ngli_darray_reset(&s->band_texels);

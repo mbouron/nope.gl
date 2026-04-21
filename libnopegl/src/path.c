@@ -36,6 +36,9 @@ struct path_step {
     uint32_t flags;
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(path_step_darray, struct path_step);
+NGLI_DECLARE_DARRAY_WITH_NAME(path_f32_darray, float);
+
 enum path_state {
     PATH_STATE_DEFAULT,
     PATH_STATE_FINALIZED,
@@ -47,9 +50,9 @@ struct path {
     enum path_state state;
     int current_arc;            /* cached arc index */
     int *arc_to_segment;        /* map arc indexes to segment indexes */
-    struct darray segments;     /* array of struct path_segment */
-    struct darray steps;        /* array of struct path_step */
-    struct darray steps_dist;   /* array of floats */
+    struct ngli_path_segment_darray segments;  /* array of struct path_segment */
+    struct path_step_darray steps;             /* array of struct path_step */
+    struct path_f32_darray steps_dist;         /* array of floats */
     float origin[3];            /* temporary origin for the current sub-path */
     float cursor[3];            /* temporary cursor used during path construction */
     uint32_t segment_flags;     /* temporary segment flags used during path construction */
@@ -61,9 +64,6 @@ struct path *ngli_path_create(void)
     if (!s)
         return NULL;
     s->state = PATH_STATE_DEFAULT;
-    ngli_darray_init(&s->steps, sizeof(struct path_step), 0);
-    ngli_darray_init(&s->steps_dist, sizeof(float), 0);
-    ngli_darray_init(&s->segments, sizeof(struct path_segment), 0);
     return s;
 }
 
@@ -106,7 +106,7 @@ static void poly_from_bezier3(float *dst, float p0, float p1, float p2, float p3
 static int add_segment_and_move(struct path *s, const struct path_segment *segment, const float *to)
 {
     ngli_assert(s->state == PATH_STATE_DEFAULT);
-    if (!ngli_darray_push(&s->segments, segment))
+    if (ngli_darray_push(&s->segments, *segment) < 0)
         return NGL_ERROR_MEMORY;
     memcpy(s->cursor, to, sizeof(s->cursor));
     s->segment_flags &= ~NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN;
@@ -115,13 +115,15 @@ static int add_segment_and_move(struct path *s, const struct path_segment *segme
 
 static void set_segment_closing_flag(struct path *s)
 {
+    if (ngli_darray_is_empty(&s->segments))
+        return;
     struct path_segment *last = ngli_darray_tail(&s->segments);
 
     /*
      * The flag check prevents the case where 2 successive moves would set the
      * closing flag.
      */
-    if (!last || (last->flags & (NGLI_PATH_SEGMENT_FLAG_CLOSING | NGLI_PATH_SEGMENT_FLAG_OPEN_END)))
+    if (last->flags & (NGLI_PATH_SEGMENT_FLAG_CLOSING | NGLI_PATH_SEGMENT_FLAG_OPEN_END))
         return;
 
     const int origin_is_dst = !memcmp(s->origin, s->cursor, sizeof(s->cursor));
@@ -192,7 +194,6 @@ int ngli_path_close(struct path *s)
         return ret;
 
     struct path_segment *last = ngli_darray_tail(&s->segments);
-    ngli_assert(last);
     last->flags |= NGLI_PATH_SEGMENT_FLAG_CLOSING;
     return 0;
 }
@@ -300,10 +301,9 @@ int ngli_path_add_path(struct path *s, const struct path *path)
 {
     ngli_assert(s->state == PATH_STATE_DEFAULT);
 
-    const struct path_segment *segments = ngli_darray_data(&path->segments);
-    for (size_t i = 0; i < ngli_darray_count(&path->segments); i++) {
-        const struct path_segment *segment = &segments[i];
-        if (!ngli_darray_push(&s->segments, segment))
+    for (size_t i = 0; i < path->segments.count; i++) {
+        const struct path_segment *segment = &path->segments.data[i];
+        if (ngli_darray_push(&s->segments, *segment) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -336,9 +336,8 @@ void ngli_path_transform(struct path *s, const float *matrix)
      */
     ngli_assert(s->state != PATH_STATE_INITIALIZED);
 
-    struct path_segment *segments = ngli_darray_data(&s->segments);
-    for (size_t i = 0; i < ngli_darray_count(&s->segments); i++) {
-        struct path_segment *segment = &segments[i];
+    for (size_t i = 0; i < s->segments.count; i++) {
+        struct path_segment *segment = &s->segments.data[i];
 
         const float *x = segment->bezier_x;
         const float *y = segment->bezier_y;
@@ -405,14 +404,14 @@ int ngli_path_init(struct path *s, int32_t precision)
     }
     s->precision = precision;
 
-    const size_t nb_segments = ngli_darray_count(&s->segments);
+    const size_t nb_segments = s->segments.count;
     if (nb_segments < 1) {
         LOG(ERROR, "at least one segment must be defined");
         return NGL_ERROR_INVALID_ARG;
     }
 
     /* Compute polynomial forms from bézier points */
-    struct path_segment *segments = ngli_darray_data(&s->segments);
+    struct path_segment *segments = s->segments.data;
     for (size_t i = 0; i < nb_segments; i++) {
         struct path_segment *segment = &segments[i];
 
@@ -458,7 +457,7 @@ int ngli_path_init(struct path *s, int32_t precision)
          * We're not using 1/(P-1) but 1/P for the scale because each segment is
          * composed of P+1 step points.
          */
-        segment->step_start = (int)ngli_darray_count(&s->steps);
+        segment->step_start = (int)s->steps.count;
         segment->time_scale = 1.f / (float)segment_precision;
 
         /*
@@ -471,7 +470,7 @@ int ngli_path_init(struct path *s, int32_t precision)
             const float t = (float)k * segment->time_scale;
             struct path_step step = {.segment_id=(int)i};
             poly_eval(step.position, segment, t);
-            if (!ngli_darray_push(&s->steps, &step))
+            if (ngli_darray_push(&s->steps, step) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -485,7 +484,7 @@ int ngli_path_init(struct path *s, int32_t precision)
         if (i == nb_segments - 1 || (segments[i + 1].flags & NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN)) {
             struct path_step step = {.segment_id=(int)i, .flags = STEP_FLAG_DISCONTINUITY};
             poly_eval(step.position, segment, 1.f);
-            if (!ngli_darray_push(&s->steps, &step))
+            if (ngli_darray_push(&s->steps, step) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -495,11 +494,11 @@ int ngli_path_init(struct path *s, int32_t precision)
      */
     float total_length = 0.f;
 
-    if (!ngli_darray_push(&s->steps_dist, &total_length))
+    if (ngli_darray_push(&s->steps_dist, total_length) < 0)
         return NGL_ERROR_MEMORY;
 
-    const struct path_step *steps = ngli_darray_data(&s->steps);
-    for (size_t i = 1; i < ngli_darray_count(&s->steps); i++) {
+    const struct path_step *steps = s->steps.data;
+    for (size_t i = 1; i < s->steps.count; i++) {
         const struct path_step *prv_step = &steps[i - 1];
         const struct path_step *cur_step = &steps[i];
 
@@ -509,7 +508,7 @@ int ngli_path_init(struct path *s, int32_t precision)
             const float arc_length = ngli_vec3_length(arc_vec);
             total_length += arc_length;
         }
-        if (!ngli_darray_push(&s->steps_dist, &total_length))
+        if (ngli_darray_push(&s->steps_dist, total_length) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -517,22 +516,21 @@ int ngli_path_init(struct path *s, int32_t precision)
      * We have the same number of steps and distances between these steps
      * because the first step starts with a distance of 0.
      */
-    ngli_assert(ngli_darray_count(&s->steps) == ngli_darray_count(&s->steps_dist));
+    ngli_assert(s->steps.count == s->steps_dist.count);
 
     /*
      * Sanity check for get_vector_id(). We have it here to avoid having the
      * assert called redundantly in the inner loop.
      */
-    ngli_assert(ngli_darray_count(&s->steps_dist) > 1); // checks if number of arcs >= 1
+    ngli_assert(s->steps_dist.count > 1); // checks if number of arcs >= 1
 
     /* Normalize distances (relative to the total length of the path) */
-    float *steps_dist = ngli_darray_data(&s->steps_dist);
     const float scale = total_length != 0.f ? 1.f / total_length : 0.f;
-    for (size_t i = 0; i < ngli_darray_count(&s->steps_dist); i++)
-        steps_dist[i] *= scale;
+    for (size_t i = 0; i < s->steps_dist.count; i++)
+        s->steps_dist.data[i] *= scale;
 
     /* Build a lookup table associating an arc to its segment */
-    const size_t nb_arcs = ngli_darray_count(&s->steps) - 1;
+    const size_t nb_arcs = s->steps.count - 1;
     s->arc_to_segment = ngli_calloc(nb_arcs, sizeof(*s->arc_to_segment));
     if (!s->arc_to_segment)
         return NGL_ERROR_MEMORY;
@@ -620,12 +618,11 @@ static float remap(float a, float b, float c, float d, float x)
  */
 void ngli_path_evaluate(struct path *s, float *dst, float distance)
 {
-    const float *distances = ngli_darray_data(&s->steps_dist);
-    const int nb_dists = (int)ngli_darray_count(&s->steps_dist);
+    const float *distances = s->steps_dist.data;
+    const int nb_dists = (int)s->steps_dist.count;
     const int arc_id = get_vector_id(distances, nb_dists, &s->current_arc, distance);
     const int segment_id = s->arc_to_segment[arc_id];
-    const struct path_segment *segments = ngli_darray_data(&s->segments);
-    const struct path_segment *segment = &segments[segment_id];
+    const struct path_segment *segment = &s->segments.data[segment_id];
     const int step0 = arc_id;
     const int step1 = arc_id + 1;
     const float t0 = (float)(step0 - segment->step_start) * segment->time_scale;
@@ -636,7 +633,7 @@ void ngli_path_evaluate(struct path *s, float *dst, float distance)
     poly_eval(dst, segment, t);
 }
 
-const struct darray *ngli_path_get_segments(const struct path *s)
+const struct ngli_path_segment_darray *ngli_path_get_segments(const struct path *s)
 {
     ngli_assert(s->state == PATH_STATE_INITIALIZED || s->state == PATH_STATE_FINALIZED);
     return &s->segments;

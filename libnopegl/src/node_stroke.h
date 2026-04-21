@@ -52,11 +52,10 @@ struct stroke_uniform_def {
 struct stroke_info {
     uint32_t helper_flags;                              /* STROKE_HELPER_* bitmask */
     const char *glsl;                                   /* ngli_stroke_color() function body */
-    struct darray uniforms;                             /* array of struct stroke_uniform_def */
+    NGLI_DARRAY(struct stroke_uniform_def) uniforms;
     const void *opts;                                   /* pointer to stroke node opts struct */
 };
 
-void ngli_stroke_info_init(struct stroke_info *si);
 void ngli_stroke_info_reset(struct stroke_info *si);
 
 struct stroke_base_opts {

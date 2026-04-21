@@ -227,10 +227,12 @@ struct token {
     int nb_args;
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(token_darray, struct token);
+
 struct eval {
-    struct darray tokens;       // user input, infix notation
-    struct darray tmp_stack;    // temporary token stack
-    struct darray output;       // tokens in in RPN
+    struct token_darray tokens;       // user input, infix notation
+    struct token_darray tmp_stack;    // temporary token stack
+    struct token_darray output;       // tokens in in RPN
     struct hmap *funcs;         // hash map of functions_map
     struct hmap *consts;        // hash map of constants_map
     const struct hmap *vars;    // hash map of user variables
@@ -241,9 +243,6 @@ struct eval *ngli_eval_create(void)
     struct eval *s = ngli_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-    ngli_darray_init(&s->tokens, sizeof(struct token), 0);
-    ngli_darray_init(&s->tmp_stack, sizeof(struct token), 0);
-    ngli_darray_init(&s->output, sizeof(struct token), 0);
     return s;
 }
 
@@ -259,7 +258,7 @@ static int get_binary_operator_precedence(char operator)
 }
 
 #define PUSH(dst, token) do {               \
-    if (!ngli_darray_push(dst, token))      \
+    if (ngli_darray_push(dst, *(token)) < 0) \
         return NGL_ERROR_MEMORY;            \
 } while (0)
 
@@ -471,13 +470,14 @@ static int missing_argument(const struct token *token, int got)
  * Check that the operator has the expected number of arguments by consuming
  * the stack.
  */
-static int check_operator_pop(struct darray *stack, const struct token *token)
+static int check_operator_pop(struct token_darray *stack, const struct token *token)
 {
     ngli_assert(token->nb_args >= 1 || token->nb_args <= 3);
 
     for (int i = 0; i < token->nb_args; i++) {
-        if (!ngli_darray_pop(stack))
-            return missing_argument(token, 0);
+        if (ngli_darray_is_empty(stack))
+            return missing_argument(token, i);
+        ngli_darray_pop(stack);
     }
 
     return 0;
@@ -494,13 +494,12 @@ static int check_operator_pop(struct darray *stack, const struct token *token)
  */
 static int prepare_eval_run(struct eval *s)
 {
-    struct darray *stack = &s->tmp_stack;
+    struct token_darray *stack = &s->tmp_stack;
 
     ngli_darray_clear(stack);
 
-    const struct token *tokens = ngli_darray_data(&s->output);
-    for (size_t i = 0; i < ngli_darray_count(&s->output); i++) {
-        const struct token *token = &tokens[i];
+    for (size_t i = 0; i < s->output.count; i++) {
+        const struct token *token = &s->output.data[i];
 
         if (token->type == TOKEN_CONSTANT || token->type == TOKEN_VARIABLE) {
             PUSH(stack, token);
@@ -513,7 +512,7 @@ static int prepare_eval_run(struct eval *s)
         }
     }
 
-    const size_t n = ngli_darray_count(stack);
+    const size_t n = stack->count;
     if (n > 1) {
         LOG(ERROR, "detected %zu dangling expressions without operators between them", n);
         return NGL_ERROR_INVALID_DATA;
@@ -540,10 +539,9 @@ static int must_be_processed_first(const struct token *op, const struct token *c
  */
 static int infix_to_rpn(struct eval *s, const char *expr)
 {
-    struct darray *operators = &s->tmp_stack;
-    const struct token *tokens = ngli_darray_data(&s->tokens);
-    for (size_t i = 0; i < ngli_darray_count(&s->tokens); i++) {
-        const struct token *token = &tokens[i];
+    struct token_darray *operators = &s->tmp_stack;
+    for (size_t i = 0; i < s->tokens.count; i++) {
+        const struct token *token = &s->tokens.data[i];
 
         if (token->type == TOKEN_CONSTANT || token->type == TOKEN_VARIABLE) {
             PUSH(&s->output, token);
@@ -557,11 +555,11 @@ static int infix_to_rpn(struct eval *s, const char *expr)
 
         if (token->chr == ')') {
             for (;;) {
-                const struct token *o = ngli_darray_pop(operators);
-                if (!o) {
+                if (ngli_darray_is_empty(operators)) {
                     LOG(ERROR, "expected opening '(' not found for closing ')' at position %zu", token->pos);
                     return NGL_ERROR_INVALID_DATA;
                 }
+                const struct token *o = ngli_darray_pop(operators);
                 if (o->chr == '(')
                     break;
                 PUSH(&s->output, o);
@@ -571,11 +569,11 @@ static int infix_to_rpn(struct eval *s, const char *expr)
 
         if (token->chr == ',') {
             for (;;) {
-                const struct token *o = ngli_darray_tail(operators);
-                if (!o) {
+                if (ngli_darray_is_empty(operators)) {
                     LOG(ERROR, "unexpected comma outside a function call (at position %zu)", token->pos);
                     return NGL_ERROR_INVALID_DATA;
                 }
+                const struct token *o = ngli_darray_tail(operators);
                 if (o->chr == '(')
                     break;
                 PUSH(&s->output, ngli_darray_pop(operators));
@@ -587,7 +585,7 @@ static int infix_to_rpn(struct eval *s, const char *expr)
          * As long as the operators tail contains token that must be evaluated
          * before the current one, we transfer them to the output stack
          */
-        while (must_be_processed_first(ngli_darray_tail(operators), token)) {
+        while (!ngli_darray_is_empty(operators) && must_be_processed_first(ngli_darray_tail(operators), token)) {
             const struct token *o = ngli_darray_pop(operators);
             PUSH(&s->output, o);
         }
@@ -595,10 +593,8 @@ static int infix_to_rpn(struct eval *s, const char *expr)
     }
 
     /* Flush remaining operators into the output */
-    for (;;) {
+    while (!ngli_darray_is_empty(operators)) {
         const struct token *token = ngli_darray_pop(operators);
-        if (!token)
-            break;
         if (token->chr == '(' || token->chr == ')') {
             LOG(ERROR, "unexpected '%c' at position %zu", token->chr, token->pos);
             return NGL_ERROR_INVALID_DATA;
@@ -630,7 +626,7 @@ int ngli_eval_init(struct eval *s, const char *expr, const struct hmap *vars)
 /*
  * Evaluate the operator by consuming the stack.
  */
-static float eval_operator_pop(struct darray *stack, const struct token *token)
+static float eval_operator_pop(struct token_darray *stack, const struct token *token)
 {
     const struct token *o1 = ngli_darray_pop_unsafe(stack);
     if (token->nb_args == 1)
@@ -649,13 +645,12 @@ static float eval_operator_pop(struct darray *stack, const struct token *token)
 
 int ngli_eval_run(struct eval *s, float *dst)
 {
-    struct darray *stack = &s->tmp_stack;
+    struct token_darray *stack = &s->tmp_stack;
 
     ngli_darray_clear(stack);
 
-    const struct token *tokens = ngli_darray_data(&s->output);
-    for (size_t i = 0; i < ngli_darray_count(&s->output); i++) {
-        const struct token *token = &tokens[i];
+    for (size_t i = 0; i < s->output.count; i++) {
+        const struct token *token = &s->output.data[i];
         if (token->type == TOKEN_VARIABLE) {
             const struct token r = {.type=TOKEN_CONSTANT, .value=*token->ptr};
             PUSH(stack, &r);
@@ -667,8 +662,8 @@ int ngli_eval_run(struct eval *s, float *dst)
         }
     }
 
-    const struct token *res = ngli_darray_pop(stack);
-    *dst = res ? res->value : 0.f;
+    ngli_assert(stack->count <= 1);
+    *dst = stack->count ? ngli_darray_pop(stack)->value : 0.f;
     return 0;
 }
 

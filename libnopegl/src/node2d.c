@@ -20,6 +20,7 @@
  */
 
 #include <math.h>
+#include <string.h>
 
 #include "internal.h"
 #include "math_utils.h"
@@ -66,18 +67,24 @@ int ngli_node2d_push_transform(struct ngl_node *node)
     struct ngli_mat4 trs;
     ngli_node2d_compute_trs(node, trs.m);
 
-    struct ngli_mat4 *next_matrix = ngli_darray_push(&ctx->transform_2d_stack, NULL);
-    if (!next_matrix)
-        return NGL_ERROR_MEMORY;
-    const struct ngli_mat4 *prev_matrix = next_matrix - 1;
-    ngli_mat4_mul(next_matrix->m, prev_matrix->m, trs.m);
+    const struct ngli_mat4 *prev_matrix_ptr = ngli_darray_tail(&ctx->transform_2d_stack);
+    const struct ngli_mat4 prev_matrix = *prev_matrix_ptr;
 
-    float *next_opacity = ngli_darray_push(&ctx->opacity_2d_stack, NULL);
-    if (!next_opacity)
+    struct ngli_mat4 next_matrix;
+    ngli_mat4_mul(next_matrix.m, prev_matrix.m, trs.m);
+
+    if (ngli_darray_push(&ctx->transform_2d_stack, next_matrix) < 0)
         return NGL_ERROR_MEMORY;
-    const float *prev_opacity = next_opacity - 1;
+
     const float opacity = *(const float *)ngli_node_get_data_ptr(opts->opacity_node, &opts->opacity);
-    *next_opacity = *prev_opacity * opacity;
+
+    const float *prev_opacity_ptr = ngli_darray_tail(&ctx->opacity_2d_stack);
+    const float prev_opacity = *prev_opacity_ptr;
+
+    const float next_opacity = prev_opacity * opacity;
+
+    if (ngli_darray_push(&ctx->opacity_2d_stack, next_opacity) < 0)
+        return NGL_ERROR_MEMORY;
 
     return 0;
 }

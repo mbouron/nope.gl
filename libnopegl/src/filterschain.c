@@ -35,8 +35,8 @@
 #include "helper_srgb_glsl.h"
 
 struct filterschain {
-    struct darray filters; // struct filter *
-    struct darray resources; // combined resources (struct ngli_filter_resource)
+    NGLI_DARRAY(const struct filter *) filters;
+    struct ngli_filter_resource_darray resources; // combined resources (struct ngli_filter_resource)
     struct hmap *unique_filters;
     struct bstr *str;
     const char *source_name;
@@ -52,9 +52,6 @@ struct filterschain *ngli_filterschain_create(void)
 
 int ngli_filterschain_init(struct filterschain *s, const char *source_name, const char *source_code, uint32_t helpers)
 {
-    ngli_darray_init(&s->filters, sizeof(struct filter *), 0);
-    ngli_darray_init(&s->resources, sizeof(struct ngli_filter_resource), 0);
-
     s->helpers = helpers;
     s->str = ngli_bstr_create();
     s->unique_filters = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
@@ -67,17 +64,16 @@ int ngli_filterschain_init(struct filterschain *s, const char *source_name, cons
 
 int ngli_filterschain_add_filter(struct filterschain *s, const struct filter *filter)
 {
-    const struct ngli_filter_resource *resources = ngli_darray_data(&filter->resources);
-    for (size_t i = 0; i < ngli_darray_count(&filter->resources); i++) {
-        const struct ngli_filter_resource *res = &resources[i];
+    for (size_t i = 0; i < filter->resources.count; i++) {
+        const struct ngli_filter_resource *res = &filter->resources.data[i];
         struct ngli_filter_resource combined_res = *res;
         snprintf(combined_res.name, sizeof(combined_res.name), "%s%zu_%s",
-                 filter->name, ngli_darray_count(&s->filters), res->name);
-        if (!ngli_darray_push(&s->resources, &combined_res))
+                 filter->name, s->filters.count, res->name);
+        if (ngli_darray_push(&s->resources, combined_res) < 0)
             return NGL_ERROR_MEMORY;
     }
 
-    if (!ngli_darray_push(&s->filters, &filter))
+    if (ngli_darray_push(&s->filters, filter) < 0)
         return NGL_ERROR_MEMORY;
 
     s->helpers |= filter->helpers;
@@ -118,14 +114,12 @@ char *ngli_filterschain_get_combination(struct filterschain *s)
 
     ngli_bstr_printf(b, "void main() {\n    vec4 color = %s();\n", s->source_name);
 
-    const struct filter **filters = ngli_darray_data(&s->filters);
-    for (size_t i = 0; i < ngli_darray_count(&s->filters); i++) {
-        const struct filter *filter = filters[i];
+    for (size_t i = 0; i < s->filters.count; i++) {
+        const struct filter *filter = s->filters.data[i];
         ngli_bstr_printf(b, "    color = filter_%s(color, uv", filter->name);
 
-        const struct ngli_filter_resource *resources = ngli_darray_data(&filter->resources);
-        for (size_t j = 0; j < ngli_darray_count(&filter->resources); j++)
-            ngli_bstr_printf(b, ", %s%zu_%s", filter->name, i, resources[j].name);
+        for (size_t j = 0; j < filter->resources.count; j++)
+            ngli_bstr_printf(b, ", %s%zu_%s", filter->name, i, filter->resources.data[j].name);
 
         ngli_bstr_print(b, ");\n");
     }
@@ -135,7 +129,7 @@ char *ngli_filterschain_get_combination(struct filterschain *s)
     return ngli_bstr_strdup(b);
 }
 
-const struct darray *ngli_filterschain_get_resources(struct filterschain *s)
+const struct ngli_filter_resource_darray *ngli_filterschain_get_resources(struct filterschain *s)
 {
     return &s->resources;
 }
@@ -145,6 +139,8 @@ void ngli_filterschain_freep(struct filterschain **sp)
     struct filterschain *s = *sp;
     if (!s)
         return;
+    ngli_darray_reset(&s->filters);
+    ngli_darray_reset(&s->resources);
     ngli_bstr_freep(&s->str);
     ngli_hmap_freep(&s->unique_filters);
     ngli_freep(sp);

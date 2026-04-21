@@ -71,7 +71,6 @@ static int program_init(struct ngl_node *node)
     struct program_priv *s = node->priv_data;
     const struct program_opts *o = node->opts;
 
-    ngli_darray_init(&s->vert_out_vars_array, sizeof(struct ngpu_pgcraft_iovar), 0);
     if (o->vert_out_vars) {
         const struct hmap_entry *e = NULL;
         while ((e = ngli_hmap_next(o->vert_out_vars, e))) {
@@ -84,7 +83,7 @@ static int program_init(struct ngl_node *node)
                 .precision_out = iovar_opts->precision_out,
             };
             snprintf(iovar.name, sizeof(iovar.name), "%s", e->key.str);
-            if (!ngli_darray_push(&s->vert_out_vars_array, &iovar))
+            if (ngli_darray_push(&s->vert_out_vars_array, iovar) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }

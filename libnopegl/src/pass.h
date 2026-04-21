@@ -31,11 +31,13 @@
 
 struct ngl_ctx;
 struct pipeline_compat;
+struct resource_map;
+struct texture_map;
 
 struct pipeline_desc {
     struct pipeline_compat *pipeline_compat;
-    struct darray blocks_map;
-    struct darray textures_map;
+    NGLI_DARRAY(struct resource_map) blocks_map;
+    NGLI_DARRAY(struct texture_map) textures_map;
 };
 
 struct pass_params {
@@ -87,9 +89,9 @@ struct pass {
     uint32_t nb_instances;
     enum ngpu_primitive_topology topology;
     enum ngpu_pipeline_type pipeline_type;
-    struct darray crafter_attributes;
-    struct darray crafter_textures;
-    struct darray crafter_blocks;
+    NGLI_DARRAY(struct ngpu_pgcraft_attribute) crafter_attributes;
+    NGLI_DARRAY(struct ngpu_pgcraft_texture) crafter_textures;
+    NGLI_DARRAY(struct ngpu_pgcraft_block) crafter_blocks;
     struct ngpu_pgcraft *crafter;
     int32_t resolution_field_index;
     struct ngpu_block_desc user_vert_block;
@@ -98,7 +100,7 @@ struct pass {
     int32_t user_vert_block_index;
     int32_t user_frag_block_index;
     int32_t user_comp_block_index;
-    struct darray user_data_ptrs; /* struct user_uniform_entry */
+    NGLI_DARRAY(struct user_uniform_entry) user_data_ptrs;
     struct pipeline_desc pipeline_desc;
 };
 

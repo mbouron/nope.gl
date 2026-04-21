@@ -273,7 +273,7 @@ static uint32_t get_char_tags(char c)
     return NGLI_TEXT_CHAR_TAG_GLYPH;
 }
 
-static int text_builtin_set_string(struct text *text, const char *str, struct darray *chars_dst)
+static int text_builtin_set_string(struct text *text, const char *str, struct ngli_char_info_internal_darray *chars_dst)
 {
     struct text_builtin *s = text->priv_data;
 
@@ -287,7 +287,7 @@ static int text_builtin_set_string(struct text *text, const char *str, struct da
         const uint32_t tags = get_char_tags(str[i]);
         if ((tags & NGLI_TEXT_CHAR_TAG_GLYPH) != NGLI_TEXT_CHAR_TAG_GLYPH) {
             const struct char_info_internal chr = {.tags = tags};
-            if (!ngli_darray_push(chars_dst, &chr))
+            if (ngli_darray_push(chars_dst, chr) < 0)
                 return NGL_ERROR_MEMORY;
             if (tags & NGLI_TEXT_CHAR_TAG_LINE_BREAK) {
                 switch (text->config.writing_mode) {
@@ -321,7 +321,7 @@ static int text_builtin_set_string(struct text *text, const char *str, struct da
             .slug = *glyph_data,
         };
 
-        if (!ngli_darray_push(chars_dst, &chr))
+        if (ngli_darray_push(chars_dst, chr) < 0)
             return NGL_ERROR_MEMORY;
 
         switch (text->config.writing_mode) {

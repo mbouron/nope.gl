@@ -146,23 +146,19 @@ static int setup_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node 
     } else {
         node->scene = s;
 
-        ngli_darray_init(&node->children, sizeof(struct ngl_node *), 0);
-        ngli_darray_init(&node->draw_children, sizeof(struct ngl_node *), 0);
-        ngli_darray_init(&node->parents, sizeof(struct ngl_node *), 0);
-
         int ret = children_apply_func(setup_nodes, s, node);
         if (ret < 0)
             return ret;
     }
 
     if (parent) {
-        if (!ngli_darray_push(&parent->children, &node))
+        if (ngli_darray_push(&parent->children, node) < 0)
             return NGL_ERROR_MEMORY;
         if (node->cls->draw) {
-            if (!ngli_darray_push(&parent->draw_children, &node))
+            if (ngli_darray_push(&parent->draw_children, node) < 0)
                 return NGL_ERROR_MEMORY;
         }
-        if (!ngli_darray_push(&node->parents, &parent))
+        if (ngli_darray_push(&node->parents, parent) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -178,9 +174,9 @@ static int track_nodes(struct hmap *nodes_set, struct ngl_node *node)
             return ret;
     }
 
-    struct darray *children_array = &node->children;
-    struct ngl_node **children = ngli_darray_data(children_array);
-    for (size_t i = 0; i < ngli_darray_count(children_array); i++) {
+    struct ngli_node_darray *children_array = &node->children;
+    struct ngl_node **children = children_array->data;
+    for (size_t i = 0; i < children_array->count; i++) {
         int ret = track_nodes(nodes_set, children[i]);
         if (ret < 0)
             return ret;
@@ -200,11 +196,10 @@ static int build_nodes_set(struct ngl_scene *s)
         goto end;
 
     // Transfer the nodes set to a flat darray set of nodes
-    ngli_darray_init(&s->nodes, sizeof(struct ngl_node *), 0);
     const struct hmap_entry *entry = NULL;
     while ((entry = ngli_hmap_next(nodes_set, entry))) {
-        const struct ngl_node *node = entry->data;
-        if (!ngli_darray_push(&s->nodes, &node)) {
+        struct ngl_node *node = entry->data;
+        if (ngli_darray_push(&s->nodes, node) < 0) {
             ret = NGL_ERROR_MEMORY;
             goto end;
         }
@@ -217,13 +212,9 @@ end:
 
 static int track_files(struct ngl_scene *s)
 {
-    ngli_darray_init(&s->files, sizeof(char *), 0);
-    ngli_darray_init(&s->files_par, sizeof(uint8_t *), 0);
-
-    const struct ngl_node **nodes = ngli_darray_data(&s->nodes);
-    for (size_t i = 0; i < ngli_darray_count(&s->nodes); i++) {
-        const struct ngl_node *node = nodes[i];
-        const uint8_t *base_ptr = node->opts;
+    for (size_t i = 0; i < s->nodes.count; i++) {
+        const struct ngl_node *node = s->nodes.data[i];
+        uint8_t *base_ptr = node->opts;
 
         const struct node_param *params = node->cls->params;
         if (!params)
@@ -231,14 +222,14 @@ static int track_files(struct ngl_scene *s)
 
         for (size_t j = 0; params[j].key; j++) {
             const struct node_param *par = &params[j];
-            const uint8_t *parp = base_ptr + par->offset;
+            uint8_t *parp = base_ptr + par->offset;
             if (par->flags & NGLI_PARAM_FLAG_FILEPATH) {
-                const char *str = *(char **)parp;
+                char *str = *(char **)parp;
                 if (!str)
                     continue;
-                if (!ngli_darray_push(&s->files, &str))
+                if (ngli_darray_push(&s->files, str) < 0)
                     return NGL_ERROR_MEMORY;
-                if (!ngli_darray_push(&s->files_par, &parp))
+                if (ngli_darray_push(&s->files_par, parp) < 0)
                     return NGL_ERROR_MEMORY;
             }
         }
@@ -247,11 +238,10 @@ static int track_files(struct ngl_scene *s)
     return 0;
 }
 
-static int check_nodes_params_sanity(const struct darray *nodes_array)
+static int check_nodes_params_sanity(const struct ngli_node_darray *nodes_array)
 {
-    const struct ngl_node **nodes = ngli_darray_data(nodes_array);
-    for (size_t i = 0; i < ngli_darray_count(nodes_array); i++) {
-        const struct ngl_node *node = nodes[i];
+    for (size_t i = 0; i < nodes_array->count; i++) {
+        const struct ngl_node *node = nodes_array->data[i];
 
         const uint8_t *base_ptr = node->opts;
         const struct node_param *par = node->cls->params;
@@ -303,25 +293,24 @@ int ngl_scene_get_filepaths(struct ngl_scene *s, char ***filepathsp, size_t *nb_
     if (!s->params.root)
         return NGL_ERROR_INVALID_USAGE;
 
-    *filepathsp = ngli_darray_data(&s->files);
-    *nb_filepathsp = ngli_darray_count(&s->files);
+    *filepathsp = s->files.data;
+    *nb_filepathsp = s->files.count;
     return 0;
 }
 
-static void update_filepath_ref(struct ngl_scene *s, size_t index, const char *str)
+static void update_filepath_ref(struct ngl_scene *s, size_t index, char *str)
 {
-    const char **filep = ngli_darray_get(&s->files, index);
+    char **filep = ngli_darray_get(&s->files, index);
     *filep = str;
 }
 
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par)
 {
     struct ngl_scene *s = node->scene;
-    const uint8_t **pars = ngli_darray_data(&s->files_par);
-    for (size_t i = 0; i < ngli_darray_count(&s->files_par); i++) {
-        const uint8_t *base_ptr = node->opts;
-        const uint8_t *parp = base_ptr + par->offset;
-        if (pars[i] == parp) {
+    for (size_t i = 0; i < s->files_par.count; i++) {
+        uint8_t *base_ptr = node->opts;
+        uint8_t *parp = base_ptr + par->offset;
+        if (s->files_par.data[i] == parp) {
             char *str = *(char **)parp;
             update_filepath_ref(s, i, str);
             return;
@@ -337,15 +326,15 @@ int ngl_scene_update_filepath(struct ngl_scene *s, size_t index, const char *fil
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    if (index >= ngli_darray_count(&s->files))
+    if (index >= s->files.count)
         return NGL_ERROR_INVALID_ARG;
 
     /* Update the node parameter with the new value */
     char *new_str = ngli_strdup(filepath);
     if (!new_str)
         return NGL_ERROR_MEMORY;
-    uint8_t *parp = ngli_darray_get(&s->files_par, index);
-    char **dstp = *(char ***)parp;
+    uint8_t **parpp = ngli_darray_get(&s->files_par, index);
+    char **dstp = (char **)*parpp;
     ngli_freep(dstp);
     *dstp = new_str;
 
@@ -449,9 +438,8 @@ static const struct livectl *get_internal_livectl(const struct ngl_node *node)
 
 static int find_livectls(struct ngl_scene *scene, struct hmap *hm)
 {
-    const struct ngl_node **nodes = ngli_darray_data(&scene->nodes);
-    for (size_t i = 0; i < ngli_darray_count(&scene->nodes); i++) {
-        const struct ngl_node *node = nodes[i];
+    for (size_t i = 0; i < scene->nodes.count; i++) {
+        const struct ngl_node *node = scene->nodes.data[i];
         if (!(node->cls->flags & NGLI_NODE_FLAG_LIVECTL))
             continue;
 

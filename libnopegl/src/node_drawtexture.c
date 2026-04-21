@@ -77,9 +77,9 @@ struct texture_map {
 
 struct pipeline_desc {
     struct pipeline_compat *pipeline_compat;
-    struct darray blocks_map; // struct resource_map
-    struct darray textures_map; // struct texture_map
-    struct darray reframing_nodes; // struct ngl_node *
+    NGLI_DARRAY(struct resource_map) blocks_map;
+    NGLI_DARRAY(struct texture_map) textures_map;
+    struct ngli_node_darray reframing_nodes;
 };
 
 #define TEXTURE_WRAP_DEFAULT 0
@@ -268,9 +268,9 @@ static int drawtexture_init(struct ngl_node *node)
     ngpu_block_desc_add_field(&s->frag_block_desc, "aspect", NGPU_TYPE_F32, 0);
     s->first_filter_field = s->frag_block_desc.nb_fields;
 
-    const struct darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
-    const struct ngli_filter_resource *comb_uniforms = ngli_darray_data(comb_uniforms_array);
-    for (size_t i = 0; i < ngli_darray_count(comb_uniforms_array); i++)
+    const struct ngli_filter_resource_darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
+    const struct ngli_filter_resource *comb_uniforms = comb_uniforms_array->data;
+    for (size_t i = 0; i < comb_uniforms_array->count; i++)
         ngpu_block_desc_add_field(&s->frag_block_desc, comb_uniforms[i].name, comb_uniforms[i].type, 0);
 
     return 0;
@@ -287,9 +287,6 @@ static int drawtexture_prepare(struct ngl_node *node,
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    ngli_darray_init(&desc->blocks_map, sizeof(struct resource_map), 0);
-    ngli_darray_init(&desc->textures_map, sizeof(struct texture_map), 0);
-    ngli_darray_init(&desc->reframing_nodes, sizeof(struct ngl_node *), 0);
 
     const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
     const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
@@ -394,12 +391,12 @@ static int drawtexture_prepare(struct ngl_node *node,
     const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
     for (size_t i = 0; i < texture_infos.nb_infos; i++) {
         const struct texture_map map = {.image = texture_infos.infos[i].image, .image_rev = SIZE_MAX};
-        if (!ngli_darray_push(&desc->textures_map, &map))
+        if (ngli_darray_push(&desc->textures_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
 
     /* Push reframing node for the texture */
-    if (!ngli_darray_push(&desc->reframing_nodes, &o->texture_node))
+    if (ngli_darray_push(&desc->reframing_nodes, o->texture_node) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -440,9 +437,9 @@ static void drawtexture_draw(struct ngl_node *node)
         };
         memcpy(data, &frag_data, sizeof(frag_data));
 
-        const struct darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
-        const struct ngli_filter_resource *comb_uniforms = ngli_darray_data(comb_uniforms_array);
-        for (size_t i = 0; i < ngli_darray_count(comb_uniforms_array); i++) {
+        const struct ngli_filter_resource_darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
+        const struct ngli_filter_resource *comb_uniforms = comb_uniforms_array->data;
+        for (size_t i = 0; i < comb_uniforms_array->count; i++) {
             const size_t fi = s->first_filter_field + i;
             if (comb_uniforms[i].data)
                 ngpu_block_field_copy(&block->fields[fi], data + block->fields[fi].offset, comb_uniforms[i].data);
@@ -453,21 +450,20 @@ static void drawtexture_draw(struct ngl_node *node)
                                            staging_buf, frag_offset, frag_size);
     }
 
-    struct texture_map *texture_map = ngli_darray_data(&desc->textures_map);
-    const struct ngl_node **reframing_nodes = ngli_darray_data(&desc->reframing_nodes);
-    for (size_t i = 0; i < ngli_darray_count(&desc->textures_map); i++) {
+    struct texture_map *texture_map = desc->textures_map.data;
+    for (size_t i = 0; i < desc->textures_map.count; i++) {
         if (texture_map[i].image_rev != texture_map[i].image->rev) {
             ngli_pipeline_compat_update_image(pl_compat, (int32_t)i, texture_map[i].image, ctx->current_staging_buffer);
             texture_map[i].image_rev = texture_map[i].image->rev;
         }
 
         struct ngli_mat4 reframing_matrix = {0};
-        ngli_transform_chain_compute(reframing_nodes[i], reframing_matrix.m);
+        ngli_transform_chain_compute(desc->reframing_nodes.data[i], reframing_matrix.m);
         ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, reframing_matrix.m, ctx->current_staging_buffer);
     }
 
-    struct resource_map *resource_map = ngli_darray_data(&desc->blocks_map);
-    for (size_t i = 0; i < ngli_darray_count(&desc->blocks_map); i++) {
+    struct resource_map *resource_map = desc->blocks_map.data;
+    for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
         if (resource_map[i].buffer_rev != info->buffer_rev) {
             ngli_pipeline_compat_update_buffer(pl_compat, resource_map[i].index, info->buffer, 0, 0);

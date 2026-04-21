@@ -255,8 +255,8 @@ static void camera_draw(struct ngl_node *node)
     struct camera_priv *s = node->priv_data;
     const struct camera_opts *o = node->opts;
 
-    if (!ngli_darray_push(&ctx->modelview_matrix_stack, &s->modelview_matrix) ||
-        !ngli_darray_push(&ctx->projection_matrix_stack, &s->projection_matrix))
+    if (ngli_darray_push(&ctx->modelview_matrix_stack, s->modelview_matrix) < 0 ||
+        ngli_darray_push(&ctx->projection_matrix_stack, s->projection_matrix) < 0)
         return;
 
     ngli_node_draw(o->child);

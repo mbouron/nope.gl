@@ -259,8 +259,8 @@ static int render_init(struct ngl_node *node)
         .attributes = o->attributes,
         .instance_attributes = o->instance_attributes,
         .nb_instances = (uint32_t)o->nb_instances,
-        .vert_out_vars = ngli_darray_data(&program_priv->vert_out_vars_array),
-        .nb_vert_out_vars = ngli_darray_count(&program_priv->vert_out_vars_array),
+        .vert_out_vars = program_priv->vert_out_vars_array.data,
+        .nb_vert_out_vars = program_priv->vert_out_vars_array.count,
         .nb_frag_output = program_opts->nb_frag_output,
         .blending = o->blending,
     };

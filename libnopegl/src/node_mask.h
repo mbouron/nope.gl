@@ -49,13 +49,12 @@ struct mask_uniform_def {
 
 struct mask_info {
     const char *glsl;                                   /* ngl_mask_alpha() function */
-    struct darray uniforms;                             /* array of struct mask_uniform_def */
+    NGLI_DARRAY(struct mask_uniform_def) uniforms;
     float dilation;                                     /* extra margin expansion in pixels */
     struct ngl_node *texture_node;                      /* non-NULL for MaskTexture */
     const void *opts;                                   /* pointer to mask node opts */
 };
 
-void ngli_mask_info_init(struct mask_info *mi);
 void ngli_mask_info_reset(struct mask_info *mi);
 
 #endif

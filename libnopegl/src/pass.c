@@ -101,7 +101,7 @@ static int register_uniform(struct pass *s, const char *name, struct ngl_node *u
         .data = data,
         .field_index = (size_t)field_idx,
     };
-    if (!ngli_darray_push(&s->user_data_ptrs, &entry))
+    if (ngli_darray_push(&s->user_data_ptrs, entry) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -172,7 +172,7 @@ static int register_texture(struct pass *s, const char *name, struct ngl_node *t
     };
     snprintf(crafter_texture.name, sizeof(crafter_texture.name), "%s", name);
 
-    if (!ngli_darray_push(&s->crafter_textures, &crafter_texture))
+    if (ngli_darray_push(&s->crafter_textures, crafter_texture) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -240,7 +240,7 @@ static int register_block(struct pass *s, const char *name, struct ngl_node *blo
     };
     snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", name);
 
-    if (!ngli_darray_push(&s->crafter_blocks, &crafter_block))
+    if (ngli_darray_push(&s->crafter_blocks, crafter_block) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -270,7 +270,7 @@ static int register_attribute_from_buffer(struct pass *s, const char *name,
         }
     }
 
-    if (!ngli_darray_push(&s->crafter_attributes, &crafter_attribute))
+    if (ngli_darray_push(&s->crafter_attributes, crafter_attribute) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -305,7 +305,7 @@ static int register_attribute(struct pass *s, const char *name, struct ngl_node 
         }
     }
 
-    if (!ngli_darray_push(&s->crafter_attributes, &crafter_attribute))
+    if (ngli_darray_push(&s->crafter_attributes, crafter_attribute) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -411,8 +411,6 @@ static enum ngpu_program_stage get_program_shader_stage(uint32_t stage_flags)
 
 static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
 {
-    ngli_darray_init(&desc->blocks_map, sizeof(struct resource_map), 0);
-
     struct ngpu_bindgroup_layout_desc layout_desc = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter);
 
     for (size_t i = 0; i < layout_desc.nb_buffers; i++) {
@@ -443,7 +441,7 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
 
         const struct block_info *info = node->priv_data;
         const struct resource_map map = {.index = index, .info = info, .buffer_rev = SIZE_MAX};
-        if (!ngli_darray_push(&desc->blocks_map, &map))
+        if (ngli_darray_push(&desc->blocks_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -466,12 +464,12 @@ int ngli_pass_prepare(struct pass *s,
         .vert_base         = s->params.vert_base,
         .frag_base         = s->params.frag_base,
         .comp_base         = s->params.comp_base,
-        .textures          = ngli_darray_data(&s->crafter_textures),
-        .nb_textures       = ngli_darray_count(&s->crafter_textures),
-        .attributes        = ngli_darray_data(&s->crafter_attributes),
-        .nb_attributes     = ngli_darray_count(&s->crafter_attributes),
-        .blocks            = ngli_darray_data(&s->crafter_blocks),
-        .nb_blocks         = ngli_darray_count(&s->crafter_blocks),
+        .textures          = s->crafter_textures.data,
+        .nb_textures       = s->crafter_textures.count,
+        .attributes        = s->crafter_attributes.data,
+        .nb_attributes     = s->crafter_attributes.count,
+        .blocks            = s->crafter_blocks.data,
+        .nb_blocks         = s->crafter_blocks.count,
         .vert_out_vars     = s->params.vert_out_vars,
         .nb_vert_out_vars  = s->params.nb_vert_out_vars,
         .nb_frag_output    = s->params.nb_frag_output,
@@ -534,10 +532,9 @@ int ngli_pass_prepare(struct pass *s,
     if (ret < 0)
         return ret;
 
-    ngli_darray_init(&desc->textures_map, sizeof(struct texture_map), 0);
     for (size_t i = 0; i < tex_infos.nb_infos; i++) {
         const struct texture_map map = {.image = tex_infos.infos[i].image, .image_rev = SIZE_MAX};
-        if (!ngli_darray_push(&desc->textures_map, &map))
+        if (ngli_darray_push(&desc->textures_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -550,11 +547,6 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
     s->params = *params;
 
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-
-    ngli_darray_init(&s->crafter_attributes, sizeof(struct ngpu_pgcraft_attribute), 0);
-    ngli_darray_init(&s->crafter_textures, sizeof(struct ngpu_pgcraft_texture), 0);
-    ngli_darray_init(&s->crafter_blocks, sizeof(struct ngpu_pgcraft_block), 0);
-    ngli_darray_init(&s->user_data_ptrs, sizeof(struct user_uniform_entry), 0);
 
     ngpu_block_desc_init(gpu_ctx, &s->user_vert_block, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_init(gpu_ctx, &s->user_frag_block, NGPU_BLOCK_LAYOUT_STD140);
@@ -598,7 +590,7 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
             .buffer        = {.buffer = staging_buf, .size = size},
         };
         snprintf(blk.name, sizeof(blk.name), "%s", user_blocks[i].name);
-        if (!ngli_darray_push(&s->crafter_blocks, &blk))
+        if (ngli_darray_push(&s->crafter_blocks, blk) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -681,9 +673,8 @@ int ngli_pass_exec(struct pass *s)
         }
 
         /* Write user uniforms directly into the staging buffer */
-        const struct user_uniform_entry *entries = ngli_darray_data(&s->user_data_ptrs);
-        for (size_t i = 0; i < ngli_darray_count(&s->user_data_ptrs); i++) {
-            const struct user_uniform_entry *entry = &entries[i];
+        for (size_t i = 0; i < s->user_data_ptrs.count; i++) {
+            const struct user_uniform_entry *entry = &s->user_data_ptrs.data[i];
             if (entry->stage != user_block_infos[b].stage)
                 continue;
             const struct ngpu_block_field *field = &block->fields[entry->field_index];
@@ -695,13 +686,12 @@ int ngli_pass_exec(struct pass *s)
         ngli_pipeline_compat_update_buffer(pipeline_compat, block_idx, buffer, offset, block_size);
     }
 
-    struct texture_map *texture_map = ngli_darray_data(&desc->textures_map);
-    for (size_t i = 0; i < ngli_darray_count(&desc->textures_map); i++) {
-        ngli_pipeline_compat_update_image(pipeline_compat, (int32_t)i, texture_map[i].image, ctx->current_staging_buffer);
+    for (size_t i = 0; i < desc->textures_map.count; i++) {
+        ngli_pipeline_compat_update_image(pipeline_compat, (int32_t)i, desc->textures_map.data[i].image, ctx->current_staging_buffer);
     }
 
-    struct resource_map *resource_map = ngli_darray_data(&desc->blocks_map);
-    for (size_t i = 0; i < ngli_darray_count(&desc->blocks_map); i++) {
+    struct resource_map *resource_map = desc->blocks_map.data;
+    for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
         if (resource_map[i].buffer_rev != info->buffer_rev) {
             ngli_pipeline_compat_update_buffer(pipeline_compat, resource_map[i].index, info->buffer, 0, 0);

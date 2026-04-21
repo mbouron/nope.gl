@@ -192,13 +192,12 @@ static int parse_kvs(const char *s, size_t *nb_kvsp, char ***keysp, size_t **val
     return consumed;
 }
 
-static struct ngl_node **get_abs_node(struct darray *nodes_array, size_t id)
+static struct ngl_node **get_abs_node(struct ngli_node_darray *nodes_array, size_t id)
 {
-    const size_t index = ngli_darray_count(nodes_array) - id - 1;
-    if (index >= ngli_darray_count(nodes_array))
+    const size_t index = nodes_array->count - id - 1;
+    if (index >= nodes_array->count)
         return NULL;
-    struct ngl_node **nodes = ngli_darray_data(nodes_array);
-    return &nodes[index];
+    return &nodes_array->data[index];
 }
 
 static const uint8_t hexm[256] = {
@@ -211,7 +210,7 @@ static const uint8_t hexm[256] = {
 #define CHR_FROM_HEX(s) ((uint8_t)(hexm[(uint8_t)(s)[0]]<<4 | hexm[(uint8_t)(s)[1]]))
 
 #define DEFINE_LITERAL_PARSE_FUNC(parse_func, type, set_type)                       \
-static int parse_param_##set_type(struct darray *nodes_array, uint8_t *dstp,        \
+static int parse_param_##set_type(struct ngli_node_darray *nodes_array, uint8_t *dstp,     \
                                   const struct node_param *par, const char *str)    \
 {                                                                                   \
     type v;                                                                         \
@@ -231,7 +230,7 @@ DEFINE_LITERAL_PARSE_FUNC(parse_f32,    float,    f32)
 DEFINE_LITERAL_PARSE_FUNC(parse_f64,    double,   f64)
 
 #define DEFINE_VEC_PARSE_FUNC(parse_func, type, set_type, expected_nb_vals)         \
-static int parse_param_##set_type(struct darray *nodes_array, uint8_t *dstp,        \
+static int parse_param_##set_type(struct ngli_node_darray *nodes_array, uint8_t *dstp,     \
                                   const struct node_param *par, const char *str)    \
 {                                                                                   \
     size_t nb_vals;                                                                 \
@@ -259,7 +258,7 @@ DEFINE_VEC_PARSE_FUNC(parse_f32s,   float,    vec3,  3)
 DEFINE_VEC_PARSE_FUNC(parse_f32s,   float,    vec4,  4)
 DEFINE_VEC_PARSE_FUNC(parse_f32s,   float,    mat4, 16)
 
-static int parse_param_rational(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_rational(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                                 const struct node_param *par, const char *str)
 {
     int32_t r[2] = {0};
@@ -273,7 +272,7 @@ static int parse_param_rational(struct darray *nodes_array, uint8_t *dstp,
     return len;
 }
 
-static int parse_param_flags(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_flags(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                              const struct node_param *par, const char *str)
 {
     const size_t len = strcspn(str, " \n");
@@ -291,7 +290,7 @@ static int parse_param_flags(struct darray *nodes_array, uint8_t *dstp,
     return (int)len;
 }
 
-static int parse_param_select(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_select(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                               const struct node_param *par, const char *str)
 {
     const size_t len = strcspn(str, " \n");
@@ -309,7 +308,7 @@ static int parse_param_select(struct darray *nodes_array, uint8_t *dstp,
     return (int)len;
 }
 
-static int parse_param_str(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_str(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                            const struct node_param *par, const char *str)
 {
     const size_t len = strcspn(str, " \n");
@@ -335,7 +334,7 @@ static int parse_param_str(struct darray *nodes_array, uint8_t *dstp,
     return (int)len;
 }
 
-static int parse_param_data(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_data(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                             const struct node_param *par, const char *str)
 {
     size_t size = 0;
@@ -364,7 +363,7 @@ static int parse_param_data(struct darray *nodes_array, uint8_t *dstp,
     return (int)(cur - str);
 }
 
-static int parse_param_node(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_node(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                             const struct node_param *par, const char *str)
 {
     size_t node_id;
@@ -380,7 +379,7 @@ static int parse_param_node(struct darray *nodes_array, uint8_t *dstp,
     return len;
 }
 
-static int parse_param_nodelist(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_nodelist(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                                 const struct node_param *par, const char *str)
 {
     size_t *node_ids;
@@ -404,7 +403,7 @@ static int parse_param_nodelist(struct darray *nodes_array, uint8_t *dstp,
     return len;
 }
 
-static int parse_param_f64list(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_f64list(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                                const struct node_param *par, const char *str)
 {
     double *dbls;
@@ -419,7 +418,7 @@ static int parse_param_f64list(struct darray *nodes_array, uint8_t *dstp,
     return len;
 }
 
-static int parse_param_nodedict(struct darray *nodes_array, uint8_t *dstp,
+static int parse_param_nodedict(struct ngli_node_darray *nodes_array, uint8_t *dstp,
                                 const struct node_param *par, const char *str)
 {
     char **node_keys;
@@ -444,7 +443,7 @@ static int parse_param_nodedict(struct darray *nodes_array, uint8_t *dstp,
     return len;
 }
 
-static int parse_param(struct darray *nodes_array, uint8_t *base_ptr,
+static int parse_param(struct ngli_node_darray *nodes_array, uint8_t *base_ptr,
                        const struct node_param *par, const char *str)
 {
     int len = -1;
@@ -489,7 +488,7 @@ static int parse_param(struct darray *nodes_array, uint8_t *base_ptr,
     return len;
 }
 
-static int set_node_params(struct darray *nodes_array, char *str,
+static int set_node_params(struct ngli_node_darray *nodes_array, char *str,
                            const struct ngl_node *node)
 {
     uint8_t *base_ptr = node->opts;
@@ -528,10 +527,8 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str)
 {
     int ret = 0;
     struct ngl_node *node = NULL;
-    struct darray nodes_array;
+    struct ngli_node_darray nodes_array = {0};
     struct ngl_scene_params params = ngl_scene_default_params(NULL);
-
-    ngli_darray_init(&nodes_array, sizeof(struct ngl_node *), 0);
 
     char *dupstr = ngli_strdup(str);
     if (!dupstr)
@@ -613,7 +610,7 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str)
             break;
         }
 
-        if (!ngli_darray_push(&nodes_array, &node)) {
+        if (ngli_darray_push(&nodes_array, node) < 0) {
             ngl_node_unrefp(&node);
             ret = NGL_ERROR_MEMORY;
             break;
@@ -636,9 +633,8 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str)
         ret = ngl_scene_init(s, &params);
     }
 
-    struct ngl_node **nodes = ngli_darray_data(&nodes_array);
-    for (size_t i = 0; i < ngli_darray_count(&nodes_array); i++)
-        ngl_node_unrefp(&nodes[i]);
+    for (size_t i = 0; i < nodes_array.count; i++)
+        ngl_node_unrefp(&nodes_array.data[i]);
 
 end:
     ngli_darray_reset(&nodes_array);

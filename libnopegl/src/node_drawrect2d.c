@@ -194,8 +194,8 @@ struct drawrect2d_priv {
     struct geometry *geometry;
     bool update_geometry;
     struct pipeline_compat *pipeline_compat;
-    struct darray textures_map;    // array of struct texture_map
-    struct darray blocks_map;      // array of struct block_map
+    NGLI_DARRAY(struct texture_map) textures_map;
+    NGLI_DARRAY(struct block_map) blocks_map;
     struct ngpu_pgcraft *crafter;
 
     /* Uniform blocks */
@@ -209,9 +209,9 @@ struct drawrect2d_priv {
     size_t user_block_size;
     int32_t user_block_index;
 
-    struct darray user_uniforms;            // array of struct user_uniform
-    struct darray prebuilt_uniforms;        // array of struct prebuilt_uniform
-    struct darray stroke_prebuilt_uniforms; // array of struct prebuilt_uniform
+    NGLI_DARRAY(struct user_uniform) user_uniforms;
+    NGLI_DARRAY(struct prebuilt_uniform) prebuilt_uniforms;
+    NGLI_DARRAY(struct prebuilt_uniform) stroke_prebuilt_uniforms;
     const struct fill_info *fill_info;
     const struct stroke_info *stroke_info;
     char *frag_shader;
@@ -386,7 +386,7 @@ static int build_texture_map(struct drawrect2d_priv *s)
     const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
     for (size_t i = 0; i < texture_infos.nb_infos; i++) {
         const struct texture_map map = {.image = texture_infos.infos[i].image, .image_rev = SIZE_MAX};
-        if (!ngli_darray_push(&s->textures_map, &map))
+        if (ngli_darray_push(&s->textures_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
     return 0;
@@ -422,9 +422,6 @@ static int drawrect2d_init(struct ngl_node *node)
     const struct ngl_node *texture = fi->texture;
 
     s->pipeline_compat = NULL;
-    ngli_darray_init(&s->user_uniforms, sizeof(struct user_uniform), 0);
-    ngli_darray_init(&s->prebuilt_uniforms, sizeof(struct prebuilt_uniform), 0);
-    ngli_darray_init(&s->stroke_prebuilt_uniforms, sizeof(struct prebuilt_uniform), 0);
 
     snprintf(s->position_attr.name, sizeof(s->position_attr.name), "position");
     s->position_attr.type   = NGPU_TYPE_VEC3;
@@ -546,12 +543,9 @@ static int drawrect2d_init(struct ngl_node *node)
     ngli_assert(frag_block_size == sizeof(struct drawrect2d_frag_block));
 
     /* Build user uniform block (dynamic fill/stroke/custom uniforms) */
-    const struct fill_uniform_def *fill_uniforms = ngli_darray_data(&fi->uniforms);
-    const size_t nb_fill_uniforms = ngli_darray_count(&fi->uniforms);
-    const struct fill_custom_uniform_def *custom_uniforms = ngli_darray_data(&fi->custom_uniforms);
-    const size_t nb_custom_uniforms = ngli_darray_count(&fi->custom_uniforms);
-    const struct stroke_uniform_def *stroke_uniforms = ngli_darray_data(&si->uniforms);
-    const size_t nb_stroke_uniforms = ngli_darray_count(&si->uniforms);
+    const size_t nb_fill_uniforms = fi->uniforms.count;
+    const size_t nb_custom_uniforms = fi->custom_uniforms.count;
+    const size_t nb_stroke_uniforms = si->uniforms.count;
 
     const int has_user_uniforms = nb_fill_uniforms > 0
                                || nb_custom_uniforms > 0
@@ -563,7 +557,7 @@ static int drawrect2d_init(struct ngl_node *node)
 
         /* Fill prebuilt uniforms: add to user block */
         for (size_t i = 0; i < nb_fill_uniforms; i++) {
-            const struct fill_uniform_def *ud = &fill_uniforms[i];
+            const struct fill_uniform_def *ud = &fi->uniforms.data[i];
             const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, ud->name, ud->type, 0);
             if (field_idx < 0)
                 return field_idx;
@@ -573,13 +567,13 @@ static int drawrect2d_init(struct ngl_node *node)
                 .base        = (const uint8_t *)fi->opts,
                 .offset      = ud->opts_offset,
             };
-            if (!ngli_darray_push(&s->prebuilt_uniforms, &pu))
+            if (ngli_darray_push(&s->prebuilt_uniforms, pu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
         /* CustomFill user uniforms: add to user block */
         for (size_t i = 0; i < nb_custom_uniforms; i++) {
-            const struct fill_custom_uniform_def *cu = &custom_uniforms[i];
+            const struct fill_custom_uniform_def *cu = &fi->custom_uniforms.data[i];
             const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, cu->name, cu->type, 0);
             if (field_idx < 0)
                 return field_idx;
@@ -588,13 +582,13 @@ static int drawrect2d_init(struct ngl_node *node)
                 .node        = cu->node,
                 .type        = cu->type,
             };
-            if (!ngli_darray_push(&s->user_uniforms, &uu))
+            if (ngli_darray_push(&s->user_uniforms, uu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
         /* Stroke prebuilt uniforms: add to user block */
         for (size_t i = 0; i < nb_stroke_uniforms; i++) {
-            const struct stroke_uniform_def *ud = &stroke_uniforms[i];
+            const struct stroke_uniform_def *ud = &si->uniforms.data[i];
             const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, ud->name, ud->type, 0);
             if (field_idx < 0)
                 return field_idx;
@@ -604,7 +598,7 @@ static int drawrect2d_init(struct ngl_node *node)
                 .base        = (const uint8_t *)si->opts,
                 .offset      = ud->opts_offset,
             };
-            if (!ngli_darray_push(&s->stroke_prebuilt_uniforms, &pu))
+            if (ngli_darray_push(&s->stroke_prebuilt_uniforms, pu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -613,8 +607,7 @@ static int drawrect2d_init(struct ngl_node *node)
 
     struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
 
-    struct darray textures;
-    ngli_darray_init(&textures, sizeof(struct ngpu_pgcraft_texture), 0);
+    NGLI_DARRAY(struct ngpu_pgcraft_texture) textures = {0};
 
     if (texture) {
         struct texture_info *texture_info = texture->priv_data;
@@ -627,16 +620,15 @@ static int drawrect2d_init(struct ngl_node *node)
             .clamp_video = texture_info->clamp_video,
             .premult     = texture_info->premult,
         };
-        if (!ngli_darray_push(&textures, &tex)) {
+        if (ngli_darray_push(&textures, tex) < 0) {
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
     }
 
-    const struct fill_custom_texture_def *custom_textures = ngli_darray_data(&fi->custom_textures);
-    const size_t nb_custom_textures = ngli_darray_count(&fi->custom_textures);
+    const size_t nb_custom_textures = fi->custom_textures.count;
     for (size_t i = 0; i < nb_custom_textures; i++) {
-        const struct fill_custom_texture_def *ct = &custom_textures[i];
+        const struct fill_custom_texture_def *ct = &fi->custom_textures.data[i];
         struct texture_info *texture_info = ngli_node_texture_get_texture_info(ct->texture_node);
         struct ngpu_pgcraft_texture tex = {
             .type        = ngli_node_texture_get_pgcraft_texture_type(ct->texture_node),
@@ -647,14 +639,13 @@ static int drawrect2d_init(struct ngl_node *node)
             .premult     = texture_info->premult,
         };
         snprintf(tex.name, sizeof(tex.name), "%s", ct->name);
-        if (!ngli_darray_push(&textures, &tex)) {
+        if (ngli_darray_push(&textures, tex) < 0) {
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
     }
 
-    struct darray blocks;
-    ngli_darray_init(&blocks, sizeof(struct ngpu_pgcraft_block), 0);
+    NGLI_DARRAY(struct ngpu_pgcraft_block) blocks = {0};
 
     const struct ngpu_pgcraft_block vert_crafter_block = {
         .name          = "vert",
@@ -664,7 +655,7 @@ static int drawrect2d_init(struct ngl_node *node)
         .block         = &s->vert_block_desc,
         .buffer        = {.buffer = staging_buf, .size = s->vert_block_size},
     };
-    if (!ngli_darray_push(&blocks, &vert_crafter_block)) {
+    if (ngli_darray_push(&blocks, vert_crafter_block) < 0) {
         ngli_darray_reset(&blocks);
         ngli_darray_reset(&textures);
         ngpu_block_desc_reset(&frag_block_desc);
@@ -679,7 +670,7 @@ static int drawrect2d_init(struct ngl_node *node)
         .block         = &frag_block_desc,
         .buffer        = {.buffer = staging_buf, .size = frag_block_size},
     };
-    if (!ngli_darray_push(&blocks, &frag_crafter_block)) {
+    if (ngli_darray_push(&blocks, frag_crafter_block) < 0) {
         ngli_darray_reset(&blocks);
         ngli_darray_reset(&textures);
         ngpu_block_desc_reset(&frag_block_desc);
@@ -695,7 +686,7 @@ static int drawrect2d_init(struct ngl_node *node)
             .block         = &s->user_block_desc,
             .buffer        = {.buffer = staging_buf, .size = s->user_block_size},
         };
-        if (!ngli_darray_push(&blocks, &user_crafter_block)) {
+        if (ngli_darray_push(&blocks, user_crafter_block) < 0) {
             ngli_darray_reset(&blocks);
             ngli_darray_reset(&textures);
             ngpu_block_desc_reset(&frag_block_desc);
@@ -703,10 +694,9 @@ static int drawrect2d_init(struct ngl_node *node)
         }
     }
 
-    const struct fill_custom_block_def *custom_blocks = ngli_darray_data(&fi->custom_blocks);
-    const size_t nb_custom_blocks = ngli_darray_count(&fi->custom_blocks);
+    const size_t nb_custom_blocks = fi->custom_blocks.count;
     for (size_t i = 0; i < nb_custom_blocks; i++) {
-        const struct fill_custom_block_def *cb = &custom_blocks[i];
+        const struct fill_custom_block_def *cb = &fi->custom_blocks.data[i];
         struct block_info *block_info = cb->node->priv_data;
         struct ngpu_block_desc *block = &block_info->block;
         const size_t block_size = ngpu_block_desc_get_size(block, 0);
@@ -735,7 +725,7 @@ static int drawrect2d_init(struct ngl_node *node)
         };
         snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", cb->name);
 
-        if (!ngli_darray_push(&blocks, &crafter_block)) {
+        if (ngli_darray_push(&blocks, crafter_block) < 0) {
             ngli_darray_reset(&blocks);
             ngli_darray_reset(&textures);
             ngpu_block_desc_reset(&frag_block_desc);
@@ -757,10 +747,10 @@ static int drawrect2d_init(struct ngl_node *node)
         .program_label    = "nopegl/drawrect",
         .vert_base        = texture ? drawrect_vert : drawrect_vert_notex,
         .frag_base        = s->frag_shader,
-        .textures         = ngli_darray_data(&textures),
-        .nb_textures      = ngli_darray_count(&textures),
-        .blocks           = ngli_darray_data(&blocks),
-        .nb_blocks        = ngli_darray_count(&blocks),
+        .textures         = textures.data,
+        .nb_textures      = textures.count,
+        .blocks           = blocks.data,
+        .nb_blocks        = blocks.count,
         .attributes       = attributes,
         .nb_attributes    = NGLI_ARRAY_NB(attributes),
         .vert_out_vars    = vert_out_vars,
@@ -799,9 +789,6 @@ static int drawrect2d_prepare(struct ngl_node *node,
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
-    ngli_darray_init(&s->textures_map, sizeof(struct texture_map), 0);
-    ngli_darray_init(&s->blocks_map, sizeof(struct block_map), 0);
-
     struct ngpu_graphics_state state = *graphics_state;
     int ret = ngli_blending_apply_preset(&state, o->node2d.blending);
     if (ret < 0)
@@ -835,17 +822,16 @@ static int drawrect2d_prepare(struct ngl_node *node,
         return ret;
 
     const struct fill_info *fi = s->fill_info;
-    const struct fill_custom_block_def *cblocks = ngli_darray_data(&fi->custom_blocks);
-    const size_t nb_cblocks = ngli_darray_count(&fi->custom_blocks);
+    const size_t nb_cblocks = fi->custom_blocks.count;
     for (size_t i = 0; i < nb_cblocks; i++) {
-        const struct fill_custom_block_def *cb = &cblocks[i];
+        const struct fill_custom_block_def *cb = &fi->custom_blocks.data[i];
         const struct block_info *info = cb->node->priv_data;
         const struct block_map bm = {
             .index      = ngpu_pgcraft_get_block_index(s->crafter, cb->name, NGPU_PROGRAM_STAGE_FRAG),
             .info       = info,
             .buffer_rev = SIZE_MAX,
         };
-        if (!ngli_darray_push(&s->blocks_map, &bm))
+        if (ngli_darray_push(&s->blocks_map, bm) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -950,16 +936,15 @@ static void drawrect2d_draw(struct ngl_node *node)
     const struct fill_base_opts *fo = (const struct fill_base_opts *)fi->opts;
 
     /* Update textures */
-    struct texture_map *texture_map = ngli_darray_data(&s->textures_map);
-    for (size_t i = 0; i < ngli_darray_count(&s->textures_map); i++)
-        ngli_pipeline_compat_update_image(pl_compat, (int32_t)i, texture_map[i].image, ctx->current_staging_buffer);
+    for (size_t i = 0; i < s->textures_map.count; i++)
+        ngli_pipeline_compat_update_image(pl_compat, (int32_t)i, s->textures_map.data[i].image, ctx->current_staging_buffer);
 
     /* Compute texture scaling */
     const int orientation_quarter = ((int)o->content_orientation / 90) & 3;
     const int orientation_is_transposed = orientation_quarter & 1;
     float uv_scale[] = {1.f, 1.f};
-    if (fo->scaling != FILL_SCALING_NONE && ngli_darray_count(&s->textures_map) > 0) {
-        const struct image *image = texture_map[0].image;
+    if (fo->scaling != FILL_SCALING_NONE && s->textures_map.count > 0) {
+        const struct image *image = s->textures_map.data[0].image;
         const float tex_w = orientation_is_transposed ? (float)image->params.height : (float)image->params.width;
         const float tex_h = orientation_is_transposed ? (float)image->params.width  : (float)image->params.height;
         const float *scale_val = ngli_node_get_data_ptr(o->node2d.scale_node, o->node2d.scale);
@@ -1079,19 +1064,18 @@ static void drawrect2d_draw(struct ngl_node *node)
 
         /* Fill prebuilt uniforms */
         const struct ngpu_block_field *fields = s->user_block_desc.fields;
-        const struct prebuilt_uniform *pbu = ngli_darray_data(&s->prebuilt_uniforms);
-        for (size_t i = 0; i < ngli_darray_count(&s->prebuilt_uniforms); i++)
+        const struct prebuilt_uniform *pbu = s->prebuilt_uniforms.data;
+        for (size_t i = 0; i < s->prebuilt_uniforms.count; i++)
             ngpu_block_field_copy(&fields[pbu[i].field_index], data + fields[pbu[i].field_index].offset, pbu[i].base + pbu[i].offset);
 
         /* Stroke prebuilt uniforms */
-        const struct prebuilt_uniform *stroke_pbu = ngli_darray_data(&s->stroke_prebuilt_uniforms);
-        for (size_t i = 0; i < ngli_darray_count(&s->stroke_prebuilt_uniforms); i++)
+        const struct prebuilt_uniform *stroke_pbu = s->stroke_prebuilt_uniforms.data;
+        for (size_t i = 0; i < s->stroke_prebuilt_uniforms.count; i++)
             ngpu_block_field_copy(&fields[stroke_pbu[i].field_index], data + fields[stroke_pbu[i].field_index].offset, stroke_pbu[i].base + stroke_pbu[i].offset);
 
         /* CustomFill user uniforms */
-        const struct user_uniform *user_uniforms = ngli_darray_data(&s->user_uniforms);
-        for (size_t i = 0; i < ngli_darray_count(&s->user_uniforms); i++) {
-            const struct user_uniform *uu = &user_uniforms[i];
+        for (size_t i = 0; i < s->user_uniforms.count; i++) {
+            const struct user_uniform *uu = &s->user_uniforms.data[i];
             ngpu_block_field_copy(&fields[uu->field_index], data + fields[uu->field_index].offset, node_get_data_ptr(uu->node, uu->type));
         }
 
@@ -1101,8 +1085,8 @@ static void drawrect2d_draw(struct ngl_node *node)
     }
 
     /* CustomFill block buffer updates */
-    struct block_map *blocks = ngli_darray_data(&s->blocks_map);
-    for (size_t i = 0; i < ngli_darray_count(&s->blocks_map); i++) {
+    struct block_map *blocks = s->blocks_map.data;
+    for (size_t i = 0; i < s->blocks_map.count; i++) {
         const struct block_info *info = blocks[i].info;
         if (blocks[i].buffer_rev != info->buffer_rev) {
             ngli_pipeline_compat_update_buffer(pl_compat, blocks[i].index, info->buffer, 0, 0);

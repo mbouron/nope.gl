@@ -25,11 +25,6 @@
 #include "node_stroke.h"
 #include "nopegl/nopegl.h"
 
-void ngli_stroke_info_init(struct stroke_info *si)
-{
-    ngli_darray_init(&si->uniforms, sizeof(struct stroke_uniform_def), 0);
-}
-
 void ngli_stroke_info_reset(struct stroke_info *si)
 {
     ngli_darray_reset(&si->uniforms);
@@ -40,9 +35,9 @@ void ngli_stroke_info_reset(struct stroke_info *si)
         .type = (type_),                                                         \
         .opts_offset = offsetof(opts_struct_, field_),                           \
     };                                                                           \
-    struct stroke_uniform_def *_p = ngli_darray_push(&(si_)->uniforms, &_ud);   \
-    if (!_p)                                                                     \
+    if (ngli_darray_push(&(si_)->uniforms, _ud) < 0)                             \
         return NGL_ERROR_MEMORY;                                                 \
+    struct stroke_uniform_def *_p = ngli_darray_tail(&(si_)->uniforms);          \
     snprintf(_p->name, sizeof(_p->name), "%s", (name_));                         \
 } while (0)
 
@@ -83,7 +78,6 @@ static int stroke_init(struct ngl_node *node)
     struct stroke_priv *s = node->priv_data;
     const struct stroke_opts *o = node->opts;
     struct stroke_info *si = &s->si;
-    ngli_stroke_info_init(si);
     si->glsl = stroke_glsl;
     si->opts = o;
     REGISTER_STROKE_UNIFORM(si, "stroke_color", NGPU_TYPE_VEC4, struct stroke_opts, color);
@@ -229,7 +223,6 @@ static int strokegradient_init(struct ngl_node *node)
     struct strokegradient_priv *s = node->priv_data;
     const struct strokegradient_opts *o = node->opts;
     struct stroke_info *si = &s->si;
-    ngli_stroke_info_init(si);
     si->helper_flags = STROKE_HELPER_SRGB;
     si->glsl = strokegradient_glsl;
     si->opts = o;
@@ -416,7 +409,6 @@ static int strokegradient4_init(struct ngl_node *node)
     struct strokegradient4_priv *s = node->priv_data;
     const struct strokegradient4_opts *o = node->opts;
     struct stroke_info *si = &s->si;
-    ngli_stroke_info_init(si);
     si->helper_flags = STROKE_HELPER_SRGB;
     si->glsl = strokegradient4_glsl;
     si->opts = o;
