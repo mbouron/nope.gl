@@ -76,9 +76,9 @@ struct texture_map {
 
 struct pipeline_desc {
     struct pipeline_compat *pipeline_compat;
-    struct darray blocks_map; // struct resource_map
-    struct darray textures_map; // struct texture_map
-    struct darray reframing_nodes; // struct ngl_node *
+    NGLI_DARRAY(struct resource_map) blocks_map;
+    NGLI_DARRAY(struct texture_map) textures_map;
+    struct ngli_node_darray reframing_nodes;
 };
 
 struct drawhistogram_opts {
@@ -248,9 +248,9 @@ static int drawhistogram_init(struct ngl_node *node)
     ngpu_block_desc_add_field(&s->frag_block_desc, "mode", NGPU_TYPE_I32, 0);
     s->first_filter_field = s->frag_block_desc.nb_fields;
 
-    const struct darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
-    const struct ngli_filter_resource *comb_uniforms = ngli_darray_data(comb_uniforms_array);
-    for (size_t i = 0; i < ngli_darray_count(comb_uniforms_array); i++)
+    const struct ngli_filter_resource_darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
+    const struct ngli_filter_resource *comb_uniforms = comb_uniforms_array->data;
+    for (size_t i = 0; i < comb_uniforms_array->count; i++)
         ngpu_block_desc_add_field(&s->frag_block_desc, comb_uniforms[i].name, comb_uniforms[i].type, 0);
 
     ngli_node_block_extend_usage(o->stats, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -268,11 +268,6 @@ static int drawhistogram_prepare(struct ngl_node *node,
     const struct drawhistogram_opts *o = node->opts;
 
     struct pipeline_desc *desc = &s->pipeline_desc;
-
-    /* Init pipeline desc fields */
-    ngli_darray_init(&desc->blocks_map, sizeof(struct resource_map), 0);
-    ngli_darray_init(&desc->textures_map, sizeof(struct texture_map), 0);
-    ngli_darray_init(&desc->reframing_nodes, sizeof(struct ngl_node *), 0);
 
     const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
     const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
@@ -370,7 +365,7 @@ static int drawhistogram_prepare(struct ngl_node *node,
     /* Build blocks map for stats */
     const int32_t stats_index = ngpu_pgcraft_get_block_index(s->crafter, "stats", NGPU_PROGRAM_STAGE_FRAG);
     const struct resource_map map = {.index = stats_index, .info = block_info, .buffer_rev = SIZE_MAX};
-    if (!ngli_darray_push(&desc->blocks_map, &map))
+    if (ngli_darray_push(&desc->blocks_map, map) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -416,9 +411,9 @@ static void drawhistogram_draw(struct ngl_node *node)
         memcpy(data, &frag_data, sizeof(frag_data));
 
         /* Write filter uniforms */
-        const struct darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
-        const struct ngli_filter_resource *comb_uniforms = ngli_darray_data(comb_uniforms_array);
-        for (size_t i = 0; i < ngli_darray_count(comb_uniforms_array); i++) {
+        const struct ngli_filter_resource_darray *comb_uniforms_array = ngli_filterschain_get_resources(s->filterschain);
+        const struct ngli_filter_resource *comb_uniforms = comb_uniforms_array->data;
+        for (size_t i = 0; i < comb_uniforms_array->count; i++) {
             const size_t fi = s->first_filter_field + i;
             if (comb_uniforms[i].data)
                 ngpu_block_field_copy(&block->fields[fi], data + block->fields[fi].offset, comb_uniforms[i].data);
@@ -429,8 +424,8 @@ static void drawhistogram_draw(struct ngl_node *node)
                                            staging_buf, frag_offset, frag_size);
     }
 
-    struct resource_map *resource_map = ngli_darray_data(&desc->blocks_map);
-    for (size_t i = 0; i < ngli_darray_count(&desc->blocks_map); i++) {
+    struct resource_map *resource_map = desc->blocks_map.data;
+    for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
         if (resource_map[i].buffer_rev != info->buffer_rev) {
             ngli_pipeline_compat_update_buffer(pl_compat, resource_map[i].index, info->buffer, 0, 0);

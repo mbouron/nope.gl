@@ -42,9 +42,12 @@
 #include "utils/utils.h"
 
 #if HAVE_TEXT_LIBRARIES
+NGLI_DECLARE_DARRAY_WITH_NAME(ft_face_darray, FT_Face);
+NGLI_DECLARE_DARRAY_WITH_NAME(hb_font_darray, hb_font_t *);
+
 struct text_external {
-    struct darray ft_faces; // FT_Face (hidden pointer)
-    struct darray hb_fonts; // hb_font_t*
+    struct ft_face_darray ft_faces; // FT_Face (hidden pointer)
+    struct hb_font_darray hb_fonts; // hb_font_t*
     struct slug *slug;
     struct hmap *glyph_index; // persistent glyph cache across set_string calls
 };
@@ -54,7 +57,7 @@ static int load_font(struct text *text, const char *font_file, int32_t face_inde
     struct text_external *s = text->priv_data;
 
     /* This limitation simplifies the UID computation in GLYPH_UID_STRING() */
-    if (ngli_darray_count(&s->ft_faces) == 0xff) {
+    if (s->ft_faces.count == 0xff) {
         LOG(ERROR, "maximum number of fonts reached (256)");
         return NGL_ERROR_LIMIT_EXCEEDED;
     }
@@ -73,7 +76,7 @@ static int load_font(struct text *text, const char *font_file, int32_t face_inde
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    if (!ngli_darray_push(&s->ft_faces, &ft_face)) {
+    if (ngli_darray_push(&s->ft_faces, ft_face) < 0) {
         FT_Done_Face(ft_face);
         return NGL_ERROR_MEMORY;
     }
@@ -108,7 +111,7 @@ static int load_font(struct text *text, const char *font_file, int32_t face_inde
     if (!hb_font)
         return NGL_ERROR_MEMORY;
 
-    if (!ngli_darray_push(&s->hb_fonts, &hb_font)) {
+    if (ngli_darray_push(&s->hb_fonts, hb_font) < 0) {
         hb_font_destroy(hb_font);
         return NGL_ERROR_MEMORY;
     }
@@ -133,9 +136,6 @@ static void free_glyph(void *user_arg, void *data);
 static int text_external_init(struct text *text)
 {
     struct text_external *s = text->priv_data;
-
-    ngli_darray_init(&s->ft_faces, sizeof(FT_Face), 0);
-    ngli_darray_init(&s->hb_fonts, sizeof(hb_font_t *), 0);
 
     ngli_darray_set_free_func(&s->ft_faces, free_ft_face, NULL);
     ngli_darray_set_free_func(&s->hb_fonts, free_hb_font, NULL);
@@ -234,6 +234,8 @@ struct text_run {
     const hb_glyph_position_t *glyph_positions;
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(text_run_darray, struct text_run);
+
 struct outline_ctx {
     struct path *path;
     FT_BBox cbox; // current glyph control box
@@ -296,7 +298,7 @@ static const FT_Outline_Funcs outline_funcs = {
     .cubic_to = cubic_to_cb,
 };
 
-static int build_glyph_index(struct text *text, struct hmap *glyph_index, const struct darray *runs_array)
+static int build_glyph_index(struct text *text, struct hmap *glyph_index, const struct text_run_darray *runs_array)
 {
     int ret = 0;
     struct text_external *s = text->priv_data;
@@ -305,14 +307,12 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
     if (!path)
         return NGL_ERROR_MEMORY;
 
-    const struct text_run *runs = ngli_darray_data(runs_array);
-    for (size_t i = 0; i < ngli_darray_count(runs_array); i++) {
-        const struct text_run *run = &runs[i];
+    for (size_t i = 0; i < runs_array->count; i++) {
+        const struct text_run *run = &runs_array->data[i];
         if (run->face_id == SIZE_MAX)
             continue;
 
-        const FT_Face *ft_faces = ngli_darray_data(&s->ft_faces);
-        const FT_Face ft_face = ft_faces[run->face_id];
+        const FT_Face ft_face = s->ft_faces.data[run->face_id];
         const size_t nb_glyphs = hb_buffer_get_length(run->buffer);
         const hb_glyph_info_t *glyph_infos = run->glyph_infos;
 
@@ -402,10 +402,10 @@ end:
     return ret;
 }
 
-static void reset_runs(struct darray *runs_array)
+static void reset_runs(struct text_run_darray *runs_array)
 {
-    struct text_run *runs = ngli_darray_data(runs_array);
-    for (size_t i = 0; i < ngli_darray_count(runs_array); i++)
+    struct text_run *runs = runs_array->data;
+    for (size_t i = 0; i < runs_array->count; i++)
         hb_buffer_destroy(runs[i].buffer);
     ngli_darray_reset(runs_array);
 }
@@ -442,7 +442,7 @@ static size_t find_line_end(const FriBidiChar *str, size_t len, size_t start)
     return len;
 }
 
-static int append_run(struct text *text, struct darray *runs_array,
+static int append_run(struct text *text, struct text_run_darray *runs_array,
                       const FriBidiChar *str, size_t len, size_t face_id,
                       enum run_type type, size_t start, size_t end)
 {
@@ -472,7 +472,7 @@ static int append_run(struct text *text, struct darray *runs_array,
     hb_buffer_guess_segment_properties(buffer);
 
     const struct text_run run = {.type=type, .face_id=face_id, .buffer=buffer};
-    if (!ngli_darray_push(runs_array, &run)) {
+    if (ngli_darray_push(runs_array, run) < 0) {
         hb_buffer_reset(buffer);
         return NGL_ERROR_MEMORY;
     }
@@ -480,11 +480,11 @@ static int append_run(struct text *text, struct darray *runs_array,
     return 0;
 }
 
-static size_t find_face_with_codepoint(const struct darray *ft_faces_array, FriBidiChar ch, size_t prev_face_id)
+static size_t find_face_with_codepoint(const struct ft_face_darray *ft_faces_array, FriBidiChar ch, size_t prev_face_id)
 {
     const FT_ULong charcode = (FT_ULong)ch;
-    const FT_Face *ft_faces = ngli_darray_data(ft_faces_array);
-    for (size_t face_id = 0; face_id < ngli_darray_count(ft_faces_array); face_id++)
+    const FT_Face *ft_faces = ft_faces_array->data;
+    for (size_t face_id = 0; face_id < ft_faces_array->count; face_id++)
         if (FT_Get_Char_Index(ft_faces[face_id], charcode))
             return face_id;
     return SIZE_MAX;
@@ -494,7 +494,7 @@ static size_t find_face_with_codepoint(const struct darray *ft_faces_array, FriB
  * Split the sequence of codepoints into multiple runs (or just one if there is
  * only one font face needed)
  */
-static int split_into_runs(struct text *text, struct darray *runs_array,
+static int split_into_runs(struct text *text, struct text_run_darray *runs_array,
                            const FriBidiChar *str, size_t len,
                            enum run_type type, size_t start, size_t end)
 {
@@ -528,7 +528,7 @@ static int split_into_runs(struct text *text, struct darray *runs_array,
     return 0;
 }
 
-static int handle_words_and_wordseps(struct text *text, struct darray *runs_array, const FriBidiChar *str, size_t len)
+static int handle_words_and_wordseps(struct text *text, struct text_run_darray *runs_array, const FriBidiChar *str, size_t len)
 {
     size_t pos = 0;
 
@@ -562,7 +562,7 @@ static int handle_words_and_wordseps(struct text *text, struct darray *runs_arra
     return 0;
 }
 
-static int handle_line_breaks(struct text *text, struct darray *runs_array,
+static int handle_line_breaks(struct text *text, struct text_run_darray *runs_array,
                               const FriBidiChar *str, size_t len, size_t *pos)
 {
     size_t end = *pos;
@@ -627,7 +627,7 @@ end:
 /*
  * Split text into runs, where each run is essentially a harfbuzz buffer
  */
-static int build_text_runs(struct text *text, const char *str_orig, struct darray *runs_array)
+static int build_text_runs(struct text *text, const char *str_orig, struct text_run_darray *runs_array)
 {
     int ret = 0;
     struct text_external *s = text->priv_data;
@@ -691,13 +691,11 @@ static int build_text_runs(struct text *text, const char *str_orig, struct darra
     }
 
     /* Run shaping on all run buffers */
-    struct text_run *runs = ngli_darray_data(runs_array);
-    struct hb_font_t **hb_fonts = ngli_darray_data(&s->hb_fonts);
-    for (size_t i = 0; i < ngli_darray_count(runs_array); i++) {
-        struct text_run *run = &runs[i];
+    for (size_t i = 0; i < runs_array->count; i++) {
+        struct text_run *run = &runs_array->data[i];
         hb_buffer_t *buffer = run->buffer;
         const size_t face_id = run->face_id != SIZE_MAX ? run->face_id : 0;
-        hb_shape(hb_fonts[face_id], buffer, NULL, 0);
+        hb_shape(s->hb_fonts.data[face_id], buffer, NULL, 0);
 
         /*
          * Save these pointers because they take a mutable buffer and we want to
@@ -717,22 +715,21 @@ end:
 // The value is using 26.6 encoding
 #define GET_LINE_ADVANCE(face_id) ((int32_t)(ft_faces[face_id]->size->metrics.height))
 
-static int register_chars(struct text *text, const char *str, struct darray *chars_dst,
-                          const struct darray *runs_array, const struct hmap *glyph_index)
+static int register_chars(struct text *text, const char *str, struct ngli_char_info_internal_darray *chars_dst,
+                          const struct text_run_darray *runs_array, const struct hmap *glyph_index)
 {
     struct text_external *s = text->priv_data;
 
     const int32_t adv_sign = text->config.writing_mode == NGLI_TEXT_WRITING_MODE_VERTICAL_LR ? 1 : -1;
 
-    ngli_assert(ngli_darray_count(&s->ft_faces) > 0);
-    const FT_Face *ft_faces = ngli_darray_data(&s->ft_faces);
+    ngli_assert(s->ft_faces.count > 0);
+    const FT_Face *ft_faces = s->ft_faces.data;
 
     hb_position_t x_cur = 0, y_cur = 0;
     int32_t line_advance = GET_LINE_ADVANCE(0);
 
-    const struct text_run *runs = ngli_darray_data(runs_array);
-    for (size_t i = 0; i < ngli_darray_count(runs_array); i++) {
-        const struct text_run *run = &runs[i];
+    for (size_t i = 0; i < runs_array->count; i++) {
+        const struct text_run *run = &runs_array->data[i];
         const size_t len = hb_buffer_get_length(run->buffer);
         const hb_direction_t direction = hb_buffer_get_direction(run->buffer);
 
@@ -760,7 +757,7 @@ static int register_chars(struct text *text, const char *str, struct darray *cha
                 line_advance = GET_LINE_ADVANCE(0);
 
                 /* We assume the linebreak is never displayable */
-                if (!ngli_darray_push(chars_dst, &chr))
+                if (ngli_darray_push(chars_dst, chr) < 0)
                     return NGL_ERROR_MEMORY;
                 continue;
 
@@ -782,7 +779,7 @@ static int register_chars(struct text *text, const char *str, struct darray *cha
                 ngli_slug_get_glyph_data(s->slug, glyph->slug_index, &chr.slug);
             }
 
-            if (!ngli_darray_push(chars_dst, &chr))
+            if (ngli_darray_push(chars_dst, chr) < 0)
                 return NGL_ERROR_MEMORY;
 
             x_cur += pos->x_advance;
@@ -792,12 +789,11 @@ static int register_chars(struct text *text, const char *str, struct darray *cha
     return 0;
 }
 
-static int text_external_set_string(struct text *text, const char *str, struct darray *chars_dst)
+static int text_external_set_string(struct text *text, const char *str, struct ngli_char_info_internal_darray *chars_dst)
 {
     struct text_external *s = text->priv_data;
 
-    struct darray runs_array;
-    ngli_darray_init(&runs_array, sizeof(struct text_run), 0);
+    struct text_run_darray runs_array = {0};
 
     int ret = build_text_runs(text, str, &runs_array);
     if (ret < 0)
@@ -848,7 +844,7 @@ const struct text_cls ngli_text_external = {
 
 #else
 
-static int text_external_dummy_set_string(struct text *s, const char *str, struct darray *chars_dst)
+static int text_external_dummy_set_string(struct text *s, const char *str, struct ngli_char_info_internal_darray *chars_dst)
 {
     return NGL_ERROR_BUG;
 }

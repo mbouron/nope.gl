@@ -96,11 +96,6 @@ struct maskblur_priv {
 
 #define OFFSET_BLUR(x) offsetof(struct maskblur_opts, x)
 
-void ngli_mask_info_init(struct mask_info *mi)
-{
-    ngli_darray_init(&mi->uniforms, sizeof(struct mask_uniform_def), 0);
-}
-
 void ngli_mask_info_reset(struct mask_info *mi)
 {
     ngli_darray_reset(&mi->uniforms);
@@ -117,7 +112,6 @@ static int maskblur_init(struct ngl_node *node)
     struct maskblur_priv *s = node->priv_data;
     const struct maskblur_opts *o = node->opts;
 
-    ngli_mask_info_init(&s->info);
     s->info.glsl      = maskblur_glsl_table[o->style];
     s->info.dilation  = o->sigma * 3.0f;
     s->info.opts      = o;
@@ -127,7 +121,7 @@ static int maskblur_init(struct ngl_node *node)
         .opts_offset = OFFSET_BLUR(sigma),
     };
     snprintf(ud.name, sizeof(ud.name), "mask_sigma");
-    if (!ngli_darray_push(&s->info.uniforms, &ud))
+    if (ngli_darray_push(&s->info.uniforms, ud) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -236,7 +230,6 @@ static int masktexture_init(struct ngl_node *node)
     struct masktexture_priv *s = node->priv_data;
     const struct masktexture_opts *o = node->opts;
 
-    ngli_mask_info_init(&s->info);
     s->info.glsl         = masktexture_glsl_table[o->channel];
     s->info.texture_node = o->texture_node;
     s->info.dilation     = 0.0f;

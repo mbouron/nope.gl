@@ -215,9 +215,8 @@ enum {
 
 static int get_renderpass_info(const struct ngl_node *node, int state, struct renderpass_info *info)
 {
-    const struct ngl_node **children = ngli_darray_data(&node->children);
-    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        const struct ngl_node *child = children[i];
+    for (size_t i = 0; i < node->children.count; i++) {
+        const struct ngl_node *child = node->children.data[i];
         if (child->cls->id == NGL_NODE_RENDERTOTEXTURE ||
             child->cls->id == NGL_NODE_COMPUTE) {
             if (state == RENDER_PASS_STATE_STARTED)
@@ -459,8 +458,8 @@ static void rtt_pre_draw(struct ngl_node *node)
     }
 
     if (!o->forward_transforms) {
-        if (!ngli_darray_push(&ctx->modelview_matrix_stack, &ctx->default_modelview_matrix) ||
-            !ngli_darray_push(&ctx->projection_matrix_stack, &ctx->default_projection_matrix))
+        if (ngli_darray_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) < 0 ||
+            ngli_darray_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix) < 0)
             return;
     }
 

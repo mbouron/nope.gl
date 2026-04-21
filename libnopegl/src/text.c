@@ -42,7 +42,7 @@ extern const struct text_cls ngli_text_external;
 
 struct box_stats {
     enum writing_mode writing_mode;
-    struct darray linelens;         // int32_t, length of each line (not necessarily horizontal)
+    NGLI_DARRAY(int32_t) linelens;  // length of each line (not necessarily horizontal)
     int32_t max_linelen;            // maximum value in the linelens array
     int32_t linemin, linemax;       // current line min/max
     int32_t xmin, xmax;             // current box min/max on x-axis
@@ -52,7 +52,6 @@ struct box_stats {
 static void box_stats_init(struct box_stats *s, enum writing_mode writing_mode)
 {
     s->writing_mode = writing_mode;
-    ngli_darray_init(&s->linelens, sizeof(int32_t), 0);
     s->max_linelen = INT32_MIN;
     s->linemin = s->xmin = s->ymin = INT32_MAX;
     s->linemax = s->xmax = s->ymax = INT32_MIN;
@@ -61,7 +60,7 @@ static void box_stats_init(struct box_stats *s, enum writing_mode writing_mode)
 static int box_stats_register_eol(struct box_stats *s)
 {
     const int32_t len = s->linemax == INT32_MIN ? 0 : s->linemax - s->linemin;
-    if (!ngli_darray_push(&s->linelens, &len))
+    if (ngli_darray_push(&s->linelens, len) < 0)
         return NGL_ERROR_MEMORY;
     s->max_linelen = NGLI_MAX(s->max_linelen, len);
     s->linemin = INT32_MAX;
@@ -90,12 +89,12 @@ static void box_stats_reset(struct box_stats *s)
     memset(s, 0, sizeof(*s));
 }
 
-static int build_stats(struct box_stats *stats, struct darray *chars_array, enum writing_mode writing_mode)
+static int build_stats(struct box_stats *stats, struct ngli_char_info_internal_darray *chars_array, enum writing_mode writing_mode)
 {
     box_stats_init(stats, writing_mode);
 
-    const struct char_info_internal *chars_internal = ngli_darray_data(chars_array);
-    for (size_t i = 0; i < ngli_darray_count(chars_array); i++) {
+    const struct char_info_internal *chars_internal = chars_array->data;
+    for (size_t i = 0; i < chars_array->count; i++) {
         const struct char_info_internal *chr = &chars_internal[i];
         if (chr->tags & NGLI_TEXT_CHAR_TAG_GLYPH)
             box_stats_register_chr(stats, chr->x, chr->y, chr->w, chr->h);
@@ -127,9 +126,6 @@ struct text *ngli_text_create(struct ngl_ctx *ctx)
 int ngli_text_init(struct text *s, const struct text_config *cfg)
 {
     s->config = *cfg;
-
-    ngli_darray_init(&s->chars, sizeof(struct char_info), 0);
-    ngli_darray_init(&s->chars_internal, sizeof(struct char_info_internal), 0);
 
     s->effects = ngli_calloc(cfg->nb_effect_nodes, sizeof(*s->effects));
     if (!s->effects)
@@ -240,8 +236,6 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
     const float corner_x = box.x + align_padw * spx;
     const float corner_y = box.y + align_padh * spy;
 
-    const struct char_info *chars = ngli_darray_data(&s->chars);
-
     /*
      * Em-space padding around each character quad to allow effects (outline,
      * glow, blur) to render beyond the tight glyph bounding box. The padding
@@ -251,8 +245,8 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
     #define EFFECT_PAD_RATIO 0.8f
 
     /* character dimension and position (with effect padding) */
-    for (size_t n = 0; n < ngli_darray_count(&s->chars); n++) {
-        const struct char_info *chr = &chars[n];
+    for (size_t n = 0; n < s->chars.count; n++) {
+        const struct char_info *chr = &s->chars.data[n];
         const float chr_x0 = corner_x + width  * chr->geom.x0;
         const float chr_y0 = corner_y + height * chr->geom.y0;
         const float chr_x1 = corner_x + width  * chr->geom.x1;
@@ -270,14 +264,14 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
     }
 
     /* register atlas identifier */
-    for (size_t n = 0; n < ngli_darray_count(&s->chars); n++) {
-        const struct char_info *chr = &chars[n];
+    for (size_t n = 0; n < s->chars.count; n++) {
+        const struct char_info *chr = &s->chars.data[n];
         memcpy(ptrs.atlas_coords + 4 * n, (const float *)&chr->atlas_coords, sizeof(chr->atlas_coords));
     }
 
     /* slug per-instance data (texcoord bounds dilated to match vertex padding) */
-    for (size_t n = 0; n < ngli_darray_count(&s->chars); n++) {
-        const struct char_info *chr = &chars[n];
+    for (size_t n = 0; n < s->chars.count; n++) {
+        const struct char_info *chr = &s->chars.data[n];
         const float *eb = chr->slug.em_bounds;
         const float em_w = eb[2] - eb[0];
         const float em_h = eb[3] - eb[1];
@@ -320,14 +314,14 @@ void ngli_text_update_effects_defaults(struct text *s, const struct text_effects
 {
     s->config.defaults = *defaults;
 
-    const size_t nb_chars = ngli_darray_count(&s->chars);
+    const size_t nb_chars = s->chars.count;
     if (nb_chars)
         fill_default_data_buffers(s, nb_chars);
 }
 
 void ngli_text_refresh_geometry_data(struct text *s)
 {
-    const size_t nb_chars = ngli_darray_count(&s->chars);
+    const size_t nb_chars = s->chars.count;
     if (!nb_chars)
         return;
 
@@ -425,22 +419,21 @@ static void segment_chars(const struct text *s, struct effect_segmentation *effe
     size_t char_id = 0;
     size_t position = 0;
 
-    const struct char_info_internal *chars = ngli_darray_data(&s->chars_internal);
-    for (size_t i = 0; i < ngli_darray_count(&s->chars_internal); i++) {
-        const struct char_info_internal *c = &chars[i];
+    for (size_t i = 0; i < s->chars_internal.count; i++) {
+        const struct char_info_internal *c = &s->chars_internal.data[i];
         if (c->tags & NGLI_TEXT_CHAR_TAG_GLYPH)
             effect->positions[char_id++] = position;
         position++; // account for all the hidden characters as if they existed
     }
-    ngli_assert(char_id == ngli_darray_count(&s->chars));
+    ngli_assert(char_id == s->chars.count);
     effect->total_segments = position;
 }
 
 static void segment_chars_nospace(const struct text *s, struct effect_segmentation *effect)
 {
-    for (size_t i = 0; i < ngli_darray_count(&s->chars); i++)
+    for (size_t i = 0; i < s->chars.count; i++)
         effect->positions[i] = i;
-    effect->total_segments = ngli_darray_count(&s->chars);
+    effect->total_segments = s->chars.count;
 }
 
 static void segment_separator(const struct text *s, struct effect_segmentation *effect, uint32_t mask)
@@ -449,9 +442,8 @@ static void segment_separator(const struct text *s, struct effect_segmentation *
 
     size_t char_id = 0;
     size_t position = 0;
-    const struct char_info_internal *chars = ngli_darray_data(&s->chars_internal);
-    for (size_t i = 0; i < ngli_darray_count(&s->chars_internal); i++) {
-        const struct char_info_internal *c = &chars[i];
+    for (size_t i = 0; i < s->chars_internal.count; i++) {
+        const struct char_info_internal *c = &s->chars_internal.data[i];
 
         if (c->tags & mask) {
             if (inside_target_element) {
@@ -468,7 +460,7 @@ static void segment_separator(const struct text *s, struct effect_segmentation *
 
         effect->positions[char_id++] = position;
     }
-    ngli_assert(char_id == ngli_darray_count(&s->chars));
+    ngli_assert(char_id == s->chars.count);
 }
 
 static void segment_words(const struct text *s, struct effect_segmentation *effect)
@@ -483,7 +475,7 @@ static void segment_lines(const struct text *s, struct effect_segmentation *effe
 
 static void segment_text(const struct text *s, struct effect_segmentation *effect)
 {
-    for (size_t i = 0; i < ngli_darray_count(&s->chars); i++)
+    for (size_t i = 0; i < s->chars.count; i++)
         effect->positions[i] = 0;
     effect->total_segments = 1;
 }
@@ -516,7 +508,7 @@ static int build_effects_segmentation(struct text *s)
         const struct texteffect_opts *effect_opts = effect_node->opts;
         struct effect_segmentation *effect = &s->effects[i];
 
-        const size_t nb_chars = ngli_darray_count(&s->chars);
+        const size_t nb_chars = s->chars.count;
         size_t *new_positions = ngli_realloc(effect->positions, nb_chars, sizeof(*new_positions));
         if (!new_positions)
             return NGL_ERROR_MEMORY;
@@ -621,10 +613,9 @@ int ngli_text_set_string(struct text *s, const char *str)
 
     /* Honor layout */
     int32_t line = 0;
-    const int32_t *linelens = ngli_darray_data(&stats.linelens);
-    struct char_info_internal *chars_internal = ngli_darray_data(&s->chars_internal);
-    for (size_t i = 0; i < ngli_darray_count(&s->chars_internal); i++) {
-        struct char_info_internal *chr = &chars_internal[i];
+    const int32_t *linelens = stats.linelens.data;
+    for (size_t i = 0; i < s->chars_internal.count; i++) {
+        struct char_info_internal *chr = &s->chars_internal.data[i];
 
         if (chr->tags & NGLI_TEXT_CHAR_TAG_LINE_BREAK)
             line++;
@@ -651,8 +642,8 @@ int ngli_text_set_string(struct text *s, const char *str)
     }
 
     /* Expose characters publicly */
-    for (size_t i = 0; i < ngli_darray_count(&s->chars_internal); i++) {
-        const struct char_info_internal *chr_internal = &chars_internal[i];
+    for (size_t i = 0; i < s->chars_internal.count; i++) {
+        const struct char_info_internal *chr_internal = &s->chars_internal.data[i];
 
         if (!(chr_internal->tags & NGLI_TEXT_CHAR_TAG_GLYPH))
             continue;
@@ -680,7 +671,7 @@ int ngli_text_set_string(struct text *s, const char *str)
             .slug = chr_internal->slug,
         };
 
-        if (!ngli_darray_push(&s->chars, &chr)) {
+        if (ngli_darray_push(&s->chars, chr) < 0) {
             ret = NGL_ERROR_MEMORY;
             goto end;
         }
@@ -694,7 +685,7 @@ int ngli_text_set_string(struct text *s, const char *str)
      * lengths of the successive strings updates are in the same vicinity, we
      * stitch the number of characters to the next power of two.
      */
-    const size_t nb_chars = ngli_darray_count(&s->chars);
+    const size_t nb_chars = s->chars.count;
     const size_t alloc_count = next_pow2(nb_chars);
     const size_t needed_size = alloc_count * sizeof(struct default_data);
     if (s->chars_data_size != needed_size) {
@@ -741,7 +732,7 @@ end:
 
 int ngli_text_set_time(struct text *s, double t)
 {
-    if (!ngli_darray_count(&s->chars))
+    if (!s->chars.count)
         return 0;
 
     reset_chars_data_to_defaults(s);
@@ -772,8 +763,7 @@ int ngli_text_set_time(struct text *s, double t)
         const double timescale = (1.f - overlap) * duration;
 
         /* Apply effect on the selected range of characters */
-        const struct char_info *chars = ngli_darray_data(&s->chars);
-        for (size_t c = 0; c < ngli_darray_count(&s->chars); c++) {
+        for (size_t c = 0; c < s->chars.count; c++) {
             const size_t pos = effect->positions[c];
 
             /* Recenter the position in the middle of the character (similar to texture sampling) */
@@ -789,7 +779,7 @@ int ngli_text_set_time(struct text *s, double t)
             const double target_t = NGLI_LINEAR_NORM(prev_t, next_t, effect_t);
 
             const struct ngli_aabb chr_aabb = {NGLI_ARG_VEC4(s->data_ptrs.vertices + c * 4)};
-            const struct char_info *chr = &chars[i];
+            const struct char_info *chr = &s->chars.data[i];
 
             if ((ret = set_transform( s->data_ptrs.transform  + c * 4 * 4, effect_opts, s->config.box, chr_aabb, chr,                   target_t)) < 0 ||
                 (ret = set_vec3_value(s->data_ptrs.color      + c * 4,     effect_opts->color_node,         effect_opts->color,         target_t)) < 0 ||

@@ -68,9 +68,8 @@ static void reset_children_timings(struct ngl_node *node)
 {
     node->visit_time = -1;
     node->last_update_time = -1;
-    struct ngl_node **children = ngli_darray_data(&node->children);
-    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        struct ngl_node *child = children[i];
+    for (size_t i = 0; i < node->children.count; i++) {
+        struct ngl_node *child = node->children.data[i];
         reset_children_timings(child);
     }
 }

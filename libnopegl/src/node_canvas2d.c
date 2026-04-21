@@ -27,6 +27,8 @@
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
+#include "utils/darray.h"
+#include "utils/utils.h"
 
 struct canvas2d_opts {
     struct ngl_node **children;
@@ -37,15 +39,14 @@ struct canvas2d_opts {
 
 struct canvas2d_priv {
     struct ngli_node2d_info node2d_info;
-    struct darray indices;
+    NGLI_DARRAY(size_t) indices;
 };
 
 static int canvas2d_swap_children(struct ngl_node *node, size_t from, size_t to)
 {
     struct canvas2d_priv *s = node->priv_data;
 
-    size_t *indices = ngli_darray_data(&s->indices);
-    NGLI_SWAP(size_t, indices[from], indices[to]);
+    NGLI_SWAP(size_t, s->indices.data[from], s->indices.data[to]);
 
     return 0;
 }
@@ -74,15 +75,6 @@ static const struct node_param canvas2d_params[] = {
     {NULL}
 };
 
-static int canvas2d_init(struct ngl_node *node)
-{
-    struct canvas2d_priv *s = node->priv_data;
-
-    ngli_darray_init(&s->indices, sizeof(size_t), 0);
-
-    return 0;
-}
-
 static int canvas2d_prepare(struct ngl_node *node,
                             const struct ngpu_graphics_state *graphics_state,
                             const struct ngpu_rendertarget_layout *rendertarget_layout)
@@ -91,7 +83,7 @@ static int canvas2d_prepare(struct ngl_node *node,
     const struct canvas2d_opts *o = node->opts;
 
     for (size_t i = 0; i < o->nb_children; i++) {
-        if (!ngli_darray_push(&s->indices, &i))
+        if (ngli_darray_push(&s->indices, i) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -105,14 +97,14 @@ static void canvas2d_pre_draw(struct ngl_node *node)
     const struct canvas2d_opts *o = node->opts;
 
     /* Save previous 2D state */
-    struct darray prev_transform_2d_stack = ctx->transform_2d_stack;
-    struct darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
+    struct ngli_mat4_darray prev_transform_2d_stack = ctx->transform_2d_stack;
+    struct ngli_f32_darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
     const float prev_canvas_2d_width = ctx->canvas_2d_width;
     const float prev_canvas_2d_height = ctx->canvas_2d_height;
 
     /* Initialize fresh stacks for bbox computation */
-    ngli_darray_init(&ctx->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
-    ngli_darray_init(&ctx->opacity_2d_stack, sizeof(float), 0);
+    ctx->transform_2d_stack = (struct ngli_mat4_darray){0};
+    ctx->opacity_2d_stack = (struct ngli_f32_darray){0};
 
     const float w = o->width  > 0 ? (float)o->width  : ctx->viewport.width;
     const float h = o->height > 0 ? (float)o->height : ctx->viewport.height;
@@ -121,8 +113,8 @@ static void canvas2d_pre_draw(struct ngl_node *node)
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (!ngli_darray_push(&ctx->transform_2d_stack, &id_matrix) ||
-        !ngli_darray_push(&ctx->opacity_2d_stack, &default_opacity))
+    if (ngli_darray_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
+        ngli_darray_push(&ctx->opacity_2d_stack, default_opacity) < 0)
         goto restore;
 
     /* Pre-draw children (computes bboxes) */
@@ -150,13 +142,13 @@ static void canvas2d_draw(struct ngl_node *node)
     const struct canvas2d_opts *o = node->opts;
 
     /* Save previous 2D state so nested Canvas2D (e.g. via Texture2D RTT) works */
-    struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
-    struct darray prev_transform_2d_stack = ctx->transform_2d_stack;
-    struct darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
+    const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
+    struct ngli_mat4_darray prev_transform_2d_stack = ctx->transform_2d_stack;
+    struct ngli_f32_darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
 
     /* Initialize fresh stacks for this Canvas2D */
-    ngli_darray_init(&ctx->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
-    ngli_darray_init(&ctx->opacity_2d_stack, sizeof(float), 0);
+    ctx->transform_2d_stack = (struct ngli_mat4_darray){0};
+    ctx->opacity_2d_stack = (struct ngli_f32_darray){0};
 
     /* Compute canvas dimensions */
     const float prev_canvas_2d_width = ctx->canvas_2d_width;
@@ -175,14 +167,13 @@ static void canvas2d_draw(struct ngl_node *node)
     /* Push identity transform and default opacity */
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (!ngli_darray_push(&ctx->transform_2d_stack, &id_matrix) ||
-        !ngli_darray_push(&ctx->opacity_2d_stack, &default_opacity))
+    if (ngli_darray_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
+        ngli_darray_push(&ctx->opacity_2d_stack, default_opacity) < 0)
         goto restore;
 
     /* Draw children */
-    const size_t *indices = ngli_darray_data(&s->indices);
     for (size_t i = 0; i < o->nb_children; i++) {
-        const size_t index = indices[i];
+        const size_t index = s->indices.data[i];
         ngli_node_draw(o->children[index]);
     }
 
@@ -215,7 +206,6 @@ const struct node_class ngli_canvas2d_class = {
     .id        = NGL_NODE_CANVAS2D,
     .name      = "Canvas2D",
     .priv_size = sizeof(struct canvas2d_priv),
-    .init      = canvas2d_init,
     .prepare   = canvas2d_prepare,
     .update    = ngli_node_update_children,
     .pre_draw  = canvas2d_pre_draw,

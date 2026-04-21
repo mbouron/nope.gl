@@ -31,6 +31,7 @@
 #include "node_textureview.h"
 #include "nopegl/nopegl.h"
 #include "rtt.h"
+#include "utils/darray.h"
 #include "utils/utils.h"
 
 struct offscreencanvas2d_opts {
@@ -47,7 +48,7 @@ struct offscreencanvas2d_opts {
 
 struct offscreencanvas2d_priv {
     struct ngli_node2d_info node2d_info;
-    struct darray indices;
+    NGLI_DARRAY(size_t) indices;
 
     uint32_t rtt_width;
     uint32_t rtt_height;
@@ -60,8 +61,7 @@ struct offscreencanvas2d_priv {
 static int offscreencanvas2d_swap_children(struct ngl_node *node, size_t from, size_t to)
 {
     struct offscreencanvas2d_priv *s = node->priv_data;
-    size_t *indices = ngli_darray_data(&s->indices);
-    NGLI_SWAP(size_t, indices[from], indices[to]);
+    NGLI_SWAP(size_t, s->indices.data[from], s->indices.data[to]);
     return 0;
 }
 
@@ -146,8 +146,6 @@ static int offscreencanvas2d_init(struct ngl_node *node)
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
     struct offscreencanvas2d_priv *s = node->priv_data;
     const struct offscreencanvas2d_opts *o = node->opts;
-
-    ngli_darray_init(&s->indices, sizeof(size_t), 0);
 
     if (!o->nb_color_textures) {
         LOG(ERROR, "at least one color texture must be specified");
@@ -238,7 +236,7 @@ static int offscreencanvas2d_prepare(struct ngl_node *node,
     const struct offscreencanvas2d_opts *o = node->opts;
 
     for (size_t i = 0; i < o->nb_children; i++) {
-        if (!ngli_darray_push(&s->indices, &i))
+        if (ngli_darray_push(&s->indices, i) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -427,18 +425,18 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
         ngli_node_pre_draw(o->children[i]);
 
     /* Save previous 2D state */
-    struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
-    struct darray prev_transform_2d_stack = ctx->transform_2d_stack;
-    struct darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
+    const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
+    struct ngli_mat4_darray prev_transform_2d_stack = ctx->transform_2d_stack;
+    struct ngli_f32_darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
 
     /* Initialize fresh stacks */
-    ngli_darray_init(&ctx->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
-    ngli_darray_init(&ctx->opacity_2d_stack, sizeof(float), 0);
+    ctx->transform_2d_stack = (struct ngli_mat4_darray){0};
+    ctx->opacity_2d_stack = (struct ngli_f32_darray){0};
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (!ngli_darray_push(&ctx->transform_2d_stack, &id_matrix) ||
-        !ngli_darray_push(&ctx->opacity_2d_stack, &default_opacity))
+    if (ngli_darray_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
+        ngli_darray_push(&ctx->opacity_2d_stack, default_opacity) < 0)
         goto restore;
 
     /* Begin RTT + set up orthographic projection */
@@ -453,9 +451,8 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
     ngli_mat4_mul(ctx->projection_2d_matrix.m, base_projection.m, ctx->projection_2d_matrix.m);
 
     /* Draw children */
-    const size_t *indices = ngli_darray_data(&s->indices);
     for (size_t i = 0; i < o->nb_children; i++) {
-        const size_t index = indices[i];
+        const size_t index = s->indices.data[i];
         ngli_node_draw(o->children[index]);
     }
 

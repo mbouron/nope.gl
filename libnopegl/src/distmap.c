@@ -64,11 +64,11 @@ struct distmap {
     int32_t nb_rows, nb_cols;
     float scale;
 
-    struct darray shapes;              // struct shape
-    struct darray bezier_x;            // struct bezier3
-    struct darray bezier_y;            // struct bezier3
-    struct darray bezier_counts;       // int32_t
-    struct darray beziergroup_counts;  // int32_t
+    NGLI_DARRAY(struct shape) shapes;
+    NGLI_DARRAY(struct bezier3) bezier_x;
+    NGLI_DARRAY(struct bezier3) bezier_y;
+    NGLI_DARRAY(int32_t) bezier_counts;
+    NGLI_DARRAY(int32_t) beziergroup_counts;
 
     struct ngpu_texture *texture;
     struct ngpu_rendertarget *rt;
@@ -88,11 +88,6 @@ struct distmap *ngli_distmap_create(struct ngl_ctx *ctx)
     if (!s)
         return NULL;
     s->ctx = ctx;
-    ngli_darray_init(&s->shapes, sizeof(struct shape), 0);
-    ngli_darray_init(&s->bezier_x, sizeof(struct bezier3), 0);
-    ngli_darray_init(&s->bezier_y, sizeof(struct bezier3), 0);
-    ngli_darray_init(&s->bezier_counts, sizeof(int32_t), 0);
-    ngli_darray_init(&s->beziergroup_counts, sizeof(int32_t), 0);
     return s;
 }
 
@@ -138,15 +133,15 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
         return NGL_ERROR_INVALID_ARG;
     }
 
-    if (ngli_darray_count(&s->shapes) >= INT32_MAX) {
+    if (s->shapes.count >= INT32_MAX) {
         LOG(ERROR, "number of shapes reached limit of %d", INT32_MAX);
         return NGL_ERROR_LIMIT_EXCEEDED;
     }
 
     int32_t nb_beziers = 0, nb_beziergroups = 0;
-    const struct darray *segments_array = ngli_path_get_segments(path);
-    const struct path_segment *segments = ngli_darray_data(segments_array);
-    for (size_t i = 0; i < ngli_darray_count(segments_array); i++) {
+    const struct ngli_path_segment_darray *segments_array = ngli_path_get_segments(path);
+    const struct path_segment *segments = segments_array->data;
+    for (size_t i = 0; i < segments_array->count; i++) {
         const struct path_segment *segment = &segments[i];
 
         /* Extend all lines and bézier curves to cubic bézier curves */
@@ -173,8 +168,8 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
         bezier_x = scaled_bezier(bezier_x, s->scale);
         bezier_y = scaled_bezier(bezier_y, s->scale);
 
-        if (!ngli_darray_push(&s->bezier_x, &bezier_x) ||
-            !ngli_darray_push(&s->bezier_y, &bezier_y))
+        if (ngli_darray_push(&s->bezier_x, bezier_x) < 0 ||
+            ngli_darray_push(&s->bezier_y, bezier_y) < 0)
             return NGL_ERROR_MEMORY;
 
         /* Artificially insert a closing segment if necessary */
@@ -184,8 +179,8 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
             const float *y0 = segment0->bezier_y;
             const struct bezier3 bezier_x_close = b3_from_line(bezier_x.p3, x0[0]);
             const struct bezier3 bezier_y_close = b3_from_line(bezier_y.p3, y0[0]);
-            if (!ngli_darray_push(&s->bezier_x, &bezier_x_close) ||
-                !ngli_darray_push(&s->bezier_y, &bezier_y_close))
+            if (ngli_darray_push(&s->bezier_x, bezier_x_close) < 0 ||
+                ngli_darray_push(&s->bezier_y, bezier_y_close) < 0)
                 return NGL_ERROR_MEMORY;
             nb_beziers++;
         }
@@ -197,7 +192,7 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
             const int closed = (segment->flags & NGLI_PATH_SEGMENT_FLAG_CLOSING) || (flags & NGLI_DISTMAP_FLAG_PATH_AUTO_CLOSE);
             /* Pass down the closing flag to the shader using negative integers */
             const int32_t bezier_count = (closed ? -1 : 1) * nb_beziers;
-            if (!ngli_darray_push(&s->bezier_counts, &bezier_count))
+            if (ngli_darray_push(&s->bezier_counts, bezier_count) < 0)
                 return NGL_ERROR_MEMORY;
             nb_beziergroups++;
             nb_beziers = 0;
@@ -207,32 +202,30 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
     ngli_assert(nb_beziers == 0);
 
     const struct shape shape = {.width=shape_w, .height=shape_h};
-    if (!ngli_darray_push(&s->shapes, &shape) ||
-        !ngli_darray_push(&s->beziergroup_counts, &nb_beziergroups))
+    if (ngli_darray_push(&s->shapes, shape) < 0 ||
+        ngli_darray_push(&s->beziergroup_counts, nb_beziergroups) < 0)
         return NGL_ERROR_MEMORY;
 
     s->max_shape_w = NGLI_MAX(shape_w, s->max_shape_w);
     s->max_shape_h = NGLI_MAX(shape_h, s->max_shape_h);
 
-    *shape_id = (int32_t)ngli_darray_count(&s->shapes) - 1;
+    *shape_id = (int32_t)s->shapes.count - 1;
     return 0;
 }
 
 static int32_t get_beziergroup_start(const struct distmap *s, int32_t shape_id)
 {
-    const int32_t *group_counts = ngli_darray_data(&s->beziergroup_counts);
     int32_t group_count = 0;
     for (int32_t i = 0; i < shape_id; i++)
-        group_count += group_counts[i];
+        group_count += s->beziergroup_counts.data[i];
     return group_count;
 }
 
 static int32_t sum_bezier_counts(const struct distmap *s, int32_t start, int32_t count)
 {
-    const int32_t *counts = ngli_darray_data(&s->bezier_counts);
     int32_t sum = 0;
     for (int32_t i = start; i < count; i++)
-        sum += abs(counts[i]);
+        sum += abs(s->bezier_counts.data[i]);
     return sum;
 }
 
@@ -244,10 +237,9 @@ static int32_t sum_bezier_counts(const struct distmap *s, int32_t start, int32_t
 static int32_t get_max_beziers_per_shape(const struct distmap *s)
 {
     int32_t max_beziers = 0;
-    const int32_t *counts = ngli_darray_data(&s->bezier_counts);
-    const int32_t *group_counts = ngli_darray_data(&s->beziergroup_counts);
-    for (size_t i = 0; i < ngli_darray_count(&s->beziergroup_counts); i++) {
-        const int32_t group_count = group_counts[i];
+    const int32_t *counts = s->bezier_counts.data;
+    for (size_t i = 0; i < s->beziergroup_counts.count; i++) {
+        const int32_t group_count = s->beziergroup_counts.data[i];
 
         int32_t sum = 0;
         for (int32_t j = 0; j < group_count; j++)
@@ -262,9 +254,8 @@ static int32_t get_max_beziers_per_shape(const struct distmap *s)
 static int32_t get_max_beziergroups_per_shape(const struct distmap *s)
 {
     int32_t max_groups = 0;
-    const int32_t *group_counts = ngli_darray_data(&s->beziergroup_counts);
-    for (size_t i = 0; i < ngli_darray_count(&s->beziergroup_counts); i++)
-        max_groups = NGLI_MAX(max_groups, group_counts[i]);
+    for (size_t i = 0; i < s->beziergroup_counts.count; i++)
+        max_groups = NGLI_MAX(max_groups, s->beziergroup_counts.data[i]);
     return max_groups;
 }
 
@@ -297,17 +288,11 @@ static void block_desc_fields_copy(const struct ngpu_block_desc *s, const struct
 
 static void load_buffers_data(struct distmap *s, uint8_t *vert_data, uint8_t *frag_data)
 {
-    const int32_t *bezier_counts = ngli_darray_data(&s->bezier_counts);
-    const int32_t *beziergroup_counts = ngli_darray_data(&s->beziergroup_counts);
-    const struct bezier3 *bezier_x = ngli_darray_data(&s->bezier_x);
-    const struct bezier3 *bezier_y = ngli_darray_data(&s->bezier_y);
-
-    const int32_t nb_shapes = (int32_t)ngli_darray_count(&s->shapes);
-    const struct shape *shapes = ngli_darray_data(&s->shapes);
+    const int32_t nb_shapes = (int32_t)s->shapes.count;
 
     for (int32_t shape_id = 0; shape_id < nb_shapes; shape_id++) {
         const int32_t beziergroup_start_idx = get_beziergroup_start(s, shape_id);
-        const int32_t beziergroup_count     = beziergroup_counts[shape_id];
+        const int32_t beziergroup_count     = s->beziergroup_counts.data[shape_id];
 
         const int32_t bezier_start_idx = sum_bezier_counts(s, 0, beziergroup_start_idx);
         const int32_t bezier_count     = sum_bezier_counts(s, beziergroup_start_idx, beziergroup_start_idx + beziergroup_count);
@@ -316,7 +301,7 @@ static void load_buffers_data(struct distmap *s, uint8_t *vert_data, uint8_t *fr
         const float vertices[] = NGLI_VEC4_SCALE_ADD((const float *)&uv, 2.f, -1.f); // UV to NDC
 
         // Define the drawing area (including the padding)
-        const struct shape *shape = &shapes[shape_id];
+        const struct shape *shape = &s->shapes.data[shape_id];
         const float pad = (float)s->pad + .5f;
         const float coords_px[] = {-pad, -pad, (float)shape->width + pad, (float)shape->height + pad};
         const float coords[] = NGLI_VEC4_SCALE(coords_px, s->scale);
@@ -327,9 +312,9 @@ static void load_buffers_data(struct distmap *s, uint8_t *vert_data, uint8_t *fr
 
         const struct block_field_data frag_data_src[] = {
             [COORDS_INDEX]            = {.data = coords},
-            [BEZIER_X_BUF_INDEX]      = {.data = bezier_x + bezier_start_idx, .count = (size_t)bezier_count},
-            [BEZIER_Y_BUF_INDEX]      = {.data = bezier_y + bezier_start_idx, .count = (size_t)bezier_count},
-            [BEZIER_COUNTS_INDEX]     = {.data = bezier_counts + beziergroup_start_idx, .count = (size_t)beziergroup_count},
+            [BEZIER_X_BUF_INDEX]      = {.data = s->bezier_x.data + bezier_start_idx, .count = (size_t)bezier_count},
+            [BEZIER_Y_BUF_INDEX]      = {.data = s->bezier_y.data + bezier_start_idx, .count = (size_t)bezier_count},
+            [BEZIER_COUNTS_INDEX]     = {.data = s->bezier_counts.data + beziergroup_start_idx, .count = (size_t)beziergroup_count},
             [BEZIERGROUP_COUNT_INDEX] = {.data = &beziergroup_count},
         };
 
@@ -377,7 +362,7 @@ static int draw_glyphs(struct distmap *s)
     ngli_pipeline_compat_update_buffer(s->pipeline_compat, 0, s->vert_buffer, 0, s->vert_offset);
     ngli_pipeline_compat_update_buffer(s->pipeline_compat, 1, s->frag_buffer, 0, s->frag_offset);
 
-    const int32_t nb_shapes = (int32_t)ngli_darray_count(&s->shapes);
+    const int32_t nb_shapes = (int32_t)s->shapes.count;
     int32_t shape_id = 0;
 
     for (int32_t y = 0; y < s->nb_rows; y++) {
@@ -441,7 +426,7 @@ int ngli_distmap_finalize(struct distmap *s)
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    const size_t nb_shapes = ngli_darray_count(&s->shapes);
+    const size_t nb_shapes = s->shapes.count;
     if (!nb_shapes)
         return 0;
 

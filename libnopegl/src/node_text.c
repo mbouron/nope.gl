@@ -281,7 +281,7 @@ static int refresh_pipeline_data(struct ngl_node *node)
     struct text_priv *s = node->priv_data;
     struct text *text = s->text_ctx;
 
-    const size_t text_nbchr = ngli_darray_count(&text->chars);
+    const size_t text_nbchr = text->chars.count;
     if (!text_nbchr) {
         destroy_characters_resources(s);
         return 0;
@@ -378,7 +378,7 @@ static int apply_effects(struct text_priv *s)
     int ret;
     struct text *text = s->text_ctx;
 
-    const size_t text_nbchr = ngli_darray_count(&text->chars);
+    const size_t text_nbchr = text->chars.count;
     if (!text_nbchr)
         return 0;
 

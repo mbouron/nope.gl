@@ -45,10 +45,12 @@ struct ngli_filter_resource {
     size_t count;
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_filter_resource_darray, struct ngli_filter_resource);
+
 struct filter {
     const char *name;
     const char *code;
-    struct darray resources; // struct ngli_filter_resource
+    struct ngli_filter_resource_darray resources;
     uint32_t helpers;
 };
 
@@ -56,7 +58,7 @@ struct filterschain *ngli_filterschain_create(void);
 int ngli_filterschain_init(struct filterschain *s, const char *source_name, const char *source_code, uint32_t helpers);
 int ngli_filterschain_add_filter(struct filterschain *s, const struct filter *filter);
 char *ngli_filterschain_get_combination(struct filterschain *s);
-const struct darray *ngli_filterschain_get_resources(struct filterschain *s);
+const struct ngli_filter_resource_darray *ngli_filterschain_get_resources(struct filterschain *s);
 void ngli_filterschain_freep(struct filterschain **sp);
 
 #endif

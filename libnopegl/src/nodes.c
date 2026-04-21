@@ -55,7 +55,7 @@ const struct node_param ngli_base_node_params[] = {
 
 static void *aligned_allocz(size_t size)
 {
-    void *ptr = ngli_malloc_aligned(size);
+    void *ptr = ngli_malloc_aligned(NGLI_ALIGN_VAL, size);
     if (!ptr)
         return NULL;
     memset(ptr, 0, size);
@@ -220,9 +220,8 @@ static int node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 {
     int ret;
 
-    struct ngl_node **children = ngli_darray_data(&node->children);
-    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        struct ngl_node *child = children[i];
+    for (size_t i = 0; i < node->children.count; i++) {
+        struct ngl_node *child = node->children.data[i];
         ret = node_set_ctx(child, ctx);
         if (ret < 0)
             return ret;
@@ -251,9 +250,8 @@ static void node_reset_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     }
     ngli_assert(node->ctx_refcount >= 0);
 
-    struct ngl_node **children = ngli_darray_data(&node->children);
-    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        struct ngl_node *child = children[i];
+    for (size_t i = 0; i < node->children.count; i++) {
+        struct ngl_node *child = node->children.data[i];
         node_reset_ctx(child, ctx);
     }
 }
@@ -293,9 +291,8 @@ int ngli_node_prepare(struct ngl_node *node,
     }
 
     /* Leaf-first: prepare all children before this node */
-    struct ngl_node **children = ngli_darray_data(&node->children);
-    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        int ret = ngli_node_prepare(children[i], &child_graphics_state, &child_rendertarget_layout);
+    for (size_t i = 0; i < node->children.count; i++) {
+        int ret = ngli_node_prepare(node->children.data[i], &child_graphics_state, &child_rendertarget_layout);
         if (ret < 0)
             return ret;
     }
@@ -359,9 +356,9 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
         if (ret < 0)
             return ret;
     } else {
-        struct darray *children_array = &node->children;
-        struct ngl_node **children = ngli_darray_data(children_array);
-        for (size_t i = 0; i < ngli_darray_count(children_array); i++) {
+        struct ngli_node_darray *children_array = &node->children;
+        struct ngl_node **children = children_array->data;
+        for (size_t i = 0; i < children_array->count; i++) {
             struct ngl_node *child = children[i];
             int ret = ngli_node_visit(child, is_active, t);
             if (ret < 0)
@@ -372,7 +369,7 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
     /* Insert children (leaves) first */
     if (queue_node &&
         (node->cls->prefetch || node->cls->release) &&
-        !ngli_darray_push(&node->ctx->activitycheck_nodes, &node))
+        ngli_darray_push(&node->ctx->activitycheck_nodes, node) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -404,17 +401,17 @@ static int node_prefetch(struct ngl_node *node)
 int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t)
 {
     /* Build a new list of activity checks nodes */
-    struct darray *nodes_array = &scene->ctx->activitycheck_nodes;
+    struct ngli_node_darray *nodes_array = &scene->ctx->activitycheck_nodes;
     ngli_darray_clear(nodes_array);
     int ret = ngli_node_visit(scene, true, t);
     if (ret < 0)
         return ret;
 
-    struct ngl_node **nodes = ngli_darray_data(nodes_array);
+    struct ngl_node **nodes = nodes_array->data;
 
     /* Release nodes starting from the parents (root) down to the children (leaves) */
-    for (size_t i = 0; i < ngli_darray_count(nodes_array); i++) {
-        struct ngl_node *node = nodes[ngli_darray_count(nodes_array) - i - 1];
+    for (size_t i = 0; i < nodes_array->count; i++) {
+        struct ngl_node *node = nodes[nodes_array->count - i - 1];
         if (!node->is_active || node->force_release_prefetch) {
             node_release(node);
             node->force_release_prefetch = false;
@@ -422,7 +419,7 @@ int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t)
     }
 
     /* Prefetch nodes starting from the children (leaves) up to the parents (root) */
-    for (size_t i = 0; i < ngli_darray_count(nodes_array); i++) {
+    for (size_t i = 0; i < nodes_array->count; i++) {
         struct ngl_node *node = nodes[i];
         if (node->is_active) {
             ret = node_prefetch(node);
@@ -457,9 +454,8 @@ int ngli_node_update(struct ngl_node *node, double t)
 
 int ngli_node_update_children(struct ngl_node *node, double t)
 {
-    struct ngl_node **children = ngli_darray_data(&node->children);
-    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        struct ngl_node *child = children[i];
+    for (size_t i = 0; i < node->children.count; i++) {
+        struct ngl_node *child = node->children.data[i];
         int ret = ngli_node_update(child, t);
         if (ret < 0)
             return ret;
@@ -488,18 +484,16 @@ void ngli_node_pre_draw(struct ngl_node *node)
 
 void ngli_node_pre_draw_children(struct ngl_node *node)
 {
-    struct ngl_node **children = ngli_darray_data(&node->children);
-    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        struct ngl_node *child = children[i];
+    for (size_t i = 0; i < node->children.count; i++) {
+        struct ngl_node *child = node->children.data[i];
         ngli_node_pre_draw(child);
     }
 }
 
 void ngli_node_draw_children(struct ngl_node *node)
 {
-    struct ngl_node **children = ngli_darray_data(&node->children);
-    for (size_t i = 0; i < ngli_darray_count(&node->children); i++) {
-        struct ngl_node *child = children[i];
+    for (size_t i = 0; i < node->children.count; i++) {
+        struct ngl_node *child = node->children.data[i];
         ngli_node_draw(child);
     }
 }
@@ -531,7 +525,7 @@ void ngli_node_draw(struct ngl_node *node)
     }
 
     if (has_bounding_box(node))
-        ngli_darray_push(&node->ctx->bounding_box_nodes, &node);
+        ngli_darray_push(&node->ctx->bounding_box_nodes, node);
 }
 
 const struct node_param *ngli_node_param_find(const struct ngl_node *node, const char *key,
@@ -631,9 +625,8 @@ int ngli_node_invalidate_branch(struct ngl_node *node)
         if (ret < 0)
             return ret;
     }
-    struct ngl_node **parents = ngli_darray_data(&node->parents);
-    for (size_t i = 0; i < ngli_darray_count(&node->parents); i++) {
-        int ret = ngli_node_invalidate_branch(parents[i]);
+    for (size_t i = 0; i < node->parents.count; i++) {
+        int ret = ngli_node_invalidate_branch(node->parents.data[i]);
         if (ret < 0)
             return ret;
     }

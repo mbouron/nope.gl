@@ -37,7 +37,7 @@ struct program_opts {
 };
 
 struct program_priv {
-    struct darray vert_out_vars_array; // ngpu_pgcraft_iovar
+    NGLI_DARRAY(struct ngpu_pgcraft_iovar) vert_out_vars_array;
 };
 
 #endif

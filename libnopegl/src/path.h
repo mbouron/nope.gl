@@ -25,6 +25,8 @@
 
 #include <stdint.h>
 
+#include "utils/darray.h"
+
 struct path;
 
 #define NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN (1U << 0) /* the current segment does not overlap with the previous one */
@@ -74,11 +76,13 @@ int ngli_path_init(struct path *s, int32_t precision);
 /* Evaluate an initialized path */
 void ngli_path_evaluate(struct path *s, float *dst, float distance);
 
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_path_segment_darray, struct path_segment);
+
 /*
  * Read back every segment. Require the path to be initialized or at least
  * finalized.
  */
-const struct darray *ngli_path_get_segments(const struct path *s);
+const struct ngli_path_segment_darray *ngli_path_get_segments(const struct path *s);
 
 /*
  * Clear the segments. It is possible to re-use the same path to construct

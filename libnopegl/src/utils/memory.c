@@ -76,15 +76,17 @@ void *ngli_calloc(size_t n, size_t size)
     return calloc(n, size);
 }
 
-void *ngli_malloc_aligned(size_t size)
+void *ngli_malloc_aligned(size_t alignment, size_t size)
 {
     if (failure_requested())
         return NULL;
 
 #ifdef _WIN32
-    return _aligned_malloc(size, NGLI_ALIGN_VAL);
+    return _aligned_malloc(size, alignment);
 #else
-    return aligned_alloc(NGLI_ALIGN_VAL, size);
+    /* aligned_alloc() requires size to be a multiple of alignment */
+    size_t aligned_size = NGLI_ALIGN(size, alignment);
+    return aligned_alloc(alignment, aligned_size);
 #endif
 }
 

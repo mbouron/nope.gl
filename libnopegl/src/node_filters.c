@@ -276,7 +276,7 @@ static const struct node_param filterselector_params[] = {
 
 #define filtersrgb2linear_params NULL
 
-static int register_resource(struct darray *resources, const char *name,
+static int register_resource(struct ngli_filter_resource_darray *resources, const char *name,
                              const struct ngl_node *pnode, const void *data, enum ngpu_type data_type)
 {
     struct ngli_filter_resource res = {
@@ -285,23 +285,13 @@ static int register_resource(struct darray *resources, const char *name,
         .data  = ngli_node_get_data_ptr(pnode, data),
     };
     snprintf(res.name, sizeof(res.name), "%s", name);
-    if (!ngli_darray_push(resources, &res))
+    if (ngli_darray_push(resources, res) < 0)
         return NGL_ERROR_MEMORY;
-    return 0;
-}
-
-static int filter_init(struct ngl_node *node)
-{
-    struct filter *s = node->priv_data;
-    ngli_darray_init(&s->resources, sizeof(struct ngli_filter_resource), 0);
     return 0;
 }
 
 static int filteralpha_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
     struct filteralpha_priv *s = node->priv_data;
     const struct filteralpha_opts *o = node->opts;
     s->filter.name = "alpha";
@@ -311,10 +301,7 @@ static int filteralpha_init(struct ngl_node *node)
 
 static int filtercolormap_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
-
+    int ret = 0;
     struct filtercolormap_priv *s = node->priv_data;
     const struct filtercolormap_opts *o = node->opts;
 
@@ -402,9 +389,7 @@ end:
 
 static int filtercontrast_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
+    int ret;
     struct filtercontrast_priv *s = node->priv_data;
     const struct filtercontrast_opts *o = node->opts;
     s->filter.name = "contrast";
@@ -418,9 +403,6 @@ static int filtercontrast_init(struct ngl_node *node)
 
 static int filterexposure_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
     struct filterexposure_priv *s = node->priv_data;
     const struct filterexposure_opts *o = node->opts;
     s->filter.name = "exposure";
@@ -431,9 +413,6 @@ static int filterexposure_init(struct ngl_node *node)
 
 static int filterinversealpha_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
     struct filterinversealpha_priv *s = node->priv_data;
     s->filter.name = "inversealpha";
     s->filter.code = filter_inversealpha_glsl;
@@ -442,9 +421,6 @@ static int filterinversealpha_init(struct ngl_node *node)
 
 static int filterlinear2srgb_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
     struct filterlinear2srgb_priv *s = node->priv_data;
     s->filter.name = "linear2srgb";
     s->filter.code = filter_linear2srgb_glsl;
@@ -454,9 +430,6 @@ static int filterlinear2srgb_init(struct ngl_node *node)
 
 static int filteropacity_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
     struct filteropacity_priv *s = node->priv_data;
     const struct filteropacity_opts *o = node->opts;
     s->filter.name = "opacity";
@@ -466,9 +439,6 @@ static int filteropacity_init(struct ngl_node *node)
 
 static int filterpremult_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
     struct filterpremult_priv *s = node->priv_data;
     s->filter.name = "premult";
     s->filter.code = filter_premult_glsl;
@@ -477,9 +447,6 @@ static int filterpremult_init(struct ngl_node *node)
 
 static int filtersaturation_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
     struct filtersaturation_priv *s = node->priv_data;
     const struct filtersaturation_opts *o = node->opts;
     s->filter.name = "saturation";
@@ -490,9 +457,7 @@ static int filtersaturation_init(struct ngl_node *node)
 
 static int filterselector_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
+    int ret;
     struct filterselector_priv *s = node->priv_data;
     const struct filterselector_opts *o = node->opts;
     s->filter.name = "selector";
@@ -509,9 +474,6 @@ static int filterselector_init(struct ngl_node *node)
 
 static int filtersrgb2linear_init(struct ngl_node *node)
 {
-    int ret = filter_init(node);
-    if (ret < 0)
-        return ret;
     struct filtersrgb2linear_priv *s = node->priv_data;
     s->filter.name = "srgb2linear";
     s->filter.code = filter_srgb2linear_glsl;

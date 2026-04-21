@@ -68,16 +68,15 @@ struct fill_base_opts {
 struct fill_info {
     uint32_t helper_flags;                                   /* FILL_HELPER_* bitmask */
     const char *glsl;                                        /* ngli_color() function body */
-    struct darray uniforms;                                  /* array of struct fill_uniform_def */
-    struct darray custom_uniforms;                           /* array of struct fill_custom_uniform_def */
-    struct darray custom_textures;                           /* array of struct fill_custom_texture_def */
-    struct darray custom_blocks;                             /* array of struct fill_custom_block_def */
+    NGLI_DARRAY(struct fill_uniform_def) uniforms;
+    NGLI_DARRAY(struct fill_custom_uniform_def) custom_uniforms;
+    NGLI_DARRAY(struct fill_custom_texture_def) custom_textures;
+    NGLI_DARRAY(struct fill_custom_block_def) custom_blocks;
     struct ngl_node *texture;
     size_t color_output_count;
     const void *opts;                                        /* pointer to fill node opts struct */
 };
 
-void ngli_fill_info_init(struct fill_info *fi);
 void ngli_fill_info_reset(struct fill_info *fi);
 
 #endif

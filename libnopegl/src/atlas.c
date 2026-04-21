@@ -39,7 +39,7 @@ struct atlas {
     int32_t nb_rows, nb_cols;
 
     struct ngpu_texture *texture;
-    struct darray bitmaps; // struct bitmap
+    NGLI_DARRAY(struct bitmap) bitmaps;
 };
 
 static void free_bitmap(void *user_arg, void *data)
@@ -54,7 +54,6 @@ struct atlas *ngli_atlas_create(struct ngl_ctx *ctx)
     if (!s)
         return NULL;
     s->ctx = ctx;
-    ngli_darray_init(&s->bitmaps, sizeof(struct bitmap), 0);
     ngli_darray_set_free_func(&s->bitmaps, free_bitmap, NULL);
     return s;
 }
@@ -66,7 +65,7 @@ int ngli_atlas_init(struct atlas *s)
 
 int ngli_atlas_add_bitmap(struct atlas *s, const struct bitmap *bitmap, int32_t *bitmap_id)
 {
-    if (ngli_darray_count(&s->bitmaps) == INT32_MAX)
+    if (s->bitmaps.count == INT32_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
 
     uint8_t *buffer = ngli_memdup(bitmap->buffer, (size_t)bitmap->height * bitmap->stride);
@@ -80,7 +79,7 @@ int ngli_atlas_add_bitmap(struct atlas *s, const struct bitmap *bitmap, int32_t 
         .height = bitmap->height,
     };
 
-    if (!ngli_darray_push(&s->bitmaps, &copy)) {
+    if (ngli_darray_push(&s->bitmaps, copy) < 0) {
         ngli_freep(&buffer);
         return NGL_ERROR_MEMORY;
     }
@@ -88,21 +87,19 @@ int ngli_atlas_add_bitmap(struct atlas *s, const struct bitmap *bitmap, int32_t 
     s->max_bitmap_w = NGLI_MAX(s->max_bitmap_w, bitmap->width);
     s->max_bitmap_h = NGLI_MAX(s->max_bitmap_h, bitmap->height);
 
-    *bitmap_id = (int32_t)ngli_darray_count(&s->bitmaps) - 1;
+    *bitmap_id = (int32_t)s->bitmaps.count - 1;
     return 0;
 }
 
 static void blend_bitmaps(struct atlas *s, uint8_t *data, size_t linesize)
 {
-    const struct bitmap *bitmaps = ngli_darray_data(&s->bitmaps);
-
     size_t bitmap_id = 0;
     for (size_t y = 0; y < s->nb_rows; y++) {
         for (size_t x = 0; x < s->nb_cols; x++) {
-            if (bitmap_id == ngli_darray_count(&s->bitmaps))
+            if (bitmap_id == s->bitmaps.count)
                 return;
 
-            const struct bitmap *bitmap = &bitmaps[bitmap_id++];
+            const struct bitmap *bitmap = &s->bitmaps.data[bitmap_id++];
             const size_t texel_x = x * (size_t)s->max_bitmap_w;
             const size_t texel_y = y * (size_t)s->max_bitmap_h;
 
@@ -122,7 +119,7 @@ int ngli_atlas_finalize(struct atlas *s)
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    const int32_t nb_bitmaps = (int32_t)ngli_darray_count(&s->bitmaps);
+    const int32_t nb_bitmaps = (int32_t)s->bitmaps.count;
     if (!nb_bitmaps)
         return 0;
 
@@ -181,6 +178,7 @@ struct ngpu_texture *ngli_atlas_get_texture(const struct atlas *s)
 void ngli_atlas_get_bitmap_coords(const struct atlas *s, int32_t bitmap_id, int32_t *dst)
 {
     const struct bitmap *bitmap = ngli_darray_get(&s->bitmaps, (size_t)bitmap_id);
+    ngli_assert(bitmap);
     const int32_t col = bitmap_id % s->nb_cols;
     const int32_t row = bitmap_id / s->nb_cols;
     const int32_t x0 = col * s->max_bitmap_w;

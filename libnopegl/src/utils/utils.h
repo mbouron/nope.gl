@@ -45,17 +45,16 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 # define ngli_unused __attribute__((unused))
+# define ngli_may_alias __attribute__((may_alias))
 #else
 # define ngli_unused
+# define ngli_may_alias
 #endif
 
-#define ngli_assert(cond) do {                          \
-    if (!(cond)) {                                      \
-        fprintf(stderr, "Assert %s @ %s:%d\n",          \
-                #cond, __FILE__, __LINE__);             \
-        abort();                                        \
-    }                                                   \
-} while (0)
+#define ngli_assert(cond) \
+    ((void)((cond) || (fprintf(stderr, "Assert %s @ %s:%d\n", \
+                               #cond, __FILE__, __LINE__),    \
+                       abort(), 0)))
 
 #define NGLI_STATIC_ASSERT(c, id) static_assert(c, id)
 
@@ -103,6 +102,10 @@
 
 struct ngli_mat4 {
     NGLI_ALIGNED_MAT(m);
+};
+
+struct ngli_vec4 {
+    NGLI_ALIGNED_VEC(v);
 };
 
 #ifndef INCLUDE_DOCSTRINGS

@@ -498,7 +498,7 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
 
     ngpu_ctx_get_projection_matrix(s->gpu_ctx, s->default_projection_matrix.m);
     ngli_darray_clear(&s->projection_matrix_stack);
-    if (!ngli_darray_push(&s->projection_matrix_stack, &s->default_projection_matrix)) {
+    if (ngli_darray_push(&s->projection_matrix_stack, s->default_projection_matrix) < 0) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
     }
@@ -752,25 +752,16 @@ struct ngl_ctx *ngl_create(void)
     if (ret < 0)
         goto fail;
 
-    ngli_darray_init(&s->modelview_matrix_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
-    ngli_darray_init(&s->projection_matrix_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
-    ngli_darray_init(&s->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
-    ngli_darray_init(&s->opacity_2d_stack, sizeof(float), 0);
-    ngli_darray_init(&s->activitycheck_nodes, sizeof(struct ngl_node *), 0);
-    ngli_darray_init(&s->bounding_box_nodes, sizeof(struct ngl_node *), 0);
-    ngli_darray_init(&s->intersecting_nodes, sizeof(struct ngl_node *), 0);
-
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     s->default_modelview_matrix = id_matrix;
     s->default_projection_matrix = id_matrix;
 
-    if (!ngli_darray_push(&s->modelview_matrix_stack, &id_matrix) ||
-        !ngli_darray_push(&s->projection_matrix_stack, &id_matrix) ||
-        !ngli_darray_push(&s->transform_2d_stack, &id_matrix))
+    if (ngli_darray_push(&s->modelview_matrix_stack, id_matrix) < 0 ||
+        ngli_darray_push(&s->projection_matrix_stack, id_matrix) < 0 ||
+        ngli_darray_push(&s->transform_2d_stack, id_matrix) < 0)
         goto fail;
 
-    const float default_opacity = 1.f;
-    if (!ngli_darray_push(&s->opacity_2d_stack, &default_opacity))
+    if (ngli_darray_push(&s->opacity_2d_stack, 1.f) < 0)
         goto fail;
 
     LOG(INFO, "context create in nope.gl v%d.%d.%d",
@@ -930,9 +921,8 @@ NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t
 
     const NGLI_ALIGNED_VEC(pixel_point) = {point[0], point[1], 0.f, 1.f};
 
-    struct ngl_node **bounding_box_nodes = ngli_darray_data(&s->bounding_box_nodes);
-    for (size_t i = 0; i < ngli_darray_count(&s->bounding_box_nodes); i++) {
-        struct ngl_node *bounding_box_node = bounding_box_nodes[i];
+    for (size_t i = 0; i < s->bounding_box_nodes.count; i++) {
+        struct ngl_node *bounding_box_node = s->bounding_box_nodes.data[i];
         /* Only test leaf draw nodes, not containers */
         if (bounding_box_node->cls->category != NGLI_NODE_CATEGORY_DRAW)
             continue;
@@ -950,13 +940,13 @@ NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t
         ngli_mat4_mul_vec4(local_point, inv.m, pixel_point);
 
         if (ngli_aabb_intersect_point(&node2d_info->aabb, local_point)) {
-            if (!ngli_darray_push(&s->intersecting_nodes, &bounding_box_node))
+            if (ngli_darray_push(&s->intersecting_nodes, bounding_box_node) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
 
-    *nodesp = ngli_darray_data(&s->intersecting_nodes);
-    *nb_nodesp = ngli_darray_count(&s->intersecting_nodes);
+    *nodesp = s->intersecting_nodes.data;
+    *nb_nodesp = s->intersecting_nodes.count;
 
     return 0;
 }

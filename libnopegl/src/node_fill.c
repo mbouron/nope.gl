@@ -33,14 +33,6 @@
 
 #include <ngpu/ngpu.h>
 
-void ngli_fill_info_init(struct fill_info *fi)
-{
-    ngli_darray_init(&fi->uniforms, sizeof(struct fill_uniform_def), 0);
-    ngli_darray_init(&fi->custom_uniforms, sizeof(struct fill_custom_uniform_def), 0);
-    ngli_darray_init(&fi->custom_textures, sizeof(struct fill_custom_texture_def), 0);
-    ngli_darray_init(&fi->custom_blocks, sizeof(struct fill_custom_block_def), 0);
-}
-
 void ngli_fill_info_reset(struct fill_info *fi)
 {
     ngli_darray_reset(&fi->uniforms);
@@ -54,9 +46,9 @@ void ngli_fill_info_reset(struct fill_info *fi)
         .type = (type_),                                                    \
         .opts_offset = offsetof(opts_struct_, field_),                      \
     };                                                                      \
-    struct fill_uniform_def *_p = ngli_darray_push(&(fi_)->uniforms, &_ud); \
-    if (!_p)                                                                \
+    if (ngli_darray_push(&(fi_)->uniforms, _ud) < 0)                        \
         return NGL_ERROR_MEMORY;                                            \
+    struct fill_uniform_def *_p = ngli_darray_tail(&(fi_)->uniforms);       \
     snprintf(_p->name, sizeof(_p->name), "%s", (name_));                    \
 } while (0)
 
@@ -77,7 +69,6 @@ static int colorfill_init(struct ngl_node *node)
     struct colorfill_priv *s = node->priv_data;
     const struct colorfill_opts *o = node->opts;
     struct fill_info *fi = &s->fi;
-    ngli_fill_info_init(fi);
     fi->glsl = colorfill_glsl;
     fi->opts = o;
     REGISTER_UNIFORM(fi, "color", NGPU_TYPE_VEC4, struct colorfill_opts, color);
@@ -193,7 +184,6 @@ static int texturefill_init(struct ngl_node *node)
     }
 
     struct fill_info *fi = &s->fi;
-    ngli_fill_info_init(fi);
     fi->glsl         = texturefill_glsl;
     fi->texture = o->texture;
     fi->opts         = o;
@@ -318,7 +308,6 @@ static int gradientfill_init(struct ngl_node *node)
     struct gradientfill_priv *s = node->priv_data;
     const struct gradientfill_opts *o = node->opts;
     struct fill_info *fi = &s->fi;
-    ngli_fill_info_init(fi);
     fi->helper_flags = FILL_HELPER_SRGB;
     fi->glsl = gradientfill_glsl;
     fi->opts = o;
@@ -462,7 +451,6 @@ static int gradient4fill_init(struct ngl_node *node)
     struct gradient4fill_priv *s = node->priv_data;
     const struct gradient4fill_opts *o = node->opts;
     struct fill_info *fi = &s->fi;
-    ngli_fill_info_init(fi);
     fi->helper_flags = FILL_HELPER_SRGB;
     fi->glsl = gradient4fill_glsl;
     fi->opts = o;
@@ -626,7 +614,6 @@ static int noisefill_init(struct ngl_node *node)
     struct noisefill_priv *s = node->priv_data;
     const struct noisefill_opts *o = node->opts;
     struct fill_info *fi = &s->fi;
-    ngli_fill_info_init(fi);
     fi->helper_flags = FILL_HELPER_MISC_UTILS | FILL_HELPER_NOISE;
     fi->glsl = noisefill_glsl;
     fi->opts = o;
@@ -751,7 +738,7 @@ static int register_uniform(struct fill_info *fi, const char *name, struct ngl_n
         .node = res,
     };
     snprintf(cu.name, sizeof(cu.name), "%s", name);
-    return ngli_darray_push(&fi->custom_uniforms, &cu) ? 0 : NGL_ERROR_MEMORY;
+    return ngli_darray_push(&fi->custom_uniforms, cu);
 }
 
 static int register_texture(struct fill_info *fi, const char *name, struct ngl_node *res)
@@ -760,7 +747,7 @@ static int register_texture(struct fill_info *fi, const char *name, struct ngl_n
         .texture_node = res,
     };
     snprintf(ct.name, sizeof(ct.name), "%s", name);
-    return ngli_darray_push(&fi->custom_textures, &ct) ? 0 : NGL_ERROR_MEMORY;
+    return ngli_darray_push(&fi->custom_textures, ct);
 }
 
 static int register_block(struct fill_info *fi, const char *name, struct ngl_node *res)
@@ -769,7 +756,7 @@ static int register_block(struct fill_info *fi, const char *name, struct ngl_nod
         .node = res,
     };
     snprintf(cb.name, sizeof(cb.name), "%s", name);
-    return ngli_darray_push(&fi->custom_blocks, &cb) ? 0 : NGL_ERROR_MEMORY;
+    return ngli_darray_push(&fi->custom_blocks, cb);
 }
 
 static int register_resource(struct fill_info *fi, const char *name, struct ngl_node *res)
@@ -815,7 +802,6 @@ static int customfill_init(struct ngl_node *node)
         return NGL_ERROR_MEMORY;
 
     struct fill_info *fi = &s->fi;
-    ngli_fill_info_init(fi);
     fi->glsl = s->built_glsl;
     fi->opts = o;
     fi->color_output_count = (size_t)o->color_output_count;

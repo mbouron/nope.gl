@@ -110,11 +110,14 @@ struct text;
 
 #define NGLI_TEXT_FLAG_MUTABLE_ATLAS (1 << 0) // whether set_string() can change the atlas texture or not
 
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_char_info_darray, struct char_info);
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_char_info_internal_darray, struct char_info_internal);
+
 /* structure reserved for internal implementations */
 struct text_cls {
     int (*init)(struct text *text);
     int (*prefetch)(struct text *text);
-    int (*set_string)(struct text *text, const char *str, struct darray *chars_dst);
+    int (*set_string)(struct text *text, const char *str, struct ngli_char_info_internal_darray *chars_dst);
     void (*release)(struct text *text);
     void (*reset)(struct text *text);
     size_t priv_size;
@@ -153,7 +156,7 @@ struct text {
     /* public */
     int32_t width;
     int32_t height;
-    struct darray chars; // struct char_info
+    struct ngli_char_info_darray chars;
     struct ngpu_texture *atlas_texture;
     struct ngpu_texture *curve_texture;
     struct ngpu_texture *band_texture;
@@ -166,7 +169,7 @@ struct text {
     size_t chars_data_size;    // size of chars_data_default and chars_data
     size_t chars_copy_size;    // actual size needed for copy
 
-    struct darray chars_internal; // struct char_info_internal
+    struct ngli_char_info_internal_darray chars_internal;
 
     const struct text_cls *cls;
     void *priv_data;

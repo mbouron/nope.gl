@@ -102,6 +102,8 @@ struct item {
     void *data;
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(item_darray, struct item);
+
 static int cmp_item(const void *p1, const void *p2)
 {
     const struct item *i1 = p1;
@@ -109,17 +111,17 @@ static int cmp_item(const void *p1, const void *p2)
     return strcmp(i1->key, i2->key);
 }
 
-static int hmap_to_sorted_items(struct darray *items_array, struct hmap *hm)
+static int hmap_to_sorted_items(struct item_darray *items_array, struct hmap *hm)
 {
     const struct hmap_entry *entry = NULL;
     while ((entry = ngli_hmap_next(hm, entry))) {
         struct item item = {.key = entry->key.str, .data = entry->data};
-        if (!ngli_darray_push(items_array, &item))
+        if (ngli_darray_push(items_array, item) < 0)
             return NGL_ERROR_MEMORY;
     }
 
-    void *items = ngli_darray_data(items_array);
-    const size_t nb_items = ngli_darray_count(items_array);
+    struct item *items = items_array->data;
+    const size_t nb_items = items_array->count;
     if (nb_items > 1)
         qsort(items, nb_items, sizeof(struct item), cmp_item);
 
@@ -300,16 +302,14 @@ static int serialize_nodedict(struct bstr *b, const uint8_t *srcp,
         return 0;
     ngli_bstr_printf(b, " %s:", par->key);
 
-    struct darray items_array;
-    ngli_darray_init(&items_array, sizeof(struct item), 0);
+    struct item_darray items_array = {0};
     int ret = hmap_to_sorted_items(&items_array, hmap);
     if (ret < 0) {
         ngli_darray_reset(&items_array);
         return ret;
     }
-    const struct item *items = ngli_darray_data(&items_array);
-    for (size_t i = 0; i < ngli_darray_count(&items_array); i++) {
-        const struct item *item = &items[i];
+    for (size_t i = 0; i < items_array.count; i++) {
+        const struct item *item = &items_array.data[i];
         const int node_id = get_rel_node_id(nlist, item->data);
         ngli_bstr_printf(b, "%s%s=%x", i ? "," : "", item->key, (uint32_t)node_id);
     }
@@ -420,16 +420,14 @@ static int serialize_children(struct hmap *nlist,
                 if (!hmap)
                     break;
 
-                struct darray items_array;
-                ngli_darray_init(&items_array, sizeof(struct item), 0);
+                struct item_darray items_array = {0};
                 int ret = hmap_to_sorted_items(&items_array, hmap);
                 if (ret < 0) {
                     ngli_darray_reset(&items_array);
                     return ret;
                 }
-                const struct item *items = ngli_darray_data(&items_array);
-                for (size_t i = 0; i < ngli_darray_count(&items_array); i++) {
-                    const struct item *item = &items[i];
+                for (size_t i = 0; i < items_array.count; i++) {
+                    const struct item *item = &items_array.data[i];
                     ret = serialize(nlist, b, item->data);
                     if (ret < 0) {
                         ngli_darray_reset(&items_array);

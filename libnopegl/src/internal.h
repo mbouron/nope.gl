@@ -55,6 +55,10 @@
 
 struct node_class;
 
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_mat4_darray, struct ngli_mat4);
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_f32_darray, float);
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_node_darray, struct ngl_node *);
+
 struct api_impl {
     int (*configure)(struct ngl_ctx *s, const struct ngl_config *config);
     int (*resize)(struct ngl_ctx *s, uint32_t width, uint32_t height);
@@ -90,10 +94,10 @@ struct ngl_ctx {
     struct ngpu_rendertarget *current_rendertarget;
     struct ngli_mat4 default_modelview_matrix;
     struct ngli_mat4 default_projection_matrix;
-    struct darray modelview_matrix_stack;
-    struct darray projection_matrix_stack;
-    struct darray transform_2d_stack;
-    struct darray opacity_2d_stack;
+    struct ngli_mat4_darray modelview_matrix_stack;
+    struct ngli_mat4_darray projection_matrix_stack;
+    struct ngli_mat4_darray transform_2d_stack;
+    struct ngli_f32_darray opacity_2d_stack;
     struct ngli_mat4 projection_2d_matrix;
     float canvas_2d_width;
     float canvas_2d_height;
@@ -106,14 +110,14 @@ struct ngl_ctx {
      * (non-active). Nodes are inserted from bottom (leaves) up to the top
      * (root).
      */
-    struct darray activitycheck_nodes;
+    struct ngli_node_darray activitycheck_nodes;
 
     /*
      * Array of nodes that have a bounding box and that are candidate to
      * spatial queries.
      */
-    struct darray bounding_box_nodes;
-    struct darray intersecting_nodes;
+    struct ngli_node_darray bounding_box_nodes;
+    struct ngli_node_darray intersecting_nodes;
 
     struct hmap *text_builtin_atlasses; // struct text_builtin_atlas
 #if HAVE_TEXT_LIBRARIES
@@ -183,21 +187,24 @@ struct ngl_node {
     int refcount;
     int ctx_refcount;
 
-    struct darray children;
-    struct darray draw_children; // children with a draw callback
-    struct darray parents;
+    struct ngli_node_darray children;
+    struct ngli_node_darray draw_children; // children with a draw callback
+    struct ngli_node_darray parents;
 
     char *label;
 
     void *priv_data;
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_str_darray, char *);
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_ptr_darray, uint8_t *);
+
 struct ngl_scene {
     struct ngli_rc rc;
     struct ngl_scene_params params;
-    struct darray nodes; // set of all the nodes in the graph
-    struct darray files; // files path strings (array of char *)
-    struct darray files_par; // file based parameters pointers (array of uint8_t *)
+    struct ngli_node_darray nodes; // set of all the nodes in the graph
+    struct ngli_str_darray files; // files path strings (array of char *)
+    struct ngli_ptr_darray files_par; // file based parameters pointers (array of uint8_t *)
 };
 
 enum node_category {
