@@ -54,7 +54,7 @@ static void update_trf_matrix(struct ngl_node *node, const float *angles)
     const float sky = tanf(NGLI_DEG2RAD(angles[1]));
     const float skz = tanf(NGLI_DEG2RAD(angles[2]));
 
-    ngli_mat4_skew(trf->matrix, skx, sky, skz, s->normed_axis, s->anchor);
+    ngli_mat4_skew(trf->matrix.m, skx, sky, skz, s->normed_axis, s->anchor);
 }
 
 static int skew_init(struct ngl_node *node)

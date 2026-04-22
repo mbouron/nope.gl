@@ -619,7 +619,7 @@ static void fgblur_pre_draw(struct ngl_node *node)
      */
     struct texture_info *dst_info = o->destination->priv_data;
     struct image *dst_image = &dst_info->image;
-    memcpy(dst_image->coordinates_matrix, src_image->coordinates_matrix, sizeof(src_image->coordinates_matrix));
+    dst_image->coordinates_matrix = src_image->coordinates_matrix;
 }
 
 static void fgblur_release(struct ngl_node *node)

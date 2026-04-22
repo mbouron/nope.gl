@@ -60,16 +60,16 @@ void ngli_image_init(struct image *s, const struct image_params *params, struct 
     if (params->layout == NGLI_IMAGE_LAYOUT_NV12 ||
         params->layout == NGLI_IMAGE_LAYOUT_NV12_RECTANGLE ||
         params->layout == NGLI_IMAGE_LAYOUT_YUV) {
-        ngli_colorconv_get_ycbcr_to_rgb_color_matrix(s->color_matrix, &params->color_info, params->color_scale);
+        s->color_matrix = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(&params->color_info, params->color_scale);
     }
-    ngli_colorconv_get_mapping_color_matrix(s->mapping_color_matrix, &params->color_info, NMD_COL_PRI_BT709);
+    s->mapping_color_matrix = ngli_colorconv_get_mapping_color_matrix(&params->color_info, NMD_COL_PRI_BT709);
 }
 
 void ngli_image_reset(struct image *s)
 {
     memset(s, 0, sizeof(*s));
-    ngli_mat4_identity(s->color_matrix);
-    ngli_mat4_identity(s->coordinates_matrix);
+    ngli_mat4_identity(s->color_matrix.m);
+    ngli_mat4_identity(s->coordinates_matrix.m);
 }
 
 uint64_t ngli_image_get_memory_size(const struct image *s)

@@ -621,7 +621,7 @@ static void hblur_pre_draw(struct ngl_node *node)
      */
     struct texture_info *dst_info = o->destination->priv_data;
     struct image *dst_image = &dst_info->image;
-    memcpy(dst_image->coordinates_matrix, s->image->coordinates_matrix, sizeof(s->image->coordinates_matrix));
+    dst_image->coordinates_matrix = s->image->coordinates_matrix;
 }
 
 static void hblur_release(struct ngl_node *node)

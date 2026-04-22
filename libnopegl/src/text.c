@@ -401,21 +401,21 @@ static int set_transform(float *dst, const struct texteffect_opts *effect_opts,
         ngli_assert(0);
     }
 
-    NGLI_ALIGNED_MAT(tm);
-    NGLI_ALIGNED_MAT(tmreloc0);
-    NGLI_ALIGNED_MAT(tmreloc1);
+    struct ngli_mat4 tm;
+    struct ngli_mat4 tmreloc0;
+    struct ngli_mat4 tmreloc1;
 
-    ngli_transform_chain_compute(node, tm);
-    ngli_mat4_translate(tmreloc0,  anchor_x,  anchor_y, 0.f);
-    ngli_mat4_translate(tmreloc1, -anchor_x, -anchor_y, 0.f);
+    ngli_transform_chain_compute(node, tm.m);
+    ngli_mat4_translate(tmreloc0.m,  anchor_x,  anchor_y, 0.f);
+    ngli_mat4_translate(tmreloc1.m, -anchor_x, -anchor_y, 0.f);
 
-    NGLI_ALIGNED_MAT(tmp);
-    memcpy(tmp, dst, sizeof(tm));      // start from the existing position
-    ngli_mat4_mul(tmp, tmp, tmreloc0); // go to anchor
-    ngli_mat4_mul(tmp, tmp, tm);       // apply user transform matrix
-    ngli_mat4_mul(tmp, tmp, tmreloc1); // go back from anchor
+    struct ngli_mat4 tmp;
+    memcpy(tmp.m, dst, sizeof(tm.m));      // start from the existing position
+    ngli_mat4_mul(tmp.m, tmp.m, tmreloc0.m); // go to anchor
+    ngli_mat4_mul(tmp.m, tmp.m, tm.m);       // apply user transform matrix
+    ngli_mat4_mul(tmp.m, tmp.m, tmreloc1.m); // go back from anchor
 
-    memcpy(dst, tmp, sizeof(tmp));
+    memcpy(dst, tmp.m, sizeof(tmp.m));
 
     return 0;
 }

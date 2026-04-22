@@ -54,8 +54,8 @@
 #include "utils/time.h"
 
 struct transforms_block {
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    NGLI_ALIGNED_MAT(projection_matrix);
+    struct ngli_mat4 modelview_matrix;
+    struct ngli_mat4 projection_matrix;
 };
 
 enum {
@@ -1388,11 +1388,11 @@ void ngli_hud_draw(struct hud *s)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    const float *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
     struct transforms_block transforms_data = {0};
-    memcpy(transforms_data.modelview_matrix, modelview_matrix, sizeof(transforms_data.modelview_matrix));
-    memcpy(transforms_data.projection_matrix, projection_matrix, sizeof(transforms_data.projection_matrix));
+    transforms_data.modelview_matrix = *modelview_matrix;
+    transforms_data.projection_matrix = *projection_matrix;
 
     const size_t offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &transforms_data, sizeof(transforms_data));
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);

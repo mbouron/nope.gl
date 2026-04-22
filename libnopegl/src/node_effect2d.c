@@ -66,8 +66,8 @@ struct block_map {
 };
 
 struct effect2d_vert_block {
-    NGLI_ALIGNED_MAT(projection_matrix);
-    NGLI_ALIGNED_MAT(modelview_matrix);
+    struct ngli_mat4 projection_matrix;
+    struct ngli_mat4 modelview_matrix;
 };
 
 struct effect2d_frag_block {
@@ -664,7 +664,7 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
         return ret;
 
     struct image *image = ngli_rtt_get_image(s->rtt, 0);
-    ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, image->coordinates_matrix);
+    ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, image->coordinates_matrix.m);
 
     s->width = width;
     s->height = height;
@@ -741,26 +741,25 @@ static void effect2d_pre_draw(struct ngl_node *node)
     ngpu_buffer_upload(s->geometry->uvcoords_buffer, uvcoords, 0, sizeof(uvcoords));
 
     /* Manage transform stack and render children */
-    NGLI_ALIGNED_MAT(prev_projection_2d);
-    memcpy(prev_projection_2d, ctx->projection_2d_matrix, sizeof(prev_projection_2d));
+    struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
     struct darray prev_transform_2d_stack = ctx->transform_2d_stack;
     struct darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
 
-    ngli_darray_init(&ctx->transform_2d_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&ctx->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&ctx->opacity_2d_stack, sizeof(float), 0);
 
-    static const NGLI_ALIGNED_MAT(id_matrix) = NGLI_MAT4_IDENTITY;
+    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (!ngli_darray_push(&ctx->transform_2d_stack, id_matrix) ||
+    if (!ngli_darray_push(&ctx->transform_2d_stack, &id_matrix) ||
         !ngli_darray_push(&ctx->opacity_2d_stack, &default_opacity))
         goto restore_2d_state;
 
     ngli_rtt_begin(s->rtt);
 
-    NGLI_ALIGNED_MAT(fbo_base_projection);
-    ngpu_ctx_get_projection_matrix(gpu_ctx, fbo_base_projection);
-    ngli_mat4_orthographic(ctx->projection_2d_matrix, qx - 0.5f, qx + qw - 0.5f, qy + qh - 0.5f, qy - 0.5f, -1.f, 1.f);
-    ngli_mat4_mul(ctx->projection_2d_matrix, fbo_base_projection, ctx->projection_2d_matrix);
+    struct ngli_mat4 fbo_base_projection;
+    ngpu_ctx_get_projection_matrix(gpu_ctx, fbo_base_projection.m);
+    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, qx - 0.5f, qx + qw - 0.5f, qy + qh - 0.5f, qy - 0.5f, -1.f, 1.f);
+    ngli_mat4_mul(ctx->projection_2d_matrix.m, fbo_base_projection.m, ctx->projection_2d_matrix.m);
 
     for (size_t i = 0; i < o->nb_children; i++) {
         ngli_node_draw(o->children[i]);
@@ -773,7 +772,7 @@ restore_2d_state:
     ngli_darray_reset(&ctx->opacity_2d_stack);
     ctx->transform_2d_stack = prev_transform_2d_stack;
     ctx->opacity_2d_stack = prev_opacity_2d_stack;
-    memcpy(ctx->projection_2d_matrix, prev_projection_2d, sizeof(prev_projection_2d));
+    ctx->projection_2d_matrix = prev_projection_2d;
 
 }
 
@@ -789,12 +788,12 @@ static void effect2d_draw(struct ngl_node *node)
         return;
     }
 
-    NGLI_ALIGNED_MAT(trs_matrix);
-    ngli_node2d_compute_trs(node, trs_matrix);
+    struct ngli_mat4 trs_matrix;
+    ngli_node2d_compute_trs(node, trs_matrix.m);
 
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    const float *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
-    ngli_mat4_mul(modelview_matrix, prev_matrix, trs_matrix);
+    struct ngli_mat4 modelview_matrix;
+    const struct ngli_mat4 *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
+    ngli_mat4_mul(modelview_matrix.m, prev_matrix->m, trs_matrix.m);
 
     struct pipeline_compat *pl = s->pipeline;
 
@@ -806,8 +805,8 @@ static void effect2d_draw(struct ngl_node *node)
     /* Fill and push vertex block to staging buffer */
     {
         struct effect2d_vert_block vert_data = {0};
-        memcpy(vert_data.projection_matrix, ctx->projection_2d_matrix, sizeof(vert_data.projection_matrix));
-        memcpy(vert_data.modelview_matrix, modelview_matrix, sizeof(vert_data.modelview_matrix));
+        vert_data.projection_matrix = ctx->projection_2d_matrix;
+        vert_data.modelview_matrix = modelview_matrix;
 
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
@@ -864,7 +863,7 @@ static void effect2d_draw(struct ngl_node *node)
 
     /* Set AABB for parent nodes */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
-    memcpy(node2d_info->transform_matrix, modelview_matrix, sizeof(node2d_info->transform_matrix));
+    node2d_info->transform_matrix = modelview_matrix;
     node2d_info->screen_aabb = s->children_bbox;
 }
 

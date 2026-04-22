@@ -43,7 +43,7 @@ static int update_matrix(struct ngl_node *node)
 {
     struct transform_priv *s = node->priv_data;
     const struct transform_opts *o = node->opts;
-    memcpy(s->trf.matrix, o->matrix, sizeof(o->matrix));
+    memcpy(s->trf.matrix.m, o->matrix, sizeof(o->matrix));
     return 0;
 }
 
@@ -64,7 +64,7 @@ static int transform_init(struct ngl_node *node)
 {
     struct transform_priv *s = node->priv_data;
     const struct transform_opts *o = node->opts;
-    memcpy(s->trf.matrix, o->matrix, sizeof(o->matrix));
+    memcpy(s->trf.matrix.m, o->matrix, sizeof(o->matrix));
     s->trf.child = o->child;
     return 0;
 }
@@ -80,7 +80,7 @@ static int transform_update(struct ngl_node *node, double t)
 
     if (o->matrix_node) {
         float *data = ngli_node_get_data_ptr(o->matrix_node, o->matrix);
-        memcpy(s->trf.matrix, data, sizeof(s->trf.matrix));
+        memcpy(s->trf.matrix.m, data, sizeof(s->trf.matrix.m));
     }
 
     return 0;

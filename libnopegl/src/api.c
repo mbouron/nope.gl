@@ -496,9 +496,9 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
 
     s->current_staging_buffer = s->update_staging_buffer;
 
-    ngpu_ctx_get_projection_matrix(s->gpu_ctx, s->default_projection_matrix);
+    ngpu_ctx_get_projection_matrix(s->gpu_ctx, s->default_projection_matrix.m);
     ngli_darray_clear(&s->projection_matrix_stack);
-    if (!ngli_darray_push(&s->projection_matrix_stack, s->default_projection_matrix)) {
+    if (!ngli_darray_push(&s->projection_matrix_stack, &s->default_projection_matrix)) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
     }
@@ -752,21 +752,21 @@ struct ngl_ctx *ngl_create(void)
     if (ret < 0)
         goto fail;
 
-    ngli_darray_init(&s->modelview_matrix_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
-    ngli_darray_init(&s->projection_matrix_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
-    ngli_darray_init(&s->transform_2d_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&s->modelview_matrix_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&s->projection_matrix_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&s->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&s->opacity_2d_stack, sizeof(float), 0);
     ngli_darray_init(&s->activitycheck_nodes, sizeof(struct ngl_node *), 0);
     ngli_darray_init(&s->bounding_box_nodes, sizeof(struct ngl_node *), 0);
     ngli_darray_init(&s->intersecting_nodes, sizeof(struct ngl_node *), 0);
 
-    static const NGLI_ALIGNED_MAT(id_matrix) = NGLI_MAT4_IDENTITY;
-    memcpy(s->default_modelview_matrix, id_matrix, sizeof(id_matrix));
-    memcpy(s->default_projection_matrix, id_matrix, sizeof(id_matrix));
+    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
+    s->default_modelview_matrix = id_matrix;
+    s->default_projection_matrix = id_matrix;
 
-    if (!ngli_darray_push(&s->modelview_matrix_stack, id_matrix) ||
-        !ngli_darray_push(&s->projection_matrix_stack, id_matrix) ||
-        !ngli_darray_push(&s->transform_2d_stack, id_matrix))
+    if (!ngli_darray_push(&s->modelview_matrix_stack, &id_matrix) ||
+        !ngli_darray_push(&s->projection_matrix_stack, &id_matrix) ||
+        !ngli_darray_push(&s->transform_2d_stack, &id_matrix))
         goto fail;
 
     const float default_opacity = 1.f;
@@ -944,10 +944,10 @@ NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t
             continue;
 
         /* Narrow phase: inverse-transform point into local space */
-        NGLI_ALIGNED_MAT(inv);
-        ngli_mat4_inverse(inv, node2d_info->transform_matrix);
+        struct ngli_mat4 inv;
+        ngli_mat4_inverse(inv.m, node2d_info->transform_matrix.m);
         NGLI_ALIGNED_VEC(local_point);
-        ngli_mat4_mul_vec4(local_point, inv, pixel_point);
+        ngli_mat4_mul_vec4(local_point, inv.m, pixel_point);
 
         if (ngli_aabb_intersect_point(&node2d_info->aabb, local_point)) {
             if (!ngli_darray_push(&s->intersecting_nodes, &bounding_box_node))

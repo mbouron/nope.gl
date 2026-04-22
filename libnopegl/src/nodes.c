@@ -970,7 +970,7 @@ NGL_API int ngl_node_get_global_transform_matrix(struct ngl_node *node, float *m
         return NGL_ERROR_INVALID_ARG;
 
     const struct ngli_node2d_info *info = node->priv_data;
-    memcpy(matrix, info->transform_matrix, 4 * 4 * sizeof(float));
+    memcpy(matrix, info->transform_matrix.m, sizeof(info->transform_matrix.m));
 
     return 0;
 }
@@ -984,7 +984,7 @@ NGL_API int ngl_node_get_global_position(struct ngl_node *node, float *position)
         return NGL_ERROR_INVALID_ARG;
 
     const struct ngli_node2d_info *info = node->priv_data;
-    const float *m = info->transform_matrix;
+    const float *m = info->transform_matrix.m;
     position[0] = m[12];
     position[1] = m[13];
 
@@ -1000,7 +1000,7 @@ NGL_API int ngl_node_get_global_rotation(struct ngl_node *node, float *rotation)
         return NGL_ERROR_INVALID_ARG;
 
     const struct ngli_node2d_info *info = node->priv_data;
-    const float *m = info->transform_matrix;
+    const float *m = info->transform_matrix.m;
     *rotation = NGLI_RAD2DEG(atan2f(m[1], m[0]));
 
     return 0;
@@ -1015,7 +1015,7 @@ NGL_API int ngl_node_get_global_scale(struct ngl_node *node, float *scale)
         return NGL_ERROR_INVALID_ARG;
 
     const struct ngli_node2d_info *info = node->priv_data;
-    const float *m = info->transform_matrix;
+    const float *m = info->transform_matrix.m;
     scale[0] = sqrtf(m[0] * m[0] + m[1] * m[1]);
     scale[1] = sqrtf(m[4] * m[4] + m[5] * m[5]);
 

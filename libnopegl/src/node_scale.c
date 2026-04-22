@@ -47,7 +47,7 @@ static void update_trf_matrix(struct ngl_node *node, const float *f)
     struct scale_priv *s = node->priv_data;
     struct transform *trf = &s->trf;
 
-    ngli_mat4_scale(trf->matrix, f[0], f[1], f[2], s->anchor);
+    ngli_mat4_scale(trf->matrix.m, f[0], f[1], f[2], s->anchor);
 }
 
 static int scale_init(struct ngl_node *node)

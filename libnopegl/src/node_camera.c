@@ -55,9 +55,9 @@ struct camera_priv {
     int use_perspective;
     int use_orthographic;
 
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    NGLI_ALIGNED_MAT(default_projection_matrix);
-    NGLI_ALIGNED_MAT(projection_matrix);
+    struct ngli_mat4 modelview_matrix;
+    struct ngli_mat4 default_projection_matrix;
+    struct ngli_mat4 projection_matrix;
 };
 
 static int apply_transform(float *v, struct ngl_node *transform, double t)
@@ -68,9 +68,9 @@ static int apply_transform(float *v, struct ngl_node *transform, double t)
     int ret = ngli_node_update(transform, t);
     if (ret < 0)
         return ret;
-    NGLI_ALIGNED_MAT(matrix) = NGLI_MAT4_IDENTITY;
-    ngli_transform_chain_compute(transform, matrix);
-    ngli_mat4_mul_vec4(v, matrix, v);
+    struct ngli_mat4 matrix = {.m = NGLI_MAT4_IDENTITY};
+    ngli_transform_chain_compute(transform, matrix.m);
+    ngli_mat4_mul_vec4(v, matrix.m, v);
 
     return 0;
 }
@@ -101,7 +101,7 @@ static int update_matrices(struct ngl_node *node, double t)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    ngli_mat4_look_at(s->modelview_matrix, eye, center, up);
+    ngli_mat4_look_at(s->modelview_matrix.m, eye, center, up);
 
     const float *perspective;
     if (o->perspective_node) {
@@ -115,15 +115,15 @@ static int update_matrices(struct ngl_node *node, double t)
         perspective = o->perspective;
     }
 
-    NGLI_ALIGNED_MAT(projection_matrix) = NGLI_MAT4_IDENTITY;
+    struct ngli_mat4 projection_matrix = {.m = NGLI_MAT4_IDENTITY};
     if (s->use_perspective) {
-        ngli_mat4_perspective(projection_matrix,
+        ngli_mat4_perspective(projection_matrix.m,
                               perspective[0],
                               perspective[1],
                               o->clipping[0],
                               o->clipping[1]);
     } else if (s->use_orthographic) {
-        ngli_mat4_orthographic(projection_matrix,
+        ngli_mat4_orthographic(projection_matrix.m,
                                o->orthographic[0],
                                o->orthographic[1],
                                o->orthographic[2],
@@ -132,7 +132,7 @@ static int update_matrices(struct ngl_node *node, double t)
                                o->clipping[1]);
     }
 
-    ngli_mat4_mul(s->projection_matrix, s->default_projection_matrix, projection_matrix);
+    ngli_mat4_mul(s->projection_matrix.m, s->default_projection_matrix.m, projection_matrix.m);
 
     return 0;
 }
@@ -210,7 +210,7 @@ static int camera_init(struct ngl_node *node)
 
     struct ngl_ctx *ngl_ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ngl_ctx->gpu_ctx;
-    ngpu_ctx_get_projection_matrix(gpu_ctx, s->default_projection_matrix);
+    ngpu_ctx_get_projection_matrix(gpu_ctx, s->default_projection_matrix.m);
 
     int ret;
     if ((ret = ngli_transform_chain_check(o->eye_transform)) < 0 ||
@@ -255,8 +255,8 @@ static void camera_draw(struct ngl_node *node)
     struct camera_priv *s = node->priv_data;
     const struct camera_opts *o = node->opts;
 
-    if (!ngli_darray_push(&ctx->modelview_matrix_stack, s->modelview_matrix) ||
-        !ngli_darray_push(&ctx->projection_matrix_stack, s->projection_matrix))
+    if (!ngli_darray_push(&ctx->modelview_matrix_stack, &s->modelview_matrix) ||
+        !ngli_darray_push(&ctx->projection_matrix_stack, &s->projection_matrix))
         return;
 
     ngli_node_draw(o->child);

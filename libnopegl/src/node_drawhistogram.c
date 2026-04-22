@@ -91,8 +91,8 @@ struct drawhistogram_opts {
 };
 
 struct drawhistogram_vert_block {
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    NGLI_ALIGNED_MAT(projection_matrix);
+    struct ngli_mat4 modelview_matrix;
+    struct ngli_mat4 projection_matrix;
 };
 
 struct drawhistogram_frag_block {
@@ -387,13 +387,13 @@ static void drawhistogram_draw(struct ngl_node *node)
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
-    const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
     /* Fill and push vertex block to staging buffer */
     struct drawhistogram_vert_block vert_data;
-    memcpy(vert_data.modelview_matrix, modelview_matrix, sizeof(vert_data.modelview_matrix));
-    memcpy(vert_data.projection_matrix, projection_matrix, sizeof(vert_data.projection_matrix));
+    vert_data.modelview_matrix = *modelview_matrix;
+    vert_data.projection_matrix = *projection_matrix;
 
     if (s->vert_block_index >= 0) {
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));

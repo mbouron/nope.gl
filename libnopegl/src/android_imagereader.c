@@ -86,13 +86,13 @@ void ngli_android_get_crop_matrix(float *matrix, const AHardwareBuffer_Desc *des
             sy = ((float)height - 2.0f * shrink) / (float)desc->height;
         }
     }
-    NGLI_ALIGNED_MAT(crop_matrix) = {
+    struct ngli_mat4 crop_matrix = {.m = {
         sx,   0.0f, 0.0f, 0.0f,
         0.0f, sy,   0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         tx,   ty,   0.0f, 1.0f,
-    };
-    memcpy(matrix, crop_matrix, sizeof(crop_matrix));
+    }};
+    memcpy(matrix, crop_matrix.m, sizeof(crop_matrix.m));
 }
 
 AHardwareBuffer *ngli_android_image_get_hardware_buffer(struct android_image *s)

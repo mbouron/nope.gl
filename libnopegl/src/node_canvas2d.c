@@ -111,7 +111,7 @@ static void canvas2d_pre_draw(struct ngl_node *node)
     const float prev_canvas_2d_height = ctx->canvas_2d_height;
 
     /* Initialize fresh stacks for bbox computation */
-    ngli_darray_init(&ctx->transform_2d_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&ctx->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&ctx->opacity_2d_stack, sizeof(float), 0);
 
     const float w = o->width  > 0 ? (float)o->width  : ctx->viewport.width;
@@ -119,9 +119,9 @@ static void canvas2d_pre_draw(struct ngl_node *node)
     ctx->canvas_2d_width = w;
     ctx->canvas_2d_height = h;
 
-    static const NGLI_ALIGNED_MAT(id_matrix) = NGLI_MAT4_IDENTITY;
+    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (!ngli_darray_push(&ctx->transform_2d_stack, id_matrix) ||
+    if (!ngli_darray_push(&ctx->transform_2d_stack, &id_matrix) ||
         !ngli_darray_push(&ctx->opacity_2d_stack, &default_opacity))
         goto restore;
 
@@ -150,13 +150,12 @@ static void canvas2d_draw(struct ngl_node *node)
     const struct canvas2d_opts *o = node->opts;
 
     /* Save previous 2D state so nested Canvas2D (e.g. via Texture2D RTT) works */
-    NGLI_ALIGNED_MAT(prev_projection_2d);
-    memcpy(prev_projection_2d, ctx->projection_2d_matrix, sizeof(prev_projection_2d));
+    struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
     struct darray prev_transform_2d_stack = ctx->transform_2d_stack;
     struct darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
 
     /* Initialize fresh stacks for this Canvas2D */
-    ngli_darray_init(&ctx->transform_2d_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&ctx->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&ctx->opacity_2d_stack, sizeof(float), 0);
 
     /* Compute canvas dimensions */
@@ -168,15 +167,15 @@ static void canvas2d_draw(struct ngl_node *node)
     ctx->canvas_2d_height = h;
 
     /* Build the 2D orthographic projection and store it in ctx */
-    NGLI_ALIGNED_MAT(base_projection_matrix);
-    ngpu_ctx_get_projection_matrix(gpu_ctx, base_projection_matrix);
-    ngli_mat4_orthographic(ctx->projection_2d_matrix, -0.5f, w - 0.5f, h - 0.5f, -0.5f, -1.f, 1.f);
-    ngli_mat4_mul(ctx->projection_2d_matrix, base_projection_matrix, ctx->projection_2d_matrix);
+    struct ngli_mat4 base_projection_matrix;
+    ngpu_ctx_get_projection_matrix(gpu_ctx, base_projection_matrix.m);
+    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, -0.5f, w - 0.5f, h - 0.5f, -0.5f, -1.f, 1.f);
+    ngli_mat4_mul(ctx->projection_2d_matrix.m, base_projection_matrix.m, ctx->projection_2d_matrix.m);
 
     /* Push identity transform and default opacity */
-    static const NGLI_ALIGNED_MAT(id_matrix) = NGLI_MAT4_IDENTITY;
+    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (!ngli_darray_push(&ctx->transform_2d_stack, id_matrix) ||
+    if (!ngli_darray_push(&ctx->transform_2d_stack, &id_matrix) ||
         !ngli_darray_push(&ctx->opacity_2d_stack, &default_opacity))
         goto restore;
 
@@ -192,7 +191,7 @@ static void canvas2d_draw(struct ngl_node *node)
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
 
     node2d_info->aabb = node2d_info->screen_aabb;
-    memcpy(node2d_info->transform_matrix, id_matrix, sizeof(node2d_info->transform_matrix));
+    node2d_info->transform_matrix = id_matrix;
 
 restore:
     /* Restore previous 2D state */
@@ -200,7 +199,7 @@ restore:
     ngli_darray_reset(&ctx->opacity_2d_stack);
     ctx->transform_2d_stack = prev_transform_2d_stack;
     ctx->opacity_2d_stack = prev_opacity_2d_stack;
-    memcpy(ctx->projection_2d_matrix, prev_projection_2d, sizeof(prev_projection_2d));
+    ctx->projection_2d_matrix = prev_projection_2d;
     ctx->canvas_2d_width = prev_canvas_2d_width;
     ctx->canvas_2d_height = prev_canvas_2d_height;
 }

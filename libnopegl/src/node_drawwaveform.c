@@ -92,8 +92,8 @@ struct drawwaveform_opts {
 };
 
 struct drawwaveform_vert_block {
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    NGLI_ALIGNED_MAT(projection_matrix);
+    struct ngli_mat4 modelview_matrix;
+    struct ngli_mat4 projection_matrix;
 };
 
 struct drawwaveform_frag_block {
@@ -391,12 +391,12 @@ static void drawwaveform_draw(struct ngl_node *node)
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct pipeline_compat *pl_compat = desc->pipeline_compat;
 
-    const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
     struct drawwaveform_vert_block vert_data;
-    memcpy(vert_data.modelview_matrix, modelview_matrix, sizeof(vert_data.modelview_matrix));
-    memcpy(vert_data.projection_matrix, projection_matrix, sizeof(vert_data.projection_matrix));
+    vert_data.modelview_matrix = *modelview_matrix;
+    vert_data.projection_matrix = *projection_matrix;
 
     if (s->vert_block_index >= 0) {
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
@@ -438,9 +438,9 @@ static void drawwaveform_draw(struct ngl_node *node)
             texture_map[i].image_rev = texture_map[i].image->rev;
         }
 
-        NGLI_ALIGNED_MAT(reframing_matrix);
-        ngli_transform_chain_compute(reframing_nodes[i], reframing_matrix);
-        ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, reframing_matrix, ctx->current_staging_buffer);
+        struct ngli_mat4 reframing_matrix = {0};
+        ngli_transform_chain_compute(reframing_nodes[i], reframing_matrix.m);
+        ngli_pipeline_compat_apply_reframing_matrix(pl_compat, (int32_t)i, texture_map[i].image, reframing_matrix.m, ctx->current_staging_buffer);
     }
 
     struct resource_map *resource_map = ngli_darray_data(&desc->blocks_map);

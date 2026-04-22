@@ -165,12 +165,12 @@ static int atlas_create(struct text *text, struct text_builtin_atlas *atlas)
      * [chr_w, chr_h] scale instead.
      */
     const float scale = (float)s->chr_h / (float)view_h;
-    const NGLI_ALIGNED_MAT(transform) = {
+    const struct ngli_mat4 transform = {.m = {
         scale, 0.f, 0.f, 0.f,
         0.f, -scale, 0.f, 0.f,
         0.f, 0.f, 1.f, 0.f,
         0.f, (float)s->chr_h, 0.f, 1.f,
-    };
+    }};
 
     for (size_t i = 0; i < NGLI_ARRAY_NB(outlines); i++) {
         ngli_path_clear(path);
@@ -179,7 +179,7 @@ static int atlas_create(struct text *text, struct text_builtin_atlas *atlas)
         if (ret < 0)
             goto end;
 
-        ngli_path_transform(path, transform);
+        ngli_path_transform(path, transform.m);
 
         ret = ngli_path_finalize(path);
         if (ret < 0)

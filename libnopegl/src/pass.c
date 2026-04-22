@@ -658,8 +658,8 @@ int ngli_pass_exec(struct pass *s)
 
         /* Write builtin uniforms directly into the staging buffer */
         if (user_block_infos[b].stage == NGPU_PROGRAM_STAGE_VERT) {
-            const float *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
-            const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+            const struct ngli_mat4 *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
+            const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
             ngpu_block_field_copy(&block->fields[PASS_BUILTIN_VERT_MODELVIEW_MATRIX],
                                   data + block->fields[PASS_BUILTIN_VERT_MODELVIEW_MATRIX].offset,
                                   (const uint8_t *)modelview_matrix);
@@ -667,7 +667,7 @@ int ngli_pass_exec(struct pass *s)
                                   data + block->fields[PASS_BUILTIN_VERT_PROJECTION_MATRIX].offset,
                                   (const uint8_t *)projection_matrix);
             float normal_matrix[3 * 3];
-            ngli_mat3_from_mat4(normal_matrix, modelview_matrix);
+            ngli_mat3_from_mat4(normal_matrix, modelview_matrix->m);
             ngli_mat3_inverse(normal_matrix, normal_matrix);
             ngli_mat3_transpose(normal_matrix, normal_matrix);
             ngpu_block_field_copy(&block->fields[PASS_BUILTIN_VERT_NORMAL_MATRIX],

@@ -117,7 +117,7 @@ static const struct range_info {
     {219, 224, 16},
 };
 
-int ngli_colorconv_get_ycbcr_to_rgb_color_matrix(float *dst, const struct color_info *info, float scale)
+struct ngli_mat4 ngli_colorconv_get_ycbcr_to_rgb_color_matrix(const struct color_info *info, float scale)
 {
     const int colormatrix = get_colormatrix_from_nopemd(info->space);
     const int video_range = info->range != NMD_COL_RNG_FULL;
@@ -130,31 +130,31 @@ int ngli_colorconv_get_ycbcr_to_rgb_color_matrix(float *dst, const struct color_
     const float g_scale  = 2 / (k.g * range.uv);
     const float y_off    = -range.y_off / range.y;
 
-    /* Y factor */
-    dst[ 0 /* R */] = y_factor * scale;
-    dst[ 1 /* G */] = y_factor * scale;
-    dst[ 2 /* B */] = y_factor * scale;
-    dst[ 3 /* A */] = 0;
+    return (struct ngli_mat4){.m = {
+        /* Y factor */
+        [ 0 /* R */] = y_factor * scale,
+        [ 1 /* G */] = y_factor * scale,
+        [ 2 /* B */] = y_factor * scale,
+        [ 3 /* A */] = 0,
 
-    /* Cb factor */
-    dst[ 4 /* R */] = 0;
-    dst[ 5 /* G */] = -255 * g_scale * scale * k.b * (1 - k.b);
-    dst[ 6 /* B */] =  255 * b_scale * scale;
-    dst[ 7 /* A */] = 0;
+        /* Cb factor */
+        [ 4 /* R */] = 0,
+        [ 5 /* G */] = -255 * g_scale * scale * k.b * (1 - k.b),
+        [ 6 /* B */] =  255 * b_scale * scale,
+        [ 7 /* A */] = 0,
 
-    /* Cr factor */
-    dst[ 8 /* R */] =  255 * r_scale * scale;
-    dst[ 9 /* G */] = -255 * g_scale * scale * k.r * (1 - k.r);
-    dst[10 /* B */] = 0;
-    dst[11 /* A */] = 0;
+        /* Cr factor */
+        [ 8 /* R */] =  255 * r_scale * scale,
+        [ 9 /* G */] = -255 * g_scale * scale * k.r * (1 - k.r),
+        [10 /* B */] = 0,
+        [11 /* A */] = 0,
 
-    /* Offset */
-    dst[12 /* R */] = y_off - 128 * r_scale;
-    dst[13 /* G */] = y_off + 128 * g_scale * (k.b * (1 - k.b) + k.r * (1 - k.r));
-    dst[14 /* B */] = y_off - 128 * b_scale;
-    dst[15 /* A */] = 1;
-
-    return 0;
+        /* Offset */
+        [12 /* R */] = y_off - 128 * r_scale,
+        [13 /* G */] = y_off + 128 * g_scale * (k.b * (1 - k.b) + k.r * (1 - k.r)),
+        [14 /* B */] = y_off - 128 * b_scale,
+        [15 /* A */] = 1,
+    }};
 }
 
 struct cie_xy {
@@ -302,28 +302,28 @@ static void get_rgb2xyz_matrix(float *dst, const struct raw_primaries *prim)
     Z[2] = cie_Z(prim->blue);
     Z[3] = cie_Z(prim->white);
 
-    NGLI_ALIGNED_MAT(tmp) = NGLI_MAT4_IDENTITY;
+    struct ngli_mat4 tmp = {.m = NGLI_MAT4_IDENTITY};
 
     // S = XYZ^-1 * W
     for (int i = 0; i < 3; i++) {
-        tmp[0 + i] = X[i];
-        tmp[4 + i] = 1;
-        tmp[8 + i] = Z[i];
+        tmp.m[0 + i] = X[i];
+        tmp.m[4 + i] = 1;
+        tmp.m[8 + i] = Z[i];
     }
 
-    ngli_mat4_inverse(tmp, tmp);
+    ngli_mat4_inverse(tmp.m, tmp.m);
 
     for (int i = 0; i < 3; i++)
-        S[i] = tmp[4 * i + 0] * X[3] + tmp[4 * i + 1] * 1 + tmp[4 * i + 2] * Z[3];
+        S[i] = tmp.m[4 * i + 0] * X[3] + tmp.m[4 * i + 1] * 1 + tmp.m[4 * i + 2] * Z[3];
 
     // M = [Sc * XYZc]
     for (int i = 0; i < 3; i++) {
-        tmp[0 + i] = S[i] * X[i];
-        tmp[4 + i] = S[i] * 1;
-        tmp[8 + i] = S[i] * Z[i];
+        tmp.m[0 + i] = S[i] * X[i];
+        tmp.m[4 + i] = S[i] * 1;
+        tmp.m[8 + i] = S[i] * Z[i];
     }
 
-    memcpy(dst, tmp, sizeof(tmp));
+    memcpy(dst, tmp.m, sizeof(tmp.m));
 }
 
 /*
@@ -340,42 +340,35 @@ static void get_xyz2rgb_matrix(float *dst, const struct raw_primaries *prim)
  * primaries to another, see:
  * http://www.brucelindbloom.com/index.html?Math.html
  */
-static int get_mapping_color_matrix(float *dst, int src_primaries, int dst_primaries)
+static struct ngli_mat4 get_mapping_color_matrix(int src_primaries, int dst_primaries)
 {
-    static const NGLI_ALIGNED_MAT(identity) = NGLI_MAT4_IDENTITY;
-
-    if (src_primaries == dst_primaries) {
-        memcpy(dst, identity, sizeof(identity));
-    }
+    if (src_primaries == dst_primaries)
+        return (struct ngli_mat4){.m = NGLI_MAT4_IDENTITY};
 
     // XYZ → RGB matrix
-    const struct raw_primaries *dst_raw_primaries = get_primaries(dst_primaries);
-    NGLI_ALIGNED_MAT(xyz2rgb_matrix) = NGLI_MAT4_IDENTITY;
-    get_xyz2rgb_matrix(xyz2rgb_matrix, dst_raw_primaries);
+    struct ngli_mat4 xyz2rgb_matrix = {.m = NGLI_MAT4_IDENTITY};
+    get_xyz2rgb_matrix(xyz2rgb_matrix.m, get_primaries(dst_primaries));
 
     // RGB → XYZ matrix
-    const struct raw_primaries *src_raw_primaries = get_primaries(src_primaries);
-    NGLI_ALIGNED_MAT(rgb2xyz_matrix) = NGLI_MAT4_IDENTITY;
-    get_rgb2xyz_matrix(rgb2xyz_matrix, src_raw_primaries);
+    struct ngli_mat4 rgb2xyz_matrix = {.m = NGLI_MAT4_IDENTITY};
+    get_rgb2xyz_matrix(rgb2xyz_matrix.m, get_primaries(src_primaries));
 
-    ngli_mat4_mul(dst, xyz2rgb_matrix, rgb2xyz_matrix);
-
-    return 0;
+    struct ngli_mat4 mapping_color_matrix;
+    ngli_mat4_mul(mapping_color_matrix.m, xyz2rgb_matrix.m, rgb2xyz_matrix.m);
+    return mapping_color_matrix;
 }
 
-void ngli_colorconv_get_mapping_color_matrix(float *dst, const struct color_info *info, int dst_primaries)
+struct ngli_mat4 ngli_colorconv_get_mapping_color_matrix(const struct color_info *info, int dst_primaries)
 {
-    static const NGLI_ALIGNED_MAT(identity) = NGLI_MAT4_IDENTITY;
+    static const struct ngli_mat4 identity = {.m = NGLI_MAT4_IDENTITY};
 
     // Only set the mapping color matrix if the transfer function is unspecified, BT709 or sRGB
     if (info->transfer != NMD_COL_TRC_UNSPECIFIED &&
         info->transfer != NMD_COL_TRC_BT709 &&
-        info->transfer != NMD_COL_TRC_IEC61966_2_1) {
-        memcpy(dst, identity, sizeof(identity));
-        return;
-    }
+        info->transfer != NMD_COL_TRC_IEC61966_2_1)
+        return identity;
 
-    get_mapping_color_matrix(dst, info->primaries, dst_primaries);
+    return get_mapping_color_matrix(info->primaries, dst_primaries);
 }
 
 const struct param_choices ngli_colorconv_colorspace_choices = {

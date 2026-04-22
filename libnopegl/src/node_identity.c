@@ -20,7 +20,6 @@
  */
 
 #include <stddef.h>
-#include <string.h>
 
 #include "internal.h"
 #include "math_utils.h"
@@ -34,8 +33,7 @@ struct identity_priv {
 static int identity_init(struct ngl_node *node)
 {
     struct identity_priv *s = node->priv_data;
-    static const NGLI_ALIGNED_MAT(id_matrix) = NGLI_MAT4_IDENTITY;
-    memcpy(s->trf.matrix, id_matrix, sizeof(id_matrix));
+    s->trf.matrix = (struct ngli_mat4){.m = NGLI_MAT4_IDENTITY};
     s->trf.child = NULL;
     return 0;
 }

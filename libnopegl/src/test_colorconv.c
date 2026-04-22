@@ -100,17 +100,15 @@ static int compare_matrices(const float *a, const float *b)
 int main(void)
 {
     int fail = 0;
-    float mat[4 * 4];
     struct color_info cinfo = NGLI_COLOR_INFO_DEFAULTS;
 
     for (size_t r = 0; r < NGLI_ARRAY_NB(ranges); r++) {
         cinfo.range = ranges[r].val;
         for (size_t s = 0; s < NGLI_ARRAY_NB(spaces); s++) {
             cinfo.space = spaces[s].val;
-            if (ngli_colorconv_get_ycbcr_to_rgb_color_matrix(mat, &cinfo, 1.f) < 0)
-                return 1;
-            printf("%s %s:\n" NGLI_FMT_MAT4 "\n\n", spaces[s].name, ranges[r].name, NGLI_ARG_MAT4(mat));
-            if (compare_matrices(mat, expected_colormatrices[r][s]) < 0) {
+            const struct ngli_mat4 mat = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(&cinfo, 1.f);
+            printf("%s %s:\n" NGLI_FMT_MAT4 "\n\n", spaces[s].name, ranges[r].name, NGLI_ARG_MAT4(mat.m));
+            if (compare_matrices(mat.m, expected_colormatrices[r][s]) < 0) {
                 printf(">>>> DIFF IS TOO HIGH <<<<\n\n");
                 fail++;
             }

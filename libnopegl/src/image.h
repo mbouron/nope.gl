@@ -78,10 +78,10 @@ struct image {
     struct ngpu_texture *planes[4];
     void *samplers[4];
     size_t nb_planes;
-    NGLI_ALIGNED_MAT(color_matrix);
-    NGLI_ALIGNED_MAT(mapping_color_matrix);
+    struct ngli_mat4 color_matrix;
+    struct ngli_mat4 mapping_color_matrix;
     /* mutable fields after initialization */
-    NGLI_ALIGNED_MAT(coordinates_matrix);
+    struct ngli_mat4 coordinates_matrix;
     float ts;
     size_t rev;
 };

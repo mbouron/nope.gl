@@ -43,7 +43,7 @@ static void update_trf_matrix(struct ngl_node *node, const float *vec)
 {
     struct translate_priv *s = node->priv_data;
     struct transform *trf = &s->trf;
-    ngli_mat4_translate(trf->matrix, vec[0], vec[1], vec[2]);
+    ngli_mat4_translate(trf->matrix.m, vec[0], vec[1], vec[2]);
 }
 
 static int update_vector(struct ngl_node *node)
