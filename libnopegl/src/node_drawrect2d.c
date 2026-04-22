@@ -128,8 +128,8 @@ struct block_map {
 };
 
 struct drawrect2d_vert_block {
-    NGLI_ALIGNED_MAT(projection_matrix);
-    NGLI_ALIGNED_MAT(modelview_matrix);
+    struct ngli_mat4 projection_matrix;
+    struct ngli_mat4 modelview_matrix;
     float uv_scale[2];
     float margin_px;
     float _pad0;
@@ -903,16 +903,16 @@ static void drawrect2d_pre_draw(struct ngl_node *node)
 
     ngli_node_pre_draw_children(node);
 
-    NGLI_ALIGNED_MAT(trs_matrix);
-    ngli_node2d_compute_trs(node, trs_matrix);
+    struct ngli_mat4 trs_matrix;
+    ngli_node2d_compute_trs(node, trs_matrix.m);
 
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    const float *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
-    ngli_mat4_mul(modelview_matrix, prev_matrix, trs_matrix);
+    struct ngli_mat4 modelview_matrix;
+    const struct ngli_mat4 *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
+    ngli_mat4_mul(modelview_matrix.m, prev_matrix->m, trs_matrix.m);
 
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
-    memcpy(node2d_info->transform_matrix, modelview_matrix, sizeof(node2d_info->transform_matrix));
-    node2d_info->screen_aabb = ngli_aabb_apply_transform(&node2d_info->aabb, modelview_matrix);
+    node2d_info->transform_matrix = modelview_matrix;
+    node2d_info->screen_aabb = ngli_aabb_apply_transform(&node2d_info->aabb, modelview_matrix.m);
 }
 
 static void drawrect2d_draw(struct ngl_node *node)
@@ -930,18 +930,18 @@ static void drawrect2d_draw(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
-    NGLI_ALIGNED_MAT(trs_matrix);
-    ngli_node2d_compute_trs(node, trs_matrix);
+    struct ngli_mat4 trs_matrix;
+    ngli_node2d_compute_trs(node, trs_matrix.m);
 
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    const float *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
-    ngli_mat4_mul(modelview_matrix, prev_matrix, trs_matrix);
+    struct ngli_mat4 modelview_matrix;
+    const struct ngli_mat4 *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
+    ngli_mat4_mul(modelview_matrix.m, prev_matrix->m, trs_matrix.m);
 
     struct pipeline_compat *pl_compat = s->pipeline_compat;
 
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
-    memcpy(node2d_info->transform_matrix, modelview_matrix, sizeof(node2d_info->transform_matrix));
-    node2d_info->screen_aabb = ngli_aabb_apply_transform(&node2d_info->aabb, modelview_matrix);
+    node2d_info->transform_matrix = modelview_matrix;
+    node2d_info->screen_aabb = ngli_aabb_apply_transform(&node2d_info->aabb, modelview_matrix.m);
 
     const struct stroke_base_opts *so = o->stroke_node
         ? (const struct stroke_base_opts *)o->stroke_node->opts : &default_stroke_base;
@@ -1025,8 +1025,8 @@ static void drawrect2d_draw(struct ngl_node *node)
     /* Fill and push vertex block to staging buffer */
     {
         struct drawrect2d_vert_block vert_data = {0};
-        memcpy(vert_data.projection_matrix, ctx->projection_2d_matrix, sizeof(vert_data.projection_matrix));
-        memcpy(vert_data.modelview_matrix, modelview_matrix, sizeof(vert_data.modelview_matrix));
+        vert_data.projection_matrix = ctx->projection_2d_matrix;
+        vert_data.modelview_matrix = modelview_matrix;
         memcpy(vert_data.uv_scale, uv_scale, sizeof(vert_data.uv_scale));
         vert_data.margin_px = margin_px;
         memcpy(vert_data.margin_uv, margin_uv, sizeof(vert_data.margin_uv));

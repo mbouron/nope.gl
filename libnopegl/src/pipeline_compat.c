@@ -246,10 +246,10 @@ static void push_texture_info_block(struct pipeline_compat *s,
         return;
 
     struct ngpu_pgcraft_texture_info_block texture_info = {0};
-    const void *coord_src = coord_matrix_override ? coord_matrix_override : image->coordinates_matrix;
+    const void *coord_src = coord_matrix_override ? coord_matrix_override : image->coordinates_matrix.m;
     memcpy(texture_info.coord_matrix, coord_src, sizeof(texture_info.coord_matrix));
-    memcpy(texture_info.color_matrix, image->color_matrix, sizeof(texture_info.color_matrix));
-    memcpy(texture_info.mapping_color_matrix, image->mapping_color_matrix, sizeof(texture_info.mapping_color_matrix));
+    memcpy(texture_info.color_matrix, image->color_matrix.m, sizeof(texture_info.color_matrix));
+    memcpy(texture_info.mapping_color_matrix, image->mapping_color_matrix.m, sizeof(texture_info.mapping_color_matrix));
     if (image->params.layout) {
         texture_info.dimensions[0] = (float)image->params.width;
         texture_info.dimensions[1] = (float)image->params.height;
@@ -277,30 +277,30 @@ void ngli_pipeline_compat_apply_reframing_matrix(struct pipeline_compat *s, int3
         return;
 
     /* Scale up from normalized [0,1] UV to centered [-1,1], swapping y-axis */
-    static const NGLI_ALIGNED_MAT(remap_uv_to_centered) = {
+    static const struct ngli_mat4 remap_uv_to_centered = {.m = {
         2.f,  0.f, 0.f, 0.f,
         0.f, -2.f, 0.f, 0.f,
         0.f,  0.f, 1.f, 0.f,
        -1.f,  1.f, 0.f, 1.f,
-    };
+    }};
 
     /* Scale down from centered [-1,1] to normalized [0,1] UV, swapping y-axis */
-    static const NGLI_ALIGNED_MAT(remap_centered_to_uv) = {
+    static const struct ngli_mat4 remap_centered_to_uv = {.m = {
         .5f,  0.f, 0.f, 0.f,
         0.f, -.5f, 0.f, 0.f,
         0.f,  0.f, 1.f, 0.f,
         .5f,  .5f, 0.f, 1.f,
-    };
+    }};
 
-    NGLI_ALIGNED_MAT(inverse_reframing);
-    ngli_mat4_inverse(inverse_reframing, reframing);
+    struct ngli_mat4 inverse_reframing;
+    ngli_mat4_inverse(inverse_reframing.m, reframing);
 
-    NGLI_ALIGNED_MAT(matrix);
-    ngli_mat4_mul(matrix, remap_uv_to_centered, image->coordinates_matrix);
-    ngli_mat4_mul(matrix, inverse_reframing, matrix);
-    ngli_mat4_mul(matrix, remap_centered_to_uv, matrix);
+    struct ngli_mat4 matrix;
+    ngli_mat4_mul(matrix.m, remap_uv_to_centered.m, image->coordinates_matrix.m);
+    ngli_mat4_mul(matrix.m, inverse_reframing.m, matrix.m);
+    ngli_mat4_mul(matrix.m, remap_centered_to_uv.m, matrix.m);
 
-    push_texture_info_block(s, staging, (size_t)index, image, matrix);
+    push_texture_info_block(s, staging, (size_t)index, image, matrix.m);
 }
 
 void ngli_pipeline_compat_update_image(struct pipeline_compat *s, int32_t index,

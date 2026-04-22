@@ -57,13 +57,13 @@ int ngli_transform_chain_check(const struct ngl_node *node)
 
 void ngli_transform_chain_compute(const struct ngl_node *node, float *matrix)
 {
-    NGLI_ALIGNED_MAT(tmp) = NGLI_MAT4_IDENTITY;
+    struct ngli_mat4 tmp = {.m = NGLI_MAT4_IDENTITY};
     while (node && node->cls->category == NGLI_NODE_CATEGORY_TRANSFORM) {
         const struct transform *transform = node->priv_data;
-        ngli_mat4_mul(tmp, tmp, transform->matrix);
+        ngli_mat4_mul(tmp.m, tmp.m, transform->matrix.m);
         node = transform->child;
     }
-    memcpy(matrix, tmp, sizeof(tmp));
+    memcpy(matrix, tmp.m, sizeof(tmp.m));
 }
 
 void ngli_transform_draw(struct ngl_node *node)
@@ -72,16 +72,16 @@ void ngli_transform_draw(struct ngl_node *node)
     struct transform *s = node->priv_data;
     struct ngl_node *child = s->child;
 
-    float *next_matrix = ngli_darray_push(&ctx->modelview_matrix_stack, NULL);
+    struct ngli_mat4 *next_matrix = ngli_darray_push(&ctx->modelview_matrix_stack, NULL);
     if (!next_matrix)
         return;
 
     /* We cannot use ngli_darray_tail() before calling ngli_darray_push() as
      * ngli_darray_push() can potentially perform a re-allocation on the
      * underlying matrix stack buffer */
-    const float *prev_matrix = next_matrix - 4 * 4;
+    const struct ngli_mat4 *prev_matrix = next_matrix - 1;
 
-    ngli_mat4_mul(next_matrix, prev_matrix, s->matrix);
+    ngli_mat4_mul(next_matrix->m, prev_matrix->m, s->matrix.m);
     ngli_node_draw(child);
     ngli_darray_pop(&ctx->modelview_matrix_stack);
 }

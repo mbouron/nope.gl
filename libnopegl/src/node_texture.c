@@ -464,7 +464,7 @@ static int texture_prefetch(struct ngl_node *node)
     if (s->texture_info.rtt) {
         /* Transform the color textures coordinates so it matches how the
          * graphics context uv coordinate system works regarding render targets */
-        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, i->image.coordinates_matrix);
+        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, i->image.coordinates_matrix.m);
 
         enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
         if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_STENCIL)
@@ -674,8 +674,8 @@ static void texture_pre_draw(struct ngl_node *node)
     }
 
     if (!o->forward_transforms) {
-        if (!ngli_darray_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) ||
-            !ngli_darray_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix))
+        if (!ngli_darray_push(&ctx->modelview_matrix_stack, &ctx->default_modelview_matrix) ||
+            !ngli_darray_push(&ctx->projection_matrix_stack, &ctx->default_projection_matrix))
             return;
     }
 

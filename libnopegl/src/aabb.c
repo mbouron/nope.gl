@@ -70,12 +70,12 @@ struct aabb ngli_aabb_apply_transform(const struct aabb *aabb, const float *m)
     struct aabb trf_aabb = {0};
     ngli_mat4_mul_vec4(trf_aabb.center, m, aabb->center);
 
-    NGLI_ALIGNED_MAT(abs_m);
-    ngli_mat4_abs(abs_m, m);
-    abs_m[12] = 0.f;
-    abs_m[13] = 0.f;
-    abs_m[14] = 0.f;
-    ngli_mat4_mul_vec4(trf_aabb.extent, abs_m, aabb->extent);
+    struct ngli_mat4 abs_m;
+    ngli_mat4_abs(abs_m.m, m);
+    abs_m.m[12] = 0.f;
+    abs_m.m[13] = 0.f;
+    abs_m.m[14] = 0.f;
+    ngli_mat4_mul_vec4(trf_aabb.extent, abs_m.m, aabb->extent);
 
     return trf_aabb;
 }

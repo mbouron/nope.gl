@@ -83,13 +83,13 @@ static int gridlayout_init(struct ngl_node *node)
             const float pos_x = scale_x * ((float)col *  2.f + 1.f) - 1.f;
             const float pos_y = scale_y * ((float)row * -2.f - 1.f) + 1.f;
             // This is equivalent to Translate(Scale(node))
-            const NGLI_ALIGNED_MAT(matrix) = {
+            const struct ngli_mat4 matrix = {.m = {
                 scale_x, 0, 0, 0,
                 0, scale_y, 0, 0,
                 0, 0, 1, 0,
                 pos_x, pos_y, 0, 1,
-            };
-            if (!ngli_darray_push(&s->matrices, matrix))
+            }};
+            if (!ngli_darray_push(&s->matrices, matrix.m))
                 return NGL_ERROR_MEMORY;
             if (++i == o->nb_children)
                 return 0;
@@ -108,7 +108,7 @@ static void gridlayout_draw(struct ngl_node *node)
     for (size_t i = 0; i < o->nb_children; i++) {
         s->trf.child = o->children[i];
         const float *matrix = &matrices[i * 4 * 4];
-        memcpy(s->trf.matrix, matrix, sizeof(s->trf.matrix));
+        memcpy(s->trf.matrix.m, matrix, sizeof(s->trf.matrix.m));
         ngli_transform_draw(node);
     }
 }

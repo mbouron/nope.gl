@@ -28,7 +28,7 @@ struct ngl_node;
 
 struct transform {
     struct ngl_node *child;
-    NGLI_ALIGNED_MAT(matrix);
+    struct ngli_mat4 matrix;
 };
 
 #endif

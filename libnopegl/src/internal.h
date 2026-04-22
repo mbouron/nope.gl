@@ -88,13 +88,13 @@ struct ngl_ctx {
     struct ngpu_viewport viewport;
     struct ngpu_scissor scissor;
     struct ngpu_rendertarget *current_rendertarget;
-    NGLI_ALIGNED_MAT(default_modelview_matrix);
-    NGLI_ALIGNED_MAT(default_projection_matrix);
+    struct ngli_mat4 default_modelview_matrix;
+    struct ngli_mat4 default_projection_matrix;
     struct darray modelview_matrix_stack;
     struct darray projection_matrix_stack;
     struct darray transform_2d_stack;
     struct darray opacity_2d_stack;
-    NGLI_ALIGNED_MAT(projection_2d_matrix);
+    struct ngli_mat4 projection_2d_matrix;
     float canvas_2d_width;
     float canvas_2d_height;
     struct ngpu_staging_buffer *update_staging_buffer;

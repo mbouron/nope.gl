@@ -115,7 +115,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     if (ret < 0)
         return ret;
 
-    float *matrix = hwmap->mapped_image.coordinates_matrix;
+    float *matrix = hwmap->mapped_image.coordinates_matrix.m;
     const int filtering = params->texture_min_filter || params->texture_mag_filter;
     ngli_android_get_crop_matrix(matrix, &desc, &crop_rect, filtering);
 

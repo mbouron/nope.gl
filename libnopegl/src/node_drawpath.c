@@ -69,8 +69,8 @@ struct drawpath_opts {
 };
 
 struct drawpath_vert_block {
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    NGLI_ALIGNED_MAT(projection_matrix);
+    struct ngli_mat4 modelview_matrix;
+    struct ngli_mat4 projection_matrix;
     float vertices[4];
 };
 
@@ -171,13 +171,13 @@ static int drawpath_init(struct ngl_node *node)
      */
     const float res = (float)o->pt_size * (float)o->dpi / 72.f;
     const struct ngli_box vb = {NGLI_ARG_VEC4(o->viewbox)};
-    const NGLI_ALIGNED_MAT(path_transform) = {
+    const struct ngli_mat4 path_transform = {.m = {
         res/vb.w, 0.f, 0.f, 0.f,
         0.f, res/vb.h, 0.f, 0.f,
         0.f, 0.f, 1.f, 0.f,
         -vb.x/vb.w*res, -vb.y/vb.h*res, 0.f, 1.f,
-    };
-    ngli_path_transform(s->path, path_transform);
+    }};
+    ngli_path_transform(s->path, path_transform.m);
 
     ret = ngli_path_finalize(s->path);
     if (ret < 0)
@@ -342,13 +342,13 @@ static void drawpath_draw(struct ngl_node *node)
     const struct drawpath_opts *o = node->opts;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
     /* Fill and push vertex block to staging buffer */
     struct drawpath_vert_block vert_data;
-    memcpy(vert_data.modelview_matrix, modelview_matrix, sizeof(vert_data.modelview_matrix));
-    memcpy(vert_data.projection_matrix, projection_matrix, sizeof(vert_data.projection_matrix));
+    vert_data.modelview_matrix = *modelview_matrix;
+    vert_data.projection_matrix = *projection_matrix;
     memcpy(vert_data.vertices, s->vertices, sizeof(vert_data.vertices));
 
     if (s->vert_block_index >= 0) {

@@ -89,8 +89,8 @@ struct pipeline_desc {
 };
 
 struct text_bg_vert_block {
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    NGLI_ALIGNED_MAT(projection_matrix);
+    struct ngli_mat4 modelview_matrix;
+    struct ngli_mat4 projection_matrix;
 };
 
 struct text_bg_frag_block {
@@ -99,8 +99,8 @@ struct text_bg_frag_block {
 };
 
 struct text_fg_vert_block {
-    NGLI_ALIGNED_MAT(modelview_matrix);
-    NGLI_ALIGNED_MAT(projection_matrix);
+    struct ngli_mat4 modelview_matrix;
+    struct ngli_mat4 projection_matrix;
 };
 
 struct text_fg_frag_block {
@@ -859,8 +859,8 @@ static void text_draw(struct ngl_node *node)
     struct text_priv *s = node->priv_data;
     const struct text_opts *o = node->opts;
 
-    const float *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const float *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 
@@ -872,8 +872,8 @@ static void text_draw(struct ngl_node *node)
     /* Fill and push background vertex block to staging buffer */
     struct pipeline_desc_bg *bg_desc = &desc->bg;
     struct text_bg_vert_block bg_vert_data;
-    memcpy(bg_vert_data.modelview_matrix, modelview_matrix, sizeof(bg_vert_data.modelview_matrix));
-    memcpy(bg_vert_data.projection_matrix, projection_matrix, sizeof(bg_vert_data.projection_matrix));
+    bg_vert_data.modelview_matrix = *modelview_matrix;
+    bg_vert_data.projection_matrix = *projection_matrix;
 
     if (bg_desc->vert_block_index >= 0) {
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &bg_vert_data, sizeof(bg_vert_data));
@@ -904,8 +904,8 @@ static void text_draw(struct ngl_node *node)
         /* Fill and push foreground vertex block to staging buffer */
         struct pipeline_desc_fg *fg_desc = &desc->fg;
         struct text_fg_vert_block fg_vert_data;
-        memcpy(fg_vert_data.modelview_matrix, modelview_matrix, sizeof(fg_vert_data.modelview_matrix));
-        memcpy(fg_vert_data.projection_matrix, projection_matrix, sizeof(fg_vert_data.projection_matrix));
+        fg_vert_data.modelview_matrix = *modelview_matrix;
+        fg_vert_data.projection_matrix = *projection_matrix;
 
         if (fg_desc->vert_block_index >= 0) {
             const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &fg_vert_data, sizeof(fg_vert_data));

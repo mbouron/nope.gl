@@ -272,7 +272,7 @@ static int offscreencanvas2d_prefetch(struct ngl_node *node)
             };
         }
         struct image *image = &rti.info->image;
-        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix);
+        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix.m);
     }
 
     if (o->depth_texture) {
@@ -427,18 +427,17 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
         ngli_node_pre_draw(o->children[i]);
 
     /* Save previous 2D state */
-    NGLI_ALIGNED_MAT(prev_projection_2d);
-    memcpy(prev_projection_2d, ctx->projection_2d_matrix, sizeof(prev_projection_2d));
+    struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
     struct darray prev_transform_2d_stack = ctx->transform_2d_stack;
     struct darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
 
     /* Initialize fresh stacks */
-    ngli_darray_init(&ctx->transform_2d_stack, 4 * 4 * sizeof(float), NGLI_DARRAY_FLAG_ALIGNED);
+    ngli_darray_init(&ctx->transform_2d_stack, sizeof(struct ngli_mat4), NGLI_DARRAY_FLAG_ALIGNED);
     ngli_darray_init(&ctx->opacity_2d_stack, sizeof(float), 0);
 
-    static const NGLI_ALIGNED_MAT(id_matrix) = NGLI_MAT4_IDENTITY;
+    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (!ngli_darray_push(&ctx->transform_2d_stack, id_matrix) ||
+    if (!ngli_darray_push(&ctx->transform_2d_stack, &id_matrix) ||
         !ngli_darray_push(&ctx->opacity_2d_stack, &default_opacity))
         goto restore;
 
@@ -448,10 +447,10 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
     const float w = o->width  > 0 ? (float)o->width  : ctx->canvas_2d_width;
     const float h = o->height > 0 ? (float)o->height : ctx->canvas_2d_height;
 
-    NGLI_ALIGNED_MAT(base_projection);
-    ngpu_ctx_get_projection_matrix(gpu_ctx, base_projection);
-    ngli_mat4_orthographic(ctx->projection_2d_matrix, -0.5f, w - 0.5f, h - 0.5f, -0.5f, -1.f, 1.f);
-    ngli_mat4_mul(ctx->projection_2d_matrix, base_projection, ctx->projection_2d_matrix);
+    struct ngli_mat4 base_projection;
+    ngpu_ctx_get_projection_matrix(gpu_ctx, base_projection.m);
+    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, -0.5f, w - 0.5f, h - 0.5f, -0.5f, -1.f, 1.f);
+    ngli_mat4_mul(ctx->projection_2d_matrix.m, base_projection.m, ctx->projection_2d_matrix.m);
 
     /* Draw children */
     const size_t *indices = ngli_darray_data(&s->indices);
@@ -468,7 +467,7 @@ restore:
     ngli_darray_reset(&ctx->opacity_2d_stack);
     ctx->transform_2d_stack = prev_transform_2d_stack;
     ctx->opacity_2d_stack = prev_opacity_2d_stack;
-    memcpy(ctx->projection_2d_matrix, prev_projection_2d, sizeof(prev_projection_2d));
+    ctx->projection_2d_matrix = prev_projection_2d;
 }
 
 static void offscreencanvas2d_draw(struct ngl_node *node)

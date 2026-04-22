@@ -54,7 +54,7 @@ struct ngli_node2d_opts {
  */
 struct ngli_node2d_info {
     NGLI_ATTR_ALIGNED struct aabb aabb;
-    NGLI_ALIGNED_MAT(transform_matrix);
+    struct ngli_mat4 transform_matrix;
     NGLI_ATTR_ALIGNED struct aabb screen_aabb;
 };
 

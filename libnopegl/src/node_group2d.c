@@ -116,8 +116,7 @@ static void group2d_pre_draw(struct ngl_node *node)
         return;
 
     /* Save local transform */
-    NGLI_ALIGNED_MAT(local_transform_matrix);
-    memcpy(local_transform_matrix, ngli_darray_tail(&node->ctx->transform_2d_stack), sizeof(local_transform_matrix));
+    struct ngli_mat4 local_transform_matrix = *(const struct ngli_mat4 *)ngli_darray_tail(&node->ctx->transform_2d_stack);
 
     /* Pre-draw children */
     for (size_t i = 0; i < o->nb_children; i++)
@@ -126,7 +125,7 @@ static void group2d_pre_draw(struct ngl_node *node)
     /* Compute bounding box from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
-    memcpy(node2d_info->transform_matrix, local_transform_matrix, sizeof(node2d_info->transform_matrix));
+    node2d_info->transform_matrix = local_transform_matrix;
 
     /* Pop stacks */
     ngli_node2d_pop_transform(node);
@@ -148,8 +147,7 @@ static void group2d_draw(struct ngl_node *node)
         return;
 
     /* Save local transform */
-    NGLI_ALIGNED_MAT(local_transform_matrix);
-    memcpy(local_transform_matrix, ngli_darray_tail(&node->ctx->transform_2d_stack), sizeof(local_transform_matrix));
+    struct ngli_mat4 local_transform_matrix = *(const struct ngli_mat4 *)ngli_darray_tail(&node->ctx->transform_2d_stack);
 
     /* Draw children */
     for (size_t i = 0; i < o->nb_children; i++) {
@@ -159,7 +157,7 @@ static void group2d_draw(struct ngl_node *node)
     /* Compute union bounding box from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
-    memcpy(node2d_info->transform_matrix, local_transform_matrix, sizeof(node2d_info->transform_matrix));
+    node2d_info->transform_matrix = local_transform_matrix;
 
     /* Pop the 2D stacks */
     ngli_node2d_pop_transform(node);

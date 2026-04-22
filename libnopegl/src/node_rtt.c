@@ -293,7 +293,7 @@ static int rtt_prefetch(struct ngl_node *node)
         /* Transform the color textures coordinates so it matches how the
          * graphics context uv coordinate system works */
         struct image *image = &texture_info->image;
-        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix);
+        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix.m);
     }
 
     enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
@@ -310,7 +310,7 @@ static int rtt_prefetch(struct ngl_node *node)
         /* Transform the depth texture coordinates so it matches how the
          * graphics context uv coordinate system works */
         struct image *depth_image = &depth_texture_info->image;
-        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, depth_image->coordinates_matrix);
+        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, depth_image->coordinates_matrix.m);
     } else {
         if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
@@ -459,8 +459,8 @@ static void rtt_pre_draw(struct ngl_node *node)
     }
 
     if (!o->forward_transforms) {
-        if (!ngli_darray_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) ||
-            !ngli_darray_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix))
+        if (!ngli_darray_push(&ctx->modelview_matrix_stack, &ctx->default_modelview_matrix) ||
+            !ngli_darray_push(&ctx->projection_matrix_stack, &ctx->default_projection_matrix))
             return;
     }
 
