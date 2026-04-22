@@ -58,6 +58,106 @@ struct transforms_block {
     NGLI_ALIGNED_MAT(projection_matrix);
 };
 
+enum {
+    LATENCY_UPDATE_CPU,
+    LATENCY_DRAW_CPU,
+    LATENCY_TOTAL_CPU,
+    LATENCY_DRAW_GPU,
+    NB_LATENCY
+};
+
+enum {
+    MEMORY_BUFFERS_CPU,
+    MEMORY_BUFFERS_GPU,
+    MEMORY_BLOCKS_CPU,
+    MEMORY_BLOCKS_GPU,
+    MEMORY_TEXTURES,
+    NB_MEMORY
+};
+
+enum {
+    ACTIVITY_BUFFERS,
+    ACTIVITY_BLOCKS,
+    ACTIVITY_MEDIAS,
+    ACTIVITY_TEXTURES,
+    NB_ACTIVITY
+};
+
+enum {
+    DRAWCALL_COMPUTES,
+    DRAWCALL_GRAPHICCONFIGS,
+    DRAWCALL_DRAWS,
+    DRAWCALL_RTTS,
+    NB_DRAWCALL
+};
+
+enum widget_type {
+    WIDGET_LATENCY,
+    WIDGET_MEMORY,
+    WIDGET_ACTIVITY,
+    WIDGET_DRAWCALL,
+};
+
+struct data_graph {
+    int64_t *values;
+    size_t nb_values;
+    size_t count;
+    size_t pos;
+    int64_t min;
+    int64_t max;
+    int64_t amin; // all-time min
+    int64_t amax; // all-time max
+};
+
+struct latency_measure {
+    int64_t *times;
+    int count;
+    int pos;
+    int64_t total_times;
+};
+
+struct widget_latency {
+    struct latency_measure measures[NB_LATENCY];
+};
+
+struct widget_memory {
+    struct darray nodes[NB_MEMORY];
+    size_t sizes[NB_MEMORY];
+};
+
+struct widget_activity {
+    struct darray nodes;
+    int nb_actives;
+};
+
+struct widget_drawcall {
+    struct darray nodes;
+    int nb_draws;
+};
+
+struct widget {
+    enum widget_type type;
+    struct rect rect;
+    int text_x, text_y;
+    struct rect graph_rect;
+    struct data_graph *data_graph;
+    const void *user_data;
+    void *priv_data;
+};
+
+struct widget_spec {
+    int text_cols, text_rows;
+    int graph_w, graph_h;
+    size_t nb_data_graph;
+    size_t priv_size;
+    int (*init)(struct hud *s, struct widget *widget);
+    void (*make_stats)(struct hud *s, struct widget *widget);
+    void (*draw)(struct hud *s, struct widget *widget);
+    void (*csv_header)(struct hud *s, struct widget *widget, struct bstr *dst);
+    void (*csv_report)(struct hud *s, struct widget *widget, struct bstr *dst);
+    void (*uninit)(struct hud *s, struct widget *widget);
+};
+
 struct hud {
     struct ngl_ctx *ctx;
 
@@ -92,39 +192,6 @@ struct hud {
 #define MEMORY_WIDGET_TEXT_LEN      25
 #define ACTIVITY_WIDGET_TEXT_LEN    12
 #define DRAWCALL_WIDGET_TEXT_LEN    12
-
-enum {
-    LATENCY_UPDATE_CPU,
-    LATENCY_DRAW_CPU,
-    LATENCY_TOTAL_CPU,
-    LATENCY_DRAW_GPU,
-    NB_LATENCY
-};
-
-enum {
-    MEMORY_BUFFERS_CPU,
-    MEMORY_BUFFERS_GPU,
-    MEMORY_BLOCKS_CPU,
-    MEMORY_BLOCKS_GPU,
-    MEMORY_TEXTURES,
-    NB_MEMORY
-};
-
-enum {
-    ACTIVITY_BUFFERS,
-    ACTIVITY_BLOCKS,
-    ACTIVITY_MEDIAS,
-    ACTIVITY_TEXTURES,
-    NB_ACTIVITY
-};
-
-enum {
-    DRAWCALL_COMPUTES,
-    DRAWCALL_GRAPHICCONFIGS,
-    DRAWCALL_DRAWS,
-    DRAWCALL_RTTS,
-    NB_DRAWCALL
-};
 
 #define BUFFER_NODES                \
     NGL_NODE_ANIMATEDBUFFERFLOAT,   \
@@ -262,73 +329,6 @@ NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(latency_specs)  == NB_LATENCY,  "hud nb latency
 NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(memory_specs)   == NB_MEMORY,   "hud nb memory");
 NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(activity_specs) == NB_ACTIVITY, "hud nb activity");
 NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(drawcall_specs) == NB_DRAWCALL, "hud nb drawcall");
-
-enum widget_type {
-    WIDGET_LATENCY,
-    WIDGET_MEMORY,
-    WIDGET_ACTIVITY,
-    WIDGET_DRAWCALL,
-};
-
-struct data_graph {
-    int64_t *values;
-    size_t nb_values;
-    size_t count;
-    size_t pos;
-    int64_t min;
-    int64_t max;
-    int64_t amin; // all-time min
-    int64_t amax; // all-time max
-};
-
-struct latency_measure {
-    int64_t *times;
-    int count;
-    int pos;
-    int64_t total_times;
-};
-
-struct widget_latency {
-    struct latency_measure measures[NB_LATENCY];
-};
-
-struct widget_memory {
-    struct darray nodes[NB_MEMORY];
-    size_t sizes[NB_MEMORY];
-};
-
-struct widget_activity {
-    struct darray nodes;
-    int nb_actives;
-};
-
-struct widget_drawcall {
-    struct darray nodes;
-    int nb_draws;
-};
-
-struct widget {
-    enum widget_type type;
-    struct rect rect;
-    int text_x, text_y;
-    struct rect graph_rect;
-    struct data_graph *data_graph;
-    const void *user_data;
-    void *priv_data;
-};
-
-struct widget_spec {
-    int text_cols, text_rows;
-    int graph_w, graph_h;
-    size_t nb_data_graph;
-    size_t priv_size;
-    int (*init)(struct hud *s, struct widget *widget);
-    void (*make_stats)(struct hud *s, struct widget *widget);
-    void (*draw)(struct hud *s, struct widget *widget);
-    void (*csv_header)(struct hud *s, struct widget *widget, struct bstr *dst);
-    void (*csv_report)(struct hud *s, struct widget *widget, struct bstr *dst);
-    void (*uninit)(struct hud *s, struct widget *widget);
-};
 
 /* Widget init */
 
