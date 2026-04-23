@@ -101,8 +101,8 @@ struct ngl_ctx {
     struct ngli_mat4 projection_2d_matrix;
     float canvas_2d_width;
     float canvas_2d_height;
-    struct ngpu_staging_buffer *update_staging_buffer;
-    struct ngpu_staging_buffer *draw_staging_buffer;
+    struct ngpu_staging_buffer **update_staging_buffers;
+    struct ngpu_staging_buffer **draw_staging_buffers;
     struct ngpu_staging_buffer *current_staging_buffer;
 
     /*
