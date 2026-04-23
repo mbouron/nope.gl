@@ -120,7 +120,8 @@ static int hmap_to_sorted_items(struct darray *items_array, struct hmap *hm)
 
     void *items = ngli_darray_data(items_array);
     const size_t nb_items = ngli_darray_count(items_array);
-    qsort(items, nb_items, sizeof(struct item), cmp_item);
+    if (nb_items > 1)
+        qsort(items, nb_items, sizeof(struct item), cmp_item);
 
     return 0;
 }
