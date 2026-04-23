@@ -247,7 +247,8 @@ static int check_dup_labels(const char *block_name, struct ngl_node * const *nod
         }
         labels[i] = nodes[i]->label;
     }
-    qsort(labels, nb_nodes, sizeof(*labels), cmp_str);
+    if (nb_nodes > 1)
+        qsort(labels, nb_nodes, sizeof(*labels), cmp_str);
     for (size_t i = 1; i < nb_nodes; i++) {
         if (!strcmp(labels[i - 1], labels[i])) {
             LOG(ERROR, "duplicated label %s in block %s", labels[i], block_name);
