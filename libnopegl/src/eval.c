@@ -473,25 +473,14 @@ static int missing_argument(const struct token *token, int got)
  */
 static int check_operator_pop(struct darray *stack, const struct token *token)
 {
-    const struct token *o1 = ngli_darray_pop(stack);
-    if (!o1)
-        return missing_argument(token, 0);
-    if (token->nb_args == 1)
-        return 0;
+    ngli_assert(token->nb_args >= 1 || token->nb_args <= 3);
 
-    const struct token *o2 = ngli_darray_pop(stack);
-    if (!o2)
-        return missing_argument(token, 1);
-    if (token->nb_args == 2)
-        return 0;
+    for (int i = 0; i < token->nb_args; i++) {
+        if (!ngli_darray_pop(stack))
+            return missing_argument(token, 0);
+    }
 
-    const struct token *o3 = ngli_darray_pop(stack);
-    if (!o3)
-        return missing_argument(token, 2);
-    if (token->nb_args == 3)
-        return 0;
-
-    ngli_assert(0);
+    return 0;
 }
 
 /*
