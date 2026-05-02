@@ -35,34 +35,17 @@ static void fence_vk_release(void **sp)
     if (!s)
         return;
 
-    struct ngpu_ctx_vk *ctx_vk = (struct ngpu_ctx_vk *)s->parent.gpu_ctx;
-    struct vkcontext *vk = ctx_vk->vkcontext;
-    vk->funcs.DestroyFence(vk->device, s->fence, NULL);
-
     ngpu_freep(sp);
 }
 
 struct ngpu_fence *ngpu_fence_vk_create(struct ngpu_ctx *ctx)
 {
-    struct ngpu_ctx_vk *ctx_vk = (struct ngpu_ctx_vk *)ctx;
-    struct vkcontext *vk = ctx_vk->vkcontext;
-
     struct ngpu_fence_vk *s = ngpu_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
     s->parent.rc = NGPU_RC_CREATE(fence_vk_release);
     s->parent.gpu_ctx = ctx;
-
-    const VkFenceCreateInfo create_info = {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    };
-    VkResult res = vk->funcs.CreateFence(vk->device, &create_info, NULL, &s->fence);
-    if (res != VK_SUCCESS) {
-        ngpu_free(s);
-        return NULL;
-    }
 
     return (struct ngpu_fence *)s;
 }
@@ -71,9 +54,8 @@ int ngpu_fence_vk_reset(struct ngpu_fence *s)
 {
     struct ngpu_fence_vk *s_priv = (struct ngpu_fence_vk *)s;
     struct ngpu_ctx_vk *ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
-    struct vkcontext *vk = ctx_vk->vkcontext;
 
-    vk->funcs.ResetFences(vk->device, 1, &s_priv->fence);
+    s_priv->value = ++ctx_vk->timeline_value;
 
     return 0;
 }
@@ -84,7 +66,13 @@ int ngpu_fence_vk_wait(struct ngpu_fence *s)
     struct ngpu_ctx_vk *ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = ctx_vk->vkcontext;
 
-    VkResult res = vk->funcs.WaitForFences(vk->device, 1, &s_priv->fence, VK_TRUE, UINT64_MAX);
+    const VkSemaphoreWaitInfo wait_info = {
+        .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .semaphoreCount = 1,
+        .pSemaphores    = &ctx_vk->timeline_sem,
+        .pValues        = &s_priv->value,
+    };
+    VkResult res = vk->funcs.WaitSemaphores(vk->device, &wait_info, UINT64_MAX);
     return ngpu_vk_res2ret(res);
 }
 
@@ -94,8 +82,11 @@ int ngpu_fence_vk_is_signaled(struct ngpu_fence *s)
     struct ngpu_ctx_vk *ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = ctx_vk->vkcontext;
 
-    VkResult res = vk->funcs.GetFenceStatus(vk->device, s_priv->fence);
-    return res == VK_SUCCESS;
+    uint64_t value = 0;
+    VkResult res = vk->funcs.GetSemaphoreCounterValue(vk->device, ctx_vk->timeline_sem, &value);
+    if (res != VK_SUCCESS)
+        return 0;
+    return value >= s_priv->value;
 }
 
 void ngpu_fence_vk_freep(struct ngpu_fence **sp) { NGPU_RC_UNREFP(sp); }

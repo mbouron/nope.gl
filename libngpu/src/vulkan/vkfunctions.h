@@ -79,6 +79,8 @@
     MACRO(true, true, false, GetFenceStatus)                                 \
     MACRO(true, true, false, CreateSemaphore)                                \
     MACRO(true, true, false, DestroySemaphore)                               \
+    MACRO(true, true, false, WaitSemaphores)                                 \
+    MACRO(true, true, false, GetSemaphoreCounterValue)                       \
     MACRO(true, true, false, CreateBuffer)                                   \
     MACRO(true, true, false, DestroyBuffer)                                  \
     MACRO(true, true, false, GetBufferMemoryRequirements)                    \

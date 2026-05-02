@@ -22,6 +22,8 @@
 #ifndef NGPU_CTX_VK_H
 #define NGPU_CTX_VK_H
 
+#include <stdint.h>
+
 #include "ctx.h"
 #include "utils/darray.h"
 #include "vulkan/cmd_buffer_vk.h"
@@ -31,8 +33,9 @@ struct ngpu_ctx_vk {
     struct ngpu_ctx parent;
     struct vkcontext *vkcontext;
 
-    VkSemaphore *update_finished_sems;
-    NGPU_DARRAY(VkSemaphore) pending_wait_sems;
+    VkSemaphore timeline_sem;
+    uint64_t timeline_value;
+    uint64_t pending_wait_value;
 
     VkCommandPool cmd_pool;
 
