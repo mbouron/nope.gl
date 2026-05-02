@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2018-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -231,14 +231,14 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
         (int)VK_VERSION_MINOR(s->api_version),
         (int)VK_VERSION_PATCH(s->api_version));
 
-    if (s->api_version < VK_API_VERSION_1_1) {
+    if (s->api_version < VK_API_VERSION_1_2) {
         LOG(ERROR, "instance API version (%d.%d.%d) is lower than the minimum supported version (%d.%d.%d)",
                     (int)VK_VERSION_MAJOR(s->api_version),
                     (int)VK_VERSION_MINOR(s->api_version),
                     (int)VK_VERSION_PATCH(s->api_version),
-                    (int)VK_VERSION_MAJOR(VK_API_VERSION_1_1),
-                    (int)VK_VERSION_MINOR(VK_API_VERSION_1_1),
-                    (int)VK_VERSION_PATCH(VK_API_VERSION_1_1));
+                    (int)VK_VERSION_MAJOR(VK_API_VERSION_1_2),
+                    (int)VK_VERSION_MINOR(VK_API_VERSION_1_2),
+                    (int)VK_VERSION_PATCH(VK_API_VERSION_1_2));
         return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
@@ -565,9 +565,14 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
         VkPhysicalDeviceProperties dev_props;
         s->funcs.GetPhysicalDeviceProperties(phy_device, &dev_props);
 
+        VkPhysicalDeviceVulkan12Features dev_features_vk12 = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+            .pNext = NULL,
+        };
+
         VkPhysicalDeviceVulkan11Features dev_features_vk11 = {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-            .pNext = NULL,
+            .pNext = &dev_features_vk12,
         };
 
         VkPhysicalDeviceFeatures2 dev_features2 = {
@@ -582,6 +587,18 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
 
         if (dev_props.deviceType >= NGPU_ARRAY_NB(types)) {
             LOG(ERROR, "device %s has unknown type: 0x%x, skipping", dev_props.deviceName, dev_props.deviceType);
+            continue;
+        }
+
+        if (dev_props.apiVersion < VK_API_VERSION_1_2) {
+            LOG(DEBUG, "device %s API version (%d.%d.%d) is lower than the minimum supported version (%d.%d.%d), skipping",
+                dev_props.deviceName,
+                (int)VK_VERSION_MAJOR(dev_props.apiVersion),
+                (int)VK_VERSION_MINOR(dev_props.apiVersion),
+                (int)VK_VERSION_PATCH(dev_props.apiVersion),
+                (int)VK_VERSION_MAJOR(VK_API_VERSION_1_2),
+                (int)VK_VERSION_MINOR(VK_API_VERSION_1_2),
+                (int)VK_VERSION_PATCH(VK_API_VERSION_1_2));
             continue;
         }
 
@@ -624,6 +641,8 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
             s->dev_features = dev_features2.features;
             s->dev_features_vk11 = dev_features_vk11;
             s->dev_features_vk11.pNext = NULL;
+            s->dev_features_vk12 = dev_features_vk12;
+            s->dev_features_vk12.pNext = NULL;
             s->phydev_mem_props = mem_props;
         }
     }
@@ -705,9 +724,13 @@ static VkResult create_device(struct vkcontext *s)
         queues_create_info[nb_queues++] = present_queue_create_info;
     }
 
+    VkPhysicalDeviceVulkan12Features dev_features_vk12 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+    };
+
     VkPhysicalDeviceVulkan11Features dev_features_vk11 = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-        .pNext = NULL,
+        .pNext = &dev_features_vk12,
     };
 
     VkPhysicalDeviceFeatures2 dev_features2 = {
@@ -730,6 +753,7 @@ static VkResult create_device(struct vkcontext *s)
     ENABLE_FEATURE(dev_features2.features, s->dev_features, fragmentStoresAndAtomics, 0);
     ENABLE_FEATURE(dev_features2.features, s->dev_features, shaderStorageImageExtendedFormats, 0);
     ENABLE_FEATURE(dev_features_vk11, s->dev_features_vk11, samplerYcbcrConversion, 0);
+    ENABLE_FEATURE(dev_features_vk12, s->dev_features_vk12, timelineSemaphore, 1);
 
 #undef ENABLE_FEATURE
 

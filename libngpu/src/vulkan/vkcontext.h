@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -63,6 +63,7 @@ struct vkcontext {
 
     VkPhysicalDeviceFeatures dev_features;
     VkPhysicalDeviceVulkan11Features dev_features_vk11;
+    VkPhysicalDeviceVulkan12Features dev_features_vk12;
     VkPhysicalDeviceMemoryProperties phydev_mem_props;
     VkPhysicalDeviceLimits phydev_limits;
 
