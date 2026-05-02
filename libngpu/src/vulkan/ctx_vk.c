@@ -46,7 +46,6 @@
 #include "vulkan/texture_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
-#include "vulkan/vulkan_core.h"
 
 #if DEBUG_GPU_CAPTURE
 #include "capture.h"
@@ -367,41 +366,30 @@ static void destroy_command_pool_and_buffers(struct ngpu_ctx *s)
     ngpu_darray_reset(&s_priv->pending_cmd_buffers);
 }
 
-static VkResult create_semaphores(struct ngpu_ctx *s)
+static VkResult create_timeline_semaphore(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
 
-    s_priv->update_finished_sems = ngpu_calloc(s->nb_in_flight_frames, sizeof(VkSemaphore));
-    if (!s_priv->update_finished_sems)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
+    const VkSemaphoreTypeCreateInfo type_info = {
+        .sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+        .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+        .initialValue  = 0,
+    };
     const VkSemaphoreCreateInfo sem_create_info = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = &type_info,
     };
-
-    VkResult res;
-    for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
-        if ((res = vk->funcs.CreateSemaphore(vk->device, &sem_create_info, NULL,
-                                     &s_priv->update_finished_sems[i])) != VK_SUCCESS)
-            return res;
-    }
-
-    return VK_SUCCESS;
+    return vk->funcs.CreateSemaphore(vk->device, &sem_create_info, NULL, &s_priv->timeline_sem);
 }
 
-static void destroy_semaphores(struct ngpu_ctx *s)
+static void destroy_timeline_semaphore(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
     struct vkcontext *vk = s_priv->vkcontext;
 
-    if (s_priv->update_finished_sems) {
-        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
-            vk->funcs.DestroySemaphore(vk->device, s_priv->update_finished_sems[i], NULL);
-        ngpu_freep(&s_priv->update_finished_sems);
-    }
-
-    ngpu_darray_reset(&s_priv->pending_wait_sems);
+    if (s_priv->timeline_sem)
+        vk->funcs.DestroySemaphore(vk->device, s_priv->timeline_sem, NULL);
 }
 
 static VkResult create_swapchain_semaphores(struct ngpu_ctx *s)
@@ -916,7 +904,7 @@ static int vk_init(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
-    res = create_semaphores(s);
+    res = create_timeline_semaphore(s);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
@@ -1007,21 +995,24 @@ static int vk_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
     return 0;
 }
 
-static VkResult vk_add_pending_wait_semaphores(struct ngpu_ctx *s)
+static VkResult vk_add_pending_wait_value(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
+
+    if (!s_priv->pending_wait_value)
+        return VK_SUCCESS;
 
     const VkPipelineStageFlags stage_flags =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
         VK_PIPELINE_STAGE_TRANSFER_BIT;
 
-    ngpu_darray_foreach(sem, &s_priv->pending_wait_sems) {
-        VkResult res = ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, sem, stage_flags);
-        if (res != VK_SUCCESS)
-            return res;
-    }
-    ngpu_darray_clear(&s_priv->pending_wait_sems);
+    VkResult res = ngpu_cmd_buffer_vk_add_wait_timeline(s_priv->cur_cmd_buffer, s_priv->timeline_sem,
+                                                        stage_flags, s_priv->pending_wait_value);
+    if (res != VK_SUCCESS)
+        return res;
+
+    s_priv->pending_wait_value = 0;
 
     return VK_SUCCESS;
 }
@@ -1045,7 +1036,7 @@ static int vk_begin_update(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
-    res = vk_add_pending_wait_semaphores(s);
+    res = vk_add_pending_wait_value(s);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
@@ -1056,17 +1047,11 @@ static int vk_end_update(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
-    VkSemaphore update_finished_sem = s_priv->update_finished_sems[s->current_frame_index];
-    VkResult res = ngpu_cmd_buffer_vk_add_signal_sem(s_priv->cur_cmd_buffer, &update_finished_sem);
+    VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
-    res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
-    if (res != VK_SUCCESS)
-        return ngpu_vk_res2ret(res);
-
-    if (ngpu_darray_push(&s_priv->pending_wait_sems, update_finished_sem) < 0)
-        return NGPU_ERROR_MEMORY;
+    s_priv->pending_wait_value = s_priv->cur_cmd_buffer->signal_value;
 
     s_priv->cur_cmd_buffer = NULL;
 
@@ -1087,7 +1072,7 @@ static int vk_begin_draw(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
-    res = vk_add_pending_wait_semaphores(s);
+    res = vk_add_pending_wait_value(s);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
@@ -1201,7 +1186,7 @@ static void vk_destroy(struct ngpu_ctx *s)
 #endif
 
     destroy_command_pool_and_buffers(s);
-    destroy_semaphores(s);
+    destroy_timeline_semaphore(s);
     destroy_dummy_texture(s);
     destroy_render_resources(s);
     destroy_swapchain(s);

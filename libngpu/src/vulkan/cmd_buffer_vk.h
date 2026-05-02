@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -23,6 +23,8 @@
 #ifndef CMD_BUFFER_VK_H
 #define CMD_BUFFER_VK_H
 
+#include <stdint.h>
+
 #include <vulkan/vulkan.h>
 
 #include "utils/darray.h"
@@ -37,11 +39,13 @@ struct ngpu_cmd_buffer_vk {
     int type;
     VkCommandPool pool;
     VkCommandBuffer cmd_buf;
-    struct ngpu_fence *fence;
+    uint64_t signal_value;
     VkBool32 submitted;
     NGPU_DARRAY(VkSemaphore) wait_sems;
     NGPU_DARRAY(VkPipelineStageFlags) wait_stages;
+    NGPU_DARRAY(uint64_t) wait_values;
     NGPU_DARRAY(VkSemaphore) signal_sems;
+    NGPU_DARRAY(uint64_t) signal_values;
     NGPU_DARRAY(struct ngpu_rc *) refs;
     NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
 };
@@ -50,7 +54,9 @@ struct ngpu_cmd_buffer_vk *ngpu_cmd_buffer_vk_create(struct ngpu_ctx *gpu_ctx);
 void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp);
 VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type);
 VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage);
+VkResult ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value);
 VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem);
+VkResult ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value);
 
 #define NGPU_CMD_BUFFER_VK_REF(cmd, rc) ngpu_cmd_buffer_vk_ref((cmd), (struct ngpu_rc *)(rc))
 VkResult ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc);

@@ -22,6 +22,8 @@
 #ifndef NGPU_FENCE_VK_H
 #define NGPU_FENCE_VK_H
 
+#include <stdint.h>
+
 #include <vulkan/vulkan.h>
 
 #include "fence.h"
@@ -30,7 +32,7 @@ struct ngpu_ctx;
 
 struct ngpu_fence_vk {
     struct ngpu_fence parent;
-    VkFence fence;
+    uint64_t value;
 };
 
 struct ngpu_fence *ngpu_fence_vk_create(struct ngpu_ctx *ctx);

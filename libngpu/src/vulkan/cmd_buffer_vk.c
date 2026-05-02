@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -22,7 +22,6 @@
 
 #include "vulkan/buffer_vk.h"
 #include "vulkan/cmd_buffer_vk.h"
-#include "vulkan/fence_vk.h"
 #include "vulkan/ctx_vk.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -41,11 +40,12 @@ static void cmd_buffer_vk_freep(void **sp)
 
     ngpu_darray_reset(&s->wait_sems);
     ngpu_darray_reset(&s->wait_stages);
+    ngpu_darray_reset(&s->wait_values);
     ngpu_darray_reset(&s->signal_sems);
+    ngpu_darray_reset(&s->signal_values);
 
     vk->funcs.FreeCommandBuffers(vk->device, s->pool, 1, &s->cmd_buf);
 
-    ngpu_fence_freep(&s->fence);
     ngpu_freep(sp);
 }
 
@@ -101,10 +101,6 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
     if (res != VK_SUCCESS)
         return res;
 
-    s->fence = ngpu_fence_create(gpu_ctx);
-    if (!s->fence)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
     ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
     ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
 
@@ -113,10 +109,18 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
 
 VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage)
 {
+    return ngpu_cmd_buffer_vk_add_wait_timeline(s, sem, stage, 0);
+}
+
+VkResult ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value)
+{
     if (ngpu_darray_push(&s->wait_sems, sem) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     if (ngpu_darray_push(&s->wait_stages, stage) < 0)
+        return NGPU_ERROR_MEMORY;
+
+    if (ngpu_darray_push(&s->wait_values, value) < 0)
         return NGPU_ERROR_MEMORY;
 
     return VK_SUCCESS;
@@ -124,8 +128,16 @@ VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemapho
 
 VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem)
 {
+    return ngpu_cmd_buffer_vk_add_signal_timeline(s, sem, 0);
+}
+
+VkResult ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value)
+{
     if (ngpu_darray_push(&s->signal_sems, sem) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    if (ngpu_darray_push(&s->signal_values, value) < 0)
+        return NGPU_ERROR_MEMORY;
 
     return VK_SUCCESS;
 }
@@ -163,7 +175,9 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
 
     ngpu_darray_clear(&s->wait_sems);
     ngpu_darray_clear(&s->wait_stages);
+    ngpu_darray_clear(&s->wait_values);
     ngpu_darray_clear(&s->signal_sems);
+    ngpu_darray_clear(&s->signal_values);
 
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
@@ -186,12 +200,23 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
     if (res != VK_SUCCESS)
         return res;
 
-    int ret = ngpu_fence_reset(s->fence);
-    if (ret < 0)
-        return VK_ERROR_UNKNOWN;
+    s->signal_value = ++gpu_ctx_vk->timeline_value;
+
+    res = ngpu_cmd_buffer_vk_add_signal_timeline(s, gpu_ctx_vk->timeline_sem, s->signal_value);
+    if (res != VK_SUCCESS)
+        return res;
+
+    const VkTimelineSemaphoreSubmitInfo timeline_info = {
+        .sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+        .waitSemaphoreValueCount   = (uint32_t)s->wait_values.count,
+        .pWaitSemaphoreValues      = s->wait_values.data,
+        .signalSemaphoreValueCount = (uint32_t)s->signal_values.count,
+        .pSignalSemaphoreValues    = s->signal_values.data,
+    };
 
     const VkSubmitInfo submit_info = {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext                = &timeline_info,
         .waitSemaphoreCount   = (uint32_t)s->wait_sems.count,
         .pWaitSemaphores      = s->wait_sems.data,
         .pWaitDstStageMask    = s->wait_stages.data,
@@ -201,8 +226,7 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
         .pSignalSemaphores    = s->signal_sems.data,
     };
 
-    struct ngpu_fence_vk *fence_vk = (struct ngpu_fence_vk *)s->fence;
-    res = vk->funcs.QueueSubmit(vk->graphic_queue, 1, &submit_info, fence_vk->fence);
+    res = vk->funcs.QueueSubmit(vk->graphic_queue, 1, &submit_info, VK_NULL_HANDLE);
     if (res != VK_SUCCESS)
         return res;
 
@@ -213,7 +237,9 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
 
     ngpu_darray_clear(&s->wait_sems);
     ngpu_darray_clear(&s->wait_stages);
+    ngpu_darray_clear(&s->wait_values);
     ngpu_darray_clear(&s->signal_sems);
+    ngpu_darray_clear(&s->signal_values);
 
     return VK_SUCCESS;
 }
@@ -224,8 +250,13 @@ VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     if (s->submitted) {
-        struct ngpu_fence_vk *fence_vk = (struct ngpu_fence_vk *)s->fence;
-        VkResult res = vk->funcs.WaitForFences(vk->device, 1, &fence_vk->fence, VK_TRUE, UINT64_MAX);
+        const VkSemaphoreWaitInfo wait_info = {
+            .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+            .semaphoreCount = 1,
+            .pSemaphores    = &gpu_ctx_vk->timeline_sem,
+            .pValues        = &s->signal_value,
+        };
+        VkResult res = vk->funcs.WaitSemaphores(vk->device, &wait_info, UINT64_MAX);
         if (res != VK_SUCCESS)
             return res;
     }
