@@ -93,7 +93,7 @@ static void ycbcr_sampler_freep(void **texturep)
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     vk->funcs.DestroySampler(vk->device, s->sampler, NULL);
-    vk->funcs.DestroySamplerYcbcrConversionKHR(vk->device, s->conv, NULL);
+    vk->funcs.DestroySamplerYcbcrConversion(vk->device, s->conv, NULL);
 
     ngpu_freep(sp);
 }
@@ -121,8 +121,8 @@ VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s, const struc
         .externalFormat = params->android_external_format,
     };
 
-    const VkSamplerYcbcrConversionCreateInfoKHR sampler_ycbcr_info = {
-        .sType         = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO_KHR,
+    const VkSamplerYcbcrConversionCreateInfo sampler_ycbcr_info = {
+        .sType         = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO,
         .pNext         = &external_format,
         .format        = params->format,
         .ycbcrModel    = params->ycbcr_model,
@@ -134,14 +134,14 @@ VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s, const struc
         .forceExplicitReconstruction = VK_FALSE,
     };
 
-    VkResult res = vk->funcs.CreateSamplerYcbcrConversionKHR(vk->device, &sampler_ycbcr_info, 0, &s->conv);
+    VkResult res = vk->funcs.CreateSamplerYcbcrConversion(vk->device, &sampler_ycbcr_info, 0, &s->conv);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create sampler YCbCr conversion: %s", ngpu_vk_res2str(res));
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
-    const VkSamplerYcbcrConversionInfoKHR sampler_ycbcr_conv_info = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO_KHR,
+    const VkSamplerYcbcrConversionInfo sampler_ycbcr_conv_info = {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO,
         .conversion = s->conv,
     };
 

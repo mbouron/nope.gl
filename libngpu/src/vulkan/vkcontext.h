@@ -62,6 +62,7 @@ struct vkcontext {
     enum ngpu_format preferred_depth_stencil_format;
 
     VkPhysicalDeviceFeatures dev_features;
+    VkPhysicalDeviceVulkan11Features dev_features_vk11;
     VkPhysicalDeviceMemoryProperties phydev_mem_props;
     VkPhysicalDeviceLimits phydev_limits;
 

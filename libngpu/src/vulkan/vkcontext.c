@@ -565,8 +565,14 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
         VkPhysicalDeviceProperties dev_props;
         s->funcs.GetPhysicalDeviceProperties(phy_device, &dev_props);
 
+        VkPhysicalDeviceVulkan11Features dev_features_vk11 = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+            .pNext = NULL,
+        };
+
         VkPhysicalDeviceFeatures2 dev_features2 = {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            .pNext = &dev_features_vk11,
         };
 
         s->funcs.GetPhysicalDeviceFeatures2(phy_device, &dev_features2);
@@ -616,6 +622,8 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
             s->graphics_queue_index = queue_family_graphics_id;
             s->present_queue_index = queue_family_present_id;
             s->dev_features = dev_features2.features;
+            s->dev_features_vk11 = dev_features_vk11;
+            s->dev_features_vk11.pNext = NULL;
             s->phydev_mem_props = mem_props;
         }
     }
@@ -697,22 +705,31 @@ static VkResult create_device(struct vkcontext *s)
         queues_create_info[nb_queues++] = present_queue_create_info;
     }
 
-    VkPhysicalDeviceFeatures dev_features = {0};
+    VkPhysicalDeviceVulkan11Features dev_features_vk11 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .pNext = NULL,
+    };
 
-#define ENABLE_FEATURE(feature, mandatory) do {                                  \
-    if (s->dev_features.feature) {                                               \
+    VkPhysicalDeviceFeatures2 dev_features2 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &dev_features_vk11,
+    };
+
+#define ENABLE_FEATURE(dst, query, feature, mandatory) do {                      \
+    if (query.feature) {                                                         \
         LOG(DEBUG, "optional feature " #feature " is not supported by device");  \
-        dev_features.feature = VK_TRUE;                                          \
+        dst.feature = VK_TRUE;                                                   \
     } else if (mandatory) {                                                      \
         LOG(ERROR, "mandatory feature " #feature " is not supported by device"); \
         return VK_ERROR_FEATURE_NOT_PRESENT;                                     \
     }                                                                            \
 } while (0)                                                                      \
 
-    ENABLE_FEATURE(samplerAnisotropy, 0);
-    ENABLE_FEATURE(vertexPipelineStoresAndAtomics, 0);
-    ENABLE_FEATURE(fragmentStoresAndAtomics, 0);
-    ENABLE_FEATURE(shaderStorageImageExtendedFormats, 0);
+    ENABLE_FEATURE(dev_features2.features, s->dev_features, samplerAnisotropy, 0);
+    ENABLE_FEATURE(dev_features2.features, s->dev_features, vertexPipelineStoresAndAtomics, 0);
+    ENABLE_FEATURE(dev_features2.features, s->dev_features, fragmentStoresAndAtomics, 0);
+    ENABLE_FEATURE(dev_features2.features, s->dev_features, shaderStorageImageExtendedFormats, 0);
+    ENABLE_FEATURE(dev_features_vk11, s->dev_features_vk11, samplerYcbcrConversion, 0);
 
 #undef ENABLE_FEATURE
 
@@ -738,7 +755,6 @@ static VkResult create_device(struct vkcontext *s)
         VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
         VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
         VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
-        VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME,
 #if defined(TARGET_ANDROID)
         VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
         VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME,
@@ -753,19 +769,6 @@ static VkResult create_device(struct vkcontext *s)
             }
         }
     }
-
-    VkPhysicalDeviceFeatures2 dev_features2 = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .features = dev_features,
-    };
-
-    VkPhysicalDeviceSamplerYcbcrConversionFeatures ycbcr_features = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES,
-        .samplerYcbcrConversion = 1,
-    };
-
-    if (ngpu_vkcontext_has_extension(s, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME, 1))
-        dev_features2.pNext = &ycbcr_features;
 
     const VkDeviceCreateInfo device_create_info = {
         .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -928,14 +931,6 @@ struct vk_extension {
         .functions = (const struct vk_ext_function[]) {
             DECLARE_EXT_FUNC(GetRefreshCycleDurationGOOGLE, 1),
             DECLARE_EXT_FUNC(GetPastPresentationTimingGOOGLE, 1),
-            {0},
-        },
-    }, {
-        .name = VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME,
-        .device = 1,
-        .functions = (const struct vk_ext_function[]) {
-            DECLARE_EXT_FUNC(CreateSamplerYcbcrConversionKHR, 1),
-            DECLARE_EXT_FUNC(DestroySamplerYcbcrConversionKHR, 1),
             {0},
         },
     },

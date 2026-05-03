@@ -763,8 +763,8 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     s_priv->use_ycbcr_sampler = 1;
     s_priv->ycbcr_sampler = ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler_vk);
 
-    const VkSamplerYcbcrConversionInfoKHR sampler_ycbcr_conv_info = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO_KHR,
+    const VkSamplerYcbcrConversionInfo sampler_ycbcr_conv_info = {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO,
         .conversion = ycbcr_sampler_vk->conv,
     };
 
@@ -1008,7 +1008,7 @@ int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data)
 
     const struct ngpu_texture_params *params = &s->params;
     ngpu_assert(params->samples == 0);
-    
+
     const size_t size = (size_t)params->width * (size_t)params->height *
                         ngpu_format_get_bytes_per_pixel(params->format);
 
