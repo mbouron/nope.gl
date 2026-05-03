@@ -21,6 +21,7 @@
  */
 
 #include "config.h"
+#include <vulkan/vulkan_core.h>
 
 #if defined(TARGET_LINUX)
 # define VK_USE_PLATFORM_XLIB_KHR
@@ -564,8 +565,11 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
         VkPhysicalDeviceProperties dev_props;
         s->funcs.GetPhysicalDeviceProperties(phy_device, &dev_props);
 
-        VkPhysicalDeviceFeatures dev_features;
-        s->funcs.GetPhysicalDeviceFeatures(phy_device, &dev_features);
+        VkPhysicalDeviceFeatures2 dev_features2 = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        };
+
+        s->funcs.GetPhysicalDeviceFeatures2(phy_device, &dev_features2);
 
         VkPhysicalDeviceMemoryProperties mem_props;
         s->funcs.GetPhysicalDeviceMemoryProperties(phy_device, &mem_props);
@@ -611,7 +615,7 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
             s->phy_device_props = dev_props;
             s->graphics_queue_index = queue_family_graphics_id;
             s->present_queue_index = queue_family_present_id;
-            s->dev_features = dev_features;
+            s->dev_features = dev_features2.features;
             s->phydev_mem_props = mem_props;
         }
     }
