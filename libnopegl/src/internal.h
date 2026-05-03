@@ -66,7 +66,7 @@ struct api_impl {
     int (*set_capture_buffer)(struct ngl_ctx *s, void *capture_buffer);
     int (*set_scene)(struct ngl_ctx *s, struct ngl_scene *scene);
     int (*prepare_draw)(struct ngl_ctx *s, double t);
-    int (*draw)(struct ngl_ctx *s, double t);
+    int (*draw)(struct ngl_ctx *s, double t, struct ngpu_fence **signal_fence);
     void (*reset)(struct ngl_ctx *s, int action);
 
     /* OpenGL */
@@ -147,7 +147,7 @@ int ngli_ctx_get_viewport(struct ngl_ctx *s, int32_t *viewport);
 int ngli_ctx_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer);
 int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene);
 int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t);
-int ngli_ctx_draw(struct ngl_ctx *s, double t);
+int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence **signal_fence);
 void ngli_ctx_reset(struct ngl_ctx *s, int action);
 
 struct livectl {

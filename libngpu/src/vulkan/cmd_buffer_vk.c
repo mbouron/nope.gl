@@ -23,6 +23,7 @@
 #include "vulkan/buffer_vk.h"
 #include "vulkan/cmd_buffer_vk.h"
 #include "vulkan/ctx_vk.h"
+#include "vulkan/fence_vk.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 
@@ -191,7 +192,7 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
     return vk->funcs.BeginCommandBuffer(s->cmd_buf, &cmd_buf_begin_info);
 }
 
-VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
+VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence)
 {
     struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
@@ -199,6 +200,20 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s)
     VkResult res = vk->funcs.EndCommandBuffer(s->cmd_buf);
     if (res != VK_SUCCESS)
         return res;
+
+    if (wait_fence) {
+        const uint64_t wait_value = ((struct ngpu_fence_vk *)wait_fence)->value;
+        const VkPipelineStageFlags stage_flags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        res = ngpu_cmd_buffer_vk_add_wait_timeline(s, gpu_ctx_vk->timeline_sem, stage_flags, wait_value);
+        if (res != VK_SUCCESS)
+            return res;
+    }
+
+    if (signal_fence) {
+        int ret = ngpu_fence_reset(signal_fence);
+        if (ret < 0)
+            return VK_ERROR_UNKNOWN;
+    }
 
     s->signal_value = ++gpu_ctx_vk->timeline_value;
 
@@ -305,7 +320,7 @@ VkResult ngpu_cmd_buffer_vk_execute_transient(struct ngpu_cmd_buffer_vk **sp)
     if (!s)
         return VK_SUCCESS;
 
-    VkResult res = ngpu_cmd_buffer_vk_submit(s);
+    VkResult res = ngpu_cmd_buffer_vk_submit(s, NULL, NULL);
     if (res != VK_SUCCESS)
         goto done;
 

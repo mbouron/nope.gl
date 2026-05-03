@@ -111,12 +111,12 @@ static int gl_prepare_draw(struct ngl_ctx *s, double t)
     return ret;
 }
 
-static int gl_draw(struct ngl_ctx *s, double t)
+static int gl_draw(struct ngl_ctx *s, double t, struct ngpu_fence **signal_fence)
 {
     int ret = gl_ctx_begin(s);
     if (ret < 0)
         return ret;
-    ret = ngli_ctx_draw(s, t);
+    ret = ngli_ctx_draw(s, t, signal_fence);
     gl_ctx_end(s);
     return ret;
 }

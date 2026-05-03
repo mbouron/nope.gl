@@ -44,6 +44,7 @@
  */
 
 struct ngpu_ctx;
+struct ngpu_fence;
 
 /*
  * Errors
@@ -994,9 +995,9 @@ NGPU_API uint32_t ngpu_ctx_advance_frame(struct ngpu_ctx *s);
 NGPU_API uint32_t ngpu_ctx_get_current_frame_index(struct ngpu_ctx *s);
 NGPU_API uint32_t ngpu_ctx_get_nb_in_flight_frames(struct ngpu_ctx *s);
 NGPU_API int ngpu_ctx_begin_update(struct ngpu_ctx *s);
-NGPU_API int ngpu_ctx_end_update(struct ngpu_ctx *s);
+NGPU_API int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence);
 NGPU_API int ngpu_ctx_begin_draw(struct ngpu_ctx *s);
-NGPU_API int ngpu_ctx_end_draw(struct ngpu_ctx *s, double t);
+NGPU_API int ngpu_ctx_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep);
 NGPU_API int ngpu_ctx_query_draw_time(struct ngpu_ctx *s, int64_t *time);
 NGPU_API void ngpu_ctx_wait_idle(struct ngpu_ctx *s);
 NGPU_API void ngpu_ctx_freep(struct ngpu_ctx **sp);
