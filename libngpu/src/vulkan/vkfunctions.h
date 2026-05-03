@@ -43,7 +43,7 @@
     MACRO(true, false, false, DestroyInstance)                               \
     MACRO(true, false, false, EnumeratePhysicalDevices)                      \
     MACRO(true, false, false, GetPhysicalDeviceProperties)                   \
-    MACRO(true, false, false, GetPhysicalDeviceFeatures)                     \
+    MACRO(true, false, false, GetPhysicalDeviceFeatures2)                    \
     MACRO(true, false, false, GetPhysicalDeviceMemoryProperties)             \
     MACRO(true, false, false, GetPhysicalDeviceQueueFamilyProperties)        \
     MACRO(true, false, false, GetPhysicalDeviceFormatProperties)             \
