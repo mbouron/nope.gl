@@ -90,7 +90,7 @@
     MACRO(true, true, false, CreateImage)                                    \
     MACRO(true, true, false, DestroyImage)                                   \
     MACRO(true, true, false, GetImageMemoryRequirements)                     \
-    MACRO(true, true, true, GetImageMemoryRequirements2)                     \
+    MACRO(true, true, false, GetImageMemoryRequirements2)                    \
     MACRO(true, true, false, BindImageMemory)                                \
     MACRO(true, true, false, CreateImageView)                                \
     MACRO(true, true, false, DestroyImageView)                               \
