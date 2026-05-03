@@ -121,6 +121,8 @@
     MACRO(true, true, true, DestroySwapchainKHR)                             \
     MACRO(true, true, true, GetSwapchainImagesKHR)                           \
     MACRO(true, true, true, AcquireNextImageKHR)                             \
+    MACRO(true, true, false, CreateSamplerYcbcrConversion)                   \
+    MACRO(true, true, false, DestroySamplerYcbcrConversion)                  \
                                                                              \
     /* Device-level command buffer recording */                              \
     MACRO(true, true, false, CmdBeginRenderPass)                             \
@@ -144,8 +146,6 @@
     MACRO(true, true, false, CmdWriteTimestamp)                              \
                                                                              \
     /* Device-level extension functions */                                   \
-    MACRO(true, true, true, CreateSamplerYcbcrConversionKHR)                 \
-    MACRO(true, true, true, DestroySamplerYcbcrConversionKHR)                \
     MACRO(true, true, true, GetMemoryFdKHR)                                  \
     MACRO(true, true, true, GetMemoryFdPropertiesKHR)                        \
     MACRO(true, true, true, GetRefreshCycleDurationGOOGLE)                   \
