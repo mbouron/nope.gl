@@ -346,14 +346,18 @@ static void destroy_command_pool_and_buffers(struct ngpu_ctx *s)
     struct vkcontext *vk = s_priv->vkcontext;
 
     if (s_priv->cmd_buffers) {
-        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
+        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
+            ngpu_cmd_buffer_vk_wait(s_priv->cmd_buffers[i]);
             ngpu_cmd_buffer_vk_freep(&s_priv->cmd_buffers[i]);
+        }
         ngpu_freep(&s_priv->cmd_buffers);
     }
 
     if (s_priv->update_cmd_buffers) {
-        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
+        for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
+            ngpu_cmd_buffer_vk_wait(s_priv->update_cmd_buffers[i]);
             ngpu_cmd_buffer_vk_freep(&s_priv->update_cmd_buffers[i]);
+        }
         ngpu_freep(&s_priv->update_cmd_buffers);
     }
 
