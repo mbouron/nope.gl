@@ -53,7 +53,7 @@ static void cmd_buffer_gl_freep(void **sp)
 
     ngpu_cmd_buffer_gl_wait(s);
 
-    ngpu_fence_freep(&s->fence);
+    NGPU_RC_UNREFP(&s->fence);
 
     ngpu_darray_reset(&s->refs);
     ngpu_darray_reset(&s->cmds);
@@ -148,11 +148,17 @@ int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_
     return 0;
 }
 
-int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
+int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
     struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    if (wait_fence) {
+        int ret = ngpu_fence_gl_wait_gpu(wait_fence);
+        if (ret < 0)
+            return ret;
+    }
 
     struct ngpu_rendertarget *cur_rendertarget = NULL;
     struct ngpu_pipeline *cur_pipeline = NULL;
@@ -235,6 +241,12 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
     if (s->fence) {
         ngpu_fence_reset(s->fence);
         ngpu_fence_gl_insert(s->fence);
+    }
+
+    if (signal_fence) {
+        int ret = ngpu_fence_gl_insert(signal_fence);
+        if (ret < 0)
+            return ret;
     }
 
     ngpu_darray_clear(&s->cmds);

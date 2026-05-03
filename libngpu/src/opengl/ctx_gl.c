@@ -839,11 +839,11 @@ static int gl_begin_update(struct ngpu_ctx *s)
     return 0;
 }
 
-static int gl_end_update(struct ngpu_ctx *s)
+static int gl_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
 
-    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer);
+    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer, wait_fence, NULL);
     if (ret < 0)
         return ret;
 
@@ -904,16 +904,24 @@ static void blit_vflip(struct ngpu_ctx *s, struct ngpu_rendertarget *src, struct
     ngpu_glstate_enable_scissor_test(gl, glstate, GL_TRUE);
 }
 
-static int gl_end_draw(struct ngpu_ctx *s, double t)
+static int gl_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
     struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
     struct glcontext *gl = s_priv->glcontext;
     const struct ngpu_ctx_params *ctx_params = &s->params;
     const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
 
-    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer);
+    if (signal_fencep) {
+        *signal_fencep = ngpu_fence_create(s);
+        if (!*signal_fencep)
+            return NGPU_ERROR_MEMORY;
+    }
+
+    struct ngpu_fence *signal_fence = signal_fencep ? *signal_fencep : NULL;
+
+    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer, wait_fence, signal_fence);
     if (ret < 0)
-        return ret;
+        goto fail;
 
     if (s_priv->capture_func && ctx_params->capture_buffer) {
         blit_vflip(s, s_priv->default_rt, s_priv->capture_rt);
@@ -929,6 +937,11 @@ static int gl_end_draw(struct ngpu_ctx *s, double t)
     }
 
     return 0;
+
+fail:
+    if (signal_fencep)
+        ngpu_fence_freep(signal_fencep);
+    return ret;
 }
 
 static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
@@ -942,7 +955,7 @@ static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
-    int ret = ngpu_cmd_buffer_gl_submit(cmd_buffer);
+    int ret = ngpu_cmd_buffer_gl_submit(cmd_buffer, NULL, NULL);
     if (ret < 0)
         return ret;
 

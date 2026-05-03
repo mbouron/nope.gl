@@ -210,9 +210,9 @@ int ngpu_ctx_begin_update(struct ngpu_ctx *s)
     return s->cls->begin_update(s);
 }
 
-int ngpu_ctx_end_update(struct ngpu_ctx *s)
+int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
 {
-    return s->cls->end_update(s);
+    return s->cls->end_update(s, wait_fence);
 }
 
 int ngpu_ctx_begin_draw(struct ngpu_ctx *s)
@@ -220,9 +220,9 @@ int ngpu_ctx_begin_draw(struct ngpu_ctx *s)
     return s->cls->begin_draw(s);
 }
 
-int ngpu_ctx_end_draw(struct ngpu_ctx *s, double t)
+int ngpu_ctx_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
-    return s->cls->end_draw(s, t);
+    return s->cls->end_draw(s, t, wait_fence, signal_fencep);
 }
 
 int ngpu_ctx_query_draw_time(struct ngpu_ctx *s, int64_t *time)

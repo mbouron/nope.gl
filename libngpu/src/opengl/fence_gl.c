@@ -73,6 +73,20 @@ int ngpu_fence_gl_insert(struct ngpu_fence *s)
     return 0;
 }
 
+int ngpu_fence_gl_wait_gpu(struct ngpu_fence *s)
+{
+    struct ngpu_fence_gl *s_priv = (struct ngpu_fence_gl *)s;
+    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    if (s_priv->fence == 0)
+        return 0;
+
+    gl->funcs.WaitSync(s_priv->fence, 0, GL_TIMEOUT_IGNORED);
+
+    return 0;
+}
+
 int ngpu_fence_gl_wait(struct ngpu_fence *s)
 {
     struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;

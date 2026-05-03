@@ -1043,11 +1043,11 @@ static int vk_begin_update(struct ngpu_ctx *s)
     return 0;
 }
 
-static int vk_end_update(struct ngpu_ctx *s)
+static int vk_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
-    VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
+    VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer, wait_fence, NULL);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
@@ -1110,7 +1110,7 @@ static int vk_query_draw_time(struct ngpu_ctx *s, int64_t *time)
     VkCommandBuffer cmd_buf = s_priv->cur_cmd_buffer->cmd_buf;
     vk->funcs.CmdWriteTimestamp(cmd_buf, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, s_priv->query_pool, 1);
 
-    VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
+    VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer, NULL, NULL);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
@@ -1133,40 +1133,62 @@ static int vk_query_draw_time(struct ngpu_ctx *s, int64_t *time)
     return 0;
 }
 
-static int vk_end_draw(struct ngpu_ctx *s, double t)
+static int vk_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
     const struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
+    if (signal_fencep) {
+        *signal_fencep = ngpu_fence_create(s);
+        if (!*signal_fencep)
+            return NGPU_ERROR_MEMORY;
+    }
+
+    struct ngpu_fence *signal_fence = signal_fencep ? *signal_fencep : NULL;
+
+    int ret = 0;
     if (ctx_params->offscreen) {
-        VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
-        if (res != VK_SUCCESS)
-            return ngpu_vk_res2ret(res);
+        VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer, wait_fence, signal_fence);
+        if (res != VK_SUCCESS) {
+            ret = ngpu_vk_res2ret(res);
+            goto fail;
+        }
 
         if (ctx_params->capture_buffer) {
             res = ngpu_cmd_buffer_vk_wait(s_priv->cur_cmd_buffer);
-            if (res != VK_SUCCESS)
-                return ngpu_vk_res2ret(res);
+            if (res != VK_SUCCESS) {
+                ret = ngpu_vk_res2ret(res);
+                goto fail;
+            }
 
             struct ngpu_texture *color = s_priv->colors.data[s->current_frame_index];
-            int ret = ngpu_texture_read_pixels(color, ctx_params->capture_buffer);
+            ret = ngpu_texture_read_pixels(color, ctx_params->capture_buffer);
             if (ret < 0)
-                return ret;
+                goto fail;
         }
     } else {
         ngpu_texture_vk_transition_layout(s_priv->colors.data[s_priv->cur_image_index], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer);
-        if (res != VK_SUCCESS)
-            return ngpu_vk_res2ret(res);
+        VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer, wait_fence, signal_fence);
+        if (res != VK_SUCCESS) {
+            ret = ngpu_vk_res2ret(res);
+            goto fail;
+        }
 
         res = swapchain_present_buffer(s, t);
-        if (res != VK_SUCCESS)
-            return ngpu_vk_res2ret(res);
+        if (res != VK_SUCCESS) {
+            ret = ngpu_vk_res2ret(res);
+            goto fail;
+        }
     }
 
     s_priv->cur_cmd_buffer = NULL;
 
     return 0;
+
+fail:
+    if (signal_fencep)
+        ngpu_fence_freep(signal_fencep);
+    return ret;
 }
 
 static void vk_destroy(struct ngpu_ctx *s)
