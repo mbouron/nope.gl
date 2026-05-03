@@ -1402,11 +1402,13 @@ static void vk_set_scissor(struct ngpu_ctx *s, const struct ngpu_scissor *scisso
 
     struct ngpu_rendertarget *rt = s->rendertarget;
 
+    const uint32_t top = NGPU_MIN(scissor->y + scissor->height, rt->height);
+    const uint32_t bottom = NGPU_MIN(scissor->y, rt->height);
     const VkRect2D sc = {
         .offset.x      = (int32_t)scissor->x,
-        .offset.y      = (int32_t)NGPU_MAX(rt->height - scissor->y - scissor->height, 0),
+        .offset.y      = (int32_t)(rt->height - top),
         .extent.width  = scissor->width,
-        .extent.height = scissor->height,
+        .extent.height = top - bottom,
     };
     vk->funcs.CmdSetScissor(cmd_buf, 0, 1, &sc);
 }
