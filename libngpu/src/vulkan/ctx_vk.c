@@ -680,12 +680,12 @@ static VkResult swapchain_acquire_image(struct ngpu_ctx *s, uint32_t *image_inde
     const VkPipelineStageFlags stage_flags =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    res = ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, &sem, stage_flags);
+    res = ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, sem, stage_flags);
     if (res != VK_SUCCESS)
         return res;
 
     res = ngpu_cmd_buffer_vk_add_signal_sem(s_priv->cur_cmd_buffer,
-                                            &s_priv->image_present_sems[*image_index]);
+                                            s_priv->image_present_sems[*image_index]);
     if (res != VK_SUCCESS)
         return res;
 

@@ -111,9 +111,9 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
     return VK_SUCCESS;
 }
 
-VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore *sem, VkPipelineStageFlags stage)
+VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage)
 {
-    if (ngpu_darray_push(&s->wait_sems, *sem) < 0)
+    if (ngpu_darray_push(&s->wait_sems, sem) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     if (ngpu_darray_push(&s->wait_stages, stage) < 0)
@@ -122,9 +122,9 @@ VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemapho
     return VK_SUCCESS;
 }
 
-VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore *sem)
+VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem)
 {
-    if (ngpu_darray_push(&s->signal_sems, *sem) < 0)
+    if (ngpu_darray_push(&s->signal_sems, sem) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     return VK_SUCCESS;
