@@ -46,6 +46,7 @@
 #include "vulkan/texture_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
+#include "vulkan/vulkan_core.h"
 
 #if DEBUG_GPU_CAPTURE
 #include "capture.h"
@@ -676,8 +677,10 @@ static VkResult swapchain_acquire_image(struct ngpu_ctx *s, uint32_t *image_inde
         return res;
     }
 
-    res = ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, &sem,
-                                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    const VkPipelineStageFlags stage_flags =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    res = ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, &sem, stage_flags);
     if (res != VK_SUCCESS)
         return res;
 
@@ -1008,11 +1011,13 @@ static VkResult vk_add_pending_wait_semaphores(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = (struct ngpu_ctx_vk *)s;
 
+    const VkPipelineStageFlags stage_flags =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
+        VK_PIPELINE_STAGE_TRANSFER_BIT;
+
     ngpu_darray_foreach(sem, &s_priv->pending_wait_sems) {
-        VkResult res = ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, sem,
-                                                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                                           | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-                                                           | VK_PIPELINE_STAGE_TRANSFER_BIT);
+        VkResult res = ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, sem, stage_flags);
         if (res != VK_SUCCESS)
             return res;
     }
