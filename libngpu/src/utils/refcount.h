@@ -37,7 +37,7 @@ struct ngpu_rc {
 
 #define NGPU_RC_CHECK_STRUCT(name) static_assert(offsetof(struct name, rc) == 0, #name "_rc")
 #define NGPU_RC_CREATE(fn) (struct ngpu_rc) { .count=1, .freep=(ngpu_freep_func)fn }
-#define NGPU_RC_REF(s) (void *)ngpu_rc_ref((struct ngpu_rc *)(s))
+#define NGPU_RC_REF(s) ((__typeof__(s))ngpu_rc_ref((struct ngpu_rc *)(s)))
 #define NGPU_RC_UNREFP(sp) ngpu_rc_unrefp((struct ngpu_rc **)(sp))
 
 struct ngpu_rc *ngpu_rc_ref(struct ngpu_rc *s);
