@@ -239,7 +239,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s)
 
     ngpu_darray_clear(&s->cmds);
 
-    return 0;
+    return ngpu_glcontext_check_gl_error(gl, __func__);
 }
 
 int ngpu_cmd_buffer_gl_wait(struct ngpu_cmd_buffer_gl *s)
