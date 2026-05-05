@@ -920,8 +920,6 @@ static int gl_end_draw(struct ngpu_ctx *s, double t)
         s_priv->capture_func(s);
     }
 
-    ret = ngpu_glcontext_check_gl_error(gl, __func__);
-
     const int external = ctx_params_gl ? ctx_params_gl->external : 0;
     if (!external && !ctx_params->offscreen) {
         if (ctx_params->set_surface_pts)
@@ -930,7 +928,7 @@ static int gl_end_draw(struct ngpu_ctx *s, double t)
         ngpu_glcontext_swap_buffers(gl);
     }
 
-    return ret;
+    return 0;
 }
 
 static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
