@@ -139,6 +139,21 @@ void ngpu_ctx_params_reset(struct ngpu_ctx_params *params)
     ngpu_freep(&params->backend_params);
     memset(params, 0, sizeof(*params));
 }
+
+static void ctx_freep(void **sp)
+{
+    struct ngpu_ctx **ctxp = (struct ngpu_ctx **)sp;
+    struct ngpu_ctx *s = *ctxp;
+    if (!s)
+        return;
+
+    ngpu_pgcache_freep(&s->program_cache);
+    s->cls->destroy(s);
+
+    ngpu_ctx_params_reset(&s->params);
+    ngpu_freep(ctxp);
+}
+
 struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params)
 {
     const struct ngpu_ctx_class *cls = get_ctx_class(params->backend);
@@ -159,8 +174,10 @@ struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params)
         ngpu_ctx_params_reset(&ctx_params);
         return NULL;
     }
+    s->rc = NGPU_RC_CREATE(ctx_freep);
     s->params = ctx_params;
     s->cls = cls;
+
     return s;
 }
 
@@ -237,16 +254,7 @@ void ngpu_ctx_wait_idle(struct ngpu_ctx *s)
 
 void ngpu_ctx_freep(struct ngpu_ctx **sp)
 {
-    if (!*sp)
-        return;
-
-    struct ngpu_ctx *s = *sp;
-
-    ngpu_pgcache_freep(&s->program_cache);
-    s->cls->destroy(s);
-
-    ngpu_ctx_params_reset(&s->params);
-    ngpu_freep(sp);
+    NGPU_RC_UNREFP(sp);
 }
 
 enum ngpu_backend_type ngpu_ctx_get_backend_type(const struct ngpu_ctx *s)

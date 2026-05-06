@@ -34,6 +34,7 @@
 #include "pipeline.h"
 #include "rendertarget.h"
 #include "texture.h"
+#include "utils/refcount.h"
 
 struct ngpu_ctx_class {
     enum ngpu_backend_type id;
@@ -127,6 +128,7 @@ struct ngpu_ctx_class {
 };
 
 struct ngpu_ctx {
+    struct ngpu_rc rc;
     struct ngpu_ctx_params params;
     const struct ngpu_ctx_class *cls;
 
@@ -153,5 +155,7 @@ struct ngpu_ctx {
     const struct ngpu_buffer *index_buffer;
     enum ngpu_format index_format;
 };
+
+NGPU_RC_CHECK_STRUCT(ngpu_ctx);
 
 #endif
