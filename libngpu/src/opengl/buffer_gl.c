@@ -26,6 +26,7 @@
 #include "opengl/buffer_gl.h"
 #include "opengl/ctx_gl.h"
 #include "opengl/glcontext.h"
+#include "opengl/priv_gl.h"
 #include "opengl/glincludes.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -90,9 +91,9 @@ static void unref_cmd_buffer(void *user_arg, void *data)
 
 int ngpu_buffer_gl_init(struct ngpu_buffer *s)
 {
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
     ngpu_darray_set_free_func(&s_priv->cmd_buffers, unref_cmd_buffer, NULL);
 
@@ -119,7 +120,7 @@ int ngpu_buffer_gl_init(struct ngpu_buffer *s)
 
 int ngpu_buffer_gl_wait(struct ngpu_buffer *s)
 {
-    struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
     ngpu_darray_foreach(it, &s_priv->cmd_buffers)
         ngpu_cmd_buffer_gl_wait(*it);
@@ -130,9 +131,9 @@ int ngpu_buffer_gl_wait(struct ngpu_buffer *s)
 
 int ngpu_buffer_gl_upload(struct ngpu_buffer *s, const void *data, size_t offset, size_t size)
 {
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    const struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    const struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
     gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->buffer);
     gl->funcs.BufferSubData(GL_ARRAY_BUFFER, (GLsizeiptr)offset, (GLsizeiptr)size, data);
     return 0;
@@ -140,9 +141,9 @@ int ngpu_buffer_gl_upload(struct ngpu_buffer *s, const void *data, size_t offset
 
 int ngpu_buffer_gl_map(struct ngpu_buffer *s, size_t offset, size_t size, void **datap)
 {
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    const struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    const struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
     gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->buffer);
     void *data = gl->funcs.MapBufferRange(GL_ARRAY_BUFFER, (GLsizeiptr)offset, (GLsizeiptr)size, s_priv->map_flags);
     if (!data)
@@ -153,16 +154,16 @@ int ngpu_buffer_gl_map(struct ngpu_buffer *s, size_t offset, size_t size, void *
 
 void ngpu_buffer_gl_unmap(struct ngpu_buffer *s)
 {
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    const struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    const struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
     gl->funcs.BindBuffer(GL_ARRAY_BUFFER, s_priv->buffer);
     gl->funcs.UnmapBuffer(GL_ARRAY_BUFFER);
 }
 
 static size_t buffer_gl_find_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
 {
-    struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
     for (size_t i = 0; i < s_priv->cmd_buffers.count; i++) {
         if (s_priv->cmd_buffers.data[i] == cmd_buffer)
@@ -174,7 +175,7 @@ static size_t buffer_gl_find_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_b
 
 int ngpu_buffer_gl_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
 {
-    struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
     size_t index = buffer_gl_find_cmd_buffer(s, cmd_buffer);
     if (index != SIZE_MAX)
@@ -190,7 +191,7 @@ int ngpu_buffer_gl_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_
 
 int ngpu_buffer_gl_unref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
 {
-    struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
     size_t index = buffer_gl_find_cmd_buffer(s, cmd_buffer);
     if (index == SIZE_MAX)
@@ -207,9 +208,9 @@ void ngpu_buffer_gl_freep(struct ngpu_buffer **sp)
         return;
 
     struct ngpu_buffer *s = *sp;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    struct ngpu_buffer_gl *s_priv = (struct ngpu_buffer_gl *)s;
+    struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
     ngpu_darray_reset(&s_priv->cmd_buffers);
 

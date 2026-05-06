@@ -23,6 +23,7 @@
 #include "opengl/bindgroup_gl.h"
 #include "opengl/buffer_gl.h"
 #include "opengl/ctx_gl.h"
+#include "opengl/priv_gl.h"
 #include "opengl/texture_gl.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -51,9 +52,9 @@ void ngpu_bindgroup_layout_gl_freep(struct ngpu_bindgroup_layout **sp)
 
 static int build_texture_bindings(struct ngpu_bindgroup *s)
 {
-    struct ngpu_bindgroup_gl *s_priv = (struct ngpu_bindgroup_gl *)s;
+    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
     const struct ngpu_limits *limits = &s->gpu_ctx->limits;
-    const struct glcontext *gl = ((const struct ngpu_ctx_gl *)s->gpu_ctx)->glcontext;
+    const struct glcontext *gl = NGPU_PRIV_GL(s->gpu_ctx)->glcontext;
 
     size_t nb_textures = 0;
     size_t nb_images = 0;
@@ -108,8 +109,8 @@ static GLenum get_gl_target(enum ngpu_type type)
 
 static int build_buffer_bindings(struct ngpu_bindgroup *s)
 {
-    struct ngpu_bindgroup_gl *s_priv = (struct ngpu_bindgroup_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const struct ngpu_bindgroup_layout *layout = s->layout;
@@ -137,13 +138,13 @@ static int build_buffer_bindings(struct ngpu_bindgroup *s)
 
 static GLbitfield get_memory_barriers(const struct ngpu_bindgroup *s)
 {
-    const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    const struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     const struct glcontext *gl = gpu_ctx_gl->glcontext;
-    const struct ngpu_bindgroup_gl *s_priv = (const struct ngpu_bindgroup_gl *)s;
+    const struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
 
     GLbitfield barriers = 0;
     ngpu_darray_foreach(binding_gl, &s_priv->buffer_bindings) {
-        const struct ngpu_buffer_gl *buffer_gl = (const struct ngpu_buffer_gl *)binding_gl->buffer;
+        const struct ngpu_buffer_gl *buffer_gl = NGPU_PRIV_GL(binding_gl->buffer);
         if (!buffer_gl)
             continue;
         const struct ngpu_bindgroup_layout_entry *entry = &binding_gl->layout_entry;
@@ -152,7 +153,7 @@ static GLbitfield get_memory_barriers(const struct ngpu_bindgroup *s)
     }
 
     ngpu_darray_foreach(binding_gl, &s_priv->texture_bindings) {
-        const struct ngpu_texture_gl *texture_gl = (const struct ngpu_texture_gl *)binding_gl->texture;
+        const struct ngpu_texture_gl *texture_gl = NGPU_PRIV_GL(binding_gl->texture);
         if (!texture_gl)
             continue;
         const struct ngpu_bindgroup_layout_entry *entry = &binding_gl->layout_entry;
@@ -167,7 +168,7 @@ static GLbitfield get_memory_barriers(const struct ngpu_bindgroup *s)
 
 GLbitfield ngpu_bindgroup_gl_get_memory_barriers(struct ngpu_bindgroup *s)
 {
-    struct ngpu_bindgroup_gl *s_priv = (struct ngpu_bindgroup_gl *)s;
+    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
 
     if (!s_priv->use_barriers)
         return 0;
@@ -198,7 +199,7 @@ static void unref_buffer_binding(void *user_arg, void *data)
 
 int ngpu_bindgroup_gl_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params)
 {
-    struct ngpu_bindgroup_gl *s_priv = (struct ngpu_bindgroup_gl *)s;
+    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
 
     s->layout = params->layout;
 
@@ -215,7 +216,7 @@ int ngpu_bindgroup_gl_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup
 
 int ngpu_bindgroup_gl_update_texture(struct ngpu_bindgroup *s, uint32_t index, const struct ngpu_texture_binding *binding)
 {
-    struct ngpu_bindgroup_gl *s_priv = (struct ngpu_bindgroup_gl *)s;
+    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
     struct texture_binding_gl *binding_gl = &s_priv->texture_bindings.data[index];
     NGPU_RC_UNREFP(&binding_gl->texture);
     binding_gl->texture = binding->texture ? NGPU_RC_REF(binding->texture) : NULL;
@@ -225,7 +226,7 @@ int ngpu_bindgroup_gl_update_texture(struct ngpu_bindgroup *s, uint32_t index, c
 
 int ngpu_bindgroup_gl_update_buffer(struct ngpu_bindgroup *s, uint32_t index, const struct ngpu_buffer_binding *binding)
 {
-    struct ngpu_bindgroup_gl *s_priv = (struct ngpu_bindgroup_gl *)s;
+    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
     struct buffer_binding_gl *binding_gl = &s_priv->buffer_bindings.data[index];
     NGPU_RC_UNREFP(&binding_gl->buffer);
     binding_gl->buffer = NGPU_RC_REF(binding->buffer);
@@ -248,15 +249,15 @@ static GLenum get_gl_access(enum ngpu_access access)
 
 void ngpu_bindgroup_gl_bind(struct ngpu_bindgroup *s, const uint32_t *dynamic_offsets, size_t nb_dynamic_offsets)
 {
-    const struct ngpu_bindgroup_gl *s_priv = (struct ngpu_bindgroup_gl *)s;
+    const struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
     const struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
+    const struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
     const struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     ngpu_darray_foreach(texture_binding, &s_priv->texture_bindings) {
         const struct ngpu_bindgroup_layout_entry *layout_entry = &texture_binding->layout_entry;
         const struct ngpu_texture *texture = texture_binding->texture;
-        const struct ngpu_texture_gl *texture_gl = (const struct ngpu_texture_gl *)texture;
+        const struct ngpu_texture_gl *texture_gl = NGPU_PRIV_GL(texture);
 
         if (layout_entry->type == NGPU_TYPE_IMAGE_2D ||
             layout_entry->type == NGPU_TYPE_IMAGE_2D_ARRAY ||
@@ -293,7 +294,7 @@ void ngpu_bindgroup_gl_bind(struct ngpu_bindgroup *s, const uint32_t *dynamic_of
     ngpu_darray_foreach(buffer_binding, &s_priv->buffer_bindings) {
         ngpu_assert(buffer_binding->buffer);
         const struct ngpu_buffer *buffer = buffer_binding->buffer;
-        const struct ngpu_buffer_gl *buffer_gl = (const struct ngpu_buffer_gl *)buffer;
+        const struct ngpu_buffer_gl *buffer_gl = NGPU_PRIV_GL(buffer);
         const struct ngpu_bindgroup_layout_entry *layout_entry = &buffer_binding->layout_entry;
         const GLenum target = get_gl_target(layout_entry->type);
         size_t offset = buffer_binding->offset;
@@ -312,7 +313,7 @@ void ngpu_bindgroup_gl_freep(struct ngpu_bindgroup **sp)
         return;
 
     struct ngpu_bindgroup *s = *sp;
-    struct ngpu_bindgroup_gl *s_priv = (struct ngpu_bindgroup_gl *)s;
+    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
 
     ngpu_darray_reset(&s_priv->texture_bindings);
     ngpu_darray_reset(&s_priv->buffer_bindings);

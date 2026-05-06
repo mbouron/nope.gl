@@ -28,6 +28,7 @@
 #include "ngpu/ngpu.h"
 #include "vulkan/ctx_vk.h"
 #include "vulkan/format_vk.h"
+#include "vulkan/priv_vk.h"
 #include "vulkan/rendertarget_vk.h"
 #include "vulkan/texture_vk.h"
 #include "vulkan/vkutils.h"
@@ -65,7 +66,7 @@ static int has_resolve(const struct ngpu_rendertarget_layout *layout)
 
 static VkResult vk_create_compatible_renderpass(struct ngpu_ctx *s, const struct ngpu_rendertarget_layout *layout, const struct ngpu_rendertarget_params *params, VkRenderPass *render_pass)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     VkAttachmentDescription descs[2 * (NGPU_MAX_COLOR_ATTACHMENTS + 1)] = {0};
@@ -236,9 +237,9 @@ static VkImageAspectFlags get_vk_image_aspect_flags(VkFormat format)
 
 static VkResult create_image_view(const struct ngpu_rendertarget *s, const struct ngpu_texture *texture, uint32_t layer, VkImageView *view)
 {
-    const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    const struct ngpu_texture_vk *texture_vk = (struct ngpu_texture_vk *)texture;
+    const struct ngpu_texture_vk *texture_vk = NGPU_PRIV_VK(texture);
 
     VkImageUsageFlags usage = 0;
     if (texture->params.usage & NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT)
@@ -269,7 +270,7 @@ static VkResult create_image_view(const struct ngpu_rendertarget *s, const struc
 
 static VkResult add_attachment(struct ngpu_rendertarget *s, struct ngpu_texture *texture, uint32_t layer, const VkClearValue *clear_value)
 {
-    struct ngpu_rendertarget_vk *s_priv = (struct ngpu_rendertarget_vk *)s;
+    struct ngpu_rendertarget_vk *s_priv = NGPU_PRIV_VK(s);
 
     VkImageView view;
     VkResult res = create_image_view(s, texture, layer, &view);
@@ -297,8 +298,8 @@ struct ngpu_rendertarget *ngpu_rendertarget_vk_create(struct ngpu_ctx *gpu_ctx)
 
 static VkResult rendertarget_vk_init(struct ngpu_rendertarget *s)
 {
-    struct ngpu_rendertarget_vk *s_priv = (struct ngpu_rendertarget_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_rendertarget_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     VkResult res = vk_create_compatible_renderpass(s->gpu_ctx, &s->layout, &s->params, &s_priv->render_pass);
@@ -361,8 +362,8 @@ void ngpu_rendertarget_vk_freep(struct ngpu_rendertarget **sp)
     if (!s)
         return;
 
-    struct ngpu_rendertarget_vk *s_priv = (struct ngpu_rendertarget_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_rendertarget_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
 
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     vk->funcs.DestroyRenderPass(vk->device, s_priv->render_pass, NULL);

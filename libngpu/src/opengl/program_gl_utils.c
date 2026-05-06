@@ -25,6 +25,7 @@
 #include "utils/log.h"
 #include "ngpu/ngpu.h"
 #include "opengl/ctx_gl.h"
+#include "opengl/priv_gl.h"
 #include "opengl/program_gl.h"
 #include "opengl/program_gl_utils.h"
 #include "pgcraft.h"
@@ -33,9 +34,9 @@ int ngpu_program_gl_set_locations_and_bindings(struct ngpu_program *s,
                                                const struct ngpu_pgcraft *crafter)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    struct ngpu_program_gl *s_priv = (struct ngpu_program_gl *)s;
+    struct ngpu_program_gl *s_priv = NGPU_PRIV_GL(s);
 
     const char *name = NULL;
     int need_relink = 0;

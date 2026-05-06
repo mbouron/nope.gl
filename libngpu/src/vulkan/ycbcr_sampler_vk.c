@@ -30,6 +30,7 @@
 
 #include "utils/log.h"
 #include "vulkan/ctx_vk.h"
+#include "vulkan/priv_vk.h"
 #include "vulkan/vkutils.h"
 #include "vulkan/texture_vk.h"
 #include "vulkan/ycbcr_sampler_vk.h"
@@ -38,7 +39,7 @@
 int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHardwareBuffer *ahb, enum ngpu_filter filter, struct ngpu_ycbcr_sampler_vk_params *params)
 {
 #if defined(TARGET_ANDROID)
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     VkAndroidHardwareBufferFormatPropertiesANDROID ahb_format_props = {
@@ -90,7 +91,7 @@ static void ycbcr_sampler_freep(void **texturep)
 
     struct ngpu_ycbcr_sampler_vk *s = *sp;
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     vk->funcs.DestroySampler(vk->device, s->sampler, NULL);
     vk->funcs.DestroySamplerYcbcrConversion(vk->device, s->conv, NULL);
@@ -111,7 +112,7 @@ struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_
 VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s, const struct ngpu_ycbcr_sampler_vk_params *params)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     s->params = *params;

@@ -30,6 +30,7 @@
 #include "vulkan/buffer_vk.h"
 #include "vulkan/ctx_vk.h"
 #include "vulkan/format_vk.h"
+#include "vulkan/priv_vk.h"
 #include "vulkan/texture_vk.h"
 #include "vulkan/vkutils.h"
 #include "vulkan/ycbcr_sampler_vk.h"
@@ -252,7 +253,7 @@ static uint32_t get_mipmap_levels(uint32_t width, uint32_t height)
 
 static int init_fields(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     s->params = *params;
 
@@ -296,9 +297,9 @@ static int init_fields(struct ngpu_texture *s, const struct ngpu_texture_params 
 
 static VkResult create_image_view(struct ngpu_texture *s)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     const VkImageViewCreateInfo view_info = {
         .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -319,9 +320,9 @@ static VkResult create_image_view(struct ngpu_texture *s)
 
 static VkResult create_sampler(struct ngpu_texture *s)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     const VkSamplerCreateInfo sampler_info = {
         .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -355,9 +356,9 @@ struct ngpu_texture *ngpu_texture_vk_create(struct ngpu_ctx *gpu_ctx)
 
 static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     VkResult res = init_fields(s, params);
     if (res != VK_SUCCESS)
@@ -485,8 +486,8 @@ int ngpu_texture_vk_init(struct ngpu_texture *s, const struct ngpu_texture_param
 static int import_dma_buf(struct ngpu_texture *s)
 {
 #if defined(TARGET_LINUX)
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     const struct ngpu_import_params *import_params = &s->params.import_params;
@@ -659,8 +660,8 @@ static int import_dma_buf(struct ngpu_texture *s)
 static int import_android_hardware_buffer(struct ngpu_texture *s)
 {
 #if defined(TARGET_ANDROID)
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     const struct ngpu_import_params *import_params = &s->params.import_params;
@@ -823,8 +824,8 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
 static int import_metal_texture(struct ngpu_texture *s)
 {
 #if defined(TARGET_DARWIN)
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     const struct ngpu_import_params *import_params = &s->params.import_params;
@@ -865,7 +866,7 @@ static int import_metal_texture(struct ngpu_texture *s)
 
 int ngpu_texture_vk_import(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     int ret = init_fields(s, params);
     if (ret < 0)
@@ -908,7 +909,7 @@ int ngpu_texture_vk_import(struct ngpu_texture *s, const struct ngpu_texture_par
 
 VkResult ngpu_texture_vk_wrap(struct ngpu_texture *s, const struct ngpu_texture_vk_wrap_params *wrap_params)
 {
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     VkResult res = init_fields(s, wrap_params->params);
     if (res != VK_SUCCESS)
@@ -944,8 +945,8 @@ VkResult ngpu_texture_vk_wrap(struct ngpu_texture *s, const struct ngpu_texture_
 
 void ngpu_texture_vk_transition_layout(struct ngpu_texture *s, VkImageLayout layout)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     if (s_priv->image_layout == layout)
         return;
@@ -969,15 +970,15 @@ void ngpu_texture_vk_transition_layout(struct ngpu_texture *s, VkImageLayout lay
 
 void ngpu_texture_vk_transition_to_default_layout(struct ngpu_texture *s)
 {
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     ngpu_texture_vk_transition_layout(s, s_priv->default_image_layout);
 }
 
 void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *buffer)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
-    struct ngpu_buffer_vk *buffer_vk = (struct ngpu_buffer_vk *)buffer;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_buffer_vk *buffer_vk = NGPU_PRIV_VK(buffer);
 
     ngpu_texture_vk_transition_layout(s, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
@@ -1003,8 +1004,8 @@ void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *
 
 int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data)
 {
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
 
     const struct ngpu_texture_params *params = &s->params;
     ngpu_assert(params->samples == 0);
@@ -1049,7 +1050,7 @@ int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data)
 
 static void destroy_staging_buffer(struct ngpu_texture *s)
 {
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     if (s_priv->staging_buffer_ptr) {
         ngpu_buffer_unmap(s_priv->staging_buffer);
@@ -1060,7 +1061,7 @@ static void destroy_staging_buffer(struct ngpu_texture *s)
 
 static int create_staging_buffer(struct ngpu_texture *s, size_t size)
 {
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     s_priv->staging_buffer = ngpu_buffer_create(s->gpu_ctx);
     if (!s_priv->staging_buffer)
@@ -1095,9 +1096,9 @@ static int texture_transfer_params_are_equal(const struct ngpu_texture_transfer_
 
 static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     const struct ngpu_texture_params *params = &s->params;
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     /* Wrapped textures cannot update their content with this function */
     ngpu_assert(!s_priv->wrapped_image);
@@ -1189,7 +1190,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
         }
     }
 
-    struct ngpu_buffer_vk *staging_buffer_vk = (struct ngpu_buffer_vk *)s_priv->staging_buffer;
+    struct ngpu_buffer_vk *staging_buffer_vk = NGPU_PRIV_VK(s_priv->staging_buffer);
     vk->funcs.CmdCopyBufferToImage(cmd_buf,
                            staging_buffer_vk->buffer,
                            s_priv->image,
@@ -1219,7 +1220,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
 
 int ngpu_texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize)
 {
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     const struct ngpu_texture_params *params = &s->params;
     const struct ngpu_texture_transfer_params transfer_params = {
         .width = params->width,
@@ -1242,9 +1243,9 @@ int ngpu_texture_vk_upload_with_params(struct ngpu_texture *s, const uint8_t *da
 
 static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     const struct ngpu_texture_params *params = &s->params;
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
     ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_SRC_BIT);
     ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
@@ -1388,8 +1389,8 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
         return;
 
     struct ngpu_texture *s = *sp;
-    struct ngpu_texture_vk *s_priv = (struct ngpu_texture_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     ngpu_ycbcr_sampler_vk_unrefp(&s_priv->ycbcr_sampler);

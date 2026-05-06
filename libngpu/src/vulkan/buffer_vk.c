@@ -27,6 +27,7 @@
 #include "utils/log.h"
 #include "vulkan/buffer_vk.h"
 #include "vulkan/ctx_vk.h"
+#include "vulkan/priv_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
 #include "utils/memory.h"
@@ -116,9 +117,9 @@ static void unref_cmd_buffer(void *user_arg, void *data)
 
 static VkResult buffer_vk_init(struct ngpu_buffer *s)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     ngpu_darray_set_free_func(&s_priv->cmd_buffers, unref_cmd_buffer, NULL);
 
@@ -149,7 +150,7 @@ int ngpu_buffer_vk_init(struct ngpu_buffer *s)
 
 int ngpu_buffer_vk_wait(struct ngpu_buffer *s)
 {
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     ngpu_darray_foreach(it, &s_priv->cmd_buffers)
         ngpu_cmd_buffer_vk_wait(*it);
@@ -160,9 +161,9 @@ int ngpu_buffer_vk_wait(struct ngpu_buffer *s)
 
 static VkResult buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t offset, size_t size)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     if (s->usage & NGPU_BUFFER_USAGE_MAP_READ ||
         s->usage & NGPU_BUFFER_USAGE_MAP_WRITE ||
@@ -225,9 +226,9 @@ int ngpu_buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t offset
 
 static VkResult buffer_vk_map(struct ngpu_buffer *s, size_t offset, size_t size, void **data)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     return vk->funcs.MapMemory(vk->device, s_priv->memory, offset, size, 0, data);
 }
@@ -242,16 +243,16 @@ int ngpu_buffer_vk_map(struct ngpu_buffer *s, size_t offset, size_t size, void *
 
 void ngpu_buffer_vk_unmap(struct ngpu_buffer *s)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     vk->funcs.UnmapMemory(vk->device, s_priv->memory);
 }
 
 static size_t buffer_vk_find_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
 {
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     for (size_t i = 0; i < s_priv->cmd_buffers.count; i++) {
         if (s_priv->cmd_buffers.data[i] == cmd_buffer)
@@ -263,7 +264,7 @@ static size_t buffer_vk_find_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_b
 
 int ngpu_buffer_vk_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
 {
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     size_t index = buffer_vk_find_cmd_buffer(s, cmd_buffer);
     if (index != SIZE_MAX)
@@ -279,7 +280,7 @@ int ngpu_buffer_vk_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_
 
 int ngpu_buffer_vk_unref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
 {
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     size_t index = buffer_vk_find_cmd_buffer(s, cmd_buffer);
     if (index == SIZE_MAX)
@@ -296,9 +297,9 @@ void ngpu_buffer_vk_freep(struct ngpu_buffer **sp)
         return;
 
     struct ngpu_buffer *s = *sp;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_buffer_vk *s_priv = (struct ngpu_buffer_vk *)s;
+    struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     ngpu_darray_reset(&s_priv->cmd_buffers);
 

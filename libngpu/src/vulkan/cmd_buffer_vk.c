@@ -24,6 +24,7 @@
 #include "vulkan/cmd_buffer_vk.h"
 #include "vulkan/ctx_vk.h"
 #include "vulkan/fence_vk.h"
+#include "vulkan/priv_vk.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 
@@ -33,7 +34,7 @@ static void cmd_buffer_vk_freep(void **sp)
     if (!s)
         return;
 
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     ngpu_darray_reset(&s->refs);
@@ -86,7 +87,7 @@ void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp)
 VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     s->type = type;
@@ -180,7 +181,7 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
     ngpu_darray_clear(&s->signal_sems);
     ngpu_darray_clear(&s->signal_values);
 
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     vk->funcs.ResetCommandBuffer(s->cmd_buf, 0);
@@ -194,7 +195,7 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
 
 VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     VkResult res = vk->funcs.EndCommandBuffer(s->cmd_buf);
@@ -202,7 +203,7 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
         return res;
 
     if (wait_fence) {
-        const uint64_t wait_value = ((struct ngpu_fence_vk *)wait_fence)->value;
+        const uint64_t wait_value = NGPU_PRIV_VK(wait_fence)->value;
         const VkPipelineStageFlags stage_flags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
         res = ngpu_cmd_buffer_vk_add_wait_timeline(s, gpu_ctx_vk->timeline_sem, stage_flags, wait_value);
         if (res != VK_SUCCESS)
@@ -261,7 +262,7 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
 
 VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     if (s->submitted) {

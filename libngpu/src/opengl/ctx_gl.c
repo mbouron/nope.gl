@@ -38,6 +38,7 @@
 #include "opengl/fence_gl.h"
 #include "opengl/glcontext.h"
 #include "opengl/pipeline_gl.h"
+#include "opengl/priv_gl.h"
 #include "opengl/program_gl.h"
 #include "opengl/rendertarget_gl.h"
 #include "opengl/texture_gl.h"
@@ -51,11 +52,11 @@
 
 static void capture_cpu(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     struct ngpu_ctx_params *params = &s->params;
     struct ngpu_rendertarget *rt = s_priv->capture_rt;
-    struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)rt;
+    struct ngpu_rendertarget_gl *rt_gl = NGPU_PRIV_GL(rt);
 
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, rt_gl->fbo);
     const GLint w = (GLint)rt->width, h = (GLint)rt->height;
@@ -64,7 +65,7 @@ static void capture_cpu(struct ngpu_ctx *s)
 
 static void capture_corevideo(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
     gl->funcs.Finish();
@@ -111,7 +112,7 @@ static int wrap_capture_cvpixelbuffer(struct ngpu_ctx *s,
 
 static void reset_capture_cvpixelbuffer(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
     if (s_priv->capture_cvbuffer) {
         CFRelease(s_priv->capture_cvbuffer);
@@ -157,7 +158,7 @@ static int create_rendertarget(struct ngpu_ctx *s,
                                struct ngpu_texture *depth_stencil,
                                struct ngpu_rendertarget **rendertargetp)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     const struct ngpu_ctx_params *ctx_params = &s->params;
     const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
@@ -210,7 +211,7 @@ static int create_rendertarget(struct ngpu_ctx *s,
 
 static int offscreen_rendertarget_init(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx_params *ctx_params = &s->params;
 
     if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO) {
@@ -286,13 +287,13 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
 
 static int onscreen_rendertarget_init(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     return create_rendertarget(s, NULL, NULL, NULL, &s_priv->default_rt);
 }
 
 static void rendertarget_reset(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
     for (uint32_t i = 0; i < s->nb_in_flight_frames; i++) {
         if (s_priv->rts)
@@ -320,7 +321,7 @@ static void rendertarget_reset(struct ngpu_ctx *s)
 
 static int timer_init(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
     gl->timer_funcs.GenQueries(2, s_priv->queries);
@@ -330,7 +331,7 @@ static int timer_init(struct ngpu_ctx *s)
 
 static void timer_reset(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     if (!gl)
         return;
@@ -443,7 +444,7 @@ static const struct {
 
 static void ngpu_ctx_info_init(struct ngpu_ctx *s)
 {
-    const struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    const struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     const struct glcontext *gl = s_priv->glcontext;
 
     s->version = gl->version;
@@ -469,7 +470,7 @@ static void ngpu_ctx_info_init(struct ngpu_ctx *s)
 
 static int create_command_buffers(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
     s_priv->update_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
     s_priv->draw_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
@@ -499,7 +500,7 @@ static int create_command_buffers(struct ngpu_ctx *s)
 
 static void destroy_command_buffers(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
     if (s_priv->update_cmd_buffers) {
         for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
@@ -520,7 +521,7 @@ static int gl_init(struct ngpu_ctx *s)
     int ret;
     struct ngpu_ctx_params *ctx_params = &s->params;
     const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
     const int external = ctx_params_gl ? ctx_params_gl->external : 0;
     if (external) {
@@ -633,7 +634,7 @@ static int gl_init(struct ngpu_ctx *s)
 
 static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
@@ -670,7 +671,7 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
     * The default framebuffer id can change after a resize operation on EAGL,
     * thus we need to update the rendertargets wrapping the default framebuffer
     */
-    struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)s_priv->default_rt;
+    struct ngpu_rendertarget_gl *rt_gl = NGPU_PRIV_GL(s_priv->default_rt);
     rt_gl->fbo = ngpu_glcontext_get_default_framebuffer(gl);
 
     return 0;
@@ -679,7 +680,7 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 #if defined(TARGET_IPHONE)
 static int update_capture_cvpixelbuffer(struct ngpu_ctx *s, CVPixelBufferRef capture_buffer)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
     ngpu_rendertarget_freep(&s_priv->capture_rt);
     ngpu_texture_freep(&s_priv->capture_texture);
@@ -737,19 +738,19 @@ static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 
 int ngpu_ctx_gl_make_current(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     return ngpu_glcontext_make_current(s_priv->glcontext, 1);
 }
 
 int ngpu_ctx_gl_release_current(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     return ngpu_glcontext_make_current(s_priv->glcontext, 0);
 }
 
 void ngpu_ctx_gl_reset_state(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     ngpu_glstate_reset(s_priv->glcontext, &s_priv->glstate);
 }
 
@@ -757,7 +758,7 @@ int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
 {
     struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
     const int external = ctx_params_gl ? ctx_params_gl->external : 0;
@@ -825,7 +826,7 @@ int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
 
 static int gl_begin_update(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
     s_priv->cur_cmd_buffer = s_priv->update_cmd_buffers[s->current_frame_index];
     int ret = ngpu_cmd_buffer_gl_wait(s_priv->cur_cmd_buffer);
@@ -841,7 +842,7 @@ static int gl_begin_update(struct ngpu_ctx *s)
 
 static int gl_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
     int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer, wait_fence, NULL);
     if (ret < 0)
@@ -852,7 +853,7 @@ static int gl_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
 
 static int gl_begin_draw(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     const struct glcontext *gl = s_priv->glcontext;
     const struct ngpu_ctx_params *ctx_params = &s->params;
 
@@ -880,14 +881,14 @@ static int gl_begin_draw(struct ngpu_ctx *s)
 
 static void blit_vflip(struct ngpu_ctx *s, struct ngpu_rendertarget *src, struct ngpu_rendertarget *dst)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     struct ngpu_glstate *glstate = &s_priv->glstate;
 
-    struct ngpu_rendertarget_gl *src_gl = (struct ngpu_rendertarget_gl *)src;
+    struct ngpu_rendertarget_gl *src_gl = NGPU_PRIV_GL(src);
     const GLuint src_fbo = src_gl->resolve_fbo ? src_gl->resolve_fbo : src_gl->fbo;
 
-    struct ngpu_rendertarget_gl *dst_gl = (struct ngpu_rendertarget_gl *)dst;
+    struct ngpu_rendertarget_gl *dst_gl = NGPU_PRIV_GL(dst);
     const GLuint dst_fbo = dst_gl->fbo;
 
     const int32_t w = (int32_t)src->width, h = (int32_t)dst->height;
@@ -906,7 +907,7 @@ static void blit_vflip(struct ngpu_ctx *s, struct ngpu_rendertarget *src, struct
 
 static int gl_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     const struct ngpu_ctx_params *ctx_params = &s->params;
     const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
@@ -946,7 +947,7 @@ fail:
 
 static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
     const struct ngpu_ctx_params *ctx_params = &s->params;
@@ -984,7 +985,7 @@ static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
 
 static void gl_wait_idle(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
     for (size_t i = 0; i < s->nb_in_flight_frames; i++) {
@@ -996,7 +997,7 @@ static void gl_wait_idle(struct ngpu_ctx *s)
 
 static void gl_destroy(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     timer_reset(s);
     rendertarget_reset(s);
     destroy_command_buffers(s);
@@ -1048,13 +1049,13 @@ static void gl_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
 
 static struct ngpu_rendertarget *gl_get_default_rendertarget(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     return s_priv->default_rt;
 }
 
 static const struct ngpu_rendertarget_layout *gl_get_default_rendertarget_layout(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     return &s_priv->default_rt_layout;
 }
 
@@ -1066,7 +1067,7 @@ static void gl_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width
 
 static void gl_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, rt);
@@ -1079,7 +1080,7 @@ static void gl_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *r
 
 static void gl_end_render_pass(struct ngpu_ctx *s)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
@@ -1089,7 +1090,7 @@ static void gl_end_render_pass(struct ngpu_ctx *s)
 
 static void gl_set_viewport(struct ngpu_ctx *s, const struct ngpu_viewport *viewport)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
@@ -1100,7 +1101,7 @@ static void gl_set_viewport(struct ngpu_ctx *s, const struct ngpu_viewport *view
 
 static void gl_set_scissor(struct ngpu_ctx *s, const struct ngpu_scissor *scissor)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
@@ -1121,7 +1122,7 @@ static enum ngpu_format gl_get_preferred_depth_stencil_format(struct ngpu_ctx *s
 
 static uint32_t gl_get_format_features(struct ngpu_ctx *s, enum ngpu_format format)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
     const struct ngpu_format_gl *format_gl = ngpu_format_get_gl_texture_format(gl, format);
@@ -1130,7 +1131,7 @@ static uint32_t gl_get_format_features(struct ngpu_ctx *s, enum ngpu_format form
 
 static void gl_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *texture)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, texture);
@@ -1143,12 +1144,12 @@ static void gl_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *
 
 static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup, const uint32_t *offsets, size_t nb_offsets)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, bindgroup);
 
-    struct ngpu_bindgroup_gl *bindgroup_gl = (struct ngpu_bindgroup_gl *)bindgroup;
+    struct ngpu_bindgroup_gl *bindgroup_gl = NGPU_PRIV_GL(bindgroup);
     ngpu_darray_foreach(binding, &bindgroup_gl->buffer_bindings)
         ngpu_cmd_buffer_gl_ref_buffer(cmd_buffer, (struct ngpu_buffer *)binding->buffer);
 
@@ -1164,7 +1165,7 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
 
 static void gl_set_pipeline(struct ngpu_ctx *s, struct ngpu_pipeline *pipeline)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, pipeline);
@@ -1177,7 +1178,7 @@ static void gl_set_pipeline(struct ngpu_ctx *s, struct ngpu_pipeline *pipeline)
 
 static void gl_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
@@ -1190,7 +1191,7 @@ static void gl_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instan
 
 static void gl_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances, uint32_t first_index)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
@@ -1203,7 +1204,7 @@ static void gl_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb
 
 static void gl_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
@@ -1216,7 +1217,7 @@ static void gl_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_gro
 
 static void gl_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struct ngpu_buffer *buffer)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, buffer);
@@ -1230,7 +1231,7 @@ static void gl_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struc
 
 static void gl_set_index_buffer(struct ngpu_ctx *s, const struct ngpu_buffer *buffer, enum ngpu_format format)
 {
-    struct ngpu_ctx_gl *s_priv = (struct ngpu_ctx_gl *)s;
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, buffer);
