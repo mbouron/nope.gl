@@ -61,6 +61,7 @@
 #include "opengl/format_gl.h"
 #include "opengl/glcontext.h"
 #include "opengl/glincludes.h"
+#include "opengl/priv_gl.h"
 #include "opengl/texture_gl.h"
 #include "utils/bits.h"
 #include "utils/memory.h"
@@ -116,8 +117,8 @@ static GLbitfield get_gl_barriers(uint32_t usage)
 
 static void texture_allocate(struct ngpu_texture *s)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_texture_params *params = &s->params;
 
@@ -159,8 +160,8 @@ static uint32_t get_mipmap_levels(const struct ngpu_texture *s)
 
 static void texture_allocate_storage(struct ngpu_texture *s)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_texture_params *params = &s->params;
 
@@ -189,8 +190,8 @@ static void texture_allocate_storage(struct ngpu_texture *s)
 
 static void texture_upload(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const size_t pixels_per_row = (size_t)transfer_params->pixels_per_row;
@@ -241,8 +242,8 @@ static void texture_upload(struct ngpu_texture *s, const uint8_t *data, const st
 
 static int renderbuffer_check_samples(struct ngpu_texture *s)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_limits *limits = &gl->limits;
     const struct ngpu_texture_params *params = &s->params;
@@ -262,8 +263,8 @@ static int renderbuffer_check_samples(struct ngpu_texture *s)
 
 static void renderbuffer_allocate_storage(struct ngpu_texture *s)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_texture_params *params = &s->params;
 
@@ -284,8 +285,8 @@ static void renderbuffer_allocate_storage(struct ngpu_texture *s)
 
 static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     s->params = *params;
@@ -360,8 +361,8 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
 
 static int texture_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     if (s_priv->target == GL_RENDERBUFFER) {
@@ -409,8 +410,8 @@ struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
 static int texture_import_dma_buf(struct ngpu_texture *s)
 {
 #if defined(TARGET_LINUX)
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const struct ngpu_import_params *import_params = &s->params.import_params;
@@ -462,8 +463,8 @@ static int texture_import_dma_buf(struct ngpu_texture *s)
 static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
 {
 #if defined(TARGET_ANDROID)
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const struct ngpu_import_params *import_params = &s->params.import_params;
@@ -501,8 +502,8 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
 static int texture_import_iosurface(struct ngpu_texture *s)
 {
 #if defined(TARGET_DARWIN)
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const struct ngpu_import_params *import_params = &s->params.import_params;
@@ -533,9 +534,9 @@ static int texture_import_iosurface(struct ngpu_texture *s)
 static int texture_import_corevideo_buffer(struct ngpu_texture *s)
 {
 #if defined(TARGET_IPHONE)
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const struct ngpu_import_params *import_params = &s->params.import_params;
@@ -593,8 +594,8 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
 
 static int texture_import_opengl_texture(struct ngpu_texture *s)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const struct ngpu_import_params *import_params = &s->params.import_params;
@@ -613,7 +614,7 @@ static int texture_import_opengl_texture(struct ngpu_texture *s)
 
 int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     int ret = texture_init_fields(s, params);
@@ -671,7 +672,7 @@ int ngpu_texture_gl_import(struct ngpu_texture *s, const struct ngpu_texture_par
 
 int ngpu_texture_gl_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
     const struct ngpu_texture_params *params = &s->params;
     const struct ngpu_texture_transfer_params transfer_params = {
         .width = params->width,
@@ -687,8 +688,8 @@ int ngpu_texture_gl_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t
 
 int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_texture_params *params = &s->params;
 
@@ -710,8 +711,8 @@ int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *da
 
 int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_texture_params *params = &s->params;
     const GLsizei w = (GLsizei)params->width;
@@ -761,8 +762,8 @@ int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
 
 int ngpu_texture_gl_generate_mipmap(struct ngpu_texture *s)
 {
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_texture_params *params = &s->params;
 
@@ -780,8 +781,8 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
         return;
 
     struct ngpu_texture *s = *sp;
-    struct ngpu_texture_gl *s_priv = (struct ngpu_texture_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     if (!s_priv->wrapped) {

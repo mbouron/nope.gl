@@ -24,6 +24,7 @@
 #include "utils/log.h"
 #include "vulkan/ctx_vk.h"
 #include "vulkan/fence_vk.h"
+#include "vulkan/priv_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
 #include "utils/memory.h"
@@ -52,8 +53,8 @@ struct ngpu_fence *ngpu_fence_vk_create(struct ngpu_ctx *ctx)
 
 int ngpu_fence_vk_reset(struct ngpu_fence *s)
 {
-    struct ngpu_fence_vk *s_priv = (struct ngpu_fence_vk *)s;
-    struct ngpu_ctx_vk *ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_fence_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
 
     s_priv->value = ++ctx_vk->timeline_value;
 
@@ -62,8 +63,8 @@ int ngpu_fence_vk_reset(struct ngpu_fence *s)
 
 int ngpu_fence_vk_wait(struct ngpu_fence *s)
 {
-    struct ngpu_fence_vk *s_priv = (struct ngpu_fence_vk *)s;
-    struct ngpu_ctx_vk *ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_fence_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = ctx_vk->vkcontext;
 
     const VkSemaphoreWaitInfo wait_info = {
@@ -78,8 +79,8 @@ int ngpu_fence_vk_wait(struct ngpu_fence *s)
 
 int ngpu_fence_vk_is_signaled(struct ngpu_fence *s)
 {
-    struct ngpu_fence_vk *s_priv = (struct ngpu_fence_vk *)s;
-    struct ngpu_ctx_vk *ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_fence_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = ctx_vk->vkcontext;
 
     uint64_t value = 0;

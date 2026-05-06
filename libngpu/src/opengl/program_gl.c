@@ -27,6 +27,7 @@
 #include "ngpu/ngpu.h"
 #include "opengl/ctx_gl.h"
 #include "opengl/glincludes.h"
+#include "opengl/priv_gl.h"
 #include "opengl/program_gl.h"
 #include "utils/bstr.h"
 #include "utils/memory.h"
@@ -86,7 +87,7 @@ struct ngpu_program *ngpu_program_gl_create(struct ngpu_ctx *gpu_ctx)
 
 int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_params *params)
 {
-    struct ngpu_program_gl *s_priv = (struct ngpu_program_gl *)s;
+    struct ngpu_program_gl *s_priv = NGPU_PRIV_GL(s);
 
     int ret = 0;
     struct {
@@ -100,7 +101,7 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
         [NGPU_PROGRAM_STAGE_COMP] = {"compute", GL_COMPUTE_SHADER, params->compute, 0},
     };
 
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const uint64_t features = NGPU_FEATURE_GL_COMPUTE_SHADER_ALL;
@@ -171,8 +172,8 @@ void ngpu_program_gl_freep(struct ngpu_program **sp)
     if (!*sp)
         return;
     struct ngpu_program *s = *sp;
-    struct ngpu_program_gl *s_priv = (struct ngpu_program_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_program_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     gl->funcs.DeleteProgram(s_priv->program);
     ngpu_freep(sp);

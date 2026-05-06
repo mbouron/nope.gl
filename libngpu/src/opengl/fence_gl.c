@@ -22,6 +22,7 @@
 #include "utils/log.h"
 #include "opengl/ctx_gl.h"
 #include "opengl/fence_gl.h"
+#include "opengl/priv_gl.h"
 #include "utils/memory.h"
 
 static void fence_gl_release(void **sp)
@@ -49,8 +50,8 @@ struct ngpu_fence *ngpu_fence_gl_create(struct ngpu_ctx *ctx)
 
 int ngpu_fence_gl_reset(struct ngpu_fence *s)
 {
-    struct ngpu_fence_gl *s_priv = (struct ngpu_fence_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_fence_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     if (s_priv->fence) {
@@ -63,8 +64,8 @@ int ngpu_fence_gl_reset(struct ngpu_fence *s)
 
 int ngpu_fence_gl_insert(struct ngpu_fence *s)
 {
-    struct ngpu_fence_gl *s_priv = (struct ngpu_fence_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_fence_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     ngpu_assert(s_priv->fence == 0);
@@ -75,8 +76,8 @@ int ngpu_fence_gl_insert(struct ngpu_fence *s)
 
 int ngpu_fence_gl_wait_gpu(struct ngpu_fence *s)
 {
-    struct ngpu_fence_gl *s_priv = (struct ngpu_fence_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_fence_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     if (s_priv->fence == 0)
@@ -89,9 +90,9 @@ int ngpu_fence_gl_wait_gpu(struct ngpu_fence *s)
 
 int ngpu_fence_gl_wait(struct ngpu_fence *s)
 {
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    struct ngpu_fence_gl *s_priv = (struct ngpu_fence_gl *)s;
+    struct ngpu_fence_gl *s_priv = NGPU_PRIV_GL(s);
 
     if (s_priv->fence == 0)
         return 0;
@@ -110,12 +111,12 @@ int ngpu_fence_gl_wait(struct ngpu_fence *s)
 
 int ngpu_fence_gl_is_signaled(struct ngpu_fence *s)
 {
-    struct ngpu_fence_gl *s_priv = (struct ngpu_fence_gl *)s;
+    struct ngpu_fence_gl *s_priv = NGPU_PRIV_GL(s);
 
     if (s_priv->fence == 0)
         return 0;
 
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     GLenum ret = gl->funcs.ClientWaitSync(s_priv->fence, 0, 0);

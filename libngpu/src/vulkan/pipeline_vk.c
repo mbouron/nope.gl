@@ -30,6 +30,7 @@
 #include "vulkan/ctx_vk.h"
 #include "vulkan/format_vk.h"
 #include "vulkan/pipeline_vk.h"
+#include "vulkan/priv_vk.h"
 #include "vulkan/program_vk.h"
 #include "vulkan/rendertarget_vk.h"
 #include "vulkan/vkcontext.h"
@@ -150,7 +151,7 @@ static VkColorComponentFlags get_vk_color_write_mask(uint32_t color_write_mask)
 
 static VkResult create_attribute_descs(struct ngpu_pipeline *s)
 {
-    struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
+    struct ngpu_pipeline_vk *s_priv = NGPU_PRIV_VK(s);
 
     const struct ngpu_pipeline_graphics *graphics = &s->graphics;
     const struct ngpu_vertex_state *state = &graphics->vertex_state;
@@ -183,11 +184,11 @@ static VkResult create_attribute_descs(struct ngpu_pipeline *s)
 
 static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
 {
-    const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     const struct ngpu_pipeline_graphics *graphics = &s->graphics;
     const struct ngpu_graphics_state *state = &graphics->state;
-    struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
+    struct ngpu_pipeline_vk *s_priv = NGPU_PRIV_VK(s);
 
     s_priv->pipeline_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
@@ -294,7 +295,7 @@ static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
         .pDynamicStates    = dynamic_states,
     };
 
-    const struct ngpu_program_vk *program_vk = (struct ngpu_program_vk *)s->program;
+    const struct ngpu_program_vk *program_vk = NGPU_PRIV_VK(s->program);
     const VkPipelineShaderStageCreateInfo shader_stage_create_info[2] = {
         {
             .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -339,13 +340,13 @@ static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
 
 static VkResult pipeline_compute_init(struct ngpu_pipeline *s)
 {
-    const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
+    struct ngpu_pipeline_vk *s_priv = NGPU_PRIV_VK(s);
 
     s_priv->pipeline_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
 
-    const struct ngpu_program_vk *program_vk = (struct ngpu_program_vk *)s->program;
+    const struct ngpu_program_vk *program_vk = NGPU_PRIV_VK(s->program);
     const VkPipelineShaderStageCreateInfo shader_stage_create_info = {
         .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage  = VK_SHADER_STAGE_COMPUTE_BIT,
@@ -364,11 +365,11 @@ static VkResult pipeline_compute_init(struct ngpu_pipeline *s)
 
 static VkResult create_pipeline_layout(struct ngpu_pipeline *s)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
+    struct ngpu_pipeline_vk *s_priv = NGPU_PRIV_VK(s);
 
-    struct ngpu_bindgroup_layout_vk *layout = (struct ngpu_bindgroup_layout_vk *)s->layout.bindgroup_layout;
+    const struct ngpu_bindgroup_layout_vk *layout = NGPU_PRIV_VK(s->layout.bindgroup_layout);
 
     const VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
         .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -426,9 +427,9 @@ int ngpu_pipeline_vk_init(struct ngpu_pipeline *s)
 static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuffer cmd_buf)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
-    struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
+    struct ngpu_pipeline_vk *s_priv = NGPU_PRIV_VK(s);
 
     if (!gpu_ctx->bindgroup)
         return 0;
@@ -436,7 +437,7 @@ static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuf
     ngpu_bindgroup_vk_update_descriptor_set(gpu_ctx->bindgroup);
 
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, gpu_ctx->bindgroup);
-    struct ngpu_bindgroup_vk *bindgroup_vk = (struct ngpu_bindgroup_vk *)gpu_ctx->bindgroup;
+    struct ngpu_bindgroup_vk *bindgroup_vk = NGPU_PRIV_VK(gpu_ctx->bindgroup);
     if (bindgroup_vk->desc_set) {
         ngpu_darray_foreach(binding, &bindgroup_vk->buffer_bindings)
             ngpu_cmd_buffer_vk_ref_buffer(cmd_buffer_vk, (struct ngpu_buffer *)binding->buffer);
@@ -451,9 +452,9 @@ static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuf
 
 static int prepare_and_bind_graphics_pipeline(struct ngpu_pipeline *s, VkCommandBuffer cmd_buf)
 {
-    struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
+    struct ngpu_pipeline_vk *s_priv = NGPU_PRIV_VK(s);
 
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     vk->funcs.CmdBindPipeline(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline);
 
@@ -462,7 +463,7 @@ static int prepare_and_bind_graphics_pipeline(struct ngpu_pipeline *s, VkCommand
 
 void ngpu_pipeline_vk_draw(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
     VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
 
@@ -482,7 +483,7 @@ void ngpu_pipeline_vk_draw(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32
 
 void ngpu_pipeline_vk_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_index)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
     VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
@@ -501,8 +502,8 @@ void ngpu_pipeline_vk_draw_indexed(struct ngpu_pipeline *s, uint32_t nb_vertices
 
 void ngpu_pipeline_vk_dispatch(struct ngpu_pipeline *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
 {
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
-    struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    struct ngpu_pipeline_vk *s_priv = NGPU_PRIV_VK(s);
 
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
     const int cmd_is_transient = cmd_buffer_vk ? 0 : 1;
@@ -551,12 +552,12 @@ void ngpu_pipeline_vk_freep(struct ngpu_pipeline **sp)
         return;
 
     struct ngpu_pipeline *s = *sp;
-    struct ngpu_pipeline_vk *s_priv = (struct ngpu_pipeline_vk *)s;
+    struct ngpu_pipeline_vk *s_priv = NGPU_PRIV_VK(s);
 
     ngpu_darray_reset(&s_priv->vertex_attribute_descs);
     ngpu_darray_reset(&s_priv->vertex_binding_descs);
 
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     vk->funcs.DestroyPipeline(vk->device, s_priv->pipeline, NULL);
     vk->funcs.DestroyPipelineLayout(vk->device, s_priv->pipeline_layout, NULL);

@@ -39,6 +39,7 @@
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "opengl/ctx_gl.h"
+#include "opengl/priv_gl.h"
 #include "opengl/program_gl_utils.h"
 #endif
 
@@ -1241,7 +1242,7 @@ static void setup_glsl_info_gl(struct ngpu_pgcraft *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
-    const struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
+    const struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
     const struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     s->sym_vertex_index   = "gl_VertexID";

@@ -23,6 +23,7 @@
 #include "vulkan/bindgroup_vk.h"
 #include "vulkan/buffer_vk.h"
 #include "vulkan/ctx_vk.h"
+#include "vulkan/priv_vk.h"
 #include "vulkan/texture_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
@@ -84,7 +85,7 @@ static void unref_immutable_sampler(void *user_arg, void *data)
 static void destroy_desc_pool(void *user_data, void *data)
 {
     const struct ngpu_ctx *gpu_ctx = user_data;
-    const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     VkDescriptorPool *desc_pool = data;
@@ -98,9 +99,9 @@ static void destroy_desc_pool(void *user_data, void *data)
 static VkResult allocate_desc_pool(struct ngpu_bindgroup_layout *s, uint32_t factor)
 {
     const struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_bindgroup_layout_vk *s_priv = (struct ngpu_bindgroup_layout_vk *)s;
+    struct ngpu_bindgroup_layout_vk *s_priv = NGPU_PRIV_VK(s);
 
     if (NGPU_CHK_MUL(&s_priv->max_desc_sets, s_priv->max_desc_sets, factor))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -136,9 +137,9 @@ static VkResult allocate_desc_pool(struct ngpu_bindgroup_layout *s, uint32_t fac
 static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
 {
     const struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_bindgroup_layout_vk *s_priv = (struct ngpu_bindgroup_layout_vk *)s;
+    struct ngpu_bindgroup_layout_vk *s_priv = NGPU_PRIV_VK(s);
 
     ngpu_darray_set_free_func(&s_priv->immutable_samplers, unref_immutable_sampler, NULL);
 
@@ -232,9 +233,9 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
 static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layout *s, VkDescriptorSet *desc_set)
 {
     const struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_bindgroup_layout_vk *s_priv = (struct ngpu_bindgroup_layout_vk *)s;
+    struct ngpu_bindgroup_layout_vk *s_priv = NGPU_PRIV_VK(s);
 
     *desc_set = VK_NULL_HANDLE;
 
@@ -293,8 +294,8 @@ void ngpu_bindgroup_layout_vk_freep(struct ngpu_bindgroup_layout **sp)
         return;
 
     struct ngpu_bindgroup_layout *s = *sp;
-    struct ngpu_bindgroup_layout_vk *s_priv = (struct ngpu_bindgroup_layout_vk *)s;
-    const struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_bindgroup_layout_vk *s_priv = NGPU_PRIV_VK(s);
+    const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     ngpu_darray_reset(&s_priv->desc_set_layout_bindings);
@@ -329,7 +330,7 @@ static void unref_buffer_binding(void *user_arg, void *data)
 
 int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params)
 {
-    struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
+    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
 
     if (params->resources.nb_buffers > 0)
         ngpu_assert(params->resources.nb_buffers == params->layout->nb_buffers);
@@ -379,8 +380,8 @@ int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup
 
 int ngpu_bindgroup_vk_update_texture(struct ngpu_bindgroup *s, uint32_t index, const struct ngpu_texture_binding *binding)
 {
-    struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
 
     struct texture_binding_vk *binding_vk = &s_priv->texture_bindings.data[index];
 
@@ -398,7 +399,7 @@ int ngpu_bindgroup_vk_update_texture(struct ngpu_bindgroup *s, uint32_t index, c
 
 int ngpu_bindgroup_vk_update_buffer(struct ngpu_bindgroup *s, uint32_t index, const struct ngpu_buffer_binding *binding)
 {
-    struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
+    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
 
     struct buffer_binding_vk *binding_vk = &s_priv->buffer_bindings.data[index];
 
@@ -418,13 +419,13 @@ int ngpu_bindgroup_vk_update_buffer(struct ngpu_bindgroup *s, uint32_t index, co
 
 int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
 {
-    struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     ngpu_darray_foreach(binding, &s_priv->texture_bindings) {
         if (binding->update_desc) {
-            const struct ngpu_texture_vk *texture_vk = (struct ngpu_texture_vk *)binding->texture;
+            const struct ngpu_texture_vk *texture_vk = NGPU_PRIV_VK(binding->texture);
             const VkDescriptorImageInfo image_info = {
                 .imageLayout = texture_vk->default_image_layout,
                 .imageView   = texture_vk->image_view,
@@ -449,7 +450,7 @@ int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
         if (binding->update_desc) {
             ngpu_assert(binding->buffer);
             const struct ngpu_bindgroup_layout_entry *desc = &binding->layout_entry;
-            const struct ngpu_buffer_vk *buffer_vk = (struct ngpu_buffer_vk *)(binding->buffer);
+            const struct ngpu_buffer_vk *buffer_vk = NGPU_PRIV_VK(binding->buffer);
             const VkDescriptorBufferInfo descriptor_buffer_info = {
                 .buffer = buffer_vk->buffer,
                 .offset = binding->offset,
@@ -480,7 +481,7 @@ void ngpu_bindgroup_vk_freep(struct ngpu_bindgroup **sp)
         return;
 
     struct ngpu_bindgroup *s = *sp;
-    struct ngpu_bindgroup_vk *s_priv = (struct ngpu_bindgroup_vk *)s;
+    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
 
     NGPU_RC_UNREFP(&s->layout);
     ngpu_darray_reset(&s_priv->texture_bindings);

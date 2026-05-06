@@ -26,6 +26,7 @@
 #include "utils/log.h"
 #include "vulkan/ctx_vk.h"
 #include "vulkan/glslang_utils.h"
+#include "vulkan/priv_vk.h"
 #include "vulkan/program_vk.h"
 #include "vulkan/vkutils.h"
 #include "utils/memory.h"
@@ -48,9 +49,9 @@ struct ngpu_program *ngpu_program_vk_create(struct ngpu_ctx *gpu_ctx)
 int ngpu_program_vk_init(struct ngpu_program *s, const struct ngpu_program_params *params)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)gpu_ctx;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    struct ngpu_program_vk *s_priv = (struct ngpu_program_vk *)s;
+    struct ngpu_program_vk *s_priv = NGPU_PRIV_VK(s);
 
     const int emit_nonsemantic_info = ngpu_vkcontext_has_extension(vk, VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME, 1) &&
                                       ngpu_vkcontext_has_extension(vk, VK_KHR_SHADER_RELAXED_EXTENDED_INSTRUCTION_EXTENSION_NAME, 1);
@@ -108,8 +109,8 @@ void ngpu_program_vk_freep(struct ngpu_program **sp)
     if (!s)
         return;
 
-    struct ngpu_program_vk *s_priv = (struct ngpu_program_vk *)s;
-    struct ngpu_ctx_vk *gpu_ctx_vk = (struct ngpu_ctx_vk *)s->gpu_ctx;
+    struct ngpu_program_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(s_priv->shaders); i++)

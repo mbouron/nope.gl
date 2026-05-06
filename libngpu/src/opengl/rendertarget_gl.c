@@ -28,6 +28,7 @@
 #include "opengl/ctx_gl.h"
 #include "opengl/glcontext.h"
 #include "opengl/glincludes.h"
+#include "opengl/priv_gl.h"
 #include "opengl/rendertarget_gl.h"
 #include "opengl/texture_gl.h"
 #include "utils/memory.h"
@@ -55,7 +56,7 @@ static GLenum get_gl_attachment_index(GLenum format)
 
 static void resolve_no_draw_buffers(struct ngpu_rendertarget *s)
 {
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     const GLint w = (GLint)s->width, h = (GLint)s->height;
@@ -65,8 +66,8 @@ static void resolve_no_draw_buffers(struct ngpu_rendertarget *s)
 
 static void resolve_draw_buffers(struct ngpu_rendertarget *s)
 {
-    struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct ngpu_rendertarget_params *params = &s->params;
 
@@ -91,7 +92,7 @@ static void resolve_draw_buffers(struct ngpu_rendertarget *s)
 static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
 {
     int ret = -1;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_limits *limits = &gl->limits;
     const struct ngpu_rendertarget_params *params = &s->params;
@@ -110,7 +111,7 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
         if (!texture)
             continue;
 
-        const struct ngpu_texture_gl *texture_gl = (const struct ngpu_texture_gl *)texture;
+        const struct ngpu_texture_gl *texture_gl = NGPU_PRIV_GL(texture);
         GLenum attachment_index = get_gl_attachment_index(texture_gl->format);
         ngpu_assert(attachment_index == GL_COLOR_ATTACHMENT0);
         ngpu_assert(nb_color_attachments < limits->max_color_attachments);
@@ -140,7 +141,7 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
     const struct ngpu_attachment *attachment = &params->depth_stencil;
     struct ngpu_texture *texture = resolve ? attachment->resolve_target : attachment->attachment;
     if (texture) {
-        const struct ngpu_texture_gl *texture_gl = (const struct ngpu_texture_gl *)texture;
+        const struct ngpu_texture_gl *texture_gl = NGPU_PRIV_GL(texture);
         const GLenum attachment_index = get_gl_attachment_index(texture_gl->format);
         ngpu_assert(attachment_index != GL_COLOR_ATTACHMENT0);
 
@@ -183,8 +184,8 @@ static int require_resolve_fbo(struct ngpu_rendertarget *s)
 
 static void clear_buffers(struct ngpu_rendertarget *s)
 {
-    struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_rendertarget_params *params = &s->params;
 
@@ -209,8 +210,8 @@ static void invalidate_noop(struct ngpu_rendertarget *s)
 
 static void invalidate(struct ngpu_rendertarget *s)
 {
-    struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     gl->funcs.InvalidateFramebuffer(GL_FRAMEBUFFER, s_priv->nb_invalidate_attachments, s_priv->invalidate_attachments);
 }
@@ -226,9 +227,9 @@ struct ngpu_rendertarget *ngpu_rendertarget_gl_create(struct ngpu_ctx *gpu_ctx)
 
 int ngpu_rendertarget_gl_init(struct ngpu_rendertarget *s)
 {
-    struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
+    struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx *gpu_ctx = (struct ngpu_ctx *)s->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_limits *limits = &gl->limits;
 
@@ -287,7 +288,7 @@ int ngpu_rendertarget_gl_init(struct ngpu_rendertarget *s)
 
 done:;
     struct ngpu_rendertarget *rt = gpu_ctx->rendertarget;
-    struct ngpu_rendertarget_gl *rt_gl = (struct ngpu_rendertarget_gl *)rt;
+    struct ngpu_rendertarget_gl *rt_gl = NGPU_PRIV_GL(rt);
     const GLuint fbo = rt_gl ? rt_gl->fbo : ngpu_glcontext_get_default_framebuffer(gl);
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, fbo);
 
@@ -296,8 +297,8 @@ done:;
 
 void ngpu_rendertarget_gl_begin_pass(struct ngpu_rendertarget *s)
 {
-    const struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    const struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct ngpu_glstate *glstate = &gpu_ctx_gl->glstate;
 
@@ -357,9 +358,9 @@ void ngpu_rendertarget_gl_begin_pass(struct ngpu_rendertarget *s)
 
 void ngpu_rendertarget_gl_end_pass(struct ngpu_rendertarget *s)
 {
-    const struct ngpu_rendertarget_gl *s_priv = (const struct ngpu_rendertarget_gl *)s;
+    const struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct ngpu_glstate *glstate = &gpu_ctx_gl->glstate;
 
@@ -391,9 +392,9 @@ void ngpu_rendertarget_gl_freep(struct ngpu_rendertarget **sp)
         return;
 
     struct ngpu_rendertarget *s = *sp;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
-    struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
+    struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
 
     if (!s_priv->wrapped) {
         gl->funcs.DeleteFramebuffers(1, &s_priv->fbo);
@@ -405,8 +406,8 @@ void ngpu_rendertarget_gl_freep(struct ngpu_rendertarget **sp)
 
 int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_rendertarget_params *params, GLuint fbo)
 {
-    struct ngpu_rendertarget_gl *s_priv = (struct ngpu_rendertarget_gl *)s;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)s->gpu_ctx;
+    struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     ngpu_assert(params->nb_colors == 1);

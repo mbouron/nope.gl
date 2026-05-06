@@ -30,6 +30,7 @@
 #include "opengl/ctx_gl.h"
 #include "opengl/fence_gl.h"
 #include "opengl/pipeline_gl.h"
+#include "opengl/priv_gl.h"
 #include "opengl/rendertarget_gl.h"
 
 #include "utils/darray.h"
@@ -151,7 +152,7 @@ int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_
 int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = (struct ngpu_ctx_gl *)gpu_ctx;
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     if (wait_fence) {
