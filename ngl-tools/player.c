@@ -93,7 +93,7 @@ static int screenshot(struct player *p)
         fprintf(stderr, "Could not configure nope.gl for offscreen capture\n");
         goto end;
     }
-    ngl_draw(p->ngl, p->frame_time);
+    ngl_draw(p->ngl, p->frame_time, NULL);
 
     char filename[32];
     snprintf(filename, sizeof(filename), "ngl-%" PRId64 ".ppm", gettime());
@@ -572,7 +572,7 @@ void player_main_loop(struct player *p)
     while (run) {
         update_time(p, -1);
         update_pgbar(p);
-        ngl_draw(p->ngl, p->frame_time);
+        ngl_draw(p->ngl, p->frame_time, NULL);
         if (p->seeking) {
             reset_running_time(p);
             p->seeking = 0;

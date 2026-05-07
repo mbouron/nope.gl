@@ -208,6 +208,7 @@ static const struct {
     {"hud", JNI_TYPE_BOOL, OFFSET(hud)},
     {"hudScale", JNI_TYPE_INT, OFFSET(hud_scale)},
     {"debug", JNI_TYPE_BOOL, OFFSET(debug)},
+    {"sharedGpuCtx", JNI_TYPE_PTR, OFFSET(shared_gpu_ctx)},
 };
 
 static void config_init(struct ngl_config *config, JNIEnv *env, jobject config_)
@@ -348,7 +349,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeDraw(
     JNIEnv *env, jclass type, jlong native_ptr, jdouble time)
 {
     struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
-    return ngl_draw(ctx, time);
+    return ngl_draw(ctx, time, NULL);
 }
 
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeUpdate(
@@ -374,6 +375,13 @@ Java_org_nopeforge_nopegl_NGLContext_nativeSetCaptureBuffer(JNIEnv *env,
     return ngl_set_capture_buffer(ctx, capture_buffer);
 }
 
+JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeGetGpuCtx(
+    JNIEnv *env, jclass type, jlong native_ptr)
+{
+    struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
+    return (jlong)(uintptr_t)ngl_get_gpu_ctx(ctx);
+}
+
 JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeRelease(
     JNIEnv *env, jclass type, jlong native_ptr)
 {
@@ -389,7 +397,7 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeResetScene(
 
     ngl_set_scene(ctx, NULL);
     if (clear) {
-        ngl_draw(ctx, 0.0);
+        ngl_draw(ctx, 0.0, NULL);
     }
 
     return 0;

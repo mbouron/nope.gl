@@ -28,6 +28,7 @@
 
 #include "ctx.h"
 #include "ngpu/ngpu.h"
+#include "utils/pthread_compat.h"
 #include "vulkan/vkfunctions.h"
 
 struct vkcontext {
@@ -57,6 +58,13 @@ struct vkcontext {
     VkQueue present_queue;
     VkDevice device;
 
+    /*
+     * Serializes access to the shared graphic_queue / present_queue and to
+     * device-wide operations (vkDeviceWaitIdle).
+     */
+    pthread_mutex_t queue_lock;
+    bool queue_lock_initialized;
+
     enum ngpu_format preferred_depth_format;
     enum ngpu_format preferred_depth_stencil_format;
 
@@ -65,6 +73,9 @@ struct vkcontext {
     VkPhysicalDeviceVulkan12Features dev_features_vk12;
     VkPhysicalDeviceMemoryProperties phydev_mem_props;
     VkPhysicalDeviceLimits phydev_limits;
+
+    bool instance_initialized;
+    bool device_initialized;
 
     struct vk_functions funcs;
 #if !NGPU_VULKAN_STATIC

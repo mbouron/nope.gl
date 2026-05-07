@@ -27,6 +27,7 @@
 #include "rendertarget.h"
 #include "utils/memory.h"
 #include "utils/log.h"
+#include "utils/refcount.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "opengl/ctx_gl.h"
@@ -106,6 +107,17 @@ static const struct ngpu_ctx_class *get_ctx_class(enum ngpu_backend_type backend
     return NULL;
 }
 
+void ngpu_ctx_params_init_from_shared_ctx(struct ngpu_ctx_params *params, struct ngpu_ctx *shared_ctx)
+{
+    memset(params, 0, sizeof(*params));
+    if (shared_ctx) {
+        params->shared_ctx = shared_ctx;
+        params->backend    = shared_ctx->params.backend;
+        params->platform   = shared_ctx->params.platform;
+        params->display    = shared_ctx->params.display;
+    }
+}
+
 int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_params *src)
 {
     struct ngpu_ctx_params tmp = *src;
@@ -150,12 +162,36 @@ static void ctx_freep(void **sp)
     ngpu_pgcache_freep(&s->program_cache);
     s->cls->destroy(s);
 
+    /*
+     * Drop our ref on shared_ctx (if any) after cls->destroy so the backend
+     * can safely access shared resources during teardown.
+     */
+    struct ngpu_ctx *shared_ctx = s->params.shared_ctx;
+
     ngpu_ctx_params_reset(&s->params);
     ngpu_freep(ctxp);
+
+    if (shared_ctx)
+        NGPU_RC_UNREFP(&shared_ctx);
 }
 
 struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params)
 {
+    if (params->shared_ctx) {
+        const struct ngpu_ctx *shared_ctx = params->shared_ctx;
+        if (params->backend != shared_ctx->params.backend) {
+            LOG(ERROR, "shared_ctx backend mismatch (%s vs %s)",
+                ngpu_backend_get_string_id(params->backend),
+                ngpu_backend_get_string_id(shared_ctx->params.backend));
+            return NULL;
+        }
+        if (params->platform != shared_ctx->params.platform) {
+            LOG(ERROR, "shared_ctx platform mismatch (%u vs %u)",
+                params->platform, shared_ctx->params.platform);
+            return NULL;
+        }
+    }
+
     const struct ngpu_ctx_class *cls = get_ctx_class(params->backend);
     if (!cls) {
         LOG(ERROR, "backend \"%s\" (%x) not available with this build",
@@ -177,6 +213,9 @@ struct ngpu_ctx *ngpu_ctx_create(const struct ngpu_ctx_params *params)
     s->rc = NGPU_RC_CREATE(ctx_freep);
     s->params = ctx_params;
     s->cls = cls;
+
+    if (s->params.shared_ctx)
+        NGPU_RC_REF(s->params.shared_ctx);
 
     return s;
 }

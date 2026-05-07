@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
             if (s.debug_timings)
                 printf("draw @ t=%f [range %zu/%zu: %g-%g @ %dHz]\n",
                        t, i + 1, s.nb_ranges, t0, t1, r->freq);
-            ret = ngl_draw(ctx, t);
+            ret = ngl_draw(ctx, t, NULL);
             if (ret < 0) {
                 fprintf(stderr, "Unable to draw @ t=%g\n", t);
                 goto end;

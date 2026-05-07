@@ -971,8 +971,11 @@ struct ngpu_ctx_params {
     int timer_queries; /* Enable graphics context timer queries */
 
     ngpu_log_callback_type log_callback;
+
+    struct ngpu_ctx *shared_ctx; /* Optional shared context */
 };
 
+NGPU_API void ngpu_ctx_params_init_from_shared_ctx(struct ngpu_ctx_params *params, struct ngpu_ctx *parent);
 NGPU_API int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_params *src);
 NGPU_API void ngpu_ctx_params_reset(struct ngpu_ctx_params *params);
 

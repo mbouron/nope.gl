@@ -382,14 +382,16 @@ end:
 static VkResult create_x11_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
 #if defined(TARGET_LINUX)
-    s->x11_display = (Display *)params->display;
     if (!s->x11_display) {
-        s->x11_display = XOpenDisplay(NULL);
+        s->x11_display = (Display *)params->display;
         if (!s->x11_display) {
-            LOG(ERROR, "could not open X11 display");
-            return VK_ERROR_UNKNOWN;
+            s->x11_display = XOpenDisplay(NULL);
+            if (!s->x11_display) {
+                LOG(ERROR, "could not open X11 display");
+                return VK_ERROR_UNKNOWN;
+            }
+            s->own_x11_display = 1;
         }
-        s->own_x11_display = 1;
     }
 
     const VkXlibSurfaceCreateInfoKHR surface_create_info = {
@@ -496,7 +498,7 @@ static VkResult create_wayland_surface(struct vkcontext *s, const struct ngpu_ct
 #endif
 }
 
-static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
+static VkResult init_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
     *surfacep = VK_NULL_HANDLE;
 
@@ -1042,8 +1044,11 @@ struct vkcontext *ngpu_vkcontext_create(void)
     return s;
 }
 
-VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
+static VkResult init_instance(struct vkcontext *s, const struct ngpu_ctx_params *params)
 {
+    if (s->instance_initialized)
+        return VK_SUCCESS;
+
     VkResult res = load_libvulkan(s);
     if (res != VK_SUCCESS)
         return res;
@@ -1059,17 +1064,43 @@ VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *
         LOG(ERROR, "failed to create instance: %s", ngpu_vk_res2str(res));
         return res;
     }
-    res = create_window_surface(s, params, surfacep);
-    if (res != VK_SUCCESS) {
-        LOG(ERROR, "failed to create window surface: %s", ngpu_vk_res2str(res));
-        return res;
-    }
 
     res = enumerate_physical_devices(s, params);
     if (res != VK_SUCCESS)
         return res;
 
-    res = select_physical_device(s, *surfacep);
+    s->instance_initialized = true;
+    return VK_SUCCESS;
+}
+
+static VkResult init_device(struct vkcontext *s, VkSurfaceKHR surface)
+{
+    if (s->device_initialized) {
+        /*
+         * If the device was first created without a surface (no present queue
+         * selected), upgrade by checking that the graphics queue supports
+         * presentation for the new surface and pinning it as the present
+         * queue. Otherwise verify the new surface is presentable from the
+         * queue family chosen on first init.
+         */
+        if (surface) {
+            uint32_t qfamily = s->present_queue_index != UINT32_MAX ?
+                s->present_queue_index : s->graphics_queue_index;
+            VkBool32 support = VK_FALSE;
+            s->funcs.GetPhysicalDeviceSurfaceSupportKHR(s->phy_device, qfamily, surface, &support);
+            if (!support) {
+                LOG(ERROR, "surface not presentable from queue family %u selected at device init time", qfamily);
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
+            if (s->present_queue_index == UINT32_MAX) {
+                s->present_queue_index = qfamily;
+                s->funcs.GetDeviceQueue(s->device, s->present_queue_index, 0, &s->present_queue);
+            }
+        }
+        return VK_SUCCESS;
+    }
+
+    VkResult res = select_physical_device(s, surface);
     if (res != VK_SUCCESS)
         return res;
 
@@ -1088,6 +1119,37 @@ VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *
     res = select_preferred_formats(s);
     if (res != VK_SUCCESS)
         return res;
+
+    if (pthread_mutex_init(&s->queue_lock, NULL) != 0)
+        return VK_ERROR_INITIALIZATION_FAILED;
+    s->queue_lock_initialized = true;
+
+    s->device_initialized = true;
+    return VK_SUCCESS;
+}
+
+VkResult ngpu_vkcontext_init(struct vkcontext *s,
+                             const struct ngpu_ctx_params *params,
+                             VkSurfaceKHR *surfacep)
+{
+    *surfacep = VK_NULL_HANDLE;
+
+    VkResult res = init_instance(s, params);
+    if (res != VK_SUCCESS)
+        return res;
+
+    res = init_surface(s, params, surfacep);
+    if (res != VK_SUCCESS)
+        return res;
+
+    res = init_device(s, *surfacep);
+    if (res != VK_SUCCESS) {
+        if (*surfacep != VK_NULL_HANDLE) {
+            s->funcs.DestroySurfaceKHR(s->instance, *surfacep, NULL);
+            *surfacep = VK_NULL_HANDLE;
+        }
+        return res;
+    }
 
     return VK_SUCCESS;
 }
@@ -1124,9 +1186,16 @@ void ngpu_vkcontext_freep(struct vkcontext **sp)
         return;
 
     if (s->device) {
+        /*
+         * Last unref: nothing else can be using this vkcontext concurrently,
+         * so we can wait-idle without holding queue_lock.
+         */
         s->funcs.DeviceWaitIdle(s->device);
         s->funcs.DestroyDevice(s->device, NULL);
     }
+
+    if (s->queue_lock_initialized)
+        pthread_mutex_destroy(&s->queue_lock);
 
     if (s->debug_callback && s->funcs.DestroyDebugUtilsMessengerEXT)
         s->funcs.DestroyDebugUtilsMessengerEXT(s->instance, s->debug_callback, NULL);

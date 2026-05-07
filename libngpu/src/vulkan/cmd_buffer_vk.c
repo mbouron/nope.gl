@@ -203,11 +203,18 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
         return res;
 
     if (wait_fence) {
+        const VkSemaphore timeline_sem = NGPU_PRIV_VK(wait_fence->gpu_ctx)->timeline_sem;
         const uint64_t wait_value = NGPU_PRIV_VK(wait_fence)->value;
         const VkPipelineStageFlags stage_flags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        res = ngpu_cmd_buffer_vk_add_wait_timeline(s, gpu_ctx_vk->timeline_sem, stage_flags, wait_value);
+        res = ngpu_cmd_buffer_vk_add_wait_timeline(s, timeline_sem, stage_flags, wait_value);
         if (res != VK_SUCCESS)
             return res;
+
+        if (wait_fence->gpu_ctx != s->gpu_ctx) {
+            res = NGPU_CMD_BUFFER_VK_REF(s, wait_fence->gpu_ctx);
+            if (res != VK_SUCCESS)
+                return res;
+        }
     }
 
     if (signal_fence) {
@@ -242,7 +249,9 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
         .pSignalSemaphores    = s->signal_sems.data,
     };
 
+    pthread_mutex_lock(&vk->queue_lock);
     res = vk->funcs.QueueSubmit(vk->graphic_queue, 1, &submit_info, VK_NULL_HANDLE);
+    pthread_mutex_unlock(&vk->queue_lock);
     if (res != VK_SUCCESS)
         return res;
 

@@ -152,6 +152,7 @@ class Config(_ngl.Config):
         hud_export_filename: Optional[str] = None,
         hud_scale: int = 0,
         debug: bool = False,
+        shared_gpu_ctx: int = 0,
     ):
         self.capture_buffer = capture_buffer
         super().__init__(
@@ -175,6 +176,7 @@ class Config(_ngl.Config):
             hud_export_filename,
             hud_scale,
             debug,
+            shared_gpu_ctx,
         )
 
 
