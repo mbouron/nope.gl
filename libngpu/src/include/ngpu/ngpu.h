@@ -722,6 +722,7 @@ NGPU_API void ngpu_rendertarget_freep(struct ngpu_rendertarget **sp);
 NGPU_API const struct ngpu_rendertarget_layout *ngpu_rendertarget_get_layout(const struct ngpu_rendertarget *s);
 NGPU_API uint32_t ngpu_rendertarget_get_width(const struct ngpu_rendertarget *s);
 NGPU_API uint32_t ngpu_rendertarget_get_height(const struct ngpu_rendertarget *s);
+NGPU_API struct ngpu_texture *ngpu_rendertarget_get_color_texture(const struct ngpu_rendertarget *s, size_t index);
 
 /*
  * Program

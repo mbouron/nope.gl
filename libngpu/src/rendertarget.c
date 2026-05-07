@@ -122,3 +122,11 @@ uint32_t ngpu_rendertarget_get_height(const struct ngpu_rendertarget *s)
 {
     return s->height;
 }
+
+struct ngpu_texture *ngpu_rendertarget_get_color_texture(const struct ngpu_rendertarget *s, size_t index)
+{
+    if (index >= s->params.nb_colors)
+        return NULL;
+    const struct ngpu_attachment *color = &s->params.colors[index];
+    return color->resolve_target ? color->resolve_target : color->attachment;
+}
