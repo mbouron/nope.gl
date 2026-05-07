@@ -379,7 +379,7 @@ end:
     return res;
 }
 
-static VkResult create_x11_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+static VkResult create_x11_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
 #if defined(TARGET_LINUX)
     s->x11_display = (Display *)params->display;
@@ -404,13 +404,13 @@ static VkResult create_x11_surface(struct vkcontext *s, const struct ngpu_ctx_pa
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 
-    return CreateXlibSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
+    return CreateXlibSurfaceKHR(s->instance, &surface_create_info, NULL, surfacep);
 #else
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
 }
 
-static VkResult create_android_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+static VkResult create_android_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
 #if defined(TARGET_ANDROID)
     const VkAndroidSurfaceCreateInfoKHR surface_create_info = {
@@ -424,13 +424,13 @@ static VkResult create_android_surface(struct vkcontext *s, const struct ngpu_ct
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 
-    return CreateAndroidSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
+    return CreateAndroidSurfaceKHR(s->instance, &surface_create_info, NULL, surfacep);
 #else
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
 }
 
-static VkResult create_metal_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+static VkResult create_metal_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
 #if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
     const void *view = (const void *)params->window;
@@ -449,13 +449,13 @@ static VkResult create_metal_surface(struct vkcontext *s, const struct ngpu_ctx_
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 
-    return CreateMetalSurfaceEXT(s->instance, &surface_create_info, NULL, &s->surface);
+    return CreateMetalSurfaceEXT(s->instance, &surface_create_info, NULL, surfacep);
 #else
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
 }
 
-static VkResult create_win32_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+static VkResult create_win32_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
 #if defined(TARGET_WINDOWS)
     const VkWin32SurfaceCreateInfoKHR surface_create_info = {
@@ -469,13 +469,13 @@ static VkResult create_win32_surface(struct vkcontext *s, const struct ngpu_ctx_
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 
-    return CreateWin32SurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
+    return CreateWin32SurfaceKHR(s->instance, &surface_create_info, NULL, surfacep);
 #else
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
 }
 
-static VkResult create_wayland_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+static VkResult create_wayland_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
 #if defined(HAVE_WAYLAND)
     const VkWaylandSurfaceCreateInfoKHR surface_create_info = {
@@ -490,14 +490,16 @@ static VkResult create_wayland_surface(struct vkcontext *s, const struct ngpu_ct
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 
-    return CreateWaylandSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
+    return CreateWaylandSurfaceKHR(s->instance, &surface_create_info, NULL, surfacep);
 #else
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
 }
 
-static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
+    *surfacep = VK_NULL_HANDLE;
+
     if (params->offscreen)
         return VK_SUCCESS;
 
@@ -506,15 +508,15 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
 
     const enum ngpu_platform_type platform = params->platform;
     if (platform == NGPU_PLATFORM_XLIB) {
-        return create_x11_surface(s, params);
+        return create_x11_surface(s, params, surfacep);
     } else if (platform == NGPU_PLATFORM_ANDROID) {
-        return create_android_surface(s, params);
+        return create_android_surface(s, params, surfacep);
     } else if (platform == NGPU_PLATFORM_MACOS || platform == NGPU_PLATFORM_IOS) {
-        return create_metal_surface(s, params);
+        return create_metal_surface(s, params, surfacep);
     } else if (platform == NGPU_PLATFORM_WINDOWS) {
-        return create_win32_surface(s, params);
+        return create_win32_surface(s, params, surfacep);
     } else if (platform == NGPU_PLATFORM_WAYLAND) {
-        return create_wayland_surface(s, params);
+        return create_wayland_surface(s, params, surfacep);
     } else {
         ngpu_assert(0);
     }
@@ -562,7 +564,7 @@ static void get_memory_property_flags_str(struct bstr *bstr, VkMemoryPropertyFla
     }
 }
 
-static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ctx_params *ctx_params)
+static VkResult select_physical_device(struct vkcontext *s, VkSurfaceKHR surface)
 {
     static const struct {
         const char *name;
@@ -634,13 +636,13 @@ static VkResult select_physical_device(struct vkcontext *s, const struct ngpu_ct
             const VkQueueFlags flags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
             if (NGPU_HAS_ALL_FLAGS(props.queueFlags, flags))
                 queue_family_graphics_id = j;
-            if (s->surface) {
+            if (surface) {
                 VkBool32 support;
-                s->funcs.GetPhysicalDeviceSurfaceSupportKHR(phy_device, j, s->surface, &support);
+                s->funcs.GetPhysicalDeviceSurfaceSupportKHR(phy_device, j, surface, &support);
                 if (support)
                     queue_family_present_id = j;
             }
-            found_queues = queue_family_graphics_id != UINT32_MAX && (!s->surface || queue_family_present_id != UINT32_MAX);
+            found_queues = queue_family_graphics_id != UINT32_MAX && (!surface || queue_family_present_id != UINT32_MAX);
             if (found_queues)
                 break;
         }
@@ -863,42 +865,47 @@ uint32_t ngpu_vkcontext_find_memory_type(struct vkcontext *s, uint32_t type, VkM
     return UINT32_MAX;
 }
 
-static VkResult query_swapchain_support(struct vkcontext *s)
+VkResult ngpu_vkcontext_query_swapchain_support(struct vkcontext *s,
+                                                VkSurfaceKHR surface,
+                                                VkSurfaceCapabilitiesKHR *surface_caps,
+                                                VkSurfaceFormatKHR **surface_formats,
+                                                uint32_t *nb_surface_formats,
+                                                VkPresentModeKHR **present_modes,
+                                                uint32_t *nb_present_modes)
 {
-    if (!s->surface)
+    *surface_formats = NULL;
+    *nb_surface_formats = 0;
+    *present_modes = NULL;
+    *nb_present_modes = 0;
+
+    if (!surface)
         return VK_SUCCESS;
 
-    s->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(s->phy_device, s->surface, &s->surface_caps);
+    s->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(s->phy_device, surface, surface_caps);
 
-    s->funcs.GetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, s->surface, &s->nb_surface_formats, NULL);
-    if (!s->nb_surface_formats)
+    s->funcs.GetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, surface, nb_surface_formats, NULL);
+    if (!*nb_surface_formats)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
-    s->surface_formats = ngpu_calloc(s->nb_surface_formats, sizeof(*s->surface_formats));
-    if (!s->surface_formats)
+    *surface_formats = ngpu_calloc(*nb_surface_formats, sizeof(**surface_formats));
+    if (!*surface_formats)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
-    s->funcs.GetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, s->surface, &s->nb_surface_formats, s->surface_formats);
+    s->funcs.GetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, surface, nb_surface_formats, *surface_formats);
 
-    s->funcs.GetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, s->surface, &s->nb_present_modes, NULL);
-    if (!s->nb_present_modes)
+    s->funcs.GetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, surface, nb_present_modes, NULL);
+    if (!*nb_present_modes) {
+        ngpu_freep(surface_formats);
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
 
-    s->present_modes = ngpu_calloc(s->nb_present_modes, sizeof(*s->present_modes));
-    if (!s->present_modes)
+    *present_modes = ngpu_calloc(*nb_present_modes, sizeof(**present_modes));
+    if (!*present_modes) {
+        ngpu_freep(surface_formats);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
-    s->funcs.GetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, s->surface, &s->nb_present_modes, s->present_modes);
+    }
+    s->funcs.GetPhysicalDeviceSurfacePresentModesKHR(s->phy_device, surface, nb_present_modes, *present_modes);
 
     return VK_SUCCESS;
-}
-
-VkBool32 ngpu_vkcontext_support_present_mode(const struct vkcontext *s, VkPresentModeKHR mode)
-{
-    for (uint32_t i = 0; i < s->nb_present_modes; i++) {
-        if (s->present_modes[i] == mode) {
-            return VK_TRUE;
-        }
-    }
-    return VK_FALSE;
 }
 
 static enum ngpu_format ngpu_format_from_vk_format(VkFormat format)
@@ -1035,7 +1042,7 @@ struct vkcontext *ngpu_vkcontext_create(void)
     return s;
 }
 
-VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params)
+VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep)
 {
     VkResult res = load_libvulkan(s);
     if (res != VK_SUCCESS)
@@ -1052,8 +1059,7 @@ VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *
         LOG(ERROR, "failed to create instance: %s", ngpu_vk_res2str(res));
         return res;
     }
-
-    res = create_window_surface(s, params);
+    res = create_window_surface(s, params, surfacep);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "failed to create window surface: %s", ngpu_vk_res2str(res));
         return res;
@@ -1063,7 +1069,7 @@ VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *
     if (res != VK_SUCCESS)
         return res;
 
-    res = select_physical_device(s, params);
+    res = select_physical_device(s, *surfacep);
     if (res != VK_SUCCESS)
         return res;
 
@@ -1076,10 +1082,6 @@ VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *
         return res;
 
     res = load_ext_functions(s);
-    if (res != VK_SUCCESS)
-        return res;
-
-    res = query_swapchain_support(s);
     if (res != VK_SUCCESS)
         return res;
 
@@ -1126,14 +1128,9 @@ void ngpu_vkcontext_freep(struct vkcontext **sp)
         s->funcs.DestroyDevice(s->device, NULL);
     }
 
-    if (s->surface && s->funcs.DestroySurfaceKHR)
-        s->funcs.DestroySurfaceKHR(s->instance, s->surface, NULL);
-
     if (s->debug_callback && s->funcs.DestroyDebugUtilsMessengerEXT)
         s->funcs.DestroyDebugUtilsMessengerEXT(s->instance, s->debug_callback, NULL);
 
-    ngpu_freep(&s->present_modes);
-    ngpu_freep(&s->surface_formats);
     ngpu_freep(&s->device_extensions);
     ngpu_freep(&s->phy_devices);
     ngpu_freep(&s->layers);

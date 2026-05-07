@@ -38,7 +38,6 @@ struct vkcontext {
     VkExtensionProperties *extensions;
     uint32_t nb_extensions;
     VkDebugUtilsMessengerEXT debug_callback;
-    VkSurfaceKHR surface;
 
     VkExtensionProperties *device_extensions;
     uint32_t nb_device_extensions;
@@ -67,12 +66,6 @@ struct vkcontext {
     VkPhysicalDeviceMemoryProperties phydev_mem_props;
     VkPhysicalDeviceLimits phydev_limits;
 
-    VkSurfaceCapabilitiesKHR surface_caps;
-    VkSurfaceFormatKHR *surface_formats;
-    uint32_t nb_surface_formats;
-    VkPresentModeKHR *present_modes;
-    uint32_t nb_present_modes;
-
     struct vk_functions funcs;
 #if !NGPU_VULKAN_STATIC
     void *libvulkan;
@@ -80,14 +73,18 @@ struct vkcontext {
 };
 
 struct vkcontext *ngpu_vkcontext_create(void);
-VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params);
+VkResult ngpu_vkcontext_init(struct vkcontext *s, const struct ngpu_ctx_params *params, VkSurfaceKHR *surfacep);
+
+VkResult ngpu_vkcontext_query_swapchain_support(struct vkcontext *s, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR *surface_caps,
+                                                VkSurfaceFormatKHR **surface_formats, uint32_t *nb_surface_formats,
+                                                VkPresentModeKHR **present_modes, uint32_t *nb_present_modes);
+
 void *ngpu_vkcontext_get_proc_addr(struct vkcontext *s, const char *name);
 int ngpu_vkcontext_has_extension(const struct vkcontext *s, const char *name, int device);
 int ngpu_vkcontext_has_extensions(const struct vkcontext *s, size_t extension_count, const char * const *extensions, int device);
 VkFormat ngpu_vkcontext_find_supported_format(struct vkcontext *s, const VkFormat *formats,
                                               VkImageTiling tiling, VkFormatFeatureFlags features);
 uint32_t ngpu_vkcontext_find_memory_type(struct vkcontext *s, uint32_t type, VkMemoryPropertyFlags props);
-VkBool32 ngpu_vkcontext_support_present_mode(const struct vkcontext *s, VkPresentModeKHR mode);
 void ngpu_vkcontext_freep(struct vkcontext **sp);
 
 #endif /* VKCONTEXT_H */

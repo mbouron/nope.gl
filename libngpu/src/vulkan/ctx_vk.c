@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Nope Forge
  * Copyright 2018-2022 GoPro Inc.
  *
@@ -440,17 +440,19 @@ static void destroy_swapchain_semaphores(struct ngpu_ctx *s)
     }
 }
 
-static VkResult select_swapchain_surface_format(const struct vkcontext *vk, VkSurfaceFormatKHR *format)
+static VkResult select_swapchain_surface_format(const VkSurfaceFormatKHR *surface_formats,
+                                                uint32_t nb_surface_formats,
+                                                VkSurfaceFormatKHR *format)
 {
     LOG(DEBUG, "available surface formats:");
-    for (uint32_t i = 0; i < vk->nb_surface_formats; i++) {
+    for (uint32_t i = 0; i < nb_surface_formats; i++) {
         LOG(DEBUG, "\tformat: %u, colorspace: %u",
-            vk->surface_formats[i].format,
-            vk->surface_formats[i].colorSpace);
+            surface_formats[i].format,
+            surface_formats[i].colorSpace);
     }
 
-    for (uint32_t i = 0; i < vk->nb_surface_formats; i++) {
-        switch (vk->surface_formats[i].format) {
+    for (uint32_t i = 0; i < nb_surface_formats; i++) {
+        switch (surface_formats[i].format) {
         case VK_FORMAT_UNDEFINED:
             *format = (VkSurfaceFormatKHR) {
                 .format     = VK_FORMAT_B8G8R8A8_UNORM,
@@ -459,8 +461,8 @@ static VkResult select_swapchain_surface_format(const struct vkcontext *vk, VkSu
             return VK_SUCCESS;
         case VK_FORMAT_R8G8B8A8_UNORM:
         case VK_FORMAT_B8G8R8A8_UNORM:
-            if (vk->surface_formats[i].colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR)
-                *format = vk->surface_formats[i];
+            if (surface_formats[i].colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR)
+                *format = surface_formats[i];
             return VK_SUCCESS;
         default:
             break;
@@ -482,11 +484,22 @@ static const char *get_vk_present_mode_str(VkPresentModeKHR mode)
     }
 }
 
-static VkPresentModeKHR select_swapchain_present_mode(struct vkcontext *vk, int swap_interval)
+static int present_mode_supported(const VkPresentModeKHR *modes, uint32_t nb_modes, VkPresentModeKHR mode)
+{
+    for (uint32_t i = 0; i < nb_modes; i++) {
+        if (modes[i] == mode)
+            return 1;
+    }
+    return 0;
+}
+
+static VkPresentModeKHR select_swapchain_present_mode(const VkPresentModeKHR *present_modes,
+                                                     uint32_t nb_present_modes,
+                                                     int swap_interval)
 {
     LOG(DEBUG, "available surface present modes:");
-    for (uint32_t i = 0; i < vk->nb_present_modes; i++) {
-        LOG(DEBUG, "\tmode: %s", get_vk_present_mode_str(vk->present_modes[i]));
+    for (uint32_t i = 0; i < nb_present_modes; i++) {
+        LOG(DEBUG, "\tmode: %s", get_vk_present_mode_str(present_modes[i]));
     }
 
     if (!swap_interval) {
@@ -495,21 +508,21 @@ static VkPresentModeKHR select_swapchain_present_mode(struct vkcontext *vk, int 
          * VK_PRESENT_MODE_MAILBOX_KHR if available, otherwise fall back to
          * VK_PRESENT_MODE_FIFO_KHR which is guaranteed to be supported.
          */
-        if (ngpu_vkcontext_support_present_mode(vk, VK_PRESENT_MODE_IMMEDIATE_KHR))
+        if (present_mode_supported(present_modes, nb_present_modes, VK_PRESENT_MODE_IMMEDIATE_KHR))
             return VK_PRESENT_MODE_IMMEDIATE_KHR;
 
-        if (ngpu_vkcontext_support_present_mode(vk, VK_PRESENT_MODE_MAILBOX_KHR))
+        if (present_mode_supported(present_modes, nb_present_modes, VK_PRESENT_MODE_MAILBOX_KHR))
             return VK_PRESENT_MODE_MAILBOX_KHR;
     }
 
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static VkCompositeAlphaFlagBitsKHR select_swapchain_composite_alpha(struct vkcontext *vk)
+static VkCompositeAlphaFlagBitsKHR select_swapchain_composite_alpha(const VkSurfaceCapabilitiesKHR *caps)
 {
-    if (vk->surface_caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)
+    if (caps->supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)
         return VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
-    if (vk->surface_caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
+    if (caps->supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
         return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     ngpu_assert(0);
 }
@@ -520,16 +533,16 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
     struct vkcontext *vk = s_priv->vkcontext;
     struct ngpu_ctx_params *ctx_params = &s->params;
 
-    VkResult res = vk->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, vk->surface, &s_priv->surface_caps);
+    VkResult res = vk->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, s_priv->surface, &s_priv->surface_caps);
     if (res != VK_SUCCESS)
         return res;
 
-    res = select_swapchain_surface_format(vk, &s_priv->surface_format);
+    res = select_swapchain_surface_format(s_priv->surface_formats, s_priv->nb_surface_formats, &s_priv->surface_format);
     if (res != VK_SUCCESS)
         return res;
 
     const VkSurfaceCapabilitiesKHR caps = s_priv->surface_caps;
-    s_priv->present_mode = select_swapchain_present_mode(vk, ctx_params->swap_interval);
+    s_priv->present_mode = select_swapchain_present_mode(s_priv->present_modes, s_priv->nb_present_modes, ctx_params->swap_interval);
     ctx_params->width  = NGPU_CLAMP(ctx_params->width,  caps.minImageExtent.width,  caps.maxImageExtent.width);
     ctx_params->height = NGPU_CLAMP(ctx_params->height, caps.minImageExtent.height, caps.maxImageExtent.height);
     LOG(DEBUG, "current extent: %ux%u", ctx_params->width, ctx_params->height);
@@ -541,7 +554,7 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
 
     VkSwapchainCreateInfoKHR swapchain_create_info = {
         .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface          = vk->surface,
+        .surface          = s_priv->surface,
         .minImageCount    = img_count,
         .imageFormat      = s_priv->surface_format.format,
         .imageColorSpace  = s_priv->surface_format.colorSpace,
@@ -553,7 +566,7 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
         .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .preTransform     = caps.currentTransform,
-        .compositeAlpha   = select_swapchain_composite_alpha(vk),
+        .compositeAlpha   = select_swapchain_composite_alpha(&caps),
         .presentMode      = s_priv->present_mode,
         .clipped          = VK_TRUE,
     };
@@ -604,12 +617,14 @@ static void destroy_swapchain(struct ngpu_ctx *s)
 
 static VkResult recreate_swapchain(struct ngpu_ctx *gpu_ctx, struct vkcontext *vk)
 {
+    struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(gpu_ctx);
+
     VkResult res = vk->funcs.DeviceWaitIdle(vk->device);
     if (res != VK_SUCCESS)
         return res;
 
     VkSurfaceCapabilitiesKHR surface_caps;
-    res = vk->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, vk->surface, &surface_caps);
+    res = vk->funcs.GetPhysicalDeviceSurfaceCapabilitiesKHR(vk->phy_device, s_priv->surface, &surface_caps);
     if (res != VK_SUCCESS)
         return res;
 
@@ -809,7 +824,7 @@ static int vk_init(struct ngpu_ctx *s)
     if (!s_priv->vkcontext)
         return NGPU_ERROR_MEMORY;
 
-    VkResult res = ngpu_vkcontext_init(s_priv->vkcontext, ctx_params);
+    VkResult res = ngpu_vkcontext_init(s_priv->vkcontext, ctx_params, &s_priv->surface);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "unable to initialize Vulkan context: %s", ngpu_vk_res2str(res));
         /*
@@ -818,6 +833,14 @@ static int vk_init(struct ngpu_ctx *s)
          * ngpu_ctx_freep() / vk_destroy().
          */
         ngpu_vkcontext_freep(&s_priv->vkcontext);
+        return ngpu_vk_res2ret(res);
+    }
+
+    res = ngpu_vkcontext_query_swapchain_support(s_priv->vkcontext, s_priv->surface, &s_priv->surface_caps,
+                                                 &s_priv->surface_formats, &s_priv->nb_surface_formats,
+                                                 &s_priv->present_modes, &s_priv->nb_present_modes);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "failed to query swapchain support: %s", ngpu_vk_res2str(res));
         return ngpu_vk_res2ret(res);
     }
 
@@ -1216,6 +1239,11 @@ static void vk_destroy(struct ngpu_ctx *s)
     destroy_query_pool(s);
 
     ngpu_glslang_uninit();
+
+    ngpu_freep(&s_priv->present_modes);
+    ngpu_freep(&s_priv->surface_formats);
+    if (s_priv->surface)
+        vk->funcs.DestroySurfaceKHR(vk->instance, s_priv->surface, NULL);
 
     ngpu_vkcontext_freep(&s_priv->vkcontext);
 }

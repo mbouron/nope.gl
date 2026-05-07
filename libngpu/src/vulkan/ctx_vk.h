@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2020-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -32,6 +33,12 @@
 struct ngpu_ctx_vk {
     struct ngpu_ctx parent;
     struct vkcontext *vkcontext;
+
+    VkSurfaceKHR surface;
+    VkSurfaceFormatKHR *surface_formats;
+    uint32_t nb_surface_formats;
+    VkPresentModeKHR *present_modes;
+    uint32_t nb_present_modes;
 
     VkSemaphore timeline_sem;
     uint64_t timeline_value;
