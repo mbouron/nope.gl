@@ -379,6 +379,123 @@ end:
     return res;
 }
 
+static VkResult create_x11_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+{
+#if defined(TARGET_LINUX)
+    s->x11_display = (Display *)params->display;
+    if (!s->x11_display) {
+        s->x11_display = XOpenDisplay(NULL);
+        if (!s->x11_display) {
+            LOG(ERROR, "could not open X11 display");
+            return VK_ERROR_UNKNOWN;
+        }
+        s->own_x11_display = 1;
+    }
+
+    const VkXlibSurfaceCreateInfoKHR surface_create_info = {
+        .sType  = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+        .dpy    = s->x11_display,
+        .window = params->window,
+    };
+
+    PFN_vkCreateXlibSurfaceKHR CreateXlibSurfaceKHR =
+        (PFN_vkCreateXlibSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateXlibSurfaceKHR");
+    if (!CreateXlibSurfaceKHR) {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+
+    return CreateXlibSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
+#else
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+#endif
+}
+
+static VkResult create_android_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+{
+#if defined(TARGET_ANDROID)
+    const VkAndroidSurfaceCreateInfoKHR surface_create_info = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+        .window = (struct ANativeWindow *)params->window,
+    };
+
+    PFN_vkCreateAndroidSurfaceKHR CreateAndroidSurfaceKHR =
+        (PFN_vkCreateAndroidSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateAndroidSurfaceKHR");
+    if (!CreateAndroidSurfaceKHR) {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+
+    return CreateAndroidSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
+#else
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+#endif
+}
+
+static VkResult create_metal_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+{
+#if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
+    const void *view = (const void *)params->window;
+    const CAMetalLayer *layer = ngpu_window_get_metal_layer(view);
+    if (!layer)
+        return VK_ERROR_UNKNOWN;
+
+    VkMetalSurfaceCreateInfoEXT surface_create_info = {
+        .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
+        .pLayer = layer,
+    };
+
+    PFN_vkCreateMetalSurfaceEXT CreateMetalSurfaceEXT =
+        (PFN_vkCreateMetalSurfaceEXT)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateMetalSurfaceEXT");
+    if (!CreateMetalSurfaceEXT) {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+
+    return CreateMetalSurfaceEXT(s->instance, &surface_create_info, NULL, &s->surface);
+#else
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+#endif
+}
+
+static VkResult create_win32_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+{
+#if defined(TARGET_WINDOWS)
+    const VkWin32SurfaceCreateInfoKHR surface_create_info = {
+        .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+        .hwnd = (HWND)params->window,
+    };
+
+    PFN_vkCreateWin32SurfaceKHR CreateWin32SurfaceKHR =
+        (PFN_vkCreateWin32SurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateWin32SurfaceKHR");
+    if (!CreateWin32SurfaceKHR) {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+
+    return CreateWin32SurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
+#else
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+#endif
+}
+
+static VkResult create_wayland_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
+{
+#if defined(HAVE_WAYLAND)
+    const VkWaylandSurfaceCreateInfoKHR surface_create_info = {
+        .sType   = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
+        .display = (struct wl_display *)params->display,
+        .surface = (struct wl_surface *)params->window,
+    };
+
+    PFN_vkCreateWaylandSurfaceKHR CreateWaylandSurfaceKHR =
+        (PFN_vkCreateWaylandSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateWaylandSurfaceKHR");
+    if (!CreateWaylandSurfaceKHR) {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+
+    return CreateWaylandSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
+#else
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+#endif
+}
+
 static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx_params *params)
 {
     if (params->offscreen)
@@ -389,118 +506,18 @@ static VkResult create_window_surface(struct vkcontext *s, const struct ngpu_ctx
 
     const enum ngpu_platform_type platform = params->platform;
     if (platform == NGPU_PLATFORM_XLIB) {
-#if defined(TARGET_LINUX)
-        s->x11_display = (Display *)params->display;
-        if (!s->x11_display) {
-            s->x11_display = XOpenDisplay(NULL);
-            if (!s->x11_display) {
-                LOG(ERROR, "could not open X11 display");
-                return VK_ERROR_UNKNOWN;
-            }
-            s->own_x11_display = 1;
-        }
-
-        const VkXlibSurfaceCreateInfoKHR surface_create_info = {
-            .sType  = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
-            .dpy    = s->x11_display,
-            .window = params->window,
-        };
-
-        PFN_vkCreateXlibSurfaceKHR CreateXlibSurfaceKHR =
-            (PFN_vkCreateXlibSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateXlibSurfaceKHR");
-        if (!CreateXlibSurfaceKHR) {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        VkResult res = CreateXlibSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
-        if (res != VK_SUCCESS)
-            return res;
-#else
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-#endif
+        return create_x11_surface(s, params);
     } else if (platform == NGPU_PLATFORM_ANDROID) {
-#if defined(TARGET_ANDROID)
-        const VkAndroidSurfaceCreateInfoKHR surface_create_info = {
-            .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
-            .window = (struct ANativeWindow *)params->window,
-        };
-
-        PFN_vkCreateAndroidSurfaceKHR CreateAndroidSurfaceKHR =
-            (PFN_vkCreateAndroidSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateAndroidSurfaceKHR");
-        if (!CreateAndroidSurfaceKHR) {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        VkResult res = CreateAndroidSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
-        if (res != VK_SUCCESS)
-            return res;
-#else
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-#endif
+        return create_android_surface(s, params);
     } else if (platform == NGPU_PLATFORM_MACOS || platform == NGPU_PLATFORM_IOS) {
-#if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
-        const void *view = (const void *)params->window;
-        const CAMetalLayer *layer = ngpu_window_get_metal_layer(view);
-        if (!layer)
-            return VK_ERROR_UNKNOWN;
-
-        VkMetalSurfaceCreateInfoEXT surface_create_info = {
-            .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
-            .pLayer = layer,
-        };
-
-        PFN_vkCreateMetalSurfaceEXT CreateMetalSurfaceEXT =
-            (PFN_vkCreateMetalSurfaceEXT)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateMetalSurfaceEXT");
-        if (!CreateMetalSurfaceEXT) {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        VkResult res = CreateMetalSurfaceEXT(s->instance, &surface_create_info, NULL, &s->surface);
-        if (res != VK_SUCCESS)
-            return res;
-#endif
+        return create_metal_surface(s, params);
     } else if (platform == NGPU_PLATFORM_WINDOWS) {
-#if defined(TARGET_WINDOWS)
-        const VkWin32SurfaceCreateInfoKHR surface_create_info = {
-            .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-            .hwnd = (HWND)params->window,
-        };
-
-        PFN_vkCreateWin32SurfaceKHR CreateWin32SurfaceKHR =
-            (PFN_vkCreateWin32SurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateWin32SurfaceKHR");
-        if (!CreateWin32SurfaceKHR) {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        VkResult res = CreateWin32SurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
-        if (res != VK_SUCCESS)
-            return res;
-#endif
+        return create_win32_surface(s, params);
     } else if (platform == NGPU_PLATFORM_WAYLAND) {
-#if defined(HAVE_WAYLAND)
-        const VkWaylandSurfaceCreateInfoKHR surface_create_info = {
-            .sType   = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-            .display = (struct wl_display *)params->display,
-            .surface = (struct wl_surface *)params->window,
-        };
-
-        PFN_vkCreateWaylandSurfaceKHR CreateWaylandSurfaceKHR =
-            (PFN_vkCreateWaylandSurfaceKHR)(void *)s->funcs.GetInstanceProcAddr(s->instance, "vkCreateWaylandSurfaceKHR");
-        if (!CreateWaylandSurfaceKHR) {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        VkResult res = CreateWaylandSurfaceKHR(s->instance, &surface_create_info, NULL, &s->surface);
-        if (res != VK_SUCCESS)
-            return res;
-#else
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-#endif
+        return create_wayland_surface(s, params);
     } else {
         ngpu_assert(0);
     }
-
-    return VK_SUCCESS;
 }
 
 static VkResult enumerate_physical_devices(struct vkcontext *s, const struct ngpu_ctx_params *ctx_params)
