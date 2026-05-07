@@ -192,6 +192,7 @@ cdef extern from "nopegl/nopegl.h":
 
     cdef struct ngl_ctx
 
+    cdef struct ngpu_ctx
     cdef struct ngl_config:
         ngl_platform_type platform
         ngl_backend_type backend
@@ -213,6 +214,7 @@ cdef extern from "nopegl/nopegl.h":
         const char *hud_export_filename
         int hud_scale
         int debug
+        ngpu_ctx *shared_gpu_ctx
 
     cdef union ngl_livectl_data:
         float f[4]
@@ -252,8 +254,9 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_set_capture_buffer(ngl_ctx *s, void *capture_buffer)
     int ngl_set_scene(ngl_ctx *s, ngl_scene *scene)
     int ngl_update(ngl_ctx *s, double t) nogil
-    int ngl_draw(ngl_ctx *s, double t) nogil
+    int ngl_draw(ngl_ctx *s, double t, void *output) nogil
     int ngl_get_nodes_at_point(ngl_ctx *s, const float *point, size_t *nb_nodesp, ngl_node ***nodesp)
+    ngpu_ctx *ngl_get_gpu_ctx(ngl_ctx *s)
     char *ngl_dot(ngl_ctx *s, double t) nogil
     int ngl_node_set_funcs(ngl_node *node, void *user_data, ngl_node_funcs *funcs)
     int ngl_livectls_get(ngl_scene *scene, size_t *nb_livectlsp, ngl_livectl **livectlsp)
@@ -933,6 +936,7 @@ cdef class Config:
         hud_export_filename,
         hud_scale,
         debug,
+        shared_gpu_ctx=0,
     ):
         self.config.platform = platform.value
         self.config.backend = backend.value
@@ -961,6 +965,8 @@ cdef class Config:
             self.config.hud_export_filename = hud_export_filename
         self.config.hud_scale = hud_scale
         self.config.debug = debug
+        cdef uintptr_t shared_ptr = shared_gpu_ctx
+        self.config.shared_gpu_ctx = <ngpu_ctx *>shared_ptr
 
     @property
     def cptr(self):
@@ -981,6 +987,10 @@ cdef class Context:
         cdef uintptr_t ptr = py_config.cptr
         cdef ngl_config *configp = <ngl_config *>ptr
         return ngl_configure(self.ctx, configp)
+
+    @property
+    def gpu_ctx(self):
+        return <uintptr_t>ngl_get_gpu_ctx(self.ctx)
 
     def get_backend(self):
         cdef ngl_backend backend
@@ -1033,7 +1043,7 @@ cdef class Context:
 
     def draw(self, double t):
         with nogil:
-            ret = ngl_draw(self.ctx, t)
+            ret = ngl_draw(self.ctx, t, NULL)
         return ret
 
     def get_nodes_at_point(self, point):

@@ -159,6 +159,12 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
         int ret = ngpu_fence_gl_wait_gpu(wait_fence);
         if (ret < 0)
             return ret;
+
+        if (wait_fence->gpu_ctx != gpu_ctx) {
+            ret = NGPU_CMD_BUFFER_GL_REF(s, wait_fence->gpu_ctx);
+            if (ret < 0)
+                return ret;
+        }
     }
 
     struct ngpu_rendertarget *cur_rendertarget = NULL;

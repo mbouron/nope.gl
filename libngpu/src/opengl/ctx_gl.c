@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Nope Forge
  * Copyright 2019-2022 GoPro Inc.
  *
@@ -565,12 +565,23 @@ static int gl_init(struct ngpu_ctx *s)
     }
 #endif
 
+    uintptr_t shared_handle = 0;
+    if (ctx_params->shared_ctx) {
+        struct ngpu_ctx_gl *shared_priv = NGPU_PRIV_GL(ctx_params->shared_ctx);
+        if (!shared_priv->glcontext) {
+            LOG(ERROR, "shared_ctx is not initialized");
+            return NGPU_ERROR_INVALID_USAGE;
+        }
+        shared_handle = ngpu_glcontext_get_handle(shared_priv->glcontext);
+    }
+
     const struct glcontext_params params = {
         .platform      = ctx_params->platform,
         .backend       = ctx_params->backend,
         .external      = external,
         .display       = ctx_params->display,
         .window        = ctx_params->window,
+        .shared_ctx    = shared_handle,
         .swap_interval = ctx_params->swap_interval,
         .offscreen     = ctx_params->offscreen,
         .width         = ctx_params->width,

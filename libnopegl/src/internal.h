@@ -50,6 +50,7 @@
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/job_queue.h"
+#include "utils/pthread_compat.h"
 #include "utils/refcount.h"
 #include "utils/utils.h"
 
@@ -66,7 +67,7 @@ struct api_impl {
     int (*set_capture_buffer)(struct ngl_ctx *s, void *capture_buffer);
     int (*set_scene)(struct ngl_ctx *s, struct ngl_scene *scene);
     int (*prepare_draw)(struct ngl_ctx *s, double t);
-    int (*draw)(struct ngl_ctx *s, double t, struct ngpu_fence **signal_fence);
+    int (*draw)(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence);
     void (*reset)(struct ngl_ctx *s, int action);
 
     /* OpenGL */
@@ -136,6 +137,26 @@ struct ngl_ctx {
     int64_t gpu_draw_time;
 
     struct ngli_queue background_queue;
+
+    /*
+     * Array of frame slots tracking the borrow/release state of the ngl_frames.
+     * Protected by frame_slots_lock since ngl_draw() and ngl_frame_release()
+     * may run concurrently on different threads (producer/consumer split).
+     */
+    pthread_mutex_t frame_slots_lock;
+    struct ngli_frame_slot {
+        /*
+         * Non-NULL while the frame is held by the ngl_draw() caller.
+         */
+        struct ngl_frame *frame;
+        /*
+         * Fence supplied by the consumer via ngl_frame_release(). The next
+         * ngl_draw() picking this slot inserts it as a GPU wait fence before
+         * rendering.
+         */
+        struct ngpu_fence *release_fence;
+    } *frame_slots;
+    uint32_t nb_frame_slots;
 };
 
 #define NGLI_ACTION_KEEP_SCENE  0
@@ -147,7 +168,7 @@ int ngli_ctx_get_viewport(struct ngl_ctx *s, int32_t *viewport);
 int ngli_ctx_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer);
 int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene);
 int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t);
-int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence **signal_fence);
+int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence);
 void ngli_ctx_reset(struct ngl_ctx *s, int action);
 
 struct livectl {

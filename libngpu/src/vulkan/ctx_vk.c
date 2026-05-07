@@ -619,7 +619,10 @@ static VkResult recreate_swapchain(struct ngpu_ctx *gpu_ctx, struct vkcontext *v
 {
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(gpu_ctx);
 
+
+    pthread_mutex_lock(&vk->queue_lock);
     VkResult res = vk->funcs.DeviceWaitIdle(vk->device);
+    pthread_mutex_unlock(&vk->queue_lock);
     if (res != VK_SUCCESS)
         return res;
 
@@ -739,7 +742,9 @@ static VkResult swapchain_present_buffer(struct ngpu_ctx *s, double t)
         present_info.pNext = &present_time_info;
     }
 
+    pthread_mutex_lock(&vk->queue_lock);
     VkResult res = vk->funcs.QueuePresentKHR(vk->present_queue, &present_info);
+    pthread_mutex_unlock(&vk->queue_lock);
     switch (res) {
     case VK_SUCCESS:
     case VK_SUBOPTIMAL_KHR:
@@ -820,19 +825,27 @@ static int vk_init(struct ngpu_ctx *s)
     }
 #endif
 
-    s_priv->vkcontext = ngpu_vkcontext_create();
-    if (!s_priv->vkcontext)
-        return NGPU_ERROR_MEMORY;
+    if (ctx_params->shared_ctx) {
+        if (!NGPU_PRIV_VK(ctx_params->shared_ctx)->vkcontext) {
+            LOG(ERROR, "shared_ctx is not initialized");
+            return NGPU_ERROR_INVALID_USAGE;
+        }
+        s_priv->vkcontext = NGPU_PRIV_VK(ctx_params->shared_ctx)->vkcontext;
+        s_priv->own_vkcontext = false;
+    } else {
+        s_priv->vkcontext = ngpu_vkcontext_create();
+        if (!s_priv->vkcontext)
+            return NGPU_ERROR_MEMORY;
+        s_priv->own_vkcontext = true;
+    }
 
     VkResult res = ngpu_vkcontext_init(s_priv->vkcontext, ctx_params, &s_priv->surface);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "unable to initialize Vulkan context: %s", ngpu_vk_res2str(res));
-        /*
-         * Reset the failed vkcontext so if we do not end up calling vulkan
-         * functions on a partially initialized vkcontext in
-         * ngpu_ctx_freep() / vk_destroy().
-         */
-        ngpu_vkcontext_freep(&s_priv->vkcontext);
+        if (s_priv->own_vkcontext)
+            ngpu_vkcontext_freep(&s_priv->vkcontext);
+        else
+            s_priv->vkcontext = NULL;
         return ngpu_vk_res2ret(res);
     }
 
@@ -985,7 +998,9 @@ static int vk_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
             LOG(ERROR, "resize is not supported while a capture buffer is set");
             return NGPU_ERROR_UNSUPPORTED;
         }
+        pthread_mutex_lock(&vk->queue_lock);
         VkResult res = vk->funcs.DeviceWaitIdle(vk->device);
+        pthread_mutex_unlock(&vk->queue_lock);
         if (res != VK_SUCCESS)
             return ngpu_vk_res2ret(res);
 
@@ -1223,7 +1238,24 @@ static void vk_destroy(struct ngpu_ctx *s)
     if (!vk)
         return;
 
+    if (s_priv->timeline_sem) {
+        const VkSemaphoreWaitInfo wait_info = {
+            .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+            .semaphoreCount = 1,
+            .pSemaphores    = &s_priv->timeline_sem,
+            .pValues        = &s_priv->timeline_value,
+        };
+        vk->funcs.WaitSemaphores(vk->device, &wait_info, UINT64_MAX);
+    }
+
+    /*
+     * Drain any pending present/acquire operations on the swapchain semaphores
+     * (binary, not tracked by the timeline semaphore) before destroying the
+     * swapchain.
+     */
+    pthread_mutex_lock(&vk->queue_lock);
     vk->funcs.DeviceWaitIdle(vk->device);
+    pthread_mutex_unlock(&vk->queue_lock);
 
 #if DEBUG_GPU_CAPTURE
     if (s->gpu_capture)
@@ -1245,14 +1277,19 @@ static void vk_destroy(struct ngpu_ctx *s)
     if (s_priv->surface)
         vk->funcs.DestroySurfaceKHR(vk->instance, s_priv->surface, NULL);
 
-    ngpu_vkcontext_freep(&s_priv->vkcontext);
+    if (s_priv->own_vkcontext)
+        ngpu_vkcontext_freep(&s_priv->vkcontext);
+    else
+        s_priv->vkcontext = NULL;
 }
 
 static void vk_wait_idle(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
     struct vkcontext *vk = s_priv->vkcontext;
+    pthread_mutex_lock(&vk->queue_lock);
     vk->funcs.DeviceWaitIdle(vk->device);
+    pthread_mutex_unlock(&vk->queue_lock);
 }
 
 static enum ngpu_cull_mode vk_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)

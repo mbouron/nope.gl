@@ -170,6 +170,7 @@ static struct ngpu_ctx *gpu_ctx_create_from_config(const struct ngl_config *conf
         .capture_buffer_type  = ngl_capture_buffer_type_to_ngpu(config->capture_buffer_type),
         .debug                = config->debug,
         .timer_queries        = config->hud,
+        .shared_ctx           = config->shared_gpu_ctx,
     };
     memcpy(params.clear_color, config->clear_color, sizeof(params.clear_color));
 
@@ -400,10 +401,31 @@ fail:
     return ret;
 }
 
+struct ngl_frame {
+    struct ngl_ctx *ctx;
+    uint32_t index;
+    struct ngpu_texture *texture;
+    struct ngpu_fence *signal_fence;
+};
+
 void ngli_ctx_reset(struct ngl_ctx *s, int action)
 {
     if (s->gpu_ctx)
         ngpu_ctx_wait_idle(s->gpu_ctx);
+
+    if (s->frame_slots) {
+        for (uint32_t i = 0; i < s->nb_frame_slots; i++) {
+            if (s->frame_slots[i].frame) {
+                ngpu_texture_unrefp(&s->frame_slots[i].frame->texture);
+                ngpu_fence_freep(&s->frame_slots[i].frame->signal_fence);
+                ngli_freep(&s->frame_slots[i].frame);
+            }
+            if (s->frame_slots[i].release_fence)
+                ngpu_fence_freep(&s->frame_slots[i].release_fence);
+        }
+        ngli_freep(&s->frame_slots);
+        s->nb_frame_slots = 0;
+    }
     reset_scene(s, action);
 #if defined(HAVE_VAAPI)
     ngli_vaapi_ctx_reset(&s->vaapi_ctx);
@@ -495,6 +517,13 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
 #endif
 
     const uint32_t nb_in_flight_frames = ngpu_ctx_get_nb_in_flight_frames(s->gpu_ctx);
+
+    s->frame_slots = ngli_calloc(nb_in_flight_frames, sizeof(*s->frame_slots));
+    if (!s->frame_slots) {
+        ret = NGL_ERROR_MEMORY;
+        goto fail;
+    }
+    s->nb_frame_slots = nb_in_flight_frames;
 
     s->update_staging_buffers = ngli_calloc(nb_in_flight_frames, sizeof(*s->update_staging_buffers));
     s->draw_staging_buffers = ngli_calloc(nb_in_flight_frames, sizeof(*s->draw_staging_buffers));
@@ -619,7 +648,7 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
     return 0;
 }
 
-int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence **signal_fence)
+int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence)
 {
     int ret = ngli_ctx_prepare_draw(s, t);
     if (ret < 0)
@@ -667,7 +696,7 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence **signal_fence)
     if (ret < 0)
         return ret;
 
-    return ngpu_ctx_end_draw(s->gpu_ctx, t, NULL, signal_fence);
+    return ngpu_ctx_end_draw(s->gpu_ctx, t, wait_fence, signal_fence);
 }
 
 enum probe_mode {
@@ -769,6 +798,9 @@ struct ngl_ctx *ngl_create(void)
 
     int ret = ngli_queue_init(&s->background_queue, "ngl-bg-thread", 32, 1, s);
     if (ret < 0)
+        goto fail;
+
+    if (pthread_mutex_init(&s->frame_slots_lock, NULL) != 0)
         goto fail;
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
@@ -921,14 +953,107 @@ int ngl_update(struct ngl_ctx *s, double t)
     return ngli_prepare_draw(s, t);
 }
 
-int ngl_draw(struct ngl_ctx *s, double t)
+struct ngpu_texture *ngl_frame_get_texture(const struct ngl_frame *f)
+{
+    return f->texture;
+}
+
+struct ngpu_fence *ngl_frame_get_signal_fence(const struct ngl_frame *f)
+{
+    return f->signal_fence;
+}
+
+void ngl_frame_release(struct ngl_frame *f, struct ngpu_fence *fence)
+{
+    if (!f)
+        return;
+
+    struct ngl_ctx *s = f->ctx;
+    struct ngli_frame_slot *slot = &s->frame_slots[f->index];
+
+    pthread_mutex_lock(&s->frame_slots_lock);
+    slot->frame = NULL;
+    /*
+     * Release previous fence.
+     */
+    if (slot->release_fence)
+        ngpu_fence_freep(&slot->release_fence);
+    /*
+     * Stash (and take ownership) the consumer fence on the slot so the next
+     * ngl_draw() that picks this slot can wait on it before writing.
+     */
+    slot->release_fence = fence;
+    pthread_mutex_unlock(&s->frame_slots_lock);
+
+    ngpu_texture_unrefp(&f->texture);
+    ngpu_fence_freep(&f->signal_fence);
+    ngli_freep(&f);
+}
+
+int ngl_draw(struct ngl_ctx *s, double t, struct ngl_draw_output *output)
 {
     if (!s->configured) {
         LOG(ERROR, "context must be configured before drawing");
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    return s->api_impl->draw(s, t, NULL);
+    /*
+     * Check next frame. If it is still held by the user, refuse to draw and
+     * return NGL_ERROR_BUSY.
+     */
+    const uint32_t next_frame_slot_index =
+        (ngpu_ctx_get_current_frame_index(s->gpu_ctx) + 1) % s->nb_frame_slots;
+    struct ngli_frame_slot *slot = &s->frame_slots[next_frame_slot_index];
+
+    pthread_mutex_lock(&s->frame_slots_lock);
+    if (slot->frame) {
+        pthread_mutex_unlock(&s->frame_slots_lock);
+        return NGL_ERROR_BUSY;
+    }
+    struct ngpu_fence *release_fence = slot->release_fence;
+    slot->release_fence = NULL;
+    pthread_mutex_unlock(&s->frame_slots_lock);
+
+    struct ngl_frame *frame = NULL;
+    if (output) {
+        frame = ngli_calloc(1, sizeof(*frame));
+        if (!frame) {
+            ngpu_fence_freep(&release_fence);
+            return NGL_ERROR_MEMORY;
+        }
+        frame->ctx = s;
+        frame->index = next_frame_slot_index;
+    }
+
+    struct ngpu_fence **signal_fencep = frame ? &frame->signal_fence : NULL;
+    int ret = s->api_impl->draw(s, t, release_fence, signal_fencep);
+
+    ngpu_fence_freep(&release_fence);
+
+    if (ret < 0) {
+        if (frame) {
+            ngpu_fence_freep(&frame->signal_fence);
+            ngli_freep(&frame);
+        }
+        return ret;
+    }
+
+    if (frame) {
+        struct ngpu_rendertarget *rt = ngpu_ctx_get_default_rendertarget(s->gpu_ctx);
+        struct ngpu_texture *texture = rt ? ngpu_rendertarget_get_color_texture(rt, 0) : NULL;
+        /*
+         * Hold a ref on the texture so it survives a concurrent resize on
+         * this ngl context — resize frees and re-creates the offscreen color
+         * textures, and the consumer may still be sampling this one.
+         */
+        frame->texture = texture ? ngpu_texture_ref(texture) : NULL;
+        pthread_mutex_lock(&s->frame_slots_lock);
+        slot->frame = frame;
+        pthread_mutex_unlock(&s->frame_slots_lock);
+        output->frame = frame;
+    }
+
+    return 0;
 }
 
 NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t *nb_nodesp, struct ngl_node ***nodesp)
@@ -970,6 +1095,13 @@ NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t
     return 0;
 }
 
+struct ngpu_ctx *ngl_get_gpu_ctx(struct ngl_ctx *s)
+{
+    if (!s->configured)
+        return NULL;
+    return s->gpu_ctx;
+}
+
 int ngl_gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer)
 {
     if (!s->configured) {
@@ -997,12 +1129,22 @@ void ngl_freep(struct ngl_ctx **ss)
     if (!s)
         return;
 
+    if (s->frame_slots) {
+        for (uint32_t i = 0; i < s->nb_frame_slots; i++) {
+            if (s->frame_slots[i].frame) {
+                LOG(WARNING, "freeing context with an outstanding ngl_frame; releasing implicitly");
+                break;
+            }
+        }
+    }
+
     if (s->configured) {
         s->api_impl->reset(s, NGLI_ACTION_UNREF_SCENE);
         s->configured = 0;
     }
 
     ngli_queue_destroy(&s->background_queue);
+    pthread_mutex_destroy(&s->frame_slots_lock);
 
     ngli_darray_reset(&s->modelview_matrix_stack);
     ngli_darray_reset(&s->projection_matrix_stack);

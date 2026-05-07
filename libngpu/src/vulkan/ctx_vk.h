@@ -33,6 +33,7 @@
 struct ngpu_ctx_vk {
     struct ngpu_ctx parent;
     struct vkcontext *vkcontext;
+    bool own_vkcontext;
 
     VkSurfaceKHR surface;
     VkSurfaceFormatKHR *surface_formats;

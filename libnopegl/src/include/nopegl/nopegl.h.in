@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Nope Forge
  * Copyright 2016-2022 GoPro Inc.
  *
@@ -492,6 +493,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_ERROR_GENERIC                  -1                             /* Generic error */
 #define NGL_ERROR_ACCESS                   NGLI_ERROR('E','a','c','c')    /* Operation not allowed */
 #define NGL_ERROR_BUG                      NGLI_ERROR('E','b','u','g')    /* A buggy code path was triggered, please report if it happens */
+#define NGL_ERROR_BUSY                     NGLI_ERROR('E','b','s','y')    /* Resource temporarily unavailable, retry later */
 #define NGL_ERROR_EXTERNAL                 NGLI_ERROR('E','e','x','t')    /* An error occurred in an external dependency */
 #define NGL_ERROR_INVALID_ARG              NGLI_ERROR('E','a','r','g')    /* Invalid user argument specified */
 #define NGL_ERROR_INVALID_DATA             NGLI_ERROR('E','d','a','t')    /* Invalid input data */
@@ -851,6 +853,8 @@ enum ngl_capture_buffer_type {
     NGL_CAPTURE_BUFFER_TYPE_MAX_ENUM = 0x7FFFFFFF
 };
 
+struct ngpu_ctx;
+
 /**
  * nope.gl configuration
  */
@@ -908,6 +912,8 @@ struct ngl_config {
     int hud_scale;           /* Scaling applied to the HUD, useful for high DPI displays */
 
     int debug; /* Enable graphics context debugging */
+
+    struct ngpu_ctx *shared_gpu_ctx; /* Optional shared ngpu context. */
 };
 
 #define NGL_CAP_COMPUTE                         NGL_NODE_COMPUTE
@@ -977,6 +983,10 @@ NGL_API void ngl_backends_freep(struct ngl_backend **backendsp);
  * Opaque structure identifying a nope.gl rendering context
  */
 struct ngl_ctx;
+
+struct ngpu_ctx;
+struct ngpu_texture;
+struct ngpu_fence;
 
 /**
  * Allocate a new nope.gl context.
@@ -1099,16 +1109,72 @@ NGL_API int ngl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene);
 NGL_API int ngl_update(struct ngl_ctx *s, double t);
 
 /**
+ * Opaque handle to a rendered frame owned by the ngl context.
+ *
+ * Returned by ngl_draw() when called with a non-NULL output.
+ *
+ * Must be returned to the ngl context via ngl_frame_release().
+ *
+ * Outstanding frames must be released before ngl_freep() is called on the
+ * context.
+ */
+struct ngl_frame;
+
+/**
+ * Draw output structure
+ */
+struct ngl_draw_output {
+    struct ngl_frame *frame;
+};
+
+/**
+ * Get the output texture from a frame.
+ *
+ * The texture is owned by the ngl context and remains valid until
+ * ngl_frame_release() is called on the frame.
+ *
+ * @param f pointer to a frame obtained from ngl_draw()
+ * @return pointer to the scene texture
+ */
+NGL_API struct ngpu_texture *ngl_frame_get_texture(const struct ngl_frame *f);
+
+/**
+ * Get the GPU fence that signals when the texture content is ready.
+ *
+ * The fence is owned by the ngl context and is valid until
+ * ngl_frame_release() is called on the frame. The consumer must insert a
+ * GPU-side wait on this fence before sampling the texture.
+ *
+ * @param f pointer to a frame obtained from ngl_draw()
+ * @return pointer to the producer-done fence
+ */
+NGL_API struct ngpu_fence *ngl_frame_get_signal_fence(const struct ngl_frame *f);
+
+/**
+ * Return the frame to the ngl context.
+ *
+ * The frame is invalidated by this call. Do not access it, the texture, or
+ * the signal fence afterwards.
+ *
+ * @param f             pointer to the frame
+ * @param fence         optional GPU fence signaling consumer-side completion
+ */
+NGL_API void ngl_frame_release(struct ngl_frame *f, struct ngpu_fence *fence);
+
+/**
  * Draw at the specified time.
  *
- * @param s     pointer to the configured nope.gl context
- * @param t     target draw time in seconds
+ * @param s       pointer to the configured nope.gl context
+ * @param t       target draw time in seconds
+ * @param output  optional frame output. The user is responsible to return
+ *                it back to the context by calling ngl_frame_release().
  *
  * @note ngl_draw() will only perform a clear if no scene is set.
  *
- * @return 0 on success, NGL_ERROR_* (< 0) on error
+ * @return 0 on success, NGL_ERROR_BUSY if the corresponding ngl_frame
+ *         is still held by the user, NGL_ERROR_* (< 0) on error
  */
-NGL_API int ngl_draw(struct ngl_ctx *s, double t);
+NGL_API int ngl_draw(struct ngl_ctx *s, double t, struct ngl_draw_output *output);
 
 /**
  * Return the nodes at the specified point. Must be called after a draw. The
@@ -1121,6 +1187,17 @@ NGL_API int ngl_draw(struct ngl_ctx *s, double t);
  * @return            0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t *nb_nodesp, struct ngl_node ***nodesp);
+
+/**
+ * Get the internal ngpu context. Available after ngl_configure().
+ *
+ * The returned pointer is owned by the ngl context and is valid until the
+ * next ngl_configure() or ngl_freep() call.
+ *
+ * @param s  pointer to the configured nope.gl context
+ * @return   pointer to the internal ngpu context, or NULL if not configured
+ */
+NGL_API struct ngpu_ctx *ngl_get_gpu_ctx(struct ngl_ctx *s);
 
 /**
  * Serialize the current scene in Graphviz format (.dot) a node graph at the

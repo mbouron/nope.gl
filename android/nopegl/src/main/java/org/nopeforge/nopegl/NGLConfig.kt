@@ -52,6 +52,8 @@ class NGLConfig(
     val hudScale: Int = 1,
     @JvmField
     val debug: Boolean = false,
+    @JvmField
+    val sharedGpuCtx: Long = 0,
 ) {
 
     class Builder {
@@ -69,6 +71,7 @@ class NGLConfig(
         private var hud: Boolean = false
         private var hudScale: Int = 1
         private var debug: Boolean = false
+        private var sharedGpuCtx: Long = 0
 
         fun setBackend(backend: Int): Builder {
             this.backend = backend
@@ -145,6 +148,11 @@ class NGLConfig(
             return this
         }
 
+        fun setSharedGpuCtx(sharedGpuCtx: Long): Builder {
+            this.sharedGpuCtx = sharedGpuCtx
+            return this
+        }
+
         fun build(): NGLConfig {
             val config = NGLConfig(
                 backend = backend,
@@ -160,6 +168,7 @@ class NGLConfig(
                 captureBuffer = captureBuffer,
                 hud = hud,
                 hudScale = hudScale,
+                sharedGpuCtx = sharedGpuCtx,
             )
             return config
         }
