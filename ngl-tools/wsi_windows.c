@@ -20,26 +20,26 @@
  */
 
 #include <stdio.h>
-#include <SDL.h>
-#include <SDL_syswm.h>
+#include <SDL3/SDL.h>
 #include <nopegl/nopegl.h>
 
 #include "wsi.h"
 
 int wsi_set_ngl_config(struct ngl_config *config, SDL_Window *window)
 {
-    SDL_SysWMinfo info;
-    SDL_VERSION(&info.version);
-    if (!SDL_GetWindowWMInfo(window, &info)) {
-        fprintf(stderr, "Failed to get window WM information\n");
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    if (!props) {
+        fprintf(stderr, "Failed to get window properties: %s\n", SDL_GetError());
         return -1;
     }
 
-    if (info.subsystem == SDL_SYSWM_WINDOWS) {
-        config->platform = NGL_PLATFORM_WINDOWS;
-        config->window = (uintptr_t)info.info.win.window;
-        return 0;
+    void *hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+    if (!hwnd) {
+        fprintf(stderr, "Failed to get Win32 HWND\n");
+        return -1;
     }
 
-    return -1;
+    config->platform = NGL_PLATFORM_WINDOWS;
+    config->window = (uintptr_t)hwnd;
+    return 0;
 }

@@ -24,13 +24,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <SDL.h>
-#include <SDL_syswm.h>
+#include <SDL3/SDL.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include "common.h"
 #include "player.h"
+#include "time_utils.h"
 #include "wsi.h"
 
 static int save_ppm(const char *filename, uint8_t *data, int32_t width, int32_t height)
@@ -207,25 +207,25 @@ static int toggle_hud(struct player *p)
 
 static int key_callback(struct player *p, SDL_KeyboardEvent *event)
 {
-    const SDL_Keycode key = event->keysym.sym;
+    const SDL_Keycode key = event->key;
     switch (key) {
     case SDLK_ESCAPE:
-    case SDLK_q:
+    case SDLK_Q:
         return 1;
     case SDLK_SPACE:
         p->paused ^= 1;
         reset_running_time(p);
         break;
-    case SDLK_f:
+    case SDLK_F:
         p->fullscreen ^= 1;
-        SDL_SetWindowFullscreen(p->window, p->fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+        SDL_SetWindowFullscreen(p->window, p->fullscreen ? true : false);
         break;
-    case SDLK_h:
+    case SDLK_H:
         return toggle_hud(p);
-    case SDLK_s:
+    case SDLK_S:
         screenshot(p);
         break;
-    case SDLK_k:
+    case SDLK_K:
         kill_scene(p);
         break;
     case SDLK_LEFT:
@@ -236,12 +236,12 @@ static int key_callback(struct player *p, SDL_KeyboardEvent *event)
         p->lasthover = gettime_relative();
         update_time(p, clipi64(p->frame_ts + 10 * 1000000, 0, p->duration));
         break;
-    case SDLK_o:
+    case SDLK_O:
         p->paused = 1;
         p->lasthover = gettime_relative();
         set_frame_index(p, clipi64(p->frame_index - 1, 0, p->duration_i));
         break;
-    case SDLK_p:
+    case SDLK_P:
         p->paused = 1;
         p->lasthover = gettime_relative();
         set_frame_index(p, clipi64(p->frame_index + 1, 0, p->duration_i));
@@ -260,11 +260,11 @@ static void size_callback(struct player *p, int32_t width, int32_t height)
     ngl_resize(p->ngl, width, height);
 }
 
-static void seek_event(struct player *p, int x)
+static void seek_event(struct player *p, float x)
 {
     int32_t vp[4];
     ngl_get_viewport(p->ngl, vp);
-    const int pos = clipi32(x - vp[0], 0, vp[2]);
+    const int pos = clipi32((int)x - vp[0], 0, vp[2]);
     const int64_t seek_at64 = p->duration * pos / vp[2];
     p->lasthover = gettime_relative();
     update_time(p, clipi64(seek_at64, 0, p->duration));
@@ -482,7 +482,7 @@ int player_init(struct player *p, const char *win_title, struct ngl_scene *scene
 
     int ww, wh, dw, dh;
     SDL_GetWindowSize(p->window, &ww, &wh);
-    SDL_GL_GetDrawableSize(p->window, &dw, &dh);
+    SDL_GetWindowSizeInPixels(p->window, &dw, &dh);
     p->ngl_config.hud_scale = dw / ww;
 
     int ret = wsi_set_ngl_config(&p->ngl_config, p->window);
@@ -507,7 +507,7 @@ void player_uninit(struct player *p)
 
     SDL_Event event;
     while (SDL_PollEvent(&event))
-        if (event.type == SDL_USEREVENT)
+        if (event.type == SDL_EVENT_USER)
             free(event.user.data1);
 
     ngl_freep(&p->ngl);
@@ -580,28 +580,28 @@ void player_main_loop(struct player *p)
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
                 run = 0;
                 break;
-            case SDL_WINDOWEVENT:
-                if (event.window.event == SDL_WINDOWEVENT_CLOSE)
-                    run = 0;
-                else if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-                    size_callback(p, event.window.data1, event.window.data2);
+            case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+                run = 0;
                 break;
-            case SDL_KEYDOWN:
+            case SDL_EVENT_WINDOW_RESIZED:
+                size_callback(p, event.window.data1, event.window.data2);
+                break;
+            case SDL_EVENT_KEY_DOWN:
                 run = key_callback(p, &event.key) == 0;
                 break;
-            case SDL_MOUSEBUTTONDOWN:
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 mouse_buttondown_callback(p, &event.button);
                 break;
-            case SDL_MOUSEBUTTONUP:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
                 mouse_buttonup_callback(p, &event.button);
                 break;
-            case SDL_MOUSEMOTION:
+            case SDL_EVENT_MOUSE_MOTION:
                 mouse_pos_callback(p, &event.motion);
                 break;
-            case SDL_USEREVENT:
+            case SDL_EVENT_USER:
                 run = handle_map[event.user.code](p, event.user.data1) == 0;
                 free(event.user.data1);
                 p->text_last_frame_index = -1;

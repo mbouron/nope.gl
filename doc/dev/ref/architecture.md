@@ -16,7 +16,7 @@ The `nope.gl` project is split in several parts:
   It also depends on [nope.media][nope_media] (libnopemd) for media (video and
   images) playback. [Graphviz][graphviz] is optional but can be used to render
   and preview graphs obtained from the API.
-- `ngl-tools` needs [SDL2][sdl2] and `libnopegl` installed.
+- `ngl-tools` needs [SDL3][sdl3] and `libnopegl` installed.
 - `pynopegl` needs [Python][python] and [Cython][cython], and `libnopegl`
   installed.
 - `pynopegl-utils` needs [Python][python] and `pynopegl`. The tests tools
@@ -32,14 +32,14 @@ graph
     cython[Cython]
     ffmpeg[FFmpeg]
     python[Python]
-    sdl2[SDL2]
+    sdl3[SDL3]
     libnopemd[libnopemd]
     numpy[NumPy]
     jinja[Jinja]
 
     libnopemd --> ffmpeg
     libnopegl --> libnopemd
-    ngl_tools --> sdl2
+    ngl_tools --> sdl3
     ngl_tools --> libnopegl
     ngl_tools -. ngl-python .-> python
     pynopegl --> libnopegl
@@ -56,7 +56,7 @@ graph
     classDef ngldep fill:#add8e6,color:#222
     classDef extdep fill:#c0c0c0,color:#222
     class libnopegl,ngl_tools,pynopegl,pynopegl_utils ngldep
-    class libnopemd,ffmpeg,sdl2,python,cython,graphviz,pyside6,watchdog,numpy,jinja extdep
+    class libnopemd,ffmpeg,sdl3,python,cython,graphviz,pyside6,watchdog,numpy,jinja extdep
 ```
 
 [meson]: https://mesonbuild.com/
@@ -64,4 +64,4 @@ graph
 [graphviz]: http://www.graphviz.org/
 [python]: https://www.python.org/
 [cython]: http://cython.org/
-[sdl2]: https://www.libsdl.org/
+[sdl3]: https://www.libsdl.org/

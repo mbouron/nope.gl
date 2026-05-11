@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2022 GoPro Inc.
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,19 +19,21 @@
  * under the License.
  */
 
-#ifndef COMMON_H
-#define COMMON_H
+#include <SDL3/SDL.h>
 
-#include <stdint.h>
+#include "time_utils.h"
 
-#define ARRAY_NB(x) (sizeof(x) / sizeof(*(x)))
+/* Wall-clock microseconds since the Unix epoch. */
+int64_t gettime(void)
+{
+    SDL_Time t;
+    if (!SDL_GetCurrentTime(&t))
+        return 0;
+    return (int64_t)(t / 1000);
+}
 
-#define DEFAULT_WIDTH  640
-#define DEFAULT_HEIGHT 360
-
-double clipf64(double v, double min, double max);
-int clipi32(int v, int min, int max);
-int64_t clipi64(int64_t v, int64_t min, int64_t max);
-char *get_text_file_content(const char *filename);
-
-#endif
+/* Monotonic microseconds since an arbitrary fixed point. */
+int64_t gettime_relative(void)
+{
+    return (int64_t)(SDL_GetTicksNS() / 1000);
+}

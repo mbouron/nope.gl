@@ -1,0 +1,62 @@
+name: 'Setup SDL3 (Linux)'
+description: 'Build SDL3 from source'
+
+inputs:
+  version:
+    description: 'SDL3 release tag'
+    required: false
+    default: '3.4.8'
+  prefix:
+    description: 'Build/install prefix for SDL3'
+    required: false
+    default: ${{ github.workspace }}/sdl3-prefix
+
+runs:
+  using: composite
+  steps:
+    - name: Restore SDL3 install cache
+      id: cache-sdl3
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.prefix }}
+        key: sdl3-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}-v2
+
+    - name: Install SDL3 runtime and build dependencies
+      shell: bash
+      run: |
+        sudo apt -y update
+        sudo apt -y install build-essential git make pkg-config cmake ninja-build \
+          libasound2-dev libpulse-dev libaudio-dev libjack-dev libsndio-dev \
+          libfribidi-dev \
+          libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+          libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libdrm-dev libgbm-dev \
+          libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev libvulkan-dev \
+          libdbus-1-dev libibus-1.0-dev libudev-dev libthai-dev \
+          libpipewire-0.3-dev libwayland-dev libdecor-0-dev liburing-dev
+
+    - name: Build SDL3
+      if: steps.cache-sdl3.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        SDL3_SRC="${RUNNER_TEMP}/SDL3-src"
+        SDL3_BUILD="${RUNNER_TEMP}/SDL3-build"
+        git clone --depth 1 --branch "release-${{ inputs.version }}" \
+          https://github.com/libsdl-org/SDL.git "${SDL3_SRC}"
+        cmake -S "${SDL3_SRC}" -B "${SDL3_BUILD}" -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="${{ inputs.prefix }}" \
+          -DSDL_SHARED=ON \
+          -DSDL_STATIC=OFF \
+          -DSDL_TEST_LIBRARY=OFF \
+          -DSDL_TESTS=OFF \
+          -DSDL_INSTALL_TESTS=OFF \
+          -DSDL_EXAMPLES=OFF
+        cmake --build "${SDL3_BUILD}"
+        cmake --install "${SDL3_BUILD}"
+        rm -rf "${SDL3_SRC}" "${SDL3_BUILD}"
+
+    - name: Install SDL3 into /usr/local
+      shell: bash
+      run: |
+        sudo cp -a "${{ inputs.prefix }}/." /usr/local/
+        sudo ldconfig

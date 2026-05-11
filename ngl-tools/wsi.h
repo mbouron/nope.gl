@@ -22,7 +22,7 @@
 #ifndef WSI_H
 #define WSI_H
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <nopegl/nopegl.h>
 
 int init_window(void);

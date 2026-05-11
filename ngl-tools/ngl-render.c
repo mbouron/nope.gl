@@ -36,6 +36,7 @@
 
 #include "common.h"
 #include "opts.h"
+#include "time_utils.h"
 #include "wsi.h"
 
 #ifndef O_BINARY
