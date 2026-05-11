@@ -71,6 +71,12 @@ int ngpu_fence_gl_insert(struct ngpu_fence *s)
     ngpu_assert(s_priv->fence == 0);
     s_priv->fence = gl->funcs.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
+    /*
+     * Ensure that the sync object is in the GPU's command queue so it is
+     * observable from another context via glWaitSync() / glClientWaitSync().
+     */
+    gl->funcs.Flush();
+
     return 0;
 }
 
