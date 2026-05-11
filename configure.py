@@ -1095,13 +1095,9 @@ def _pynopegl_install(cfg):
 
 @_block("pynopegl-utils-deps-install", [_pynopegl_install])
 def _pynopegl_utils_deps_install(cfg):
-    #
     # Requirements not installed on MinGW because:
-    # - PySide6 can't be pulled (required to be installed by the user outside the
-    #   Python virtual env)
     # - Pillow fails to find zlib (required to be installed by the user outside the
     #   Python virtual env)
-    #
     if cfg.host == "MinGW":
         return ["@"]  # noop
     return ["$(PIP) " + _cmd_join("install", "-r", op.join("python", "pynopegl-utils", "requirements.txt"))]

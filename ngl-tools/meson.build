@@ -107,26 +107,9 @@ endif
 
 
 #
-# Network dependencies
-#
-net_deps = []
-if host_system == 'windows'
-  net_deps += [cc.find_library('ws2_32')]
-endif
-
-
-#
 # Tools specifications
 #
 tools_specs = {
-  'ngl-desktop': {
-    'src': files('ngl-desktop.c', 'ipc.c', 'player.c', 'opts.c') + wsi_src,
-    'deps': net_deps + wsi_deps + [threads_dep],
-  },
-  'ngl-ipc': {
-    'src': files('ngl-ipc.c', 'ipc.c', 'opts.c'),
-    'deps': net_deps,
-  },
   'ngl-player': {
     'src': files('ngl-player.c', 'player.c', 'opts.c') + wsi_src,
     'deps': wsi_deps + [nopemd_dep],

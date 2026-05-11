@@ -1,6 +1,4 @@
 pillow
 pynopegl
-pyside6
-watchdog
 numpy
 jinja2

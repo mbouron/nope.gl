@@ -189,7 +189,7 @@ def demo(cfg, intro='Hello World!'):
 
 ## Controller hooks
 
-When using the `--hooks-script` option, `ngl-control` will execute various hook
+When using the `--hooks-script` option, `ngl-viewer` will execute various hook
 according to various events. These hooks are typically used for triggering a
 synchronization with external devices.
 
@@ -212,10 +212,12 @@ Each `tuple` must contain:
 
 **Example**:
 
-```console
-$ python -c 'import pprint, desktop; pprint.pprint(desktop.get_sessions())'
-[('localhost-1234', 'local ngl-desktop'),
- ('localhost-2345', 'local ngl-desktop'),
+```python
+def get_sessions():
+    return [
+        ("localhost-1234", "local renderer"),
+        ("remote-host",    "remote renderer"),
+    ]
 ```
 
 ### get_session_info

@@ -28,23 +28,17 @@ setup(
     install_requires=["jinja2", "pynopegl"],
     entry_points={
         "console_scripts": [
-            "ngl-control = pynopegl_utils.controller:run",
             "ngl-test = pynopegl_utils.tests:run",
-            "ngl-viewer = pynopegl_utils.viewer:run",
-            "ngl-diff = pynopegl_utils.diff:run",
             "ngl-export = pynopegl_utils.export:run",
         ],
     },
     package_data={
         "": [
             "assets/*",
-            "diff/shaders/*",
             "examples/data/*",
             "examples/shaders/*.frag",
             "examples/shaders/*.comp",
             "examples/shaders/*.vert",
-            "hooks/desktop.py",
-            "qml/*.qml",
             "tests/*.j2",
         ],
     },

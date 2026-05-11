@@ -116,6 +116,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `GraphicConfig.scissor_test` parameter
 - Support for Android < 9.0
 - The `small` build option (enabled by default now)
+- PySide6-based utilities: `ngl-control`, `ngl-diff`, `ngl-viewer`
+- `ngl-ipc`, `ngl-desktop`
 
 ## [2024.0 / libnopegl 0.11.0][2024.0] - 2024-02-02
 ### Added
