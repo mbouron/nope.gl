@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2022 GoPro Inc.
+ * Copyright 2025-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,24 +19,18 @@
  * under the License.
  */
 
-#ifndef WSI_H
-#define WSI_H
+#ifndef VIEWER_BLIT_H
+#define VIEWER_BLIT_H
 
-#include <SDL3/SDL.h>
-#include <nopegl/nopegl.h>
+#include <ngpu/ngpu.h>
 
-int wsi_init(void);
+struct blit_ctx;
 
-enum {
-    /*
-     * Request a physical-resolution drawable (Wayland fractional scaling,
-     * macOS Retina).
-     */
-    WSI_WINDOW_FLAG_HIGH_PIXEL_DENSITY = 1 << 0,
-};
+struct blit_ctx *viewer_blit_create(struct ngpu_ctx *gpu_ctx);
 
-SDL_Window *wsi_get_window(const char *title, int32_t width, int32_t height, uint32_t flags);
+void viewer_blit_draw(struct blit_ctx *s, struct ngpu_texture *tex,
+                      float x, float y, float w, float h);
 
-int wsi_set_ngl_config(struct ngl_config *config, SDL_Window *window);
+void viewer_blit_freep(struct blit_ctx **sp);
 
-#endif /* WSI_H */
+#endif /* VIEWER_BLIT_H */

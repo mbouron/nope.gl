@@ -443,10 +443,10 @@ int player_init(struct player *p, const char *win_title, struct ngl_scene *scene
 {
     memset(p, 0, sizeof(*p));
 
-    if (init_window() < 0)
+    if (wsi_init() < 0)
         return -1;
 
-    p->window = get_window(win_title, cfg->width, cfg->height);
+    p->window = wsi_get_window(win_title, cfg->width, cfg->height, 0);
     if (!p->window) {
         SDL_Quit();
         return -1;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2022 GoPro Inc.
+ * Copyright 2025-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,24 +19,24 @@
  * under the License.
  */
 
-#ifndef WSI_H
-#define WSI_H
+#ifndef VIEWER_CONFIG_H
+#define VIEWER_CONFIG_H
 
-#include <SDL3/SDL.h>
-#include <nopegl/nopegl.h>
-
-int wsi_init(void);
-
-enum {
-    /*
-     * Request a physical-resolution drawable (Wayland fractional scaling,
-     * macOS Retina).
-     */
-    WSI_WINDOW_FLAG_HIGH_PIXEL_DENSITY = 1 << 0,
+/*
+ * Persisted viewer configuration. Mirrors the on-disk schema 1:1; adding a
+ * setting means adding a field here plus matching save/load lines.
+ */
+struct config_data {
+    char  script_path[2048];
+    char  scene_name[2048];
+    float panel_ratio; /* 0 = not set / use default. */
 };
 
-SDL_Window *wsi_get_window(const char *title, int32_t width, int32_t height, uint32_t flags);
+/* Write the config to the app's pref directory. */
+void config_save(const struct config_data *cfg);
 
-int wsi_set_ngl_config(struct ngl_config *config, SDL_Window *window);
+/* Read the config from the app's pref directory. cfg is zeroed first; fields
+ * for which no value is found stay empty. */
+void config_load(struct config_data *cfg);
 
-#endif /* WSI_H */
+#endif

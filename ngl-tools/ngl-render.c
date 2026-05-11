@@ -147,10 +147,10 @@ int main(int argc, char *argv[])
     printf("%s -> %s %dx%d\n", s.input ? s.input : "<stdin>", s.output ? s.output : "-", s.cfg.width, s.cfg.height);
 
     if (!s.cfg.offscreen) {
-        if (init_window() < 0)
+        if (wsi_init() < 0)
             return EXIT_FAILURE;
 
-        window = get_window("ngl-render", s.cfg.width, s.cfg.height);
+        window = wsi_get_window("ngl-render", s.cfg.width, s.cfg.height, 0);
         if (!window) {
             SDL_Quit();
             return EXIT_FAILURE;
