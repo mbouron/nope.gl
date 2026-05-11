@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include "wsi.h"
 
@@ -32,8 +32,8 @@ int init_window(void)
 #ifdef SDL_MAIN_HANDLED
     SDL_SetMainReady();
 #endif
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        fprintf(stderr, "Failed to initialize SDL");
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
         return -1;
     }
 
@@ -42,7 +42,7 @@ int init_window(void)
 
 SDL_Window *get_window(const char *title, int32_t width, int32_t height)
 {
-    uint32_t flags = SDL_WINDOW_RESIZABLE;
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE;
 
     /*
      * Workaround an issue with the SDL Wayland video driver. If
@@ -57,14 +57,9 @@ SDL_Window *get_window(const char *title, int32_t width, int32_t height)
     if (name && !strcmp(name, "wayland"))
         flags |= SDL_WINDOW_VULKAN;
 
-    SDL_Window *window = SDL_CreateWindow(title,
-                                          SDL_WINDOWPOS_UNDEFINED,
-                                          SDL_WINDOWPOS_UNDEFINED,
-                                          width,
-                                          height,
-                                          flags);
+    SDL_Window *window = SDL_CreateWindow(title, width, height, flags);
     if (!window) {
-        fprintf(stderr, "Failed to create window\n");
+        fprintf(stderr, "Failed to create window: %s\n", SDL_GetError());
         return NULL;
     }
 

@@ -20,10 +20,45 @@
  */
 
 #include <Python.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <nopegl/nopegl.h>
 
 #include "python_utils.h"
+
+static int python_init(void)
+{
+    PyConfig config;
+    PyConfig_InitPythonConfig(&config);
+
+    /*
+     * If a virtual environment is active but the binary lives outside of it
+     * (e.g. running from the meson build directory), point program_name at the
+     * venv's python so CPython's pyvenv.cfg detection adds the venv
+     * site-packages to sys.path.
+     */
+    const char *venv = getenv("VIRTUAL_ENV");
+    if (venv) {
+        char exe_path[4096];
+#ifdef _WIN32
+        snprintf(exe_path, sizeof(exe_path), "%s\\Scripts\\python.exe", venv);
+#else
+        snprintf(exe_path, sizeof(exe_path), "%s/bin/python", venv);
+#endif
+        PyStatus status = PyConfig_SetBytesString(&config, &config.program_name, exe_path);
+        if (PyStatus_Exception(status)) {
+            PyConfig_Clear(&config);
+            return -1;
+        }
+    }
+
+    PyStatus status = Py_InitializeFromConfig(&config);
+    PyConfig_Clear(&config);
+    if (PyStatus_Exception(status))
+        return -1;
+    return 0;
+}
 
 struct ngl_scene *python_get_scene(const char *modname, const char *func_name)
 {
@@ -36,7 +71,8 @@ struct ngl_scene *python_get_scene(const char *modname, const char *func_name)
 
     struct ngl_scene *scene = NULL;
 
-    Py_Initialize();
+    if (python_init() < 0)
+        return NULL;
 
     const size_t len = strlen(modname);
     if (len > 3 && !strcmp(modname + len - 3, ".py")) {

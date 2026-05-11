@@ -19,36 +19,51 @@
  * under the License.
  */
 
-#include <SDL.h>
-#include <SDL_config.h>
-#include <SDL_syswm.h>
+#include <stdio.h>
+#include <string.h>
+#include <SDL3/SDL.h>
 #include <nopegl/nopegl.h>
 
 #include "wsi.h"
 
 int wsi_set_ngl_config(struct ngl_config *config, SDL_Window *window)
 {
-    SDL_SysWMinfo info;
-    SDL_VERSION(&info.version);
-    if (!SDL_GetWindowWMInfo(window, &info)) {
-        fprintf(stderr, "Failed to get window WM information: %s\n", SDL_GetError());
+    const char *driver = SDL_GetCurrentVideoDriver();
+    if (!driver) {
+        fprintf(stderr, "Failed to get video driver name\n");
         return -1;
     }
-    if (info.subsystem == SDL_SYSWM_WAYLAND) {
-#ifdef SDL_VIDEO_DRIVER_WAYLAND
-        config->platform = NGL_PLATFORM_WAYLAND;
-        config->display = (uintptr_t)info.info.wl.display;
-        config->window = (uintptr_t)info.info.wl.surface;
-        return 0;
-#endif
-    } else if (info.subsystem == SDL_SYSWM_X11) {
-#ifdef SDL_VIDEO_DRIVER_X11
-        config->platform = NGL_PLATFORM_XLIB;
-        config->display = (uintptr_t)info.info.x11.display;
-        config->window = (uintptr_t)info.info.x11.window;
-        return 0;
-#endif
+
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    if (!props) {
+        fprintf(stderr, "Failed to get window properties: %s\n", SDL_GetError());
+        return -1;
     }
 
+    if (!strcmp(driver, "wayland")) {
+        void *display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, NULL);
+        void *surface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, NULL);
+        if (!display || !surface) {
+            fprintf(stderr, "Failed to get Wayland handles\n");
+            return -1;
+        }
+        config->platform = NGL_PLATFORM_WAYLAND;
+        config->display = (uintptr_t)display;
+        config->window = (uintptr_t)surface;
+        return 0;
+    } else if (!strcmp(driver, "x11")) {
+        void *display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
+        Sint64 xwindow = SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
+        if (!display || !xwindow) {
+            fprintf(stderr, "Failed to get X11 handles\n");
+            return -1;
+        }
+        config->platform = NGL_PLATFORM_XLIB;
+        config->display = (uintptr_t)display;
+        config->window = (uintptr_t)xwindow;
+        return 0;
+    }
+
+    fprintf(stderr, "Unsupported video driver: %s\n", driver);
     return -1;
 }

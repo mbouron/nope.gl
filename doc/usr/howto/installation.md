@@ -26,7 +26,7 @@ building and running the complete `nope.gl` stack.
   - **Python ≥ 3.8** (you will need the package with the build headers as well,
     typically named with a `-dev` suffix on Debian based systems)
   - **Graphviz**
-  - **SDL2**
+  - **SDL3**
 - Build with `./configure.py && make`
 - Enter the virtual environment with `. venv/bin/ngli-activate`
 

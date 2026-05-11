@@ -79,8 +79,13 @@ tool_deps = [
   cc.find_library('m', required: false),
   dependency('libnopegl'),
 ]
+ngpu_dep = dependency('libngpu')
 nopemd_dep = dependency('libnopemd', version: '>= 12.0.0')  # for media probing
 threads_dep = dependency('threads', required: false)
+avcodec_dep = dependency('libavcodec', required: false)
+avformat_dep = dependency('libavformat', required: false)
+avutil_dep = dependency('libavutil', required: false)
+swscale_dep = dependency('libswscale', required: false)
 
 python_mod = import('python')
 python_ins = python_mod.find_installation('python3')
@@ -95,8 +100,8 @@ wsi_src_system = {
   'darwin': files('wsi_cocoa.m'),
   'windows': files('wsi_windows.c'),
 }
-wsi_src = files('wsi.c') + wsi_src_system.get(host_system, [])
-sdl_dep = dependency('sdl2', required: get_option('sdl'))
+wsi_src = files('wsi.c', 'time_utils.c') + wsi_src_system.get(host_system, [])
+sdl_dep = dependency('sdl3', required: get_option('sdl'))
 wsi_deps = [sdl_dep]
 if host_system == 'darwin'
   wsi_deps += [dependency('appleframeworks', modules: 'AppKit', required: false)]

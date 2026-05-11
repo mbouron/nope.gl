@@ -205,11 +205,11 @@ _EXTERNAL_DEPS = dict(
         dst_file="opengl-registry-@VERSION@.zip",
         sha256="8e6efa8d9ec5ef1b2c735b2fc2afdfed210a3a5aa01c48e572326914e27bb221",
     ),
-    sdl2_Windows=dict(
-        version="2.30.6",
-        url="https://github.com/libsdl-org/SDL/releases/download/release-@VERSION@/SDL2-devel-@VERSION@-VC.zip",
-        dst_file="SDL2-@VERSION@.zip",
-        sha256="65cf810ec730a127f271076ec98d4011177f6ed655d4fc8a94c0bb8dad400922",
+    sdl3_Windows=dict(
+        version="3.4.8",
+        url="https://github.com/libsdl-org/SDL/releases/download/release-@VERSION@/SDL3-devel-@VERSION@-VC.zip",
+        dst_file="SDL3-@VERSION@.zip",
+        sha256="a91a4f7b64ce29f1c6a4bd5ea648b18380810f7c4ac8a332fc86bd9d3ad17131",
     ),
     glslang=dict(
         version="16.2.0",
@@ -293,7 +293,7 @@ def _get_external_deps(args):
         deps.append("egl_registry")
         deps.append("opengl_registry")
         deps.append("ffmpeg_Windows")
-        deps.append("sdl2_Windows")
+        deps.append("sdl3_Windows")
         deps.append("freetype")
         deps.append("harfbuzz")
         deps.append("fribidi")
@@ -770,8 +770,8 @@ def _ffmpeg_install(cfg):
         return cmds
 
 
-@_block("sdl2-install", [])
-def _sdl2_install(cfg):
+@_block("sdl3-install", [])
+def _sdl3_install(cfg):
     dirs = (
         "lib",
         "include",
@@ -779,12 +779,12 @@ def _sdl2_install(cfg):
     )
     cmds = []
     for d in dirs:
-        src = op.join(cfg.externals["sdl2_Windows"], d, "*")
+        src = op.join(cfg.externals["sdl3_Windows"], d, "*")
         dst = op.join(cfg.prefix, d)
         os.makedirs(dst, exist_ok=True)
         cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
 
-    src = op.join(cfg.externals["sdl2_Windows"], "lib", "x64", "SDL2.dll")
+    src = op.join(cfg.externals["sdl3_Windows"], "lib", "x64", "SDL3.dll")
     dst = op.join(cfg.prefix, "Scripts")
     cmds.append(_cmd_join("xcopy", src, dst, "/y"))
 
@@ -862,7 +862,7 @@ def _glslang_install(cfg):
     {
         "Android": [_ffmpeg_install],
         "iOS": [_ffmpeg_install],
-        "Windows": [_pkgconf_install, _ffmpeg_install, _sdl2_install],
+        "Windows": [_pkgconf_install, _ffmpeg_install, _sdl3_install],
     },
 )
 def _nopemd_setup(cfg):
@@ -1018,7 +1018,7 @@ def _ngpu_install(cfg):
         ],
         "Windows": [
             _nopemd_install,
-            _sdl2_install,
+            _sdl3_install,
             _egl_registry_install,
             _opengl_registry_install,
             _glslang_install,

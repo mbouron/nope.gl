@@ -20,8 +20,7 @@
  */
 
 #include <Cocoa/Cocoa.h>
-#include <SDL.h>
-#include <SDL_syswm.h>
+#include <SDL3/SDL.h>
 #include <nopegl/nopegl.h>
 
 #include "wsi.h"
@@ -46,32 +45,32 @@ static int get_default_backend(void)
 
 int wsi_set_ngl_config(struct ngl_config *config, SDL_Window *window)
 {
-    SDL_SysWMinfo info;
-    SDL_VERSION(&info.version);
-    if (!SDL_GetWindowWMInfo(window, &info)) {
-        fprintf(stderr, "Failed to get window WM information\n");
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    if (!props) {
+        fprintf(stderr, "Failed to get window properties: %s\n", SDL_GetError());
         return -1;
     }
 
-    if (info.subsystem == SDL_SYSWM_COCOA) {
-        NSWindow *nswindow = info.info.cocoa.window;
-        NSView *view = [nswindow contentView];
-
-        if (config->backend == NGL_BACKEND_AUTO) {
-            config->backend = get_default_backend();
-            if (config->backend < 0)
-                return -1;
-        }
-        if (config->backend == NGL_BACKEND_VULKAN) {
-            NSBundle *bundle = [NSBundle bundleWithPath:@"/System/Library/Frameworks/QuartzCore.framework"];
-            view.layer = [[bundle classNamed:@"CAMetalLayer"] layer];
-            view.wantsLayer = YES;
-        }
-
-        config->platform = NGL_PLATFORM_MACOS;
-        config->window = (uintptr_t)view;
-        return 0;
+    NSWindow *nswindow = (__bridge NSWindow *)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
+    if (!nswindow) {
+        fprintf(stderr, "Failed to get Cocoa window\n");
+        return -1;
     }
 
-    return -1;
+    NSView *view = [nswindow contentView];
+
+    if (config->backend == NGL_BACKEND_AUTO) {
+        config->backend = get_default_backend();
+        if (config->backend < 0)
+            return -1;
+    }
+    if (config->backend == NGL_BACKEND_VULKAN) {
+        NSBundle *bundle = [NSBundle bundleWithPath:@"/System/Library/Frameworks/QuartzCore.framework"];
+        view.layer = [[bundle classNamed:@"CAMetalLayer"] layer];
+        view.wantsLayer = YES;
+    }
+
+    config->platform = NGL_PLATFORM_MACOS;
+    config->window = (uintptr_t)view;
+    return 0;
 }
