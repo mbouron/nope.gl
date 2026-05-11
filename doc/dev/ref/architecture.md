@@ -19,11 +19,8 @@ The `nope.gl` project is split in several parts:
 - `ngl-tools` needs [SDL2][sdl2] and `libnopegl` installed.
 - `pynopegl` needs [Python][python] and [Cython][cython], and `libnopegl`
   installed.
-- `pynopegl-utils` needs [Python][python] and `pynopegl`. The controller depends on
-  `PySide6` (which is the main reason why this package is separated from the
-  `pynopegl` package). It is also recommended to install [Graphviz][graphviz]
-  in order to render graph in the controller. The tests tools depends on
-  `NumPy` and `Jinja`.
+- `pynopegl-utils` needs [Python][python] and `pynopegl`. The tests tools
+  depends on `NumPy` and `Jinja`.
 
 ```{mermaid}
 graph
@@ -34,12 +31,9 @@ graph
 
     cython[Cython]
     ffmpeg[FFmpeg]
-    graphviz[Graphviz]
-    pyside6[PySide6]
     python[Python]
     sdl2[SDL2]
     libnopemd[libnopemd]
-    watchdog[watchdog]
     numpy[NumPy]
     jinja[Jinja]
 

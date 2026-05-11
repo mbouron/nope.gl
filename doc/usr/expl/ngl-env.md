@@ -28,7 +28,7 @@ modifications to the code and iterate easily. It is possible to iterate faster
 by selecting the specific build chain rule, for example: `make nopegl-install`.
 
 After the build, it is possible to enter the environment with the provided
-activation command to access the tools (`ngl-control`, `ngl-desktop`, etc.), as
+activation command to access the tools (`ngl-viewer`, `ngl-player`, etc.), as
 well as importing `pynopegl` and `pynopegl-utils` within Python.
 
 The temporary build files are located in `builddir`. This means that if the
