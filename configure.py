@@ -1114,7 +1114,10 @@ def _pynopegl_utils_install(cfg):
 
 @_block("ngl-tools-setup", [_nopegl_install])
 def _ngl_tools_setup(cfg):
-    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join("ngl-tools", _get_builddir(cfg, "ngl-tools"))]
+    opts = []
+    if cfg.args.sanitize:
+        opts += [f"-Db_sanitize={cfg.args.sanitize}"]
+    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(*opts, "ngl-tools", _get_builddir(cfg, "ngl-tools"))]
 
 
 @_block("ngl-tools-install", [_ngl_tools_setup])
