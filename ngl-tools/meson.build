@@ -55,6 +55,7 @@ if host_system == 'windows'
   if cc.get_id() == 'msvc'
     c_args += ['-DSDL_MAIN_HANDLED']
     msvc_args = [
+        '/experimental:c11atomics',
         # Ignore several spurious warnings
         '/wd4018', # comparison between signed and unsigned numbers
         '/wd4146', # unary minus operator applied to unsigned type when its result is still unsigned (INT_MIN)
@@ -135,6 +136,23 @@ tools_specs = {
     'src': files('ngl-serialize.c', 'python_utils.c'),
     'deps': [python_dep],
   },
+  'ngl-viewer': {
+    'src': files(
+      'ngl-viewer.c',
+      'nuklear_ngpu.c',
+      'viewer_scene.c',
+      'viewer_compositor.c',
+      'viewer_ui.c',
+      'viewer_config.c',
+      'viewer_blit.c',
+      'viewer_python.c',
+      'viewer_export.c',
+      'viewer_hooks.c',
+      'opts.c'
+    ) + wsi_src,
+    'deps': wsi_deps + [ngpu_dep, python_dep, threads_dep, avcodec_dep, avformat_dep, avutil_dep, swscale_dep],
+    'c_args': ['-DNGL_TOOLS_DATADIR="@0@"'.format(get_option('prefix') / get_option('datadir') / 'ngl-tools')],
+  },
 }
 
 foreach tool_name, tool_info : tools_specs
@@ -150,7 +168,16 @@ foreach tool_name, tool_info : tools_specs
       dependencies: tool_deps + tool_info.get('deps'),
       install: true,
       install_rpath: get_option('rpath') ? get_option('prefix') / 'lib' : '',
-      c_args: c_args,
+      c_args: c_args + tool_info.get('c_args', []),
     )
   endif
 endforeach
+
+fs = import('fs')
+if fs.exists('fonts/Inter-Regular.ttf')
+  install_data(
+    'fonts/Inter-Regular.ttf',
+    'fonts/OFL.txt',
+    install_dir: get_option('datadir') / 'ngl-tools' / 'fonts',
+  )
+endif

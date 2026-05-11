@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2022 GoPro Inc.
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,24 +19,29 @@
  * under the License.
  */
 
-#ifndef WSI_H
-#define WSI_H
+#ifndef VIEWER_HOOKS_H
+#define VIEWER_HOOKS_H
 
-#include <SDL3/SDL.h>
-#include <nopegl/nopegl.h>
+#include <stddef.h>
+#include <stdint.h>
 
-int wsi_init(void);
+struct ngl_scene;
 
-enum {
-    /*
-     * Request a physical-resolution drawable (Wayland fractional scaling,
-     * macOS Retina).
-     */
-    WSI_WINDOW_FLAG_HIGH_PIXEL_DENSITY = 1 << 0,
+struct hooks_session {
+    char *id;
+    char *description;
 };
 
-SDL_Window *wsi_get_window(const char *title, int32_t width, int32_t height, uint32_t flags);
+struct hooks_ctx;
 
-int wsi_set_ngl_config(struct ngl_config *config, SDL_Window *window);
+struct hooks_ctx *hooks_create(const char *script_path);
 
-#endif /* WSI_H */
+int hooks_get_sessions(struct hooks_ctx *s, struct hooks_session **sessionsp, size_t *nb_sessionsp);
+void hooks_free_sessions(struct hooks_session *sessions, size_t nb_sessions);
+
+int hooks_scene_change(struct hooks_ctx *s, const char *session_id,
+                       struct ngl_scene *scene, uint32_t clear_color, int samples);
+
+void hooks_freep(struct hooks_ctx **sp);
+
+#endif /* VIEWER_HOOKS_H */

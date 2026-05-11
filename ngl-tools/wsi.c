@@ -27,7 +27,7 @@
 #include "wsi.h"
 
 
-int init_window(void)
+int wsi_init(void)
 {
 #ifdef SDL_MAIN_HANDLED
     SDL_SetMainReady();
@@ -40,9 +40,11 @@ int init_window(void)
     return 0;
 }
 
-SDL_Window *get_window(const char *title, int32_t width, int32_t height)
+SDL_Window *wsi_get_window(const char *title, int32_t width, int32_t height, uint32_t flags)
 {
-    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE;
+    SDL_WindowFlags sdl_flags = SDL_WINDOW_RESIZABLE;
+    if (flags & WSI_WINDOW_FLAG_HIGH_PIXEL_DENSITY)
+        sdl_flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
 
     /*
      * Workaround an issue with the SDL Wayland video driver. If
@@ -55,9 +57,9 @@ SDL_Window *get_window(const char *title, int32_t width, int32_t height)
      */
     const char *name = SDL_GetCurrentVideoDriver();
     if (name && !strcmp(name, "wayland"))
-        flags |= SDL_WINDOW_VULKAN;
+        sdl_flags |= SDL_WINDOW_VULKAN;
 
-    SDL_Window *window = SDL_CreateWindow(title, width, height, flags);
+    SDL_Window *window = SDL_CreateWindow(title, width, height, sdl_flags);
     if (!window) {
         fprintf(stderr, "Failed to create window: %s\n", SDL_GetError());
         return NULL;
