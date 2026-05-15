@@ -524,6 +524,9 @@ foreach gbackend_name, gbackend_cfg : gbackends_cfg
     endif
     gbackend_deps += dep
   endforeach
+  if host_system == 'windows' and gbackend_name in ['gl', 'gles']
+    gbackend_deps += declare_dependency(include_directories: extra_include_dirs)
+  endif
   if 'frameworks' in host_backend_cfg
     gbackend_deps += dependency('appleframeworks', modules: host_backend_cfg.get('frameworks'), required: opt_gbackend)
   endif
