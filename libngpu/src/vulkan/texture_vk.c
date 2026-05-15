@@ -1116,7 +1116,8 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
     if (s_priv->staging_buffer)
         ngpu_buffer_wait(s_priv->staging_buffer);
 
-    if (!texture_transfer_params_are_equal(&s_priv->last_transfer_params, transfer_params)) {
+    if (!s_priv->staging_buffer ||
+        !texture_transfer_params_are_equal(&s_priv->last_transfer_params, transfer_params)) {
         destroy_staging_buffer(s);
 
         int ret = create_staging_buffer(s, transfer_size);
@@ -1126,7 +1127,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
         s_priv->last_transfer_params = *transfer_params;
     }
 
-    memcpy(s_priv->staging_buffer_ptr, data, s_priv->staging_buffer->size);
+    memcpy(s_priv->staging_buffer_ptr, data, transfer_size);
 
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
     const int cmd_is_transient = !cmd_buffer_vk || ngpu_ctx_is_render_pass_active(s->gpu_ctx);
