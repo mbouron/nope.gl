@@ -24,7 +24,6 @@ package org.nopeforge.nopegl.engine
 import android.util.Rational
 import android.view.Choreographer
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
@@ -76,12 +75,14 @@ class Clock {
                     if (previousFrameTimeNanos == Long.MIN_VALUE) {
                         previousFrameTimeNanos = frameTimeNanos
                     }
-                    val elapsedDuration = (frameTimeNanos - previousFrameTimeNanos).nanoseconds
-                    val elapsedFrames =
-                        (elapsedDuration.toDouble(DurationUnit.SECONDS) * frameRate.toDouble()).toLong()
-
+                    val rate = frameRate
+                    val nanosPerFrame = 1_000_000_000L * rate.denominator / rate.numerator
+                    val elapsedNanos = frameTimeNanos - previousFrameTimeNanos
+                    val elapsedFrames = (elapsedNanos + nanosPerFrame / 2) / nanosPerFrame
                     if (elapsedFrames > 0) {
-                        previousFrameTimeNanos = frameTimeNanos
+                        // Advance by whole frames only; the sub-frame remainder
+                        // stays in previousFrameTimeNanos to avoid drifting.
+                        previousFrameTimeNanos += elapsedFrames * nanosPerFrame
                         frameIndex = if (looping) {
                             (frameIndex + elapsedFrames) % maxFrameIndex
                         } else {
