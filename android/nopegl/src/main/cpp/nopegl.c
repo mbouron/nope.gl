@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <android/log.h>
 #include <android/native_window.h>
@@ -1370,53 +1371,35 @@ Java_org_nopeforge_nopegl_NGLCustomTexture_00024Callback_nativeSetTextureInfo(
     }
 }
 
-JNIEXPORT jlong JNICALL
-Java_org_nopeforge_nopegl_EGLHelper_nativeCreateEGLImage(
-    JNIEnv *env, jobject thiz, jobject hardware_buffer)
+JNIEXPORT jint JNICALL
+Java_org_nopeforge_nopegl_NGLCustomTexture_00024Callback_nativeSetHardwareBufferInfo(
+    JNIEnv *env, jobject object, jlong native_context_ptr,
+    jobject hardware_buffer, jint width, jint height, jint fence_fd)
 {
+    struct custom_texture_ctx *ctx =
+        (struct custom_texture_ctx *)(uintptr_t)native_context_ptr;
+
+    if (!hardware_buffer) {
+        if (fence_fd >= 0)
+            close(fence_fd);
+        return ngl_custom_texture_set_texture_info_ahb(ctx->node, NULL);
+    }
+
     AHardwareBuffer *buffer =
         AHardwareBuffer_fromHardwareBuffer(env, hardware_buffer);
     if (!buffer) {
-        return 0;
+        if (fence_fd >= 0)
+            close(fence_fd);
+        return NGL_ERROR_EXTERNAL;
     }
 
-    EGLClientBuffer egl_buffer = eglGetNativeClientBufferANDROID(buffer);
-    if (!egl_buffer) {
-        return 0;
-    }
-
-    static const EGLint attrs[] = {
-        EGL_IMAGE_PRESERVED_KHR,
-        EGL_TRUE,
-        EGL_NONE,
+    const struct ngl_custom_texture_info_ahb info = {
+        .hardware_buffer  = buffer,
+        .width            = (uint32_t)width,
+        .height           = (uint32_t)height,
+        .acquire_fence_fd = fence_fd,
     };
-
-    EGLImage egl_image =
-        eglCreateImageKHR(eglGetCurrentDisplay(), EGL_NO_CONTEXT,
-                          EGL_NATIVE_BUFFER_ANDROID, egl_buffer, attrs);
-    if (!egl_image) {
-        return 0;
-    }
-
-    return (jlong)(uintptr_t)egl_image;
-}
-
-JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_EGLHelper_nativeUploadEGLImage(
-    JNIEnv *env, jobject thiz, jlong egl_image, jint texture)
-{
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, (GLuint)texture);
-    glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES,
-                                 (EGLImageKHR)(uintptr_t)egl_image);
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
-}
-
-JNIEXPORT void JNICALL
-Java_org_nopeforge_nopegl_EGLHelper_nativeReleaseEGLImage(JNIEnv *env,
-                                                          jobject thiz,
-                                                          jlong image)
-{
-    EGLImageKHR egl_image = (EGLImageKHR)(uintptr_t)image;
-    eglDestroyImageKHR(eglGetCurrentDisplay(), egl_image);
+    return ngl_custom_texture_set_texture_info_ahb(ctx->node, &info);
 }
 
 struct logger_ctx {

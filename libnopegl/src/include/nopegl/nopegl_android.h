@@ -25,6 +25,8 @@
 #include <jni.h>
 #include <nopegl/nopegl.h>
 
+struct AHardwareBuffer;
+
 /**
  * Set a Java virtual machine that will be used to retrieve the JNI
  * environment.
@@ -69,5 +71,36 @@ NGL_API int ngl_android_set_application_context(jobject *application_context);
  *         context or NULL if none has been set
  */
 NGL_API jobject *ngl_android_get_application_context(void);
+
+struct ngl_custom_texture_info_ahb {
+    struct AHardwareBuffer *hardware_buffer;
+    uint32_t width;
+    uint32_t height;
+    /*
+     * sync_file fd signalling completion of the producer's GPU writes. The
+     * backend takes ownership: the fd is imported into a VkSemaphore (Vulkan)
+     * or an EGLSync (OpenGL/OpenGLES) and consumed in the process. Set to -1
+     * if no fence is available.
+     */
+    int acquire_fence_fd;
+};
+
+/**
+ * Define an Android AHardwareBuffer-backed texture to be used by the node.
+ *
+ * This works for both the OpenGL/OpenGLES and Vulkan backends. Only AHBs with
+ * an RGBA color format are guaranteed to work; YUV/external formats require
+ * additional setup not exposed through this entry point.
+ *
+ * This function must only be called from the node user-defined functions of
+ * the NGL_NODE_CUSTOMTEXTURE node.
+ *
+ * @param node  pointer to the target node
+ * @param info  pointer to a ngl_custom_texture_info_ahb structure. NULL can be
+ *              passed to reset previous texture information.
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct ngl_custom_texture_info_ahb *info);
 
 #endif

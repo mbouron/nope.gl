@@ -21,6 +21,8 @@
 
 package org.nopeforge.nopegl
 
+import android.hardware.HardwareBuffer
+
 class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) {
 
     abstract class Callback {
@@ -45,6 +47,18 @@ class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) 
             val target: Int,
         )
 
+        data class HardwareBufferInfo(
+            val width: Int,
+            val height: Int,
+            val hardwareBuffer: HardwareBuffer,
+            /**
+             * An owned sync_file file descriptor signalling completion of the
+             * producer's GPU write to [hardwareBuffer], or -1 if none. The
+             * native side takes ownership of the fd.
+             */
+            val acquireFenceFd: Int = -1,
+        )
+
         protected fun setTextureInfo(info: Info?) {
             if (info == null || info.texture == 0) {
                 nativeSetTextureInfo(nativePtr)
@@ -59,12 +73,34 @@ class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) 
             }
         }
 
+        protected fun setHardwareBufferInfo(info: HardwareBufferInfo?) {
+            if (info == null) {
+                nativeSetHardwareBufferInfo(nativePtr, null, 0, 0, -1)
+            } else {
+                nativeSetHardwareBufferInfo(
+                    nativePtr,
+                    info.hardwareBuffer,
+                    info.width,
+                    info.height,
+                    info.acquireFenceFd,
+                )
+            }
+        }
+
         private external fun nativeSetTextureInfo(
             nativeContextPtr: Long,
             texture: Int = 0,
             target: Int = 0,
             width: Int = 0,
             height: Int = 0,
+        ): Int
+
+        private external fun nativeSetHardwareBufferInfo(
+            nativeContextPtr: Long,
+            hardwareBuffer: HardwareBuffer?,
+            width: Int,
+            height: Int,
+            acquireFenceFd: Int,
         ): Int
 
     }

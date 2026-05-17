@@ -734,8 +734,7 @@ class NopeGLTest {
         ctx.release()
     }
 
-    @Test
-    fun canvas() {
+    private fun canvas(backend: Int) {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         NGLContext.init(appContext)
 
@@ -762,7 +761,7 @@ class NopeGLTest {
         val scene = NGLScene(rootNode = group, duration = 2.0)
 
         val captureBuffer = ByteBuffer.allocateDirect(width * height * 4)
-        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
+        val ctx = createContext(backend).apply {
             val ret = setCaptureBuffer(captureBuffer)
             assertEquals(ret, 0)
             setScene(scene)
@@ -778,7 +777,16 @@ class NopeGLTest {
     }
 
     @Test
-    fun canvasWith2DNodes() {
+    fun canvasGL() {
+        canvas(NGLConfig.BACKEND_OPENGLES)
+    }
+
+    @Test
+    fun canvasVK() {
+        canvas(NGLConfig.BACKEND_VULKAN)
+    }
+
+    private fun canvasWith2DNodes(backend: Int) {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         NGLContext.init(appContext)
 
@@ -812,7 +820,7 @@ class NopeGLTest {
         val scene = NGLScene(rootNode = group, duration = 2.0)
 
         val captureBuffer = ByteBuffer.allocateDirect(width * height * 4)
-        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
+        val ctx = createContext(backend).apply {
             val ret = setCaptureBuffer(captureBuffer)
             assertEquals(ret, 0)
             setScene(scene)
@@ -825,5 +833,15 @@ class NopeGLTest {
         assertEquals((0xFFFFFFFF).toUInt(), buffer[0].toUInt())
 
         ctx.release()
+    }
+
+    @Test
+    fun canvasWith2DNodesGL() {
+        canvasWith2DNodes(NGLConfig.BACKEND_OPENGLES)
+    }
+
+    @Test
+    fun canvasWith2DNodesVK() {
+        canvasWith2DNodes(NGLConfig.BACKEND_VULKAN)
     }
 }

@@ -26,8 +26,6 @@ import android.graphics.RenderNode
 import android.hardware.HardwareBuffer
 import android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
 import android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
-import android.opengl.GLES11Ext.GL_TEXTURE_EXTERNAL_OES
-import android.opengl.GLES32
 
 class NGLAndroidCanvas(
     // TODO: don't expose the size here
@@ -43,51 +41,7 @@ class NGLAndroidCanvas(
     private val customTextureCallback: NGLCustomTexture.Callback = object : NGLCustomTexture.Callback() {
         private var renderer: NGLAndroidCanvasRenderer? = null
         private var renderNode: RenderNode? = null
-        private val values = IntArray(1)
-        private var texture: Int = 0
-        private var eglImage: Long = 0
         private var hardwareBuffer: HardwareBuffer? = null
-
-        private fun createTexture() {
-            GLES32.glGenTextures(1, values, 0)
-            texture = values[0]
-
-            GLES32.glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture)
-            GLES32.glTexParameteri(
-                GL_TEXTURE_EXTERNAL_OES,
-                GLES32.GL_TEXTURE_MIN_FILTER,
-                GLES32.GL_NEAREST,
-            )
-            GLES32.glTexParameteri(
-                GL_TEXTURE_EXTERNAL_OES,
-                GLES32.GL_TEXTURE_MAG_FILTER,
-                GLES32.GL_LINEAR,
-            )
-            GLES32.glTexParameteri(
-                GL_TEXTURE_EXTERNAL_OES,
-                GLES32.GL_TEXTURE_WRAP_S,
-                GLES32.GL_CLAMP_TO_EDGE,
-            )
-            GLES32.glTexParameteri(
-                GL_TEXTURE_EXTERNAL_OES,
-                GLES32.GL_TEXTURE_WRAP_T,
-                GLES32.GL_CLAMP_TO_EDGE,
-            )
-            setTextureInfo(
-                Info(
-                    width = width,
-                    height = height,
-                    texture = texture,
-                    target = GL_TEXTURE_EXTERNAL_OES
-                )
-            )
-        }
-
-        private fun releaseTexture() {
-            setTextureInfo(null)
-            GLES32.glDeleteTextures(1, intArrayOf(texture), 0)
-            texture = 0
-        }
 
         override fun init() {
             callback.onInit()
@@ -109,8 +63,6 @@ class NGLAndroidCanvas(
                 renderer?.setContentRoot(node)
             }
 
-            createTexture()
-
             callback.onPrefetch()
         }
 
@@ -121,11 +73,8 @@ class NGLAndroidCanvas(
 
         override fun draw() {
             if (!callback.onPreDraw()) return
-            if (eglImage != 0L) {
-                EGLHelper.nativeReleaseEGLImage(eglImage)
-            }
-            eglImage = 0
 
+            setHardwareBufferInfo(null)
             hardwareBuffer?.let { renderer?.releaseBuffer(it) }
             hardwareBuffer = null
 
@@ -135,26 +84,22 @@ class NGLAndroidCanvas(
             callback.onDraw(canvas)
             renderNode.endRecording()
 
-            hardwareBuffer = renderer.draw()
+            val frame = renderer.draw() ?: return
+            hardwareBuffer = frame.hardwareBuffer
 
-            hardwareBuffer?.let {
-                eglImage = EGLHelper.nativeCreateEGLImage(it)
-            }
-
-            if (eglImage != 0L) {
-                releaseTexture()
-                createTexture()
-                EGLHelper.nativeUploadEGLImage(eglImage, texture)
-            }
+            setHardwareBufferInfo(
+                HardwareBufferInfo(
+                    width = width,
+                    height = height,
+                    hardwareBuffer = frame.hardwareBuffer,
+                    acquireFenceFd = frame.acquireFenceFd,
+                )
+            )
         }
 
         override fun release() {
             callback.onRelease()
-            releaseTexture()
-            if (eglImage != 0L) {
-                EGLHelper.nativeReleaseEGLImage(eglImage)
-            }
-            eglImage = 0L
+            setHardwareBufferInfo(null)
             hardwareBuffer?.let { renderer?.releaseBuffer(it) }
             hardwareBuffer = null
             renderer?.close()

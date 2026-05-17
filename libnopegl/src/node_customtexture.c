@@ -31,6 +31,7 @@
 
 #if defined(TARGET_ANDROID)
 #include "jni_utils.h"
+#include "nopegl/nopegl_android.h"
 #endif
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
@@ -295,6 +296,87 @@ int ngl_custom_texture_set_texture_info_gl(struct ngl_node *node, const struct n
 
     return ngli_node_invalidate_branch(node);
 }
+
+#if defined(TARGET_ANDROID)
+static int import_texture_ahb(struct ngl_node *node, const struct ngl_custom_texture_info_ahb *info)
+{
+    struct customtexture_priv *s = node->priv_data;
+    struct ngl_ctx *ctx = node->ctx;
+    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
+
+    const enum ngpu_backend_type backend = ngpu_ctx_get_backend_type(gpu_ctx);
+
+    struct ngpu_texture_params texture_params = {
+        .type       = NGPU_TEXTURE_TYPE_2D,
+        .format     = NGPU_FORMAT_R8G8B8A8_UNORM,
+        .width      = info->width,
+        .height     = info->height,
+        .min_filter = NGPU_FILTER_LINEAR,
+        .mag_filter = NGPU_FILTER_LINEAR,
+        .usage      = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
+        .import_params = {
+            .type = NGPU_IMPORT_TYPE_AHARDWARE_BUFFER,
+            .ahardware_buffer = {
+                .hardware_buffer   = info->hardware_buffer,
+                .ycbcr_sampler     = NULL,
+                .acquire_fence_fd  = info->acquire_fence_fd,
+            },
+        },
+    };
+
+    s->texture_info.texture = ngpu_texture_create(gpu_ctx);
+    if (!s->texture_info.texture)
+        return NGL_ERROR_MEMORY;
+
+    int ret = ngpu_texture_init(s->texture_info.texture, &texture_params);
+    if (ret < 0)
+        return ret;
+
+    enum image_layout layout = NGLI_IMAGE_LAYOUT_DEFAULT;
+    if (backend == NGPU_BACKEND_OPENGL || backend == NGPU_BACKEND_OPENGLES)
+        layout = NGLI_IMAGE_LAYOUT_MEDIACODEC;
+
+    const struct image_params image_params = {
+        .width       = info->width,
+        .height      = info->height,
+        .layout      = layout,
+        .color_scale = 1.f,
+        .color_info  = NGLI_COLOR_INFO_DEFAULTS,
+    };
+    ngli_image_init(&s->texture_info.image, &image_params, &s->texture_info.texture);
+
+    s->texture_info.image.rev = s->texture_info.image_rev++;
+
+    return 0;
+}
+
+int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct ngl_custom_texture_info_ahb *info)
+{
+    if (!node)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (node->cls->id != NGL_NODE_CUSTOMTEXTURE)
+        return NGL_ERROR_UNSUPPORTED;
+
+    if (!node->ctx)
+        return NGL_ERROR_UNSUPPORTED;
+
+    struct customtexture_priv *s = node->priv_data;
+
+    /* Cleanup previous texture/image */
+    ngpu_texture_freep(&s->texture_info.texture);
+    ngli_image_reset(&s->texture_info.image);
+    s->texture_info.image.rev = s->texture_info.image_rev++;
+    if (!info || !info->hardware_buffer)
+        return ngli_node_invalidate_branch(node);
+
+    int ret = import_texture_ahb(node, info);
+    if (ret < 0)
+        return ret;
+
+    return ngli_node_invalidate_branch(node);
+}
+#endif
 
 const struct node_class ngli_customtexture_class = {
     .id             = NGL_NODE_CUSTOMTEXTURE,

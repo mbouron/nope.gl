@@ -34,10 +34,33 @@ import android.media.ImageReader
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.hardware.SyncFence
+import android.os.Parcel
 import androidx.annotation.IntRange
 import androidx.annotation.RequiresApi
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+
+internal data class NGLAndroidCanvasBuffer(
+    val hardwareBuffer: HardwareBuffer,
+    val acquireFenceFd: Int = -1,
+)
+
+private fun SyncFence.extractFenceFd(): Int {
+    if (!isValid) return -1
+    val parcel = Parcel.obtain()
+    try {
+        writeToParcel(parcel, 0)
+        parcel.setDataPosition(0)
+        if (parcel.readInt() == 0) return -1
+        val pfd = parcel.readFileDescriptor() ?: return -1
+        return pfd.detachFd()
+    } finally {
+        parcel.recycle()
+    }
+}
 
 internal class NGLAndroidCanvasRenderer
 internal constructor(
@@ -65,7 +88,7 @@ internal constructor(
         impl.setContentRoot(renderNode)
     }
 
-    fun draw() : HardwareBuffer? {
+    fun draw() : NGLAndroidCanvasBuffer? {
         return impl.draw()
     }
 
@@ -76,7 +99,7 @@ internal constructor(
     internal interface Impl {
         fun close()
         fun setContentRoot(renderNode: RenderNode)
-        fun draw() : HardwareBuffer?
+        fun draw() : NGLAndroidCanvasBuffer?
         fun releaseBuffer(hardwareBuffer: HardwareBuffer)
     }
 
@@ -175,7 +198,7 @@ internal constructor(
         hardwareRenderer.setContentRoot(contentRoot)
     }
 
-    override fun draw() : HardwareBuffer? {
+    override fun draw() : NGLAndroidCanvasBuffer? {
         val renderRequest = hardwareRenderer.createRenderRequest()
         val result = renderRequest.syncAndDraw()
         if (result != HardwareRenderer.SYNC_OK &&
@@ -190,12 +213,13 @@ internal constructor(
             gotFrame = false
         }
         val image = imageReader.acquireNextImage()
-        val buffer = image.hardwareBuffer
-        if (buffer != null) {
-            buffers[buffer] = image
-        }
-
-        return buffer
+        val buffer = image.hardwareBuffer ?: return null
+        buffers[buffer] = image
+        /*
+         * ImageReader#acquireNextImage() blocks until the producer's GPU work
+         * has completed, so no fence needs to be forwarded.
+         */
+        return NGLAndroidCanvasBuffer(buffer, acquireFenceFd = -1)
     }
 
     override fun releaseBuffer(hardwareBuffer: HardwareBuffer) {
@@ -234,20 +258,24 @@ internal constructor(
         contentNode = renderNode
     }
 
-    override fun draw() : HardwareBuffer {
+    override fun draw() : NGLAndroidCanvasBuffer {
         rootNode.setPosition(0, 0, width, height)
         val canvas = rootNode.beginRecording()
         canvas.drawColor(Color.TRANSPARENT, BlendMode.CLEAR)
         contentNode?.let { canvas.drawRenderNode(it) }
         rootNode.endRecording()
         val renderRequest = hardwareRenderer.obtainRenderRequest()
+        val fenceReference = AtomicReference<SyncFence?>(null)
+        val latch = CountDownLatch(1)
         renderRequest.draw(Runnable::run) { result ->
-            result.fence.apply {
-                awaitForever()
-                close()
-            }
+            fenceReference.set(result.fence)
+            latch.countDown()
         }
-        return hardwareBuffer
+        latch.await()
+        val fence = fenceReference.get()
+        val fenceFd = fence?.extractFenceFd() ?: -1
+        fence?.close()
+        return NGLAndroidCanvasBuffer(hardwareBuffer, fenceFd)
     }
 
     override fun releaseBuffer(hardwareBuffer: HardwareBuffer) {

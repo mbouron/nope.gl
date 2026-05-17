@@ -37,8 +37,6 @@
 -keep class org.nopeforge.nopegl.NGLError { *; }
 -keep class org.nopeforge.nopegl.NGLError$Companion { *; }
 -keepclassmembers class org.nopeforge.nopegl.NGLError$Companion { *; }
--keep class org.nopeforge.nopegl.EGLHelper { *; }
--keepclassmembers class org.nopeforge.nopegl.EGLHelper { *; }
 -keep class org.nopeforge.nopegl.NGLImageReader { *; }
 -keepclassmembers class org.nopeforge.nopegl.NGLImageReader { *; }
 -keep class org.nopeforge.nopegl.NGLImageReader$Companion { *; }
