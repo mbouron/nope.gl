@@ -24,5 +24,16 @@ and API can change at any time.
 `nope.gl` is licensed under the Apache License, Version 2.0. Read the
 [LICENSE][license] and [NOTICE][notice] files for details.
 
+`ngl-tools` is licensed under the Apache License, Version 2.0. It also bundles
+the following third-party components:
+
+- [Nuklear][nuklear] (`ngl-tools/nuklear.h`), dual-licensed under the MIT
+  License or the Unlicense (public domain).
+- [Inter][inter] font (`ngl-tools/fonts/Inter-Regular.ttf`), licensed
+  under the SIL [Open Font License][ofl], Version 1.1.
+
 [license]: /LICENSE
 [notice]: /NOTICE
+[nuklear]: https://github.com/Immediate-Mode-UI/Nuklear
+[inter]: https://github.com/rsms/inter
+[ofl]: /ngl-tools/fonts/OFL.txt
