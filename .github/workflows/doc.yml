@@ -28,6 +28,9 @@ jobs:
     - name: Checkout sources
       uses: actions/checkout@v4
 
+    - name: Setup SDL3
+      uses: ./.github/actions/setup-sdl3-linux
+
     - name: Install dependencies
       run: |
         sudo apt -y update
