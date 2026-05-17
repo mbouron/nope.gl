@@ -683,13 +683,17 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
+    const bool use_external_format = (ahb_format_props.format == VK_FORMAT_UNDEFINED);
+
+    if (use_external_format && !ahb_params->ycbcr_sampler) {
+        LOG(ERROR, "android hardware buffer has an external (YCbCr) format but no ycbcr sampler was provided");
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+    }
+
     VkExternalFormatANDROID external_format = {
         .sType = VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID,
-        .externalFormat = 0,
+        .externalFormat = use_external_format ? ahb_format_props.externalFormat : 0,
     };
-
-    if (ahb_format_props.format == VK_FORMAT_UNDEFINED)
-        external_format.externalFormat = ahb_format_props.externalFormat;
 
     VkExternalMemoryImageCreateInfo external_memory_image_info = {
         .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
@@ -760,15 +764,6 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
-    const struct ngpu_ycbcr_sampler_vk *ycbcr_sampler_vk = (struct ngpu_ycbcr_sampler_vk *)ahb_params->ycbcr_sampler;
-    s_priv->use_ycbcr_sampler = 1;
-    s_priv->ycbcr_sampler = ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler_vk);
-
-    const VkSamplerYcbcrConversionInfo sampler_ycbcr_conv_info = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO,
-        .conversion = ycbcr_sampler_vk->conv,
-    };
-
     const VkImageSubresourceRange subres_range = {
         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel   = 0,
@@ -777,19 +772,32 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         .layerCount     = 1,
     };
 
-    const VkImageViewCreateInfo view_info = {
-        .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .pNext            = &sampler_ycbcr_conv_info,
-        .image            = s_priv->image,
-        .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-        .format           = VK_FORMAT_UNDEFINED,
-        .subresourceRange = subres_range,
-    };
+    if (use_external_format) {
+        const struct ngpu_ycbcr_sampler_vk *ycbcr_sampler_vk = (struct ngpu_ycbcr_sampler_vk *)ahb_params->ycbcr_sampler;
+        s_priv->use_ycbcr_sampler = 1;
+        s_priv->ycbcr_sampler = ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler_vk);
 
-    res = vk->funcs.CreateImageView(vk->device, &view_info, NULL, &s_priv->image_view);
-    if (res != VK_SUCCESS) {
-        LOG(ERROR, "could not create image view: %s", ngpu_vk_res2str(res));
-        return NGPU_ERROR_GRAPHICS_GENERIC;
+        const VkSamplerYcbcrConversionInfo sampler_ycbcr_conv_info = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO,
+            .conversion = ycbcr_sampler_vk->conv,
+        };
+
+        const VkImageViewCreateInfo view_info = {
+            .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .pNext            = &sampler_ycbcr_conv_info,
+            .image            = s_priv->image,
+            .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+            .format           = VK_FORMAT_UNDEFINED,
+            .subresourceRange = subres_range,
+        };
+
+        res = vk->funcs.CreateImageView(vk->device, &view_info, NULL, &s_priv->image_view);
+        if (res != VK_SUCCESS) {
+            LOG(ERROR, "could not create image view: %s", ngpu_vk_res2str(res));
+            return NGPU_ERROR_GRAPHICS_GENERIC;
+        }
+    } else {
+        s_priv->format = ahb_format_props.format;
     }
 
     const VkImageMemoryBarrier barrier = {
