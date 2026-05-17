@@ -1,5 +1,6 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.android.library)
     id("nopegl-nodes")
     `maven-publish`
@@ -107,18 +108,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     sourceSets {
         getByName("test") {
             assets {
-                srcDirs("src/androidTest/assets")
+                directories.add("src/androidTest/assets")
             }
         }
         getByName("main") {
-            java {
-                srcDir("src/shared/java")
+            kotlin {
+                directories.add("src/shared/java")
             }
         }
     }
@@ -131,6 +129,12 @@ android {
             withSourcesJar()
             withJavadocJar()
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
     }
 }
 
