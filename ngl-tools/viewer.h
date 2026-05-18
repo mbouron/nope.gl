@@ -164,6 +164,9 @@ struct viewer_ctx {
     /* Splitter drag state. Set while the user is actively dragging the
      * controls/preview divider; reset when the left mouse button releases. */
     int splitter_dragging;
+
+    /* Reference to currently-selected node in the Scene Graph tree. */
+    struct ngl_node *selected_node;
 };
 
 /*

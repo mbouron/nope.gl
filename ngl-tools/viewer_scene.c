@@ -68,6 +68,12 @@ static void scene_cmd_release(struct scene_cmd *cmd)
             SDL_SignalSemaphore(cmd->snapshot.done);
         cmd->snapshot.out  = NULL;
         cmd->snapshot.done = NULL;
+    } else if (cmd->type == SCENE_CMD_CALLBACK) {
+        if (cmd->callback.free_fn)
+            cmd->callback.free_fn(cmd->callback.arg);
+        cmd->callback.fn      = NULL;
+        cmd->callback.free_fn = NULL;
+        cmd->callback.arg     = NULL;
     }
 }
 
@@ -132,7 +138,7 @@ void scene_cmd_post(struct scene_cmd_queue *q, struct scene_cmd cmd)
         SDL_UnlockMutex(q->lock);
         return;
     }
-    if (cmd.type != SCENE_CMD_SNAPSHOT) {
+    if (cmd.type != SCENE_CMD_SNAPSHOT && cmd.type != SCENE_CMD_CALLBACK) {
         for (size_t i = 0; i < q->count; i++) {
             const size_t idx = (q->head + i) % SCENE_CMD_QUEUE_CAP;
             if (q->ring[idx].type != cmd.type)
@@ -240,6 +246,8 @@ void viewer_load_script(struct viewer_ctx *s, const char *path)
     s->nb_scenes = 0;
     s->selected_scene = -1;
     s->scene_loaded = 0;
+    if (s->selected_node)
+        ngl_node_unrefp(&s->selected_node);
     scene_cmd_post(&s->cmd_q, (struct scene_cmd){.type = SCENE_CMD_UNLOAD});
     s->last_error[0] = '\0';
     viewer_python_list_scenes(s->script_path, &s->scene_names, &s->nb_scenes,
@@ -421,6 +429,11 @@ int scene_thread_func(void *arg)
                 scene_cmd_release(&cmd);
                 break;
             }
+            case SCENE_CMD_CALLBACK:
+                if (cmd.callback.fn)
+                    cmd.callback.fn(s, cmd.callback.arg);
+                scene_cmd_release(&cmd);
+                break;
             }
             have_cmd = scene_cmd_pop_timed(&s->cmd_q, &cmd, 0);
         }

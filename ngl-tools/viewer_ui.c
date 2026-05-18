@@ -30,6 +30,413 @@
 #include "viewer.h"
 #include "viewer_ui.h"
 
+struct edit_param_arg {
+    struct ngl_node *node;
+    char key[64];
+    union {
+        int      i;
+        unsigned u;
+        float    f;
+        double   d;
+        float    v[4];
+        char     s[256];
+    } value;
+};
+
+static void edit_arg_free(void *arg) { free(arg); }
+
+#define DEFINE_EDIT_CB(name, body)                                                 \
+    static void name(struct viewer_ctx *s, void *arg)                              \
+    {                                                                              \
+        (void)s;                                                                   \
+        struct edit_param_arg *e = arg;                                            \
+        body;                                                                      \
+    }
+
+DEFINE_EDIT_CB(edit_cb_bool,   ngl_node_param_set_bool  (e->node, e->key, e->value.i))
+DEFINE_EDIT_CB(edit_cb_i32,    ngl_node_param_set_i32   (e->node, e->key, (int32_t)e->value.i))
+DEFINE_EDIT_CB(edit_cb_u32,    ngl_node_param_set_u32   (e->node, e->key, e->value.u))
+DEFINE_EDIT_CB(edit_cb_f32,    ngl_node_param_set_f32   (e->node, e->key, e->value.f))
+DEFINE_EDIT_CB(edit_cb_f64,    ngl_node_param_set_f64   (e->node, e->key, e->value.d))
+DEFINE_EDIT_CB(edit_cb_vec2,   ngl_node_param_set_vec2  (e->node, e->key, e->value.v))
+DEFINE_EDIT_CB(edit_cb_vec3,   ngl_node_param_set_vec3  (e->node, e->key, e->value.v))
+DEFINE_EDIT_CB(edit_cb_vec4,   ngl_node_param_set_vec4  (e->node, e->key, e->value.v))
+DEFINE_EDIT_CB(edit_cb_select, ngl_node_param_set_select(e->node, e->key, e->value.s))
+
+static struct edit_param_arg *edit_arg_new(struct ngl_node *node, const char *key)
+{
+    struct edit_param_arg *e = calloc(1, sizeof(*e));
+    if (!e)
+        return NULL;
+    e->node = node;
+    snprintf(e->key, sizeof(e->key), "%s", key);
+    return e;
+}
+
+static void post_edit(struct viewer_ctx *s, void (*fn)(struct viewer_ctx *, void *), void *arg)
+{
+    scene_cmd_post(&s->cmd_q, (struct scene_cmd){
+        .type = SCENE_CMD_CALLBACK,
+        .callback = { .fn = fn, .free_fn = edit_arg_free, .arg = arg },
+    });
+}
+
+#define POST_EDIT(s, fn, node, key, init)                                          \
+    do {                                                                           \
+        struct edit_param_arg *e_ = edit_arg_new((node), (key));                   \
+        if (e_) { init; post_edit((s), (fn), e_); }                                \
+    } while (0)
+
+static int param_is_editable(const struct ngl_param_info *p, struct ngl_node *node)
+{
+    if (!p->allow_live_change)
+        return 0;
+    if (p->allow_node) {
+        struct ngl_node *child_node = NULL;
+        if (ngl_node_param_get_node(node, p->key, &child_node) == 0 && child_node)
+            return 0;
+    }
+    return 1;
+}
+
+static void property_row(struct nk_context *nk, float K, float h, int cells)
+{
+    nk_layout_row_template_begin(nk, h);
+    nk_layout_row_template_push_static(nk, 8.f * K);
+    for (int i = 0; i < cells; i++)
+        nk_layout_row_template_push_dynamic(nk);
+    nk_layout_row_template_end(nk);
+    nk_spacing(nk, 1);
+}
+
+static void render_param_widget(struct viewer_ctx *s, struct nk_context *nk,
+                                struct ngl_node *node, const struct ngl_param_info *p)
+{
+    const float K = viewer_ui_scale(s);
+    const int live = param_is_editable(p, node);
+
+    /* Color-like params: any vec3/vec4 whose key contains "color". */
+    const bool is_color_vec = p->key && strstr(p->key, "color")
+                             && (p->type == NGL_PARAM_TYPE_VEC3 || p->type == NGL_PARAM_TYPE_VEC4);
+    if (is_color_vec) {
+        const int n = (p->type == NGL_PARAM_TYPE_VEC3) ? 3 : 4;
+        float v[4] = {0, 0, 0, 1.0f};
+        if (n == 3) ngl_node_param_get_vec3(node, p->key, v);
+        else        ngl_node_param_get_vec4(node, p->key, v);
+
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+
+        const struct nk_colorf cf = { v[0], v[1], v[2], v[3] };
+        const struct nk_color swatch = nk_rgba_cf(cf);
+
+        if (!live) {
+            nk_button_color(nk, swatch);
+            return;
+        }
+
+        if (nk_combo_begin_color(nk, swatch, nk_vec2(nk_widget_width(nk), 320 * K))) {
+            const enum nk_color_format fmt = (n == 4) ? NK_RGBA : NK_RGB;
+            nk_layout_row_dynamic(nk, 180 * K, 1);
+            struct nk_colorf new_cf = nk_color_picker(nk, cf, fmt);
+            nk_layout_row_dynamic(nk, 22 * K, 1);
+            new_cf.r = nk_propertyf(nk, "#R", 0.0f, new_cf.r, 1.0f, 0.01f, 0.005f);
+            new_cf.g = nk_propertyf(nk, "#G", 0.0f, new_cf.g, 1.0f, 0.01f, 0.005f);
+            new_cf.b = nk_propertyf(nk, "#B", 0.0f, new_cf.b, 1.0f, 0.01f, 0.005f);
+            if (n == 4)
+                new_cf.a = nk_propertyf(nk, "#A", 0.0f, new_cf.a, 1.0f, 0.01f, 0.005f);
+            nk_combo_end(nk);
+
+            float nv[4] = { new_cf.r, new_cf.g, new_cf.b, (n == 4) ? new_cf.a : 1.0f };
+            if (memcmp(nv, v, (size_t)n * sizeof(float)) != 0) {
+                void (*fn)(struct viewer_ctx *, void *) = (n == 3) ? edit_cb_vec3 : edit_cb_vec4;
+                POST_EDIT(s, fn, node, p->key, memcpy(e_->value.v, nv, sizeof(nv)));
+            }
+        }
+        return;
+    }
+
+    switch (p->type) {
+    case NGL_PARAM_TYPE_BOOL: {
+        int v = 0;
+        ngl_node_param_get_bool(node, p->key, &v);
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        if (live) {
+            int new_v = v;
+            nk_checkbox_label(nk, "", &new_v);
+            if (new_v != v)
+                POST_EDIT(s, edit_cb_bool, node, p->key, e_->value.i = new_v);
+        } else {
+            nk_label(nk, v ? "true" : "false", NK_TEXT_LEFT);
+        }
+        break;
+    }
+    case NGL_PARAM_TYPE_I32: {
+        int32_t v = 0;
+        ngl_node_param_get_i32(node, p->key, &v);
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        if (live) {
+            int new_v = nk_propertyi(nk, "#", -1000000, v, 1000000, 1, 1.0f);
+            if (new_v != v)
+                POST_EDIT(s, edit_cb_i32, node, p->key, e_->value.i = new_v);
+        } else {
+            char buf[32]; snprintf(buf, sizeof(buf), "%d", v);
+            nk_label(nk, buf, NK_TEXT_LEFT);
+        }
+        break;
+    }
+    case NGL_PARAM_TYPE_U32: {
+        uint32_t v = 0;
+        ngl_node_param_get_u32(node, p->key, &v);
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        if (live) {
+            int new_v = nk_propertyi(nk, "#", 0, (int)v, 1000000, 1, 1.0f);
+            if ((unsigned)new_v != v)
+                POST_EDIT(s, edit_cb_u32, node, p->key, e_->value.u = (unsigned)new_v);
+        } else {
+            char buf[32]; snprintf(buf, sizeof(buf), "%u", v);
+            nk_label(nk, buf, NK_TEXT_LEFT);
+        }
+        break;
+    }
+    case NGL_PARAM_TYPE_F32: {
+        float v = 0.0f;
+        ngl_node_param_get_f32(node, p->key, &v);
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        if (live) {
+            float new_v = nk_propertyf(nk, "#", -1e6f, v, 1e6f, 0.01f, 0.005f);
+            if (new_v != v)
+                POST_EDIT(s, edit_cb_f32, node, p->key, e_->value.f = new_v);
+        } else {
+            char buf[32]; snprintf(buf, sizeof(buf), "%.4f", (double)v);
+            nk_label(nk, buf, NK_TEXT_LEFT);
+        }
+        break;
+    }
+    case NGL_PARAM_TYPE_F64: {
+        double v = 0.0;
+        ngl_node_param_get_f64(node, p->key, &v);
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        if (live) {
+            double new_v = (double)nk_propertyf(nk, "#", -1e6f, (float)v, 1e6f, 0.01f, 0.005f);
+            if (new_v != v)
+                POST_EDIT(s, edit_cb_f64, node, p->key, e_->value.d = new_v);
+        } else {
+            char buf[32]; snprintf(buf, sizeof(buf), "%.4f", v);
+            nk_label(nk, buf, NK_TEXT_LEFT);
+        }
+        break;
+    }
+    case NGL_PARAM_TYPE_VEC2:
+    case NGL_PARAM_TYPE_VEC3:
+    case NGL_PARAM_TYPE_VEC4: {
+        const int n = p->type == NGL_PARAM_TYPE_VEC2 ? 2 : p->type == NGL_PARAM_TYPE_VEC3 ? 3 : 4;
+        float v[4] = {0};
+        if (n == 2) ngl_node_param_get_vec2(node, p->key, v);
+        else if (n == 3) ngl_node_param_get_vec3(node, p->key, v);
+        else ngl_node_param_get_vec4(node, p->key, v);
+        property_row(nk, K, 18 * K, 1);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        property_row(nk, K, 22 * K, n);
+        float nv[4]; memcpy(nv, v, sizeof(nv));
+        for (int j = 0; j < n; j++) {
+            char id_j[8];
+            const char axis = "XYZW"[j];
+            snprintf(id_j, sizeof(id_j), "#%c", axis);
+            if (live)
+                nv[j] = nk_propertyf(nk, id_j, -1e6f, nv[j], 1e6f, 0.01f, 0.005f);
+            else {
+                char buf[32]; snprintf(buf, sizeof(buf), "%.4f", (double)nv[j]);
+                nk_label(nk, buf, NK_TEXT_RIGHT);
+            }
+        }
+        if (live && memcmp(v, nv, (size_t)n * sizeof(float)) != 0) {
+            void (*fn)(struct viewer_ctx *, void *) =
+                n == 2 ? edit_cb_vec2 : n == 3 ? edit_cb_vec3 : edit_cb_vec4;
+            POST_EDIT(s, fn, node, p->key, memcpy(e_->value.v, nv, sizeof(nv)));
+        }
+        break;
+    }
+    case NGL_PARAM_TYPE_SELECT: {
+        const char *cur = NULL;
+        ngl_node_param_get_select(node, p->key, &cur);
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        if (live && p->choices && cur) {
+            if (nk_combo_begin_label(nk, cur, nk_vec2(nk_widget_width(nk), 200 * K))) {
+                nk_layout_row_dynamic(nk, 22 * K, 1);
+                for (size_t i = 0; p->choices[i]; i++) {
+                    if (nk_combo_item_label(nk, p->choices[i], NK_TEXT_LEFT) && strcmp(p->choices[i], cur) != 0)
+                        POST_EDIT(s, edit_cb_select, node, p->key,
+                                  snprintf(e_->value.s, sizeof(e_->value.s), "%s", p->choices[i]));
+                }
+                nk_combo_end(nk);
+            }
+        } else {
+            nk_label(nk, cur ? cur : "(none)", NK_TEXT_LEFT);
+        }
+        break;
+    }
+    case NGL_PARAM_TYPE_STR: {
+        const char *v = NULL;
+        ngl_node_param_get_str(node, p->key, &v);
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        nk_label(nk, v ? v : "(null)", NK_TEXT_LEFT);
+        break;
+    }
+    case NGL_PARAM_TYPE_RATIONAL: {
+        int32_t num = 0, den = 1;
+        ngl_node_param_get_rational(node, p->key, &num, &den);
+        property_row(nk, K, 22 * K, 2);
+        nk_label(nk, p->key, NK_TEXT_LEFT);
+        char buf[32]; snprintf(buf, sizeof(buf), "%d/%d", num, den);
+        nk_label(nk, buf, NK_TEXT_LEFT);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+static int param_has_widget(const struct ngl_param_info *p, struct ngl_node *node)
+{
+    if (p->allow_node) {
+        struct ngl_node *child_node = NULL;
+        if (ngl_node_param_get_node(node, p->key, &child_node) == 0 && child_node)
+            return 0;
+    }
+    switch (p->type) {
+    case NGL_PARAM_TYPE_BOOL:
+    case NGL_PARAM_TYPE_I32:
+    case NGL_PARAM_TYPE_U32:
+    case NGL_PARAM_TYPE_F32:
+    case NGL_PARAM_TYPE_F64:
+    case NGL_PARAM_TYPE_VEC2:
+    case NGL_PARAM_TYPE_VEC3:
+    case NGL_PARAM_TYPE_VEC4:
+    case NGL_PARAM_TYPE_SELECT:
+    case NGL_PARAM_TYPE_STR:
+    case NGL_PARAM_TYPE_RATIONAL:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static void viewer_set_selected_node(struct viewer_ctx *s, struct ngl_node *node)
+{
+    if (s->selected_node == node)
+        return;
+    if (s->selected_node)
+        ngl_node_unrefp(&s->selected_node);
+    if (node)
+        s->selected_node = ngl_node_ref(node);
+}
+
+static void render_node_tree(struct viewer_ctx *s, struct nk_context *nk,
+                             struct ngl_node *node, int depth)
+{
+    if (!node || depth > 32)
+        return;
+
+    const char *type_name = ngl_node_get_type_name(node);
+    const char *label = NULL;
+    ngl_node_get_label(node, &label);
+
+    char display[256];
+    if (label && label[0] && type_name && strcmp(label, type_name) != 0)
+        snprintf(display, sizeof(display), "%s (%s)", type_name, label);
+    else
+        snprintf(display, sizeof(display), "%s", type_name ? type_name : "?");
+
+    nk_bool selected = (s->selected_node == node);
+    const nk_bool was_selected = selected;
+    const int open = nk_tree_element_push_id(nk, NK_TREE_NODE, display,
+                                             depth == 0 ? NK_MAXIMIZED : NK_MINIMIZED,
+                                             &selected, (int)(uintptr_t)node);
+    if (selected != was_selected) {
+        if (selected)
+            viewer_set_selected_node(s, node);
+        else if (s->selected_node == node)
+            viewer_set_selected_node(s, NULL);
+    }
+    if (!open)
+        return;
+
+    struct ngl_node **children = NULL;
+    size_t nb_children = 0;
+    ngl_node_get_children(node, &children, &nb_children);
+    for (size_t i = 0; i < nb_children; i++)
+        render_node_tree(s, nk, children[i], depth + 1);
+    ngl_node_children_freep(&children);
+
+    nk_tree_element_pop(nk);
+}
+
+static void render_scene_graph_section(struct viewer_ctx *s, struct nk_context *nk, float K)
+{
+    if (!s->scene_loaded)
+        return;
+    nk_layout_row_dynamic(nk, 10 * K, 1);
+    nk_spacing(nk, 1);
+    if (!nk_tree_push(nk, NK_TREE_TAB, "Scene Graph", NK_MINIMIZED))
+        return;
+    struct ngl_node *root = ngl_get_scene_root(s->ngl_ctx);
+    if (root) {
+        const struct nk_vec2 saved_tab_padding = nk->style.tab.padding;
+        nk->style.tab.padding.y = 0.0f;
+        render_node_tree(s, nk, root, 0);
+        nk->style.tab.padding = saved_tab_padding;
+    } else {
+        nk_layout_row_dynamic(nk, 22 * K, 1);
+        nk_label(nk, "(no scene)", NK_TEXT_LEFT);
+    }
+    nk_tree_pop(nk);
+}
+
+static void render_properties_panel_body(struct viewer_ctx *s, struct nk_context *nk, float K)
+{
+    struct ngl_node *node = s->selected_node;
+    if (!node)
+        return;
+
+    const char *type_name = ngl_node_get_type_name(node);
+    const char *label = NULL;
+    ngl_node_get_label(node, &label);
+
+    char header[256];
+    if (label && label[0] && type_name && strcmp(label, type_name) != 0)
+        snprintf(header, sizeof(header), "%s (%s)", type_name, label);
+    else
+        snprintf(header, sizeof(header), "%s", type_name ? type_name : "?");
+
+    nk_layout_row_dynamic(nk, 22 * K, 1);
+    nk_label(nk, header, NK_TEXT_LEFT);
+
+    const struct ngl_param_info *infos = NULL;
+    size_t nb_infos = 0;
+    ngl_node_get_params_info(node, &infos, &nb_infos);
+    bool has_widget = false;
+    for (size_t i = 0; i < nb_infos; i++) {
+        if (param_has_widget(&infos[i], node)) {
+            render_param_widget(s, nk, node, &infos[i]);
+            has_widget = true;
+        }
+    }
+    ngl_node_params_info_freep(&infos, nb_infos);
+
+    if (!has_widget) {
+        nk_layout_row_dynamic(nk, 22 * K, 1);
+        nk_label(nk, "(no parameters to display)", NK_TEXT_LEFT);
+    }
+}
+
 /*
  * Fill an export_params from the current UI state. The export worker
  * fetches the scene itself via snapshot_queue and derives width from the
@@ -612,6 +1019,8 @@ export_section_done:
             }
         }
 
+        render_scene_graph_section(s, nk, K);
+
         /*
          * Error panel: shown only when last_error is non-empty (the most
          * recent script load or scene build failed). Cleared automatically
@@ -632,10 +1041,19 @@ export_section_done:
     }
     nk_end(nk);
 
+    /*
+     * Properties panel: shown on the right when a node is selected in the
+     * Scene Graph tree.
+     */
+    const int show_properties = s->selected_node != NULL;
+    const float properties_w = show_properties ? (float)s->win_width * 0.22f : 0.0f;
+    const float properties_x = (float)s->win_width - properties_w - margin;
+
     /* Preview section. */
     const float playback_bar_h = 50.0f * K;
     const float preview_x = panel_width + margin;
-    const float preview_w = (float)s->win_width - panel_width - margin * 2;
+    const float right_pad = show_properties ? properties_w + margin : 0.0f;
+    const float preview_w = (float)s->win_width - panel_width - margin * 2 - right_pad;
     const float preview_h = (float)s->win_height - margin * 3 - playback_bar_h;
     const float playback_y = margin + preview_h + margin;
 
@@ -718,6 +1136,18 @@ export_section_done:
         nk_label(nk, timebuf, NK_TEXT_RIGHT);
     }
     nk_end(nk);
+
+    if (show_properties) {
+        nk_window_show(nk, "Properties", NK_SHOWN);
+        const float properties_h = (float)s->win_height - margin * 2;
+        if (nk_begin(nk, "Properties", nk_rect(properties_x, margin, properties_w, properties_h),
+                     NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_CLOSABLE)) {
+            render_properties_panel_body(s, nk, K);
+        }
+        nk_end(nk);
+        if (nk_window_is_hidden(nk, "Properties"))
+            viewer_set_selected_node(s, NULL);
+    }
 
     /* Toggle SDL text input based on which Nuklear widget is edited. */
     nk_sdl_update_text_input(s);
