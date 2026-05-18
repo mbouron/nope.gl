@@ -818,6 +818,14 @@ int ngl_node_get_type(struct ngl_node *node, uint32_t *type)
     return 0;
 }
 
+const char *ngl_node_get_type_name(const struct ngl_node *node)
+{
+    if (!node || !node->cls)
+        return NULL;
+
+    return node->cls->name;
+}
+
 int ngl_node_get_label(struct ngl_node *node, const char **label)
 {
     if (!node)
@@ -826,6 +834,132 @@ int ngl_node_get_label(struct ngl_node *node, const char **label)
     *label = node->label;
 
     return 0;
+}
+
+static int append_child(struct ngl_node ***arrp, size_t *countp, size_t *capp, struct ngl_node *child)
+{
+    if (*countp >= *capp) {
+        const size_t new_cap = *capp ? *capp * 2 : 8;
+        struct ngl_node **tmp = ngli_realloc(*arrp, new_cap, sizeof(*tmp));
+        if (!tmp)
+            return NGL_ERROR_MEMORY;
+        *arrp = tmp;
+        *capp = new_cap;
+    }
+    (*arrp)[(*countp)++] = child;
+    return 0;
+}
+
+int ngl_node_get_children(const struct ngl_node *node,
+                          struct ngl_node ***childrenp, size_t *nb_childrenp)
+{
+    *childrenp = NULL;
+    *nb_childrenp = 0;
+
+    if (!node || !node->cls || !node->cls->params)
+        return 0;
+
+    struct ngl_node **children = NULL;
+    size_t count = 0, capacity = 0;
+
+    const struct node_param *par = node->cls->params;
+    const uint8_t *opts = node->opts;
+
+    while (par->key) {
+        if (par->type == NGLI_PARAM_TYPE_NODE ||
+            (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)) {
+            struct ngl_node *child = *(struct ngl_node **)(opts + par->offset);
+            if (child) {
+                int ret = append_child(&children, &count, &capacity, child);
+                if (ret < 0) {
+                    ngli_free(children);
+                    return ret;
+                }
+            }
+        } else if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+            struct ngl_node **elems = *(struct ngl_node ***)(opts + par->offset);
+            const size_t nb_elems = *(const size_t *)(opts + par->offset + sizeof(struct ngl_node **));
+            for (size_t i = 0; i < nb_elems; i++) {
+                int ret = append_child(&children, &count, &capacity, elems[i]);
+                if (ret < 0) {
+                    ngli_free(children);
+                    return ret;
+                }
+            }
+        }
+        par++;
+    }
+
+    *childrenp = children;
+    *nb_childrenp = count;
+    return 0;
+}
+
+void ngl_node_children_freep(struct ngl_node ***childrenp)
+{
+    ngli_freep(childrenp);
+}
+
+int ngl_node_get_params_info(const struct ngl_node *node,
+                             const struct ngl_param_info **infosp,
+                             size_t *nb_infosp)
+{
+    *infosp = NULL;
+    *nb_infosp = 0;
+
+    if (!node || !node->cls || !node->cls->params)
+        return 0;
+
+    size_t count = 0;
+    const struct node_param *par = node->cls->params;
+    while (par[count].key)
+        count++;
+
+    if (!count)
+        return 0;
+
+    struct ngl_param_info *infos = ngli_calloc(count, sizeof(*infos));
+    if (!infos)
+        return NGL_ERROR_MEMORY;
+
+    for (size_t i = 0; i < count; i++) {
+        infos[i].key               = par[i].key;
+        infos[i].type              = (enum ngl_param_type)par[i].type;
+        infos[i].allow_live_change = NGLI_HAS_ALL_FLAGS(par[i].flags, NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE);
+        infos[i].allow_node        = par[i].type == NGLI_PARAM_TYPE_NODE
+                                  || NGLI_HAS_ALL_FLAGS(par[i].flags, NGLI_PARAM_FLAG_ALLOW_NODE);
+        infos[i].desc              = par[i].desc;
+
+        if (par[i].choices) {
+            size_t nb_choices = 0;
+            while (par[i].choices->consts[nb_choices].key)
+                nb_choices++;
+
+            const char **choice_names = ngli_calloc(nb_choices + 1, sizeof(*choice_names));
+            if (!choice_names) {
+                ngl_node_params_info_freep((const struct ngl_param_info **)&infos, i);
+                return NGL_ERROR_MEMORY;
+            }
+            for (size_t j = 0; j < nb_choices; j++)
+                choice_names[j] = par[i].choices->consts[j].key;
+            choice_names[nb_choices] = NULL;
+            infos[i].choices = choice_names;
+        }
+    }
+
+    *infosp = infos;
+    *nb_infosp = count;
+    return 0;
+}
+
+void ngl_node_params_info_freep(const struct ngl_param_info **infosp, size_t nb_infos)
+{
+    if (!infosp || !*infosp)
+        return;
+    struct ngl_param_info *infos = (struct ngl_param_info *)*infosp;
+    for (size_t i = 0; i < nb_infos; i++)
+        ngli_freep(&infos[i].choices);
+    ngli_freep(infosp);
 }
 
 #define FORWARD_TO_PARAM_GET(type, ...)                  \
