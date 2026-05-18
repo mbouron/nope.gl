@@ -128,6 +128,16 @@ static void gl_reset(struct ngl_ctx *s, int action)
     ngli_ctx_reset(s, action);
 }
 
+static int gl_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg)
+{
+    int ret = gl_ctx_begin(s);
+    if (ret < 0)
+        return ret;
+    ret = fn(s, arg);
+    gl_ctx_end(s);
+    return ret;
+}
+
 static int gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer)
 {
     if (!is_glw(&s->config)) {
@@ -157,5 +167,6 @@ const struct api_impl api_gl = {
     .prepare_draw        = gl_prepare_draw,
     .draw                = gl_draw,
     .reset               = gl_reset,
+    .dispatch            = gl_dispatch,
     .gl_wrap_framebuffer = gl_wrap_framebuffer,
 };

@@ -21,6 +21,11 @@
 
 #include "internal.h"
 
+static int vk_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg)
+{
+    return fn(s, arg);
+}
+
 const struct api_impl api_vk = {
     .configure          = ngli_ctx_configure,
     .resize             = ngli_ctx_resize,
@@ -30,4 +35,5 @@ const struct api_impl api_vk = {
     .prepare_draw       = ngli_ctx_prepare_draw,
     .draw               = ngli_ctx_draw,
     .reset              = ngli_ctx_reset,
+    .dispatch           = vk_dispatch,
 };

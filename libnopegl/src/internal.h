@@ -70,6 +70,9 @@ struct api_impl {
     int (*draw)(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence);
     void (*reset)(struct ngl_ctx *s, int action);
 
+    /* Invoke a callback with the backend ready to issue GPU work */
+    int (*dispatch)(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg);
+
     /* OpenGL */
     int (*gl_wrap_framebuffer)(struct ngl_ctx *s, uint32_t framebuffer);
 };
