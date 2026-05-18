@@ -480,6 +480,7 @@ struct ngpu_import_dma_buf_params {
 struct ngpu_import_ahardware_buffer_params {
     void *hardware_buffer; // AHardwareBuffer
     void *ycbcr_sampler; // YCbCrSampler (Vulkan only)
+    int acquire_fence_fd;
 };
 
 struct ngpu_import_iosurface_params {

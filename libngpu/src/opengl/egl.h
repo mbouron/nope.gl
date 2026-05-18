@@ -38,6 +38,17 @@ EGLImageKHR ngpu_eglCreateImageKHR(struct glcontext *gl,
 EGLBoolean ngpu_eglDestroyImageKHR(struct glcontext *gl,
                                    EGLImageKHR image);
 
+EGLSyncKHR ngpu_eglCreateSyncKHR(struct glcontext *gl,
+                                 EGLenum type,
+                                 const EGLint *attrib_list);
+
+EGLBoolean ngpu_eglDestroySyncKHR(struct glcontext *gl,
+                                  EGLSyncKHR sync);
+
+EGLint ngpu_eglWaitSyncKHR(struct glcontext *gl,
+                           EGLSyncKHR sync,
+                           EGLint flags);
+
 #if defined(TARGET_ANDROID)
 EGLClientBuffer ngpu_eglGetNativeClientBufferANDROID(struct glcontext *gl,
                                                      const struct AHardwareBuffer *buffer);

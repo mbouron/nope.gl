@@ -61,6 +61,7 @@ struct ngpu_texture_vk {
     struct ngpu_buffer *readback_buffer;
     void *readback_buffer_ptr;
     int fd;
+    VkSemaphore acquire_sem;
 };
 
 struct ngpu_texture *ngpu_texture_vk_create(struct ngpu_ctx *gpu_ctx);

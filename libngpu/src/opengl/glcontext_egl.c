@@ -70,6 +70,9 @@ struct egl_priv {
     EGLAPIENTRY EGLBoolean (*DestroyImageKHR)(EGLDisplay, EGLImageKHR);
     EGLAPIENTRY EGLBoolean (*QueryDevices)(EGLint max_devices, EGLDeviceEXT *devices, EGLint *num_devices);
     EGLAPIENTRY const char* (*GetDisplayDriverName)(EGLDisplay dpy);
+    EGLAPIENTRY EGLSyncKHR (*CreateSyncKHR)(EGLDisplay, EGLenum, const EGLint *);
+    EGLAPIENTRY EGLBoolean (*DestroySyncKHR)(EGLDisplay, EGLSyncKHR);
+    EGLAPIENTRY EGLint (*WaitSyncKHR)(EGLDisplay, EGLSyncKHR, EGLint);
 #if defined(TARGET_ANDROID)
     EGLAPIENTRY EGLClientBuffer (*GetNativeClientBufferANDROID)(const struct AHardwareBuffer *);
 #endif
@@ -98,6 +101,30 @@ EGLBoolean ngpu_eglDestroyImageKHR(struct glcontext *gl, EGLImageKHR image)
 {
     struct egl_priv *egl = gl->priv_data;
     return egl->DestroyImageKHR(egl->display, image);
+}
+
+EGLSyncKHR ngpu_eglCreateSyncKHR(struct glcontext *gl, EGLenum type, const EGLint *attrib_list)
+{
+    struct egl_priv *egl = gl->priv_data;
+    if (!egl->CreateSyncKHR)
+        return EGL_NO_SYNC_KHR;
+    return egl->CreateSyncKHR(egl->display, type, attrib_list);
+}
+
+EGLBoolean ngpu_eglDestroySyncKHR(struct glcontext *gl, EGLSyncKHR sync)
+{
+    struct egl_priv *egl = gl->priv_data;
+    if (!egl->DestroySyncKHR)
+        return EGL_FALSE;
+    return egl->DestroySyncKHR(egl->display, sync);
+}
+
+EGLint ngpu_eglWaitSyncKHR(struct glcontext *gl, EGLSyncKHR sync, EGLint flags)
+{
+    struct egl_priv *egl = gl->priv_data;
+    if (!egl->WaitSyncKHR)
+        return EGL_FALSE;
+    return egl->WaitSyncKHR(egl->display, sync, flags);
 }
 
 #if defined(TARGET_ANDROID)
@@ -174,6 +201,17 @@ static int egl_probe_extensions(struct glcontext *ctx)
             return NGPU_ERROR_EXTERNAL;
         }
         ctx->features |= NGPU_FEATURE_GL_EGL_IMAGE_BASE_KHR;
+    }
+
+    if (ngpu_glcontext_check_extension("EGL_KHR_fence_sync", egl->extensions) &&
+        ngpu_glcontext_check_extension("EGL_KHR_wait_sync", egl->extensions)) {
+        egl->CreateSyncKHR = (void *)eglGetProcAddress("eglCreateSyncKHR");
+        egl->DestroySyncKHR = (void *)eglGetProcAddress("eglDestroySyncKHR");
+        egl->WaitSyncKHR = (void *)eglGetProcAddress("eglWaitSyncKHR");
+        if (!egl->CreateSyncKHR || !egl->DestroySyncKHR || !egl->WaitSyncKHR) {
+            LOG(ERROR, "could not retrieve egl{Create,Destroy,Wait}SyncKHR()");
+            return NGPU_ERROR_EXTERNAL;
+        }
     }
 
     if (ngpu_glcontext_check_extension("EGL_EXT_image_dma_buf_import", egl->extensions)) {

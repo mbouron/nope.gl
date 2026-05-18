@@ -796,6 +796,7 @@ static VkResult create_device(struct vkcontext *s)
 
     static const char *optional_device_extensions[] = {
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
         VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
         VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
         VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
@@ -973,6 +974,13 @@ struct vk_extension {
         .functions = (const struct vk_ext_function[]) {
             DECLARE_EXT_FUNC(GetMemoryFdKHR, 1),
             DECLARE_EXT_FUNC(GetMemoryFdPropertiesKHR, 1),
+            {0},
+        },
+    }, {
+        .name = VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+        .device = 1,
+        .functions = (const struct vk_ext_function[]) {
+            DECLARE_EXT_FUNC(ImportSemaphoreFdKHR, 1),
             {0},
         },
     }, {

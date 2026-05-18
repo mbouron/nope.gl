@@ -130,7 +130,8 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
         .import_params = {
             .type = NGPU_IMPORT_TYPE_AHARDWARE_BUFFER,
             .ahardware_buffer = {
-                .hardware_buffer = hardware_buffer,
+                .hardware_buffer  = hardware_buffer,
+                .acquire_fence_fd = -1,
             },
         },
     };

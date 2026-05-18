@@ -28,6 +28,7 @@
 #include "utils/log.h"
 #include "ngpu/ngpu.h"
 #include "vulkan/buffer_vk.h"
+#include "vulkan/cmd_buffer_vk.h"
 #include "vulkan/ctx_vk.h"
 #include "vulkan/format_vk.h"
 #include "vulkan/priv_vk.h"
@@ -764,6 +765,43 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
+    if (ahb_params->acquire_fence_fd >= 0) {
+        if (!vk->funcs.ImportSemaphoreFdKHR) {
+            LOG(ERROR, "VK_KHR_external_semaphore_fd is required to import an acquire fence");
+            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+        }
+
+        const VkSemaphoreCreateInfo sem_info = {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        };
+        res = vk->funcs.CreateSemaphore(vk->device, &sem_info, NULL, &s_priv->acquire_sem);
+        if (res != VK_SUCCESS) {
+            LOG(ERROR, "could not create acquire semaphore: %s", ngpu_vk_res2str(res));
+            return NGPU_ERROR_GRAPHICS_GENERIC;
+        }
+
+        const VkImportSemaphoreFdInfoKHR import_info = {
+            .sType      = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
+            .semaphore  = s_priv->acquire_sem,
+            .flags      = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
+            .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+            .fd         = ahb_params->acquire_fence_fd,
+        };
+        res = vk->funcs.ImportSemaphoreFdKHR(vk->device, &import_info);
+        if (res != VK_SUCCESS) {
+            LOG(ERROR, "could not import acquire semaphore fd: %s", ngpu_vk_res2str(res));
+            vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
+            s_priv->acquire_sem = VK_NULL_HANDLE;
+            return NGPU_ERROR_GRAPHICS_GENERIC;
+        }
+
+        res = ngpu_cmd_buffer_vk_add_wait_sem(gpu_ctx_vk->cur_cmd_buffer, s_priv->acquire_sem,
+                                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                                              VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+        if (res != VK_SUCCESS)
+            return res;
+    }
+
     const VkImageSubresourceRange subres_range = {
         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel   = 0,
@@ -1409,6 +1447,8 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
         vk->funcs.DestroyImageView(vk->device, s_priv->image_view, NULL);
     if (!s_priv->wrapped_image)
         vk->funcs.DestroyImage(vk->device, s_priv->image, NULL);
+    if (s_priv->acquire_sem != VK_NULL_HANDLE)
+        vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
     vk->funcs.FreeMemory(vk->device, s_priv->image_memory, NULL);
 
     destroy_staging_buffer(s);
