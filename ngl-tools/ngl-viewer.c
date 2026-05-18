@@ -242,6 +242,10 @@ int main(int argc, char *argv[])
                         viewer_set_frame_time(&s, 0.0);
                         s.paused       = 0;
                         s.last_error[0] = '\0';
+                        /* Selection holds a ref to a node from the previous
+                         * scene; the new scene has an entirely fresh tree. */
+                        if (s.selected_node)
+                            ngl_node_unrefp(&s.selected_node);
 
                         /* Push the freshly-loaded scene to any enabled hooks
                          * sessions. Uses the same snapshot mechanism as export
@@ -373,6 +377,10 @@ end:
 
     /* Stop the export worker. */
     export_freep(&s.exporter);
+
+    /* Release the selected-node ref before tearing the scene down */
+    if (s.selected_node)
+        ngl_node_unrefp(&s.selected_node);
 
     /* Tear the scene renderer down first as it may hold fences from the UI compositor. */
     viewer_scene_close(&s);

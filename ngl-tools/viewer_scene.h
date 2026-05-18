@@ -59,6 +59,12 @@ enum scene_cmd_type {
      * thread, which blocks on snapshot.done.
      */
     SCENE_CMD_SNAPSHOT,
+    /*
+     * Fire-and-forget callback dispatched onto the scene thread. Used by the
+     * UI thread to mutate the live scene graph on the thread that owns the
+     * rendering context.
+     */
+    SCENE_CMD_CALLBACK,
     SCENE_CMD_QUIT,
 };
 
@@ -76,6 +82,11 @@ struct scene_cmd {
             struct ngl_scene **out;
             SDL_Semaphore *done;
         } snapshot;
+        struct {
+            void (*fn)(struct viewer_ctx *s, void *arg);
+            void (*free_fn)(void *arg); /* Optional. */
+            void *arg;
+        } callback;
     };
 };
 
