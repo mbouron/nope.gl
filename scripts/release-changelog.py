@@ -17,7 +17,7 @@ if version.startswith("v"):
 
 lines = open("CHANGELOG.md").read().splitlines()
 iter_lines = iter(lines)
-iter_lines = itertools.dropwhile(lambda line: not line.startswith(f"## [{version}] "), iter_lines)
+iter_lines = itertools.dropwhile(lambda line: not line.startswith(f"## [{version} /"), iter_lines)
 
 output_lines = ["# Changelog", ""]
 try:
