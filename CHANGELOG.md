@@ -8,6 +8,8 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+
+## [2026.0 / libnopegl 0.12.0][2026.0] - 2026-05-18
 ### Added
 - `ngl_scene_get_filepaths()` and `ngl_scene_update_filepath()` to introspect
   and manipulate the filepath based parameters in the scene graph
@@ -396,3 +398,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 [2023.3]: https://github.com/NopeForge/nope.gl/releases/tag/v2023.3
 [2023.4]: https://github.com/NopeForge/nope.gl/releases/tag/v2023.4
 [2024.0]: https://github.com/NopeForge/nope.gl/releases/tag/v2024.0
+[2026.0]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.0
