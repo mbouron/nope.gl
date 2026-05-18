@@ -655,6 +655,22 @@ static int node_param_is_value_allowed(struct ngl_node *node, const char *key,
     return 0;
 }
 
+struct node_param_update_arg {
+    struct ngl_node *node;
+    const struct node_param *par;
+};
+
+static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
+{
+    const struct node_param_update_arg *a = arg;
+    if (a->par->update_func) {
+        int ret = a->par->update_func(a->node);
+        if (ret < 0)
+            return ret;
+    }
+    return ngli_node_invalidate_branch(a->node);
+}
+
 static int node_param_update(struct ngl_node *node, const struct node_param *par)
 {
     if (node->scene && par->flags & NGLI_PARAM_FLAG_FILEPATH)
@@ -663,13 +679,8 @@ static int node_param_update(struct ngl_node *node, const struct node_param *par
     if (!node->ctx)
         return 0;
 
-    if (par->update_func) {
-        int ret = par->update_func(node);
-        if (ret < 0)
-            return ret;
-    }
-
-    return ngli_node_invalidate_branch(node);
+    struct node_param_update_arg arg = { .node = node, .par = par };
+    return node->ctx->api_impl->dispatch(node->ctx, node_param_update_cb, &arg);
 }
 
 #define FORWARD_TO_PARAM(type, ...)                                     \
