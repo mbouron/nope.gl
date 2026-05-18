@@ -1102,6 +1102,13 @@ struct ngpu_ctx *ngl_get_gpu_ctx(struct ngl_ctx *s)
     return s->gpu_ctx;
 }
 
+struct ngl_node *ngl_get_scene_root(struct ngl_ctx *s)
+{
+    if (!s->configured || !s->scene)
+        return NULL;
+    return s->scene->params.root;
+}
+
 int ngl_gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer)
 {
     if (!s->configured) {

@@ -686,6 +686,15 @@ NGL_API int ngl_node_param_get_vec4(struct ngl_node *node, const char *key, floa
 NGL_API int ngl_node_get_type(struct ngl_node *node, uint32_t *type);
 
 /**
+ * Get the type name of a node (e.g. "Group", "DrawColor", "Texture2D").
+ *
+ * @param node  node to get the type name from
+ *
+ * @return the type name string, or NULL if the node is invalid
+ */
+NGL_API const char *ngl_node_get_type_name(const struct ngl_node *node);
+
+/**
  * Get the node label
  *
  * @param node         node to get the label from
@@ -693,6 +702,95 @@ NGL_API int ngl_node_get_type(struct ngl_node *node, uint32_t *type);
  * @return             0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_node_get_label(struct ngl_node *node, const char **label);
+
+enum ngl_param_type {
+    NGL_PARAM_TYPE_I32,
+    NGL_PARAM_TYPE_IVEC2,
+    NGL_PARAM_TYPE_IVEC3,
+    NGL_PARAM_TYPE_IVEC4,
+    NGL_PARAM_TYPE_BOOL,
+    NGL_PARAM_TYPE_U32,
+    NGL_PARAM_TYPE_UVEC2,
+    NGL_PARAM_TYPE_UVEC3,
+    NGL_PARAM_TYPE_UVEC4,
+    NGL_PARAM_TYPE_F64,
+    NGL_PARAM_TYPE_STR,
+    NGL_PARAM_TYPE_DATA,
+    NGL_PARAM_TYPE_F32,
+    NGL_PARAM_TYPE_VEC2,
+    NGL_PARAM_TYPE_VEC3,
+    NGL_PARAM_TYPE_VEC4,
+    NGL_PARAM_TYPE_MAT4,
+    NGL_PARAM_TYPE_NODE,
+    NGL_PARAM_TYPE_NODELIST,
+    NGL_PARAM_TYPE_F64LIST,
+    NGL_PARAM_TYPE_NODEDICT,
+    NGL_PARAM_TYPE_SELECT,
+    NGL_PARAM_TYPE_FLAGS,
+    NGL_PARAM_TYPE_RATIONAL,
+};
+
+struct ngl_param_info {
+    const char *key;
+    enum ngl_param_type type;
+    int allow_live_change;
+    int allow_node;
+    const char *desc;
+    const char *const *choices;
+};
+
+/**
+ * Get parameter info for a node.
+ *
+ * Fills @infosp with a newly allocated array of parameter descriptors.
+ *
+ * The returned array must be released with ngl_node_params_info_freep().
+ *
+ * @param node       node to enumerate the parameters of
+ * @param infosp     output pointer to the parameter descriptor array
+ * @param nb_infosp  output number of entries in the returned array
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_get_params_info(const struct ngl_node *node,
+                                     const struct ngl_param_info **infosp,
+                                     size_t *nb_infosp);
+
+/**
+ * Release the parameter descriptor array allocated by
+ * ngl_node_get_params_info() and set @infosp to NULL.
+ *
+ * @param infosp    pointer to the descriptor array pointer to release
+ * @param nb_infos  number of entries in the array, as returned by
+ *                  ngl_node_get_params_info()
+ */
+NGL_API void ngl_node_params_info_freep(const struct ngl_param_info **infosp, size_t nb_infos);
+
+/**
+ * Get the direct child nodes of a node.
+ *
+ * Walks all NODE and NODELIST parameters and returns a newly allocated array
+ * of borrowed node pointers (the lifetime of the nodes is bound to the parent
+ * graph, do not unref them individually).
+ *
+ * The returned array must be released with ngl_node_children_freep().
+ *
+ * @param node          node to enumerate the children of
+ * @param childrenp     output pointer to the children array
+ * @param nb_childrenp  output number of entries in the returned array
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_get_children(const struct ngl_node *node,
+                                  struct ngl_node ***childrenp, size_t *nb_childrenp);
+
+/**
+ * Release the children array allocated by ngl_node_get_children() and set
+ * @childrenp to NULL. The nodes themselves are not unref'd.
+ *
+ * @param childrenp  pointer to the children array pointer to release
+ */
+NGL_API void ngl_node_children_freep(struct ngl_node ***childrenp);
 
 /**
  * Bounding box
@@ -1198,6 +1296,17 @@ NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t
  * @return   pointer to the internal ngpu context, or NULL if not configured
  */
 NGL_API struct ngpu_ctx *ngl_get_gpu_ctx(struct ngl_ctx *s);
+
+/**
+ * Get the root node of the currently active scene. Returns NULL if no scene is
+ * set or if the context is not configured.
+ *
+ * The returned node is owned by the ngl context and must not be freed.
+ *
+ * @param s  pointer to the configured nope.gl context
+ * @return   borrowed pointer to the scene root, or NULL
+ */
+NGL_API struct ngl_node *ngl_get_scene_root(struct ngl_ctx *s);
 
 /**
  * Serialize the current scene in Graphviz format (.dot) a node graph at the
