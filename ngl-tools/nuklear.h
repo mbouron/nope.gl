@@ -23122,7 +23122,8 @@ nk_tree_element_image_push_hashed_base(struct nk_context *ctx, enum nk_tree_type
     header.w = NK_MAX(header.w, sym.w + item_spacing.x);
     label.x = sym.x + sym.w + item_spacing.x;
     label.y = sym.y;
-    label.w = NK_MIN(header.w - (sym.w + item_spacing.y + style->tab.indent), text_width);
+    label.w = (layout->clip.x + layout->clip.w) - label.x;
+    (void)text_width;
     label.h = style->font->height;
 
     if (img) {
