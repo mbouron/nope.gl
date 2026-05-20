@@ -212,8 +212,10 @@ void main()
      * non-zero rgb where alpha==0, causing fill colour to bleed into
      * transparent corner pixels (outside the rounded shape).
      */
+    float fill_rgb_scale = (ngli_fill_premult != 0 ? tex_color.a : 1.0)
+                         * fill_alpha * ngli_fill_opacity;
     float fill_a = tex_color.a * fill_alpha * ngli_fill_opacity;
-    ngl_out_color.rgb = stroke_col.rgb * ol_alpha + tex_color.rgb * fill_a * (1.0 - ol_alpha);
+    ngl_out_color.rgb = stroke_col.rgb * ol_alpha + tex_color.rgb * fill_rgb_scale * (1.0 - ol_alpha);
     ngl_out_color.a   = ol_alpha + fill_a * (1.0 - ol_alpha);
 
     /* Global opacity */
