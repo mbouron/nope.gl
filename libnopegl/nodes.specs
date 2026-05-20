@@ -312,6 +312,16 @@
         "desc": "standard uniform block memory layout 430"
       }
     ],
+    "filter": [
+      {
+        "name": "nearest",
+        "desc": "nearest filtering"
+      },
+      {
+        "name": "linear",
+        "desc": "linear filtering"
+      }
+    ],
     "blend_preset": [
       {
         "name": "default",
@@ -1072,16 +1082,6 @@
       {
         "name": "auto_depth_stencil",
         "desc": "select automatically the preferred depth + stencil format"
-      }
-    ],
-    "filter": [
-      {
-        "name": "nearest",
-        "desc": "nearest filtering"
-      },
-      {
-        "name": "linear",
-        "desc": "linear filtering"
       }
     ],
     "mipmap_filter": [
@@ -1940,6 +1940,22 @@
     "CustomTexture": {
       "file": "src/node_customtexture.c",
       "params": [
+        {
+          "name": "min_filter",
+          "type": "select",
+          "default": "linear",
+          "choices": "filter",
+          "flags": [],
+          "desc": "texture minifying function"
+        },
+        {
+          "name": "mag_filter",
+          "type": "select",
+          "default": "linear",
+          "choices": "filter",
+          "flags": [],
+          "desc": "texture magnification function"
+        }
       ]
     },
     "Draw": {

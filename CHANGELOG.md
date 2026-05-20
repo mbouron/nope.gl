@@ -14,6 +14,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   parameters at runtime
 - `ngl-viewer`: scene-graph tree view with a properties panel for editing node
   parameters
+- `CustomTexture.min_filter` and `CustomTexture.mag_filter` parameters to
+  control the minification and magnification filters of the imported texture
 
 ## [2026.0 / libnopegl 0.12.0][2026.0] - 2026-05-18
 ### Added

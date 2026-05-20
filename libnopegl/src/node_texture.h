@@ -31,6 +31,9 @@
 
 struct ngl_node;
 
+extern const struct param_choices ngli_filter_choices;
+extern const struct param_choices ngli_mipmap_filter_choices;
+
 struct texture_info {
     struct ngpu_texture_params params;
     uint32_t supported_image_layouts;
