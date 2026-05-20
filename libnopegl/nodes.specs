@@ -2783,6 +2783,13 @@
           "desc": "opacity of the fill content"
         },
         {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply fill color by its alpha"
+        },
+        {
           "name": "color",
           "type": "vec4",
           "default": [1.000000,1.000000,1.000000,1.000000],
@@ -2816,6 +2823,13 @@
           "choices": "fill_wrap",
           "flags": [],
           "desc": "wrap mode for out-of-bounds coordinates"
+        },
+        {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply glsl_color() output color by its alpha"
         },
         {
           "name": "glsl_header",
@@ -3099,6 +3113,13 @@
           "desc": "opacity of the fill content"
         },
         {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply gradient color by its alpha"
+        },
+        {
           "name": "color_tl",
           "type": "vec3",
           "default": [1.000000,0.500000,0.000000],
@@ -3174,6 +3195,13 @@
           "desc": "opacity of the fill content"
         },
         {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply gradient color by its alpha"
+        },
+        {
           "name": "color0",
           "type": "vec3",
           "default": [0.000000,0.000000,0.000000],
@@ -3241,6 +3269,13 @@
           "default": 1.000000,
           "flags": ["live"],
           "desc": "opacity of the fill content"
+        },
+        {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply noise color by its alpha"
         },
         {
           "name": "type",
@@ -3621,6 +3656,13 @@
           "choices": "fill_wrap",
           "flags": [],
           "desc": "texture wrap behaviour"
+        },
+        {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply texture color by its alpha"
         },
         {
           "name": "texture",

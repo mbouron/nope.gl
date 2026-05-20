@@ -155,6 +155,8 @@ struct drawrect2d_frag_block {
     float content_translate[2];
     float content_orientation[2];
     float frag_uv_scale[2];
+    int32_t fill_premult;
+    float _pad0[3];
 };
 
 struct drawrect2d_opts {
@@ -530,6 +532,7 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_content_translate",    .type = NGPU_TYPE_VEC2},
         {.name = "ngli_content_orientation",  .type = NGPU_TYPE_VEC2},
         {.name = "ngli_frag_uv_scale",       .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_fill_premult",         .type = NGPU_TYPE_I32},
     };
 
     struct ngpu_block_desc frag_block_desc;
@@ -1046,6 +1049,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         memcpy(frag_data.content_translate, content_translate, sizeof(frag_data.content_translate));
         memcpy(frag_data.content_orientation, orientation_cos_sin[orientation_quarter], sizeof(frag_data.content_orientation));
         memcpy(frag_data.frag_uv_scale, uv_scale, sizeof(frag_data.frag_uv_scale));
+        frag_data.fill_premult = fo->premult;
 
         const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer,
                                                             &frag_data, sizeof(frag_data));

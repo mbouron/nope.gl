@@ -63,6 +63,7 @@ struct fill_base_opts {
     float opacity;
     int scaling;                                             /* FILL_SCALING_* */
     int wrap;                                                /* FILL_WRAP_* */
+    int premult;                                             /* premultiply fill's color by its alpha */
 };
 
 struct fill_info {

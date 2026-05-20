@@ -95,6 +95,13 @@ static const struct node_param colorfill_params[] = {
         .desc      = NGLI_DOCSTRING("opacity of the fill content"),
     },
     {
+        .key       = "premult",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(base_opts.premult),
+        .def_value = {.i32 = 1},
+        .desc      = NGLI_DOCSTRING("premultiply fill color by its alpha"),
+    },
+    {
         .key       = "color",
         .type      = NGLI_PARAM_TYPE_VEC4,
         .offset    = OFFSET(color),
@@ -219,6 +226,13 @@ static const struct node_param texturefill_params[] = {
         .desc      = NGLI_DOCSTRING("texture wrap behaviour"),
     },
     {
+        .key       = "premult",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(base_opts.premult),
+        .def_value = {.i32 = 1},
+        .desc      = NGLI_DOCSTRING("premultiply texture color by its alpha"),
+    },
+    {
         .key        = "texture",
         .type       = NGLI_PARAM_TYPE_NODE,
         .offset     = OFFSET(texture),
@@ -334,6 +348,13 @@ static const struct node_param gradientfill_params[] = {
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+    },
+    {
+        .key       = "premult",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(base_opts.premult),
+        .def_value = {.i32 = 1},
+        .desc      = NGLI_DOCSTRING("premultiply gradient color by its alpha"),
     },
     {
         .key       = "color0",
@@ -478,6 +499,13 @@ static const struct node_param gradient4fill_params[] = {
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+    },
+    {
+        .key       = "premult",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(base_opts.premult),
+        .def_value = {.i32 = 1},
+        .desc      = NGLI_DOCSTRING("premultiply gradient color by its alpha"),
     },
     {
         .key       = "color_tl",
@@ -640,6 +668,13 @@ static const struct node_param noisefill_params[] = {
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+    },
+    {
+        .key       = "premult",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(base_opts.premult),
+        .def_value = {.i32 = 1},
+        .desc      = NGLI_DOCSTRING("premultiply noise color by its alpha"),
     },
     {
         .key     = "type",
@@ -851,6 +886,13 @@ static const struct node_param customfill_params[] = {
         .offset  = OFFSET(base_opts.wrap),
         .choices = &texturefill_wrap_choices,
         .desc    = NGLI_DOCSTRING("wrap mode for out-of-bounds coordinates"),
+    },
+    {
+        .key       = "premult",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(base_opts.premult),
+        .def_value = {.i32 = 1},
+        .desc      = NGLI_DOCSTRING("premultiply glsl_color() output color by its alpha"),
     },
     {
         .key    = "glsl_header",
