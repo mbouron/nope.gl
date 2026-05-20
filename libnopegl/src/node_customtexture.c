@@ -41,6 +41,8 @@
 struct customtexture_opts {
     void *user_data;
     struct ngl_node_funcs funcs;
+    enum ngpu_filter min_filter;
+    enum ngpu_filter mag_filter;
 };
 
 struct customtexture_priv {
@@ -49,6 +51,22 @@ struct customtexture_priv {
 
 #define OFFSET(x) offsetof(struct customtexture_opts, x)
 static const struct node_param customtexture_params[] = {
+    {
+        .key       = "min_filter",
+        .type      = NGLI_PARAM_TYPE_SELECT,
+        .offset    = OFFSET(min_filter),
+        .def_value = {.i32 = NGPU_FILTER_LINEAR},
+        .choices   = &ngli_filter_choices,
+        .desc      = NGLI_DOCSTRING("texture minifying function"),
+    },
+    {
+        .key       = "mag_filter",
+        .type      = NGLI_PARAM_TYPE_SELECT,
+        .offset    = OFFSET(mag_filter),
+        .def_value = {.i32 = NGPU_FILTER_LINEAR},
+        .choices   = &ngli_filter_choices,
+        .desc      = NGLI_DOCSTRING("texture magnification function"),
+    },
     {NULL}
 };
 
@@ -202,6 +220,7 @@ static enum image_layout target_to_layout(uint32_t target)
 static int import_texture_gl(struct ngl_node *node, const struct ngl_custom_texture_info_gl *info)
 {
     struct customtexture_priv *s = node->priv_data;
+    const struct customtexture_opts *o = node->opts;
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
@@ -220,8 +239,8 @@ static int import_texture_gl(struct ngl_node *node, const struct ngl_custom_text
         .format     = NGPU_FORMAT_R8G8B8A8_UNORM,
         .width      = info->width,
         .height     = info->height,
-        .min_filter = NGPU_FILTER_LINEAR,
-        .mag_filter = NGPU_FILTER_LINEAR,
+        .min_filter = o->min_filter,
+        .mag_filter = o->mag_filter,
         .usage      = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
         .import_params = {
             .type = NGPU_IMPORT_TYPE_OPENGL_TEXTURE,
@@ -301,6 +320,7 @@ int ngl_custom_texture_set_texture_info_gl(struct ngl_node *node, const struct n
 static int import_texture_ahb(struct ngl_node *node, const struct ngl_custom_texture_info_ahb *info)
 {
     struct customtexture_priv *s = node->priv_data;
+    const struct customtexture_opts *o = node->opts;
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
@@ -311,8 +331,8 @@ static int import_texture_ahb(struct ngl_node *node, const struct ngl_custom_tex
         .format     = NGPU_FORMAT_R8G8B8A8_UNORM,
         .width      = info->width,
         .height     = info->height,
-        .min_filter = NGPU_FILTER_LINEAR,
-        .mag_filter = NGPU_FILTER_LINEAR,
+        .min_filter = o->min_filter,
+        .mag_filter = o->mag_filter,
         .usage      = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
         .import_params = {
             .type = NGPU_IMPORT_TYPE_AHARDWARE_BUFFER,
