@@ -29,7 +29,6 @@
 #include "image.h"
 #include "internal.h"
 #include "node2d.h"
-#include "log.h"
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "node_uniform.h"
@@ -704,10 +703,31 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const float rt_h = (float)ngpu_rendertarget_get_height(ctx->current_rendertarget);
     const float scale_x = canvas_w > 0.f ? rt_w / canvas_w : 1.f;
     const float scale_y = canvas_h > 0.f ? rt_h / canvas_h : 1.f;
-    const uint32_t w = (uint32_t)ceilf(qw * scale_x);
-    const uint32_t h = (uint32_t)ceilf(qh * scale_y);
+
+    /*
+     * Cap the RTT size to the visible canvas region extended by the dilation
+     * margin. The ortho projection and quad geometry still use the full bbox
+     * so children keep their correct positions; only the texture resolution
+     * shrinks when the bbox exceeds the canvas.
+     */
+    float rtt_qw = qw;
+    float rtt_qh = qh;
+    if (canvas_w > 0.f && canvas_h > 0.f) {
+        rtt_qw = NGLI_MIN(qw, canvas_w + 2.f * d);
+        rtt_qh = NGLI_MIN(qh, canvas_h + 2.f * d);
+    }
+
+    uint32_t w = (uint32_t)ceilf(rtt_qw * scale_x);
+    uint32_t h = (uint32_t)ceilf(rtt_qh * scale_y);
     if (w == 0 || h == 0)
         return;
+
+    /* Clamp final dimension to the device's max 2D texture dimension. */
+    const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
+    const uint32_t max_dim = limits->max_texture_dimension_2d;
+    w = NGLI_MIN(w, max_dim);
+    h = NGLI_MIN(h, max_dim);
+
     int ret = resize_rtt(s, ctx, w, h);
     if (ret < 0)
         return;

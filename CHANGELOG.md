@@ -8,6 +8,9 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Fixed
+- `Effect2D` rendertarget size potentially exceeding the GPU max 2D texture
+  dimension when children extend far off-canvas
 
 ## [2026.1 / libnopegl 0.13.0][2026.1] - 2026-05-21
 ### Added
