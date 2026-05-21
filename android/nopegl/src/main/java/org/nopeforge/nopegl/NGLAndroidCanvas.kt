@@ -33,6 +33,8 @@ class NGLAndroidCanvas(
     val height: Int,
     private val callback: Callback,
     private val tag: String? = null,
+    minFilter: NGLFilter = NGLFilter.Linear,
+    magFilter: NGLFilter = NGLFilter.Linear,
 ) {
 
     val node: NGLNode
@@ -113,7 +115,10 @@ class NGLAndroidCanvas(
         }
     }
 
-    private var customTextureNode = NGLCustomTexture(customTextureCallback)
+    private var customTextureNode = NGLCustomTexture(customTextureCallback).apply {
+        setMinFilter(minFilter)
+        setMagFilter(magFilter)
+    }
 
     interface Callback {
         fun onInit() = Unit
