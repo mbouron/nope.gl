@@ -531,7 +531,7 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_content_zoom",         .type = NGPU_TYPE_F32},
         {.name = "ngli_content_translate",    .type = NGPU_TYPE_VEC2},
         {.name = "ngli_content_orientation",  .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_frag_uv_scale",       .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_frag_uv_scale",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_fill_premult",         .type = NGPU_TYPE_I32},
     };
 
