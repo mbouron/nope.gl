@@ -494,11 +494,11 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
         gl->funcs.EGLImageTargetTexture2DOES(s_priv->target, s_priv->egl_image);
 
     if (ahb_params->acquire_fence_fd >= 0) {
-        const EGLint attrs[] = {
+        const EGLint sync_attrs[] = {
             EGL_SYNC_NATIVE_FENCE_FD_ANDROID, ahb_params->acquire_fence_fd,
             EGL_NONE,
         };
-        EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, attrs);
+        EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, sync_attrs);
         if (sync == EGL_NO_SYNC_KHR) {
             LOG(ERROR, "could not create native fence EGLSync from acquire fd");
             close(ahb_params->acquire_fence_fd);
