@@ -8,6 +8,8 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+
+## [2026.1 / libnopegl 0.13.0][2026.1] - 2026-05-21
 ### Added
 - `ngl_get_scene_root()`, `ngl_node_get_type_name()`, `ngl_node_get_children()`
   and `ngl_node_get_params_info()` to introspect the scene graph and its
@@ -409,3 +411,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 [2023.4]: https://github.com/NopeForge/nope.gl/releases/tag/v2023.4
 [2024.0]: https://github.com/NopeForge/nope.gl/releases/tag/v2024.0
 [2026.0]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.0
+[2026.1]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.1
