@@ -811,7 +811,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     };
 
     if (use_external_format) {
-        const struct ngpu_ycbcr_sampler_vk *ycbcr_sampler_vk = (struct ngpu_ycbcr_sampler_vk *)ahb_params->ycbcr_sampler;
+        struct ngpu_ycbcr_sampler_vk *ycbcr_sampler_vk = ahb_params->ycbcr_sampler;
         s_priv->use_ycbcr_sampler = 1;
         s_priv->ycbcr_sampler = ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler_vk);
 
