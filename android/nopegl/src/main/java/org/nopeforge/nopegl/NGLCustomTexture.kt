@@ -25,6 +25,9 @@ import android.hardware.HardwareBuffer
 
 class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) {
 
+    fun setMinFilter(filter: NGLFilter) = setSelect("min_filter", filter.nativeValue)
+    fun setMagFilter(filter: NGLFilter) = setSelect("mag_filter", filter.nativeValue)
+
     abstract class Callback {
         private var nativePtr: Long = 0L
 
