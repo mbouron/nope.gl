@@ -198,7 +198,7 @@ void main()
     /*
      * Only sample the fill for fragments inside the original rect (ngli_uv in
      * [0,1]).  Margin pixels introduced by geometry dilation lie outside this
-     * range and must not bleed colour into the outline AA transition.
+     * range and must not bleed color into the outline AA transition.
      */
     vec4 tex_color = vec4(0.0);
     if (all(greaterThanEqual(ngli_uv, vec2(0.0))) && all(lessThanEqual(ngli_uv, vec2(1.0)))) {
@@ -209,7 +209,7 @@ void main()
      * Premultiplied-alpha compositing: stroke over fill.
      * Blending uses ONE, ONE_MINUS_SRC_ALPHA so the output rgb must be
      * premultiplied (rgb *= alpha).  Using straight-alpha mixing would leave
-     * non-zero rgb where alpha==0, causing fill colour to bleed into
+     * non-zero rgb where alpha==0, causing fill color to bleed into
      * transparent corner pixels (outside the rounded shape).
      */
     float fill_rgb_scale = (ngli_fill_premult != 0 ? tex_color.a : 1.0)
