@@ -699,8 +699,8 @@ static void effect2d_pre_draw(struct ngl_node *node)
     /* Size internal rendertarget to the bbox scaled to viewport resolution */
     const float canvas_w = ctx->canvas_2d_width;
     const float canvas_h = ctx->canvas_2d_height;
-    const float rt_w = (float)ngpu_rendertarget_get_width(ctx->current_rendertarget);
-    const float rt_h = (float)ngpu_rendertarget_get_height(ctx->current_rendertarget);
+    const float rt_w = (float)ctx->viewport.width;
+    const float rt_h = (float)ctx->viewport.height;
     const float scale_x = canvas_w > 0.f ? rt_w / canvas_w : 1.f;
     const float scale_y = canvas_h > 0.f ? rt_h / canvas_h : 1.f;
 

@@ -13,6 +13,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   dimension when children extend far off-canvas
 - `ngl-viewer` scene playback stutter
 
+### Changed
+- Derive rendertarget (`Texture2D`, `RenderToTexture`, `Effect2D`,
+  `OffscreenCanvas2D`) size from parent's viewport dimension
+
 ## [2026.1 / libnopegl 0.13.0][2026.1] - 2026-05-21
 ### Added
 - `ngl_get_scene_root()`, `ngl_node_get_type_name()`, `ngl_node_get_children()`
