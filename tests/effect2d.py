@@ -147,14 +147,23 @@ def _gaussian_kernel_1d(sigma):
     return array.array("f", [w / total for w in kernel]), radius
 
 
-_GAUSSIAN_BLUR_GLSL = """\
+_GAUSSIAN_BLUR_H_GLSL = """\
+    vec2 texel = 1.0 / vec2(textureSize(tex, 0));
+    vec4 sum = vec4(0.0);
+    for (int x = -radius; x <= radius; x++) {
+        float w = kernel.weights[x + radius];
+        sum += ngl_texvideo(tex, uv + vec2(float(x), 0.0) * texel) * w;
+    }
+    return sum;
+"""
+
+
+_GAUSSIAN_BLUR_V_GLSL = """\
     vec2 texel = 1.0 / vec2(textureSize(tex, 0));
     vec4 sum = vec4(0.0);
     for (int y = -radius; y <= radius; y++) {
-        for (int x = -radius; x <= radius; x++) {
-            float w = kernel.weights[x + radius] * kernel.weights[y + radius];
-            sum += ngl_texvideo(tex, uv + vec2(float(x), float(y)) * texel) * w;
-        }
+        float w = kernel.weights[y + radius];
+        sum += ngl_texvideo(tex, uv + vec2(0.0, float(y)) * texel) * w;
     }
     return sum;
 """
@@ -163,7 +172,7 @@ _GAUSSIAN_BLUR_GLSL = """\
 @test_render(keyframes=4, tolerance=3, diff_threshold=0.005)
 @ngl.scene(width=W, height=H)
 def effect2d_blur(cfg: ngl.SceneCfg):
-    """Gaussian blur with precomputed kernel weights passed via Block."""
+    """Separable Gaussian blur."""
     sigma = 10.0
     weights, radius = _gaussian_kernel_1d(sigma)
     kernel = ngl.Block(
@@ -171,10 +180,17 @@ def effect2d_blur(cfg: ngl.SceneCfg):
         label="kernel",
     )
     radius_uniform = ngl.UniformInt(value=radius, label="radius")
-    effect = ngl.Effect2D(
+    dilation = math.ceil(3 * sigma)
+    blur_h = ngl.Effect2D(
         children=_animated_scene(),
-        glsl_color=_GAUSSIAN_BLUR_GLSL,
+        glsl_color=_GAUSSIAN_BLUR_H_GLSL,
         resources={"kernel": kernel, "radius": radius_uniform},
-        dilation=math.ceil(3 * sigma),
+        dilation=dilation,
     )
-    return _canvas(cfg, effect, duration=4.0)
+    blur = ngl.Effect2D(
+        children=[blur_h],
+        glsl_color=_GAUSSIAN_BLUR_V_GLSL,
+        resources={"kernel": kernel, "radius": radius_uniform},
+        dilation=dilation,
+    )
+    return _canvas(cfg, blur, duration=4.0)
