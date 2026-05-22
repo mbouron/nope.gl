@@ -300,8 +300,8 @@ static int offscreencanvas2d_resize(struct ngl_node *node)
     struct offscreencanvas2d_priv *s = node->priv_data;
     const struct offscreencanvas2d_opts *o = node->opts;
 
-    const uint32_t width = ngpu_rendertarget_get_width(ctx->current_rendertarget);
-    const uint32_t height = ngpu_rendertarget_get_height(ctx->current_rendertarget);
+    const uint32_t width = (uint32_t)ctx->viewport.width;
+    const uint32_t height = (uint32_t)ctx->viewport.height;
     if (s->rtt_ctx) {
         uint32_t current_width, current_height;
         ngli_rtt_get_dimensions(s->rtt_ctx, &current_width, &current_height);
