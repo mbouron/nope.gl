@@ -122,14 +122,29 @@ struct viewer_ctx {
     double  duration;
     int32_t framerate[2];
 
-    int64_t clock_off;
+    int64_t clock_off_ns;
     int paused;
 
     /*
-     * Playback time in seconds. Shared between the scene and main threads.
-     * Must be accessed through viewer_{get,set}_frame_time().
+     * Vsync clock (approximation).
+     *
+     * `last_swap_ns` is the SDL_GetTicksNS() snapshot captured right after the
+     * most recent present returned; since the GPU swap blocks on vsync, this
+     * is an approximation of the vsync instant.
+     *
+     * `refresh_period_ns` is one display refresh in ns, sampled from
+     * the current display mode at compositor init.
+     *
+     * viewer_now_ns() uses `last_swap_ns` + `refresh_period_ns` as the
+     * predicted timestamp of the vsync this UI iteration will land on — that's
+     * the time we hand to the scene so its animation matches what gets shown.
      */
-    SDL_Mutex *frame_time_lock;
+    Uint64 last_swap_ns;
+    Uint64 refresh_period_ns;
+
+    /*
+     * Playback time in seconds.
+     */
     double frame_time;
 
     /*
@@ -182,17 +197,24 @@ static inline float viewer_ui_scale(const struct viewer_ctx *s)
 
 static inline double viewer_get_frame_time(struct viewer_ctx *s)
 {
-    SDL_LockMutex(s->frame_time_lock);
-    const double t = s->frame_time;
-    SDL_UnlockMutex(s->frame_time_lock);
-    return t;
+    return s->frame_time;
 }
 
 static inline void viewer_set_frame_time(struct viewer_ctx *s, double t)
 {
-    SDL_LockMutex(s->frame_time_lock);
     s->frame_time = t;
-    SDL_UnlockMutex(s->frame_time_lock);
+}
+
+/*
+ * Return a ns timestamp aligned with the next vsync this UI iteration is
+ * predicted to land on. Falls back to SDL_GetTicksNS() before the first
+ * present, when last_swap_ns is still zero.
+ */
+static inline Uint64 viewer_now_ns(const struct viewer_ctx *s)
+{
+    if (!s->last_swap_ns || !s->refresh_period_ns)
+        return SDL_GetTicksNS();
+    return s->last_swap_ns + s->refresh_period_ns;
 }
 
 #endif

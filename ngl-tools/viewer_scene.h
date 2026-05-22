@@ -65,6 +65,11 @@ enum scene_cmd_type {
      * rendering context.
      */
     SCENE_CMD_CALLBACK,
+    /*
+     * Render request: the scene thread calls ngl_draw for the given
+     * target_time and publishes the resulting frame into latest_frame.
+     */
+    SCENE_CMD_RENDER,
     SCENE_CMD_QUIT,
 };
 
@@ -87,6 +92,9 @@ struct scene_cmd {
             void (*free_fn)(void *arg); /* Optional. */
             void *arg;
         } callback;
+        struct {
+            double target_time;
+        } render;
     };
 };
 

@@ -298,13 +298,6 @@ static struct ngl_scene *do_scene_load(struct viewer_ctx *s, const struct scene_
 #define SCENE_DEFAULT_FPS_NUM 60
 #define SCENE_DEFAULT_FPS_DEN 1
 
-static Uint64 frame_interval_ns(int32_t fr_num, int32_t fr_den)
-{
-    if (fr_num <= 0 || fr_den <= 0)
-        return 1000000000ull * SCENE_DEFAULT_FPS_DEN / SCENE_DEFAULT_FPS_NUM;
-    return 1000000000ull * (uint64_t)fr_den / (uint64_t)fr_num;
-}
-
 int scene_thread_func(void *arg)
 {
     struct viewer_ctx *s = arg;
@@ -313,172 +306,99 @@ int scene_thread_func(void *arg)
     uint32_t scene_width = 0;
     uint32_t scene_height = 0;
     struct ngl_scene *active_scene = NULL;
-
-    /*
-     * Pacing state.
-     *
-     *   `next_frame_ns` is the absolute `SDL_GetTicksNS()` deadline at which
-     *   the next `ngl_draw()` should fire.
-     *
-     *   `framerate_num` / `framerate_den` is the rational frame interval of
-     *   the currently loaded scene (or the default fallback when no scene
-     *   declares one). Used both to advance `next_frame_ns` by one interval
-     *   per draw and to snap the wall-clock frame time onto a frame boundary
-     *   before passing it to `ngl_draw()`.
-     *
-     * Together they implement an absolute (rather than relative-sleep)
-     * pacing clock that the rendering loop services in five steps:
-     *
-     *   1. Top of the loop. Before draining any command, compute the timeout
-     *      as `max(0, next_frame_ns - now)` and call `scene_cmd_pop_timed()`
-     *      with that bound. It blocks on the queue for up to that long.
-     *      Posters that enqueue a command wake us early; otherwise we wake
-     *      exactly at the deadline.
-     *   2. Drain any pending commands via `scene_cmd_pop_timed()` without
-     *      blocking. A successful `SCENE_CMD_LOAD` refreshes the rational and
-     *      reseeds `next_frame_ns` to "now" so the first frame of the new scene
-     *      runs immediately. Other commands do not touch the pacing clock.
-     *   3. After draining commands, if `SDL_GetTicksNS()` is still less than
-     *      `next_frame_ns` (we were woken by a command before the deadline),
-     *      `continue` back to step 1 so the next `scene_cmd_pop_timed()`
-     *      sleeps the remainder of the interval instead of redrawing the
-     *      same frame early.
-     *   4. Otherwise call `ngl_draw()`, then unconditionally advance
-     *      `next_frame_ns += interval` — including on `NGL_ERROR_BUSY`,
-     *      which turns a "consumer hasn't released a slot yet" failure into
-     *      a one-interval back-off rather than a tight retry loop.
-     *   5. If after that advance `next_frame_ns` is still behind wall-clock
-     *     (`ngl_draw() tooks more than one interval), resync to "now + interval"
-     *      instead of trying to catch up with a burst of draws — the UI only ever
-     *      consumes the latest frame, so generating a backlog would burn CPU/GPU
-     *      for no benefit.
-     */
     int32_t framerate_num = SCENE_DEFAULT_FPS_NUM;
     int32_t framerate_den = SCENE_DEFAULT_FPS_DEN;
-    Uint64 next_frame_ns = SDL_GetTicksNS();
 
     for (;;) {
         struct scene_cmd cmd;
-        int have_cmd;
-        if (is_active) {
-            const Uint64 now_ns = SDL_GetTicksNS();
-            Sint32 timeout_ms;
-            if (now_ns >= next_frame_ns) {
-                timeout_ms = 0;
-            } else {
-                /*
-                 * Round up so a sub-millisecond remainder doesn't degrade
-                 * into a non-blocking `scene_cmd_pop_timed()`.
-                 */
-                const Uint64 delta_ns = next_frame_ns - now_ns;
-                timeout_ms = (Sint32)((delta_ns + 999999) / 1000000);
-            }
-            have_cmd = scene_cmd_pop_timed(&s->cmd_q, &cmd, timeout_ms);
-        } else {
-            have_cmd = scene_cmd_pop_timed(&s->cmd_q, &cmd, -1);
-        }
+        if (!scene_cmd_pop_timed(&s->cmd_q, &cmd, -1))
+            continue; /* Defensive: timeout=-1 should always deliver something. */
 
-        while (have_cmd) {
-            switch (cmd.type) {
-            case SCENE_CMD_QUIT:
-                scene_cmd_release(&cmd);
-                ngl_scene_unrefp(&active_scene);
-                return 0;
-            case SCENE_CMD_LOAD: {
-                if (cmd.load.request) {
-                    struct ngl_scene *loaded = do_scene_load(s, cmd.load.request);
-                    if (loaded) {
-                        ngl_scene_unrefp(&active_scene);
-                        active_scene = loaded;
-                        is_active = true;
-                        const struct ngl_scene_params *p = ngl_scene_get_params(loaded);
-                        framerate_num = p->framerate[0];
-                        framerate_den = p->framerate[1];
-                        next_frame_ns = SDL_GetTicksNS();
-                    }
+        switch (cmd.type) {
+        case SCENE_CMD_QUIT:
+            scene_cmd_release(&cmd);
+            ngl_scene_unrefp(&active_scene);
+            return 0;
+        case SCENE_CMD_LOAD:
+            if (cmd.load.request) {
+                struct ngl_scene *loaded = do_scene_load(s, cmd.load.request);
+                if (loaded) {
+                    ngl_scene_unrefp(&active_scene);
+                    active_scene = loaded;
+                    is_active = true;
+                    const struct ngl_scene_params *p = ngl_scene_get_params(loaded);
+                    framerate_num = p->framerate[0];
+                    framerate_den = p->framerate[1];
                 }
-                scene_cmd_release(&cmd);
-                break;
             }
-            case SCENE_CMD_RESIZE:
-                scene_width  = cmd.resize.width;
-                scene_height = cmd.resize.height;
-                scene_cmd_release(&cmd);
-                break;
-            case SCENE_CMD_UNLOAD:
-                is_active = false;
-                ngl_scene_unrefp(&active_scene);
-                scene_cmd_release(&cmd);
-                break;
-            case SCENE_CMD_SNAPSHOT: {
-                struct ngl_scene *snap = NULL;
-                if (active_scene) {
-                    const Uint64 t0 = SDL_GetTicksNS();
-                    snap = ngl_scene_duplicate(active_scene);
-                    const Uint64 t1 = SDL_GetTicksNS();
-                    SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
-                                 "ngl_scene_duplicate: %.3f ms",
-                                 (double)(t1 - t0) / 1.0e6);
-                }
-                if (cmd.snapshot.out)
-                    *cmd.snapshot.out = snap;
-                if (cmd.snapshot.done)
-                    SDL_SignalSemaphore(cmd.snapshot.done);
-                cmd.snapshot.out  = NULL;
-                cmd.snapshot.done = NULL;
-                scene_cmd_release(&cmd);
-                break;
+            break;
+        case SCENE_CMD_RESIZE:
+            scene_width  = cmd.resize.width;
+            scene_height = cmd.resize.height;
+            break;
+        case SCENE_CMD_UNLOAD:
+            is_active = false;
+            ngl_scene_unrefp(&active_scene);
+            break;
+        case SCENE_CMD_SNAPSHOT: {
+            struct ngl_scene *snap = NULL;
+            if (active_scene) {
+                const Uint64 t0 = SDL_GetTicksNS();
+                snap = ngl_scene_duplicate(active_scene);
+                const Uint64 t1 = SDL_GetTicksNS();
+                SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+                             "ngl_scene_duplicate: %.3f ms",
+                             (double)(t1 - t0) / 1.0e6);
             }
-            case SCENE_CMD_CALLBACK:
-                if (cmd.callback.fn)
-                    cmd.callback.fn(s, cmd.callback.arg);
-                scene_cmd_release(&cmd);
+            if (cmd.snapshot.out)
+                *cmd.snapshot.out = snap;
+            if (cmd.snapshot.done)
+                SDL_SignalSemaphore(cmd.snapshot.done);
+            cmd.snapshot.out  = NULL;
+            cmd.snapshot.done = NULL;
+            break;
+        }
+        case SCENE_CMD_CALLBACK:
+            if (cmd.callback.fn)
+                cmd.callback.fn(s, cmd.callback.arg);
+            break;
+        case SCENE_CMD_RENDER: {
+            if (!is_active)
                 break;
+
+            double t = cmd.render.target_time;
+            if (framerate_num > 0 && framerate_den > 0) {
+                const int64_t idx = (int64_t)(t * (double)framerate_num / (double)framerate_den);
+                t = (double)idx * (double)framerate_den / (double)framerate_num;
             }
-            have_cmd = scene_cmd_pop_timed(&s->cmd_q, &cmd, 0);
+
+            if (scene_width >= 2 && scene_height >= 2) {
+                uint32_t rt_width = 0;
+                uint32_t rt_height = 0;
+                struct ngpu_ctx *gpu_ctx = ngl_get_gpu_ctx(s->ngl_ctx);
+                if (gpu_ctx)
+                    ngpu_ctx_get_default_rendertarget_size(gpu_ctx, &rt_width, &rt_height);
+                if (rt_width != scene_width || rt_height != scene_height)
+                    ngl_resize(s->ngl_ctx, scene_width, scene_height);
+            }
+
+            struct ngl_draw_output output = {0};
+            int draw_ret = ngl_draw(s->ngl_ctx, t, &output);
+            if (draw_ret < 0)
+                break;
+
+            SDL_LockMutex(s->frame_lock);
+            struct ngl_frame *previous_frame = s->latest_frame;
+            s->latest_frame = output.frame;
+            SDL_UnlockMutex(s->frame_lock);
+
+            if (previous_frame)
+                ngl_frame_release(previous_frame, NULL);
+            break;
+        }
         }
 
-        if (!is_active)
-            continue;
-
-        if (SDL_GetTicksNS() < next_frame_ns)
-            continue;
-
-        if (scene_width >= 2 && scene_height >= 2) {
-            uint32_t rt_width = 0;
-            uint32_t rt_height = 0;
-            struct ngpu_ctx *gpu_ctx = ngl_get_gpu_ctx(s->ngl_ctx);
-            if (gpu_ctx)
-                ngpu_ctx_get_default_rendertarget_size(gpu_ctx, &rt_width, &rt_height);
-            if (rt_width != scene_width || rt_height != scene_height)
-                ngl_resize(s->ngl_ctx, scene_width, scene_height);
-        }
-
-        double frame_time = viewer_get_frame_time(s);
-        if (framerate_num > 0 && framerate_den > 0) {
-            const int64_t idx = (int64_t)(frame_time * (double)framerate_num / (double)framerate_den);
-            frame_time = (double)idx * (double)framerate_den / (double)framerate_num;
-        }
-
-        struct ngl_draw_output output = {0};
-        int draw_ret = ngl_draw(s->ngl_ctx, frame_time, &output);
-
-        const Uint64 interval_ns = frame_interval_ns(framerate_num, framerate_den);
-        next_frame_ns += interval_ns;
-        const Uint64 now_after_ns = SDL_GetTicksNS();
-        if (next_frame_ns < now_after_ns)
-            next_frame_ns = now_after_ns + interval_ns;
-
-        if (draw_ret < 0)
-            continue;
-
-        SDL_LockMutex(s->frame_lock);
-        struct ngl_frame *previous_frame = s->latest_frame;
-        s->latest_frame = output.frame;
-        SDL_UnlockMutex(s->frame_lock);
-
-        if (previous_frame)
-            ngl_frame_release(previous_frame, NULL);
+        scene_cmd_release(&cmd);
     }
 }
 
@@ -508,11 +428,6 @@ int viewer_scene_init(struct viewer_ctx *s, uint32_t width, uint32_t height)
     s->frame_lock = SDL_CreateMutex();
     if (!s->frame_lock) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create frame_lock");
-        return -1;
-    }
-    s->frame_time_lock = SDL_CreateMutex();
-    if (!s->frame_time_lock) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create frame_time_lock");
         return -1;
     }
 
@@ -560,10 +475,6 @@ void viewer_scene_close(struct viewer_ctx *s)
     if (s->frame_lock) {
         SDL_DestroyMutex(s->frame_lock);
         s->frame_lock = NULL;
-    }
-    if (s->frame_time_lock) {
-        SDL_DestroyMutex(s->frame_time_lock);
-        s->frame_time_lock = NULL;
     }
     ngl_freep(&s->ngl_ctx);
 }

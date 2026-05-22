@@ -804,12 +804,12 @@ static int icon_button(struct nk_context *nk, float K, enum icon_kind kind, int 
 void viewer_update_time(struct viewer_ctx *s)
 {
     if (!s->paused) {
-        if (s->clock_off < 0)
-            s->clock_off = (int64_t)SDL_GetTicks();
-        const int64_t now = (int64_t)SDL_GetTicks();
-        double t = (double)(now - s->clock_off) / 1000.0;
+        const int64_t now_ns = (int64_t)viewer_now_ns(s);
+        if (s->clock_off_ns < 0)
+            s->clock_off_ns = now_ns;
+        double t = (double)(now_ns - s->clock_off_ns) / 1.0e9;
         if (s->duration > 0.0 && t >= s->duration) {
-            s->clock_off = now;
+            s->clock_off_ns = now_ns;
             t = 0.0;
         }
         viewer_set_frame_time(s, t);
@@ -1097,7 +1097,7 @@ export_section_done:
         if (icon_button(nk, K, s->paused ? ICON_PLAY : ICON_PAUSE, can_play)) {
             s->paused ^= 1;
             if (!s->paused)
-                s->clock_off = (int64_t)SDL_GetTicks() - (int64_t)(frame_time * 1000.0);
+                s->clock_off_ns = (int64_t)viewer_now_ns(s) - (int64_t)(frame_time * 1.0e9);
         }
         if (icon_button(nk, K, ICON_STEP_FWD, can_step)) {
             s->paused = 1;
@@ -1124,7 +1124,7 @@ export_section_done:
             if (new_seek != seek) {
                 const double t = new_seek * s->duration;
                 viewer_set_frame_time(s, t);
-                s->clock_off = (int64_t)SDL_GetTicks() - (int64_t)(t * 1000.0);
+                s->clock_off_ns = (int64_t)viewer_now_ns(s) - (int64_t)(t * 1.0e9);
             }
         } else {
             nk_spacing(nk, 1);
