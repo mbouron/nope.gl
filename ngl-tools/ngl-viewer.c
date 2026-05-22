@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
         .panel_ratio           = VIEWER_PANEL_RATIO_MIN,
         .framerate             = {60, 1},
         .selected_scene        = -1,
-        .clock_off             = -1,
+        .clock_off_ns          = -1,
         .export_height         = 720,
     };
 
@@ -224,6 +224,7 @@ int main(int argc, char *argv[])
     Uint64 last_mtime_check = SDL_GetTicks();
     Uint64 last_hooks_refresh = SDL_GetTicks() - 3000; /* Fire on first iter. */
     uint32_t last_resize_w = 0, last_resize_h = 0;
+    double last_render_t = -1.0;
     while (run) {
         /* Nuklear's event handling. */
         nk_input_begin(nk);
@@ -238,7 +239,8 @@ int main(int argc, char *argv[])
                         s.duration     = r->duration;
                         s.framerate[0] = r->framerate[0];
                         s.framerate[1] = r->framerate[1];
-                        s.clock_off    = -1;
+                        s.clock_off_ns = -1;
+                        last_render_t  = -1.0;
                         viewer_set_frame_time(&s, 0.0);
                         s.paused       = 0;
                         s.last_error[0] = '\0';
@@ -291,21 +293,21 @@ int main(int argc, char *argv[])
                 if (event.key.key == SDLK_SPACE) {
                     s.paused ^= 1;
                     if (!s.paused)
-                        s.clock_off = (int64_t)SDL_GetTicks() - (int64_t)(s.frame_time * 1000.0);
+                        s.clock_off_ns = (int64_t)viewer_now_ns(&s) - (int64_t)(viewer_get_frame_time(&s) * 1.0e9);
                     continue;
                 }
                 /* LEFT/RIGHT: ±1 second seek. */
                 if ((event.key.key == SDLK_LEFT || event.key.key == SDLK_RIGHT) &&
                     s.scene_loaded) {
                     const double seek_step = 1.0;
-                    double t = s.frame_time;
+                    double t = viewer_get_frame_time(&s);
                     t += (event.key.key == SDLK_LEFT) ? -seek_step : seek_step;
                     if (t < 0.0)
                         t = 0.0;
                     else if (t > s.duration)
                         t = s.duration;
                     viewer_set_frame_time(&s, t);
-                    s.clock_off = (int64_t)SDL_GetTicks() - (int64_t)(t * 1000.0);
+                    s.clock_off_ns = (int64_t)viewer_now_ns(&s) - (int64_t)(t * 1.0e9);
                     continue;
                 }
                 /* O/P: ±1 frame step. */
@@ -313,7 +315,7 @@ int main(int argc, char *argv[])
                     s.scene_loaded && s.framerate[0]) {
                     s.paused = 1;
                     const double step = (double)s.framerate[1] / (double)s.framerate[0];
-                    double t = s.frame_time;
+                    double t = viewer_get_frame_time(&s);
                     t += (event.key.key == SDLK_O) ? -step : step;
                     if (t < 0.0)
                         t = 0.0;
@@ -361,6 +363,20 @@ int main(int argc, char *argv[])
                     .type   = SCENE_CMD_RESIZE,
                     .resize = {.width = new_w, .height = new_h},
                 });
+            }
+        }
+
+        /* Drive the scene from the UI: post one render request per UI
+         * iteration with the predicted-vsync-aligned target time. Posted after
+         * RESIZE so the resize is processed first if both are queued. */
+        if (s.scene_loaded) {
+            const double t = viewer_get_frame_time(&s);
+            if (t != last_render_t) {
+                scene_cmd_post(&s.cmd_q, (struct scene_cmd){
+                    .type   = SCENE_CMD_RENDER,
+                    .render = {.target_time = t},
+                });
+                last_render_t = t;
             }
         }
 

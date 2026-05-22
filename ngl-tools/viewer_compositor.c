@@ -77,6 +77,17 @@ int viewer_compositor_init(struct viewer_ctx *s,
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize blit");
         return -1;
     }
+
+    const SDL_DisplayID display = SDL_GetDisplayForWindow(s->window);
+    const SDL_DisplayMode *mode = display ? SDL_GetCurrentDisplayMode(display) : NULL;
+    if (mode && mode->refresh_rate_numerator > 0 && mode->refresh_rate_denominator > 0) {
+        s->refresh_period_ns =
+            SDL_NS_PER_SECOND * (Uint64)mode->refresh_rate_denominator /
+            (Uint64)mode->refresh_rate_numerator;
+    } else {
+        s->refresh_period_ns = SDL_NS_PER_SECOND / 60;
+    }
+
     return 0;
 }
 
@@ -127,6 +138,11 @@ void viewer_compositor_render(struct viewer_ctx *s)
     struct ngpu_fence *blit_done = NULL;
     ngpu_ctx_end_draw(s->gpu_ctx, viewer_get_frame_time(s), scene_fence,
                       s->current_frame ? &blit_done : NULL);
+
+    /* end_draw presents with swap_interval=1, so it returns shortly after the
+     * vsync. Snapshot the time now: viewer_now_ns() extrapolates next vsync
+     * as last_swap_ns + refresh_period_ns. */
+    s->last_swap_ns = SDL_GetTicksNS();
 
     /* Keep the latest blit_done fence: queue ordering guarantees the new
      * one supersedes the previous one. */
