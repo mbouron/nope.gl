@@ -235,14 +235,24 @@ int main(int argc, char *argv[])
                 struct scene_load_result *r = event.user.data1;
                 if (r) {
                     if (r->success) {
+                        /* Preserve play/pause state and clamp current time to
+                         * the new scene duration so the viewer resumes where
+                         * it was rather than snapping back to 0. */
+                        const int    prev_paused = s.scene_loaded ? s.paused : 0;
+                        const double prev_time   = s.scene_loaded ? viewer_get_frame_time(&s) : 0.0;
+                        const double resume_time = prev_time < r->duration ? prev_time : r->duration;
+
                         s.scene_loaded = 1;
                         s.duration     = r->duration;
                         s.framerate[0] = r->framerate[0];
                         s.framerate[1] = r->framerate[1];
-                        s.clock_off_ns = -1;
+                        s.paused       = prev_paused;
                         last_render_t  = -1.0;
-                        viewer_set_frame_time(&s, 0.0);
-                        s.paused       = 0;
+                        viewer_set_frame_time(&s, resume_time);
+                        /* Re-anchor the clock so playback resumes from
+                         * resume_time rather than rewinding to 0. */
+                        s.clock_off_ns = prev_paused ? -1
+                            : (int64_t)viewer_now_ns(&s) - (int64_t)(resume_time * 1.0e9);
                         s.last_error[0] = '\0';
                         /* Selection holds a ref to a node from the previous
                          * scene; the new scene has an entirely fresh tree. */
