@@ -12,6 +12,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `Effect2D` rendertarget size potentially exceeding the GPU max 2D texture
   dimension when children extend far off-canvas
 - `ngl-viewer` scene playback stutter
+- `Effect2D` rendering bugs (output is y-flipped, output has small offsets
+  compared to source, no output when chaining `Effect2D` nodes, ...)
 
 ### Changed
 - Derive rendertarget (`Texture2D`, `RenderToTexture`, `Effect2D`,

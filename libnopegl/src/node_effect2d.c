@@ -671,8 +671,10 @@ static void effect2d_pre_draw(struct ngl_node *node)
     struct effect2d_priv *s = node->priv_data;
     const struct effect2d_opts *o = node->opts;
 
-    if (!o->node2d.visible)
+    if (!o->node2d.visible) {
+        s->node2d_info.screen_aabb = NGLI_AABB_EMPTY;
         return;
+    }
 
     /* Pre-draw children (computes children bounding boxes) */
     for (size_t i = 0; i < o->nb_children; i++)
@@ -681,6 +683,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
     /* Compute bounding box and position of the composite quad */
     s->children_bbox = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
     s->node2d_info.aabb = s->children_bbox;
+    s->node2d_info.screen_aabb = s->children_bbox;
 
     /* Skip rendering if children have no bounding box */
     if (s->children_bbox.extent[0] < 0.f)
@@ -736,19 +739,52 @@ static void effect2d_pre_draw(struct ngl_node *node)
         s->textures_map.data[0].image = ngli_rtt_get_image(s->rtt, 0);
     }
 
+    /*
+     * Shift Y edges by +0.5 canvas pixels. Without the shift, the top-left
+     * fill rule picks different rows on OpenGL vs Vulkan: the two backends
+     * apply their Y-flips in opposite order so the same canvas_y maps to
+     * opposite NDC signs and the rasterizer's "top" edge flips between
+     * backends.
+     */
     const float vertices[] = {
-        qx,      qy,      0.f,
-        qx + qw, qy,      0.f,
-        qx,      qy + qh, 0.f,
-        qx + qw, qy + qh, 0.f,
+        qx,      qy + 0.5f,      0.f,
+        qx + qw, qy + 0.5f,      0.f,
+        qx,      qy + qh + 0.5f, 0.f,
+        qx + qw, qy + qh + 0.5f, 0.f,
     };
     ngpu_buffer_upload(s->geometry->vertices_buffer, vertices, 0, sizeof(vertices));
 
-    static const float uvcoords[] = {
-        0.f, 1.f,
-        1.f, 1.f,
-        0.f, 0.f,
-        1.f, 0.f,
+    /*
+     * Half-texel inset on uvcoords so bilinear taps land on RTT texel centers.
+     *
+     * Canvas2D, OffscreenCanvas2D and Effect2D all use a 2D ortho where
+     * pixel centers sit on integer world coordinates (the ortho bounds
+     * are inset by -0.5). The source RTT's texel i has its center at
+     * world qx + (i+0.5)*qw/W, so a fragment at world X should sample
+     * uv = (X - qx + 0.5) / qw — independent of the RTT pixel count W.
+     * With plain (0..1) corners the interpolated u is (X - qx)/qw,
+     * short by 0.5/qw; shifting both u corners by +0.5/qw fixes it.
+     *
+     * On v, the vertices already carry a +0.5 canvas-pixel shift (see
+     * the vertex comment above), which subtracts 0.5/qh from the
+     * interpolated v. Setting v0 = 1/qh (instead of 0.5/qh) cancels
+     * that shift and adds back the texel-center 0.5/qh.
+     *
+     * The shift uses canvas world units (qw, qh), NOT RTT pixel counts
+     * (s->width, s->height): they only match at viewport scale=1, and
+     * using RTT pixels at higher scales produces a one-pixel output shift.
+     *
+     * The far corners end up past 1.0 (by 0.5/qw on u, 1/qh on v). All
+     * rendered fragments stay inside [0,1], but clamp-to-edge sampling
+     * would still return the last texel if any tap overshot.
+     */
+    const float u0 = 0.5f / qw;
+    const float v0 = 1.f / qh;
+    const float uvcoords[] = {
+        u0,       v0,
+        1.f + u0, v0,
+        u0,       1.f + v0,
+        1.f + u0, 1.f + v0,
     };
     ngpu_buffer_upload(s->geometry->uvcoords_buffer, uvcoords, 0, sizeof(uvcoords));
 

@@ -901,7 +901,19 @@ static void drawrect2d_pre_draw(struct ngl_node *node)
 
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->transform_matrix = modelview_matrix;
-    node2d_info->screen_aabb = ngli_aabb_apply_transform(&node2d_info->aabb, modelview_matrix.m);
+
+    /* Expand the AABB by the same margin the vertex shader adds so that
+     * screen_aabb covers the actual rendered geometry (stroke + AA fringe).
+     * Must mirror drawrect2d_draw()'s margin_px computation. */
+    const struct stroke_base_opts *so = o->stroke_node
+        ? (const struct stroke_base_opts *)o->stroke_node->opts : &default_stroke_base;
+    const float outer_edge = (so->mode == STROKE_OUTSIDE) ? so->width :
+                             (so->mode == STROKE_CENTER)  ? so->width * 0.5f : 0.f;
+    const float margin_px = outer_edge + 2.f;
+    struct aabb expanded_aabb = node2d_info->aabb;
+    expanded_aabb.extent[0] += margin_px;
+    expanded_aabb.extent[1] += margin_px;
+    node2d_info->screen_aabb = ngli_aabb_apply_transform(&expanded_aabb, modelview_matrix.m);
 }
 
 static void drawrect2d_draw(struct ngl_node *node)
