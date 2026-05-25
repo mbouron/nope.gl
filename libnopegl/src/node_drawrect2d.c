@@ -138,7 +138,7 @@ struct drawrect2d_vert_block {
 
 struct drawrect2d_frag_block {
     float rect_size[2];
-    float corner_radius;
+    float corner_radius[2];
     float outline_width;
     int32_t outline_mode;
     float dash_length;
@@ -148,6 +148,7 @@ struct drawrect2d_frag_block {
     float opacity;
     float fill_opacity;
     float stroke_opacity;
+    float _pad_clip;
     float clip_min[2];
     float clip_max[2];
     int32_t content_wrap;
@@ -156,14 +157,14 @@ struct drawrect2d_frag_block {
     float content_orientation[2];
     float frag_uv_scale[2];
     int32_t fill_premult;
-    float _pad0[3];
+    float _pad0[1];
 };
 
 struct drawrect2d_opts {
     float rect[4];
     struct ngl_node *fill_node;
     struct ngl_node *stroke_node;
-    float corner_radius;
+    float corner_radius[2];
     struct ngli_node2d_opts node2d;
     float clip_rect[4];
     struct ngl_node *content_zoom_node;
@@ -285,10 +286,11 @@ static const struct node_param drawrect2d_params[] = {
     },
     {
         .key    = "corner_radius",
-        .type   = NGLI_PARAM_TYPE_F32,
+        .type   = NGLI_PARAM_TYPE_VEC2,
         .offset = OFFSET(corner_radius),
         .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc   = NGLI_DOCSTRING("corner radius in pixels"),
+        .desc   = NGLI_DOCSTRING("corner radii in pixels (x, y); set x != y for elliptical corners; "
+                                  "set to (width/2, height/2) for a full ellipse/oval"),
     },
     {
         .key    = "translate",
@@ -515,7 +517,7 @@ static int drawrect2d_init(struct ngl_node *node)
     /* Build static fragment uniform block */
     static const struct ngpu_block_field frag_static_fields[] = {
         {.name = "ngli_rect_size",            .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_corner_radius",        .type = NGPU_TYPE_F32},
+        {.name = "ngli_corner_radius",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_outline_width",        .type = NGPU_TYPE_F32},
         {.name = "ngli_outline_mode",         .type = NGPU_TYPE_I32},
         {.name = "ngli_dash_length",          .type = NGPU_TYPE_F32},
@@ -1044,7 +1046,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         struct drawrect2d_frag_block frag_data = {0};
         frag_data.rect_size[0]  = o->rect[2];
         frag_data.rect_size[1]  = o->rect[3];
-        frag_data.corner_radius = o->corner_radius;
+        memcpy(frag_data.corner_radius, o->corner_radius, sizeof(frag_data.corner_radius));
         frag_data.outline_width = so->width;
         frag_data.outline_mode  = so->mode;
         frag_data.dash_length   = so->dash_length;

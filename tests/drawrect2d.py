@@ -93,7 +93,7 @@ def drawrect2d_noise_fill(cfg: ngl.SceneCfg):
 def drawrect2d_stroke_inside_corner(cfg: ngl.SceneCfg):
     fill = ngl.ColorFill(color=(0.15, 0.4, 0.8, 1.0))
     stroke = ngl.Stroke(width=10, mode="inside", color=(1.0, 1.0, 1.0, 1.0))
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=5))
+    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=(5, 5)))
 
 
 @test_render()
@@ -101,7 +101,7 @@ def drawrect2d_stroke_inside_corner(cfg: ngl.SceneCfg):
 def drawrect2d_stroke_center_corner(cfg: ngl.SceneCfg):
     fill = ngl.ColorFill(color=(0.15, 0.4, 0.8, 1.0))
     stroke = ngl.Stroke(width=10, mode="center", color=(1.0, 1.0, 0.0, 1.0))
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=5))
+    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=(5, 5)))
 
 
 @test_render()
@@ -109,7 +109,7 @@ def drawrect2d_stroke_center_corner(cfg: ngl.SceneCfg):
 def drawrect2d_stroke_outside_corner(cfg: ngl.SceneCfg):
     fill = ngl.ColorFill(color=(0.15, 0.4, 0.8, 1.0))
     stroke = ngl.Stroke(width=10, mode="outside", color=(1.0, 1.0, 1.0, 1.0))
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=5))
+    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=(5, 5)))
 
 
 @test_render()
@@ -214,7 +214,7 @@ def drawrect2d_stroke_gradient4(cfg: ngl.SceneCfg):
 @ngl.scene(width=W, height=H)
 def drawrect2d_corner_radius(cfg: ngl.SceneCfg):
     fill = ngl.ColorFill(color=(0.3, 0.75, 0.3, 1.0))
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, corner_radius=30))
+    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, corner_radius=(30, 30)))
 
 
 @test_render()
@@ -224,7 +224,39 @@ def drawrect2d_corner_radius_stroke(cfg: ngl.SceneCfg):
     stroke = ngl.Stroke(width=6, mode="inside", color=(1.0, 1.0, 1.0, 1.0))
     return _canvas(
         cfg,
-        ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=24),
+        ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=(24, 24)),
+    )
+
+
+def _rect_from_center(
+    centerX: float,
+    centerY: float,
+    sizeX: float,
+    sizeY: float,
+) -> tuple[float, float, float, float]:
+    return (
+        centerX - sizeX / 2,
+        centerY - sizeY / 2,
+        sizeX,
+        sizeY,
+    )
+
+
+@test_render()
+@ngl.scene(width=W, height=H)
+def drawrect2d_oval(cfg: ngl.SceneCfg):
+    """Full ellipse: corner_radius == (rect_w/2, rect_h/2)."""
+    rect_w, rect_h = (W - 60) * 0.5, (H - 60)
+    rx, ry = rect_w / 2.0, rect_h / 2.0
+    return _canvas(
+        cfg,
+        ngl.DrawRect2D(
+            rect=_rect_from_center(W / 2, H / 2, rect_w, rect_h),
+            fill=ngl.ColorFill(color=(0.2, 0.55, 0.85, 1.0)),
+            stroke=ngl.Stroke(width=1.0, color=(1.0, 1.0, 1.0, 1.0)),
+            corner_radius=(rx, ry),
+            rotation=20.0,
+        ),
     )
 
 
@@ -377,7 +409,7 @@ def drawrect2d_animated_trs(cfg: ngl.SceneCfg):
             rect=(48, 48, W - 96, H - 96),
             fill=fill,
             stroke=stroke,
-            corner_radius=8,
+            corner_radius=(8, 8),
             translate=translate_anim,
             rotation=rotation_anim,
             scale=scale_anim,
@@ -783,7 +815,7 @@ def drawrect2d_fill_stroke_opacity(cfg: ngl.SceneCfg):
     bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=bg_fill, content_translate=content_translate_anim)
     fill = ngl.ColorFill(color=(1.0, 1.0, 1.0, 1.0), opacity=0.25)
     stroke = ngl.Stroke(width=20, mode="center", color=(1.0, 1.0, 1.0, 1.0), opacity=0.5)
-    fg = ngl.DrawRect2D(rect=(40, 40, W - 80, H - 80), fill=fill, stroke=stroke, corner_radius=5)
+    fg = ngl.DrawRect2D(rect=(40, 40, W - 80, H - 80), fill=fill, stroke=stroke, corner_radius=(5, 5))
     return _canvas(cfg, bg, fg, duration=4.0)
 
 
