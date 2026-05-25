@@ -68,7 +68,7 @@ def _animated_scene():
                 ngl.AnimKeyFrameVec2(3.0, (1.5, 0.8)),
             ]
         ),
-        corner_radius=10,
+        corner_radius=(10, 10),
     )
     return [r1, r2, r3]
 

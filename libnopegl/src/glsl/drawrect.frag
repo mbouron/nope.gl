@@ -19,10 +19,28 @@
  * under the License.
  */
 
-float ngli_sdf_rounded_box(vec2 pos, vec2 half_size, float radius)
+/*
+ * Signed distance to a rounded rectangle with per-axis corner radii.
+ *
+ * `radius` is (rx, ry) in pixels.  When rx == ry, the corners are circular
+ * arcs and the function reduces to the classic rounded-box SDF.  When rx !=
+ * ry, the corners are elliptical arcs.
+ *
+ * The elliptical corner approximation is `length(q) * (1 - 1/length(q/r))`,
+ * which has unit gradient on the principal axes and is C0-continuous with the
+ * straight-edge SDF where the corner zone meets the edges.
+ */
+float ngli_sdf_rounded_box(vec2 pos, vec2 half_size, vec2 radius)
 {
-    vec2 q = abs(pos) - half_size + radius;
-    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+    vec2 d = abs(pos) - half_size;
+    vec2 q = d + radius;
+    if (radius.x > 0.0 && radius.y > 0.0 && q.x > 0.0 && q.y > 0.0) {
+        float len_qn = length(q / radius);
+        float len_q  = length(q);
+        return len_q * (1.0 - 1.0 / len_qn);
+    }
+    vec2 d_pos = max(d, 0.0);
+    return length(d_pos) + min(max(d.x, d.y), 0.0);
 }
 
 void main()
@@ -34,7 +52,7 @@ void main()
     /* Rounded-rectangle SDF in pixel space */
     vec2 half_size = ngli_rect_size * 0.5;
     vec2 pos       = (ngli_uv - 0.5) * ngli_rect_size;
-    float r        = ngli_corner_radius;
+    vec2 r         = ngli_corner_radius;
     float d        = ngli_sdf_rounded_box(pos, half_size, r);
 
     /*
@@ -104,13 +122,18 @@ void main()
              * smooth t transition through corners, eliminating diagonal seam
              * artifacts from the AABB nearest-edge heuristic.
              */
-            float r_perim = max(r, ngli_outline_width * 0.5);
-            float Wr = W - r_perim;
-            float Hr = H - r_perim;
+            vec2 r_perim = max(r, vec2(ngli_outline_width * 0.5));
+            float Wr = W - r_perim.x;
+            float Hr = H - r_perim.y;
             vec2 qp  = abs(pos) - vec2(Wr, Hr);
 
             float half_pi = 1.5707963;
-            float arc_len = r_perim * half_pi;
+            /*
+             * Quarter ellipse arc length (Ramanujan I approximation).
+             */
+            float a = r_perim.x;
+            float b = r_perim.y;
+            float arc_len = 0.7853981 * (3.0 * (a + b) - sqrt((3.0 * a + b) * (a + 3.0 * b)));
 
             float L1 = 2.0 * Wr;
             float L2 = L1 + arc_len;
