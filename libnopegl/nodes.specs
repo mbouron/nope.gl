@@ -2885,10 +2885,10 @@
         },
         {
           "name": "corner_radius",
-          "type": "f32",
-          "default": 0.000000,
+          "type": "vec2",
+          "default": [0.000000,0.000000],
           "flags": ["live"],
-          "desc": "corner radius in pixels"
+          "desc": "corner radii in pixels (x, y); set x != y for elliptical corners; set to (width/2, height/2) for a full ellipse/oval"
         },
         {
           "name": "translate",
