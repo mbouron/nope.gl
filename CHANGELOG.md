@@ -8,6 +8,8 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+
+## [2026.2 / libnopegl 0.14.0][2026.2] - 2026-05-25
 ### Fixed
 - `Effect2D` rendertarget size potentially exceeding the GPU max 2D texture
   dimension when children extend far off-canvas
@@ -422,3 +424,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 [2024.0]: https://github.com/NopeForge/nope.gl/releases/tag/v2024.0
 [2026.0]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.0
 [2026.1]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.1
+[2026.2]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.2
