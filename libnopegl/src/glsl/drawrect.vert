@@ -37,7 +37,10 @@ void main()
      * unaffected.
      */
     vec2 dir = sign(uvcoord - 0.5);
-    ngl_out_pos = projection_matrix * modelview_matrix * vec4(position.xy + dir * ngli_margin_px, 0.0, 1.0);
+    vec4 canvas_pos = modelview_matrix * vec4(position.xy + dir * ngli_margin_px, 0.0, 1.0);
+    ngl_out_pos = projection_matrix * canvas_pos;
+    /* Canvas-pixel position, used to test cascaded clip planes from Group2D. */
+    ngli_clip_pos = canvas_pos.xy;
     ngli_uv = uvcoord + dir * ngli_margin_uv;
     vec2 adj_uvcoord = (uvcoord - 0.5) * ngli_uv_scale + 0.5;
     ngli_tex_coord = (tex_coord_matrix * vec4(adj_uvcoord, 0.0, 1.0)).xy;
