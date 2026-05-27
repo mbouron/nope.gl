@@ -76,4 +76,21 @@ int ngli_node2d_push_transform(struct ngl_node *node);
  */
 void ngli_node2d_pop_transform(struct ngl_node *node);
 
+/*
+ * Rounded-rectangle clip entry.
+ */
+struct ngli_clip2d {
+    struct ngli_vec4 inv; // canvas->local 2x2 matrix (inverse of local trs)
+    struct ngli_vec4 rect; // clip rectangle (center_x, center_y, half_w, half_h)
+    struct ngli_vec4 radius; // corner radii (radius_x, radius_y, 0, 0)
+};
+
+/*
+ * Compute a cascading rounded-rectangle clip from clip rectangle local
+ * parameters.
+ */
+bool ngli_node2d_compute_clip(const struct ngli_mat4 *modelview,
+                              const float clip_rect[4], const float corner_radius[2],
+                              struct ngli_clip2d *out);
+
 #endif

@@ -60,8 +60,25 @@ float ngli_sdf_rounded_box(vec2 pos, vec2 half_size, vec2 radius)
 
 void main()
 {
-    /* Clip rect (in UV space; disabled when bounds are ±1e9) */
-    if (any(lessThan(ngli_uv, ngli_clip_min)) || any(greaterThan(ngli_uv, ngli_clip_max)))
+    /*
+     * Rounded clip rectangles: each clip is a rounded box evaluated in its own
+     * local space: map the canvas-pixel position into that space (inverse of
+     * the clip's transform), evaluate the rounded-box SDF and anti-alias the
+     * edge over one pixel. The clip region is the intersection of all clips,
+     * so we take the minimum coverage.
+     */
+    float clip_cov = 1.0;
+    for (int i = 0; i < ngli_nb_clips; i++) {
+        vec4 inv = ngli_clip_inv[i];
+        vec4 rc  = ngli_clip_rect[i];
+        vec2 rad = ngli_clip_radius[i].xy;
+        vec2 dlt = ngli_clip_pos - rc.xy;
+        vec2 loc = vec2(dot(inv.xy, dlt), dot(inv.zw, dlt));
+        float cd  = ngli_sdf_rounded_box(loc, rc.zw, rad);
+        float caa = max(fwidth(cd) * 0.5, 1e-6);
+        clip_cov = min(clip_cov, 1.0 - smoothstep(-caa, caa, cd));
+    }
+    if (clip_cov <= 0.0)
         discard;
 
     /* Rounded-rectangle SDF in pixel space */
@@ -256,6 +273,6 @@ void main()
     ngl_out_color.rgb = stroke_col.rgb * ol_alpha + tex_color.rgb * fill_rgb_scale * (1.0 - ol_alpha);
     ngl_out_color.a   = ol_alpha + fill_a * (1.0 - ol_alpha);
 
-    /* Global opacity */
-    ngl_out_color *= ngli_opacity;
+    /* Global opacity and anti-aliased cascaded clip coverage */
+    ngl_out_color *= ngli_opacity * clip_cov;
 }
