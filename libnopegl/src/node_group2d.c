@@ -23,17 +23,24 @@
 #include <string.h>
 
 #include "internal.h"
+#include "log.h"
 #include "node2d.h"
+#include "node_uniform.h"
 #include "nopegl/nopegl.h"
 
 struct group2d_opts {
     struct ngl_node **children;
     size_t nb_children;
     struct ngli_node2d_opts node2d;
+    struct ngl_node *clip_rect_node;
+    float clip_rect[4];
+    struct ngl_node *clip_corner_radius_node;
+    float clip_corner_radius[2];
 };
 
 struct group2d_priv {
     struct ngli_node2d_info node2d_info;
+    int clip_overflow_warned;
 };
 
 #define OFFSET(x) offsetof(struct group2d_opts, x)
@@ -84,6 +91,26 @@ static const struct node_param group2d_params[] = {
         .def_value = {.i32=1},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc      = NGLI_DOCSTRING("whether the group and its children are visible"),
+    }, {
+        .key       = "clip_rect",
+        .type      = NGLI_PARAM_TYPE_VEC4,
+        .offset    = OFFSET(clip_rect_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("clipping rectangle (x, y, width, height) in the group's local "
+                                    "pixel coordinates that cascades to all children; it is "
+                                    "transformed by the group (so it follows the group's rotation, "
+                                    "scale and translation) and intersected with any clip inherited "
+                                    "from ancestor groups. When width or height is 0 clipping is "
+                                    "disabled. The clip edge is anti-aliased and stays correct under "
+                                    "rotation"),
+    }, {
+        .key       = "clip_corner_radius",
+        .type      = NGLI_PARAM_TYPE_VEC2,
+        .offset    = OFFSET(clip_corner_radius_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("corner radii (x, y) of clip_rect in local pixels, for rounded "
+                                    "clipping; (0, 0) gives sharp corners. Each radius is clamped to "
+                                    "half the corresponding clip_rect side"),
     },
     {NULL}
 };
@@ -131,10 +158,41 @@ static void group2d_pre_draw(struct ngl_node *node)
     ngli_node2d_pop_transform(node);
 }
 
+static void group2d_push_clip(struct ngl_node *node)
+{
+    struct group2d_priv *s = node->priv_data;
+    const struct group2d_opts *o = node->opts;
+    struct ngl_ctx *ctx = node->ctx;
+
+    const float *rect = ngli_node_get_data_ptr(o->clip_rect_node, o->clip_rect);
+    if (rect[2] <= 0.f || rect[3] <= 0.f)
+        return;
+
+    const float *corner_radius = ngli_node_get_data_ptr(o->clip_corner_radius_node, o->clip_corner_radius);
+
+    if (ctx->nb_clips_2d >= NGLI_MAX_CLIPS_2D) {
+        if (!s->clip_overflow_warned) {
+            LOG(WARNING, "too many nested Group2D clip rectangles "
+                "(at most %d supported); ignoring this clip", NGLI_MAX_CLIPS_2D);
+            s->clip_overflow_warned = 1;
+        }
+        return;
+    }
+
+    const struct ngli_mat4 *trs = ngli_darray_tail(&ctx->transform_2d_stack);
+
+    const size_t k = ctx->nb_clips_2d;
+    if (!ngli_node2d_compute_clip(trs, rect, corner_radius, &ctx->clips_2d[k]))
+        return;
+
+    ctx->nb_clips_2d++;
+}
+
 static void group2d_draw(struct ngl_node *node)
 {
     struct group2d_priv *s = node->priv_data;
     const struct group2d_opts *o = node->opts;
+    struct ngl_ctx *ctx = node->ctx;
 
     if (!o->node2d.visible) {
         s->node2d_info.screen_aabb = NGLI_AABB_EMPTY;
@@ -149,6 +207,10 @@ static void group2d_draw(struct ngl_node *node)
     /* Save local transform */
     struct ngli_mat4 local_transform_matrix = *(const struct ngli_mat4 *)ngli_darray_tail(&node->ctx->transform_2d_stack);
 
+    /* Push clip rectangle */
+    const size_t saved_nb_clip = ctx->nb_clips_2d;
+    group2d_push_clip(node);
+
     /* Draw children */
     for (size_t i = 0; i < o->nb_children; i++) {
         ngli_node_draw(o->children[i]);
@@ -158,6 +220,9 @@ static void group2d_draw(struct ngl_node *node)
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
     node2d_info->transform_matrix = local_transform_matrix;
+
+    /* Pop clip rectangle */
+    ctx->nb_clips_2d = saved_nb_clip;
 
     /* Pop the 2D stacks */
     ngli_node2d_pop_transform(node);

@@ -43,6 +43,7 @@
 #include "aabb.h"
 #include "hud.h"
 #include "math_utils.h"
+#include "node2d.h"
 #include <ngpu/ngpu.h>
 #include "slug.h"
 #include "nopegl/nopegl.h"
@@ -105,6 +106,9 @@ struct ngl_ctx {
     struct ngli_mat4 projection_2d_matrix;
     float canvas_2d_width;
     float canvas_2d_height;
+#define NGLI_MAX_CLIPS_2D 8
+    struct ngli_clip2d clips_2d[NGLI_MAX_CLIPS_2D];
+    size_t nb_clips_2d;
     struct ngpu_staging_buffer **update_staging_buffers;
     struct ngpu_staging_buffer **draw_staging_buffers;
     struct ngpu_staging_buffer *current_staging_buffer;
