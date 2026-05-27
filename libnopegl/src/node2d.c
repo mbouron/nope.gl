@@ -95,3 +95,39 @@ void ngli_node2d_pop_transform(struct ngl_node *node)
     ngli_darray_pop(&ctx->opacity_2d_stack);
     ngli_darray_pop(&ctx->transform_2d_stack);
 }
+
+bool ngli_node2d_compute_clip(const struct ngli_mat4 *modelview,
+                              const float clip_rect[4], const float corner_radius[2],
+                              struct ngli_clip2d *out)
+{
+    if (clip_rect[2] <= 0.f || clip_rect[3] <= 0.f)
+        return false;
+
+    const float half_w = clip_rect[2] * 0.5f;
+    const float half_h = clip_rect[3] * 0.5f;
+
+    /* Clip center (local -> canvas pixels). */
+    const float center_local[4] = {clip_rect[0] + half_w, clip_rect[1] + half_h, 0.f, 1.f};
+    float center[4];
+    ngli_mat4_mul_vec4(center, modelview->m, center_local);
+
+    /*
+     * Invert the modelview's 2D linear part [[a, b], [c, d]] (canvas = L * local)
+     * so the fragment shader can map a canvas delta back into local space.
+     */
+    const float a = modelview->m[0], b = modelview->m[4], c = modelview->m[1], d = modelview->m[5];
+    const float det = a * d - b * c;
+    if (fabsf(det) < 1e-9f)
+        return false;
+    const float idet = 1.f / det;
+
+    /* Corner radii, clamped to half the rectangle so they stay well-formed. */
+    const float rx = NGLI_MIN(NGLI_MAX(corner_radius[0], 0.f), half_w);
+    const float ry = NGLI_MIN(NGLI_MAX(corner_radius[1], 0.f), half_h);
+
+    out->inv    = (struct ngli_vec4){.v = {d * idet, -b * idet, -c * idet, a * idet}};
+    out->rect   = (struct ngli_vec4){.v = {center[0], center[1], half_w, half_h}};
+    out->radius = (struct ngli_vec4){.v = {rx, ry, 0.f, 0.f}};
+
+    return true;
+}
