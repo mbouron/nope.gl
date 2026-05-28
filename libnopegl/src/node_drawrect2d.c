@@ -55,8 +55,11 @@ static const char drawrect_vert_notex[] =
     "void main()\n"
     "{\n"
     "    vec2 dir = sign(uvcoord - 0.5);\n"
-    "    ngl_out_pos = projection_matrix * modelview_matrix"
+    "    vec4 canvas_pos = modelview_matrix"
     " * vec4(position.xy + dir * ngli_margin_px, 0.0, 1.0);\n"
+    "    ngl_out_pos = projection_matrix * canvas_pos;\n"
+    "    /* Canvas-pixel position, used to test cascaded clip planes from Group2D. */\n"
+    "    ngli_clip_pos = canvas_pos.xy;\n"
     "    ngli_uv = uvcoord + dir * ngli_margin_uv;\n"
     "    vec2 adj_uvcoord = (uvcoord - 0.5) * ngli_uv_scale + 0.5;\n"
     "    ngli_tex_coord = adj_uvcoord;\n"
@@ -138,7 +141,7 @@ struct drawrect2d_vert_block {
 
 struct drawrect2d_frag_block {
     float rect_size[2];
-    float corner_radius;
+    float corner_radius[2];
     float outline_width;
     int32_t outline_mode;
     float dash_length;
@@ -148,24 +151,31 @@ struct drawrect2d_frag_block {
     float opacity;
     float fill_opacity;
     float stroke_opacity;
-    float clip_min[2];
-    float clip_max[2];
     int32_t content_wrap;
     float content_zoom;
+    float _pad_ct; /* std140: align content_translate (vec2) to 8 bytes */
     float content_translate[2];
     float content_orientation[2];
     float frag_uv_scale[2];
     int32_t fill_premult;
-    float _pad0[3];
+    float _pad0[1];
+    struct ngli_vec4 clip_inv[NGLI_MAX_CLIPS_2D];
+    struct ngli_vec4 clip_rect[NGLI_MAX_CLIPS_2D];
+    struct ngli_vec4 clip_radius[NGLI_MAX_CLIPS_2D];
+    int32_t nb_clips;
+    float _pad1[3];
 };
 
 struct drawrect2d_opts {
     float rect[4];
     struct ngl_node *fill_node;
     struct ngl_node *stroke_node;
-    float corner_radius;
+    float corner_radius[2];
     struct ngli_node2d_opts node2d;
+    struct ngl_node *clip_rect_node;
     float clip_rect[4];
+    struct ngl_node *clip_corner_radius_node;
+    float clip_corner_radius[2];
     struct ngl_node *content_zoom_node;
     float content_zoom;
     struct ngl_node *content_translate_node;
@@ -285,10 +295,11 @@ static const struct node_param drawrect2d_params[] = {
     },
     {
         .key    = "corner_radius",
-        .type   = NGLI_PARAM_TYPE_F32,
+        .type   = NGLI_PARAM_TYPE_VEC2,
         .offset = OFFSET(corner_radius),
         .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc   = NGLI_DOCSTRING("corner radius in pixels"),
+        .desc   = NGLI_DOCSTRING("corner radii in pixels (x, y); set x != y for elliptical corners; "
+                                  "set to (width/2, height/2) for a full ellipse/oval"),
     },
     {
         .key    = "translate",
@@ -347,10 +358,20 @@ static const struct node_param drawrect2d_params[] = {
     {
         .key    = "clip_rect",
         .type   = NGLI_PARAM_TYPE_VEC4,
-        .offset = OFFSET(clip_rect),
-        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc   = NGLI_DOCSTRING("clipping rectangle (x, y, width, height) in pixel coordinates; "
-                                  "when width or height is 0 clipping is disabled"),
+        .offset = OFFSET(clip_rect_node),
+        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc   = NGLI_DOCSTRING("clipping rectangle (x, y, width, height) in pixel coordinates "
+                                  "(follows the node's transform); when width or height is 0 "
+                                  "clipping is disabled. The clip edge is anti-aliased"),
+    },
+    {
+        .key    = "clip_corner_radius",
+        .type   = NGLI_PARAM_TYPE_VEC2,
+        .offset = OFFSET(clip_corner_radius_node),
+        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc   = NGLI_DOCSTRING("corner radii (x, y) of clip_rect in pixels, for rounded clipping; "
+                                  "(0, 0) gives sharp corners. Each radius is clamped to half the "
+                                  "corresponding clip_rect side"),
     },
     {
         .key       = "content_zoom",
@@ -515,7 +536,7 @@ static int drawrect2d_init(struct ngl_node *node)
     /* Build static fragment uniform block */
     static const struct ngpu_block_field frag_static_fields[] = {
         {.name = "ngli_rect_size",            .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_corner_radius",        .type = NGPU_TYPE_F32},
+        {.name = "ngli_corner_radius",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_outline_width",        .type = NGPU_TYPE_F32},
         {.name = "ngli_outline_mode",         .type = NGPU_TYPE_I32},
         {.name = "ngli_dash_length",          .type = NGPU_TYPE_F32},
@@ -525,14 +546,16 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_opacity",              .type = NGPU_TYPE_F32},
         {.name = "ngli_fill_opacity",         .type = NGPU_TYPE_F32},
         {.name = "ngli_stroke_opacity",       .type = NGPU_TYPE_F32},
-        {.name = "ngli_clip_min",             .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_clip_max",             .type = NGPU_TYPE_VEC2},
         {.name = "ngli_content_wrap",         .type = NGPU_TYPE_I32},
         {.name = "ngli_content_zoom",         .type = NGPU_TYPE_F32},
         {.name = "ngli_content_translate",    .type = NGPU_TYPE_VEC2},
         {.name = "ngli_content_orientation",  .type = NGPU_TYPE_VEC2},
         {.name = "ngli_frag_uv_scale",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_fill_premult",         .type = NGPU_TYPE_I32},
+        {.name = "ngli_clip_inv",             .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
+        {.name = "ngli_clip_rect",            .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
+        {.name = "ngli_clip_radius",          .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
+        {.name = "ngli_nb_clips",             .type = NGPU_TYPE_I32},
     };
 
     struct ngpu_block_desc frag_block_desc;
@@ -739,6 +762,7 @@ static int drawrect2d_init(struct ngl_node *node)
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
         {.name = "ngli_uv",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_tex_coord", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_clip_pos",  .type = NGPU_TYPE_VEC2},
     };
 
     const struct ngpu_pgcraft_attribute attributes[] = {
@@ -1012,16 +1036,6 @@ static void drawrect2d_draw(struct ngl_node *node)
     const float local_opacity = *(const float *)ngli_node_get_data_ptr(o->node2d.opacity_node, &o->node2d.opacity);
     const float final_opacity = local_opacity * *group_opacity;
 
-    /* Compute clip rect: convert pixel coordinates to UV space */
-    float clip_min[2] = {-1e9f, -1e9f};
-    float clip_max[2] = { 1e9f,  1e9f};
-    if (o->clip_rect[2] > 0.f && o->clip_rect[3] > 0.f && o->rect[2] > 0.f && o->rect[3] > 0.f) {
-        clip_min[0] = (o->clip_rect[0] - o->rect[0]) / o->rect[2];
-        clip_min[1] = (o->clip_rect[1] - o->rect[1]) / o->rect[3];
-        clip_max[0] = clip_min[0] + o->clip_rect[2] / o->rect[2];
-        clip_max[1] = clip_min[1] + o->clip_rect[3] / o->rect[3];
-    }
-
     /* Fill and push vertex block to staging buffer */
     {
         struct drawrect2d_vert_block vert_data = {0};
@@ -1044,7 +1058,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         struct drawrect2d_frag_block frag_data = {0};
         frag_data.rect_size[0]  = o->rect[2];
         frag_data.rect_size[1]  = o->rect[3];
-        frag_data.corner_radius = o->corner_radius;
+        memcpy(frag_data.corner_radius, o->corner_radius, sizeof(frag_data.corner_radius));
         frag_data.outline_width = so->width;
         frag_data.outline_mode  = so->mode;
         frag_data.dash_length   = so->dash_length;
@@ -1054,14 +1068,29 @@ static void drawrect2d_draw(struct ngl_node *node)
         frag_data.opacity       = final_opacity;
         frag_data.fill_opacity  = fo->opacity;
         frag_data.stroke_opacity = so->opacity;
-        memcpy(frag_data.clip_min, clip_min, sizeof(frag_data.clip_min));
-        memcpy(frag_data.clip_max, clip_max, sizeof(frag_data.clip_max));
         frag_data.content_wrap  = fo->wrap;
         frag_data.content_zoom  = content_zoom;
         memcpy(frag_data.content_translate, content_translate, sizeof(frag_data.content_translate));
         memcpy(frag_data.content_orientation, orientation_cos_sin[orientation_quarter], sizeof(frag_data.content_orientation));
         memcpy(frag_data.frag_uv_scale, uv_scale, sizeof(frag_data.frag_uv_scale));
         frag_data.fill_premult = fo->premult;
+        size_t nb_clips = ctx->nb_clips_2d;
+        for (size_t i = 0; i < nb_clips; i++) {
+            frag_data.clip_inv[i]    = ctx->clips_2d[i].inv;
+            frag_data.clip_rect[i]   = ctx->clips_2d[i].rect;
+            frag_data.clip_radius[i] = ctx->clips_2d[i].radius;
+        }
+        const float *clip_rect = ngli_node_get_data_ptr(o->clip_rect_node, o->clip_rect);
+        const float *clip_corner_radius = ngli_node_get_data_ptr(o->clip_corner_radius_node, o->clip_corner_radius);
+        struct ngli_clip2d clip;
+        if (nb_clips < NGLI_MAX_CLIPS_2D &&
+            ngli_node2d_compute_clip(&modelview_matrix, clip_rect, clip_corner_radius, &clip)) {
+            frag_data.clip_inv[nb_clips]    = clip.inv;
+            frag_data.clip_rect[nb_clips]   = clip.rect;
+            frag_data.clip_radius[nb_clips] = clip.radius;
+            nb_clips++;
+        }
+        frag_data.nb_clips = (int32_t)nb_clips;
 
         const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer,
                                                             &frag_data, sizeof(frag_data));

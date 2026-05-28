@@ -28,14 +28,28 @@ import android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
 import android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
 
 class NGLAndroidCanvas(
-    // TODO: don't expose the size here
-    val width: Int,
-    val height: Int,
+    width: Int,
+    height: Int,
     private val callback: Callback,
     private val tag: String? = null,
     minFilter: NGLFilter = NGLFilter.Linear,
     magFilter: NGLFilter = NGLFilter.Linear,
 ) {
+
+    @Volatile
+    private var pendingWidth: Int = width.coerceAtLeast(1)
+
+    @Volatile
+    private var pendingHeight: Int = height.coerceAtLeast(1)
+
+    /** Current target size */
+    val width: Int get() = pendingWidth
+    val height: Int get() = pendingHeight
+
+    fun resize(width: Int, height: Int) {
+        pendingWidth = width.coerceAtLeast(1)
+        pendingHeight = height.coerceAtLeast(1)
+    }
 
     val node: NGLNode
         get() = customTextureNode
@@ -44,6 +58,31 @@ class NGLAndroidCanvas(
         private var renderer: NGLAndroidCanvasRenderer? = null
         private var renderNode: RenderNode? = null
         private var hardwareBuffer: HardwareBuffer? = null
+        private var currentWidth = 0
+        private var currentHeight = 0
+
+        private fun ensureRenderer() {
+            val w = pendingWidth
+            val h = pendingHeight
+            if (renderer != null && w == currentWidth && h == currentHeight) return
+
+            renderer?.close()
+            renderNode?.discardDisplayList()
+
+            renderer = NGLAndroidCanvasRenderer.Builder(w, h)
+                .setBufferFormat(HardwareBuffer.RGBA_8888)
+                .setUsageFlags(USAGE_FLAGS)
+                .setMaxBuffers(1)
+                .build()
+
+            renderNode = RenderNode(tag).also { node ->
+                node.setPosition(0, 0, w, h)
+                renderer?.setContentRoot(node)
+            }
+
+            currentWidth = w
+            currentHeight = h
+        }
 
         override fun init() {
             callback.onInit()
@@ -54,17 +93,7 @@ class NGLAndroidCanvas(
         }
 
         override fun prefetch() {
-            renderer = NGLAndroidCanvasRenderer.Builder(width, height)
-                .setBufferFormat(HardwareBuffer.RGBA_8888)
-                .setUsageFlags(USAGE_FLAGS)
-                .setMaxBuffers(1)
-                .build()
-
-            renderNode = RenderNode(tag).also { node ->
-                node.setPosition(0, 0, width, height)
-                renderer?.setContentRoot(node)
-            }
-
+            ensureRenderer()
             callback.onPrefetch()
         }
 
@@ -80,6 +109,8 @@ class NGLAndroidCanvas(
             hardwareBuffer?.let { renderer?.releaseBuffer(it) }
             hardwareBuffer = null
 
+            ensureRenderer()
+
             val renderer = renderer ?: return
             val renderNode = renderNode ?: return
             val canvas = renderNode.beginRecording()
@@ -91,8 +122,8 @@ class NGLAndroidCanvas(
 
             setHardwareBufferInfo(
                 HardwareBufferInfo(
-                    width = width,
-                    height = height,
+                    width = currentWidth,
+                    height = currentHeight,
                     hardwareBuffer = frame.hardwareBuffer,
                     acquireFenceFd = frame.acquireFenceFd,
                 )
@@ -108,6 +139,8 @@ class NGLAndroidCanvas(
             renderer = null
             renderNode?.discardDisplayList()
             renderNode = null
+            currentWidth = 0
+            currentHeight = 0
         }
 
         override fun uninit() {

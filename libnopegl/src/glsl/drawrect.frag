@@ -1,5 +1,6 @@
 /*
  * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2015 Inigo Quilez
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,22 +20,71 @@
  * under the License.
  */
 
-float ngli_sdf_rounded_box(vec2 pos, vec2 half_size, float radius)
+/*
+ * Signed distance to an axis-aligned ellipse centred at the origin with
+ * semi-axes (ab.x, ab.y).
+ *
+ * Reference: https://iquilezles.org/articles/ellipsedist/
+ */
+float ngli_sdf_ellipse(vec2 p, vec2 ab)
 {
-    vec2 q = abs(pos) - half_size + radius;
-    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+    p = abs(p);
+    bool s = dot(p / ab, p / ab) > 1.0;
+    float w = s
+        ? atan(p.y * ab.x, p.x * ab.y)
+        : ((ab.x * (p.x - ab.x) < ab.y * (p.y - ab.y)) ? 1.5707963 : 0.0);
+    for (int i = 0; i < 5; i++) {
+        vec2 cs = vec2(cos(w), sin(w));
+        vec2 u  = ab * vec2( cs.x, cs.y);
+        vec2 v  = ab * vec2(-cs.y, cs.x);
+        w = w + dot(p - u, v) / (dot(p - u, u) + dot(v, v));
+    }
+    return length(p - ab * vec2(cos(w), sin(w))) * (s ? 1.0 : -1.0);
+}
+
+/*
+ * Signed distance to a rounded rectangle with per-axis corner radii.
+ */
+float ngli_sdf_rounded_box(vec2 pos, vec2 half_size, vec2 radius)
+{
+    if (radius.x == radius.y) {
+        vec2 q = abs(pos) - half_size + radius.x;
+        return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius.x;
+    }
+    vec2 d = abs(pos) - half_size;
+    vec2 q = d + radius;
+    if (radius.x > 0.0 && radius.y > 0.0 && q.x > 0.0 && q.y > 0.0)
+        return ngli_sdf_ellipse(q, radius);
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
 void main()
 {
-    /* Clip rect (in UV space; disabled when bounds are ±1e9) */
-    if (any(lessThan(ngli_uv, ngli_clip_min)) || any(greaterThan(ngli_uv, ngli_clip_max)))
+    /*
+     * Rounded clip rectangles: each clip is a rounded box evaluated in its own
+     * local space: map the canvas-pixel position into that space (inverse of
+     * the clip's transform), evaluate the rounded-box SDF and anti-alias the
+     * edge over one pixel. The clip region is the intersection of all clips,
+     * so we take the minimum coverage.
+     */
+    float clip_cov = 1.0;
+    for (int i = 0; i < ngli_nb_clips; i++) {
+        vec4 inv = ngli_clip_inv[i];
+        vec4 rc  = ngli_clip_rect[i];
+        vec2 rad = ngli_clip_radius[i].xy;
+        vec2 dlt = ngli_clip_pos - rc.xy;
+        vec2 loc = vec2(dot(inv.xy, dlt), dot(inv.zw, dlt));
+        float cd  = ngli_sdf_rounded_box(loc, rc.zw, rad);
+        float caa = max(fwidth(cd) * 0.5, 1e-6);
+        clip_cov = min(clip_cov, 1.0 - smoothstep(-caa, caa, cd));
+    }
+    if (clip_cov <= 0.0)
         discard;
 
     /* Rounded-rectangle SDF in pixel space */
     vec2 half_size = ngli_rect_size * 0.5;
     vec2 pos       = (ngli_uv - 0.5) * ngli_rect_size;
-    float r        = ngli_corner_radius;
+    vec2 r         = ngli_corner_radius;
     float d        = ngli_sdf_rounded_box(pos, half_size, r);
 
     /*
@@ -104,13 +154,18 @@ void main()
              * smooth t transition through corners, eliminating diagonal seam
              * artifacts from the AABB nearest-edge heuristic.
              */
-            float r_perim = max(r, ngli_outline_width * 0.5);
-            float Wr = W - r_perim;
-            float Hr = H - r_perim;
+            vec2 r_perim = max(r, vec2(ngli_outline_width * 0.5));
+            float Wr = W - r_perim.x;
+            float Hr = H - r_perim.y;
             vec2 qp  = abs(pos) - vec2(Wr, Hr);
 
             float half_pi = 1.5707963;
-            float arc_len = r_perim * half_pi;
+            /*
+             * Quarter ellipse arc length (Ramanujan I approximation).
+             */
+            float a = r_perim.x;
+            float b = r_perim.y;
+            float arc_len = 0.7853981 * (3.0 * (a + b) - sqrt((3.0 * a + b) * (a + 3.0 * b)));
 
             float L1 = 2.0 * Wr;
             float L2 = L1 + arc_len;
@@ -218,6 +273,6 @@ void main()
     ngl_out_color.rgb = stroke_col.rgb * ol_alpha + tex_color.rgb * fill_rgb_scale * (1.0 - ol_alpha);
     ngl_out_color.a   = ol_alpha + fill_a * (1.0 - ol_alpha);
 
-    /* Global opacity */
-    ngl_out_color *= ngli_opacity;
+    /* Global opacity and anti-aliased cascaded clip coverage */
+    ngl_out_color *= ngli_opacity * clip_cov;
 }

@@ -93,7 +93,7 @@ def drawrect2d_noise_fill(cfg: ngl.SceneCfg):
 def drawrect2d_stroke_inside_corner(cfg: ngl.SceneCfg):
     fill = ngl.ColorFill(color=(0.15, 0.4, 0.8, 1.0))
     stroke = ngl.Stroke(width=10, mode="inside", color=(1.0, 1.0, 1.0, 1.0))
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=5))
+    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=(5, 5)))
 
 
 @test_render()
@@ -101,7 +101,7 @@ def drawrect2d_stroke_inside_corner(cfg: ngl.SceneCfg):
 def drawrect2d_stroke_center_corner(cfg: ngl.SceneCfg):
     fill = ngl.ColorFill(color=(0.15, 0.4, 0.8, 1.0))
     stroke = ngl.Stroke(width=10, mode="center", color=(1.0, 1.0, 0.0, 1.0))
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=5))
+    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=(5, 5)))
 
 
 @test_render()
@@ -109,7 +109,7 @@ def drawrect2d_stroke_center_corner(cfg: ngl.SceneCfg):
 def drawrect2d_stroke_outside_corner(cfg: ngl.SceneCfg):
     fill = ngl.ColorFill(color=(0.15, 0.4, 0.8, 1.0))
     stroke = ngl.Stroke(width=10, mode="outside", color=(1.0, 1.0, 1.0, 1.0))
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=5))
+    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=(5, 5)))
 
 
 @test_render()
@@ -214,7 +214,7 @@ def drawrect2d_stroke_gradient4(cfg: ngl.SceneCfg):
 @ngl.scene(width=W, height=H)
 def drawrect2d_corner_radius(cfg: ngl.SceneCfg):
     fill = ngl.ColorFill(color=(0.3, 0.75, 0.3, 1.0))
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, corner_radius=30))
+    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, corner_radius=(30, 30)))
 
 
 @test_render()
@@ -224,7 +224,39 @@ def drawrect2d_corner_radius_stroke(cfg: ngl.SceneCfg):
     stroke = ngl.Stroke(width=6, mode="inside", color=(1.0, 1.0, 1.0, 1.0))
     return _canvas(
         cfg,
-        ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=24),
+        ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke, corner_radius=(24, 24)),
+    )
+
+
+def _rect_from_center(
+    centerX: float,
+    centerY: float,
+    sizeX: float,
+    sizeY: float,
+) -> tuple[float, float, float, float]:
+    return (
+        centerX - sizeX / 2,
+        centerY - sizeY / 2,
+        sizeX,
+        sizeY,
+    )
+
+
+@test_render()
+@ngl.scene(width=W, height=H)
+def drawrect2d_oval(cfg: ngl.SceneCfg):
+    """Full ellipse: corner_radius == (rect_w/2, rect_h/2)."""
+    rect_w, rect_h = (W - 60) * 0.5, (H - 60)
+    rx, ry = rect_w / 2.0, rect_h / 2.0
+    return _canvas(
+        cfg,
+        ngl.DrawRect2D(
+            rect=_rect_from_center(W / 2, H / 2, rect_w, rect_h),
+            fill=ngl.ColorFill(color=(0.2, 0.55, 0.85, 1.0)),
+            stroke=ngl.Stroke(width=1.0, color=(1.0, 1.0, 1.0, 1.0)),
+            corner_radius=(rx, ry),
+            rotation=20.0,
+        ),
     )
 
 
@@ -255,6 +287,26 @@ def drawrect2d_clip_rect(cfg: ngl.SceneCfg):
             rect=(0, 0, W, H),
             fill=fill,
             clip_rect=(64, 64, 128, 128),
+        ),
+    )
+
+
+@test_render()
+@ngl.scene(width=W, height=H)
+def drawrect2d_clip_rounded(cfg: ngl.SceneCfg):
+    fill = ngl.GradientFill(
+        color0=(0.9, 0.1, 0.1),
+        color1=(0.1, 0.1, 0.9),
+        pos0=(0.0, 0.0),
+        pos1=(1.0, 0.0),
+    )
+    return _canvas(
+        cfg,
+        ngl.DrawRect2D(
+            rect=(0, 0, W, H),
+            fill=fill,
+            clip_rect=(64, 64, 128, 128),
+            clip_corner_radius=(40, 40),
         ),
     )
 
@@ -377,7 +429,7 @@ def drawrect2d_animated_trs(cfg: ngl.SceneCfg):
             rect=(48, 48, W - 96, H - 96),
             fill=fill,
             stroke=stroke,
-            corner_radius=8,
+            corner_radius=(8, 8),
             translate=translate_anim,
             rotation=rotation_anim,
             scale=scale_anim,
@@ -739,6 +791,75 @@ def drawrect2d_group2d_opacity_nested(cfg: ngl.SceneCfg):
     return _canvas(cfg, bg, outer)
 
 
+@test_render()
+@ngl.scene(width=W, height=H)
+def drawrect2d_group2d_clip_rect(cfg: ngl.SceneCfg):
+    """Group2D clip_rect cascades to children (axis-aligned)."""
+    bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.1, 0.1, 0.15, 1.0)))
+    fg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.9, 0.5, 0.1, 1.0)))
+    group = ngl.Group2D(children=[fg], clip_rect=(64, 64, 128, 128))
+    return _canvas(cfg, bg, group)
+
+
+@test_render()
+@ngl.scene(width=W, height=H)
+def drawrect2d_group2d_clip_rect_rotate(cfg: ngl.SceneCfg):
+    """Group2D clip_rect follows the group rotation (anti-aliased rotated clip edges)."""
+    bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.1, 0.1, 0.15, 1.0)))
+    fg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.2, 0.7, 0.9, 1.0)))
+    group = ngl.Group2D(children=[fg], clip_rect=(64, 64, 128, 128), rotation=30.0, anchor=(128, 128))
+    return _canvas(cfg, bg, group)
+
+
+@test_render()
+@ngl.scene(width=W, height=H)
+def drawrect2d_group2d_clip_rect_nested(cfg: ngl.SceneCfg):
+    """Nested Group2D clip_rects intersect."""
+    bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.1, 0.1, 0.15, 1.0)))
+    fg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.9, 0.3, 0.5, 1.0)))
+    inner = ngl.Group2D(children=[fg], clip_rect=(96, 32, 128, 192))
+    outer = ngl.Group2D(children=[inner], clip_rect=(32, 96, 192, 96))
+    return _canvas(cfg, bg, outer)
+
+
+@test_render()
+@ngl.scene(width=W, height=H)
+def drawrect2d_group2d_clip_rounded(cfg: ngl.SceneCfg):
+    """Group2D rounded clip_rect cascades to children (anti-aliased corners)."""
+    bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.1, 0.1, 0.15, 1.0)))
+    fg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.9, 0.5, 0.1, 1.0)))
+    group = ngl.Group2D(children=[fg], clip_rect=(48, 48, 160, 160), clip_corner_radius=(48, 48))
+    return _canvas(cfg, bg, group)
+
+
+@test_render()
+@ngl.scene(width=W, height=H)
+def drawrect2d_group2d_clip_rounded_rotate(cfg: ngl.SceneCfg):
+    """Rounded clip_rect follows the group rotation (rotated rounded corners, AA)."""
+    bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.1, 0.1, 0.15, 1.0)))
+    fg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.2, 0.7, 0.9, 1.0)))
+    group = ngl.Group2D(
+        children=[fg], clip_rect=(64, 64, 128, 128), clip_corner_radius=(40, 40), rotation=30.0, anchor=(128, 128)
+    )
+    return _canvas(cfg, bg, group)
+
+
+@test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=W, height=H)
+def drawrect2d_group2d_clip_animated(cfg: ngl.SceneCfg):
+    """Group2D clip_rect driven by an AnimatedVec4 (the clip grows over time)."""
+    bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.1, 0.1, 0.15, 1.0)))
+    fg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.9, 0.5, 0.1, 1.0)))
+    clip_anim = ngl.AnimatedVec4(
+        [
+            ngl.AnimKeyFrameVec4(0.0, (112, 112, 32, 32)),
+            ngl.AnimKeyFrameVec4(3.0, (32, 32, 192, 192)),
+        ]
+    )
+    group = ngl.Group2D(children=[fg], clip_rect=clip_anim)
+    return _canvas(cfg, bg, group, duration=3.0)
+
+
 @test_render(tolerance=3)
 @ngl.scene(width=W, height=H)
 def drawrect2d_canvas_as_texture(cfg: ngl.SceneCfg):
@@ -783,7 +904,7 @@ def drawrect2d_fill_stroke_opacity(cfg: ngl.SceneCfg):
     bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=bg_fill, content_translate=content_translate_anim)
     fill = ngl.ColorFill(color=(1.0, 1.0, 1.0, 1.0), opacity=0.25)
     stroke = ngl.Stroke(width=20, mode="center", color=(1.0, 1.0, 1.0, 1.0), opacity=0.5)
-    fg = ngl.DrawRect2D(rect=(40, 40, W - 80, H - 80), fill=fill, stroke=stroke, corner_radius=5)
+    fg = ngl.DrawRect2D(rect=(40, 40, W - 80, H - 80), fill=fill, stroke=stroke, corner_radius=(5, 5))
     return _canvas(cfg, bg, fg, duration=4.0)
 
 

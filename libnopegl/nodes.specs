@@ -2885,10 +2885,10 @@
         },
         {
           "name": "corner_radius",
-          "type": "f32",
-          "default": 0.000000,
+          "type": "vec2",
+          "default": [0.000000,0.000000],
           "flags": ["live"],
-          "desc": "corner radius in pixels"
+          "desc": "corner radii in pixels (x, y); set x != y for elliptical corners; set to (width/2, height/2) for a full ellipse/oval"
         },
         {
           "name": "translate",
@@ -2944,8 +2944,15 @@
           "name": "clip_rect",
           "type": "vec4",
           "default": [0.000000,0.000000,0.000000,0.000000],
-          "flags": ["live"],
-          "desc": "clipping rectangle (x, y, width, height) in pixel coordinates; when width or height is 0 clipping is disabled"
+          "flags": ["live", "node"],
+          "desc": "clipping rectangle (x, y, width, height) in pixel coordinates (follows the node's transform); when width or height is 0 clipping is disabled. The clip edge is anti-aliased"
+        },
+        {
+          "name": "clip_corner_radius",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "corner radii (x, y) of clip_rect in pixels, for rounded clipping; (0, 0) gives sharp corners. Each radius is clamped to half the corresponding clip_rect side"
         },
         {
           "name": "content_zoom",
@@ -3991,6 +3998,20 @@
           "default": 1,
           "flags": ["live"],
           "desc": "whether the group and its children are visible"
+        },
+        {
+          "name": "clip_rect",
+          "type": "vec4",
+          "default": [0.000000,0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "clipping rectangle (x, y, width, height) in the group's local pixel coordinates that cascades to all children; it is transformed by the group (so it follows the group's rotation, scale and translation) and intersected with any clip inherited from ancestor groups. When width or height is 0 clipping is disabled. The clip edge is anti-aliased and stays correct under rotation"
+        },
+        {
+          "name": "clip_corner_radius",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "corner radii (x, y) of clip_rect in local pixels, for rounded clipping; (0, 0) gives sharp corners. Each radius is clamped to half the corresponding clip_rect side"
         }
       ]
     },

@@ -8,6 +8,16 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Added
+- `Group2D.clip_rect` and `Group2D.clip_corner_radius` to clip a group and all
+  its children to an optionally rounded rectangle that follows the group's
+  transform
+- `DrawRect2D.clip_corner_radius` to support rounded clipping
+
+### Changed
+- `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support
+  elliptical corners
+- `NGLAndroidCanvas` is now resizable
 
 ## [2026.2 / libnopegl 0.14.0][2026.2] - 2026-05-25
 ### Fixed
