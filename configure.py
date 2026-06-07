@@ -189,7 +189,7 @@ _EXTERNAL_DEPS = dict(
     ),
     nopemd=dict(
         version="13.1.0",
-        url="https://github.com/NopeForge/nope.media/archive/v@VERSION@.tar.gz",
+        url="https://github.com/mbouron/nope.media/archive/v@VERSION@.tar.gz",
         dst_file="nope.media-@VERSION@.tar.gz",
         sha256="fb8dd91282f1a60ea1375edfbb5879783a2df1a9a33c2165f59f5ea5b4e0aa27",
     ),
