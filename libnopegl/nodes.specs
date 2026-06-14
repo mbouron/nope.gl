@@ -4287,6 +4287,13 @@
           "default": "auto",
           "flags": [],
           "desc": "auto or a comma or space separated list of VideoToolbox (Apple) allowed output pixel formats"
+        },
+        {
+          "name": "loop",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "loop infinitely during playback, useful for animated formats (GIF)"
         }
       ]
     },
