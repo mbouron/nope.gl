@@ -21,6 +21,7 @@
  */
 
 #include <float.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -53,6 +54,7 @@ struct media_opts {
     int hwaccel;
     char *filters;
     char *vt_pix_fmt;
+    int loop;
 };
 
 static const struct param_choices nopemd_log_level_choices = {
@@ -112,6 +114,8 @@ static const struct node_param media_params[] = {
                        .desc=NGLI_DOCSTRING("filters to apply on the media (nope.media/libavfilter)")},
     {"vt_pix_fmt",     NGLI_PARAM_TYPE_STR, OFFSET(vt_pix_fmt),  {.str="auto"},
                        .desc=NGLI_DOCSTRING("auto or a comma or space separated list of VideoToolbox (Apple) allowed output pixel formats")},
+    {"loop",           NGLI_PARAM_TYPE_BOOL, OFFSET(loop),
+                       .desc=NGLI_DOCSTRING("loop infinitely during playback, useful for animated formats (GIF)")},
     {NULL}
 };
 
@@ -223,15 +227,24 @@ static int media_init(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
 
+    ngli_fence_init(&s->duration_fence);
     ngli_fence_init(&s->release_fence);
 
     return 0;
+}
+
+static void get_duration(void *data, void *shared_data, uint32_t thread_index)
+{
+    struct duration_job *job = data;
+
+    job->ret = nmd_get_duration(job->player, &job->duration);
 }
 
 static int media_prefetch(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
     const struct media_opts *o = node->opts;
+    struct ngl_ctx *ctx = node->ctx;
 
     s->player = nmd_create(o->filename);
     if (!s->player)
@@ -264,26 +277,30 @@ static int media_prefetch(struct ngl_node *node)
     }
 
 #if defined(TARGET_ANDROID)
-    struct ngl_ctx *ctx = node->ctx;
     struct android_ctx *android_ctx = &ctx->android_ctx;
     int ret = init_android_surface(android_ctx, &s->android_surface);
     if (ret < 0)
         return ret;
     nmd_set_option(s->player, "opaque", &s->android_surface.surface_handle);
 #elif defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
-    const struct ngl_ctx *ctx = node->ctx;
     const struct ngl_config *config = &ctx->config;
     const char *vt_pix_fmt = o->vt_pix_fmt;
     if (!strcmp(o->vt_pix_fmt, "auto"))
         vt_pix_fmt = get_default_vt_pix_fmts(config->backend);
     nmd_set_option(s->player, "vt_pix_fmt", vt_pix_fmt);
 #elif defined(HAVE_VAAPI)
-    struct ngl_ctx *ctx = node->ctx;
     struct vaapi_ctx *vaapi_ctx = &ctx->vaapi_ctx;
     nmd_set_option(s->player, "opaque", &vaapi_ctx->va_display);
 #endif
 
     nmd_start(s->player);
+
+    if (o->loop && s->end_time == -DBL_MAX) {
+        ngli_fence_wait(&s->duration_fence);
+        s->duration_job = (struct duration_job) {.player = s->player};
+        ngli_queue_add_job(&ctx->background_queue, &s->duration_job, &s->duration_fence, get_duration, NULL);
+    }
+
     return 0;
 }
 
@@ -330,19 +347,41 @@ static int media_update(struct ngl_node *node, double t)
     const struct media_opts *o = node->opts;
     struct ngl_node *anim_node = o->anim;
     double media_time = t;
+    double initial_seek = 0.0;
+    double time_origin = 0.0;
+    bool has_kf_interval = false;
 
     if (anim_node) {
         struct variable_info *anim = anim_node->priv_data;
         const struct variable_opts *anim_o = anim_node->opts;
         const struct animkeyframe_opts *kf0 = anim_o->animkf[0]->opts;
-        const double initial_seek = kf0->scalar;
-        int ret = ngli_node_update(anim_node, t);
+        const struct animkeyframe_opts *kfn = anim_o->animkf[anim_o->nb_animkf - 1]->opts;
+        initial_seek    = kf0->scalar;
+        time_origin     = kf0->time;
+        has_kf_interval = kfn->time > kf0->time;
+
+        double anim_t = t;
+        if (o->loop && has_kf_interval)
+            anim_t = kf0->time + fmod(NGLI_MAX(0.0, t - kf0->time), kfn->time - kf0->time);
+
+        int ret = ngli_node_update(anim_node, anim_t);
         if (ret < 0)
             return ret;
         const double dval = *(double *)anim->data;
         media_time = NGLI_MAX(0, dval - initial_seek);
 
         TRACE("remapped time f(%g)=%g", t, media_time);
+    }
+
+    if (o->loop && !has_kf_interval) {
+        if (s->duration <= 0.0) {
+            ngli_fence_wait(&s->duration_fence);
+            if (s->duration_job.ret == 0)
+                s->duration = s->duration_job.duration;
+        }
+        const double loop_duration = s->duration - initial_seek;
+        if (loop_duration > 0.0)
+            media_time = fmod(NGLI_MAX(0.0, t - time_origin), loop_duration);
     }
 
     nmd_frame_releasep(&s->frame);
@@ -409,6 +448,8 @@ static void media_uninit(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
 
+    ngli_fence_wait(&s->duration_fence);
+    ngli_fence_destroy(&s->duration_fence);
     ngli_fence_wait(&s->release_fence);
     ngli_fence_destroy(&s->release_fence);
 }
