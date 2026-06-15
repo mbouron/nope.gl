@@ -180,16 +180,16 @@ _EXTERNAL_DEPS = dict(
         sha256="d11af569e42a1baa1650d20ad61d12e41af4fead4aa7964a01f93b08b53ab074",
     ),
     ffmpeg=dict(
-        version="7.1.1",
+        version="8.1.2",
         url="https://ffmpeg.org/releases/ffmpeg-@VERSION@.tar.xz",
         dst_file="ffmpeg-@VERSION@.tar.xz",
-        sha256="733984395e0dbbe5c046abda2dc49a5544e7e0e1e2366bba849222ae9e3a03b1",
+        sha256="464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
     ),
     ffmpeg_Windows=dict(
-        version="7.1.1",
-        url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2025-03-31-12-55/ffmpeg-n@VERSION@-5-g276bd388f3-win64-lgpl-shared-7.1.zip",
+        version="8.1.1",
+        url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-05-31-13-22/ffmpeg-n@VERSION@-9-g58d4114d36-win64-lgpl-shared-8.1.zip",
         dst_file="ffmpeg-@VERSION@.zip",
-        sha256="a5b24188a1a7c3d4a7a1295bd597f35ad5ef7757796e6a8db1cc1b922ff84e16",
+        sha256="8aa0c900c40c8768d9c9d6367fc2c790b6634a3432afcf56cb5e591c5f9206cd",
     ),
     nopemd=dict(
         version="13.1.0",
@@ -613,6 +613,7 @@ def _ffmpeg_setup(cfg):
         "http",
         "https",
         "pipe",
+        "udp",
     ]
     filters = [
         "aformat",
@@ -699,6 +700,7 @@ def _ffmpeg_setup(cfg):
             "--pkg-config=pkg-config",
             f"--cross-prefix={cfg.android_ndk_bin}{op.sep}llvm-",
             f"--cc={cfg.android_ndk_bin}{os.sep}{cfg.android_compiler}-clang",
+            f"--cxx={cfg.android_ndk_bin}{os.sep}{cfg.android_compiler}-clang++",
         ]
     elif cfg.host == "iOS":
         decoders += [
