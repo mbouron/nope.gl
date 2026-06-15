@@ -21,7 +21,6 @@ jobs:
       matrix:
         include:
           - build_backend: ninja
-          - build_backend: vs
 
     defaults:
       run:
@@ -43,16 +42,7 @@ jobs:
           .\VulkanRT-Installer.exe /S | Out-Null
 
       - name: Build (${{matrix.build_backend}})
-        run: |
-          # Disable the Vulkan backend when using the vs backend to workaround
-          # the following meson error (specific to the CI setup which uses
-          # resources from multiple drives (C:\ and D:\)):
-          #  ValueError: path is on mount 'C:', start on mount 'D:'
-          #  ERROR: Unhandled python exception
-          #  This is a Meson bug and should be reported!
-          if ("${{matrix.build_backend}}" -eq "ninja") {
-            $Env:VULKAN_SDK = "C:/VulkanSDK/${{env.VULKAN_SDK_VERSION}}"
-          }
+          $Env:VULKAN_SDK = "C:/VulkanSDK/${{env.VULKAN_SDK_VERSION}}"
           .\scripts\msvc-env.ps1
           python.exe .\configure.py --debug-opts gpu_capture --build-backend ${{matrix.build_backend}}
           nmake
