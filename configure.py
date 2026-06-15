@@ -165,10 +165,14 @@ _SYSTEM = "MinGW" if sysconfig.get_platform().startswith("mingw") else platform.
 _RENDERDOC_ID = f"renderdoc_{_SYSTEM}"
 _EXTERNAL_DEPS = dict(
     boringssl=dict(
-        version="059585c",
+        version="0.20260526.0",
         url="https://codeload.github.com/google/boringssl/zip/@VERSION@",
         dst_file="boringssl-@VERSION@.zip",
-        sha256="d7ed9c743c02469869f4bee7cb94641377b640676cb2a8a9a7955f2d07c4d8a6",
+        sha256="f3d1e4f71467b9eb5b68c4791a462a80f77a39707ead4e2c75ecb6825c70dd46",
+        patches={
+            "0001-Add-DTLS_get_data_mtu-DTLS_set_link_mtu-and-DTLS_get.patch",
+            "0002-Add-BIO_read_ex.patch",
+        },
     ),
     lcms2=dict(
         version="2.17",
