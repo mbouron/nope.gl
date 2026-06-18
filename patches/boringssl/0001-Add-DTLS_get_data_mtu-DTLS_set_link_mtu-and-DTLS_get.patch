@@ -1,0 +1,309 @@
+From 1cbcb65a7876b2cfff5d1d82f3e2e27b6ec7d5b0 Mon Sep 17 00:00:00 2001
+From: Matthieu Bouron <matthieu.bouron@gmail.com>
+Date: Mon, 15 Jun 2026 10:52:16 +0200
+Subject: [PATCH 1/2] Add DTLS_get_data_mtu, DTLS_set_link_mtu, and
+ DTLS_get_link_min_mtu
+
+Backport these OpenSSL-compatible DTLS MTU accessors.
+
+DTLS_get_data_mtu reports the maximum application data that fits in a
+single DTLS record at the current MTU. It wraps the existing
+dtls_seal_max_input_len, which already accounts for the record header,
+AEAD overhead, the DTLS 1.3 encrypted record-type byte, and CBC block
+rounding. Like OpenSSL, it returns zero before a cipher is negotiated.
+
+DTLS_set_link_mtu sets the MTU from the on-the-wire link MTU, subtracting
+the transport overhead to derive the usable record MTU set by
+SSL_set_mtu. Unlike OpenSSL, which queries the transport, BoringSSL
+assumes a fixed (IPv4-sized) 28-byte overhead, matching the offset
+already baked into kMinMTU and kDefaultMTU. The overhead is now named
+(kIPUDPOverhead) so it lives in one place. DTLS_get_link_min_mtu reports
+the minimum link MTU the setter accepts.
+---
+ include/openssl/ssl.h |  34 ++++++++++++
+ ssl/d1_both.cc        |  17 +++++-
+ ssl/d1_lib.cc         |  28 ++++++++++
+ ssl/internal.h        |   9 ++++
+ ssl/ssl_test.cc       | 118 ++++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 204 insertions(+), 2 deletions(-)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index 055b3e025..bc12c11d8 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -487,6 +487,31 @@ OPENSSL_EXPORT const char *SSL_error_description(int err);
+ // and zero on failure.
+ OPENSSL_EXPORT int SSL_set_mtu(SSL *ssl, unsigned mtu);
+ 
++// DTLS_set_link_mtu sets the `ssl`'s MTU in DTLS from the on-the-wire link MTU,
++// i.e. the maximum datagram size including the IP and UDP headers. It subtracts
++// the transport overhead to compute the usable record MTU (as configured by
++// `SSL_set_mtu`). It returns one on success and zero if `ssl` is not a DTLS
++// connection or `mtu` is below `DTLS_get_link_min_mtu`.
++//
++// Unlike OpenSSL, which queries the transport, BoringSSL assumes a fixed
++// (IPv4-sized) overhead of 28 bytes regardless of the underlying socket.
++OPENSSL_EXPORT int DTLS_set_link_mtu(SSL *ssl, unsigned mtu);
++
++// DTLS_get_link_min_mtu returns the minimum link MTU (the on-the-wire datagram
++// size including the IP and UDP headers) that `DTLS_set_link_mtu` will accept.
++OPENSSL_EXPORT unsigned DTLS_get_link_min_mtu(const SSL *ssl);
++
++// DTLS_get_data_mtu returns the maximum number of application data bytes that
++// may be sent in a single DTLS record at the current MTU, accounting for the
++// record header and the overhead of the negotiated cipher suite. It returns
++// zero if `ssl` is not a DTLS connection, if no cipher has been negotiated
++// yet, or if the MTU is too small to fit any application data.
++//
++// The MTU is configured with `SSL_set_mtu` and may be updated internally by
++// the DTLS state machine (e.g. on retransmission). Callers should query this
++// function again whenever the MTU may have changed.
++OPENSSL_EXPORT size_t DTLS_get_data_mtu(const SSL *ssl);
++
+ // DTLSv1_set_initial_timeout_duration sets the initial duration for a DTLS
+ // handshake timeout.
+ //
+@@ -6502,6 +6527,15 @@ OPENSSL_EXPORT int SSL_server_sent_requested_padding(const SSL *ssl);
+ // |BORINGSSL_PREFIX| already makes some of these symbols into macros, so there
+ // is no need to define conflicting macros; however it is compiler specific
+ // which ones become macros.
++#if !defined(DTLS_get_data_mtu)
++#define DTLS_get_data_mtu DTLS_get_data_mtu
++#endif
++#if !defined(DTLS_get_link_min_mtu)
++#define DTLS_get_link_min_mtu DTLS_get_link_min_mtu
++#endif
++#if !defined(DTLS_set_link_mtu)
++#define DTLS_set_link_mtu DTLS_set_link_mtu
++#endif
+ #if !defined(DTLSv1_get_timeout)
+ #define DTLSv1_get_timeout DTLSv1_get_timeout
+ #endif
+diff --git a/ssl/d1_both.cc b/ssl/d1_both.cc
+index 7b7a1184f..40b55e14f 100644
+--- a/ssl/d1_both.cc
++++ b/ssl/d1_both.cc
+@@ -38,12 +38,18 @@ BSSL_NAMESPACE_BEGIN
+ // protocol's overhead rather than, say, what's needed to hold a minimally-sized
+ // handshake fragment plus protocol overhead.
+ 
++// kIPUDPOverhead is the assumed size of the IP and UDP headers, used to convert
++// between an on-the-wire link MTU and the usable DTLS record MTU. Unlike
++// OpenSSL, which queries the transport for this value, BoringSSL assumes a
++// fixed (IPv4-sized) overhead.
++static const unsigned int kIPUDPOverhead = 28;
++
+ // kMinMTU is the minimum acceptable MTU value.
+-static const unsigned int kMinMTU = 256 - 28;
++static const unsigned int kMinMTU = 256 - kIPUDPOverhead;
+ 
+ // kDefaultMTU is the default MTU value to use if neither the user nor
+ // the underlying BIO supplies one.
+-static const unsigned int kDefaultMTU = 1500 - 28;
++static const unsigned int kDefaultMTU = 1500 - kIPUDPOverhead;
+ 
+ // BitRange returns a |uint8_t| with bits |start|, inclusive, to |end|,
+ // exclusive, set.
+@@ -1070,4 +1076,11 @@ int dtls1_flush(SSL *ssl) {
+ 
+ unsigned int dtls1_min_mtu() { return kMinMTU; }
+ 
++unsigned int dtls1_link_min_mtu() { return kMinMTU + kIPUDPOverhead; }
++
++unsigned int dtls1_link_mtu_to_mtu(unsigned int link_mtu) {
++  assert(link_mtu >= dtls1_link_min_mtu());
++  return link_mtu - kIPUDPOverhead;
++}
++
+ BSSL_NAMESPACE_END
+diff --git a/ssl/d1_lib.cc b/ssl/d1_lib.cc
+index 9333a9dbc..f133e1abe 100644
+--- a/ssl/d1_lib.cc
++++ b/ssl/d1_lib.cc
+@@ -194,6 +194,34 @@ int DTLSv1_get_timeout(const SSL *ssl, struct timeval *out) {
+   return 1;
+ }
+ 
++size_t DTLS_get_data_mtu(const SSL *ssl) {
++  if (!SSL_is_dtls(ssl)) {
++    return 0;
++  }
++  // Match OpenSSL and report no usable MTU until a cipher has been negotiated.
++  // Before then, the write epoch uses a null cipher and the result would not
++  // reflect the eventual record overhead.
++  if (SSL_get_current_cipher(ssl) == nullptr) {
++    return 0;
++  }
++  return dtls_seal_max_input_len(ssl, ssl->d1->write_epoch.epoch(),
++                                 ssl->d1->mtu);
++}
++
++int DTLS_set_link_mtu(SSL *ssl, unsigned mtu) {
++  if (!SSL_is_dtls(ssl) || mtu < dtls1_link_min_mtu()) {
++    return 0;
++  }
++  ssl->d1->mtu = dtls1_link_mtu_to_mtu(mtu);
++  return 1;
++}
++
++unsigned DTLS_get_link_min_mtu(const SSL *ssl) {
++  // The minimum link MTU does not depend on `ssl` in BoringSSL, which assumes a
++  // fixed transport overhead. The argument is kept for OpenSSL compatibility.
++  return dtls1_link_min_mtu();
++}
++
+ int DTLSv1_handle_timeout(SSL *ssl) {
+   ssl_reset_error_state(ssl);
+ 
+diff --git a/ssl/internal.h b/ssl/internal.h
+index 2bea8f62d..6a509374e 100644
+--- a/ssl/internal.h
++++ b/ssl/internal.h
+@@ -3747,6 +3747,15 @@ void dtls1_stop_timer(SSL *ssl);
+ 
+ unsigned int dtls1_min_mtu();
+ 
++// dtls1_link_min_mtu returns the minimum acceptable link MTU, i.e. the minimum
++// on-the-wire datagram size including the IP and UDP headers.
++unsigned int dtls1_link_min_mtu();
++
++// dtls1_link_mtu_to_mtu converts an on-the-wire link MTU to the usable DTLS
++// record MTU by subtracting the assumed IP and UDP header overhead. `link_mtu`
++// must be at least `dtls1_link_min_mtu`.
++unsigned int dtls1_link_mtu_to_mtu(unsigned int link_mtu);
++
+ bool dtls1_new(SSL *ssl);
+ void dtls1_free(SSL *ssl);
+ 
+diff --git a/ssl/ssl_test.cc b/ssl/ssl_test.cc
+index a91a6268c..23ab142d9 100644
+--- a/ssl/ssl_test.cc
++++ b/ssl/ssl_test.cc
+@@ -11222,6 +11222,124 @@ TEST(SSLTest, DTLSReadTimeoutExpired) {
+       ErrorEquals(ERR_get_error(), ERR_LIB_SSL, SSL_R_READ_TIMEOUT_EXPIRED));
+ }
+ 
++TEST(SSLTest, GetDataMTU) {
++  // DTLS_get_data_mtu returns zero for a non-DTLS connection.
++  {
++    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++    ASSERT_TRUE(ctx);
++    bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
++    ASSERT_TRUE(ssl);
++    EXPECT_EQ(DTLS_get_data_mtu(ssl.get()), 0u);
++  }
++
++  for (uint16_t version : {DTLS1_2_VERSION, DTLS1_3_VERSION}) {
++    SCOPED_TRACE(version);
++
++    bssl::UniquePtr<SSL_CTX> server_ctx =
++        CreateContextWithTestCertificate(DTLS_method());
++    ASSERT_TRUE(server_ctx);
++    bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(DTLS_method()));
++    ASSERT_TRUE(client_ctx);
++    for (SSL_CTX *ctx : {client_ctx.get(), server_ctx.get()}) {
++      ASSERT_TRUE(SSL_CTX_set_min_proto_version(ctx, version));
++      ASSERT_TRUE(SSL_CTX_set_max_proto_version(ctx, version));
++    }
++
++    // Before the handshake, no cipher is negotiated, so there is no data MTU.
++    bssl::UniquePtr<SSL> pre_client, pre_server;
++    ASSERT_TRUE(CreateClientAndServer(&pre_client, &pre_server,
++                                      client_ctx.get(), server_ctx.get()));
++    EXPECT_EQ(DTLS_get_data_mtu(pre_client.get()), 0u);
++
++    bssl::UniquePtr<SSL> client, server;
++    ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
++                                       server_ctx.get()));
++
++    static const unsigned kMTU = 1200;
++    ASSERT_TRUE(SSL_set_mtu(client.get(), kMTU));
++
++    size_t data_mtu = DTLS_get_data_mtu(client.get());
++    // There is always some record and cipher overhead, so the data MTU is
++    // nonzero but strictly smaller than the configured MTU.
++    EXPECT_GT(data_mtu, 0u);
++    EXPECT_LT(data_mtu, size_t{kMTU});
++
++    // Writing exactly `data_mtu` bytes of application data must produce a single
++    // record that fits within the MTU.
++    std::vector<uint8_t> buf(data_mtu + 1, 'a');
++    BIO *server_rbio = SSL_get_rbio(server.get());
++
++    size_t pending_before = BIO_ctrl_pending(server_rbio);
++    ASSERT_EQ(SSL_write(client.get(), buf.data(), static_cast<int>(data_mtu)),
++              static_cast<int>(data_mtu));
++    size_t record_size = BIO_ctrl_pending(server_rbio) - pending_before;
++    EXPECT_LE(record_size, size_t{kMTU});
++
++    // The peer reads the application data back unchanged.
++    std::vector<uint8_t> out(data_mtu);
++    ASSERT_EQ(SSL_read(server.get(), out.data(), static_cast<int>(out.size())),
++              static_cast<int>(data_mtu));
++    EXPECT_EQ(Bytes(out), Bytes(buf.data(), data_mtu));
++
++    // Writing one more byte overflows the MTU. With the default AEAD cipher
++    // suites there is no block-size rounding, so the data MTU is exactly the
++    // largest payload that fits.
++    pending_before = BIO_ctrl_pending(server_rbio);
++    ASSERT_EQ(
++        SSL_write(client.get(), buf.data(), static_cast<int>(data_mtu + 1)),
++        static_cast<int>(data_mtu + 1));
++    record_size = BIO_ctrl_pending(server_rbio) - pending_before;
++    EXPECT_GT(record_size, size_t{kMTU});
++  }
++}
++
++TEST(SSLTest, SetLinkMTU) {
++  // DTLS_set_link_mtu rejects non-DTLS connections.
++  {
++    bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
++    ASSERT_TRUE(ctx);
++    bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
++    ASSERT_TRUE(ssl);
++    EXPECT_FALSE(DTLS_set_link_mtu(ssl.get(), 1500));
++  }
++
++  bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(DTLS_method()));
++  ASSERT_TRUE(ctx);
++  bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
++  ASSERT_TRUE(ssl);
++
++  // The minimum link MTU is the 256-byte minimum record size plus the 28-byte
++  // IP/UDP overhead.
++  unsigned link_min = DTLS_get_link_min_mtu(ssl.get());
++  EXPECT_EQ(link_min, 256u);
++
++  // Values below the minimum are rejected; the minimum itself is accepted.
++  EXPECT_FALSE(DTLS_set_link_mtu(ssl.get(), link_min - 1));
++  EXPECT_TRUE(DTLS_set_link_mtu(ssl.get(), link_min));
++  EXPECT_TRUE(DTLS_set_link_mtu(ssl.get(), 1500));
++
++  // Setting the link MTU is equivalent to setting the record MTU to the link
++  // MTU minus the 28-byte transport overhead.
++  bssl::UniquePtr<SSL_CTX> server_ctx =
++      CreateContextWithTestCertificate(DTLS_method());
++  ASSERT_TRUE(server_ctx);
++  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(DTLS_method()));
++  ASSERT_TRUE(client_ctx);
++
++  bssl::UniquePtr<SSL> client, server;
++  ASSERT_TRUE(ConnectClientAndServer(&client, &server, client_ctx.get(),
++                                     server_ctx.get()));
++
++  static const unsigned kLinkMTU = 1500;
++  ASSERT_TRUE(DTLS_set_link_mtu(client.get(), kLinkMTU));
++  size_t via_link = DTLS_get_data_mtu(client.get());
++  EXPECT_GT(via_link, 0u);
++
++  ASSERT_TRUE(SSL_set_mtu(client.get(), kLinkMTU - 28));
++  size_t via_record = DTLS_get_data_mtu(client.get());
++  EXPECT_EQ(via_link, via_record);
++}
++
+ TEST(SSLTest, SetGetCompliancePolicy) {
+   bssl::UniquePtr<SSL_CTX> ctx(SSL_CTX_new(TLS_method()));
+   EXPECT_EQ(SSL_CTX_get_compliance_policy(ctx.get()),
+-- 
+2.54.0
+
