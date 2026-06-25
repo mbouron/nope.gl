@@ -115,7 +115,7 @@ static const struct node_param stroke_params[] = {
         .type  = NGLI_PARAM_TYPE_F32,
         .offset = OFFSET(base_opts.dash_length),
         .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc  = NGLI_DOCSTRING("dash period in pixels (0 means solid)"),
+        .desc  = NGLI_DOCSTRING("target dash period in pixels, snapped so the pattern tiles evenly around the perimeter (0 means solid)"),
     },
     {
         .key       = "dash_ratio",
@@ -262,7 +262,7 @@ static const struct node_param strokegradient_params[] = {
         .type   = NGLI_PARAM_TYPE_F32,
         .offset = OFFSET(base_opts.dash_length),
         .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc   = NGLI_DOCSTRING("dash period in pixels (0 means solid)"),
+        .desc   = NGLI_DOCSTRING("target dash period in pixels, snapped so the pattern tiles evenly around the perimeter (0 means solid)"),
     },
     {
         .key       = "dash_ratio",
@@ -449,7 +449,7 @@ static const struct node_param strokegradient4_params[] = {
         .type   = NGLI_PARAM_TYPE_F32,
         .offset = OFFSET(base_opts.dash_length),
         .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc   = NGLI_DOCSTRING("dash period in pixels (0 means solid)"),
+        .desc   = NGLI_DOCSTRING("target dash period in pixels, snapped so the pattern tiles evenly around the perimeter (0 means solid)"),
     },
     {
         .key       = "dash_ratio",

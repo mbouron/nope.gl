@@ -3366,7 +3366,7 @@
           "type": "f32",
           "default": 0.000000,
           "flags": ["live"],
-          "desc": "dash period in pixels (0 means solid)"
+          "desc": "target dash period in pixels, snapped so the pattern tiles evenly around the perimeter (0 means solid)"
         },
         {
           "name": "dash_ratio",
@@ -3429,7 +3429,7 @@
           "type": "f32",
           "default": 0.000000,
           "flags": ["live"],
-          "desc": "dash period in pixels (0 means solid)"
+          "desc": "target dash period in pixels, snapped so the pattern tiles evenly around the perimeter (0 means solid)"
         },
         {
           "name": "dash_ratio",
@@ -3542,7 +3542,7 @@
           "type": "f32",
           "default": 0.000000,
           "flags": ["live"],
-          "desc": "dash period in pixels (0 means solid)"
+          "desc": "target dash period in pixels, snapped so the pattern tiles evenly around the perimeter (0 means solid)"
         },
         {
           "name": "dash_ratio",
