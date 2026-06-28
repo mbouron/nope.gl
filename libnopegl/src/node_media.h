@@ -28,6 +28,14 @@
 #include <stddef.h>
 #include <nopemd.h>
 
+#include "utils/job_queue.h"
+
+struct duration_job {
+    struct nmd_ctx *player;
+    int ret;
+    double duration;
+};
+
 #if defined(TARGET_ANDROID)
 #include "android_imagereader.h"
 
@@ -49,6 +57,9 @@ struct media_priv {
     struct nmd_frame *frame;
     double start_time;
     double end_time;
+    double duration;
+    struct duration_job duration_job;
+    struct ngli_fence duration_fence;
     struct release_job release_job;
     struct ngli_fence release_fence;
 
