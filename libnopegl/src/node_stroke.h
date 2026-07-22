@@ -31,16 +31,11 @@
 #define STROKE_CENTER  1
 #define STROKE_OUTSIDE 2
 
-#define STROKE_DASH_CAP_BUTT   0
-#define STROKE_DASH_CAP_ROUND  1
-#define STROKE_DASH_CAP_SQUARE 2
-
 #define STROKE_HELPER_SRGB       (1u << 0)
 #define STROKE_HELPER_MISC_UTILS (1u << 1)
 #define STROKE_HELPER_NOISE      (1u << 2)
 
 extern const struct param_choices ngli_stroke_mode_choices;
-extern const struct param_choices ngli_stroke_dash_cap_choices;
 
 /* One prebuilt uniform from stroke node opts */
 struct stroke_uniform_def {
@@ -61,10 +56,6 @@ void ngli_stroke_info_reset(struct stroke_info *si);
 struct stroke_base_opts {
     float width;
     int mode;
-    float dash_length;
-    float dash_ratio;
-    float dash_offset;
-    int dash_cap;
     float opacity;
 };
 

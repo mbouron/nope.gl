@@ -136,50 +136,6 @@ def drawrect2d_stroke_outside(cfg: ngl.SceneCfg):
     return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke))
 
 
-@test_render(diff_threshold=0.003)
-@ngl.scene(width=W, height=H)
-def drawrect2d_stroke_dashed(cfg: ngl.SceneCfg):
-    fill = ngl.ColorFill(color=(0.08, 0.08, 0.12, 1.0))
-    stroke = ngl.Stroke(
-        width=6,
-        mode="inside",
-        color=(1.0, 1.0, 1.0, 1.0),
-        dash_length=24.0,
-        dash_ratio=0.5,
-    )
-    return _canvas(cfg, ngl.DrawRect2D(rect=(20, 20, W - 40, H - 40), fill=fill, stroke=stroke))
-
-
-@test_render()
-@ngl.scene(width=W, height=H)
-def drawrect2d_stroke_dashed_round(cfg: ngl.SceneCfg):
-    fill = ngl.ColorFill(color=(0.08, 0.08, 0.12, 1.0))
-    stroke = ngl.Stroke(
-        width=12,
-        mode="outside",
-        color=(1.0, 1.0, 1.0, 1.0),
-        dash_length=40.0,
-        dash_ratio=0.4,
-        dash_cap="round",
-    )
-    return _canvas(cfg, ngl.DrawRect2D(rect=(30, 30, W - 60, H - 60), fill=fill, stroke=stroke))
-
-
-@test_render()
-@ngl.scene(width=W, height=H)
-def drawrect2d_stroke_dashed_square(cfg: ngl.SceneCfg):
-    fill = ngl.ColorFill(color=(0.08, 0.08, 0.12, 1.0))
-    stroke = ngl.Stroke(
-        width=12,
-        mode="outside",
-        color=(1.0, 1.0, 1.0, 1.0),
-        dash_length=40.0,
-        dash_ratio=0.4,
-        dash_cap="square",
-    )
-    return _canvas(cfg, ngl.DrawRect2D(rect=(30, 30, W - 60, H - 60), fill=fill, stroke=stroke))
-
-
 @test_render()
 @ngl.scene(width=W, height=H)
 def drawrect2d_stroke_gradient(cfg: ngl.SceneCfg):
@@ -379,9 +335,6 @@ def drawrect2d_animated_trs(cfg: ngl.SceneCfg):
         width=2,
         mode="inside",
         color=(1.0, 1.0, 1.0, 1.0),
-        dash_length=24.0,
-        dash_ratio=0.5,
-        dash_cap="round",
     )
     translate_anim = ngl.AnimatedVec2(
         [
@@ -453,9 +406,6 @@ def drawrect2d_animated_content(cfg: ngl.SceneCfg):
         width=2,
         mode="outside",
         color=(1.0, 1.0, 1.0, 1.0),
-        dash_length=16.0,
-        dash_ratio=0.5,
-        dash_cap="round",
     )
     content_zoom_anim = ngl.AnimatedFloat(
         [
