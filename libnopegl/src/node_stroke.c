@@ -51,16 +51,6 @@ const struct param_choices ngli_stroke_mode_choices = {
     }
 };
 
-const struct param_choices ngli_stroke_dash_cap_choices = {
-    .name = "stroke_dash_cap",
-    .consts = {
-        {"butt",   STROKE_DASH_CAP_BUTT,   .desc=NGLI_DOCSTRING("flat cap at the dash boundary")},
-        {"round",  STROKE_DASH_CAP_ROUND,  .desc=NGLI_DOCSTRING("semicircular cap extending past the dash boundary")},
-        {"square", STROKE_DASH_CAP_SQUARE, .desc=NGLI_DOCSTRING("square cap extending past the dash boundary by half the stroke width")},
-        {NULL}
-    }
-};
-
 struct stroke_priv {
     struct stroke_info si;
 };
@@ -109,36 +99,6 @@ static const struct node_param stroke_params[] = {
         .choices = &ngli_stroke_mode_choices,
         .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc    = NGLI_DOCSTRING("outline position relative to the shape boundary"),
-    },
-    {
-        .key   = "dash_length",
-        .type  = NGLI_PARAM_TYPE_F32,
-        .offset = OFFSET(base_opts.dash_length),
-        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc  = NGLI_DOCSTRING("dash period in pixels (0 means solid)"),
-    },
-    {
-        .key       = "dash_ratio",
-        .type      = NGLI_PARAM_TYPE_F32,
-        .offset    = OFFSET(base_opts.dash_ratio),
-        .def_value = {.f32=0.5f},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("fraction of dash_length that is filled (0..1)"),
-    },
-    {
-        .key   = "dash_offset",
-        .type  = NGLI_PARAM_TYPE_F32,
-        .offset = OFFSET(base_opts.dash_offset),
-        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc  = NGLI_DOCSTRING("phase offset along the perimeter in pixels"),
-    },
-    {
-        .key     = "dash_cap",
-        .type    = NGLI_PARAM_TYPE_SELECT,
-        .offset  = OFFSET(base_opts.dash_cap),
-        .choices = &ngli_stroke_dash_cap_choices,
-        .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc    = NGLI_DOCSTRING("dash end cap style"),
     },
     {
         .key       = "opacity",
@@ -256,36 +216,6 @@ static const struct node_param strokegradient_params[] = {
         .choices = &ngli_stroke_mode_choices,
         .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc    = NGLI_DOCSTRING("outline position relative to the shape boundary"),
-    },
-    {
-        .key    = "dash_length",
-        .type   = NGLI_PARAM_TYPE_F32,
-        .offset = OFFSET(base_opts.dash_length),
-        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc   = NGLI_DOCSTRING("dash period in pixels (0 means solid)"),
-    },
-    {
-        .key       = "dash_ratio",
-        .type      = NGLI_PARAM_TYPE_F32,
-        .offset    = OFFSET(base_opts.dash_ratio),
-        .def_value = {.f32=0.5f},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("fraction of dash_length that is filled (0..1)"),
-    },
-    {
-        .key   = "dash_offset",
-        .type  = NGLI_PARAM_TYPE_F32,
-        .offset = OFFSET(base_opts.dash_offset),
-        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc  = NGLI_DOCSTRING("phase offset along the perimeter in pixels"),
-    },
-    {
-        .key     = "dash_cap",
-        .type    = NGLI_PARAM_TYPE_SELECT,
-        .offset  = OFFSET(base_opts.dash_cap),
-        .choices = &ngli_stroke_dash_cap_choices,
-        .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc    = NGLI_DOCSTRING("dash end cap style"),
     },
     {
         .key       = "opacity",
@@ -443,36 +373,6 @@ static const struct node_param strokegradient4_params[] = {
         .choices = &ngli_stroke_mode_choices,
         .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc    = NGLI_DOCSTRING("outline position relative to the shape boundary"),
-    },
-    {
-        .key    = "dash_length",
-        .type   = NGLI_PARAM_TYPE_F32,
-        .offset = OFFSET(base_opts.dash_length),
-        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc   = NGLI_DOCSTRING("dash period in pixels (0 means solid)"),
-    },
-    {
-        .key       = "dash_ratio",
-        .type      = NGLI_PARAM_TYPE_F32,
-        .offset    = OFFSET(base_opts.dash_ratio),
-        .def_value = {.f32=0.5f},
-        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("fraction of dash_length that is filled (0..1)"),
-    },
-    {
-        .key    = "dash_offset",
-        .type   = NGLI_PARAM_TYPE_F32,
-        .offset = OFFSET(base_opts.dash_offset),
-        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc   = NGLI_DOCSTRING("phase offset along the perimeter in pixels"),
-    },
-    {
-        .key     = "dash_cap",
-        .type    = NGLI_PARAM_TYPE_SELECT,
-        .offset  = OFFSET(base_opts.dash_cap),
-        .choices = &ngli_stroke_dash_cap_choices,
-        .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc    = NGLI_DOCSTRING("dash end cap style"),
     },
     {
         .key       = "opacity",

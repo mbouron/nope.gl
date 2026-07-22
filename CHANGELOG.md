@@ -21,6 +21,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   elliptical corners
 - `NGLAndroidCanvas` is now resizable
 
+### Removed
+- `Stroke*.dash*` parameters
+
 ## [2026.2 / libnopegl 0.14.0][2026.2] - 2026-05-25
 ### Fixed
 - `Effect2D` rendertarget size potentially exceeding the GPU max 2D texture

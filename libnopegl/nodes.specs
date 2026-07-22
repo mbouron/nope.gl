@@ -500,20 +500,6 @@
         "desc": "outline outside the shape boundary"
       }
     ],
-    "stroke_dash_cap": [
-      {
-        "name": "butt",
-        "desc": "flat cap at the dash boundary"
-      },
-      {
-        "name": "round",
-        "desc": "semicircular cap extending past the dash boundary"
-      },
-      {
-        "name": "square",
-        "desc": "square cap extending past the dash boundary by half the stroke width"
-      }
-    ],
     "stroke_gradient_mode": [
       {
         "name": "ramp",
@@ -3362,35 +3348,6 @@
           "desc": "outline position relative to the shape boundary"
         },
         {
-          "name": "dash_length",
-          "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "dash period in pixels (0 means solid)"
-        },
-        {
-          "name": "dash_ratio",
-          "type": "f32",
-          "default": 0.500000,
-          "flags": ["live"],
-          "desc": "fraction of dash_length that is filled (0..1)"
-        },
-        {
-          "name": "dash_offset",
-          "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "phase offset along the perimeter in pixels"
-        },
-        {
-          "name": "dash_cap",
-          "type": "select",
-          "default": "butt",
-          "choices": "stroke_dash_cap",
-          "flags": ["live"],
-          "desc": "dash end cap style"
-        },
-        {
           "name": "opacity",
           "type": "f32",
           "default": 1.000000,
@@ -3423,35 +3380,6 @@
           "choices": "stroke_mode",
           "flags": ["live"],
           "desc": "outline position relative to the shape boundary"
-        },
-        {
-          "name": "dash_length",
-          "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "dash period in pixels (0 means solid)"
-        },
-        {
-          "name": "dash_ratio",
-          "type": "f32",
-          "default": 0.500000,
-          "flags": ["live"],
-          "desc": "fraction of dash_length that is filled (0..1)"
-        },
-        {
-          "name": "dash_offset",
-          "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "phase offset along the perimeter in pixels"
-        },
-        {
-          "name": "dash_cap",
-          "type": "select",
-          "default": "butt",
-          "choices": "stroke_dash_cap",
-          "flags": ["live"],
-          "desc": "dash end cap style"
         },
         {
           "name": "opacity",
@@ -3536,35 +3464,6 @@
           "choices": "stroke_mode",
           "flags": ["live"],
           "desc": "outline position relative to the shape boundary"
-        },
-        {
-          "name": "dash_length",
-          "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "dash period in pixels (0 means solid)"
-        },
-        {
-          "name": "dash_ratio",
-          "type": "f32",
-          "default": 0.500000,
-          "flags": ["live"],
-          "desc": "fraction of dash_length that is filled (0..1)"
-        },
-        {
-          "name": "dash_offset",
-          "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "phase offset along the perimeter in pixels"
-        },
-        {
-          "name": "dash_cap",
-          "type": "select",
-          "default": "butt",
-          "choices": "stroke_dash_cap",
-          "flags": ["live"],
-          "desc": "dash end cap style"
         },
         {
           "name": "opacity",

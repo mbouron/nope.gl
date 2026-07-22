@@ -69,10 +69,6 @@ static const char drawrect_vert_notex[] =
 static const struct stroke_base_opts default_stroke_base = {
     .width       = 0.f,
     .mode        = STROKE_INSIDE,
-    .dash_length = 0.f,
-    .dash_ratio  = 0.5f,
-    .dash_offset = 0.f,
-    .dash_cap    = STROKE_DASH_CAP_BUTT,
     .opacity     = 1.f,
 };
 
@@ -144,10 +140,6 @@ struct drawrect2d_frag_block {
     float corner_radius[2];
     float outline_width;
     int32_t outline_mode;
-    float dash_length;
-    float dash_ratio;
-    float dash_offset;
-    int32_t dash_cap;
     float opacity;
     float fill_opacity;
     float stroke_opacity;
@@ -539,10 +531,6 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_corner_radius",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_outline_width",        .type = NGPU_TYPE_F32},
         {.name = "ngli_outline_mode",         .type = NGPU_TYPE_I32},
-        {.name = "ngli_dash_length",          .type = NGPU_TYPE_F32},
-        {.name = "ngli_dash_ratio",           .type = NGPU_TYPE_F32},
-        {.name = "ngli_dash_offset",          .type = NGPU_TYPE_F32},
-        {.name = "ngli_dash_cap",             .type = NGPU_TYPE_I32},
         {.name = "ngli_opacity",              .type = NGPU_TYPE_F32},
         {.name = "ngli_fill_opacity",         .type = NGPU_TYPE_F32},
         {.name = "ngli_stroke_opacity",       .type = NGPU_TYPE_F32},
@@ -1061,10 +1049,6 @@ static void drawrect2d_draw(struct ngl_node *node)
         memcpy(frag_data.corner_radius, o->corner_radius, sizeof(frag_data.corner_radius));
         frag_data.outline_width = so->width;
         frag_data.outline_mode  = so->mode;
-        frag_data.dash_length   = so->dash_length;
-        frag_data.dash_ratio    = so->dash_ratio;
-        frag_data.dash_offset   = so->dash_offset;
-        frag_data.dash_cap      = so->dash_cap;
         frag_data.opacity       = final_opacity;
         frag_data.fill_opacity  = fo->opacity;
         frag_data.stroke_opacity = so->opacity;
