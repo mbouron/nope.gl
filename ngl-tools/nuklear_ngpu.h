@@ -40,6 +40,7 @@
 # pragma GCC diagnostic ignored "-Wconversion"
 # pragma GCC diagnostic ignored "-Wfloat-conversion"
 # pragma GCC diagnostic ignored "-Wsign-conversion"
+# pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 #elif defined(_MSC_VER)
 # pragma warning(push)
 # pragma warning(disable: 5287)
