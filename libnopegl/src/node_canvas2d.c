@@ -46,7 +46,7 @@ static int canvas2d_swap_children(struct ngl_node *node, size_t from, size_t to)
 {
     struct canvas2d_priv *s = node->priv_data;
 
-    NGLI_SWAP(size_t, s->indices.data[from], s->indices.data[to]);
+    NGLI_SWAP(s->indices.data[from], s->indices.data[to]);
 
     return 0;
 }
