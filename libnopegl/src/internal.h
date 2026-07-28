@@ -344,7 +344,13 @@ struct node_class {
     /*
      * Prepare the node rendering resources.
      *
-     * reentrant: no
+     * Resources built here may depend on the render state handed down by the
+     * parents, the rendertarget layout in particular, which pipelines are
+     * created against. A node moving to a place in the graph that hands down a
+     * different state therefore has to be prepared again, so whatever this
+     * creates must be released by the unprepare counterpart below.
+     *
+     * reentrant: no (a second prepare must be preceded by an unprepare)
      * execution-order: leaf first
      * dispatch: managed
      * when: called during set_scene() / internal node_set_ctx() (after init)
@@ -352,6 +358,22 @@ struct node_class {
     int (*prepare)(struct ngl_node *node,
                    const struct ngpu_graphics_state *graphics_state,
                    const struct ngpu_rendertarget_layout *rendertarget_layout);
+
+    /*
+     * Release exactly what prepare built, leaving the node initialized.
+     *
+     * Mandatory for any node whose prepare builds something: it is what allows
+     * a sub-tree to be prepared again against a different render state without
+     * being torn down to its uninitialized state. Called by the internal
+     * uninit as well, so a node implementing it must not release the same
+     * resources from its uninit.
+     *
+     * reentrant: no (guarded by node->prepared)
+     * execution-order: root first
+     * dispatch: managed
+     * when: before a re-prepare, and during uninit
+     */
+    void (*unprepare)(struct ngl_node *node);
 
     /*
      * Override the render state passed to children during prepare.
@@ -507,6 +529,7 @@ int ngli_node_init_resources(struct ngl_node *node);
 int ngli_node_prepare(struct ngl_node *node,
                       const struct ngpu_graphics_state *graphics_state,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
+void ngli_node_unprepare(struct ngl_node *node);
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t);
 int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t);
 int ngli_node_update(struct ngl_node *node, double t);

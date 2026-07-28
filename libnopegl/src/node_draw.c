@@ -275,7 +275,7 @@ static int render_prepare(struct ngl_node *node,
     return ngli_pass_prepare(&s->pass, graphics_state, rendertarget_layout);
 }
 
-static void render_uninit(struct ngl_node *node)
+static void render_unprepare(struct ngl_node *node)
 {
     struct draw_priv *s = node->priv_data;
     ngli_pass_uninit(&s->pass);
@@ -294,7 +294,7 @@ const struct node_class ngli_draw_class = {
     .name      = "Draw",
     .init      = render_init,
     .prepare   = render_prepare,
-    .uninit    = render_uninit,
+    .unprepare = render_unprepare,
     .update    = ngli_node_update_children,
     .draw      = render_draw,
     .opts_size = sizeof(struct draw_opts),

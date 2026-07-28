@@ -489,19 +489,23 @@ static void drawtexture_draw(struct ngl_node *node)
     }
 }
 
-static void drawtexture_uninit(struct ngl_node *node)
+static void drawtexture_unprepare(struct ngl_node *node)
 {
     struct drawtexture_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_compat_freep(&desc->pipeline_compat);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawtexture_uninit(struct ngl_node *node)
+{
+    struct drawtexture_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -520,6 +524,7 @@ const struct node_class ngli_drawtexture_class = {
     .name      = "DrawTexture",
     .init      = drawtexture_init,
     .prepare   = drawtexture_prepare,
+    .unprepare = drawtexture_unprepare,
     .update    = ngli_node_update_children,
     .draw      = drawtexture_draw,
     .uninit    = drawtexture_uninit,

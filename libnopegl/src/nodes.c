@@ -181,6 +181,9 @@ static void node_uninit(struct ngl_node *node)
     ngli_assert(node->ctx);
     node_release(node);
 
+    if (node->prepared && node->cls->unprepare)
+        node->cls->unprepare(node);
+
     if (node->cls->uninit) {
         LOG(VERBOSE, "UNINIT %s @ %p", node->label, node);
         node->cls->uninit(node);
@@ -301,6 +304,20 @@ int ngli_node_init_resources(struct ngl_node *node)
     }
 
     return 0;
+}
+
+void ngli_node_unprepare(struct ngl_node *node)
+{
+    if (!node->prepared)
+        return;
+
+    node->prepared = false;
+
+    if (node->cls->unprepare)
+        node->cls->unprepare(node);
+
+    for (size_t i = 0; i < node->children.count; i++)
+        ngli_node_unprepare(node->children.data[i]);
 }
 
 int ngli_node_prepare(struct ngl_node *node,

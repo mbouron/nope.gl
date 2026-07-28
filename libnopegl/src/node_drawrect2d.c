@@ -1132,15 +1132,21 @@ static void drawrect2d_draw(struct ngl_node *node)
     ngli_pipeline_compat_draw(pl_compat, s->nb_vertices, 1, 0);
 }
 
+static void drawrect2d_unprepare(struct ngl_node *node)
+{
+    struct drawrect2d_priv *s = node->priv_data;
+
+    ngli_pipeline_compat_freep(&s->pipeline_compat);
+    ngli_darray_reset(&s->textures_map);
+    ngli_darray_reset(&s->blocks_map);
+}
+
 static void drawrect2d_uninit(struct ngl_node *node)
 {
     struct drawrect2d_priv *s = node->priv_data;
-    ngli_pipeline_compat_freep(&s->pipeline_compat);
     ngli_darray_reset(&s->user_uniforms);
     ngli_darray_reset(&s->prebuilt_uniforms);
     ngli_darray_reset(&s->stroke_prebuilt_uniforms);
-    ngli_darray_reset(&s->textures_map);
-    ngli_darray_reset(&s->blocks_map);
     ngli_darray_reset(&s->user_uniforms);
     ngli_darray_reset(&s->prebuilt_uniforms);
     ngli_darray_reset(&s->stroke_prebuilt_uniforms);
@@ -1157,6 +1163,7 @@ const struct node_class ngli_drawrect2d_class = {
     .name      = "DrawRect2D",
     .init      = drawrect2d_init,
     .prepare   = drawrect2d_prepare,
+    .unprepare = drawrect2d_unprepare,
     .update    = drawrect2d_update,
     .pre_draw  = drawrect2d_pre_draw,
     .draw      = drawrect2d_draw,

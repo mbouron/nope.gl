@@ -922,12 +922,20 @@ static void effect2d_release(struct ngl_node *node)
     s->height = 0;
 }
 
-static void effect2d_uninit(struct ngl_node *node)
+static void effect2d_unprepare(struct ngl_node *node)
 {
     struct effect2d_priv *s = node->priv_data;
 
     ngli_pipeline_compat_freep(&s->pipeline);
     ngpu_pgcraft_freep(&s->crafter);
+    ngli_darray_reset(&s->textures_map);
+    ngli_darray_reset(&s->blocks_map);
+}
+
+static void effect2d_uninit(struct ngl_node *node)
+{
+    struct effect2d_priv *s = node->priv_data;
+
     ngli_geometry_freep(&s->geometry);
 
     ngli_freep(&s->frag_glsl);
@@ -938,8 +946,6 @@ static void effect2d_uninit(struct ngl_node *node)
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
     ngpu_block_desc_reset(&s->user_block_desc);
-    ngli_darray_reset(&s->textures_map);
-    ngli_darray_reset(&s->blocks_map);
 }
 
 const struct node_class ngli_effect2d_class = {
@@ -949,6 +955,7 @@ const struct node_class ngli_effect2d_class = {
     .init      = effect2d_init,
     .get_child_render_state = effect2d_get_child_render_state,
     .prepare   = effect2d_prepare,
+    .unprepare = effect2d_unprepare,
     .update    = ngli_node_update_children,
     .pre_draw  = effect2d_pre_draw,
     .draw      = effect2d_draw,

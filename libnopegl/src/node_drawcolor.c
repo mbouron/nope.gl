@@ -453,19 +453,23 @@ static void drawcolor_draw(struct ngl_node *node)
     }
 }
 
-static void drawcolor_uninit(struct ngl_node *node)
+static void drawcolor_unprepare(struct ngl_node *node)
 {
     struct drawcolor_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_compat_freep(&desc->pipeline_compat);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawcolor_uninit(struct ngl_node *node)
+{
+    struct drawcolor_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -484,6 +488,7 @@ const struct node_class ngli_drawcolor_class = {
     .name      = "DrawColor",
     .init      = drawcolor_init,
     .prepare   = drawcolor_prepare,
+    .unprepare = drawcolor_unprepare,
     .update    = ngli_node_update_children,
     .draw      = drawcolor_draw,
     .uninit    = drawcolor_uninit,

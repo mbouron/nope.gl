@@ -536,19 +536,23 @@ static void drawgradient_draw(struct ngl_node *node)
     }
 }
 
-static void drawgradient_uninit(struct ngl_node *node)
+static void drawgradient_unprepare(struct ngl_node *node)
 {
     struct drawgradient_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_compat_freep(&desc->pipeline_compat);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawgradient_uninit(struct ngl_node *node)
+{
+    struct drawgradient_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -567,6 +571,7 @@ const struct node_class ngli_drawgradient_class = {
     .name      = "DrawGradient",
     .init      = drawgradient_init,
     .prepare   = drawgradient_prepare,
+    .unprepare = drawgradient_unprepare,
     .update    = ngli_node_update_children,
     .draw      = drawgradient_draw,
     .uninit    = drawgradient_uninit,
@@ -974,19 +979,23 @@ static void drawgradient4_draw(struct ngl_node *node)
     }
 }
 
-static void drawgradient4_uninit(struct ngl_node *node)
+static void drawgradient4_unprepare(struct ngl_node *node)
 {
     struct drawgradient4_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_compat_freep(&desc->pipeline_compat);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawgradient4_uninit(struct ngl_node *node)
+{
+    struct drawgradient4_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -1005,6 +1014,7 @@ const struct node_class ngli_drawgradient4_class = {
     .name      = "DrawGradient4",
     .init      = drawgradient4_init,
     .prepare   = drawgradient4_prepare,
+    .unprepare = drawgradient4_unprepare,
     .update    = ngli_node_update_children,
     .draw      = drawgradient4_draw,
     .uninit    = drawgradient4_uninit,

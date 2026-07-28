@@ -398,11 +398,17 @@ static void drawpath_draw(struct ngl_node *node)
     ngli_pipeline_compat_draw(desc->pipeline_compat, 4, 1, 0);
 }
 
+static void drawpath_unprepare(struct ngl_node *node)
+{
+    struct drawpath_priv *s = node->priv_data;
+
+    ngli_pipeline_compat_freep(&s->pipeline_desc.pipeline_compat);
+    ngpu_pgcraft_freep(&s->crafter);
+}
+
 static void drawpath_uninit(struct ngl_node *node)
 {
     struct drawpath_priv *s = node->priv_data;
-    ngli_pipeline_compat_freep(&s->pipeline_desc.pipeline_compat);
-    ngpu_pgcraft_freep(&s->crafter);
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
     ngli_distmap_freep(&s->distmap);
@@ -414,6 +420,7 @@ const struct node_class ngli_drawpath_class = {
     .name      = "DrawPath",
     .init      = drawpath_init,
     .prepare   = drawpath_prepare,
+    .unprepare = drawpath_unprepare,
     .update    = ngli_node_update_children,
     .draw      = drawpath_draw,
     .uninit    = drawpath_uninit,
