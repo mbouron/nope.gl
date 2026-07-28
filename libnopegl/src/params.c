@@ -1215,7 +1215,7 @@ static int ngli_params_move_node(uint8_t *dstp, const struct node_param *par,
     if (from >= nb_elems)
         return NGL_ERROR_INVALID_ARG;
 
-    NGLI_SWAP(struct ngl_node *, elems[from], elems[to]);
+    NGLI_SWAP(elems[from], elems[to]);
 
     return 0;
 }
@@ -1229,7 +1229,7 @@ static int ngli_params_move_f64(uint8_t *dstp, const struct node_param *par,
     if (from >= nb_elems)
         return NGL_ERROR_INVALID_ARG;
 
-    NGLI_SWAP(double, elems[from], elems[to]);
+    NGLI_SWAP(elems[from], elems[to]);
 
     return 0;
 }

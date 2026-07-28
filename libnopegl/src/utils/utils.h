@@ -83,7 +83,12 @@
 } while (0)                                                                \
 
 #define NGLI_ARRAY_NB(x) (sizeof(x)/sizeof(*(x)))
-#define NGLI_SWAP(type, a, b) do { type tmp_swap = b; b = a; a = tmp_swap; } while (0)
+
+#define NGLI_SWAP(a, b) do {                \
+    __typeof__(a) ngli_swap_tmp_ = (b);     \
+    (b) = (a);                              \
+    (a) = ngli_swap_tmp_;                   \
+} while (0)
 
 #define NGLI_ALIGN_MASK(v, mask) (((v) + (mask)) & ~(mask))
 #define NGLI_ALIGN(v, a) NGLI_ALIGN_MASK(v, (__typeof__(v))(a) - 1)
