@@ -48,7 +48,6 @@ struct offscreencanvas2d_opts {
 
 struct offscreencanvas2d_priv {
     struct ngli_node2d_info node2d_info;
-    NGLI_DARRAY(size_t) indices;
 
     uint32_t rtt_width;
     uint32_t rtt_height;
@@ -57,13 +56,6 @@ struct offscreencanvas2d_priv {
     struct rtt_params rtt_params;
     struct rtt_ctx *rtt_ctx;
 };
-
-static int offscreencanvas2d_swap_children(struct ngl_node *node, size_t from, size_t to)
-{
-    struct offscreencanvas2d_priv *s = node->priv_data;
-    NGLI_SWAP(s->indices.data[from], s->indices.data[to]);
-    return 0;
-}
 
 #define OFFSET(x) offsetof(struct offscreencanvas2d_opts, x)
 static const struct node_param offscreencanvas2d_params[] = {
@@ -74,7 +66,6 @@ static const struct node_param offscreencanvas2d_params[] = {
         .flags      = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .node_types = NGLI_NODE2D_TYPES_LIST,
         .desc       = NGLI_DOCSTRING("2D scenes to render offscreen"),
-        .swap_func  = offscreencanvas2d_swap_children,
     }, {
         .key        = "width",
         .type       = NGLI_PARAM_TYPE_I32,
@@ -232,14 +223,6 @@ static int offscreencanvas2d_prepare(struct ngl_node *node,
                                      const struct ngpu_graphics_state *graphics_state,
                                      const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
-    struct offscreencanvas2d_priv *s = node->priv_data;
-    const struct offscreencanvas2d_opts *o = node->opts;
-
-    for (size_t i = 0; i < o->nb_children; i++) {
-        if (ngli_darray_push(&s->indices, i) < 0)
-            return NGL_ERROR_MEMORY;
-    }
-
     return 0;
 }
 
@@ -452,8 +435,7 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
 
     /* Draw children */
     for (size_t i = 0; i < o->nb_children; i++) {
-        const size_t index = s->indices.data[i];
-        ngli_node_draw(o->children[index]);
+        ngli_node_draw(o->children[i]);
     }
 
     ngli_rtt_end(s->rtt_ctx);
@@ -479,8 +461,6 @@ static void offscreencanvas2d_release(struct ngl_node *node)
 
 static void offscreencanvas2d_uninit(struct ngl_node *node)
 {
-    struct offscreencanvas2d_priv *s = node->priv_data;
-    ngli_darray_reset(&s->indices);
 }
 
 const struct node_class ngli_offscreencanvas2d_class = {
