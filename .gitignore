@@ -3,3 +3,5 @@
 builddir
 external
 venv/
+__pycache__/
+*.py[cod]
