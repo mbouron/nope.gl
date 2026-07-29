@@ -57,6 +57,7 @@ static void cmd_buffer_gl_freep(void **sp)
     NGPU_RC_UNREFP(&s->fence);
 
     ngpu_darray_reset(&s->refs);
+    ngpu_darray_reset(&s->buffer_refs);
     ngpu_darray_reset(&s->cmds);
 
     ngpu_freep(sp);
