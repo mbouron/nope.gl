@@ -1,0 +1,121 @@
+From 465e84e4f84e486802447b431c357283d0776bad Mon Sep 17 00:00:00 2001
+From: Matthieu Bouron <matthieu.bouron@gmail.com>
+Date: Mon, 15 Jun 2026 11:16:47 +0200
+Subject: [PATCH 2/2] Add BIO_read_ex
+
+Backport the OpenSSL size_t-clean read accessor. It is the read
+counterpart to the existing BIO_write_ex and wraps BIO_read, whose error
+returns were already canonicalized in preparation for this. On success
+it returns one and sets *out_read to the number of bytes read; it
+returns zero on EOF or error.
+
+As with BIO_write_ex, out_read may be NULL and is zeroed up front, so
+callers never observe a stale count on failure (unlike OpenSSL). Reads
+are clamped to INT_MAX since there is no size_t-clean bread callback;
+a larger request simply yields a short read, which the API permits.
+---
+ crypto/bio/bio.cc      | 18 ++++++++++++++++++
+ crypto/bio/bio_test.cc | 40 ++++++++++++++++++++++++++++++++++++++++
+ include/openssl/bio.h  |  7 +++++++
+ 3 files changed, 65 insertions(+)
+
+diff --git a/crypto/bio/bio.cc b/crypto/bio/bio.cc
+index 9250be0fb..d92fe15bd 100644
+--- a/crypto/bio/bio.cc
++++ b/crypto/bio/bio.cc
+@@ -96,6 +96,24 @@ int BIO_read(BIO *bio, void *buf, int len) {
+   return ret;
+ }
+ 
++int BIO_read_ex(BIO *bio, void *data, size_t len, size_t *out_read) {
++  if (out_read != nullptr) {
++    *out_read = 0;
++  }
++  // There is no `size_t`-clean `bread` callback yet, so clamp to the range of
++  // the int-based |BIO_read|. A short read is permitted, so the caller learns
++  // the actual count via `*out_read`.
++  int ret = BIO_read(bio, data, static_cast<int>(std::min(len, size_t{INT_MAX})));
++  if (ret <= 0) {
++    // Zero (EOF) and negative (error) both report failure for |BIO_read_ex|.
++    return 0;
++  }
++  if (out_read != nullptr) {
++    *out_read = static_cast<size_t>(ret);
++  }
++  return 1;
++}
++
+ int BIO_gets(BIO *bio, char *buf, int len) {
+   auto *impl = FromOpaque(bio);
+   if (impl == nullptr || impl->method->bgets == nullptr) {
+diff --git a/crypto/bio/bio_test.cc b/crypto/bio/bio_test.cc
+index 861eb2cfb..7a6654472 100644
+--- a/crypto/bio/bio_test.cc
++++ b/crypto/bio/bio_test.cc
+@@ -1200,5 +1200,45 @@ TEST(BIOTest, BIOChain) {
+                    {method2->first, method3->first, method4->first});
+ }
+ 
++TEST(BIOTest, ReadEx) {
++  static const char kData[] = "abcdefghijklmno";  // 15 bytes
++  UniquePtr<BIO> bio(BIO_new_mem_buf(kData, strlen(kData)));
++  ASSERT_TRUE(bio);
++
++  char buf[6];
++  size_t read = 42;
++
++  // A successful read reports the number of bytes read in |*out_read|.
++  ASSERT_EQ(BIO_read_ex(bio.get(), buf, sizeof(buf), &read), 1);
++  EXPECT_EQ(read, 6u);
++  EXPECT_EQ(Bytes(buf, read), Bytes("abcdef"));
++
++  // |out_read| may be NULL.
++  ASSERT_EQ(BIO_read_ex(bio.get(), buf, sizeof(buf), nullptr), 1);
++  EXPECT_EQ(Bytes(buf, 6), Bytes("ghijkl"));
++
++  // A short read (more requested than available) returns only what is there.
++  read = 42;
++  ASSERT_EQ(BIO_read_ex(bio.get(), buf, sizeof(buf), &read), 1);
++  EXPECT_EQ(read, 3u);
++  EXPECT_EQ(Bytes(buf, read), Bytes("mno"));
++
++  // Once consumed, the read-only buffer returns EOF, which |BIO_read_ex| reports
++  // as failure with |*out_read| set to zero.
++  read = 42;
++  EXPECT_EQ(BIO_read_ex(bio.get(), buf, sizeof(buf), &read), 0);
++  EXPECT_EQ(read, 0u);
++
++  // Reading from a |BIO_METHOD| with no read implementation fails.
++  UniquePtr<BIO_METHOD> method(BIO_meth_new(0, nullptr));
++  ASSERT_TRUE(method);
++  UniquePtr<BIO> method_bio(BIO_new(method.get()));
++  ASSERT_TRUE(method_bio);
++  BIO_set_init(method_bio.get(), 1);
++  read = 42;
++  EXPECT_EQ(BIO_read_ex(method_bio.get(), buf, sizeof(buf), &read), 0);
++  EXPECT_EQ(read, 0u);
++}
++
+ }  // namespace
+ BSSL_NAMESPACE_END
+diff --git a/include/openssl/bio.h b/include/openssl/bio.h
+index 5c3dda0c3..d4b27d75f 100644
+--- a/include/openssl/bio.h
++++ b/include/openssl/bio.h
+@@ -72,6 +72,13 @@ OPENSSL_EXPORT int BIO_up_ref(BIO *bio);
+ // bytes read, zero on EOF, or a negative number on error.
+ OPENSSL_EXPORT int BIO_read(BIO *bio, void *data, int len);
+ 
++// BIO_read_ex attempts to read |len| bytes into |data|. On success, it returns
++// one and sets |*out_read| to the number of bytes read. It returns zero on EOF
++// or error. |out_read| may be NULL to ignore the value. At most |INT_MAX| bytes
++// will be read in a single call.
++OPENSSL_EXPORT int BIO_read_ex(BIO *bio, void *data, size_t len,
++                               size_t *out_read);
++
+ // BIO_gets reads a line from |bio| and writes at most |size| bytes into |buf|.
+ // It returns the number of bytes read or a negative number on error. This
+ // function's output always includes a trailing NUL byte, so it will read at
+-- 
+2.54.0
+
