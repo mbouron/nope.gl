@@ -145,9 +145,7 @@ static int animatedbuffer_init(struct ngl_node *node)
     return 0;
 }
 
-static int animatedbuffer_prepare(struct ngl_node *node,
-                                  const struct ngpu_graphics_state *graphics_state,
-                                  const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int animatedbuffer_init_resources(struct ngl_node *node)
 {
     struct animatedbuffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
@@ -186,7 +184,7 @@ const struct node_class ngli_animatedbuffer##type_name##_class = {              
     .category  = NGLI_NODE_CATEGORY_BUFFER,                                        \
     .name      = class_name,                                                       \
     .init      = animatedbuffer##type_name##_init,                                 \
-    .prepare   = animatedbuffer_prepare,                                           \
+    .init_resources = animatedbuffer_init_resources,                                           \
     .update    = animatedbuffer_update,                                            \
     .uninit    = animatedbuffer_uninit,                                            \
     .opts_size = sizeof(struct animatedbuffer_opts),                               \

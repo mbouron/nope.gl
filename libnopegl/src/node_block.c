@@ -330,9 +330,7 @@ static int block_init(struct ngl_node *node)
     return 0;
 }
 
-static int block_prepare(struct ngl_node *node,
-                         const struct ngpu_graphics_state *graphics_state,
-                         const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int block_init_resources(struct ngl_node *node)
 {
     struct block_priv *s = node->priv_data;
     struct block_info *info = &s->blk;
@@ -391,7 +389,7 @@ const struct node_class ngli_block_class = {
     .category  = NGLI_NODE_CATEGORY_BLOCK,
     .name      = "Block",
     .init      = block_init,
-    .prepare   = block_prepare,
+    .init_resources = block_init_resources,
     .invalidate = block_invalidate,
     .update    = block_update,
     .uninit    = block_uninit,

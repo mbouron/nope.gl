@@ -219,9 +219,7 @@ static int streamedbuffer_init(struct ngl_node *node)
     return 0;
 }
 
-static int streamedbuffer_prepare(struct ngl_node *node,
-                                   const struct ngpu_graphics_state *graphics_state,
-                                   const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int streamedbuffer_init_resources(struct ngl_node *node)
 {
     struct streamedbuffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
@@ -250,7 +248,7 @@ const struct node_class ngli_streamedbuffer##class_suffix##_class = {       \
     .category  = NGLI_NODE_CATEGORY_BUFFER,                                 \
     .name      = class_name,                                                \
     .init      = streamedbuffer_init,                                       \
-    .prepare   = streamedbuffer_prepare,                                    \
+    .init_resources = streamedbuffer_init_resources,                                    \
     .update    = streamedbuffer_update,                                     \
     .uninit    = streamedbuffer_uninit,                                     \
     .opts_size = sizeof(struct streamedbuffer_opts),                        \

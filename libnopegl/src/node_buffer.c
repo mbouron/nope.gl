@@ -289,15 +289,13 @@ static int buffer_init(struct ngl_node *node)
     return 0;
 }
 
-static int buffer_prepare(struct ngl_node *node,
-                          const struct ngpu_graphics_state *graphics_state,
-                          const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int buffer_init_resources(struct ngl_node *node)
 {
     struct buffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
 
     if (info->block)
-        return ngli_node_prepare(s->buf.block, graphics_state, rendertarget_layout);
+        return 0; /* the block allocates its own buffer */
 
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
         return 0;
@@ -349,20 +347,20 @@ static int buffer##type_name##_init(struct ngl_node *node)      \
     return buffer_init(node);                                   \
 }                                                               \
                                                                 \
-const struct node_class ngli_buffer##type_name##_class = {      \
-    .id        = class_id,                                      \
-    .category  = NGLI_NODE_CATEGORY_BUFFER,                     \
-    .name      = class_name,                                    \
-    .init      = buffer##type_name##_init,                      \
-    .prepare   = buffer_prepare,                                \
-    .update    = ngli_node_update_children,                     \
-    .uninit    = buffer_uninit,                                 \
-    .opts_size = sizeof(struct buffer_opts),                    \
-    .priv_size = sizeof(struct buffer_priv),                    \
-    .params    = buffer_params,                                 \
-    .params_id = "Buffer",                                      \
-    .flags     = NGLI_NODE_FLAG_SHAREABLE,                      \
-    .file      = __FILE__,                                      \
+const struct node_class ngli_buffer##type_name##_class = { \
+    .id        = class_id,                                 \
+    .category  = NGLI_NODE_CATEGORY_BUFFER,                \
+    .name      = class_name,                               \
+    .init      = buffer##type_name##_init,                 \
+    .init_resources = buffer_init_resources,               \
+    .update    = ngli_node_update_children,                \
+    .uninit    = buffer_uninit,                            \
+    .opts_size = sizeof(struct buffer_opts),               \
+    .priv_size = sizeof(struct buffer_priv),               \
+    .params    = buffer_params,                            \
+    .params_id = "Buffer",                                 \
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,                 \
+    .file      = __FILE__,                                 \
 };
 
 DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERBYTE, "BufferByte", byte, NGPU_FORMAT_R8_SNORM, NGPU_TYPE_NONE)
