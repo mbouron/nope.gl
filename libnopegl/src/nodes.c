@@ -187,6 +187,7 @@ static void node_uninit(struct ngl_node *node)
     }
     memset(node->priv_data, 0, node->cls->priv_size);
     node->state = NGLI_NODE_STATE_UNINITIALIZED;
+    node->resources_ready = false;
     node->prepared = false;
     node->visit_time = -1.;
 }
@@ -262,6 +263,10 @@ int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     if (ret < 0)
         return ret;
 
+    ret = ngli_node_init_resources(node);
+    if (ret < 0)
+        return ret;
+
     ret = ngli_node_prepare(node, &ctx->default_graphics_state, &ctx->default_rendertarget_layout);
     if (ret < 0)
         return ret;
@@ -272,6 +277,30 @@ int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 {
     node_reset_ctx(node, ctx);
+}
+
+int ngli_node_init_resources(struct ngl_node *node)
+{
+    if (node->resources_ready)
+        return 0;
+    node->resources_ready = true;
+
+    for (size_t i = 0; i < node->children.count; i++) {
+        int ret = ngli_node_init_resources(node->children.data[i]);
+        if (ret < 0)
+            return ret;
+    }
+
+    if (node->cls->init_resources) {
+        TRACE("INIT RESOURCES %s @ %p", node->label, node);
+        int ret = node->cls->init_resources(node);
+        if (ret < 0) {
+            LOG(ERROR, "initializing the resources of node %s failed: %s", node->label, NGLI_RET_STR(ret));
+            return ret;
+        }
+    }
+
+    return 0;
 }
 
 int ngli_node_prepare(struct ngl_node *node,

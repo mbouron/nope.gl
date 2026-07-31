@@ -202,6 +202,7 @@ struct ngl_node {
     void *opts;
 
     enum node_state state;
+    bool resources_ready;
     bool prepared;
     bool is_active;
 
@@ -328,6 +329,17 @@ struct node_class {
      * when: called during set_scene() / internal node_set_ctx()
      */
     int (*init)(struct ngl_node *node);
+
+    /*
+     * Initialize the node rendering resources that do not depend on the
+     * graph position.
+     *
+     * reentrant: no (guarded by node->resources_ready)
+     * execution-order: leaf first
+     * dispatch: managed
+     * when: called after every init, before the first prepare
+     */
+    int (*init_resources)(struct ngl_node *node);
 
     /*
      * Prepare the node rendering resources.
@@ -491,6 +503,7 @@ void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_par
 
 struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children);
 
+int ngli_node_init_resources(struct ngl_node *node);
 int ngli_node_prepare(struct ngl_node *node,
                       const struct ngpu_graphics_state *graphics_state,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
