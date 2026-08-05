@@ -773,11 +773,13 @@ static void texture2d_get_child_render_state(const struct ngl_node *node,
                                              struct ngpu_rendertarget_layout *child_rendertarget_layout)
 {
     const struct texture_priv *s = node->priv_data;
-    *child_graphics_state = *graphics_state;
-    if (s->texture_info.rtt)
+    if (s->texture_info.rtt) {
+        *child_graphics_state = node->ctx->default_graphics_state;
         *child_rendertarget_layout = s->rendertarget_layout;
-    else
+    } else {
+        *child_graphics_state = *graphics_state;
         *child_rendertarget_layout = *rendertarget_layout;
+    }
 }
 
 static int texture2d_array_init(struct ngl_node *node)

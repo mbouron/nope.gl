@@ -257,7 +257,7 @@ static void rtt_get_child_render_state(const struct ngl_node *node,
                                        struct ngpu_rendertarget_layout *child_rendertarget_layout)
 {
     const struct rtt_priv *s = node->priv_data;
-    *child_graphics_state = *graphics_state;
+    *child_graphics_state = node->ctx->default_graphics_state;
     *child_rendertarget_layout = s->layout;
 }
 

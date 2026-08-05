@@ -461,7 +461,7 @@ static void effect2d_get_child_render_state(const struct ngl_node *node,
                                              struct ngpu_rendertarget_layout *child_rtl)
 {
     const struct effect2d_priv *s = node->priv_data;
-    *child_gs = *parent_gs;
+    *child_gs = node->ctx->default_graphics_state;
     *child_rtl = s->layout;
 }
 
