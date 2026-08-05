@@ -20,6 +20,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support
   elliptical corners
 - `NGLAndroidCanvas` is now resizable
+- Graphics state is now reset by nodes owning a render pass (`RenderToTexture`,
+  `Effect2D`, `OffscreenCanvas2D`, `Texture2D`)
 
 ### Removed
 - `Stroke*.dash*` parameters
