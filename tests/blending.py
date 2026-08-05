@@ -72,7 +72,7 @@ def _get_blending_scene_with_args(circle, positions, bname, bcolor):
         blend_bg = _get_background_circles(circle, positions, bcolor)
         blend_bg.set_label(f"background for {bname}")
         g.add_children(blend_bg)
-    blend_mode = "default" if bname == "none" else bname
+    blend_mode = "disabled" if bname == "none" else bname
     blended_circles = _make_colored_circles(circle, positions, blend_mode)
     g.add_children(blended_circles)
     return g

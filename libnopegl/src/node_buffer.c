@@ -290,14 +290,13 @@ static int buffer_init(struct ngl_node *node)
 }
 
 static int buffer_prepare(struct ngl_node *node,
-                          const struct ngpu_graphics_state *graphics_state,
                           const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct buffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
 
     if (info->block)
-        return ngli_node_prepare(s->buf.block, graphics_state, rendertarget_layout);
+        return ngli_node_prepare(s->buf.block, rendertarget_layout);
 
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
         return 0;

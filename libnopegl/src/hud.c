@@ -85,7 +85,6 @@ enum {
 
 enum {
     DRAWCALL_COMPUTES,
-    DRAWCALL_GRAPHICCONFIGS,
     DRAWCALL_DRAWS,
     DRAWCALL_RTTS,
     NB_DRAWCALL
@@ -302,10 +301,6 @@ static const struct drawcall_spec {
     [DRAWCALL_COMPUTES] = {
         .label="Computes",
         .node_types=(const uint32_t[]){NGL_NODE_COMPUTE, NGLI_NODE_NONE},
-    },
-    [DRAWCALL_GRAPHICCONFIGS] = {
-        .label="GraphicCfgs",
-        .node_types=(const uint32_t[]){NGL_NODE_GRAPHICCONFIG, NGLI_NODE_NONE},
     },
     [DRAWCALL_DRAWS] = {
         .label="Draws",
@@ -1280,7 +1275,7 @@ int ngli_hud_init(struct hud *s)
         },
     };
 
-    struct ngpu_graphics_state graphics_state = ctx->default_graphics_state;
+    struct ngpu_graphics_state graphics_state = NGPU_GRAPHICS_STATE_DEFAULTS;
     graphics_state.blend = 1;
     graphics_state.blend_src_factor = NGPU_BLEND_FACTOR_SRC_ALPHA;
     graphics_state.blend_dst_factor = NGPU_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;

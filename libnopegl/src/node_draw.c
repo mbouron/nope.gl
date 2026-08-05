@@ -25,8 +25,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "blend_mode.h"
 #include "geometry.h"
+#include "graphics_state.h"
 #include "internal.h"
 #include "log.h"
 #include <ngpu/ngpu.h>
@@ -45,7 +45,7 @@ struct draw_opts {
     struct hmap *attributes;
     struct hmap *instance_attributes;
     int32_t nb_instances;
-    enum ngli_blend_mode blend_mode;
+    struct ngli_graphics_state_opts state;
 };
 
 struct draw_priv {
@@ -164,9 +164,7 @@ static const struct node_param render_params[] = {
                  .desc=NGLI_DOCSTRING("per instance extra vertex attributes made accessible to the `program`")},
     {"nb_instances", NGLI_PARAM_TYPE_I32, OFFSET(nb_instances), {.i32 = 1},
                  .desc=NGLI_DOCSTRING("number of instances to draw")},
-    {"blend_mode", NGLI_PARAM_TYPE_SELECT, OFFSET(blend_mode),
-                 .choices=&ngli_blend_mode_choices,
-                 .desc=NGLI_DOCSTRING("define how this node is composited with the current framebuffer")},
+    NGLI_GRAPHICS_STATE_PARAMS(state),
     {NULL}
 };
 
@@ -262,17 +260,16 @@ static int render_init(struct ngl_node *node)
         .vert_out_vars = program_priv->vert_out_vars_array.data,
         .nb_vert_out_vars = program_priv->vert_out_vars_array.count,
         .nb_frag_output = program_opts->nb_frag_output,
-        .blend_mode = o->blend_mode,
+        .state = o->state,
     };
     return ngli_pass_init(&s->pass, ctx, &params);
 }
 
 static int render_prepare(struct ngl_node *node,
-                          const struct ngpu_graphics_state *graphics_state,
                           const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct draw_priv *s = node->priv_data;
-    return ngli_pass_prepare(&s->pass, graphics_state, rendertarget_layout);
+    return ngli_pass_prepare(&s->pass, rendertarget_layout);
 }
 
 static void render_uninit(struct ngl_node *node)
@@ -288,12 +285,19 @@ static void render_draw(struct ngl_node *node)
     ngli_pass_exec(&s->pass);
 }
 
+static uint32_t render_get_renderpass_usage(const struct ngl_node *node)
+{
+    const struct draw_opts *o = node->opts;
+    return ngli_graphics_state_get_renderpass_usage(&o->state);
+}
+
 const struct node_class ngli_draw_class = {
     .id        = NGL_NODE_DRAW,
     .category  = NGLI_NODE_CATEGORY_DRAW,
     .name      = "Draw",
     .init      = render_init,
     .prepare   = render_prepare,
+    .get_renderpass_usage = render_get_renderpass_usage,
     .uninit    = render_uninit,
     .update    = ngli_node_update_children,
     .draw      = render_draw,

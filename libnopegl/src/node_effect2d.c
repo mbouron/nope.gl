@@ -454,19 +454,14 @@ static int effect2d_init(struct ngl_node *node)
     return 0;
 }
 
-static void effect2d_get_child_render_state(const struct ngl_node *node,
-                                             const struct ngpu_graphics_state *parent_gs,
-                                             const struct ngpu_rendertarget_layout *parent_rtl,
-                                             struct ngpu_graphics_state *child_gs,
-                                             struct ngpu_rendertarget_layout *child_rtl)
+static void effect2d_get_rendertarget_layout(const struct ngl_node *node,
+                                             struct ngpu_rendertarget_layout *layout)
 {
     const struct effect2d_priv *s = node->priv_data;
-    *child_gs = node->ctx->default_graphics_state;
-    *child_rtl = s->layout;
+    *layout = s->layout;
 }
 
 static int effect2d_prepare(struct ngl_node *node,
-                            const struct ngpu_graphics_state *graphics_state,
                             const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -569,8 +564,8 @@ static int effect2d_prepare(struct ngl_node *node,
     if (has_user_uniforms)
         s->user_block_index = ngpu_pgcraft_get_block_index(s->crafter, "user_params", NGPU_PROGRAM_STAGE_FRAG);
 
-    /* Apply blend mode */
-    struct ngpu_graphics_state state = *graphics_state;
+    /* Apply blending preset */
+    struct ngpu_graphics_state state = NGPU_GRAPHICS_STATE_DEFAULTS;
     ret = ngli_blend_mode_apply(&state, o->node2d.blend_mode);
     if (ret < 0)
         return ret;
@@ -947,7 +942,7 @@ const struct node_class ngli_effect2d_class = {
     .name      = "Effect2D",
     .priv_size = sizeof(struct effect2d_priv),
     .init      = effect2d_init,
-    .get_child_render_state = effect2d_get_child_render_state,
+    .get_rendertarget_layout = effect2d_get_rendertarget_layout,
     .prepare   = effect2d_prepare,
     .update    = ngli_node_update_children,
     .pre_draw  = effect2d_pre_draw,

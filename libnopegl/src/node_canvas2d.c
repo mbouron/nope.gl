@@ -65,7 +65,6 @@ static const struct node_param canvas2d_params[] = {
 };
 
 static int canvas2d_prepare(struct ngl_node *node,
-                            const struct ngpu_graphics_state *graphics_state,
                             const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     return 0;

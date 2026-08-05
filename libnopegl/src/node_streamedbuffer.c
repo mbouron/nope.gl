@@ -220,7 +220,6 @@ static int streamedbuffer_init(struct ngl_node *node)
 }
 
 static int streamedbuffer_prepare(struct ngl_node *node,
-                                   const struct ngpu_graphics_state *graphics_state,
                                    const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct streamedbuffer_priv *s = node->priv_data;

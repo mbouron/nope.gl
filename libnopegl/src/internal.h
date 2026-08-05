@@ -89,7 +89,6 @@ struct ngl_ctx {
     int configured;
     const struct api_impl *api_impl;
     struct ngpu_ctx *gpu_ctx;
-    struct ngpu_graphics_state default_graphics_state;
     struct ngpu_rendertarget_layout default_rendertarget_layout;
     struct ngl_scene *scene;
     struct ngl_config config;
@@ -338,20 +337,17 @@ struct node_class {
      * when: called during set_scene() / internal node_set_ctx() (after init)
      */
     int (*prepare)(struct ngl_node *node,
-                   const struct ngpu_graphics_state *graphics_state,
                    const struct ngpu_rendertarget_layout *rendertarget_layout);
 
     /*
-     * Override the render state passed to children during prepare.
+     * Override the rendertarget layout passed to children during prepare; the
+     * layout is initialized to the parent one before the call.
      *
-     * Useful for nodes that change the graphics state or rendertarget layout
-     * of their subtree (GraphicConfig, RenderToTexture, Texture2D).
+     * Useful for nodes that change the rendertarget layout of their subtree
+     * (RenderToTexture, Effect2D, OffscreenCanvas2D, Texture2D).
      */
-    void (*get_child_render_state)(const struct ngl_node *node,
-                                   const struct ngpu_graphics_state *graphics_state,
-                                   const struct ngpu_rendertarget_layout *rendertarget_layout,
-                                   struct ngpu_graphics_state *child_graphics_state,
-                                   struct ngpu_rendertarget_layout *child_rendertarget_layout);
+    void (*get_rendertarget_layout)(const struct ngl_node *node,
+                                    struct ngpu_rendertarget_layout *layout);
 
     /*
      * Report which aspects (depth, stencil) of the render pass the node uses,
@@ -501,7 +497,6 @@ void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_par
 struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children);
 
 int ngli_node_prepare(struct ngl_node *node,
-                      const struct ngpu_graphics_state *graphics_state,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t);
 int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t);

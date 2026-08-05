@@ -236,7 +236,6 @@ static int drawpath_init(struct ngl_node *node)
 }
 
 static int drawpath_prepare(struct ngl_node *node,
-                            const struct ngpu_graphics_state *graphics_state,
                             const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct ngpu_ctx *gpu_ctx = node->ctx->gpu_ctx;
@@ -304,7 +303,7 @@ static int drawpath_prepare(struct ngl_node *node,
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    struct ngpu_graphics_state state = *graphics_state;
+    struct ngpu_graphics_state state = NGPU_GRAPHICS_STATE_DEFAULTS;
     ret = ngli_blend_mode_apply(&state, NGLI_BLEND_MODE_SRC_OVER);
     if (ret < 0)
         return ret;

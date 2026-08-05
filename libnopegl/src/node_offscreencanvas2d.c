@@ -208,19 +208,14 @@ static int offscreencanvas2d_init(struct ngl_node *node)
     return 0;
 }
 
-static void offscreencanvas2d_get_child_render_state(const struct ngl_node *node,
-                                                      const struct ngpu_graphics_state *parent_gs,
-                                                      const struct ngpu_rendertarget_layout *parent_rtl,
-                                                      struct ngpu_graphics_state *child_gs,
-                                                      struct ngpu_rendertarget_layout *child_rtl)
+static void offscreencanvas2d_get_rendertarget_layout(const struct ngl_node *node,
+                                                      struct ngpu_rendertarget_layout *layout)
 {
     const struct offscreencanvas2d_priv *s = node->priv_data;
-    *child_gs = node->ctx->default_graphics_state;
-    *child_rtl = s->layout;
+    *layout = s->layout;
 }
 
 static int offscreencanvas2d_prepare(struct ngl_node *node,
-                                     const struct ngpu_graphics_state *graphics_state,
                                      const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     return 0;
@@ -468,7 +463,7 @@ const struct node_class ngli_offscreencanvas2d_class = {
     .name      = "OffscreenCanvas2D",
     .priv_size = sizeof(struct offscreencanvas2d_priv),
     .init      = offscreencanvas2d_init,
-    .get_child_render_state = offscreencanvas2d_get_child_render_state,
+    .get_rendertarget_layout = offscreencanvas2d_get_rendertarget_layout,
     .prepare   = offscreencanvas2d_prepare,
     .prefetch  = offscreencanvas2d_prefetch,
     .update    = ngli_node_update_children,

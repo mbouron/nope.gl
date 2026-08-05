@@ -26,8 +26,8 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "blend_mode.h"
 #include "geometry.h"
+#include "graphics_state.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
@@ -449,7 +449,6 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
 }
 
 int ngli_pass_prepare(struct pass *s,
-                      const struct ngpu_graphics_state *graphics_state,
                       const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct ngl_ctx *ctx = s->ctx;
@@ -486,21 +485,21 @@ int ngli_pass_prepare(struct pass *s,
     s->user_frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngl_frag", NGPU_PROGRAM_STAGE_FRAG);
     s->user_comp_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngl_comp", NGPU_PROGRAM_STAGE_COMP);
 
+    struct ngpu_graphics_state state;
+    ret = ngli_graphics_state_init_from_opts(gpu_ctx, &state, &s->params.state);
+    if (ret < 0)
+        return ret;
+
     const enum ngpu_format format = rendertarget_layout->depth_stencil.format;
-    if (graphics_state->depth_test && !ngpu_format_has_depth(format)) {
+    if (state.depth_test && !ngpu_format_has_depth(format)) {
         LOG(ERROR, "depth testing is not supported on rendertargets with no depth attachment");
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    if (graphics_state->stencil_test && !ngpu_format_has_stencil(format)) {
+    if (state.stencil_test && !ngpu_format_has_stencil(format)) {
         LOG(ERROR, "stencil operations are not supported on rendertargets with no stencil attachment");
         return NGL_ERROR_INVALID_USAGE;
     }
-
-    struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blend_mode_apply(&state, s->params.blend_mode);
-    if (ret < 0)
-        return ret;
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 

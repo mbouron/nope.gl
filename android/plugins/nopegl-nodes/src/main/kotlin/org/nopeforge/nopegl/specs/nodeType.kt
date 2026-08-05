@@ -115,7 +115,6 @@ fun nodeType(name: String): NGLNodeType? {
         "Gradient4Fill" -> NGLNodeType.GRADIENT4FILL
         "GradientFill" -> NGLNodeType.GRADIENTFILL
         "Geometry" -> NGLNodeType.GEOMETRY
-        "GraphicConfig" -> NGLNodeType.GRAPHICCONFIG
         "GridLayout" -> NGLNodeType.GRIDLAYOUT
         "Group" -> NGLNodeType.GROUP
         "Group2D" -> NGLNodeType.GROUP2D

@@ -62,8 +62,8 @@ def shape_precision_iovar(cfg: ngl.SceneCfg):
     return scene
 
 
-def _draw_shape(geometry, color):
-    return ngl.DrawColor(color, geometry=geometry)
+def _draw_shape(geometry, color, **kwargs):
+    return ngl.DrawColor(color, geometry=geometry, **kwargs)
 
 
 @test_render()
@@ -225,10 +225,7 @@ def shape_geometry_with_drawother(cfg: ngl.SceneCfg):
 def shape_diamond_colormask(cfg: ngl.SceneCfg):
     color_write_masks = ("r+g+b+a", "r+g+a", "g+b+a", "r+b+a")
     geometry = ngl.Circle(npoints=5)
-    scenes = [
-        ngl.GraphicConfig(ngl.DrawColor(COLORS.white, geometry=geometry), color_write_mask=cwm)
-        for cwm in color_write_masks
-    ]
+    scenes = [ngl.DrawColor(COLORS.white, geometry=geometry, color_write_mask=cwm) for cwm in color_write_masks]
     return autogrid_simple(scenes)
 
 
@@ -420,8 +417,7 @@ def _get_shape_scene(cfg: ngl.SceneCfg, shape, cull_mode):
     )
     geometry = geometry_cls[shape]()
 
-    node = _draw_shape(geometry, COLORS.sgreen)
-    return ngl.GraphicConfig(node, cull_mode=cull_mode)
+    return _draw_shape(geometry, COLORS.sgreen, cull_mode=cull_mode)
 
 
 def _get_shape_function(shape, cull_mode):

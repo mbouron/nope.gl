@@ -58,21 +58,14 @@ def _get_userlive_switch_func():
 
 
 def _make_translated_quad(translate, color=COLORS.white):
-    quad = ngl.Translate(
+    return ngl.Translate(
         ngl.DrawColor(
             color,
             opacity=0.5,
             geometry=ngl.Quad(),
+            blend_mode="src_over",
         ),
         vector=translate,
-    )
-    return ngl.GraphicConfig(
-        quad,
-        blend=True,
-        blend_src_factor="one",
-        blend_dst_factor="one_minus_src_alpha",
-        blend_src_factor_a="one",
-        blend_dst_factor_a="one_minus_src_alpha",
     )
 
 

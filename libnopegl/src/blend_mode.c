@@ -56,7 +56,7 @@ static const struct {
 const struct param_choices ngli_blend_mode_choices = {
     .name = "blend_mode",
     .consts = {
-        {"default",  NGLI_BLEND_MODE_DEFAULT,  .desc=NGLI_DOCSTRING("unchanged current graphics state")},
+        {"disabled", NGLI_BLEND_MODE_DISABLED, .desc=NGLI_DOCSTRING("blending is disabled, this node replaces the destination")},
         {"src_over", NGLI_BLEND_MODE_SRC_OVER, .desc=NGLI_DOCSTRING("this node over destination")},
         {"dst_over", NGLI_BLEND_MODE_DST_OVER, .desc=NGLI_DOCSTRING("destination over this node")},
         {"src_out",  NGLI_BLEND_MODE_SRC_OUT,  .desc=NGLI_DOCSTRING("subtract destination from this node")},
@@ -78,7 +78,7 @@ const struct param_choices ngli_blend_mode_choices = {
 
 int ngli_blend_mode_apply(struct ngpu_graphics_state *state, enum ngli_blend_mode mode)
 {
-    if (mode == NGLI_BLEND_MODE_DEFAULT)
+    if (mode == NGLI_BLEND_MODE_DISABLED)
         return 0;
     if (mode < 0 || mode >= NGLI_ARRAY_NB(blend_modes))
         return NGL_ERROR_INVALID_ARG;

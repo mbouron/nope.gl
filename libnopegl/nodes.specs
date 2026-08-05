@@ -324,8 +324,8 @@
     ],
     "blend_mode": [
       {
-        "name": "default",
-        "desc": "unchanged current graphics state"
+        "name": "disabled",
+        "desc": "blending is disabled, this node replaces the destination"
       },
       {
         "name": "src_over",
@@ -386,6 +386,74 @@
       {
         "name": "subtract",
         "desc": "subtract this node from destination"
+      }
+    ],
+    "depth_mode": [
+      {
+        "name": "disabled",
+        "desc": "disable depth testing and writing"
+      },
+      {
+        "name": "read_write",
+        "desc": "draw fragments whose depth is less than or equal to the stored depth, then update it"
+      },
+      {
+        "name": "read_only",
+        "desc": "draw fragments whose depth is less than or equal to the stored depth, without updating it"
+      },
+      {
+        "name": "write_only",
+        "desc": "disable depth comparison and update the stored depth"
+      }
+    ],
+    "stencil_mode": [
+      {
+        "name": "disabled",
+        "desc": "disable stencil testing and writing"
+      },
+      {
+        "name": "write",
+        "desc": "mark fragments in the stencil buffer after they pass the depth test"
+      },
+      {
+        "name": "read",
+        "desc": "draw only where the stencil buffer is marked"
+      },
+      {
+        "name": "read_inverted",
+        "desc": "draw only where the stencil buffer is not marked"
+      }
+    ],
+    "cull_mode": [
+      {
+        "name": "none",
+        "desc": "no facets are discarded"
+      },
+      {
+        "name": "front",
+        "desc": "cull front-facing facets"
+      },
+      {
+        "name": "back",
+        "desc": "cull back-facing facets"
+      }
+    ],
+    "component": [
+      {
+        "name": "r",
+        "desc": "red"
+      },
+      {
+        "name": "g",
+        "desc": "green"
+      },
+      {
+        "name": "b",
+        "desc": "blue"
+      },
+      {
+        "name": "a",
+        "desc": "alpha"
       }
     ],
     "gradient_mode": [
@@ -554,190 +622,6 @@
       {
         "name": "triangle_list",
         "desc": "triangle list"
-      }
-    ],
-    "blend_factor": [
-      {
-        "name": "unset",
-        "desc": "unset"
-      },
-      {
-        "name": "zero",
-        "desc": "`0`"
-      },
-      {
-        "name": "one",
-        "desc": "`1`"
-      },
-      {
-        "name": "src_color",
-        "desc": "`src_color`"
-      },
-      {
-        "name": "one_minus_src_color",
-        "desc": "`1 - src_color`"
-      },
-      {
-        "name": "dst_color",
-        "desc": "`dst_color`"
-      },
-      {
-        "name": "one_minus_dst_color",
-        "desc": "`1 - dst_color`"
-      },
-      {
-        "name": "src_alpha",
-        "desc": "`src_alpha`"
-      },
-      {
-        "name": "one_minus_src_alpha",
-        "desc": "`1 - src_alpha`"
-      },
-      {
-        "name": "dst_alpha",
-        "desc": "`dst_alpha`"
-      },
-      {
-        "name": "one_minus_dst_alpha",
-        "desc": "`1 - dst_alpha`"
-      }
-    ],
-    "blend_operation": [
-      {
-        "name": "unset",
-        "desc": "unset"
-      },
-      {
-        "name": "add",
-        "desc": "`src + dst`"
-      },
-      {
-        "name": "sub",
-        "desc": "`src - dst`"
-      },
-      {
-        "name": "revsub",
-        "desc": "`dst - src`"
-      },
-      {
-        "name": "min",
-        "desc": "`min(src, dst)`"
-      },
-      {
-        "name": "max",
-        "desc": "`max(src, dst)`"
-      }
-    ],
-    "component": [
-      {
-        "name": "r",
-        "desc": "red"
-      },
-      {
-        "name": "g",
-        "desc": "green"
-      },
-      {
-        "name": "b",
-        "desc": "blue"
-      },
-      {
-        "name": "a",
-        "desc": "alpha"
-      }
-    ],
-    "function": [
-      {
-        "name": "unset",
-        "desc": "unset"
-      },
-      {
-        "name": "never",
-        "desc": "`f(a,b) = 0`"
-      },
-      {
-        "name": "less",
-        "desc": "`f(a,b) = a < b`"
-      },
-      {
-        "name": "equal",
-        "desc": "`f(a,b) = a == b`"
-      },
-      {
-        "name": "lequal",
-        "desc": "`f(a,b) = a ≤ b`"
-      },
-      {
-        "name": "greater",
-        "desc": "`f(a,b) = a > b`"
-      },
-      {
-        "name": "notequal",
-        "desc": "`f(a,b) = a ≠ b`"
-      },
-      {
-        "name": "gequal",
-        "desc": "`f(a,b) = a ≥ b`"
-      },
-      {
-        "name": "always",
-        "desc": "`f(a,b) = 1`"
-      }
-    ],
-    "stencil_operation": [
-      {
-        "name": "unset",
-        "desc": "unset"
-      },
-      {
-        "name": "keep",
-        "desc": "keeps the current value"
-      },
-      {
-        "name": "zero",
-        "desc": "sets the stencil buffer value to 0"
-      },
-      {
-        "name": "replace",
-        "desc": "sets the stencil buffer value to ref, as specified by the stencil function"
-      },
-      {
-        "name": "incr",
-        "desc": "increments the current stencil buffer value and clamps it"
-      },
-      {
-        "name": "incr_wrap",
-        "desc": "increments the current stencil buffer value and wraps it"
-      },
-      {
-        "name": "decr",
-        "desc": "decrements the current stencil buffer value and clamps it"
-      },
-      {
-        "name": "decr_wrap",
-        "desc": "decrements the current stencil buffer value and wraps it"
-      },
-      {
-        "name": "decr_invert",
-        "desc": "bitwise inverts the current stencil buffer value"
-      }
-    ],
-    "cull_mode": [
-      {
-        "name": "unset",
-        "desc": "unset"
-      },
-      {
-        "name": "none",
-        "desc": "no facets are discarded"
-      },
-      {
-        "name": "front",
-        "desc": "cull front-facing facets"
-      },
-      {
-        "name": "back",
-        "desc": "cull back-facing facets"
       }
     ],
     "precision": [
@@ -2023,10 +1907,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         }
       ]
     },
@@ -2050,10 +1966,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -2091,10 +2039,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -2175,10 +2155,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -2265,10 +2277,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -2307,10 +2351,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -2355,10 +2431,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -2439,10 +2547,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -2577,10 +2717,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -2619,10 +2791,42 @@
         {
           "name": "blend_mode",
           "type": "select",
-          "default": "default",
+          "default": "disabled",
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how this node is composited with the current framebuffer"
+        },
+        {
+          "name": "depth_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "depth_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the depth buffer"
+        },
+        {
+          "name": "stencil_mode",
+          "type": "select",
+          "default": "disabled",
+          "choices": "stencil_mode",
+          "flags": [],
+          "desc": "define how this node interacts with the stencil buffer"
+        },
+        {
+          "name": "cull_mode",
+          "type": "select",
+          "default": "none",
+          "choices": "cull_mode",
+          "flags": [],
+          "desc": "face culling mode"
+        },
+        {
+          "name": "color_write_mask",
+          "type": "flags",
+          "default": "r+g+b+a",
+          "choices": "component",
+          "flags": [],
+          "desc": "color write mask"
         },
         {
           "name": "geometry",
@@ -3667,177 +3871,6 @@
           "choices": "topology",
           "flags": [],
           "desc": "primitive topology"
-        }
-      ]
-    },
-    "GraphicConfig": {
-      "file": "src/node_graphicconfig.c",
-      "params": [
-        {
-          "name": "child",
-          "type": "node",
-          "flags": ["nonull"],
-          "desc": "scene to which the graphic configuration will be applied"
-        },
-        {
-          "name": "blend",
-          "type": "bool",
-          "default": -1,
-          "flags": [],
-          "desc": "enable blending"
-        },
-        {
-          "name": "blend_src_factor",
-          "type": "select",
-          "default": "unset",
-          "choices": "blend_factor",
-          "flags": [],
-          "desc": "blend source factor"
-        },
-        {
-          "name": "blend_dst_factor",
-          "type": "select",
-          "default": "unset",
-          "choices": "blend_factor",
-          "flags": [],
-          "desc": "blend destination factor"
-        },
-        {
-          "name": "blend_src_factor_a",
-          "type": "select",
-          "default": "unset",
-          "choices": "blend_factor",
-          "flags": [],
-          "desc": "alpha blend source factor"
-        },
-        {
-          "name": "blend_dst_factor_a",
-          "type": "select",
-          "default": "unset",
-          "choices": "blend_factor",
-          "flags": [],
-          "desc": "alpha blend destination factor"
-        },
-        {
-          "name": "blend_op",
-          "type": "select",
-          "default": "unset",
-          "choices": "blend_operation",
-          "flags": [],
-          "desc": "blend operation"
-        },
-        {
-          "name": "blend_op_a",
-          "type": "select",
-          "default": "unset",
-          "choices": "blend_operation",
-          "flags": [],
-          "desc": "alpha blend operation"
-        },
-        {
-          "name": "color_write_mask",
-          "type": "flags",
-          "default": "unset",
-          "choices": "component",
-          "flags": [],
-          "desc": "color write mask"
-        },
-        {
-          "name": "depth_test",
-          "type": "bool",
-          "default": -1,
-          "flags": [],
-          "desc": "enable depth testing"
-        },
-        {
-          "name": "depth_write",
-          "type": "bool",
-          "default": -1,
-          "flags": [],
-          "desc": "depth write mask"
-        },
-        {
-          "name": "depth_func",
-          "type": "select",
-          "default": "unset",
-          "choices": "function",
-          "flags": [],
-          "desc": "passes if `<function>(depth, stored_depth)`"
-        },
-        {
-          "name": "stencil_test",
-          "type": "bool",
-          "default": -1,
-          "flags": [],
-          "desc": "enable stencil testing"
-        },
-        {
-          "name": "stencil_write_mask",
-          "type": "i32",
-          "default": -1,
-          "flags": [],
-          "desc": "stencil write mask, must be in the range [0, 0xff]"
-        },
-        {
-          "name": "stencil_func",
-          "type": "select",
-          "default": "unset",
-          "choices": "function",
-          "flags": [],
-          "desc": "passes if `<function>(stencil_ref & stencil_read_mask, stencil & stencil_read_mask)`"
-        },
-        {
-          "name": "stencil_ref",
-          "type": "i32",
-          "default": -1,
-          "flags": [],
-          "desc": "stencil reference value to compare against"
-        },
-        {
-          "name": "stencil_read_mask",
-          "type": "i32",
-          "default": -1,
-          "flags": [],
-          "desc": "stencil read mask, must be in the range [0, 0xff]"
-        },
-        {
-          "name": "stencil_fail",
-          "type": "select",
-          "default": "unset",
-          "choices": "stencil_operation",
-          "flags": [],
-          "desc": "operation to execute if stencil test fails"
-        },
-        {
-          "name": "stencil_depth_fail",
-          "type": "select",
-          "default": "unset",
-          "choices": "stencil_operation",
-          "flags": [],
-          "desc": "operation to execute if depth test fails"
-        },
-        {
-          "name": "stencil_depth_pass",
-          "type": "select",
-          "default": "unset",
-          "choices": "stencil_operation",
-          "flags": [],
-          "desc": "operation to execute if stencil and depth test pass"
-        },
-        {
-          "name": "cull_mode",
-          "type": "select",
-          "default": "unset",
-          "choices": "cull_mode",
-          "flags": [],
-          "desc": "face culling mode"
-        },
-        {
-          "name": "scissor",
-          "type": "ivec4",
-          "default": [-1,-1,-1,-1],
-          "flags": [],
-          "desc": "define an area where all pixels outside are discarded"
         }
       ]
     },

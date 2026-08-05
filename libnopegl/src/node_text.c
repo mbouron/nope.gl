@@ -518,7 +518,6 @@ static int init_subdesc(struct ngl_node *node,
 }
 
 static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
-                      const struct ngpu_graphics_state *graphics_state,
                       const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct text_priv *s = node->priv_data;
@@ -573,7 +572,7 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
     };
 
     /* This controls how the background blends onto the current framebuffer */
-    struct ngpu_graphics_state state = *graphics_state;
+    struct ngpu_graphics_state state = NGPU_GRAPHICS_STATE_DEFAULTS;
     state.blend = 1;
     state.blend_src_factor   = NGPU_BLEND_FACTOR_ONE;
     state.blend_dst_factor   = NGPU_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -601,7 +600,6 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
 }
 
 static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
-                      const struct ngpu_graphics_state *graphics_state,
                       const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct text_priv *s = node->priv_data;
@@ -742,7 +740,7 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
     };
 
     /* This controls how the characters blend onto the background */
-    struct ngpu_graphics_state state = *graphics_state;
+    struct ngpu_graphics_state state = NGPU_GRAPHICS_STATE_DEFAULTS;
     state.blend = 1;
     state.blend_src_factor   = NGPU_BLEND_FACTOR_ONE;
     state.blend_dst_factor   = NGPU_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -797,18 +795,17 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
 }
 
 static int text_prepare(struct ngl_node *node,
-                        const struct ngpu_graphics_state *graphics_state,
                         const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct text_priv *s = node->priv_data;
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    int ret = bg_prepare(node, &desc->bg, graphics_state, rendertarget_layout);
+    int ret = bg_prepare(node, &desc->bg, rendertarget_layout);
     if (ret < 0)
         return ret;
 
-    ret = fg_prepare(node, &desc->fg, graphics_state, rendertarget_layout);
+    ret = fg_prepare(node, &desc->fg, rendertarget_layout);
     if (ret < 0)
         return ret;
 

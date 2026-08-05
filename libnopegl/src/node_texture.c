@@ -767,20 +767,12 @@ static int texture2d_init(struct ngl_node *node)
     return 0;
 }
 
-static void texture2d_get_child_render_state(const struct ngl_node *node,
-                                             const struct ngpu_graphics_state *graphics_state,
-                                             const struct ngpu_rendertarget_layout *rendertarget_layout,
-                                             struct ngpu_graphics_state *child_graphics_state,
-                                             struct ngpu_rendertarget_layout *child_rendertarget_layout)
+static void texture2d_get_rendertarget_layout(const struct ngl_node *node,
+                                              struct ngpu_rendertarget_layout *layout)
 {
     const struct texture_priv *s = node->priv_data;
-    if (s->texture_info.rtt) {
-        *child_graphics_state = node->ctx->default_graphics_state;
-        *child_rendertarget_layout = s->rendertarget_layout;
-    } else {
-        *child_graphics_state = *graphics_state;
-        *child_rendertarget_layout = *rendertarget_layout;
-    }
+    if (s->texture_info.rtt)
+        *layout = s->rendertarget_layout;
 }
 
 static int texture2d_array_init(struct ngl_node *node)
@@ -869,7 +861,7 @@ const struct node_class ngli_texture2d_class = {
     .category  = NGLI_NODE_CATEGORY_TEXTURE,
     .name      = "Texture2D",
     .init      = texture2d_init,
-    .get_child_render_state = texture2d_get_child_render_state,
+    .get_rendertarget_layout = texture2d_get_rendertarget_layout,
     .prefetch  = texture_prefetch,
     .invalidate = texture_invalidate,
     .update    = texture_update,
