@@ -796,7 +796,6 @@ static int drawrect2d_init(struct ngl_node *node)
 }
 
 static int drawrect2d_prepare(struct ngl_node *node,
-                              const struct ngpu_graphics_state *graphics_state,
                               const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct drawrect2d_priv *s = node->priv_data;
@@ -804,7 +803,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
-    struct ngpu_graphics_state state = *graphics_state;
+    struct ngpu_graphics_state state = NGPU_GRAPHICS_STATE_DEFAULTS;
     int ret = ngli_blend_mode_apply(&state, o->node2d.blend_mode);
     if (ret < 0)
         return ret;

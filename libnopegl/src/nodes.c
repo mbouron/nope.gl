@@ -262,7 +262,7 @@ int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     if (ret < 0)
         return ret;
 
-    ret = ngli_node_prepare(node, &ctx->default_graphics_state, &ctx->default_rendertarget_layout);
+    ret = ngli_node_prepare(node, &ctx->default_rendertarget_layout);
     if (ret < 0)
         return ret;
 
@@ -275,24 +275,20 @@ void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 }
 
 int ngli_node_prepare(struct ngl_node *node,
-                      const struct ngpu_graphics_state *graphics_state,
                       const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     if (node->prepared)
         return 0;
     node->prepared = true;
 
-    /* Compute render state for children (may be overridden by this node) */
-    struct ngpu_graphics_state child_graphics_state = *graphics_state;
+    /* Compute the rendertarget layout for children (may be overridden by this node) */
     struct ngpu_rendertarget_layout child_rendertarget_layout = *rendertarget_layout;
-    if (node->cls->get_child_render_state) {
-        node->cls->get_child_render_state(node, graphics_state, rendertarget_layout,
-                                          &child_graphics_state, &child_rendertarget_layout);
-    }
+    if (node->cls->get_rendertarget_layout)
+        node->cls->get_rendertarget_layout(node, &child_rendertarget_layout);
 
     /* Leaf-first: prepare all children before this node */
     for (size_t i = 0; i < node->children.count; i++) {
-        int ret = ngli_node_prepare(node->children.data[i], &child_graphics_state, &child_rendertarget_layout);
+        int ret = ngli_node_prepare(node->children.data[i], &child_rendertarget_layout);
         if (ret < 0)
             return ret;
     }
@@ -300,7 +296,7 @@ int ngli_node_prepare(struct ngl_node *node,
     /* Prepare this node */
     if (node->cls->prepare) {
         TRACE("PREPARE %s @ %p", node->label, node);
-        int ret = node->cls->prepare(node, graphics_state, rendertarget_layout);
+        int ret = node->cls->prepare(node, rendertarget_layout);
         if (ret < 0) {
             LOG(ERROR, "preparing node %s failed: %s", node->label, NGLI_RET_STR(ret));
             return ret;

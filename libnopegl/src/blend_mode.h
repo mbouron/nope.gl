@@ -25,7 +25,7 @@
 #include <ngpu/ngpu.h>
 
 enum ngli_blend_mode {
-    NGLI_BLEND_MODE_DEFAULT,
+    NGLI_BLEND_MODE_DISABLED,
     NGLI_BLEND_MODE_SRC_OVER,
     NGLI_BLEND_MODE_DST_OVER,
     NGLI_BLEND_MODE_SRC_OUT,

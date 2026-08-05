@@ -94,7 +94,12 @@ def _get_cube_scene(cfg: ngl.SceneCfg, depth_test=True, stencil_test=False):
     cube = _get_cube()
     program = ngl.Program(vertex=_RENDER_CUBE_VERT, fragment=_RENDER_CUBE_FRAG)
     program.update_vert_out_vars(var_normal=ngl.IOVec3())
-    draw = ngl.Draw(cube, program)
+    draw = ngl.Draw(
+        cube,
+        program,
+        depth_mode="read_write" if depth_test else "disabled",
+        stencil_mode="write" if stencil_test else "disabled",
+    )
     draw = ngl.Scale(draw, (0.5, 0.5, 0.5))
 
     for i in range(3):
@@ -105,10 +110,8 @@ def _get_cube_scene(cfg: ngl.SceneCfg, depth_test=True, stencil_test=False):
         assert len(axis) == 3
         draw = ngl.Rotate(draw, axis=axis, angle=rot_animkf)
 
-    config = ngl.GraphicConfig(draw, depth_test=depth_test, stencil_test=stencil_test)
-
     return ngl.Camera(
-        config,
+        draw,
         eye=(0.0, 0.0, 3.0),
         center=(0.0, 0.0, 0.0),
         up=(0.0, 1.0, 0.0),

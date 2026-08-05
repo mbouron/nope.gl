@@ -24,9 +24,9 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "blend_mode.h"
 #include "filterschain.h"
 #include "geometry.h"
+#include "graphics_state.h"
 #include "internal.h"
 #include "log.h"
 #include <ngpu/ngpu.h>
@@ -84,7 +84,7 @@ struct pipeline_desc {
 struct drawdisplace_opts {
     struct ngl_node *source_node;
     struct ngl_node *displacement_node;
-    enum ngli_blend_mode blend_mode;
+    struct ngli_graphics_state_opts state;
     struct ngl_node *geometry;
     struct ngl_node **filters;
     size_t nb_filters;
@@ -142,9 +142,7 @@ static const struct node_param drawdisplace_params[] = {
                      .node_types=(const uint32_t[]){TRANSFORM_TYPES_ARGS, NGL_NODE_TEXTURE2D, NGLI_NODE_NONE},
                      .flags=NGLI_PARAM_FLAG_NON_NULL,
                      .desc=NGLI_DOCSTRING("displacement vectors stored in a texture")},
-    {"blend_mode", NGLI_PARAM_TYPE_SELECT, OFFSET(blend_mode),
-                 .choices=&ngli_blend_mode_choices,
-                 .desc=NGLI_DOCSTRING("define how this node is composited with the current framebuffer")},
+    NGLI_GRAPHICS_STATE_PARAMS(state),
     {"geometry", NGLI_PARAM_TYPE_NODE, OFFSET(geometry),
                  .node_types=GEOMETRY_TYPES_LIST,
                  .desc=NGLI_DOCSTRING("geometry to be rasterized")},
@@ -267,7 +265,6 @@ static int drawdisplace_init(struct ngl_node *node)
 }
 
 static int drawdisplace_prepare(struct ngl_node *node,
-                                const struct ngpu_graphics_state *graphics_state,
                                 const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -358,9 +355,9 @@ static int drawdisplace_prepare(struct ngl_node *node,
     s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "vert_params", NGPU_PROGRAM_STAGE_VERT);
     s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
 
-    /* Apply blend mode */
-    struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blend_mode_apply(&state, o->blend_mode);
+    /* Apply the graphics state options */
+    struct ngpu_graphics_state state;
+    ret = ngli_graphics_state_init_from_opts(gpu_ctx, &state, &o->state);
     if (ret < 0)
         return ret;
 
@@ -519,12 +516,19 @@ static void drawdisplace_uninit(struct ngl_node *node)
         ngli_geometry_freep(&s->geometry);
 }
 
+static uint32_t drawdisplace_get_renderpass_usage(const struct ngl_node *node)
+{
+    const struct drawdisplace_opts *o = node->opts;
+    return ngli_graphics_state_get_renderpass_usage(&o->state);
+}
+
 const struct node_class ngli_drawdisplace_class = {
     .id        = NGL_NODE_DRAWDISPLACE,
     .category  = NGLI_NODE_CATEGORY_DRAW,
     .name      = "DrawDisplace",
     .init      = drawdisplace_init,
     .prepare   = drawdisplace_prepare,
+    .get_renderpass_usage = drawdisplace_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawdisplace_draw,
     .uninit    = drawdisplace_uninit,

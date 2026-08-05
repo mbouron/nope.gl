@@ -309,14 +309,14 @@ def texture_cubemap_from_mrt_2_pass_msaa(cfg: ngl.SceneCfg):
 @test_render(tolerance=1)
 @ngl.scene(width=32, height=32)
 def texture_clear_and_scissor(cfg: ngl.SceneCfg):
-    draw = ngl.DrawColor(COLORS.white)
-    graphic_config = ngl.GraphicConfig(ngl.Scissor(draw, rect=(0, 0, 0, 0)), color_write_mask="")
+    draw = ngl.DrawColor(COLORS.white, color_write_mask="")
+    scissor = ngl.Scissor(draw, rect=(0, 0, 0, 0))
 
     texture = ngl.Texture2D(width=64, height=64, min_filter="nearest", mag_filter="nearest")
     rtt = ngl.RenderToTexture(ngl.Identity(), [texture], clear_color=COLORS.orange + (1,))
     draw = ngl.DrawTexture(texture)
 
-    return ngl.Group(children=[graphic_config, rtt, draw])
+    return ngl.Group(children=[scissor, rtt, draw])
 
 
 @test_render()

@@ -331,7 +331,6 @@ static int block_init(struct ngl_node *node)
 }
 
 static int block_prepare(struct ngl_node *node,
-                         const struct ngpu_graphics_state *graphics_state,
                          const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct block_priv *s = node->priv_data;

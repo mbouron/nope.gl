@@ -148,19 +148,8 @@ def blending_and_stencil(cfg: ngl.SceneCfg):
 
     main_group = ngl.Group()
 
-    draw = ngl.DrawColor(color=(0.2, 0.6, 1), label="sky")
-    config = ngl.GraphicConfig(
-        draw,
-        stencil_test=True,
-        stencil_write_mask=0xFF,
-        stencil_func="always",
-        stencil_ref=1,
-        stencil_read_mask=0xFF,
-        stencil_fail="replace",
-        stencil_depth_fail="replace",
-        stencil_depth_pass="replace",
-    )
-    main_group.add_children(config)
+    draw = ngl.DrawColor(color=(0.2, 0.6, 1), label="sky", stencil_mode="write")
+    main_group.add_children(draw)
 
     draw = ngl.DrawColor(color=(1, 0.8, 0), geometry=circle, label="sun")
 
@@ -180,7 +169,7 @@ def blending_and_stencil(cfg: ngl.SceneCfg):
     ]
 
     for center in centers:
-        draw = ngl.Draw(circle, program, blend_mode="src_over")
+        draw = ngl.Draw(circle, program, blend_mode="src_over", stencil_mode="read")
         draw.update_frag_resources(color=cloud_color, opacity=cloud_opacity)
 
         factor = cfg.rng.random() * 0.4 + center[2]
@@ -195,18 +184,7 @@ def blending_and_stencil(cfg: ngl.SceneCfg):
         translate = ngl.Translate(scale, vector=(center[0], center[1], 0))
         cloud_group.add_children(translate)
 
-    config = ngl.GraphicConfig(
-        cloud_group,
-        stencil_test=True,
-        stencil_write_mask=0x0,
-        stencil_func="equal",
-        stencil_ref=1,
-        stencil_read_mask=0xFF,
-        stencil_fail="keep",
-        stencil_depth_fail="keep",
-        stencil_depth_pass="keep",
-    )
-    main_group.add_children(config)
+    main_group.add_children(cloud_group)
 
     camera = ngl.Camera(main_group)
     camera.set_eye(0.0, 0.0, 2.0)
@@ -231,7 +209,7 @@ def _get_cube_quads():
 
 
 def _get_cube_side(texture, program, corner, width, height, color):
-    draw = ngl.Draw(ngl.Quad(corner, width, height), program)
+    draw = ngl.Draw(ngl.Quad(corner, width, height), program, depth_mode="read_write")
     draw.update_frag_resources(tex0=texture)
     draw.update_frag_resources(blend_color=ngl.UniformVec3(value=color))
     draw.update_frag_resources(mix_factor=ngl.UniformFloat(value=0.2))
@@ -264,9 +242,7 @@ def cube(cfg: ngl.SceneCfg, display_depth_buffer=False):
         assert len(axis) == 3
         cube = ngl.Rotate(cube, axis=axis, angle=rot_animkf)
 
-    config = ngl.GraphicConfig(cube, depth_test=True)
-
-    camera = ngl.Camera(config)
+    camera = ngl.Camera(cube)
     camera.set_eye(0.0, 0.0, 2.0)
     camera.set_center(0.0, 0.0, 0.0)
     camera.set_up(0.0, 1.0, 0.0)

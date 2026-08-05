@@ -121,7 +121,6 @@ static int group2d_init(struct ngl_node *node)
 }
 
 static int group2d_prepare(struct ngl_node *node,
-                           const struct ngpu_graphics_state *graphics_state,
                            const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     return 0;

@@ -19,6 +19,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   blending modes on all the nodes exposing a `blending` parameter
 - `Scissor` node to restrict the rendering of a scene to a rectangular area of
   the framebuffer
+- `depth_mode`, `stencil_mode`, `cull_mode` and `color_write_mask` parameters
+  on the draw nodes (when supported) to control the depth, stencil, face
+  culling and color write states
 
 ### Changed
 - `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support
@@ -27,9 +30,14 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - Graphics state is now reset by nodes owning a render pass (`RenderToTexture`,
   `Effect2D`, `OffscreenCanvas2D`, `Texture2D`)
 - `blending` renamed to `blend_mode`
+- `default` blend mode renamed to `disabled`
 
 ### Removed
 - `Stroke*.dash*` parameters
+- `GraphicConfig` node: the graphics state is now exposed directly on the
+  draw nodes (when supported) through the `blend_mode`, `depth_mode`,
+  `stencil_mode`, `cull_mode` and `color_write_mask` parameters, and the
+  scissor through the `Scissor` node.
 
 ## [2026.2 / libnopegl 0.14.0][2026.2] - 2026-05-25
 ### Fixed

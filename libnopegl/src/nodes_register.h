@@ -119,7 +119,6 @@
     action(NGL_NODE_TEXTUREFILL,            ngli_texturefill_class)             \
     action(NGL_NODE_GAUSSIANBLUR,           ngli_gblur_class)                   \
     action(NGL_NODE_GEOMETRY,               ngli_geometry_class)                \
-    action(NGL_NODE_GRAPHICCONFIG,          ngli_graphicconfig_class)           \
     action(NGL_NODE_GRIDLAYOUT,             ngli_gridlayout_class)              \
     action(NGL_NODE_GROUP,                  ngli_group_class)                   \
     action(NGL_NODE_GROUP2D,                ngli_group2d_class)                 \

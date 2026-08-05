@@ -95,7 +95,6 @@ enum class NGLNodeType(val type: Int) {
     GRADIENT4FILL(fourCharacters('G', '4', 'F', 'l')),
     GRADIENTFILL(fourCharacters('G', 'r', 'F', 'l')),
     GEOMETRY(fourCharacters('G', 'e', 'o', 'm')),
-    GRAPHICCONFIG(fourCharacters('G', 'r', 'C', 'f')),
     GRIDLAYOUT(fourCharacters('G', 'r', 'd', 'L')),
     GROUP(fourCharacters('G', 'r', 'p', ' ')),
     GROUP2D(fourCharacters('G', 'r', '2', 'D')),

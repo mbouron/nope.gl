@@ -40,7 +40,7 @@ def animated_camera(cfg: ngl.SceneCfg, rotate=True):
     media = load_media("mire")
     m = ngl.Media(media.filename)
     t = ngl.Texture2D(data_src=m)
-    node = ngl.DrawTexture(t, geometry=q)
+    node = ngl.DrawTexture(t, geometry=q, depth_mode="read_write")
     g.add_children(node)
 
     translate = ngl.Translate(node, vector=(-0.6, 0.8, -1))
@@ -55,7 +55,6 @@ def animated_camera(cfg: ngl.SceneCfg, rotate=True):
     translate = ngl.Translate(node, vector=(0.6, -0.5, -1))
     g.add_children(translate)
 
-    g = ngl.GraphicConfig(g, depth_test=True)
     camera = ngl.Camera(g)
     camera.set_eye(0, 0, 2)
     camera.set_center(0.0, 0.0, 0.0)

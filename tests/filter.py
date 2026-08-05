@@ -235,14 +235,9 @@ def filter_gamma_correct(cfg: ngl.SceneCfg, linear=True):
 
     # Screen blending so that working in linear space makes a significant
     # difference
-    blend = ngl.GraphicConfig(
-        ngl.Group(children=[dst, src]),
-        blend=True,
-        blend_src_factor="one",
-        blend_dst_factor="one_minus_src_color",
-        blend_src_factor_a="one",
-        blend_dst_factor_a="zero",
-    )
+    dst.set_blend_mode("screen")
+    src.set_blend_mode("screen")
+    blend = ngl.Group(children=[dst, src])
 
     # Intermediate RTT so that we can gamma correct the result
     tex = ngl.Texture2D(width=320, height=240, min_filter="nearest", mag_filter="nearest")

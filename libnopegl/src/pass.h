@@ -27,7 +27,7 @@
 
 #include <ngpu/ngpu.h>
 
-#include "blend_mode.h"
+#include "graphics_state.h"
 #include "utils/darray.h"
 
 struct ngl_ctx;
@@ -58,7 +58,7 @@ struct pass_params {
     struct ngpu_pgcraft_iovar *vert_out_vars;
     size_t nb_vert_out_vars;
     size_t nb_frag_output;
-    enum ngli_blend_mode blend_mode;
+    struct ngli_graphics_state_opts state;
 
     /* compute */
     const char *comp_base;
@@ -107,7 +107,6 @@ struct pass {
 
 int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params *params);
 int ngli_pass_prepare(struct pass *s,
-                      const struct ngpu_graphics_state *graphics_state,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
 void ngli_pass_uninit(struct pass *s);
 int ngli_pass_exec(struct pass *s);

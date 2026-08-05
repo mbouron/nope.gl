@@ -24,9 +24,9 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "blend_mode.h"
 #include "filterschain.h"
 #include "geometry.h"
+#include "graphics_state.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
@@ -159,7 +159,7 @@ struct drawgradient_opts {
     int mode;
     struct ngl_node *linear_node;
     int linear;
-    enum ngli_blend_mode blend_mode;
+    struct ngli_graphics_state_opts state;
     struct ngl_node *geometry;
     struct ngl_node **filters;
     size_t nb_filters;
@@ -221,9 +221,7 @@ static const struct node_param drawgradient_params[] = {
     {"linear",   NGLI_PARAM_TYPE_BOOL, OFFSET(linear_node), {.i32=1},
                  .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
                  .desc=NGLI_DOCSTRING("interpolate colors linearly")},
-    {"blend_mode", NGLI_PARAM_TYPE_SELECT, OFFSET(blend_mode),
-                 .choices=&ngli_blend_mode_choices,
-                 .desc=NGLI_DOCSTRING("define how this node is composited with the current framebuffer")},
+    NGLI_GRAPHICS_STATE_PARAMS(state),
     {"geometry", NGLI_PARAM_TYPE_NODE, OFFSET(geometry),
                  .node_types=GEOMETRY_TYPES_LIST,
                  .desc=NGLI_DOCSTRING("geometry to be rasterized")},
@@ -344,7 +342,6 @@ static int drawgradient_init(struct ngl_node *node)
 }
 
 static int drawgradient_prepare(struct ngl_node *node,
-                                const struct ngpu_graphics_state *graphics_state,
                                 const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -408,9 +405,9 @@ static int drawgradient_prepare(struct ngl_node *node,
     s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "vert_params", NGPU_PROGRAM_STAGE_VERT);
     s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
 
-    /* Apply blend mode */
-    struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blend_mode_apply(&state, o->blend_mode);
+    /* Apply the graphics state options */
+    struct ngpu_graphics_state state;
+    ret = ngli_graphics_state_init_from_opts(gpu_ctx, &state, &o->state);
     if (ret < 0)
         return ret;
 
@@ -561,12 +558,19 @@ static void drawgradient_uninit(struct ngl_node *node)
         ngli_geometry_freep(&s->geometry);
 }
 
+static uint32_t drawgradient_get_renderpass_usage(const struct ngl_node *node)
+{
+    const struct drawgradient_opts *o = node->opts;
+    return ngli_graphics_state_get_renderpass_usage(&o->state);
+}
+
 const struct node_class ngli_drawgradient_class = {
     .id        = NGL_NODE_DRAWGRADIENT,
     .category  = NGLI_NODE_CATEGORY_DRAW,
     .name      = "DrawGradient",
     .init      = drawgradient_init,
     .prepare   = drawgradient_prepare,
+    .get_renderpass_usage = drawgradient_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawgradient_draw,
     .uninit    = drawgradient_uninit,
@@ -599,7 +603,7 @@ struct drawgradient4_opts {
     float opacity_bl;
     struct ngl_node *linear_node;
     int linear;
-    enum ngli_blend_mode blend_mode;
+    struct ngli_graphics_state_opts state;
     struct ngl_node *geometry;
     struct ngl_node **filters;
     size_t nb_filters;
@@ -652,9 +656,7 @@ static const struct node_param drawgradient4_params[] = {
     {"linear",     NGLI_PARAM_TYPE_BOOL, OFFSET(linear_node), {.i32=1},
                    .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
                    .desc=NGLI_DOCSTRING("interpolate colors linearly")},
-    {"blend_mode",   NGLI_PARAM_TYPE_SELECT, OFFSET(blend_mode),
-                   .choices=&ngli_blend_mode_choices,
-                   .desc=NGLI_DOCSTRING("define how this node is composited with the current framebuffer")},
+    NGLI_GRAPHICS_STATE_PARAMS(state),
     {"geometry",   NGLI_PARAM_TYPE_NODE, OFFSET(geometry),
                    .node_types=GEOMETRY_TYPES_LIST,
                    .desc=NGLI_DOCSTRING("geometry to be rasterized")},
@@ -775,7 +777,6 @@ static int drawgradient4_init(struct ngl_node *node)
 }
 
 static int drawgradient4_prepare(struct ngl_node *node,
-                                 const struct ngpu_graphics_state *graphics_state,
                                  const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -843,9 +844,9 @@ static int drawgradient4_prepare(struct ngl_node *node,
     s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "vert_params", NGPU_PROGRAM_STAGE_VERT);
     s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
 
-    /* Apply blend mode */
-    struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blend_mode_apply(&state, o->blend_mode);
+    /* Apply the graphics state options */
+    struct ngpu_graphics_state state;
+    ret = ngli_graphics_state_init_from_opts(gpu_ctx, &state, &o->state);
     if (ret < 0)
         return ret;
 
@@ -999,12 +1000,19 @@ static void drawgradient4_uninit(struct ngl_node *node)
         ngli_geometry_freep(&s->geometry);
 }
 
+static uint32_t drawgradient4_get_renderpass_usage(const struct ngl_node *node)
+{
+    const struct drawgradient4_opts *o = node->opts;
+    return ngli_graphics_state_get_renderpass_usage(&o->state);
+}
+
 const struct node_class ngli_drawgradient4_class = {
     .id        = NGL_NODE_DRAWGRADIENT4,
     .category  = NGLI_NODE_CATEGORY_DRAW,
     .name      = "DrawGradient4",
     .init      = drawgradient4_init,
     .prepare   = drawgradient4_prepare,
+    .get_renderpass_usage = drawgradient4_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawgradient4_draw,
     .uninit    = drawgradient4_uninit,

@@ -65,12 +65,11 @@ def transform_animated_camera(cfg: ngl.SceneCfg):
 
     quad = ngl.Quad((-0.5, -0.5, 0), (1, 0, 0), (0, 1, 0))
     for color, vector in elems:
-        node = ngl.DrawColor(color, geometry=quad)
+        node = ngl.DrawColor(color, geometry=quad, depth_mode="read_write")
         if vector:
             node = ngl.Translate(node, vector=vector)
         g.add_children(node)
 
-    g = ngl.GraphicConfig(g, depth_test=True)
     camera = ngl.Camera(g)
     camera.set_eye(0, 0, 2)
     camera.set_center(0.0, 0.0, 0.0)
