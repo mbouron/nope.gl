@@ -108,8 +108,8 @@ foreach backend : backends
   endif
 
   tests_blending = [
-    # 'all_diamond',          # disabled: requires DAG (shared draw nodes)
-    # 'all_timed_diamond',    # disabled: requires DAG (shared draw nodes)
+    'all_diamond',
+    'all_timed_diamond',
     'none',
     'multiply',
     'screen',
