@@ -57,63 +57,53 @@ def _get_background_circles(circle, positions, bcolor):
     return blend_bg
 
 
-def _make_colored_circles(circle, positions):
+def _make_colored_circles(circle, positions, blending):
     colored_circles = ngl.Group(label="colored circles")
     for position, color in zip(positions, _CIRCLES_COLORS):
-        draw = ngl.DrawColor(color, geometry=circle)
+        draw = ngl.DrawColor(color, geometry=circle, blending=blending)
         draw = ngl.Translate(draw, position + (0.0,))
         colored_circles.add_children(draw)
     return colored_circles
 
 
-def _get_blending_scene_with_args(circle, positions, bname, bcolor, **bparams):
+def _get_blending_scene_with_args(circle, positions, bname, bcolor):
     g = ngl.Group(label=bname)
     if bcolor is not None:
         blend_bg = _get_background_circles(circle, positions, bcolor)
         blend_bg.set_label(f"background for {bname}")
         g.add_children(blend_bg)
-    blended_circles = ngl.GraphicConfig(_make_colored_circles(circle, positions), blend=True, **bparams)
+    blending = "default" if bname == "none" else bname
+    blended_circles = _make_colored_circles(circle, positions, blending)
     g.add_children(blended_circles)
     return g
 
 
-def _get_blending_scene(cfg: ngl.SceneCfg, bname, bcolor, **bparams):
+def _get_blending_scene(cfg: ngl.SceneCfg, bname, bcolor):
     circle = ngl.Circle(radius=_CIRCLE_RADIUS, npoints=100)
     positions = _equilateral_triangle_coords(_CIRCLE_RADIUS * 2.0 / 3.0)
-    return _get_blending_scene_with_args(circle, positions, bname, bcolor, **bparams)
+    return _get_blending_scene_with_args(circle, positions, bname, bcolor)
 
 
 _BLENDING_CFGS = (
-    ("none", None, dict()),
+    (
+        "none",
+        None,
+    ),
     (
         "multiply",
         COLORS.white,
-        dict(
-            blend_src_factor="dst_color",
-            blend_dst_factor="zero",
-        ),
     ),
     (
         "screen",
         COLORS.black,
-        dict(
-            blend_src_factor="one",
-            blend_dst_factor="one_minus_src_color",
-        ),
     ),
     (
         "darken",
         COLORS.white,
-        dict(
-            blend_op="min",
-        ),
     ),
     (
         "lighten",
         COLORS.black,
-        dict(
-            blend_op="max",
-        ),
     ),
 )
 _BLENDINGS = list(b[0] for b in _BLENDING_CFGS)
@@ -127,8 +117,8 @@ def _get_blending_scenes(cfg: ngl.SceneCfg):
     positions = _equilateral_triangle_coords(_CIRCLE_RADIUS * 2.0 / 3.0)
 
     scenes = []
-    for bname, bcolor, bparams in _BLENDING_CFGS:
-        scenes.append(_get_blending_scene_with_args(circle, positions, bname, bcolor, **bparams))
+    for bname, bcolor in _BLENDING_CFGS:
+        scenes.append(_get_blending_scene_with_args(circle, positions, bname, bcolor))
     return scenes
 
 
@@ -185,15 +175,15 @@ def blending_all_timed_diamond(cfg: ngl.SceneCfg, show_labels=True):
     return _debug_overlay(cfg, scene, _BLENDINGS, show_labels)
 
 
-def _get_blending_function(bname, bcolor, **bparams):
+def _get_blending_function(bname, bcolor):
     @test_render(**_TEST_SETTINGS)
     @ngl.scene(width=128, height=128, controls=dict(show_labels=ngl.scene.Bool()))
     def scene_func(cfg: ngl.SceneCfg, show_labels=True):
-        scene = _get_blending_scene(cfg, bname, bcolor, **bparams)
+        scene = _get_blending_scene(cfg, bname, bcolor)
         return _debug_overlay(cfg, scene, [bname], show_labels)
 
     return scene_func
 
 
-for bname, bcolor, bparams in _BLENDING_CFGS:
-    globals()["blending_" + bname] = _get_blending_function(bname, bcolor, **bparams)
+for bname, bcolor in _BLENDING_CFGS:
+    globals()["blending_" + bname] = _get_blending_function(bname, bcolor)
