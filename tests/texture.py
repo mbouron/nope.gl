@@ -310,7 +310,7 @@ def texture_cubemap_from_mrt_2_pass_msaa(cfg: ngl.SceneCfg):
 @ngl.scene(width=32, height=32)
 def texture_clear_and_scissor(cfg: ngl.SceneCfg):
     draw = ngl.DrawColor(COLORS.white)
-    graphic_config = ngl.GraphicConfig(draw, scissor=(0, 0, 0, 0), color_write_mask="")
+    graphic_config = ngl.GraphicConfig(ngl.Scissor(draw, rect=(0, 0, 0, 0)), color_write_mask="")
 
     texture = ngl.Texture2D(width=64, height=64, min_filter="nearest", mag_filter="nearest")
     rtt = ngl.RenderToTexture(ngl.Identity(), [texture], clear_color=COLORS.orange + (1,))
@@ -323,10 +323,10 @@ def texture_clear_and_scissor(cfg: ngl.SceneCfg):
 @ngl.scene(width=64, height=64)
 def texture_scissor(cfg: ngl.SceneCfg):
     draw = ngl.DrawColor(COLORS.orange)
-    graphic_config = ngl.GraphicConfig(draw, scissor=(32, 32, 32, 32))
+    scissor = ngl.Scissor(draw, rect=(0.5, 0.5, 0.5, 0.5))
 
     texture = ngl.Texture2D(width=64, height=64, min_filter="nearest", mag_filter="nearest")
-    rtt = ngl.RenderToTexture(graphic_config, [texture], clear_color=(0, 0, 0, 1))
+    rtt = ngl.RenderToTexture(scissor, [texture], clear_color=(0, 0, 0, 1))
     draw = ngl.DrawTexture(texture)
     return ngl.Group(children=[rtt, draw])
 
