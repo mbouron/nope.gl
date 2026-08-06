@@ -136,6 +136,7 @@ enum class NGLNodeType(val type: Int) {
     ROTATE(fourCharacters('T', 'R', 'o', 't')),
     ROTATEQUAT(fourCharacters('T', 'R', 'o', 'Q')),
     SCALE(fourCharacters('T', 's', 'c', 'l')),
+    SCISSOR(fourCharacters('S', 'c', 's', 'r')),
     SKEW(fourCharacters('T', 's', 'k', 'w')),
     SMOOTHPATH(fourCharacters('S', 'P', 't', 'h')),
     STROKE(fourCharacters('S', 't', 'r', 'k')),

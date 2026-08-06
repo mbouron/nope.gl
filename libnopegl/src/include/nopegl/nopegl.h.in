@@ -417,6 +417,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_ROTATE                 NGLI_FOURCC('T','R','o','t')
 #define NGL_NODE_ROTATEQUAT             NGLI_FOURCC('T','R','o','Q')
 #define NGL_NODE_SCALE                  NGLI_FOURCC('T','s','c','l')
+#define NGL_NODE_SCISSOR                NGLI_FOURCC('S','c','s','r')
 #define NGL_NODE_SKEW                   NGLI_FOURCC('T','s','k','w')
 #define NGL_NODE_SMOOTHPATH             NGLI_FOURCC('S','P','t','h')
 #define NGL_NODE_STREAMEDINT            NGLI_FOURCC('S','t','i','1')

@@ -163,6 +163,7 @@
     action(NGL_NODE_ROTATE,                 ngli_rotate_class)                  \
     action(NGL_NODE_ROTATEQUAT,             ngli_rotatequat_class)              \
     action(NGL_NODE_SCALE,                  ngli_scale_class)                   \
+    action(NGL_NODE_SCISSOR,                ngli_scissor_class)                 \
     action(NGL_NODE_SKEW,                   ngli_skew_class)                    \
     action(NGL_NODE_SMOOTHPATH,             ngli_smoothpath_class)              \
     action(NGL_NODE_TEXT,                   ngli_text_class)                    \

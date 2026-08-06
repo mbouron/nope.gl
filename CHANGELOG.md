@@ -17,6 +17,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   (GIF, WebP)
 - `add`, `multiply`, `screen`, `darken`, `lighten` and `subtract` artistic
   blending modes on all the nodes exposing a `blending` parameter
+- `Scissor` node to restrict the rendering of a scene to a rectangular area of
+  the framebuffer
 
 ### Changed
 - `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support
