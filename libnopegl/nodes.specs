@@ -362,6 +362,30 @@
       {
         "name": "xor",
         "desc": "exclusive or between this node and the destination"
+      },
+      {
+        "name": "add",
+        "desc": "add this node to destination"
+      },
+      {
+        "name": "multiply",
+        "desc": "multiply this node with destination"
+      },
+      {
+        "name": "screen",
+        "desc": "multiply the inverses of this node and destination"
+      },
+      {
+        "name": "darken",
+        "desc": "keep the darkest channels of this node and destination (the source coverage is ignored)"
+      },
+      {
+        "name": "lighten",
+        "desc": "keep the lightest channels of this node and destination (the source coverage is ignored)"
+      },
+      {
+        "name": "subtract",
+        "desc": "subtract this node from destination"
       }
     ],
     "gradient_mode": [

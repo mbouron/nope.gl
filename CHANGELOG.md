@@ -15,6 +15,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `DrawRect2D.clip_corner_radius` to support rounded clipping
 - `Media.loop` to enable looping during playback, useful for animated images
   (GIF, WebP)
+- `add`, `multiply`, `screen`, `darken`, `lighten` and `subtract` artistic
+  blending modes on all the nodes exposing a `blending` parameter
 
 ### Changed
 - `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support
