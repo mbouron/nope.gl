@@ -4666,6 +4666,24 @@
         }
       ]
     },
+    "Scissor": {
+      "file": "src/node_scissor.c",
+      "params": [
+        {
+          "name": "child",
+          "type": "node",
+          "flags": ["nonull"],
+          "desc": "scene to which the scissor will be applied"
+        },
+        {
+          "name": "rect",
+          "type": "vec4",
+          "default": [0.000000,0.000000,1.000000,1.000000],
+          "flags": ["live"],
+          "desc": "rectangular area (x, y, width, height) in normalized framebuffer coordinates where the rendering is restricted; all pixels outside are discarded (the default covers the whole framebuffer)"
+        }
+      ]
+    },
     "Skew": {
       "file": "src/node_skew.c",
       "params": [

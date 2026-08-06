@@ -238,6 +238,7 @@ lib_src = files(
   'src/node_rotatequat.c',
   'src/node_rtt.c',
   'src/node_scale.c',
+  'src/node_scissor.c',
   'src/node_skew.c',
   'src/node_smoothpath.c',
   'src/node_streamed.c',

@@ -160,6 +160,7 @@ fun nodeType(name: String): NGLNodeType? {
         "Rotate" -> NGLNodeType.ROTATE
         "RotateQuat" -> NGLNodeType.ROTATEQUAT
         "Scale" -> NGLNodeType.SCALE
+        "Scissor" -> NGLNodeType.SCISSOR
         "Skew" -> NGLNodeType.SKEW
         "SmoothPath" -> NGLNodeType.SMOOTHPATH
         "Stroke" -> NGLNodeType.STROKE
