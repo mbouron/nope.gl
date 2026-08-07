@@ -353,6 +353,15 @@ struct node_class {
                                    struct ngpu_graphics_state *child_graphics_state,
                                    struct ngpu_rendertarget_layout *child_rendertarget_layout);
 
+    /*
+     * Report which aspects (depth, stencil) of the render pass the node uses,
+     * as a bitmask of NGLI_RENDERPASS_USAGE_* flags. A node issuing multiple
+     * draws must report the union of the usages of its pipelines.
+     *
+     * dispatch: managed (through ngli_node_get_renderpass_info())
+     */
+    uint32_t (*get_renderpass_usage)(const struct ngl_node *node);
+
 
     /*******************************
      * Draw/update stage callbacks *
