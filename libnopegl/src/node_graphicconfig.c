@@ -27,6 +27,7 @@
 #include "log.h"
 #include <ngpu/ngpu.h>
 #include "node_graphicconfig.h"
+#include "node_rtt.h"
 #include "nopegl/nopegl.h"
 #include "utils/utils.h"
 
@@ -326,11 +327,25 @@ static void graphicconfig_draw(struct ngl_node *node)
         ctx->scissor = prev_scissor;
 }
 
+static uint32_t graphicconfig_get_renderpass_usage(const struct ngl_node *node)
+{
+    struct ngpu_graphics_state state = {0};
+    ngli_node_graphicconfig_get_state(node, &state);
+
+    uint32_t usage = 0;
+    if (state.depth_test)
+        usage |= NGLI_RENDERPASS_USAGE_DEPTH;
+    if (state.stencil_test)
+        usage |= NGLI_RENDERPASS_USAGE_STENCIL;
+    return usage;
+}
+
 const struct node_class ngli_graphicconfig_class = {
     .id        = NGL_NODE_GRAPHICCONFIG,
     .name      = "GraphicConfig",
     .init      = graphicconfig_init,
     .get_child_render_state = graphicconfig_get_child_render_state,
+    .get_renderpass_usage = graphicconfig_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .pre_draw  = ngli_node_pre_draw_children,
     .draw      = graphicconfig_draw,

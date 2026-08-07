@@ -213,10 +213,19 @@ enum {
     RENDER_PASS_STATE_STOPPED,
 };
 
+static uint32_t get_renderpass_usage(const struct ngl_node *node)
+{
+    if (!node->cls->get_renderpass_usage)
+        return 0;
+
+    return node->cls->get_renderpass_usage(node);
+}
+
 static int get_renderpass_info(const struct ngl_node *node, int state, struct renderpass_info *info)
 {
     for (size_t i = 0; i < node->children.count; i++) {
         const struct ngl_node *child = node->children.data[i];
+        info->usage |= get_renderpass_usage(child);
         if (child->cls->id == NGL_NODE_RENDERTOTEXTURE ||
             child->cls->id == NGL_NODE_COMPUTE) {
             if (state == RENDER_PASS_STATE_STARTED)
@@ -230,14 +239,6 @@ static int get_renderpass_info(const struct ngl_node *node, int state, struct re
             if (state == RENDER_PASS_STATE_STOPPED)
                 info->nb_interruptions++;
             state = RENDER_PASS_STATE_STARTED;
-        } else if (child->cls->id == NGL_NODE_GRAPHICCONFIG) {
-            struct ngpu_graphics_state graphics_state = {0};
-            ngli_node_graphicconfig_get_state(child, &graphics_state);
-            if (graphics_state.depth_test)
-                info->usage |= NGLI_RENDERPASS_USAGE_DEPTH;
-            if (graphics_state.stencil_test)
-                info->usage |= NGLI_RENDERPASS_USAGE_STENCIL;
-            state = get_renderpass_info(child, state, info);
         } else {
             state = get_renderpass_info(child, state, info);
         }
