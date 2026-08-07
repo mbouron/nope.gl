@@ -26,12 +26,12 @@
 
 struct ngl_node;
 
-#define NGLI_RENDERPASS_FEATURE_DEPTH   (1 << 0)
-#define NGLI_RENDERPASS_FEATURE_STENCIL (1 << 1)
+#define NGLI_RENDERPASS_USAGE_DEPTH   (1 << 0)
+#define NGLI_RENDERPASS_USAGE_STENCIL (1 << 1)
 
 struct renderpass_info {
     int nb_interruptions;
-    uint32_t features;
+    uint32_t usage;
 };
 
 void ngli_node_get_renderpass_info(const struct ngl_node *node, struct renderpass_info *info);

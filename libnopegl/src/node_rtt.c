@@ -197,9 +197,9 @@ static int rtt_init(struct ngl_node *node)
         s->layout.depth_stencil.resolve = o->samples > 1;
     } else {
         enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
-        if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_STENCIL)
+        if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
-        else if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_DEPTH)
+        else if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_DEPTH)
             depth_format = ngpu_ctx_get_preferred_depth_format(gpu_ctx);
         s->layout.depth_stencil.format = depth_format;
     }
@@ -234,9 +234,9 @@ static int get_renderpass_info(const struct ngl_node *node, int state, struct re
             struct ngpu_graphics_state graphics_state = {0};
             ngli_node_graphicconfig_get_state(child, &graphics_state);
             if (graphics_state.depth_test)
-                info->features |= NGLI_RENDERPASS_FEATURE_DEPTH;
+                info->usage |= NGLI_RENDERPASS_USAGE_DEPTH;
             if (graphics_state.stencil_test)
-                info->features |= NGLI_RENDERPASS_FEATURE_STENCIL;
+                info->usage |= NGLI_RENDERPASS_USAGE_STENCIL;
             state = get_renderpass_info(child, state, info);
         } else {
             state = get_renderpass_info(child, state, info);
@@ -311,9 +311,9 @@ static int rtt_prefetch(struct ngl_node *node)
         struct image *depth_image = &depth_texture_info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, depth_image->coordinates_matrix.m);
     } else {
-        if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_STENCIL)
+        if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
-        else if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_DEPTH)
+        else if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_DEPTH)
             depth_format = ngpu_ctx_get_preferred_depth_format(gpu_ctx);
         s->rtt_params.depth_stencil_format = depth_format;
     }

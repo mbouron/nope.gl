@@ -467,9 +467,9 @@ static int texture_prefetch(struct ngl_node *node)
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, i->image.coordinates_matrix.m);
 
         enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
-        if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_STENCIL)
+        if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
-        else if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_DEPTH)
+        else if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_DEPTH)
             depth_format = ngpu_ctx_get_preferred_depth_format(gpu_ctx);
 
         s->rtt_params = (struct rtt_params) {
@@ -756,9 +756,9 @@ static int texture2d_init(struct ngl_node *node)
         s->rendertarget_layout.nb_colors++;
 
         enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
-        if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_STENCIL)
+        if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
-        else if (s->renderpass_info.features & NGLI_RENDERPASS_FEATURE_DEPTH)
+        else if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_DEPTH)
             depth_format = ngpu_ctx_get_preferred_depth_format(gpu_ctx);
         s->rendertarget_layout.depth_stencil.format = depth_format;
     }
