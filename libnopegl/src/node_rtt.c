@@ -223,9 +223,10 @@ static uint32_t get_renderpass_usage(const struct ngl_node *node)
 
 static int get_renderpass_info(const struct ngl_node *node, int state, struct renderpass_info *info)
 {
+    info->usage |= get_renderpass_usage(node);
+
     for (size_t i = 0; i < node->children.count; i++) {
         const struct ngl_node *child = node->children.data[i];
-        info->usage |= get_renderpass_usage(child);
         if (child->cls->id == NGL_NODE_RENDERTOTEXTURE ||
             child->cls->id == NGL_NODE_COMPUTE) {
             if (state == RENDER_PASS_STATE_STARTED)
