@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2019-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -24,9 +25,9 @@
 
 #include <stdint.h>
 
+#include <ngpu/ngpu.h>
+
 #include "blend_mode.h"
-#include <ngpu/ngpu.h>
-#include <ngpu/ngpu.h>
 #include "utils/darray.h"
 
 struct ngl_ctx;
