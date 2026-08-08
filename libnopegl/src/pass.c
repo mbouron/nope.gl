@@ -485,20 +485,22 @@ int ngli_pass_prepare(struct pass *s,
     s->user_frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngl_frag", NGPU_PROGRAM_STAGE_FRAG);
     s->user_comp_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngl_comp", NGPU_PROGRAM_STAGE_COMP);
 
-    struct ngpu_graphics_state state;
-    ret = ngli_graphics_state_init_from_opts(gpu_ctx, &state, &s->params.state);
-    if (ret < 0)
-        return ret;
+    struct ngpu_graphics_state state = NGPU_GRAPHICS_STATE_DEFAULTS;
+    if (s->pipeline_type == NGPU_PIPELINE_TYPE_GRAPHICS) {
+        ret = ngli_graphics_state_init_from_opts(gpu_ctx, &state, &s->params.state);
+        if (ret < 0)
+            return ret;
 
-    const enum ngpu_format format = rendertarget_layout->depth_stencil.format;
-    if (state.depth_test && !ngpu_format_has_depth(format)) {
-        LOG(ERROR, "depth testing is not supported on rendertargets with no depth attachment");
-        return NGL_ERROR_INVALID_USAGE;
-    }
+        const enum ngpu_format format = rendertarget_layout->depth_stencil.format;
+        if (state.depth_test && !ngpu_format_has_depth(format)) {
+            LOG(ERROR, "depth testing is not supported on rendertargets with no depth attachment");
+            return NGL_ERROR_INVALID_USAGE;
+        }
 
-    if (state.stencil_test && !ngpu_format_has_stencil(format)) {
-        LOG(ERROR, "stencil operations are not supported on rendertargets with no stencil attachment");
-        return NGL_ERROR_INVALID_USAGE;
+        if (state.stencil_test && !ngpu_format_has_stencil(format)) {
+            LOG(ERROR, "stencil operations are not supported on rendertargets with no stencil attachment");
+            return NGL_ERROR_INVALID_USAGE;
+        }
     }
 
     struct pipeline_desc *desc = &s->pipeline_desc;
