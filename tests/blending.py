@@ -57,10 +57,10 @@ def _get_background_circles(circle, positions, bcolor):
     return blend_bg
 
 
-def _make_colored_circles(circle, positions, blending):
+def _make_colored_circles(circle, positions, blend_mode):
     colored_circles = ngl.Group(label="colored circles")
     for position, color in zip(positions, _CIRCLES_COLORS):
-        draw = ngl.DrawColor(color, geometry=circle, blending=blending)
+        draw = ngl.DrawColor(color, geometry=circle, blend_mode=blend_mode)
         draw = ngl.Translate(draw, position + (0.0,))
         colored_circles.add_children(draw)
     return colored_circles
@@ -72,8 +72,8 @@ def _get_blending_scene_with_args(circle, positions, bname, bcolor):
         blend_bg = _get_background_circles(circle, positions, bcolor)
         blend_bg.set_label(f"background for {bname}")
         g.add_children(blend_bg)
-    blending = "default" if bname == "none" else bname
-    blended_circles = _make_colored_circles(circle, positions, blending)
+    blend_mode = "default" if bname == "none" else bname
+    blended_circles = _make_colored_circles(circle, positions, blend_mode)
     g.add_children(blended_circles)
     return g
 

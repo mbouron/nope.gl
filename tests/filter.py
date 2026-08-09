@@ -94,7 +94,7 @@ def filter_colormap(cfg: ngl.SceneCfg):
         color_tr=(1, 1, 1),
         color_br=(1, 1, 1),
         linear=False,
-        blending="src_over",
+        blend_mode="src_over",
         filters=[
             ngl.FilterColorMap(
                 colorkeys=[

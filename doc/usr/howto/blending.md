@@ -1,4 +1,4 @@
-# Using blending modes
+# Using blend modes
 
 ```{nope} blending.fade
 :export_type: video

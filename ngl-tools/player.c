@@ -349,7 +349,7 @@ static int add_progress_bar(struct player *p, struct ngl_scene *scene)
     ngl_node_param_set_dict(draw, "frag_resources", "time",     time);
     ngl_node_param_set_dict(draw, "frag_resources", "duration", v_duration);
     ngl_node_param_set_dict(draw, "frag_resources", "opacity",  v_opacity);
-    ngl_node_param_set_select(draw, "blending", "src_over");
+    ngl_node_param_set_select(draw, "blend_mode", "src_over");
 
     ngl_node_param_add_nodes(group, "children", ARRAY_NB(children), children);
 

@@ -26,7 +26,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "blending.h"
+#include "blend_mode.h"
 #include "geometry.h"
 #include "image.h"
 #include "internal.h"
@@ -498,7 +498,7 @@ int ngli_pass_prepare(struct pass *s,
     }
 
     struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blending_apply_preset(&state, s->params.blending);
+    ret = ngli_blend_mode_apply(&state, s->params.blend_mode);
     if (ret < 0)
         return ret;
 

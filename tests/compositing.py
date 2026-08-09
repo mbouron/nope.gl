@@ -52,7 +52,7 @@ void main() {
 """
 
 
-def _get_compositing_scene(cfg: ngl.SceneCfg, op, show_label=False):
+def _get_compositing_scene(cfg: ngl.SceneCfg, blend_mode, show_label=False):
     cfg.duration = 6
 
     # We can not use a circle geometry because the whole areas must be
@@ -79,10 +79,10 @@ def _get_compositing_scene(cfg: ngl.SceneCfg, op, show_label=False):
     A = ngl.Draw(quad, prog, label="A")
     A.update_frag_resources(color=ngl.UniformVec3(value=COLORS.azure), off=A_off)
 
-    B = ngl.Draw(quad, prog, label="B", blending=op)
+    B = ngl.Draw(quad, prog, label="B", blend_mode=blend_mode)
     B.update_frag_resources(color=ngl.UniformVec3(value=COLORS.orange), off=B_off)
 
-    bg = ngl.DrawColor(blending="dst_over")
+    bg = ngl.DrawColor(blend_mode="dst_over")
 
     # draw A in current FBO, then draw B with the current operator, and
     # then result goes over the white background
@@ -92,7 +92,7 @@ def _get_compositing_scene(cfg: ngl.SceneCfg, op, show_label=False):
         label_h = 1 / 4
         label_pad = 0.1
         label = ngl.Text(
-            op,
+            blend_mode,
             fg_color=COLORS.black,
             bg_color=(0.8, 0.8, 0.8),
             bg_opacity=1,

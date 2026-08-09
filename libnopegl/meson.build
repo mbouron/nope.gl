@@ -168,7 +168,7 @@ lib_src = files(
   'src/animation.c',
   'src/api.c',
   'src/atlas.c',
-  'src/blending.c',
+  'src/blend_mode.c',
   'src/colorconv.c',
   'src/deserialize.c',
   'src/distmap.c',

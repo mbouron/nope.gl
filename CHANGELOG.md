@@ -26,6 +26,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `NGLAndroidCanvas` is now resizable
 - Graphics state is now reset by nodes owning a render pass (`RenderToTexture`,
   `Effect2D`, `OffscreenCanvas2D`, `Texture2D`)
+- `blending` renamed to `blend_mode`
 
 ### Removed
 - `Stroke*.dash*` parameters

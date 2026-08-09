@@ -322,7 +322,7 @@
         "desc": "linear filtering"
       }
     ],
-    "blend_preset": [
+    "blend_mode": [
       {
         "name": "default",
         "desc": "unchanged current graphics state"
@@ -2021,12 +2021,12 @@
           "desc": "number of instances to draw"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blended together"
+          "desc": "define how this node is composited with the current framebuffer"
         }
       ]
     },
@@ -2048,12 +2048,12 @@
           "desc": "opacity of the color"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2089,12 +2089,12 @@
           "desc": "displacement vectors stored in a texture"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2173,12 +2173,12 @@
           "desc": "interpolate colors linearly"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2263,12 +2263,12 @@
           "desc": "interpolate colors linearly"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2305,12 +2305,12 @@
           "desc": "define how to represent the data"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2353,12 +2353,12 @@
           "desc": "whether to dig into or keep"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2437,12 +2437,12 @@
           "desc": "evolution of the 3rd non-spatial dimension, time if unspecified"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2575,12 +2575,12 @@
           "desc": "texture wrap behaviour"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2617,12 +2617,12 @@
           "desc": "define how to represent the data"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "default",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "geometry",
@@ -2943,12 +2943,12 @@
           "desc": "whether the rectangle is visible"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "src_over",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "define how this node and the current frame buffer are blending together"
+          "desc": "define how this node is composited with the current framebuffer"
         },
         {
           "name": "clip_rect",
@@ -3066,12 +3066,12 @@
           "desc": "whether the effect and its children are visible"
         },
         {
-          "name": "blending",
+          "name": "blend_mode",
           "type": "select",
           "default": "src_over",
-          "choices": "blend_preset",
+          "choices": "blend_mode",
           "flags": [],
-          "desc": "blending mode for the final composite"
+          "desc": "define how the rendered effect is composited with the current framebuffer"
         }
       ]
     },

@@ -23,7 +23,7 @@
 #define NODE2D_H
 
 #include "aabb.h"
-#include "blending.h"
+#include "blend_mode.h"
 #include "utils/utils.h"
 
 struct ngl_node;
@@ -45,7 +45,7 @@ struct ngli_node2d_opts {
     struct ngl_node *opacity_node;
     float opacity;
     int visible;
-    enum ngli_blending blending;
+    enum ngli_blend_mode blend_mode;
 };
 
 /*

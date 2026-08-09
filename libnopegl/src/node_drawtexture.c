@@ -24,7 +24,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "blending.h"
+#include "blend_mode.h"
 #include "filterschain.h"
 #include "geometry.h"
 #include "internal.h"
@@ -97,7 +97,7 @@ const struct param_choices texture_wrap_choices = {
 struct drawtexture_opts {
     struct ngl_node *texture_node;
     int wrap;
-    enum ngli_blending blending;
+    enum ngli_blend_mode blend_mode;
     struct ngl_node *geometry;
     struct ngl_node **filters;
     size_t nb_filters;
@@ -154,9 +154,9 @@ static const struct node_param drawtexture_params[] = {
     {"wrap",     NGLI_PARAM_TYPE_SELECT, OFFSET(wrap),
                  .choices=&texture_wrap_choices,
                  .desc=NGLI_DOCSTRING("texture wrap behaviour")},
-    {"blending", NGLI_PARAM_TYPE_SELECT, OFFSET(blending),
-                 .choices=&ngli_blending_choices,
-                 .desc=NGLI_DOCSTRING("define how this node and the current frame buffer are blending together")},
+    {"blend_mode", NGLI_PARAM_TYPE_SELECT, OFFSET(blend_mode),
+                 .choices=&ngli_blend_mode_choices,
+                 .desc=NGLI_DOCSTRING("define how this node is composited with the current framebuffer")},
     {"geometry", NGLI_PARAM_TYPE_NODE, OFFSET(geometry),
                  .node_types=GEOMETRY_TYPES_LIST,
                  .desc=NGLI_DOCSTRING("geometry to be rasterized")},
@@ -360,7 +360,7 @@ static int drawtexture_prepare(struct ngl_node *node,
     s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
 
     struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blending_apply_preset(&state, o->blending);
+    ret = ngli_blend_mode_apply(&state, o->blend_mode);
     if (ret < 0)
         return ret;
 

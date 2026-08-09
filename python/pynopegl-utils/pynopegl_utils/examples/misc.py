@@ -124,7 +124,7 @@ def particles(cfg: ngl.SceneCfg, particles=32):
         fragment=fragment_shader,
     )
     p.update_vert_out_vars(var_uvcoord=ngl.IOVec2(), var_tex0_coord=ngl.IOVec2())
-    r = ngl.Draw(quad, p, nb_instances=particles, blending="src_over")
+    r = ngl.Draw(quad, p, nb_instances=particles, blend_mode="src_over")
     r.update_frag_resources(color=ngl.UniformVec3(value=(0, 0.6, 0.8)), opacity=ngl.UniformFloat(0.9))
     r.update_vert_resources(positions=opositions)
 
@@ -180,7 +180,7 @@ def blending_and_stencil(cfg: ngl.SceneCfg):
     ]
 
     for center in centers:
-        draw = ngl.Draw(circle, program, blending="src_over")
+        draw = ngl.Draw(circle, program, blend_mode="src_over")
         draw.update_frag_resources(color=cloud_color, opacity=cloud_opacity)
 
         factor = cfg.rng.random() * 0.4 + center[2]
@@ -381,7 +381,7 @@ def mountain(cfg: ngl.SceneCfg, ndim=3, nb_layers=7, ref_color=(0.5, 0.75, 0.75)
         ]
         uyoffset = ngl.AnimatedFloat(uyoffset_animkf)
 
-        draw = ngl.Draw(quad, prog, blending="src_over")
+        draw = ngl.Draw(quad, prog, blend_mode="src_over")
         draw.update_frag_resources(tex0=random_tex)
         draw.update_frag_resources(dim=ngl.UniformInt(random_dim))
         draw.update_frag_resources(nb_layers=ngl.UniformInt(nb_layers))

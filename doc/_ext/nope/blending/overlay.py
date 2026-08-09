@@ -14,7 +14,7 @@ def overlay(cfg: ngl.SceneCfg):
 
     fg_tex = ngl.Texture2D(data_src=ngl.Media(overlay.filename))
     fg = ngl.DrawTexture(fg_tex)
-    fg.set_blending("src_over")
+    fg.set_blend_mode("src_over")
 
     fg.add_filters(
         # A PNG is usually not premultiplied, but the blending operator expects

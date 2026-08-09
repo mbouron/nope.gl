@@ -92,7 +92,7 @@ def _get_easing_node(cfg: ngl.SceneCfg, easing, curve_zoom, color_program, nb_po
     hline_data = array.array("f", (0, 0, 0, graph_size, 0, 0))
     hline_vertices = ngl.BufferVec3(data=hline_data)
     hline_geometry = ngl.Geometry(hline_vertices, topology="line_strip")
-    hline = ngl.Draw(hline_geometry, color_program, blending="src_over", label="%s value line" % easing)
+    hline = ngl.Draw(hline_geometry, color_program, blend_mode="src_over", label="%s value line" % easing)
     hline.update_frag_resources(color=line_ucolor, opacity=ngl.UniformFloat(0.4))
 
     # Value animation (cursor + h-line)
@@ -109,7 +109,7 @@ def _get_easing_node(cfg: ngl.SceneCfg, easing, curve_zoom, color_program, nb_po
     vline_data = array.array("f", (0, 0, 0, 0, graph_size, 0))
     vline_vertices = ngl.BufferVec3(data=vline_data)
     vline_geometry = ngl.Geometry(vline_vertices, topology="line_strip")
-    vline = ngl.Draw(vline_geometry, color_program, blending="src_over", label="%s time line" % easing)
+    vline = ngl.Draw(vline_geometry, color_program, blend_mode="src_over", label="%s time line" % easing)
     vline.update_frag_resources(color=line_ucolor, opacity=ngl.UniformFloat(0.4))
 
     # Time animation (v-line only)

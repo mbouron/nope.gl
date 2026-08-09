@@ -19,32 +19,32 @@
  * under the License.
  */
 
-#ifndef BLENDING_H
-#define BLENDING_H
+#ifndef BLEND_MODE_H
+#define BLEND_MODE_H
 
 #include <ngpu/ngpu.h>
 
-enum ngli_blending {
-    NGLI_BLENDING_DEFAULT,
-    NGLI_BLENDING_SRC_OVER,
-    NGLI_BLENDING_DST_OVER,
-    NGLI_BLENDING_SRC_OUT,
-    NGLI_BLENDING_DST_OUT,
-    NGLI_BLENDING_SRC_IN,
-    NGLI_BLENDING_DST_IN,
-    NGLI_BLENDING_SRC_ATOP,
-    NGLI_BLENDING_DST_ATOP,
-    NGLI_BLENDING_XOR,
-    NGLI_BLENDING_ADD,
-    NGLI_BLENDING_MULTIPLY,
-    NGLI_BLENDING_SCREEN,
-    NGLI_BLENDING_DARKEN,
-    NGLI_BLENDING_LIGHTEN,
-    NGLI_BLENDING_SUBTRACT,
-    NGLI_BLENDING_MAX_ENUM = 0x7FFFFFFF
+enum ngli_blend_mode {
+    NGLI_BLEND_MODE_DEFAULT,
+    NGLI_BLEND_MODE_SRC_OVER,
+    NGLI_BLEND_MODE_DST_OVER,
+    NGLI_BLEND_MODE_SRC_OUT,
+    NGLI_BLEND_MODE_DST_OUT,
+    NGLI_BLEND_MODE_SRC_IN,
+    NGLI_BLEND_MODE_DST_IN,
+    NGLI_BLEND_MODE_SRC_ATOP,
+    NGLI_BLEND_MODE_DST_ATOP,
+    NGLI_BLEND_MODE_XOR,
+    NGLI_BLEND_MODE_ADD,
+    NGLI_BLEND_MODE_MULTIPLY,
+    NGLI_BLEND_MODE_SCREEN,
+    NGLI_BLEND_MODE_DARKEN,
+    NGLI_BLEND_MODE_LIGHTEN,
+    NGLI_BLEND_MODE_SUBTRACT,
+    NGLI_BLEND_MODE_MAX_ENUM = 0x7FFFFFFF
 };
 
-extern const struct param_choices ngli_blending_choices;
-int ngli_blending_apply_preset(struct ngpu_graphics_state *state, enum ngli_blending preset);
+extern const struct param_choices ngli_blend_mode_choices;
+int ngli_blend_mode_apply(struct ngpu_graphics_state *state, enum ngli_blend_mode mode);
 
 #endif
