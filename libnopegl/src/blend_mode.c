@@ -94,13 +94,16 @@ int ngli_blend_mode_apply(struct ngpu_graphics_state *state, enum ngli_blend_mod
     state->blend_op_a         = op;
 
     /*
-     * Taking the min/max of the premultiplied alphas would shrink or expand
-     * the destination coverage instead of accumulating it, so the alpha
-     * channel keeps compositing src_over. For fully opaque sources (the only
-     * content these modes are exact for), this yields an alpha of 1, exactly
-     * like the hand-built min/max recipe (blend_op=min/max with the default
-     * one/zero blend factors) which replaces the destination alpha with the
-     * source one.
+     * MIN/MAX ignore blend factors, so use them only for RGB. Keep alpha
+     * source-over to preserve accumulated coverage:
+     *
+     *     A_out = A_s + A_d * (1 - A_s)
+     *
+     * For an opaque source, this produces alpha 1, matching a configuration
+     * that sets only the RGB blend operation to MIN/MAX and leaves alpha at
+     * its default replace operation. With translucent content, RGB is the
+     * MIN/MAX of premultiplied colors, not a fully general darken/lighten
+     * compositing model.
      */
     if (op == NGPU_BLEND_OP_MIN || op == NGPU_BLEND_OP_MAX) {
         state->blend_src_factor_a = NGPU_BLEND_FACTOR_ONE;
