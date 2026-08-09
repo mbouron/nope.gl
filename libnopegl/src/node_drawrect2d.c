@@ -24,7 +24,7 @@
 #include <string.h>
 
 #include "aabb.h"
-#include "blending.h"
+#include "blend_mode.h"
 #include "geometry.h"
 #include "internal.h"
 #include "node2d.h"
@@ -340,12 +340,12 @@ static const struct node_param drawrect2d_params[] = {
         .desc      = NGLI_DOCSTRING("whether the rectangle is visible"),
     },
     {
-        .key       = "blending",
+        .key       = "blend_mode",
         .type      = NGLI_PARAM_TYPE_SELECT,
-        .offset    = OFFSET(node2d.blending),
-        .def_value = {.i32 = NGLI_BLENDING_SRC_OVER},
-        .choices   = &ngli_blending_choices,
-        .desc      = NGLI_DOCSTRING("define how this node and the current frame buffer are blending together"),
+        .offset    = OFFSET(node2d.blend_mode),
+        .def_value = {.i32 = NGLI_BLEND_MODE_SRC_OVER},
+        .choices   = &ngli_blend_mode_choices,
+        .desc      = NGLI_DOCSTRING("define how this node is composited with the current framebuffer"),
     },
     {
         .key    = "clip_rect",
@@ -805,7 +805,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
     struct ngpu_graphics_state state = *graphics_state;
-    int ret = ngli_blending_apply_preset(&state, o->node2d.blending);
+    int ret = ngli_blend_mode_apply(&state, o->node2d.blend_mode);
     if (ret < 0)
         return ret;
 

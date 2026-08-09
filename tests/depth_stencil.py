@@ -26,7 +26,7 @@ from pynopegl_utils.toolbox.colors import COLORS
 
 def _draw_quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 2, 0), color=(1, 1, 1), opacity=1.0):
     quad = ngl.Quad(corner, width, height)
-    return ngl.DrawColor(color, opacity=opacity, geometry=quad, blending="src_over")
+    return ngl.DrawColor(color, opacity=opacity, geometry=quad, blend_mode="src_over")
 
 
 @test_render(keyframes=2, tolerance=1)

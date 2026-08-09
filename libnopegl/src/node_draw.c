@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "blending.h"
+#include "blend_mode.h"
 #include "geometry.h"
 #include "internal.h"
 #include "log.h"
@@ -45,7 +45,7 @@ struct draw_opts {
     struct hmap *attributes;
     struct hmap *instance_attributes;
     int32_t nb_instances;
-    enum ngli_blending blending;
+    enum ngli_blend_mode blend_mode;
 };
 
 struct draw_priv {
@@ -164,9 +164,9 @@ static const struct node_param render_params[] = {
                  .desc=NGLI_DOCSTRING("per instance extra vertex attributes made accessible to the `program`")},
     {"nb_instances", NGLI_PARAM_TYPE_I32, OFFSET(nb_instances), {.i32 = 1},
                  .desc=NGLI_DOCSTRING("number of instances to draw")},
-    {"blending", NGLI_PARAM_TYPE_SELECT, OFFSET(blending),
-                 .choices=&ngli_blending_choices,
-                 .desc=NGLI_DOCSTRING("define how this node and the current frame buffer are blended together")},
+    {"blend_mode", NGLI_PARAM_TYPE_SELECT, OFFSET(blend_mode),
+                 .choices=&ngli_blend_mode_choices,
+                 .desc=NGLI_DOCSTRING("define how this node is composited with the current framebuffer")},
     {NULL}
 };
 
@@ -262,7 +262,7 @@ static int render_init(struct ngl_node *node)
         .vert_out_vars = program_priv->vert_out_vars_array.data,
         .nb_vert_out_vars = program_priv->vert_out_vars_array.count,
         .nb_frag_output = program_opts->nb_frag_output,
-        .blending = o->blending,
+        .blend_mode = o->blend_mode,
     };
     return ngli_pass_init(&s->pass, ctx, &params);
 }

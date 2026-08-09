@@ -15,7 +15,7 @@ def fade(cfg: ngl.SceneCfg):
 
     fg_tex = ngl.Texture2D(data_src=ngl.Media(image1.filename))
     fg = ngl.DrawTexture(fg_tex)
-    fg.set_blending("src_over")
+    fg.set_blend_mode("src_over")
 
     animkf = [
         ngl.AnimKeyFrameFloat(0, 0),

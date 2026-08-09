@@ -24,7 +24,7 @@
 #include <string.h>
 
 #include "aabb.h"
-#include "blending.h"
+#include "blend_mode.h"
 #include "geometry.h"
 #include "image.h"
 #include "internal.h"
@@ -239,12 +239,12 @@ static const struct node_param effect2d_params[] = {
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc      = NGLI_DOCSTRING("whether the effect and its children are visible"),
     }, {
-        .key       = "blending",
+        .key       = "blend_mode",
         .type      = NGLI_PARAM_TYPE_SELECT,
-        .offset    = OFFSET(node2d.blending),
-        .def_value = {.i32=NGLI_BLENDING_SRC_OVER},
-        .choices   = &ngli_blending_choices,
-        .desc      = NGLI_DOCSTRING("blending mode for the final composite"),
+        .offset    = OFFSET(node2d.blend_mode),
+        .def_value = {.i32=NGLI_BLEND_MODE_SRC_OVER},
+        .choices   = &ngli_blend_mode_choices,
+        .desc      = NGLI_DOCSTRING("define how the rendered effect is composited with the current framebuffer"),
     },
     {NULL}
 };
@@ -569,9 +569,9 @@ static int effect2d_prepare(struct ngl_node *node,
     if (has_user_uniforms)
         s->user_block_index = ngpu_pgcraft_get_block_index(s->crafter, "user_params", NGPU_PROGRAM_STAGE_FRAG);
 
-    /* Apply blending preset */
+    /* Apply blend mode */
     struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blending_apply_preset(&state, o->node2d.blending);
+    ret = ngli_blend_mode_apply(&state, o->node2d.blend_mode);
     if (ret < 0)
         return ret;
 

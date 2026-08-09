@@ -689,7 +689,7 @@ def texture_masking(cfg: ngl.SceneCfg):
                         anchor=(0, -0.09, 0),
                     ),
                 ),
-                blending="src_over",
+                blend_mode="src_over",
             ),
         ]
     )

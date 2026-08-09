@@ -24,7 +24,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "blending.h"
+#include "blend_mode.h"
 #include "filterschain.h"
 #include "geometry.h"
 #include "internal.h"
@@ -85,7 +85,7 @@ struct drawmask_opts {
     struct ngl_node *content;
     struct ngl_node *mask;
     int inverted;
-    enum ngli_blending blending;
+    enum ngli_blend_mode blend_mode;
     struct ngl_node *geometry;
     struct ngl_node **filters;
     size_t nb_filters;
@@ -146,9 +146,9 @@ static const struct node_param drawmask_params[] = {
                  .desc=NGLI_DOCSTRING("texture serving as mask (only the red channel is used)")},
     {"inverted",  NGLI_PARAM_TYPE_BOOL, OFFSET(inverted),
                  .desc=NGLI_DOCSTRING("whether to dig into or keep")},
-    {"blending", NGLI_PARAM_TYPE_SELECT, OFFSET(blending),
-                 .choices=&ngli_blending_choices,
-                 .desc=NGLI_DOCSTRING("define how this node and the current frame buffer are blending together")},
+    {"blend_mode", NGLI_PARAM_TYPE_SELECT, OFFSET(blend_mode),
+                 .choices=&ngli_blend_mode_choices,
+                 .desc=NGLI_DOCSTRING("define how this node is composited with the current framebuffer")},
     {"geometry", NGLI_PARAM_TYPE_NODE, OFFSET(geometry),
                  .node_types=GEOMETRY_TYPES_LIST,
                  .desc=NGLI_DOCSTRING("geometry to be rasterized")},
@@ -364,9 +364,9 @@ static int drawmask_prepare(struct ngl_node *node,
     s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "vert_params", NGPU_PROGRAM_STAGE_VERT);
     s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "frag_params", NGPU_PROGRAM_STAGE_FRAG);
 
-    /* Apply blending preset */
+    /* Apply blend mode */
     struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blending_apply_preset(&state, o->blending);
+    ret = ngli_blend_mode_apply(&state, o->blend_mode);
     if (ret < 0)
         return ret;
 

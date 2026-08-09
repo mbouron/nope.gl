@@ -23,7 +23,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "blending.h"
+#include "blend_mode.h"
 #include "box.h"
 #include "distmap.h"
 #include "internal.h"
@@ -305,7 +305,7 @@ static int drawpath_prepare(struct ngl_node *node,
     struct pipeline_desc *desc = &s->pipeline_desc;
 
     struct ngpu_graphics_state state = *graphics_state;
-    ret = ngli_blending_apply_preset(&state, NGLI_BLENDING_SRC_OVER);
+    ret = ngli_blend_mode_apply(&state, NGLI_BLEND_MODE_SRC_OVER);
     if (ret < 0)
         return ret;
 
