@@ -491,16 +491,9 @@ int ngli_pass_prepare(struct pass *s,
         if (ret < 0)
             return ret;
 
-        const enum ngpu_format format = rendertarget_layout->depth_stencil.format;
-        if (state.depth_test && !ngpu_format_has_depth(format)) {
-            LOG(ERROR, "depth testing is not supported on rendertargets with no depth attachment");
-            return NGL_ERROR_INVALID_USAGE;
-        }
-
-        if (state.stencil_test && !ngpu_format_has_stencil(format)) {
-            LOG(ERROR, "stencil operations are not supported on rendertargets with no stencil attachment");
-            return NGL_ERROR_INVALID_USAGE;
-        }
+        ret = ngli_graphics_state_check_rendertarget_layout(&state, rendertarget_layout);
+        if (ret < 0)
+            return ret;
     }
 
     struct pipeline_desc *desc = &s->pipeline_desc;

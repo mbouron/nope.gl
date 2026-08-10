@@ -335,6 +335,10 @@ static int drawhistogram_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
+    ret = ngli_graphics_state_check_rendertarget_layout(&state, rendertarget_layout);
+    if (ret < 0)
+        return ret;
+
     /* Create and init pipeline */
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)

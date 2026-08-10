@@ -21,6 +21,7 @@
 
 #include "nopegl/nopegl.h"
 #include "graphics_state.h"
+#include "log.h"
 #include "params.h"
 #include "renderpass.h"
 
@@ -160,6 +161,24 @@ int ngli_graphics_state_init_from_opts(struct ngpu_ctx *gpu_ctx,
     state->cull_mode = ngpu_ctx_get_cull_mode(gpu_ctx, opts->cull_mode);
 
     state->color_write_mask = (uint32_t)opts->color_write_mask;
+
+    return 0;
+}
+
+int ngli_graphics_state_check_rendertarget_layout(const struct ngpu_graphics_state *state,
+                                                  const struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    const enum ngpu_format format = rendertarget_layout->depth_stencil.format;
+
+    if (state->depth_test && !ngpu_format_has_depth(format)) {
+        LOG(ERROR, "depth testing is not supported on rendertargets with no depth attachment");
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (state->stencil_test && !ngpu_format_has_stencil(format)) {
+        LOG(ERROR, "stencil operations are not supported on rendertargets with no stencil attachment");
+        return NGL_ERROR_INVALID_USAGE;
+    }
 
     return 0;
 }

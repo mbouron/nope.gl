@@ -411,6 +411,10 @@ static int drawgradient_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
+    ret = ngli_graphics_state_check_rendertarget_layout(&state, rendertarget_layout);
+    if (ret < 0)
+        return ret;
+
     /* Create and init pipeline */
     desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
     if (!desc->pipeline_compat)
@@ -847,6 +851,10 @@ static int drawgradient4_prepare(struct ngl_node *node,
     /* Apply the graphics state options */
     struct ngpu_graphics_state state;
     ret = ngli_graphics_state_init_from_opts(gpu_ctx, &state, &o->state);
+    if (ret < 0)
+        return ret;
+
+    ret = ngli_graphics_state_check_rendertarget_layout(&state, rendertarget_layout);
     if (ret < 0)
         return ret;
 
