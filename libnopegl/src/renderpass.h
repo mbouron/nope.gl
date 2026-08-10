@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,8 +19,8 @@
  * under the License.
  */
 
-#ifndef NODE_RENDERTOTEXTURE_H
-#define NODE_RENDERTOTEXTURE_H
+#ifndef RENDERPASS_H
+#define RENDERPASS_H
 
 #include <stdint.h>
 
