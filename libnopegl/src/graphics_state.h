@@ -97,6 +97,9 @@ int ngli_graphics_state_init_from_opts(struct ngpu_ctx *gpu_ctx,
                                        struct ngpu_graphics_state *state,
                                        const struct ngli_graphics_state_opts *opts);
 
+int ngli_graphics_state_check_rendertarget_layout(const struct ngpu_graphics_state *state,
+                                                  const struct ngpu_rendertarget_layout *rendertarget_layout);
+
 uint32_t ngli_graphics_state_get_renderpass_usage(const struct ngli_graphics_state_opts *opts);
 
 #endif
