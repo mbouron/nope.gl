@@ -23,9 +23,10 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <ngpu/ngpu.h>
+
 #include "internal.h"
 #include "log.h"
-#include <ngpu/ngpu.h>
 #include "node_graphicconfig.h"
 #include "nopegl/nopegl.h"
 #include "renderpass.h"
