@@ -30,10 +30,10 @@
 #include "log.h"
 #include <ngpu/ngpu.h>
 #include "node_graphicconfig.h"
-#include "node_rtt.h"
 #include "node_texture.h"
 #include "node_textureview.h"
 #include "nopegl/nopegl.h"
+#include "renderpass.h"
 #include "rtt.h"
 #include "utils/utils.h"
 
@@ -205,51 +205,6 @@ static int rtt_init(struct ngl_node *node)
     }
 
     return 0;
-}
-
-enum {
-    RENDER_PASS_STATE_NONE,
-    RENDER_PASS_STATE_STARTED,
-    RENDER_PASS_STATE_STOPPED,
-};
-
-static uint32_t get_renderpass_usage(const struct ngl_node *node)
-{
-    if (!node->cls->get_renderpass_usage)
-        return 0;
-
-    return node->cls->get_renderpass_usage(node);
-}
-
-static int get_renderpass_info(const struct ngl_node *node, int state, struct renderpass_info *info)
-{
-    info->usage |= get_renderpass_usage(node);
-
-    for (size_t i = 0; i < node->children.count; i++) {
-        const struct ngl_node *child = node->children.data[i];
-        if (child->cls->id == NGL_NODE_RENDERTOTEXTURE ||
-            child->cls->id == NGL_NODE_COMPUTE) {
-            if (state == RENDER_PASS_STATE_STARTED)
-                state = RENDER_PASS_STATE_STOPPED;
-        } else if (child->cls->id == NGL_NODE_TEXTURE2D) {
-            struct texture_info *texture_info = child->priv_data;
-            if (texture_info->rtt && state == RENDER_PASS_STATE_STARTED)
-                state = RENDER_PASS_STATE_STOPPED;
-        } else if (child->cls->category == NGLI_NODE_CATEGORY_DRAW) {
-            state = get_renderpass_info(child, state, info);
-            if (state == RENDER_PASS_STATE_STOPPED)
-                info->nb_interruptions++;
-            state = RENDER_PASS_STATE_STARTED;
-        } else {
-            state = get_renderpass_info(child, state, info);
-        }
-    }
-    return state;
-}
-
-void ngli_node_get_renderpass_info(const struct ngl_node *node, struct renderpass_info *info)
-{
-    get_renderpass_info(node, RENDER_PASS_STATE_NONE, info);
 }
 
 static void rtt_get_child_render_state(const struct ngl_node *node,

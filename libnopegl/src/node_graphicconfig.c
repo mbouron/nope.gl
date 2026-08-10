@@ -27,8 +27,8 @@
 #include "log.h"
 #include <ngpu/ngpu.h>
 #include "node_graphicconfig.h"
-#include "node_rtt.h"
 #include "nopegl/nopegl.h"
+#include "renderpass.h"
 #include "utils/utils.h"
 
 struct graphicconfig_opts {
