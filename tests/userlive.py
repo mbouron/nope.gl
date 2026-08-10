@@ -57,14 +57,22 @@ def _get_userlive_switch_func():
     return scene_func
 
 
-def _make_translated_quad(translate):
-    return ngl.Translate(
+def _make_translated_quad(translate, color=COLORS.white):
+    quad = ngl.Translate(
         ngl.DrawColor(
-            COLORS.white,
+            color,
             opacity=0.5,
             geometry=ngl.Quad(),
         ),
         vector=translate,
+    )
+    return ngl.GraphicConfig(
+        quad,
+        blend=True,
+        blend_src_factor="one",
+        blend_dst_factor="one_minus_src_alpha",
+        blend_src_factor_a="one",
+        blend_dst_factor_a="one_minus_src_alpha",
     )
 
 
@@ -72,33 +80,18 @@ def _get_userlive_select_func():
     below = (0.5 - 2 / 3, 0.5 - 1 / 3, 0)
     above = (0.5 - 1 / 3, 0.5 - 2 / 3, 0)
 
-    # Additive blending (for premultiplied values): lighten
-    gc0 = ngl.GraphicConfig(
-        _make_translated_quad(above),
-        blend=True,
-        blend_src_factor="one",
-        blend_dst_factor="one",
-        blend_src_factor_a="one",
-        blend_dst_factor_a="one",
+    # Select has 3 branches, each with a distinct color
+    select = ngl.UserSelect(
+        branches=[
+            _make_translated_quad(above),
+            _make_translated_quad(above, COLORS.red),
+            _make_translated_quad(above, COLORS.azure),
+        ]
     )
-
-    # Multiply blending (for premultiplied values): darken
-    gc1 = ngl.GraphicConfig(
-        _make_translated_quad(above),
-        blend=True,
-        blend_src_factor="zero",
-        blend_dst_factor="src_color",
-        blend_src_factor_a="zero",
-        blend_dst_factor_a="src_alpha",
-    )
-
-    # Select has 3 branches: simple over blending, additive blending, multiply
-    # blending
-    select = ngl.UserSelect(branches=[_make_translated_quad(above), gc0, gc1])
 
     def keyframes_callback(t_id):
-        # 4 states: the for the 3 blending branches and one extra for nothing
-        # (branch ID overflow). We remain on the each state for 2 frames.
+        # 4 states: the 3 branches and one extra for nothing (branch ID
+        # overflow). We remain on each state for 2 frames.
         select.set_branch((t_id // 2) % 4)
 
     @test_render(
