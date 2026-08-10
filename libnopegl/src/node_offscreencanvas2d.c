@@ -215,12 +215,6 @@ static void offscreencanvas2d_get_rendertarget_layout(const struct ngl_node *nod
     *layout = s->layout;
 }
 
-static int offscreencanvas2d_prepare(struct ngl_node *node,
-                                     const struct ngpu_rendertarget_layout *rendertarget_layout)
-{
-    return 0;
-}
-
 static int offscreencanvas2d_prefetch(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -464,7 +458,6 @@ const struct node_class ngli_offscreencanvas2d_class = {
     .priv_size = sizeof(struct offscreencanvas2d_priv),
     .init      = offscreencanvas2d_init,
     .get_rendertarget_layout = offscreencanvas2d_get_rendertarget_layout,
-    .prepare   = offscreencanvas2d_prepare,
     .prefetch  = offscreencanvas2d_prefetch,
     .update    = ngli_node_update_children,
     .pre_draw  = offscreencanvas2d_pre_draw,

@@ -64,12 +64,6 @@ static const struct node_param canvas2d_params[] = {
     {NULL}
 };
 
-static int canvas2d_prepare(struct ngl_node *node,
-                            const struct ngpu_rendertarget_layout *rendertarget_layout)
-{
-    return 0;
-}
-
 static void canvas2d_pre_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -182,7 +176,6 @@ const struct node_class ngli_canvas2d_class = {
     .id        = NGL_NODE_CANVAS2D,
     .name      = "Canvas2D",
     .priv_size = sizeof(struct canvas2d_priv),
-    .prepare   = canvas2d_prepare,
     .update    = ngli_node_update_children,
     .pre_draw  = canvas2d_pre_draw,
     .draw      = canvas2d_draw,
