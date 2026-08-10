@@ -22,14 +22,10 @@
  */
 
 #include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 
-#include "config.h"
 #include "internal.h"
 #include "log.h"
 #include <ngpu/ngpu.h>
-#include "node_graphicconfig.h"
 #include "node_texture.h"
 #include "node_textureview.h"
 #include "nopegl/nopegl.h"
