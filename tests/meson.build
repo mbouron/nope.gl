@@ -314,6 +314,7 @@ foreach backend : backends
     'allow_node',
     'dict',
     'f64s',
+    'flags',
     'no_param',
     'nodes',
     'rational',
