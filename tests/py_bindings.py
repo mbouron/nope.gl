@@ -67,6 +67,16 @@ def py_bindings_f64s():
     assert kf.add_easing_args(-0.4, 10.2, 7.3) == 0
 
 
+def py_bindings_flags():
+    draw = ngl.DrawColor()
+    assert draw.set_color_write_mask("r+g+b+a") == 0
+    assert draw.set_color_write_mask("r+a") == 0
+    assert draw.set_color_write_mask("") == 0
+    assert draw.set_color_write_mask("0") == 0
+    assert draw.set_color_write_mask("unset") != 0
+    assert draw.set_color_write_mask("x") != 0
+
+
 def py_bindings_no_param():
     """Nodes with no param (but still inherit the common parameters)"""
 
