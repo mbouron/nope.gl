@@ -24,11 +24,23 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Silence libavutil conversion warnings.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wimplicit-int-conversion"
+#endif
+
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
+
+#if defined(__GNUC__) || defined(__clang__)
+# pragma GCC diagnostic pop
+#endif
 
 #include <SDL3/SDL.h>
 #include <nopegl/nopegl.h>
