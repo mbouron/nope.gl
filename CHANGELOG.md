@@ -8,6 +8,8 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Added
+- `LinearGradientPaint`, `RadialGradientPaint`, and `SweepGradientPaint` nodes
 
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added
@@ -25,17 +27,6 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   on the draw nodes (when supported) to control the depth, stencil, face
   culling and color write states
 - `Stroke2D` node for configuring 2D shape strokes
-- `libxxHash` internal dependency for fast hash-map string lookups
-- `Effect2DShader` node to define a custom fragment shader for `Effect2D`
-- `Effect2D.enabled` parameter to enable/disable the effect
-- `Effect2D.shaders` parameter for selecting a list of `Effect2DShader` over
-  live-changeable time ranges, including atomic start/end updates
-- `Effect2D.bounds` to select the effect bounds (`children`, `canvas`, `rect`)
-- `ngl_effect2dshader_set_range()` to set the active time range of an
-  `Effect2DShader` atomically
-
-### Fixed
-- Incorrect `Effect2D` output positioning when wrapped in another transform
 
 ### Changed
 - `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support

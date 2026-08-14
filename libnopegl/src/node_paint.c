@@ -19,8 +19,10 @@
  * under the License.
  */
 
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "internal.h"
 #include "log.h"
@@ -38,6 +40,9 @@ const uint32_t ngli_paint_node_types[] = {
     NGL_NODE_TEXTUREPAINT,
     NGL_NODE_GRADIENTPAINT,
     NGL_NODE_GRADIENT4PAINT,
+    NGL_NODE_LINEARGRADIENTPAINT,
+    NGL_NODE_RADIALGRADIENTPAINT,
+    NGL_NODE_SWEEPGRADIENTPAINT,
     NGL_NODE_NOISEPAINT,
     NGL_NODE_CUSTOMPAINT,
     NGLI_NODE_NONE,
@@ -114,6 +119,18 @@ void ngli_paint_info_reset(struct paint_info *info)
     const struct paint_uniform_def _ud = {                                  \
         .type = (type_),                                                    \
         .data = (const uint8_t *)(info_)->opts + offsetof(opts_struct_, field_), \
+    };                                                                      \
+    if (ngli_darray_try_push(&(info_)->uniforms, _ud) < 0)                  \
+        return NGL_ERROR_MEMORY;                                            \
+    struct paint_uniform_def *_p = ngli_darray_tail(&(info_)->uniforms);    \
+    snprintf(_p->name, sizeof(_p->name), "%s", (name_));                    \
+} while (0)
+
+#define REGISTER_UNIFORM_DATA(info_, name_, type_, count_, data_) do {      \
+    const struct paint_uniform_def _ud = {                                  \
+        .type = (type_),                                                    \
+        .count = (count_),                                                  \
+        .data = (const uint8_t *)(data_),                                   \
     };                                                                      \
     if (ngli_darray_try_push(&(info_)->uniforms, _ud) < 0)                  \
         return NGL_ERROR_MEMORY;                                            \
@@ -1057,6 +1074,589 @@ const struct node_class ngli_custompaint_class = {
     .opts_size = sizeof(struct custompaint_opts),
     .priv_size = sizeof(struct custompaint_priv),
     .params    = custompaint_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
+    .file      = __FILE__,
+};
+
+struct gradientstop_opts {
+    struct ngl_node *position_node;
+    float position;
+    struct ngl_node *color_node;
+    float color[4];
+};
+
+struct gradientstops_opts {
+    struct ngl_node **stops;
+    size_t nb_stops;
+};
+
+struct gradientstops_priv {
+    struct ngli_gradient_stops_info info;
+    int dynamic;
+    int dirty;
+};
+
+static const uint32_t gradientstop_types[] = {
+    NGL_NODE_GRADIENTSTOP,
+    NGLI_NODE_NONE,
+};
+
+static int update_gradient_stops(struct ngl_node *node)
+{
+    const struct gradientstops_opts *o = node->opts;
+    struct gradientstops_priv *s = node->priv_data;
+
+    if (o->nb_stops < 2 || o->nb_stops > NGLI_MAX_GRADIENT_STOPS) {
+        LOG(ERROR, "GradientStops.stops must contain between 2 and %d stops", NGLI_MAX_GRADIENT_STOPS);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    float previous_position = -INFINITY;
+    for (size_t i = 0; i < o->nb_stops; i++) {
+        const struct gradientstop_opts *stop = o->stops[i]->opts;
+        const float position = *(const float *)ngli_node_get_data_ptr(stop->position_node, &stop->position);
+        const float *color = ngli_node_get_data_ptr(stop->color_node, stop->color);
+        if (!isfinite(position) || position < 0.f || position > 1.f) {
+            LOG(ERROR, "GradientStops.stops[%zu].position must be finite and within [0,1]", i);
+            return NGL_ERROR_INVALID_ARG;
+        }
+        if (position < previous_position) {
+            LOG(ERROR, "GradientStops.stops must be ordered by non-decreasing position");
+            return NGL_ERROR_INVALID_ARG;
+        }
+        for (size_t j = 0; j < NGLI_ARRAY_NB(stop->color); j++) {
+            if (!isfinite(color[j])) {
+                LOG(ERROR, "GradientStops.stops[%zu].color contains a non-finite component", i);
+                return NGL_ERROR_INVALID_ARG;
+            }
+        }
+        memcpy(s->info.colors[i], color, sizeof(s->info.colors[i]));
+        s->info.positions[i] = position;
+        previous_position = position;
+    }
+    s->info.nb_stops = (int32_t)o->nb_stops;
+    s->info.revision++;
+    return 0;
+}
+
+static int gradientstops_init(struct ngl_node *node)
+{
+    const struct gradientstops_opts *o = node->opts;
+    struct gradientstops_priv *s = node->priv_data;
+
+    int ret = update_gradient_stops(node);
+    if (ret < 0)
+        return ret;
+
+    for (size_t i = 0; i < o->nb_stops; i++) {
+        const struct gradientstop_opts *stop = o->stops[i]->opts;
+        const struct ngl_node *nodes[] = {stop->position_node, stop->color_node};
+        for (size_t j = 0; j < NGLI_ARRAY_NB(nodes); j++) {
+            if (!nodes[j])
+                continue;
+            ngli_assert(nodes[j]->cls->category == NGLI_NODE_CATEGORY_VARIABLE);
+            const struct variable_info *var = nodes[j]->priv_data;
+            s->dynamic |= var->dynamic;
+        }
+    }
+
+    return 0;
+}
+
+static int gradientstops_invalidate(struct ngl_node *node)
+{
+    struct gradientstops_priv *s = node->priv_data;
+    s->dirty = 1;
+    return 0;
+}
+
+static int gradientstops_update(struct ngl_node *node, double t)
+{
+    struct gradientstops_priv *s = node->priv_data;
+
+    if (!s->dynamic && !s->dirty)
+        return 0;
+
+    int ret = ngli_node_update_children(node, t);
+    if (ret < 0)
+        return ret;
+
+    ret = update_gradient_stops(node);
+    if (ret < 0)
+        return ret;
+    s->dirty = 0;
+    return 0;
+}
+
+const struct ngli_gradient_stops_info *ngli_gradient_stops_get_info(const struct ngl_node *node)
+{
+    ngli_assert(node->cls->id == NGL_NODE_GRADIENTSTOPS);
+    const struct gradientstops_priv *s = node->priv_data;
+    return &s->info;
+}
+
+#define OFFSET(type, x) offsetof(type, x)
+static const struct node_param gradientstop_params[] = {
+    {
+        .key = "position",
+        .type = NGLI_PARAM_TYPE_F32,
+        .offset = OFFSET(struct gradientstop_opts, position_node),
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc = NGLI_DOCSTRING("normalized stop position within [0,1]"),
+    }, {
+        .key = "color",
+        .type = NGLI_PARAM_TYPE_VEC4,
+        .offset = OFFSET(struct gradientstop_opts, color_node),
+        .def_value = {.vec = {1.f, 1.f, 1.f, 1.f}},
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc = NGLI_DOCSTRING("unpremultiplied RGBA stop color"),
+    },
+    {NULL},
+};
+
+static const struct node_param gradientstops_params[] = {
+    {
+        .key = "stops",
+        .type = NGLI_PARAM_TYPE_NODELIST,
+        .offset = OFFSET(struct gradientstops_opts, stops),
+        .node_types = gradientstop_types,
+        .flags = NGLI_PARAM_FLAG_NON_NULL | NGLI_PARAM_FLAG_DOT_DISPLAY_PACKED,
+        .desc = NGLI_DOCSTRING("ordered color stops shared by one or more gradient paints"),
+    },
+    {NULL},
+};
+#undef OFFSET
+
+const struct node_class ngli_gradientstop_class = {
+    .id        = NGL_NODE_GRADIENTSTOP,
+    .name      = "GradientStop",
+    .update    = ngli_node_update_children,
+    .opts_size = sizeof(struct gradientstop_opts),
+    .params    = gradientstop_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
+    .file      = __FILE__,
+};
+
+const struct node_class ngli_gradientstops_class = {
+    .id         = NGL_NODE_GRADIENTSTOPS,
+    .name       = "GradientStops",
+    .init       = gradientstops_init,
+    .invalidate = gradientstops_invalidate,
+    .update     = gradientstops_update,
+    .opts_size  = sizeof(struct gradientstops_opts),
+    .priv_size  = sizeof(struct gradientstops_priv),
+    .params     = gradientstops_params,
+    .flags      = NGLI_NODE_FLAG_SHAREABLE,
+    .file       = __FILE__,
+};
+
+enum gradient_spread {
+    GRADIENT_SPREAD_CLAMP,
+    GRADIENT_SPREAD_REPEAT,
+    GRADIENT_SPREAD_MIRROR,
+};
+
+struct gradientpaint_base_opts {
+    struct paint_base_opts base_opts;
+    struct ngl_node *stops;
+    struct ngl_node *transform_node;
+    float transform[16];
+    int spread;
+    int linear;
+};
+
+struct multigradientpaint_priv {
+    struct paint_info fi;
+    float transform[16];
+};
+
+struct lineargradientpaint_opts {
+    struct gradientpaint_base_opts base;
+    float start[2];
+    float end[2];
+};
+
+struct radialgradientpaint_opts {
+    struct gradientpaint_base_opts base;
+    float center[2];
+    float radius;
+};
+
+struct sweepgradientpaint_opts {
+    struct gradientpaint_base_opts base;
+    float center[2];
+    float start_angle;
+    float sweep_angle;
+};
+
+static const struct param_choices gradient_spread_choices = {
+    .name = "gradient_spread",
+    .consts = {
+        {"clamp",  GRADIENT_SPREAD_CLAMP,  .desc = NGLI_DOCSTRING("extend the first and last colors beyond the stop range")},
+        {"repeat", GRADIENT_SPREAD_REPEAT, .desc = NGLI_DOCSTRING("repeat the stop range")},
+        {"mirror", GRADIENT_SPREAD_MIRROR, .desc = NGLI_DOCSTRING("repeat the stop range while reversing alternate repetitions")},
+        {NULL},
+    },
+};
+
+#define MULTIGRADIENTPAINT_GLSL \
+    "vec2 $gradient_coord(vec2 uv)\n" \
+    "{\n" \
+    "    vec4 coord = $gradient_transform * vec4(uv, 0.0, 1.0);\n" \
+    "    return coord.w != 0.0 ? coord.xy / coord.w : coord.xy;\n" \
+    "}\n" \
+    "float $gradient_apply_spread(float t)\n" \
+    "{\n" \
+    "    if ($gradient_spread == 0) return clamp(t, 0.0, 1.0);\n" \
+    "    if ($gradient_spread == 1) return fract(t);\n" \
+    "    float x = mod(t, 2.0);\n" \
+    "    return 1.0 - abs(x - 1.0);\n" \
+    "}\n" \
+    "vec4 $gradient_sample(float t)\n" \
+    "{\n" \
+    "    t = $gradient_apply_spread(t);\n" \
+    "    if (t <= $gradient_stop_positions[0]) return $gradient_stop_colors[0];\n" \
+    "    for (int i = 1; i < " NGLI_STRINGIFY(NGLI_MAX_GRADIENT_STOPS) "; i++) {\n" \
+    "        if (i >= $gradient_stop_count) break;\n" \
+    "        if (t <= $gradient_stop_positions[i]) {\n" \
+    "            float span = $gradient_stop_positions[i] - $gradient_stop_positions[i - 1];\n" \
+    "            float f = span > 0.0 ? (t - $gradient_stop_positions[i - 1]) / span : 1.0;\n" \
+    "            vec4 c0 = $gradient_stop_colors[i - 1];\n" \
+    "            vec4 c1 = $gradient_stop_colors[i];\n" \
+    "            if ($gradient_linear != 0)\n" \
+    "                return vec4(ngli_srgbmix(c0.rgb, c1.rgb, f), mix(c0.a, c1.a, f));\n" \
+    "            return mix(c0, c1, f);\n" \
+    "        }\n" \
+    "    }\n" \
+    "    return $gradient_stop_colors[$gradient_stop_count - 1];\n" \
+    "}\n"
+
+#define LINEARGRADIENTPAINT_GLSL \
+    MULTIGRADIENTPAINT_GLSL \
+    "vec4 main(vec2 uv, vec2 tex_coord)\n" \
+    "{\n" \
+    "    vec2 p = $gradient_coord(uv);\n" \
+    "    vec2 d = $gradient_end - $gradient_start;\n" \
+    "    float aspect = ngli_rect_size.x / ngli_rect_size.y;\n" \
+    "    p.x *= aspect; d.x *= aspect;\n" \
+    "    vec2 start = $gradient_start; start.x *= aspect;\n" \
+    "    float denom = dot(d, d);\n" \
+    "    return $gradient_sample(denom > 0.0 ? dot(p - start, d) / denom : 0.0);\n" \
+    "}\n"
+
+#define RADIALGRADIENTPAINT_GLSL \
+    MULTIGRADIENTPAINT_GLSL \
+    "vec4 main(vec2 uv, vec2 tex_coord)\n" \
+    "{\n" \
+    "    vec2 p = $gradient_coord(uv) - $gradient_center;\n" \
+    "    p.x *= ngli_rect_size.x / ngli_rect_size.y;\n" \
+    "    return $gradient_sample(length(p) / max($gradient_radius, 1e-6));\n" \
+    "}\n"
+
+#define SWEEPGRADIENTPAINT_GLSL \
+    MULTIGRADIENTPAINT_GLSL \
+    "vec4 main(vec2 uv, vec2 tex_coord)\n" \
+    "{\n" \
+    "    vec2 p = $gradient_coord(uv) - $gradient_center;\n" \
+    "    p.x *= ngli_rect_size.x / ngli_rect_size.y;\n" \
+    "    float angle = degrees(atan(p.y, p.x));\n" \
+    "    return $gradient_sample((angle - $gradient_start_angle) / $gradient_sweep_angle);\n" \
+    "}\n"
+
+static const char lineargradientpaint_glsl[] = LINEARGRADIENTPAINT_GLSL;
+static const char radialgradientpaint_glsl[] = RADIALGRADIENTPAINT_GLSL;
+static const char sweepgradientpaint_glsl[] = SWEEPGRADIENTPAINT_GLSL;
+
+#undef SWEEPGRADIENTPAINT_GLSL
+#undef RADIALGRADIENTPAINT_GLSL
+#undef LINEARGRADIENTPAINT_GLSL
+#undef MULTIGRADIENTPAINT_GLSL
+
+static int register_multigradient_uniforms(struct paint_info *fi,
+                                            const struct gradientpaint_base_opts *o,
+                                            const float *transform)
+{
+    const struct ngli_gradient_stops_info *stops = ngli_gradient_stops_get_info(o->stops);
+    REGISTER_UNIFORM_DATA(fi, "gradient_stop_colors",    NGPU_TYPE_VEC4, NGLI_MAX_GRADIENT_STOPS, stops->colors);
+    REGISTER_UNIFORM_DATA(fi, "gradient_stop_positions", NGPU_TYPE_F32,  NGLI_MAX_GRADIENT_STOPS, stops->positions);
+    REGISTER_UNIFORM_DATA(fi, "gradient_stop_count",     NGPU_TYPE_I32,  0,                       &stops->nb_stops);
+    REGISTER_UNIFORM_DATA(fi, "gradient_transform",      NGPU_TYPE_MAT4, 0,                       transform);
+    REGISTER_UNIFORM(fi,      "gradient_spread",         NGPU_TYPE_I32,  struct gradientpaint_base_opts, spread);
+    REGISTER_UNIFORM(fi,      "gradient_linear",         NGPU_TYPE_I32,  struct gradientpaint_base_opts, linear);
+    return 0;
+}
+
+static int update_multigradient_transform(struct ngl_node *node)
+{
+    const struct gradientpaint_base_opts *o = node->opts;
+    struct multigradientpaint_priv *s = node->priv_data;
+    const float *transform = ngli_node_get_data_ptr(o->transform_node, o->transform);
+    for (size_t i = 0; i < NGLI_ARRAY_NB(s->transform); i++) {
+        if (!isfinite(transform[i])) {
+            LOG(ERROR, "gradient transform contains a non-finite component");
+            return NGL_ERROR_INVALID_ARG;
+        }
+    }
+    memcpy(s->transform, transform, sizeof(s->transform));
+    return 0;
+}
+
+static int init_multigradientpaint(struct ngl_node *node, const char *glsl)
+{
+    struct multigradientpaint_priv *s = node->priv_data;
+    const struct gradientpaint_base_opts *o = node->opts;
+    int ret = update_multigradient_transform(node);
+    if (ret < 0)
+        return ret;
+    struct paint_info *fi = &s->fi;
+    fi->helper_flags = PAINT_HELPER_SRGB;
+    fi->glsl = glsl;
+    fi->opts = o;
+    return register_multigradient_uniforms(fi, o, s->transform);
+}
+
+static void multigradientpaint_uninit(struct ngl_node *node)
+{
+    struct multigradientpaint_priv *s = node->priv_data;
+    ngli_paint_info_reset(&s->fi);
+}
+
+static int update_multigradientpaint(struct ngl_node *node, double t)
+{
+    int ret = ngli_node_update_children(node, t);
+    if (ret < 0)
+        return ret;
+    return update_multigradient_transform(node);
+}
+
+static int validate_radialgradientpaint(struct ngl_node *node)
+{
+    const struct radialgradientpaint_opts *o = node->opts;
+    if (!isfinite(o->radius) || o->radius <= 0.f) {
+        LOG(ERROR, "RadialGradientPaint.radius must be finite and greater than zero");
+        return NGL_ERROR_INVALID_ARG;
+    }
+    return 0;
+}
+
+static int validate_sweepgradientpaint(struct ngl_node *node)
+{
+    const struct sweepgradientpaint_opts *o = node->opts;
+    if (!isfinite(o->sweep_angle) || o->sweep_angle == 0.f) {
+        LOG(ERROR, "SweepGradientPaint.sweep_angle must be finite and non-zero");
+        return NGL_ERROR_INVALID_ARG;
+    }
+    return 0;
+}
+
+static int lineargradientpaint_init(struct ngl_node *node)
+{
+    int ret = init_multigradientpaint(node, lineargradientpaint_glsl);
+    if (ret < 0)
+        return ret;
+    struct multigradientpaint_priv *s = node->priv_data;
+    struct paint_info *fi = &s->fi;
+    REGISTER_UNIFORM(fi, "gradient_start", NGPU_TYPE_VEC2, struct lineargradientpaint_opts, start);
+    REGISTER_UNIFORM(fi, "gradient_end",   NGPU_TYPE_VEC2, struct lineargradientpaint_opts, end);
+    return 0;
+}
+
+static int radialgradientpaint_init(struct ngl_node *node)
+{
+    int ret = validate_radialgradientpaint(node);
+    if (ret < 0)
+        return ret;
+    ret = init_multigradientpaint(node, radialgradientpaint_glsl);
+    if (ret < 0)
+        return ret;
+    struct multigradientpaint_priv *s = node->priv_data;
+    struct paint_info *fi = &s->fi;
+    REGISTER_UNIFORM(fi, "gradient_center", NGPU_TYPE_VEC2, struct radialgradientpaint_opts, center);
+    REGISTER_UNIFORM(fi, "gradient_radius", NGPU_TYPE_F32,  struct radialgradientpaint_opts, radius);
+    return 0;
+}
+
+static int sweepgradientpaint_init(struct ngl_node *node)
+{
+    int ret = validate_sweepgradientpaint(node);
+    if (ret < 0)
+        return ret;
+    ret = init_multigradientpaint(node, sweepgradientpaint_glsl);
+    if (ret < 0)
+        return ret;
+    struct multigradientpaint_priv *s = node->priv_data;
+    struct paint_info *fi = &s->fi;
+    REGISTER_UNIFORM(fi, "gradient_center",      NGPU_TYPE_VEC2, struct sweepgradientpaint_opts, center);
+    REGISTER_UNIFORM(fi, "gradient_start_angle", NGPU_TYPE_F32,  struct sweepgradientpaint_opts, start_angle);
+    REGISTER_UNIFORM(fi, "gradient_sweep_angle", NGPU_TYPE_F32,  struct sweepgradientpaint_opts, sweep_angle);
+    return 0;
+}
+
+static int radialgradientpaint_update(struct ngl_node *node, double t)
+{
+    int ret = update_multigradientpaint(node, t);
+    if (ret < 0)
+        return ret;
+    return validate_radialgradientpaint(node);
+}
+
+static int sweepgradientpaint_update(struct ngl_node *node, double t)
+{
+    int ret = update_multigradientpaint(node, t);
+    if (ret < 0)
+        return ret;
+    return validate_sweepgradientpaint(node);
+}
+
+#define GRADIENT_PAINT_BASE_PARAMS(opts_type) \
+    { \
+        .key = "opacity", \
+        .type = NGLI_PARAM_TYPE_F32, \
+        .offset = offsetof(opts_type, base.base_opts.opacity), \
+        .def_value = {.f32 = 1.f}, \
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE, \
+        .desc = NGLI_DOCSTRING("opacity of the paint content"), \
+    }, { \
+        .key = "premult", \
+        .type = NGLI_PARAM_TYPE_BOOL, \
+        .offset = offsetof(opts_type, base.base_opts.premult), \
+        .def_value = {.i32 = 1}, \
+        .desc = NGLI_DOCSTRING("premultiply the gradient color by its alpha"), \
+    }, { \
+        .key = "stops", \
+        .type = NGLI_PARAM_TYPE_NODE, \
+        .offset = offsetof(opts_type, base.stops), \
+        .node_types = (const uint32_t[]){NGL_NODE_GRADIENTSTOPS, NGLI_NODE_NONE}, \
+        .flags = NGLI_PARAM_FLAG_NON_NULL, \
+        .desc = NGLI_DOCSTRING("ordered color stops sampled by the gradient"), \
+    }, { \
+        .key = "transform", \
+        .type = NGLI_PARAM_TYPE_MAT4, \
+        .offset = offsetof(opts_type, base.transform_node), \
+        .def_value = {.mat = NGLI_MAT4_IDENTITY}, \
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE, \
+        .update_func = update_multigradient_transform, \
+        .desc = NGLI_DOCSTRING("matrix mapping target-local UV coordinates to paint-local UV coordinates"), \
+    }, { \
+        .key = "spread", \
+        .type = NGLI_PARAM_TYPE_SELECT, \
+        .offset = offsetof(opts_type, base.spread), \
+        .choices = &gradient_spread_choices, \
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE, \
+        .desc = NGLI_DOCSTRING("behavior outside the normalized stop range"), \
+    }, { \
+        .key = "linear", \
+        .type = NGLI_PARAM_TYPE_BOOL, \
+        .offset = offsetof(opts_type, base.linear), \
+        .def_value = {.i32 = 1}, \
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE, \
+        .desc = NGLI_DOCSTRING("interpolate stop colors in linear light"), \
+    }
+
+static const struct node_param lineargradientpaint_params[] = {
+    GRADIENT_PAINT_BASE_PARAMS(struct lineargradientpaint_opts),
+    {
+        .key = "start",
+        .type = NGLI_PARAM_TYPE_VEC2,
+        .offset = offsetof(struct lineargradientpaint_opts, start),
+        .def_value = {.vec = {0.f, .5f}},
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc = NGLI_DOCSTRING("first point of the gradient axis in local UV coordinates"),
+    }, {
+        .key = "end",
+        .type = NGLI_PARAM_TYPE_VEC2,
+        .offset = offsetof(struct lineargradientpaint_opts, end),
+        .def_value = {.vec = {1.f, .5f}},
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc = NGLI_DOCSTRING("second point of the gradient axis in local UV coordinates"),
+    },
+    {NULL},
+};
+
+static const struct node_param radialgradientpaint_params[] = {
+    GRADIENT_PAINT_BASE_PARAMS(struct radialgradientpaint_opts),
+    {
+        .key = "center",
+        .type = NGLI_PARAM_TYPE_VEC2,
+        .offset = offsetof(struct radialgradientpaint_opts, center),
+        .def_value = {.vec = {.5f, .5f}},
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc = NGLI_DOCSTRING("center of the radial gradient in local UV coordinates"),
+    }, {
+        .key = "radius",
+        .type = NGLI_PARAM_TYPE_F32,
+        .offset = offsetof(struct radialgradientpaint_opts, radius),
+        .def_value = {.f32 = .5f},
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .update_func = validate_radialgradientpaint,
+        .desc = NGLI_DOCSTRING("radial gradient radius, relative to target height"),
+    },
+    {NULL},
+};
+
+static const struct node_param sweepgradientpaint_params[] = {
+    GRADIENT_PAINT_BASE_PARAMS(struct sweepgradientpaint_opts),
+    {
+        .key = "center",
+        .type = NGLI_PARAM_TYPE_VEC2,
+        .offset = offsetof(struct sweepgradientpaint_opts, center),
+        .def_value = {.vec = {.5f, .5f}},
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc = NGLI_DOCSTRING("center of the sweep gradient in local UV coordinates"),
+    }, {
+        .key = "start_angle",
+        .type = NGLI_PARAM_TYPE_F32,
+        .offset = offsetof(struct sweepgradientpaint_opts, start_angle),
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc = NGLI_DOCSTRING("angle in degrees of the first stop, measured clockwise from the positive x axis"),
+    }, {
+        .key = "sweep_angle",
+        .type = NGLI_PARAM_TYPE_F32,
+        .offset = offsetof(struct sweepgradientpaint_opts, sweep_angle),
+        .def_value = {.f32 = 360.f},
+        .flags = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .update_func = validate_sweepgradientpaint,
+        .desc = NGLI_DOCSTRING("signed angular span in degrees; positive follows the canvas clockwise direction"),
+    },
+    {NULL},
+};
+#undef GRADIENT_PAINT_BASE_PARAMS
+
+const struct node_class ngli_lineargradientpaint_class = {
+    .id        = NGL_NODE_LINEARGRADIENTPAINT,
+    .name      = "LinearGradientPaint",
+    .init      = lineargradientpaint_init,
+    .update    = update_multigradientpaint,
+    .uninit    = multigradientpaint_uninit,
+    .opts_size = sizeof(struct lineargradientpaint_opts),
+    .priv_size = sizeof(struct multigradientpaint_priv),
+    .params    = lineargradientpaint_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
+    .file      = __FILE__,
+};
+
+const struct node_class ngli_radialgradientpaint_class = {
+    .id        = NGL_NODE_RADIALGRADIENTPAINT,
+    .name      = "RadialGradientPaint",
+    .init      = radialgradientpaint_init,
+    .update    = radialgradientpaint_update,
+    .uninit    = multigradientpaint_uninit,
+    .opts_size = sizeof(struct radialgradientpaint_opts),
+    .priv_size = sizeof(struct multigradientpaint_priv),
+    .params    = radialgradientpaint_params,
+    .flags     = NGLI_NODE_FLAG_SHAREABLE,
+    .file      = __FILE__,
+};
+
+const struct node_class ngli_sweepgradientpaint_class = {
+    .id        = NGL_NODE_SWEEPGRADIENTPAINT,
+    .name      = "SweepGradientPaint",
+    .init      = sweepgradientpaint_init,
+    .update    = sweepgradientpaint_update,
+    .uninit    = multigradientpaint_uninit,
+    .opts_size = sizeof(struct sweepgradientpaint_opts),
+    .priv_size = sizeof(struct multigradientpaint_priv),
+    .params    = sweepgradientpaint_params,
     .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

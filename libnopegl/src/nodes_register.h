@@ -113,8 +113,13 @@
     action(NGL_NODE_FONTFACE,               ngli_fontface_class)                \
     action(NGL_NODE_GRADIENT4PAINT,         ngli_gradient4paint_class)          \
     action(NGL_NODE_GRADIENTPAINT,          ngli_gradientpaint_class)           \
+    action(NGL_NODE_GRADIENTSTOP,           ngli_gradientstop_class)            \
+    action(NGL_NODE_GRADIENTSTOPS,          ngli_gradientstops_class)           \
+    action(NGL_NODE_LINEARGRADIENTPAINT,    ngli_lineargradientpaint_class)     \
     action(NGL_NODE_NOISEPAINT,             ngli_noisepaint_class)              \
+    action(NGL_NODE_RADIALGRADIENTPAINT,    ngli_radialgradientpaint_class)     \
     action(NGL_NODE_STROKE2D,               ngli_stroke2d_class)                \
+    action(NGL_NODE_SWEEPGRADIENTPAINT,     ngli_sweepgradientpaint_class)      \
     action(NGL_NODE_TEXTUREPAINT,           ngli_texturepaint_class)            \
     action(NGL_NODE_GAUSSIANBLUR,           ngli_gblur_class)                   \
     action(NGL_NODE_GEOMETRY,               ngli_geometry_class)                \

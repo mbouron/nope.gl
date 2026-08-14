@@ -115,6 +115,8 @@ fun nodeType(name: String): NGLNodeType? {
         "GaussianBlur" -> NGLNodeType.GAUSSIANBLUR
         "Gradient4Paint" -> NGLNodeType.GRADIENT4PAINT
         "GradientPaint" -> NGLNodeType.GRADIENTPAINT
+        "GradientStop" -> NGLNodeType.GRADIENTSTOP
+        "GradientStops" -> NGLNodeType.GRADIENTSTOPS
         "Geometry" -> NGLNodeType.GEOMETRY
         "GridLayout" -> NGLNodeType.GRIDLAYOUT
         "Group" -> NGLNodeType.GROUP
@@ -140,6 +142,7 @@ fun nodeType(name: String): NGLNodeType? {
         "EvalVec2" -> NGLNodeType.EVALVEC2
         "EvalVec3" -> NGLNodeType.EVALVEC3
         "EvalVec4" -> NGLNodeType.EVALVEC4
+        "LinearGradientPaint" -> NGLNodeType.LINEARGRADIENTPAINT
         "Media" -> NGLNodeType.MEDIA
         "NoisePaint" -> NGLNodeType.NOISEPAINT
         "NoiseFloat" -> NGLNodeType.NOISEFLOAT
@@ -156,6 +159,7 @@ fun nodeType(name: String): NGLNodeType? {
         "Program" -> NGLNodeType.PROGRAM
         "Quad" -> NGLNodeType.QUAD
         "RenderToTexture" -> NGLNodeType.RENDERTOTEXTURE
+        "RadialGradientPaint" -> NGLNodeType.RADIALGRADIENTPAINT
         "ResourceProps" -> NGLNodeType.RESOURCEPROPS
         "Rotate" -> NGLNodeType.ROTATE
         "RotateQuat" -> NGLNodeType.ROTATEQUAT
@@ -164,6 +168,7 @@ fun nodeType(name: String): NGLNodeType? {
         "Skew" -> NGLNodeType.SKEW
         "SmoothPath" -> NGLNodeType.SMOOTHPATH
         "Stroke2D" -> NGLNodeType.STROKE2D
+        "SweepGradientPaint" -> NGLNodeType.SWEEPGRADIENTPAINT
         "TexturePaint" -> NGLNodeType.TEXTUREPAINT
         "Text" -> NGLNodeType.TEXT
         "TextEffect" -> NGLNodeType.TEXTEFFECT

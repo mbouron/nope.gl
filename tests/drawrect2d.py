@@ -81,6 +81,94 @@ def drawrect2d_gradient4_paint(cfg: ngl.SceneCfg):
     return _canvas(cfg, ngl.DrawRect2D(rect=(0, 0, W, H), fill=fill))
 
 
+def _multistop_gradient_stops():
+    return ngl.GradientStops(
+        stops=[
+            ngl.GradientStop(position=0.0, color=(0.95, 0.15, 0.1, 1.0)),
+            ngl.GradientStop(position=0.18, color=(1.0, 0.75, 0.1, 1.0)),
+            ngl.GradientStop(position=0.42, color=(0.1, 0.85, 0.3, 1.0)),
+            ngl.GradientStop(position=0.7, color=(0.1, 0.55, 1.0, 1.0)),
+            ngl.GradientStop(position=1.0, color=(0.7, 0.15, 0.95, 1.0)),
+        ]
+    )
+
+
+@test_render(tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=W, height=H)
+def drawrect2d_multistop_gradient_paints(cfg: ngl.SceneCfg):
+    """Shared multi-stop data rendered through linear, radial, and sweep paints."""
+    stops = _multistop_gradient_stops()
+    linear = ngl.LinearGradientPaint(stops=stops, start=(0.0, 0.5), end=(1.0, 0.5), linear=False)
+    radial = ngl.RadialGradientPaint(stops=stops, center=(0.5, 0.5), radius=0.55, linear=False)
+    sweep = ngl.SweepGradientPaint(
+        stops=stops,
+        center=(0.5, 0.5),
+        start_angle=-90.0,
+        sweep_angle=360.0,
+        linear=False,
+    )
+    return _canvas(
+        cfg,
+        ngl.DrawRect2D(rect=(8, 8, W - 16, 72), fill=linear, corner_radius=(12, 12)),
+        ngl.DrawRect2D(rect=(8, 88, 112, H - 96), fill=radial, corner_radius=(12, 12)),
+        ngl.DrawRect2D(rect=(136, 88, 112, H - 96), fill=sweep, corner_radius=(12, 12)),
+    )
+
+
+def _get_drawrect2d_multistop_gradient_updates_func():
+    positions = (0.2, 0.4, 0.65, 0.8)
+    colors = (
+        (0.1, 0.9, 0.25, 1.0),
+        (1.0, 0.8, 0.1, 1.0),
+        (0.9, 0.1, 0.8, 1.0),
+        (0.1, 0.85, 1.0, 1.0),
+    )
+    live_stop = ngl.GradientStop(position=positions[0], color=colors[0])
+
+    def keyframes_callback(t_id):
+        assert live_stop.set_position(positions[t_id]) == 0
+        assert live_stop.set_color(*colors[t_id]) == 0
+
+    @test_render(
+        keyframes=(0.0, 1.0, 2.0, 3.0),
+        keyframes_callback=keyframes_callback,
+        tolerance=3,
+        diff_threshold=0.003,
+        exercise_serialization=False,
+    )
+    @ngl.scene(width=W, height=H)
+    def scene_func(cfg: ngl.SceneCfg):
+        position_anim = ngl.AnimatedFloat([ngl.AnimKeyFrameFloat(t, position) for t, position in enumerate(positions)])
+        color_anim = ngl.AnimatedVec4([ngl.AnimKeyFrameVec4(t, color) for t, color in enumerate(colors)])
+        animated_stops = ngl.GradientStops(
+            stops=[
+                ngl.GradientStop(position=0.0, color=(0.05, 0.1, 0.5, 1.0)),
+                ngl.GradientStop(position=position_anim, color=color_anim),
+                ngl.GradientStop(position=1.0, color=(0.95, 0.15, 0.05, 1.0)),
+            ]
+        )
+        live_stops = ngl.GradientStops(
+            stops=[
+                ngl.GradientStop(position=0.0, color=(0.05, 0.1, 0.5, 1.0)),
+                live_stop,
+                ngl.GradientStop(position=1.0, color=(0.95, 0.15, 0.05, 1.0)),
+            ]
+        )
+        animated_paint = ngl.LinearGradientPaint(stops=animated_stops, start=(0.0, 0.1), end=(1.0, 0.9), linear=False)
+        live_paint = ngl.LinearGradientPaint(stops=live_stops, start=(0.0, 0.1), end=(1.0, 0.9), linear=False)
+        return _canvas(
+            cfg,
+            ngl.DrawRect2D(rect=(8, 16, 112, H - 32), fill=animated_paint, corner_radius=(12, 12)),
+            ngl.DrawRect2D(rect=(136, 16, 112, H - 32), fill=live_paint, corner_radius=(12, 12)),
+            duration=3.0,
+        )
+
+    return scene_func
+
+
+drawrect2d_multistop_gradient_updates = _get_drawrect2d_multistop_gradient_updates_func()
+
+
 @test_render()
 @ngl.scene(width=W, height=H)
 def drawrect2d_noise_paint(cfg: ngl.SceneCfg):

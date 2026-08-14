@@ -582,6 +582,20 @@
         "desc": "radial gradient between the two points"
       }
     ],
+    "gradient_spread": [
+      {
+        "name": "clamp",
+        "desc": "extend the first and last colors beyond the stop range"
+      },
+      {
+        "name": "repeat",
+        "desc": "repeat the stop range"
+      },
+      {
+        "name": "mirror",
+        "desc": "repeat the stop range while reversing alternate repetitions"
+      }
+    ],
     "paint_noise_type": [
       {
         "name": "blocky",
@@ -3090,7 +3104,7 @@
         {
           "name": "fill",
           "type": "node",
-          "node_types": ["ColorPaint", "TexturePaint", "GradientPaint", "Gradient4Paint", "NoisePaint", "CustomPaint"],
+          "node_types": ["ColorPaint", "TexturePaint", "GradientPaint", "Gradient4Paint", "LinearGradientPaint", "RadialGradientPaint", "SweepGradientPaint", "NoisePaint", "CustomPaint"],
           "flags": ["nonull"],
           "desc": "fill paint applied inside the rect"
         },
@@ -3540,6 +3554,99 @@
         }
       ]
     },
+    "GradientStop": {
+      "file": "src/node_paint.c",
+      "params": [
+        {
+          "name": "position",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live", "node"],
+          "desc": "normalized stop position within [0,1]"
+        },
+        {
+          "name": "color",
+          "type": "vec4",
+          "default": [1.000000,1.000000,1.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "unpremultiplied RGBA stop color"
+        }
+      ]
+    },
+    "GradientStops": {
+      "file": "src/node_paint.c",
+      "params": [
+        {
+          "name": "stops",
+          "type": "node_list",
+          "node_types": ["GradientStop"],
+          "flags": ["nonull"],
+          "desc": "ordered color stops shared by one or more gradient paints"
+        }
+      ]
+    },
+    "LinearGradientPaint": {
+      "file": "src/node_paint.c",
+      "params": [
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the paint content"
+        },
+        {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply the gradient color by its alpha"
+        },
+        {
+          "name": "stops",
+          "type": "node",
+          "node_types": ["GradientStops"],
+          "flags": ["nonull"],
+          "desc": "ordered color stops sampled by the gradient"
+        },
+        {
+          "name": "transform",
+          "type": "mat4",
+          "default": [1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000,0.000000,0.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "matrix mapping target-local UV coordinates to paint-local UV coordinates"
+        },
+        {
+          "name": "spread",
+          "type": "select",
+          "default": "clamp",
+          "choices": "gradient_spread",
+          "flags": ["live"],
+          "desc": "behavior outside the normalized stop range"
+        },
+        {
+          "name": "linear",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "interpolate stop colors in linear light"
+        },
+        {
+          "name": "start",
+          "type": "vec2",
+          "default": [0.000000,0.500000],
+          "flags": ["live"],
+          "desc": "first point of the gradient axis in local UV coordinates"
+        },
+        {
+          "name": "end",
+          "type": "vec2",
+          "default": [1.000000,0.500000],
+          "flags": ["live"],
+          "desc": "second point of the gradient axis in local UV coordinates"
+        }
+      ]
+    },
     "NoisePaint": {
       "file": "src/node_paint.c",
       "params": [
@@ -3616,13 +3723,75 @@
         }
       ]
     },
+    "RadialGradientPaint": {
+      "file": "src/node_paint.c",
+      "params": [
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the paint content"
+        },
+        {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply the gradient color by its alpha"
+        },
+        {
+          "name": "stops",
+          "type": "node",
+          "node_types": ["GradientStops"],
+          "flags": ["nonull"],
+          "desc": "ordered color stops sampled by the gradient"
+        },
+        {
+          "name": "transform",
+          "type": "mat4",
+          "default": [1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000,0.000000,0.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "matrix mapping target-local UV coordinates to paint-local UV coordinates"
+        },
+        {
+          "name": "spread",
+          "type": "select",
+          "default": "clamp",
+          "choices": "gradient_spread",
+          "flags": ["live"],
+          "desc": "behavior outside the normalized stop range"
+        },
+        {
+          "name": "linear",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "interpolate stop colors in linear light"
+        },
+        {
+          "name": "center",
+          "type": "vec2",
+          "default": [0.500000,0.500000],
+          "flags": ["live"],
+          "desc": "center of the radial gradient in local UV coordinates"
+        },
+        {
+          "name": "radius",
+          "type": "f32",
+          "default": 0.500000,
+          "flags": ["live"],
+          "desc": "radial gradient radius, relative to target height"
+        }
+      ]
+    },
     "Stroke2D": {
       "file": "src/node_stroke2d.c",
       "params": [
         {
           "name": "paint",
           "type": "node",
-          "node_types": ["ColorPaint", "TexturePaint", "GradientPaint", "Gradient4Paint", "NoisePaint", "CustomPaint"],
+          "node_types": ["ColorPaint", "TexturePaint", "GradientPaint", "Gradient4Paint", "LinearGradientPaint", "RadialGradientPaint", "SweepGradientPaint", "NoisePaint", "CustomPaint"],
           "flags": ["nonull"],
           "desc": "paint applied to the stroke geometry"
         },
@@ -3640,6 +3809,75 @@
           "choices": "stroke2d_alignment",
           "flags": ["live"],
           "desc": "placement relative to the shape boundary"
+        }
+      ]
+    },
+    "SweepGradientPaint": {
+      "file": "src/node_paint.c",
+      "params": [
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live"],
+          "desc": "opacity of the paint content"
+        },
+        {
+          "name": "premult",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "premultiply the gradient color by its alpha"
+        },
+        {
+          "name": "stops",
+          "type": "node",
+          "node_types": ["GradientStops"],
+          "flags": ["nonull"],
+          "desc": "ordered color stops sampled by the gradient"
+        },
+        {
+          "name": "transform",
+          "type": "mat4",
+          "default": [1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000,0.000000,0.000000,1.000000,0.000000,0.000000,0.000000,0.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "matrix mapping target-local UV coordinates to paint-local UV coordinates"
+        },
+        {
+          "name": "spread",
+          "type": "select",
+          "default": "clamp",
+          "choices": "gradient_spread",
+          "flags": ["live"],
+          "desc": "behavior outside the normalized stop range"
+        },
+        {
+          "name": "linear",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "interpolate stop colors in linear light"
+        },
+        {
+          "name": "center",
+          "type": "vec2",
+          "default": [0.500000,0.500000],
+          "flags": ["live"],
+          "desc": "center of the sweep gradient in local UV coordinates"
+        },
+        {
+          "name": "start_angle",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "angle in degrees of the first stop, measured clockwise from the positive x axis"
+        },
+        {
+          "name": "sweep_angle",
+          "type": "f32",
+          "default": 360.000000,
+          "flags": ["live"],
+          "desc": "signed angular span in degrees; positive follows the canvas clockwise direction"
         }
       ]
     },

@@ -579,7 +579,7 @@ static int drawrect2d_init(struct ngl_node *node)
             const struct paint_uniform_def *ud = &fill_paint->uniforms.data[i];
             char name[NGPU_ID_LEN];
             ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_FILL, ud->name);
-            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, ud->type, 0);
+            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, ud->type, ud->count);
             if (field_idx < 0)
                 return field_idx;
             const struct prebuilt_uniform pu = {
@@ -610,7 +610,7 @@ static int drawrect2d_init(struct ngl_node *node)
             const struct paint_uniform_def *ud = &stroke_paint->uniforms.data[i];
             char name[NGPU_ID_LEN];
             ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_STROKE, ud->name);
-            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, ud->type, 0);
+            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, ud->type, ud->count);
             if (field_idx < 0)
                 return field_idx;
             const struct prebuilt_uniform pu = {

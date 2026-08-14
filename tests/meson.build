@@ -601,6 +601,8 @@ foreach backend : backends
     'content_orientation_fill',
     'content_orientation_fit',
     'offscreen_canvas_target_size',
+    'multistop_gradient_paints',
+    'multistop_gradient_updates',
   ]
 
   tests_effect2d = [

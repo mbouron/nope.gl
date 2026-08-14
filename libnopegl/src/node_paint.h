@@ -46,7 +46,17 @@ struct bstr;
 struct paint_uniform_def {
     char name[PAINT_NAME_LEN];
     enum ngpu_type type;
+    size_t count;         /* 0 for a scalar, otherwise the array length */
     const uint8_t *data;
+};
+
+#define NGLI_MAX_GRADIENT_STOPS 16
+
+struct ngli_gradient_stops_info {
+    float colors[NGLI_MAX_GRADIENT_STOPS][4];
+    float positions[NGLI_MAX_GRADIENT_STOPS];
+    int32_t nb_stops;
+    uint64_t revision;
 };
 
 struct paint_custom_uniform_def {
@@ -103,5 +113,7 @@ void ngli_paint_get_resource_name(char *dst, size_t size,
 /* Build a paint GLSL shader, renaming main() and expanding '$' for a given role */
 void ngli_paint_glsl_write(struct bstr *b, const char *glsl,
                            enum paint_shader_role role, const char *entrypoint);
+
+const struct ngli_gradient_stops_info *ngli_gradient_stops_get_info(const struct ngl_node *node);
 
 #endif
