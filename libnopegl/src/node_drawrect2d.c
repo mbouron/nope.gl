@@ -207,6 +207,7 @@ struct drawrect2d_priv {
     size_t vert_block_size;
     int32_t vert_block_index;
 
+    struct ngpu_block_desc frag_block_desc;
     int32_t frag_block_index;
 
     struct ngpu_block_desc user_block_desc;
@@ -546,14 +547,12 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_nb_clips",             .type = NGPU_TYPE_I32},
     };
 
-    struct ngpu_block_desc frag_block_desc;
-    ngpu_block_desc_init(gpu_ctx, &frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
-    ret = ngpu_block_desc_add_fields(&frag_block_desc, frag_static_fields, NGLI_ARRAY_NB(frag_static_fields));
-    if (ret < 0) {
-        ngpu_block_desc_reset(&frag_block_desc);
+    ngpu_block_desc_init(gpu_ctx, &s->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    ret = ngpu_block_desc_add_fields(&s->frag_block_desc, frag_static_fields, NGLI_ARRAY_NB(frag_static_fields));
+    if (ret < 0)
         return ret;
-    }
-    const size_t frag_block_size = ngpu_block_desc_get_size(&frag_block_desc, 0);
+
+    const size_t frag_block_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
     ngli_assert(frag_block_size == sizeof(struct drawrect2d_frag_block));
 
     /* Build user uniform block (dynamic fill/stroke/custom uniforms) */
@@ -672,7 +671,6 @@ static int drawrect2d_init(struct ngl_node *node)
     if (ngli_darray_push(&blocks, vert_crafter_block) < 0) {
         ngli_darray_reset(&blocks);
         ngli_darray_reset(&textures);
-        ngpu_block_desc_reset(&frag_block_desc);
         return NGL_ERROR_MEMORY;
     }
 
@@ -681,13 +679,12 @@ static int drawrect2d_init(struct ngl_node *node)
         .instance_name = "",
         .type          = NGPU_TYPE_UNIFORM_BUFFER,
         .stage         = NGPU_PROGRAM_STAGE_FRAG,
-        .block         = &frag_block_desc,
+        .block         = &s->frag_block_desc,
         .buffer        = {.buffer = staging_buf, .size = frag_block_size},
     };
     if (ngli_darray_push(&blocks, frag_crafter_block) < 0) {
         ngli_darray_reset(&blocks);
         ngli_darray_reset(&textures);
-        ngpu_block_desc_reset(&frag_block_desc);
         return NGL_ERROR_MEMORY;
     }
 
@@ -703,7 +700,6 @@ static int drawrect2d_init(struct ngl_node *node)
         if (ngli_darray_push(&blocks, user_crafter_block) < 0) {
             ngli_darray_reset(&blocks);
             ngli_darray_reset(&textures);
-            ngpu_block_desc_reset(&frag_block_desc);
             return NGL_ERROR_MEMORY;
         }
     }
@@ -742,7 +738,6 @@ static int drawrect2d_init(struct ngl_node *node)
         if (ngli_darray_push(&blocks, crafter_block) < 0) {
             ngli_darray_reset(&blocks);
             ngli_darray_reset(&textures);
-            ngpu_block_desc_reset(&frag_block_desc);
             return NGL_ERROR_MEMORY;
         }
     }
@@ -783,7 +778,6 @@ static int drawrect2d_init(struct ngl_node *node)
     ret = ngpu_pgcraft_craft(s->crafter, &crafter_params);
     ngli_darray_reset(&textures);
     ngli_darray_reset(&blocks);
-    ngpu_block_desc_reset(&frag_block_desc);
     if (ret < 0)
         return ret;
 
@@ -1144,6 +1138,7 @@ static void drawrect2d_uninit(struct ngl_node *node)
     ngli_darray_reset(&s->prebuilt_uniforms);
     ngli_darray_reset(&s->stroke_prebuilt_uniforms);
     ngpu_block_desc_reset(&s->vert_block_desc);
+    ngpu_block_desc_reset(&s->frag_block_desc);
     ngpu_block_desc_reset(&s->user_block_desc);
     ngpu_pgcraft_freep(&s->crafter);
     ngli_geometry_freep(&s->geometry);
