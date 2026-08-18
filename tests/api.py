@@ -991,6 +991,51 @@ def api_bounding_box_drawrect2d(width=256, height=256):
     ctx.set_scene(None)
 
 
+def api_bounding_box_offscreen_canvas(width=256, height=256):
+    """OffscreenCanvas2D does not affect ancestor bounds."""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    rect = ngl.DrawRect2D(rect=(100, 100, 50, 50), fill=fill, label="rect")
+
+    # Offscreen children render only to the texture, so the canvas has no screen bounds.
+    texture = ngl.Texture2D(width=64, height=64)
+    offscreen = ngl.OffscreenCanvas2D(
+        children=[ngl.DrawRect2D(rect=(0, 0, 64, 64), fill=fill)],
+        width=0,
+        height=0,
+        color_textures=[texture],
+        label="offscreen",
+    )
+
+    group = ngl.Group2D(children=[rect, offscreen], label="group")
+    canvas = ngl.Canvas2D(children=[group], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    ret = ctx.set_scene(scene)
+    assert ret == 0
+
+    ret = ctx.draw(0.0)
+    assert ret == 0
+
+    group_bbox = group.get_bounding_box()
+    assert _is_close(group_bbox["center"][0], 125), f"group center_x: {group_bbox['center'][0]} != 125"
+    assert _is_close(group_bbox["center"][1], 125), f"group center_y: {group_bbox['center'][1]} != 125"
+    assert _is_close(group_bbox["extent"][0], 25), f"group extent_x: {group_bbox['extent'][0]} != 25"
+    assert _is_close(group_bbox["extent"][1], 25), f"group extent_y: {group_bbox['extent'][1]} != 25"
+
+    ctx.set_scene(None)
+
+
 def api_bounding_box_multiple_children(width=256, height=256):
     """Test the bounding box union with multiple children"""
     ctx = ngl.Context()

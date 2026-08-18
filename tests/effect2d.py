@@ -135,6 +135,65 @@ def effect2d_nested_in_group2d(cfg: ngl.SceneCfg):
     return _canvas(cfg, group, duration=4.0)
 
 
+@test_render(tolerance=3, diff_threshold=0.005)
+@ngl.scene(width=W, height=H)
+def effect2d_offscreen_canvas_density(cfg: ngl.SceneCfg):
+    """A nested Effect2D uses the offscreen target density."""
+    cfg.duration = 1.0
+
+    offscreen_w = offscreen_h = 64
+    density_scale = 4
+    texture = ngl.Texture2D(
+        width=W * density_scale,
+        height=H * density_scale,
+        min_filter="linear",
+        mag_filter="linear",
+    )
+    bar = ngl.DrawRect2D(
+        rect=(-32, 32, 128, 24),
+        fill=ngl.ColorFill(color=(0.95, 0.55, 0.15, 1.0)),
+        rotation=30.0,
+        anchor=(32, 32),
+    )
+    effect = ngl.Effect2D(children=[bar])
+    offscreen = ngl.OffscreenCanvas2D(
+        children=[effect],
+        width=offscreen_w,
+        height=offscreen_h,
+        color_textures=[texture],
+        clear_color=(0.1, 0.1, 0.25, 1.0),
+    )
+
+    def get_centered_crop_rect(width, height, scale):
+        display_w = width * scale
+        display_h = height * scale
+        return ((width - display_w) / 2, (height - display_h) / 2, display_w, display_h)
+
+    display_rect = get_centered_crop_rect(W, H, density_scale)
+    display = ngl.DrawRect2D(rect=display_rect, fill=ngl.TextureFill(texture=texture))
+    return _canvas(cfg, offscreen, display)
+
+
+@test_render(tolerance=3, diff_threshold=0.005)
+@ngl.scene(width=W, height=H)
+def effect2d_offscreen_canvas_isolates_transform(cfg: ngl.SceneCfg):
+    """Offscreen children ignore an enclosing Group2D transform."""
+    cfg.duration = 1.0
+    tex = ngl.Texture2D(width=W, height=H)
+
+    effect = ngl.Effect2D(children=[_colored_rect(32, 32, 96, 96, (0.9, 0.4, 0.1, 1.0))])
+    offscreen = ngl.OffscreenCanvas2D(
+        children=[effect],
+        width=0,
+        height=0,
+        color_textures=[tex],
+        clear_color=(0.1, 0.2, 0.15, 1.0),
+    )
+    display = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.TextureFill(texture=tex))
+    group = ngl.Group2D(children=[offscreen, display], translate=(48, 32), rotation=20.0, anchor=(W / 2, H / 2))
+    return _canvas(cfg, group)
+
+
 def _gaussian_kernel_1d(sigma):
     """Compute a normalized 1D Gaussian kernel."""
     radius = math.ceil(3 * sigma)
