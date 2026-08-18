@@ -4324,14 +4324,14 @@
           "type": "i32",
           "default": 0,
           "flags": [],
-          "desc": "canvas width in pixels (0 uses parent's canvas width)"
+          "desc": "canvas width in pixels (0 inherits the parent canvas width, or falls back to the render target width)"
         },
         {
           "name": "height",
           "type": "i32",
           "default": 0,
           "flags": [],
-          "desc": "canvas height in pixels (0 uses parent's canvas height)"
+          "desc": "canvas height in pixels (0 inherits the parent canvas height, or falls back to the render target height)"
         },
         {
           "name": "color_textures",
