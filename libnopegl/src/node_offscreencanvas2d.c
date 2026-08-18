@@ -70,12 +70,14 @@ static const struct node_param offscreencanvas2d_params[] = {
         .key        = "width",
         .type       = NGLI_PARAM_TYPE_I32,
         .offset     = OFFSET(width),
-        .desc       = NGLI_DOCSTRING("canvas width in pixels (0 uses parent's canvas width)"),
+        .desc       = NGLI_DOCSTRING("canvas width in pixels (0 inherits the parent canvas width, "
+                                     "or falls back to the render target width)"),
     }, {
         .key        = "height",
         .type       = NGLI_PARAM_TYPE_I32,
         .offset     = OFFSET(height),
-        .desc       = NGLI_DOCSTRING("canvas height in pixels (0 uses parent's canvas height)"),
+        .desc       = NGLI_DOCSTRING("canvas height in pixels (0 inherits the parent canvas height, "
+                                     "or falls back to the render target height)"),
     }, {
         .key        = "color_textures",
         .type       = NGLI_PARAM_TYPE_NODELIST,
@@ -385,6 +387,9 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
     struct offscreencanvas2d_priv *s = node->priv_data;
     const struct offscreencanvas2d_opts *o = node->opts;
 
+    /* This node draws only offscreen and must not affect ancestor bounds. */
+    s->node2d_info.screen_aabb = NGLI_AABB_EMPTY;
+
     /* Handle resizable textures */
     if (s->resizable) {
         int ret = offscreencanvas2d_resize(node);
@@ -392,18 +397,27 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
             return;
     }
 
-    /* Pre-draw children */
-    for (size_t i = 0; i < o->nb_children; i++)
-        ngli_node_pre_draw(o->children[i]);
-
     /* Save previous 2D state */
     const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
     struct ngli_mat4_darray prev_transform_2d_stack = ctx->transform_2d_stack;
     struct ngli_f32_darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
+    const float prev_canvas_2d_width = ctx->canvas_2d_width;
+    const float prev_canvas_2d_height = ctx->canvas_2d_height;
+    const size_t prev_nb_clips_2d = ctx->nb_clips_2d;
+    struct ngli_clip2d prev_clips_2d[NGLI_MAX_CLIPS_2D];
+    memcpy(prev_clips_2d, ctx->clips_2d, prev_nb_clips_2d * sizeof(*prev_clips_2d));
 
-    /* Initialize fresh stacks */
+    /* Start an independent 2D canvas state. */
     ctx->transform_2d_stack = (struct ngli_mat4_darray){0};
     ctx->opacity_2d_stack = (struct ngli_f32_darray){0};
+    ctx->nb_clips_2d = 0;
+
+    const float parent_w = prev_canvas_2d_width > 0.f ? prev_canvas_2d_width : (float)s->rtt_width;
+    const float parent_h = prev_canvas_2d_height > 0.f ? prev_canvas_2d_height : (float)s->rtt_height;
+    const float w = o->width > 0 ? (float)o->width : parent_w;
+    const float h = o->height > 0 ? (float)o->height : parent_h;
+    ctx->canvas_2d_width = w;
+    ctx->canvas_2d_height = h;
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
@@ -411,11 +425,25 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
         ngli_darray_push(&ctx->opacity_2d_stack, default_opacity) < 0)
         goto restore;
 
-    /* Begin RTT + set up orthographic projection */
-    ngli_rtt_begin(s->rtt_ctx);
+    /*
+     * Expose this target's resolution during child pre-draw, but keep the
+     * enclosing render target selected until this canvas starts drawing.
+     */
+    uint32_t rtt_width, rtt_height;
+    ngli_rtt_get_dimensions(s->rtt_ctx, &rtt_width, &rtt_height);
+    const struct ngpu_viewport prev_viewport = ctx->viewport;
+    const struct ngpu_scissor prev_scissor = ctx->scissor;
+    ctx->viewport = (struct ngpu_viewport){0.f, 0.f, (float)rtt_width, (float)rtt_height};
+    ctx->scissor = (struct ngpu_scissor){0, 0, rtt_width, rtt_height};
 
-    const float w = o->width  > 0 ? (float)o->width  : ctx->canvas_2d_width;
-    const float h = o->height > 0 ? (float)o->height : ctx->canvas_2d_height;
+    for (size_t i = 0; i < o->nb_children; i++)
+        ngli_node_pre_draw(o->children[i]);
+
+    /* Let ngli_rtt_begin() save the enclosing viewport and scissor. */
+    ctx->viewport = prev_viewport;
+    ctx->scissor = prev_scissor;
+
+    ngli_rtt_begin(s->rtt_ctx);
 
     struct ngli_mat4 base_projection;
     ngpu_ctx_get_projection_matrix(gpu_ctx, base_projection.m);
@@ -436,6 +464,10 @@ restore:
     ctx->transform_2d_stack = prev_transform_2d_stack;
     ctx->opacity_2d_stack = prev_opacity_2d_stack;
     ctx->projection_2d_matrix = prev_projection_2d;
+    ctx->canvas_2d_width = prev_canvas_2d_width;
+    ctx->canvas_2d_height = prev_canvas_2d_height;
+    memcpy(ctx->clips_2d, prev_clips_2d, prev_nb_clips_2d * sizeof(*prev_clips_2d));
+    ctx->nb_clips_2d = prev_nb_clips_2d;
 }
 
 static void offscreencanvas2d_draw(struct ngl_node *node)
