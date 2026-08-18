@@ -652,6 +652,24 @@ def drawrect2d_custom_mrt(cfg: ngl.SceneCfg):
 
 @test_render()
 @ngl.scene(width=W, height=H)
+def drawrect2d_offscreen_canvas_target_size(cfg: ngl.SceneCfg):
+    """Fall back to the target size when there is no parent canvas."""
+    cfg.duration = 1.0
+    texture = ngl.Texture2D(width=W, height=H)
+    offscreen = ngl.OffscreenCanvas2D(
+        children=[
+            ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.15, 0.15, 0.35, 1.0))),
+            ngl.DrawRect2D(rect=(32, 32, W - 64, H - 64), fill=ngl.ColorFill(color=(0.9, 0.5, 0.1, 1.0))),
+        ],
+        width=0,
+        height=0,
+        color_textures=[texture],
+    )
+    return ngl.Group(children=[offscreen, ngl.DrawTexture(texture=texture)])
+
+
+@test_render()
+@ngl.scene(width=W, height=H)
 def drawrect2d_canvas_multiple_children(cfg: ngl.SceneCfg):
     """Canvas2D with multiple DrawRect2D children drawn in order."""
     r0 = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.2, 0.2, 0.8, 1.0)))

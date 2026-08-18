@@ -93,6 +93,7 @@ foreach backend : backends
     'bounding_box_before_draw',
     'bounding_box',
     'bounding_box_drawrect2d',
+    'bounding_box_offscreen_canvas',
     'bounding_box_multiple_children',
     'bounding_box_intersection',
     'bounding_box_rotation',
@@ -597,6 +598,7 @@ foreach backend : backends
     'fill_stroke_opacity',
     'content_orientation_fill',
     'content_orientation_fit',
+    'offscreen_canvas_target_size',
   ]
 
   tests_effect2d = [
@@ -607,6 +609,8 @@ foreach backend : backends
     'invert',
     'nested_in_group2d',
     'blur',
+    'offscreen_canvas_density',
+    'offscreen_canvas_isolates_transform',
   ]
 
   tests_noise = [
