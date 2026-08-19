@@ -37,6 +37,7 @@
 #include "node_stroke.h"
 #include "node_texture.h"
 #include "node_uniform.h"
+#include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
@@ -49,21 +50,6 @@
 #include "helper_misc_utils_glsl.h"
 #include "helper_noise_glsl.h"
 #include "helper_srgb_glsl.h"
-
-/* Vertex shader for non-texture fills */
-static const char drawrect_vert_notex[] =
-    "void main()\n"
-    "{\n"
-    "    vec2 dir = sign(uvcoord - 0.5);\n"
-    "    vec4 canvas_pos = modelview_matrix"
-    " * vec4(position.xy + dir * ngli_margin_px, 0.0, 1.0);\n"
-    "    ngl_out_pos = projection_matrix * canvas_pos;\n"
-    "    /* Canvas-pixel position, used to test cascaded clip planes from Group2D. */\n"
-    "    ngli_clip_pos = canvas_pos.xy;\n"
-    "    ngli_uv = uvcoord + dir * ngli_margin_uv;\n"
-    "    vec2 adj_uvcoord = (uvcoord - 0.5) * ngli_uv_scale + 0.5;\n"
-    "    ngli_tex_coord = adj_uvcoord;\n"
-    "}\n";
 
 /* Default stroke base when no stroke node is attached (width=0 → invisible) */
 static const struct stroke_base_opts default_stroke_base = {
@@ -188,6 +174,7 @@ struct drawrect2d_priv {
     NGLI_DARRAY(struct prebuilt_uniform) stroke_prebuilt_uniforms;
     const struct fill_info *fill_info;
     const struct stroke_info *stroke_info;
+    char *vert_shader;
     char *frag_shader;
 };
 
@@ -366,6 +353,28 @@ static const struct node_param drawrect2d_params[] = {
 };
 #undef OFFSET
 
+static char *build_vertex_shader(bool has_fill_texture)
+{
+    struct bstr *bstr = ngli_bstr_create();
+    if (!bstr)
+        return NULL;
+
+    if (has_fill_texture)
+        ngli_bstr_print(bstr, "#define NGLI_DRAWRECT_FILL_TEXTURE\n");
+
+    ngli_bstr_print(bstr, drawrect_vert);
+
+    if (ngli_bstr_check(bstr) < 0) {
+        ngli_bstr_freep(&bstr);
+        return NULL;
+    }
+
+    char *shader = ngli_bstr_strdup(bstr);
+    ngli_bstr_freep(&bstr);
+
+    return shader;
+}
+
 static int build_texture_map(struct drawrect2d_priv *s)
 {
     const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
@@ -453,6 +462,10 @@ static int drawrect2d_init(struct ngl_node *node)
     s->uvcoord_attr.buffer = s->geometry->uvcoords_buffer;
 
     s->nb_vertices = (uint32_t)s->geometry->vertices_layout.count;
+
+    s->vert_shader = build_vertex_shader(texture != NULL);
+    if (!s->vert_shader)
+        return NGL_ERROR_MEMORY;
 
     /* Build fragment shader */
     struct bstr *bstr = ngli_bstr_create();
@@ -721,7 +734,7 @@ static int drawrect2d_init(struct ngl_node *node)
 
     const struct ngpu_pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawrect",
-        .vert_base        = texture ? drawrect_vert : drawrect_vert_notex,
+        .vert_base        = s->vert_shader,
         .frag_base        = s->frag_shader,
         .textures         = textures.data,
         .nb_textures      = textures.count,
@@ -1108,6 +1121,7 @@ static void drawrect2d_uninit(struct ngl_node *node)
     ngpu_block_desc_reset(&s->user_block_desc);
     ngpu_pgcraft_freep(&s->crafter);
     ngli_geometry_freep(&s->geometry);
+    ngli_freep(&s->vert_shader);
     ngli_freep(&s->frag_shader);
 }
 

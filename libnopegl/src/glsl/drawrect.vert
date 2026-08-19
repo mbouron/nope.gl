@@ -43,5 +43,10 @@ void main()
     ngli_clip_pos = canvas_pos.xy;
     ngli_uv = uvcoord + dir * ngli_margin_uv;
     vec2 adj_uvcoord = (uvcoord - 0.5) * ngli_uv_scale + 0.5;
+#ifdef NGLI_DRAWRECT_FILL_TEXTURE
     ngli_tex_coord = (tex_coord_matrix * vec4(adj_uvcoord, 0.0, 1.0)).xy;
+#else
+    ngli_tex_coord = adj_uvcoord;
+#endif
+
 }
