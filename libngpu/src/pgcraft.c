@@ -793,7 +793,7 @@ static const struct ngpu_pgcraft_texture *get_texture(const struct ngpu_pgcraft_
 {
     for (size_t i = 0; i < params->nb_textures; i++) {
         const struct ngpu_pgcraft_texture *pgcraft_texture = &params->textures[i];
-        if (!strncmp(name, pgcraft_texture->name, name_len))
+        if (strlen(pgcraft_texture->name) == name_len && !strncmp(name, pgcraft_texture->name, name_len))
             return pgcraft_texture;
     }
     return NULL;
