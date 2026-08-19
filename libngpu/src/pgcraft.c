@@ -788,37 +788,45 @@ static void set_glsl_header(struct ngpu_pgcraft *s, struct bstr *b, const struct
     ngpu_bstr_print(b, "\n");
 }
 
-static int texture_needs_clamping(const struct ngpu_pgcraft_params *params,
-                                  const char *name, size_t name_len)
+static const struct ngpu_pgcraft_texture *get_texture(const struct ngpu_pgcraft_params *params,
+                                                      const char *name, size_t name_len)
 {
     for (size_t i = 0; i < params->nb_textures; i++) {
         const struct ngpu_pgcraft_texture *pgcraft_texture = &params->textures[i];
         if (!strncmp(name, pgcraft_texture->name, name_len))
-            return pgcraft_texture->clamp_video;
+            return pgcraft_texture;
     }
-    return 0;
+    return NULL;
+}
+
+static int texture_needs_clamping(const struct ngpu_pgcraft_params *params,
+                                  const char *name, size_t name_len)
+{
+    const struct ngpu_pgcraft_texture *texture = get_texture(params, name, name_len);
+    if (!texture)
+        return 0;
+
+    return texture->clamp_video;
 }
 
 static int texture_needs_premultiply(const struct ngpu_pgcraft_params *params,
                                         const char *name, size_t name_len)
 {
-    for (size_t i = 0; i < params->nb_textures; i++) {
-        const struct ngpu_pgcraft_texture *pgcraft_texture = &params->textures[i];
-        if (!strncmp(name, pgcraft_texture->name, name_len))
-            return pgcraft_texture->premult;
-    }
-    return 0;
+    const struct ngpu_pgcraft_texture *texture = get_texture(params, name, name_len);
+    if (!texture)
+        return 0;
+
+    return texture->premult;
 }
 
 static enum ngpu_pgcraft_texture_type get_texture_type(const struct ngpu_pgcraft_params *params,
                                                      const char *name, size_t name_len)
 {
-    for (size_t i = 0; i < params->nb_textures; i++) {
-        const struct ngpu_pgcraft_texture *pgcraft_texture = &params->textures[i];
-        if (!strncmp(name, pgcraft_texture->name, name_len))
-            return pgcraft_texture->type;
-    }
-    return NGPU_PGCRAFT_TEXTURE_TYPE_NONE;
+    const struct ngpu_pgcraft_texture *texture = get_texture(params, name, name_len);
+    if (!texture)
+        return NGPU_PGCRAFT_TEXTURE_TYPE_NONE;
+
+    return texture->type;
 }
 
 #define WHITESPACES     "\r\n\t "
