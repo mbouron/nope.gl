@@ -155,7 +155,6 @@ struct user_uniform {
 /* Tracks a prebuilt fill/stroke uniform: reads from opts at draw time */
 struct prebuilt_uniform {
     int32_t field_index;
-    enum ngpu_type type;
     const uint8_t *base;  /* pointer to fill/stroke node opts */
     size_t offset;        /* byte offset within base */
 };
@@ -546,7 +545,6 @@ static int drawrect2d_init(struct ngl_node *node)
                 return field_idx;
             const struct prebuilt_uniform pu = {
                 .field_index = field_idx,
-                .type        = ud->type,
                 .base        = (const uint8_t *)fi->opts,
                 .offset      = ud->opts_offset,
             };
@@ -576,7 +574,6 @@ static int drawrect2d_init(struct ngl_node *node)
                 return field_idx;
             const struct prebuilt_uniform pu = {
                 .field_index = field_idx,
-                .type        = ud->type,
                 .base        = (const uint8_t *)si->opts,
                 .offset      = ud->opts_offset,
             };
