@@ -946,7 +946,6 @@ static const struct node_param customfill_params[] = {
             NGL_NODE_TEXTURE2DARRAY,
             NGL_NODE_TEXTURE3D,
             NGL_NODE_TEXTURECUBE,
-            NGL_NODE_TEXTUREVIEW,
             NGL_NODE_CUSTOMTEXTURE,
             NGL_NODE_BLOCK,
             NGLI_NODE_NONE,
