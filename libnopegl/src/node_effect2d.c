@@ -187,7 +187,6 @@ static const struct node_param effect2d_params[] = {
             NGL_NODE_TEXTURE2DARRAY,
             NGL_NODE_TEXTURE3D,
             NGL_NODE_TEXTURECUBE,
-            NGL_NODE_TEXTUREVIEW,
             NGL_NODE_CUSTOMTEXTURE,
             NGL_NODE_BLOCK,
             NGLI_NODE_NONE,
@@ -269,7 +268,6 @@ static int node_is_texture(const struct ngl_node *node)
            node->cls->id == NGL_NODE_TEXTURE2DARRAY ||
            node->cls->id == NGL_NODE_TEXTURE3D ||
            node->cls->id == NGL_NODE_TEXTURECUBE ||
-           node->cls->id == NGL_NODE_TEXTUREVIEW ||
            node->cls->id == NGL_NODE_CUSTOMTEXTURE;
 }
 
