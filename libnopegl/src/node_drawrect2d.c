@@ -80,35 +80,6 @@ static const struct stroke_info default_stroke_info = {
     .glsl = no_stroke_glsl,
 };
 
-static const void *node_get_data_ptr(const struct ngl_node *node, enum ngpu_type type)
-{
-    if (node->cls->category == NGLI_NODE_CATEGORY_VARIABLE) {
-        const struct variable_info *var = node->priv_data;
-        return var->data;
-    }
-    ngli_assert(node->cls->flags & NGLI_NODE_FLAG_LIVECTL);
-    const struct livectl *ctl = (const struct livectl *)((const uint8_t *)node->opts + node->cls->livectl_offset);
-    switch (type) {
-    case NGPU_TYPE_F32:
-    case NGPU_TYPE_VEC2:
-    case NGPU_TYPE_VEC3:
-    case NGPU_TYPE_VEC4:   return ctl->val.f;
-    case NGPU_TYPE_MAT4:   return ctl->val.m;
-    case NGPU_TYPE_I32:
-    case NGPU_TYPE_IVEC2:
-    case NGPU_TYPE_IVEC3:
-    case NGPU_TYPE_IVEC4:
-    case NGPU_TYPE_BOOL:   return ctl->val.i;
-    case NGPU_TYPE_U32:
-    case NGPU_TYPE_UVEC2:
-    case NGPU_TYPE_UVEC3:
-    case NGPU_TYPE_UVEC4:  return ctl->val.u;
-    default:
-        ngli_assert(0);
-        return NULL;
-    }
-}
-
 struct resource_map {
     int32_t index;
     const struct block_info *info;
@@ -179,7 +150,6 @@ struct drawrect2d_opts {
 struct user_uniform {
     int32_t field_index;
     const struct ngl_node *node;
-    enum ngpu_type type;
 };
 
 /* Tracks a prebuilt fill/stroke uniform: reads from opts at draw time */
@@ -593,7 +563,6 @@ static int drawrect2d_init(struct ngl_node *node)
             const struct user_uniform uu = {
                 .field_index = field_idx,
                 .node        = cu->node,
-                .type        = cu->type,
             };
             if (ngli_darray_push(&s->user_uniforms, uu) < 0)
                 return NGL_ERROR_MEMORY;
@@ -1098,7 +1067,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         /* CustomFill user uniforms */
         for (size_t i = 0; i < s->user_uniforms.count; i++) {
             const struct user_uniform *uu = &s->user_uniforms.data[i];
-            ngpu_block_field_copy(&fields[uu->field_index], data + fields[uu->field_index].offset, node_get_data_ptr(uu->node, uu->type));
+            ngpu_block_field_copy(&fields[uu->field_index], data + fields[uu->field_index].offset, ngli_node_get_data_ptr(uu->node, NULL));
         }
 
         struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
