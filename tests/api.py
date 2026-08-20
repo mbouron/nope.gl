@@ -828,7 +828,7 @@ def api_bounding_box_before_draw(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(0, 0, 100, 80), fill=fill, label="rect")
     group = ngl.Group2D(children=[rect], translate=(50, 30), label="group")
     canvas = ngl.Canvas2D(children=[group], width=width, height=height)
@@ -911,7 +911,7 @@ def api_bounding_box(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.5, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.5, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(0, 0, 100, 80), fill=fill, label="rect")
     group = ngl.Group2D(children=[rect], translate=(50, 30), label="group")
     canvas = ngl.Canvas2D(children=[group], width=width, height=height)
@@ -955,7 +955,7 @@ def api_bounding_box_drawrect2d(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(0, 0, 100, 80), fill=fill, label="rect")
     group = ngl.Group2D(children=[rect], scale=(2.0, 0.5), anchor=(0, 0))
     canvas = ngl.Canvas2D(children=[group], width=width, height=height)
@@ -1004,7 +1004,7 @@ def api_bounding_box_offscreen_canvas(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(100, 100, 50, 50), fill=fill, label="rect")
 
     # Offscreen children render only to the texture, so the canvas has no screen bounds.
@@ -1049,7 +1049,7 @@ def api_bounding_box_multiple_children(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     # Two non-overlapping rects:
     # r0 at (10, 20, 40, 30) → center=(30, 35), extent=(20, 15), spans x=[10,50], y=[20,50]
     # r1 at (100, 80, 60, 40) → center=(130, 100), extent=(30, 20), spans x=[100,160], y=[80,120]
@@ -1107,7 +1107,7 @@ def api_bounding_box_intersection(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.5, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.5, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(78, 78, 100, 100), fill=fill, label="target")
     canvas = ngl.Canvas2D(children=[rect], width=width, height=height)
 
@@ -1147,7 +1147,7 @@ def api_bounding_box_rotation(width=256, height=256):
     assert ret == 0
 
     # 200x100 rect at origin, rotated 90° around its center (100, 50)
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(0, 0, 200, 100), fill=fill, label="rect")
     group = ngl.Group2D(children=[rect], rotation=90.0, anchor=(100, 50))
     canvas = ngl.Canvas2D(children=[group], width=width, height=height)
@@ -1190,7 +1190,7 @@ def api_bounding_box_intersection_rotated(width=256, height=256):
     assert ret == 0
 
     # 100x100 square centered at (128, 128), rotated 45° → diamond shape
-    fill = ngl.ColorFill(color=(1.0, 0.5, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.5, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(78, 78, 100, 100), fill=fill, label="diamond")
     group = ngl.Group2D(children=[rect], rotation=45.0, anchor=(128, 128))
     canvas = ngl.Canvas2D(children=[group], width=width, height=height)
@@ -1244,7 +1244,7 @@ def api_transform_matrix(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(0, 0, 100, 80), fill=fill, label="rect")
     group = ngl.Group2D(
         children=[rect],
@@ -1299,7 +1299,7 @@ def api_transform_matrix_nested(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(0, 0, 50, 50), fill=fill, label="rect")
 
     # Inner group: translate by (10, 20)
@@ -1338,7 +1338,7 @@ def api_transform_matrix_nested(width=256, height=256):
 
 def api_param_get(width=256, height=256):
     """Test the ngl_node_param_get_* API via generated getter methods"""
-    fill = ngl.ColorFill(color=(0.8, 0.2, 0.1, 1.0))
+    fill = ngl.ColorPaint(color=(0.8, 0.2, 0.1, 1.0))
     rect = ngl.DrawRect2D(rect=(10, 20, 100, 80), fill=fill)
 
     # vec4 getter
@@ -1384,7 +1384,7 @@ def api_transform_matrix_rotation_stability(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(0, 0, 100, 80), fill=fill, label="rect")
     group = ngl.Group2D(children=[rect], anchor=(0, 0), label="group")
     canvas = ngl.Canvas2D(children=[group], width=width, height=height)
@@ -1417,7 +1417,7 @@ def api_global_transform_getters(width=256, height=256):
     )
     assert ret == 0
 
-    fill = ngl.ColorFill(color=(1.0, 0.0, 0.0, 1.0))
+    fill = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
     rect = ngl.DrawRect2D(rect=(0, 0, 100, 80), fill=fill, label="rect")
     group = ngl.Group2D(
         children=[rect],

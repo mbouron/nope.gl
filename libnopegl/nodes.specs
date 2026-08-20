@@ -534,21 +534,21 @@
         "desc": "same as `colorholes` but non-selected colors become `(1,1,1,1)`"
       }
     ],
-    "fill_scaling": [
+    "paint_scaling": [
       {
         "name": "none",
-        "desc": "no scaling, texture is stretched to fill the rect"
+        "desc": "no scaling, texture is stretched to the target shape bounds"
       },
       {
         "name": "fit",
-        "desc": "scale to fit within the rect preserving aspect ratio (may leave empty areas)"
+        "desc": "scale to fit within the target shape bounds preserving aspect ratio (may leave empty areas)"
       },
       {
         "name": "fill",
-        "desc": "scale to fill the rect preserving aspect ratio (may crop)"
+        "desc": "scale to fill the target shape bounds preserving aspect ratio (may crop)"
       }
     ],
-    "fill_wrap": [
+    "paint_wrap": [
       {
         "name": "default",
         "desc": "use texture wrap parameters"
@@ -558,7 +558,7 @@
         "desc": "discard fragment if coordinates are outside texture boundaries"
       }
     ],
-    "fill_gradient_mode": [
+    "paint_gradient_mode": [
       {
         "name": "ramp",
         "desc": "straight line gradient"
@@ -568,7 +568,7 @@
         "desc": "radial gradient between the two points"
       }
     ],
-    "fill_noise_type": [
+    "paint_noise_type": [
       {
         "name": "blocky",
         "desc": "blocky noise"
@@ -578,28 +578,18 @@
         "desc": "perlin noise"
       }
     ],
-    "stroke_mode": [
+    "stroke2d_alignment": [
       {
         "name": "inside",
-        "desc": "outline inside the shape boundary"
+        "desc": "stroke lies inside the shape boundary"
       },
       {
         "name": "center",
-        "desc": "outline centered on the shape boundary"
+        "desc": "stroke is centered on the shape boundary"
       },
       {
         "name": "outside",
-        "desc": "outline outside the shape boundary"
-      }
-    ],
-    "stroke_gradient_mode": [
-      {
-        "name": "ramp",
-        "desc": "straight line gradient"
-      },
-      {
-        "name": "radial",
-        "desc": "radial gradient between the two points"
+        "desc": "stroke lies outside the shape boundary"
       }
     ],
     "topology": [
@@ -2986,55 +2976,55 @@
       "params": [
       ]
     },
-    "ColorFill": {
-      "file": "src/node_fill.c",
+    "ColorPaint": {
+      "file": "src/node_paint.c",
       "params": [
         {
           "name": "opacity",
           "type": "f32",
           "default": 1.000000,
           "flags": ["live"],
-          "desc": "opacity of the fill content"
+          "desc": "opacity of the paint content"
         },
         {
           "name": "premult",
           "type": "bool",
           "default": 1,
           "flags": [],
-          "desc": "premultiply fill color by its alpha"
+          "desc": "premultiply paint color by its alpha"
         },
         {
           "name": "color",
           "type": "vec4",
           "default": [1.000000,1.000000,1.000000,1.000000],
           "flags": ["live"],
-          "desc": "fill color (RGBA)"
+          "desc": "paint color (RGBA)"
         }
       ]
     },
-    "CustomFill": {
-      "file": "src/node_fill.c",
+    "CustomPaint": {
+      "file": "src/node_paint.c",
       "params": [
         {
           "name": "opacity",
           "type": "f32",
           "default": 1.000000,
           "flags": ["live"],
-          "desc": "opacity of the fill content"
+          "desc": "opacity of the paint content"
         },
         {
           "name": "scaling",
           "type": "select",
           "default": "none",
-          "choices": "fill_scaling",
+          "choices": "paint_scaling",
           "flags": [],
-          "desc": "texture scaling mode applied to custom fill content"
+          "desc": "texture scaling mode applied to custom paint content"
         },
         {
           "name": "wrap",
           "type": "select",
           "default": "default",
-          "choices": "fill_wrap",
+          "choices": "paint_wrap",
           "flags": [],
           "desc": "wrap mode for out-of-bounds coordinates"
         },
@@ -3049,13 +3039,13 @@
           "name": "glsl_header",
           "type": "str",
           "flags": [],
-          "desc": "GLSL code prepended before ngli_color() (helper functions, etc.)"
+          "desc": "GLSL code prepended before the color function (helper functions, etc.)"
         },
         {
           "name": "glsl_color",
           "type": "str",
           "flags": [],
-          "desc": "GLSL body of vec4 ngli_color(vec2 uv, vec2 tex_coord)"
+          "desc": "GLSL body of the color function"
         },
         {
           "name": "resources",
@@ -3086,14 +3076,14 @@
         {
           "name": "fill",
           "type": "node",
-          "node_types": ["ColorFill", "TextureFill", "GradientFill", "Gradient4Fill", "NoiseFill", "CustomFill"],
+          "node_types": ["ColorPaint", "TexturePaint", "GradientPaint", "Gradient4Paint", "NoisePaint", "CustomPaint"],
           "flags": ["nonull"],
           "desc": "fill paint applied inside the rect"
         },
         {
           "name": "stroke",
           "type": "node",
-          "node_types": ["Stroke", "StrokeGradient", "StrokeGradient4"],
+          "node_types": ["Stroke2D"],
           "flags": [],
           "desc": "optional outline stroke"
         },
@@ -3323,15 +3313,15 @@
         }
       ]
     },
-    "Gradient4Fill": {
-      "file": "src/node_fill.c",
+    "Gradient4Paint": {
+      "file": "src/node_paint.c",
       "params": [
         {
           "name": "opacity",
           "type": "f32",
           "default": 1.000000,
           "flags": ["live"],
-          "desc": "opacity of the fill content"
+          "desc": "opacity of the paint content"
         },
         {
           "name": "premult",
@@ -3405,15 +3395,15 @@
         }
       ]
     },
-    "GradientFill": {
-      "file": "src/node_fill.c",
+    "GradientPaint": {
+      "file": "src/node_paint.c",
       "params": [
         {
           "name": "opacity",
           "type": "f32",
           "default": 1.000000,
           "flags": ["live"],
-          "desc": "opacity of the fill content"
+          "desc": "opacity of the paint content"
         },
         {
           "name": "premult",
@@ -3468,7 +3458,7 @@
           "name": "mode",
           "type": "select",
           "default": "ramp",
-          "choices": "fill_gradient_mode",
+          "choices": "paint_gradient_mode",
           "flags": [],
           "desc": "gradient interpolation mode"
         },
@@ -3481,15 +3471,15 @@
         }
       ]
     },
-    "NoiseFill": {
-      "file": "src/node_fill.c",
+    "NoisePaint": {
+      "file": "src/node_paint.c",
       "params": [
         {
           "name": "opacity",
           "type": "f32",
           "default": 1.000000,
           "flags": ["live"],
-          "desc": "opacity of the fill content"
+          "desc": "opacity of the paint content"
         },
         {
           "name": "premult",
@@ -3502,7 +3492,7 @@
           "name": "type",
           "type": "select",
           "default": "blocky",
-          "choices": "fill_noise_type",
+          "choices": "paint_noise_type",
           "flags": [],
           "desc": "noise algorithm"
         },
@@ -3557,237 +3547,56 @@
         }
       ]
     },
-    "Stroke": {
-      "file": "src/node_stroke.c",
+    "Stroke2D": {
+      "file": "src/node_stroke2d.c",
       "params": [
+        {
+          "name": "paint",
+          "type": "node",
+          "node_types": ["ColorPaint", "TexturePaint", "GradientPaint", "Gradient4Paint", "NoisePaint", "CustomPaint"],
+          "flags": ["nonull"],
+          "desc": "paint applied to the stroke geometry"
+        },
         {
           "name": "width",
           "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "outline width in pixels"
-        },
-        {
-          "name": "mode",
-          "type": "select",
-          "default": "inside",
-          "choices": "stroke_mode",
-          "flags": ["live"],
-          "desc": "outline position relative to the shape boundary"
-        },
-        {
-          "name": "opacity",
-          "type": "f32",
           "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the stroke content"
+          "flags": ["live", "node"],
+          "desc": "stroke width in canvas pixels"
         },
         {
-          "name": "color",
-          "type": "vec4",
-          "default": [1.000000,1.000000,1.000000,1.000000],
+          "name": "alignment",
+          "type": "select",
+          "default": "center",
+          "choices": "stroke2d_alignment",
           "flags": ["live"],
-          "desc": "outline color and opacity (RGBA)"
+          "desc": "placement relative to the shape boundary"
         }
       ]
     },
-    "StrokeGradient": {
-      "file": "src/node_stroke.c",
-      "params": [
-        {
-          "name": "width",
-          "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "outline width in pixels"
-        },
-        {
-          "name": "mode",
-          "type": "select",
-          "default": "inside",
-          "choices": "stroke_mode",
-          "flags": ["live"],
-          "desc": "outline position relative to the shape boundary"
-        },
-        {
-          "name": "opacity",
-          "type": "f32",
-          "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the stroke content"
-        },
-        {
-          "name": "color0",
-          "type": "vec3",
-          "default": [0.000000,0.000000,0.000000],
-          "flags": ["live"],
-          "desc": "first gradient color (linear RGB)"
-        },
-        {
-          "name": "color1",
-          "type": "vec3",
-          "default": [1.000000,1.000000,1.000000],
-          "flags": ["live"],
-          "desc": "second gradient color (linear RGB)"
-        },
-        {
-          "name": "opacity0",
-          "type": "f32",
-          "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the first gradient color"
-        },
-        {
-          "name": "opacity1",
-          "type": "f32",
-          "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the second gradient color"
-        },
-        {
-          "name": "pos0",
-          "type": "vec2",
-          "default": [0.000000,0.500000],
-          "flags": ["live"],
-          "desc": "first gradient point (UV space)"
-        },
-        {
-          "name": "pos1",
-          "type": "vec2",
-          "default": [1.000000,0.500000],
-          "flags": ["live"],
-          "desc": "second gradient point (UV space)"
-        },
-        {
-          "name": "gradient_mode",
-          "type": "select",
-          "default": "ramp",
-          "choices": "stroke_gradient_mode",
-          "flags": [],
-          "desc": "gradient interpolation mode"
-        },
-        {
-          "name": "linear",
-          "type": "bool",
-          "default": 1,
-          "flags": ["live"],
-          "desc": "interpolate colors in linear light"
-        }
-      ]
-    },
-    "StrokeGradient4": {
-      "file": "src/node_stroke.c",
-      "params": [
-        {
-          "name": "width",
-          "type": "f32",
-          "default": 0.000000,
-          "flags": ["live"],
-          "desc": "outline width in pixels"
-        },
-        {
-          "name": "mode",
-          "type": "select",
-          "default": "inside",
-          "choices": "stroke_mode",
-          "flags": ["live"],
-          "desc": "outline position relative to the shape boundary"
-        },
-        {
-          "name": "opacity",
-          "type": "f32",
-          "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the stroke content"
-        },
-        {
-          "name": "color_tl",
-          "type": "vec3",
-          "default": [1.000000,0.500000,0.000000],
-          "flags": ["live"],
-          "desc": "top-left color"
-        },
-        {
-          "name": "color_tr",
-          "type": "vec3",
-          "default": [0.000000,1.000000,0.000000],
-          "flags": ["live"],
-          "desc": "top-right color"
-        },
-        {
-          "name": "color_br",
-          "type": "vec3",
-          "default": [0.000000,0.500000,1.000000],
-          "flags": ["live"],
-          "desc": "bottom-right color"
-        },
-        {
-          "name": "color_bl",
-          "type": "vec3",
-          "default": [1.000000,0.000000,1.000000],
-          "flags": ["live"],
-          "desc": "bottom-left color"
-        },
-        {
-          "name": "opacity_tl",
-          "type": "f32",
-          "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the top-left color"
-        },
-        {
-          "name": "opacity_tr",
-          "type": "f32",
-          "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the top-right color"
-        },
-        {
-          "name": "opacity_br",
-          "type": "f32",
-          "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the bottom-right color"
-        },
-        {
-          "name": "opacity_bl",
-          "type": "f32",
-          "default": 1.000000,
-          "flags": ["live"],
-          "desc": "opacity of the bottom-left color"
-        },
-        {
-          "name": "linear",
-          "type": "bool",
-          "default": 1,
-          "flags": ["live"],
-          "desc": "interpolate colors in linear light"
-        }
-      ]
-    },
-    "TextureFill": {
-      "file": "src/node_fill.c",
+    "TexturePaint": {
+      "file": "src/node_paint.c",
       "params": [
         {
           "name": "opacity",
           "type": "f32",
           "default": 1.000000,
           "flags": ["live"],
-          "desc": "opacity of the fill content"
+          "desc": "opacity of the paint content"
         },
         {
           "name": "scaling",
           "type": "select",
           "default": "none",
-          "choices": "fill_scaling",
+          "choices": "paint_scaling",
           "flags": [],
-          "desc": "texture scaling mode relative to the rect"
+          "desc": "texture scaling mode relative to the target shape bounds"
         },
         {
           "name": "wrap",
           "type": "select",
           "default": "discard",
-          "choices": "fill_wrap",
+          "choices": "paint_wrap",
           "flags": [],
           "desc": "texture wrap behaviour"
         },
