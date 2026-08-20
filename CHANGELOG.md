@@ -31,6 +31,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `Effect2D`, `OffscreenCanvas2D`, `Texture2D`)
 - `blending` renamed to `blend_mode`
 - `default` blend mode renamed to `disabled`
+- `DrawRect2D.rect`, `DrawRect2D.corner_radius` now also accept nodes
 
 ### Removed
 - `Stroke*.dash*` parameters
