@@ -23,23 +23,21 @@ void main()
 {
     /*
      * Dilate the quad outward by ngli_margin_px canvas pixels to ensure fragments
-     * exist beyond the shape boundary for:
-     *   - outside/center outline (which extends past the geometry edge)
-     *   - correct fwidth() derivatives (need one extra pixel of coverage)
+     * exist beyond the shape boundary for outside/center strokes and correct
+     * fwidth() derivatives.
      *
      * sign(uvcoord - 0.5) gives the outward direction at each corner:
      *   (0,0) → (-1,-1),  (1,0) → (1,-1),  (0,1) → (-1,1),  (1,1) → (1,1)
      *
      * ngli_uv is shifted by ngli_margin_uv = ngli_margin_px / ngli_rect_size so that
-     * pos = (ngli_uv - 0.5) * ngli_rect_size in the fragment shader remains the correct
-     * canvas-pixel coordinate for SDF evaluation.
+     * the fragment shader keeps evaluating the SDF in canvas-pixel space.
+     *
      * ngli_tex_coord uses the original uvcoord (undilated) so texture sampling is
      * unaffected.
      */
     vec2 dir = sign(uvcoord - 0.5);
     vec4 canvas_pos = modelview_matrix * vec4(position.xy + dir * ngli_margin_px, 0.0, 1.0);
     ngl_out_pos = projection_matrix * canvas_pos;
-    /* Canvas-pixel position, used to test cascaded clip planes from Group2D. */
     ngli_clip_pos = canvas_pos.xy;
     ngli_uv = uvcoord + dir * ngli_margin_uv;
     vec2 adj_uvcoord = (uvcoord - 0.5) * ngli_uv_scale + 0.5;
