@@ -70,6 +70,7 @@ static int textureview_init(struct ngl_node *node)
 
 const struct node_class ngli_textureview_class = {
     .id        = NGL_NODE_TEXTUREVIEW,
+    .category  = NGLI_NODE_CATEGORY_TEXTURE,
     .name      = "TextureView",
     .opts_size = sizeof(struct textureview_opts),
     .params    = textureview_params,

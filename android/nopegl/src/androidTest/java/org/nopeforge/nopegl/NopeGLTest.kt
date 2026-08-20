@@ -416,7 +416,7 @@ class NopeGLTest {
 
         val width = 256
         val height = 256
-        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
         val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 100.0f, 80.0f)), fill = fill, label = "rect")
         val group = NGLGroup2D(
             children = listOf(rect),
@@ -463,7 +463,7 @@ class NopeGLTest {
 
         val width = 256
         val height = 256
-        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
         val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 100.0f, 80.0f)), fill = fill)
         val group = NGLGroup2D(children = listOf(rect), anchor = NGLNodeOrValue.value(NGLVec2(0.0f, 0.0f)))
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
@@ -492,7 +492,7 @@ class NopeGLTest {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         NGLContext.init(appContext)
 
-        val fill = NGLColorFill(color = NGLVec4(0.8f, 0.2f, 0.1f, 1.0f))
+        val fill = NGLColorPaint(color = NGLVec4(0.8f, 0.2f, 0.1f, 1.0f))
         val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(10.0f, 20.0f, 100.0f, 80.0f)), fill = fill)
 
         val v = rect.getRect()
@@ -529,7 +529,7 @@ class NopeGLTest {
 
         val width = 256
         val height = 256
-        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
         val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 100.0f, 80.0f)), fill = fill, label = "rect")
         val group = NGLGroup2D(children = listOf(rect), translate = NGLNodeOrValue.value(NGLVec2(50.0f, 30.0f)), label = "group")
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
@@ -562,7 +562,7 @@ class NopeGLTest {
 
         val width = 256
         val height = 256
-        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
         val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 100.0f, 80.0f)), fill = fill)
         val group = NGLGroup2D(children = listOf(rect), translate = NGLNodeOrValue.value(NGLVec2(50.0f, 30.0f)))
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
@@ -613,7 +613,7 @@ class NopeGLTest {
 
         val width = 256
         val height = 256
-        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
         // r0 at (10,20,40,30) → center=(30,35), extent=(20,15), spans x=[10,50], y=[20,50]
         // r1 at (100,80,60,40) → center=(130,100), extent=(30,20), spans x=[100,160], y=[80,120]
         val r0 = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(10.0f, 20.0f, 40.0f, 30.0f)), fill = fill)
@@ -664,7 +664,7 @@ class NopeGLTest {
 
         val width = 256
         val height = 256
-        val fill = NGLColorFill(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
         // 200x100 rect rotated 90° around its center (100, 50)
         val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 200.0f, 100.0f)), fill = fill)
         val group = NGLGroup2D(children = listOf(rect), rotation = NGLNodeOrValue.value(90.0f), anchor = NGLNodeOrValue.value(NGLVec2(100.0f, 50.0f)))
@@ -810,7 +810,7 @@ class NopeGLTest {
             children = listOf(
                 NGLDrawRect2D(
                     rect = NGLNodeOrValue.value(NGLVec4(0f, 0f, 256f, 256f)),
-                    fill = NGLTextureFill(
+                    fill = NGLTexturePaint(
                         texture = canvas.node,
                     ),
                 )

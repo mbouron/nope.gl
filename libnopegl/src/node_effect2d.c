@@ -286,7 +286,7 @@ static int register_uniform(const char *name, struct ngl_node *res, struct effec
 
 static int register_texture(const char *name, struct ngl_node *res, struct effect2d_texture_darray *textures)
 {
-    struct texture_info *texture_info = res->priv_data;
+    struct texture_info *texture_info = ngli_node_texture_get_texture_info(res);
     struct ngpu_pgcraft_texture tex = {
         .type        = ngli_node_texture_get_pgcraft_texture_type(res),
         .stage       = NGPU_PROGRAM_STAGE_FRAG,

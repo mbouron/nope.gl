@@ -123,7 +123,7 @@ void main()
     float outer_alpha  = 1.0 - smoothstep(-aa, aa, d_outer);
     float ol_mask      = clamp(outer_alpha - inner_alpha, 0.0, 1.0);
 
-    vec4 stroke_col = ngli_stroke_color(ngli_uv);
+    vec4 stroke_col = ngli_stroke(ngli_uv, ngli_stroke_tex_coord);
     float ol_alpha  = ol_mask * stroke_col.a * ngli_stroke_opacity;
 
     /*
@@ -160,7 +160,9 @@ void main()
     float fill_rgb_scale = (ngli_fill_premult != 0 ? tex_color.a : 1.0)
                          * fill_alpha * ngli_fill_opacity;
     float fill_a = tex_color.a * fill_alpha * ngli_fill_opacity;
-    ngl_out_color.rgb = stroke_col.rgb * ol_alpha + tex_color.rgb * fill_rgb_scale * (1.0 - ol_alpha);
+    float stroke_rgb_scale = (ngli_stroke_premult != 0 ? stroke_col.a : 1.0)
+                           * ol_mask * ngli_stroke_opacity;
+    ngl_out_color.rgb = stroke_col.rgb * stroke_rgb_scale + tex_color.rgb * fill_rgb_scale * (1.0 - ol_alpha);
     ngl_out_color.a   = ol_alpha + fill_a * (1.0 - ol_alpha);
 
     /* Global opacity and anti-aliased cascaded clip coverage */

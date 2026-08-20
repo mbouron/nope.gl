@@ -22,6 +22,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `depth_mode`, `stencil_mode`, `cull_mode` and `color_write_mask` parameters
   on the draw nodes (when supported) to control the depth, stencil, face
   culling and color write states
+- `Stroke2D` node for configuring 2D shape strokes
 
 ### Changed
 - `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support
@@ -32,6 +33,13 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `blending` renamed to `blend_mode`
 - `default` blend mode renamed to `disabled`
 - `DrawRect2D.rect`, `DrawRect2D.corner_radius` now also accept nodes
+- `DrawRect2D.stroke` now accepts a `Stroke2D` node, whose `paint` accepts the
+  same paint nodes as `DrawRect2D.fill`
+- `ColorFill`, `TextureFill`, `GradientFill`, `Gradient4Fill`, `NoiseFill`, and
+  `CustomFill` renamed to `ColorPaint`, `TexturePaint`, `GradientPaint`,
+  `Gradient4Paint`, `NoisePaint`, and `CustomPaint` respectively
+- `TexturePaint.scaling` is defined relative to the target shape bounds, rather
+  than specifically rectangle bounds
 
 ### Removed
 - `Stroke*.dash*` parameters
@@ -39,6 +47,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   draw nodes (when supported) through the `blend_mode`, `depth_mode`,
   `stencil_mode`, `cull_mode` and `color_write_mask` parameters, and the
   scissor through the `Scissor` node.
+- `Stroke`, `StrokeGradient`, and `StrokeGradient4` nodes, use
+  `Stroke2D(paint=..., width=..., alignment=...)` instead
 
 ## [2026.2 / libnopegl 0.14.0][2026.2] - 2026-05-25
 ### Fixed
