@@ -116,9 +116,11 @@ struct drawrect2d_frag_block {
 };
 
 struct drawrect2d_opts {
+    struct ngl_node *rect_node;
     float rect[4];
     struct ngl_node *fill_node;
     struct ngl_node *stroke_node;
+    struct ngl_node *corner_radius_node;
     float corner_radius[2];
     struct ngli_node2d_opts node2d;
     struct ngl_node *clip_rect_node;
@@ -216,8 +218,8 @@ static const struct node_param drawrect2d_params[] = {
     {
         .key         = "rect",
         .type        = NGLI_PARAM_TYPE_VEC4,
-        .offset      = OFFSET(rect),
-        .flags       = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .offset      = OFFSET(rect_node),
+        .flags       = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc        = NGLI_DOCSTRING("rect (x, y, width, height)"),
     },
     {
@@ -251,8 +253,8 @@ static const struct node_param drawrect2d_params[] = {
     {
         .key    = "corner_radius",
         .type   = NGLI_PARAM_TYPE_VEC2,
-        .offset = OFFSET(corner_radius),
-        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .offset = OFFSET(corner_radius_node),
+        .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc   = NGLI_DOCSTRING("corner radii in pixels (x, y); set x != y for elliptical corners; "
                                   "set to (width/2, height/2) for a full ellipse/oval"),
     },
@@ -404,7 +406,9 @@ static int drawrect2d_init(struct ngl_node *node)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    compute_geometry(s, o->rect, o->corner_radius);
+    const float *rect = ngli_node_get_data_ptr(o->rect_node, o->rect);
+    const float *corner_radius = ngli_node_get_data_ptr(o->corner_radius_node, o->corner_radius);
+    compute_geometry(s, rect, corner_radius);
 
     const struct fill_info *fi = (const struct fill_info *)o->fill_node->priv_data;
     s->fill_info = fi;
@@ -783,7 +787,9 @@ static int drawrect2d_update(struct ngl_node *node, double t)
     if (ret < 0)
         return ret;
 
-    compute_geometry(s, o->rect, o->corner_radius);
+    const float *rect = ngli_node_get_data_ptr(o->rect_node, o->rect);
+    const float *corner_radius = ngli_node_get_data_ptr(o->corner_radius_node, o->corner_radius);
+    compute_geometry(s, rect, corner_radius);
 
     return 0;
 }

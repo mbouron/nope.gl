@@ -3080,7 +3080,7 @@
           "name": "rect",
           "type": "vec4",
           "default": [0.000000,0.000000,0.000000,0.000000],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "rect (x, y, width, height)"
         },
         {
@@ -3101,7 +3101,7 @@
           "name": "corner_radius",
           "type": "vec2",
           "default": [0.000000,0.000000],
-          "flags": ["live"],
+          "flags": ["live", "node"],
           "desc": "corner radii in pixels (x, y); set x != y for elliptical corners; set to (width/2, height/2) for a full ellipse/oval"
         },
         {
