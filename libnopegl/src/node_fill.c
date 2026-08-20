@@ -191,9 +191,9 @@ static int texturefill_init(struct ngl_node *node)
     }
 
     struct fill_info *fi = &s->fi;
-    fi->glsl         = texturefill_glsl;
+    fi->glsl = texturefill_glsl;
     fi->texture = o->texture;
-    fi->opts         = o;
+    fi->opts = o;
     return 0;
 }
 
