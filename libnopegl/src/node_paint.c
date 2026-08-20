@@ -20,11 +20,11 @@
  */
 
 #include <stddef.h>
-#include <string.h>
+#include <stdio.h>
 
 #include "internal.h"
 #include "log.h"
-#include "node_fill.h"
+#include "node_paint.h"
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "utils/bstr.h"
@@ -33,73 +33,142 @@
 
 #include <ngpu/ngpu.h>
 
-void ngli_fill_info_reset(struct fill_info *fi)
+const uint32_t ngli_paint_node_types[] = {
+    NGL_NODE_COLORPAINT,
+    NGL_NODE_TEXTUREPAINT,
+    NGL_NODE_GRADIENTPAINT,
+    NGL_NODE_GRADIENT4PAINT,
+    NGL_NODE_NOISEPAINT,
+    NGL_NODE_CUSTOMPAINT,
+    NGLI_NODE_NONE,
+};
+
+static const char *const paint_resource_prefixes[PAINT_SHADER_ROLE_NB] = {
+    [PAINT_SHADER_ROLE_FILL]   = "ngli_fill_",
+    [PAINT_SHADER_ROLE_STROKE] = "ngli_stroke_",
+};
+
+void ngli_paint_get_resource_name(char *dst, size_t size,
+                                  enum paint_shader_role role, const char *name)
 {
-    ngli_darray_reset(&fi->uniforms);
-    ngli_darray_reset(&fi->custom_uniforms);
-    ngli_darray_reset(&fi->custom_textures);
-    ngli_darray_reset(&fi->custom_blocks);
+    snprintf(dst, size, "%s%s", paint_resource_prefixes[role], name);
 }
 
-#define REGISTER_UNIFORM(fi_, name_, type_, opts_struct_, field_) do {      \
-    const struct fill_uniform_def _ud = {                                   \
+static int is_glsl_ident(char c)
+{
+    return (c >= 'a' && c <= 'z') ||
+           (c >= 'A' && c <= 'Z') ||
+           (c >= '0' && c <= '9') ||
+           c == '_';
+}
+
+void ngli_paint_glsl_write(struct bstr *b, const char *glsl,
+                           enum paint_shader_role role, const char *entrypoint)
+{
+    const char *prefix = paint_resource_prefixes[role];
+
+    const char *segment = glsl;
+    const char *p = glsl;
+    while (*p) {
+        if (*p == '$') {
+            ngli_bstr_write(b, segment, (size_t)(p - segment));
+            ngli_bstr_print(b, prefix);
+            segment = ++p;
+            while (is_glsl_ident(*p))
+                p++;
+            continue;
+        }
+
+        if (!is_glsl_ident(*p)) {
+            p++;
+            continue;
+        }
+
+        const char *ident = p;
+        while (is_glsl_ident(*p))
+            p++;
+        if (p - ident != 4 || memcmp(ident, "main", 4))
+            continue;
+
+        const char *q = p;
+        while (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n')
+            q++;
+        if (*q == '(') {
+            ngli_bstr_write(b, segment, (size_t)(ident - segment));
+            ngli_bstr_print(b, entrypoint);
+            segment = p;
+        }
+    }
+    ngli_bstr_print(b, segment);
+}
+
+void ngli_paint_info_reset(struct paint_info *info)
+{
+    ngli_darray_reset(&info->uniforms);
+    ngli_darray_reset(&info->custom_uniforms);
+    ngli_darray_reset(&info->custom_textures);
+    ngli_darray_reset(&info->custom_blocks);
+}
+
+#define REGISTER_UNIFORM(info_, name_, type_, opts_struct_, field_) do {    \
+    const struct paint_uniform_def _ud = {                                  \
         .type = (type_),                                                    \
         .opts_offset = offsetof(opts_struct_, field_),                      \
     };                                                                      \
-    if (ngli_darray_push(&(fi_)->uniforms, _ud) < 0)                        \
+    if (ngli_darray_push(&(info_)->uniforms, _ud) < 0)                      \
         return NGL_ERROR_MEMORY;                                            \
-    struct fill_uniform_def *_p = ngli_darray_tail(&(fi_)->uniforms);       \
+    struct paint_uniform_def *_p = ngli_darray_tail(&(info_)->uniforms);    \
     snprintf(_p->name, sizeof(_p->name), "%s", (name_));                    \
 } while (0)
 
-struct colorfill_priv {
-    struct fill_info fi;
+struct colorpaint_priv {
+    struct paint_info info;
 };
 
-struct colorfill_opts {
-    struct fill_base_opts base_opts;
+struct colorpaint_opts {
+    struct paint_base_opts base_opts;
     float color[4];
 };
 
-static const char colorfill_glsl[] =
-    "vec4 ngli_color(vec2 uv, vec2 tex_coord) { return color; }\n";
+static const char colorpaint_glsl[] =
+    "vec4 main(vec2 uv, vec2 tex_coord) { return $color; }\n";
 
-static int colorfill_init(struct ngl_node *node)
+static int colorpaint_init(struct ngl_node *node)
 {
-    struct colorfill_priv *s = node->priv_data;
-    const struct colorfill_opts *o = node->opts;
-    struct fill_info *fi = &s->fi;
-    fi->glsl = colorfill_glsl;
-    fi->opts = o;
-    REGISTER_UNIFORM(fi, "color", NGPU_TYPE_VEC4, struct colorfill_opts, color);
+    struct colorpaint_priv *s = node->priv_data;
+    const struct colorpaint_opts *o = node->opts;
+    struct paint_info *info = &s->info;
+    info->glsl = colorpaint_glsl;
+    info->opts = o;
+    REGISTER_UNIFORM(info, "color", NGPU_TYPE_VEC4, struct colorpaint_opts, color);
     return 0;
 }
 
-static void fill_uninit(struct ngl_node *node)
+static void paint_uninit(struct ngl_node *node)
 {
-    struct fill_info *fi = node->priv_data;
-    ngli_fill_info_reset(fi);
+    struct paint_info *info = node->priv_data;
+    ngli_paint_info_reset(info);
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct colorfill_priv, fi) == 0,
-                   "fill_info must be first in colorfill_priv");
+NGLI_STATIC_ASSERT(offsetof(struct colorpaint_priv, info) == 0,
+                   "paint_info must be first in colorpaint_priv");
 
-#define OFFSET(x) offsetof(struct colorfill_opts, x)
-static const struct node_param colorfill_params[] = {
+#define OFFSET(x) offsetof(struct colorpaint_opts, x)
+static const struct node_param colorpaint_params[] = {
     {
         .key       = "opacity",
         .type      = NGLI_PARAM_TYPE_F32,
         .offset    = OFFSET(base_opts.opacity),
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+        .desc      = NGLI_DOCSTRING("opacity of the paint content"),
     },
     {
         .key       = "premult",
         .type      = NGLI_PARAM_TYPE_BOOL,
         .offset    = OFFSET(base_opts.premult),
         .def_value = {.i32 = 1},
-        .desc      = NGLI_DOCSTRING("premultiply fill color by its alpha"),
+        .desc      = NGLI_DOCSTRING("premultiply paint color by its alpha"),
     },
     {
         .key       = "color",
@@ -107,122 +176,122 @@ static const struct node_param colorfill_params[] = {
         .offset    = OFFSET(color),
         .def_value = {.vec={1.f, 1.f, 1.f, 1.f}},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("fill color (RGBA)"),
+        .desc      = NGLI_DOCSTRING("paint color (RGBA)"),
     },
     {NULL}
 };
 #undef OFFSET
 
-const struct node_class ngli_colorfill_class = {
-    .id        = NGL_NODE_COLORFILL,
-    .name      = "ColorFill",
-    .init      = colorfill_init,
-    .uninit    = fill_uninit,
-    .opts_size = sizeof(struct colorfill_opts),
-    .priv_size = sizeof(struct colorfill_priv),
-    .params    = colorfill_params,
+const struct node_class ngli_colorpaint_class = {
+    .id        = NGL_NODE_COLORPAINT,
+    .name      = "ColorPaint",
+    .init      = colorpaint_init,
+    .uninit    = paint_uninit,
+    .opts_size = sizeof(struct colorpaint_opts),
+    .priv_size = sizeof(struct colorpaint_priv),
+    .params    = colorpaint_params,
     .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
-struct texturefill_priv {
-    struct fill_info fi;
+struct texturepaint_priv {
+    struct paint_info info;
 };
 
-struct texturefill_opts {
-    struct fill_base_opts base_opts;
+struct texturepaint_opts {
+    struct paint_base_opts base_opts;
     struct ngl_node *texture;
 };
 
-static const struct param_choices texturefill_wrap_choices = {
-    .name = "fill_wrap",
+static const struct param_choices texturepaint_wrap_choices = {
+    .name = "paint_wrap",
     .consts = {
         {
             .key   = "default",
-            .value = FILL_WRAP_DEFAULT,
+            .value = PAINT_WRAP_DEFAULT,
             .desc  = NGLI_DOCSTRING("use texture wrap parameters"),
         },
         {
             .key   = "discard",
-            .value = FILL_WRAP_DISCARD,
+            .value = PAINT_WRAP_DISCARD,
             .desc  = NGLI_DOCSTRING("discard fragment if coordinates are outside texture boundaries"),
         },
         {NULL}
     }
 };
 
-static const struct param_choices texturefill_scaling_choices = {
-    .name = "fill_scaling",
+static const struct param_choices texturepaint_scaling_choices = {
+    .name = "paint_scaling",
     .consts = {
         {
             .key   = "none",
-            .value = FILL_SCALING_NONE,
-            .desc  = NGLI_DOCSTRING("no scaling, texture is stretched to fill the rect"),
+            .value = PAINT_SCALING_NONE,
+            .desc  = NGLI_DOCSTRING("no scaling, texture is stretched to the target shape bounds"),
         },
         {
             .key   = "fit",
-            .value = FILL_SCALING_FIT,
-            .desc  = NGLI_DOCSTRING("scale to fit within the rect preserving aspect ratio (may leave empty areas)"),
+            .value = PAINT_SCALING_FIT,
+            .desc  = NGLI_DOCSTRING("scale to fit within the target shape bounds preserving aspect ratio (may leave empty areas)"),
         },
         {
             .key   = "fill",
-            .value = FILL_SCALING_FILL,
-            .desc  = NGLI_DOCSTRING("scale to fill the rect preserving aspect ratio (may crop)"),
+            .value = PAINT_SCALING_FILL,
+            .desc  = NGLI_DOCSTRING("scale to fill the target shape bounds preserving aspect ratio (may crop)"),
         },
         {NULL}
     }
 };
 
-static const char texturefill_glsl[] =
-    "vec4 ngli_color(vec2 uv, vec2 tex_coord) {\n"
-    "    if (ngli_content_wrap == 1 && (any(lessThan(tex_coord, vec2(0.0))) || any(greaterThan(tex_coord, vec2(1.0)))))\n"
+static const char texturepaint_glsl[] =
+    "vec4 main(vec2 uv, vec2 tex_coord) {\n"
+    "    if ($content_wrap == 1 && (any(lessThan(tex_coord, vec2(0.0))) || any(greaterThan(tex_coord, vec2(1.0)))))\n"
     "        return vec4(0.0);\n"
-    "    return ngl_texvideo(tex, tex_coord);\n"
+    "    return ngl_texvideo($tex, tex_coord);\n"
     "}\n";
 
-static int texturefill_init(struct ngl_node *node)
+static int texturepaint_init(struct ngl_node *node)
 {
-    struct texturefill_priv *s = node->priv_data;
-    const struct texturefill_opts *o = node->opts;
+    struct texturepaint_priv *s = node->priv_data;
+    const struct texturepaint_opts *o = node->opts;
 
     if (!o->texture) {
-        LOG(ERROR, "TextureFill: texture param is required");
+        LOG(ERROR, "TexturePaint: texture param is required");
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    struct fill_info *fi = &s->fi;
-    fi->glsl = texturefill_glsl;
-    fi->texture = o->texture;
-    fi->opts = o;
+    struct paint_info *info = &s->info;
+    info->glsl = texturepaint_glsl;
+    info->texture = o->texture;
+    info->opts = o;
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct texturefill_priv, fi) == 0,
-                   "fill_info must be first in texturefill_priv");
+NGLI_STATIC_ASSERT(offsetof(struct texturepaint_priv, info) == 0,
+                   "paint_info must be first in texturepaint_priv");
 
-#define OFFSET(x) offsetof(struct texturefill_opts, x)
-static const struct node_param texturefill_params[] = {
+#define OFFSET(x) offsetof(struct texturepaint_opts, x)
+static const struct node_param texturepaint_params[] = {
     {
         .key       = "opacity",
         .type      = NGLI_PARAM_TYPE_F32,
         .offset    = OFFSET(base_opts.opacity),
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+        .desc      = NGLI_DOCSTRING("opacity of the paint content"),
     },
     {
         .key     = "scaling",
         .type    = NGLI_PARAM_TYPE_SELECT,
         .offset  = OFFSET(base_opts.scaling),
-        .choices = &texturefill_scaling_choices,
-        .desc    = NGLI_DOCSTRING("texture scaling mode relative to the rect"),
+        .choices = &texturepaint_scaling_choices,
+        .desc    = NGLI_DOCSTRING("texture scaling mode relative to the target shape bounds"),
     },
     {
         .key       = "wrap",
         .type      = NGLI_PARAM_TYPE_SELECT,
         .offset    = OFFSET(base_opts.wrap),
-        .def_value = {.i32 = FILL_WRAP_DISCARD},
-        .choices   = &texturefill_wrap_choices,
+        .def_value = {.i32 = PAINT_WRAP_DISCARD},
+        .choices   = &texturepaint_wrap_choices,
         .desc      = NGLI_DOCSTRING("texture wrap behaviour"),
     },
     {
@@ -248,27 +317,27 @@ static const struct node_param texturefill_params[] = {
 };
 #undef OFFSET
 
-const struct node_class ngli_texturefill_class = {
-    .id        = NGL_NODE_TEXTUREFILL,
-    .name      = "TextureFill",
-    .init      = texturefill_init,
-    .uninit    = fill_uninit,
+const struct node_class ngli_texturepaint_class = {
+    .id        = NGL_NODE_TEXTUREPAINT,
+    .name      = "TexturePaint",
+    .init      = texturepaint_init,
+    .uninit    = paint_uninit,
     .update    = ngli_node_update_children,
     .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_node_draw_children,
-    .opts_size = sizeof(struct texturefill_opts),
-    .priv_size = sizeof(struct texturefill_priv),
-    .params    = texturefill_params,
+    .opts_size = sizeof(struct texturepaint_opts),
+    .priv_size = sizeof(struct texturepaint_priv),
+    .params    = texturepaint_params,
     .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
-struct gradientfill_priv {
-    struct fill_info fi;
+struct gradientpaint_priv {
+    struct paint_info info;
 };
 
-struct gradientfill_opts {
-    struct fill_base_opts base_opts;
+struct gradientpaint_opts {
+    struct paint_base_opts base_opts;
     float color0[3];
     float color1[3];
     float opacity0;
@@ -279,8 +348,8 @@ struct gradientfill_opts {
     int gradient_linear;
 };
 
-static const struct param_choices gradientfill_mode_choices = {
-    .name = "fill_gradient_mode",
+static const struct param_choices gradientpaint_mode_choices = {
+    .name = "paint_gradient_mode",
     .consts = {
         {
             .key   = "ramp",
@@ -296,58 +365,58 @@ static const struct param_choices gradientfill_mode_choices = {
     }
 };
 
-static const char gradientfill_glsl[] =
-    "vec4 ngli_color(vec2 uv, vec2 tex_coord) {\n"
-    "    vec3 c0 = color0 * opacity0;\n"
-    "    vec3 c1 = color1 * opacity1;\n"
+static const char gradientpaint_glsl[] =
+    "vec4 main(vec2 uv, vec2 tex_coord) {\n"
+    "    vec3 c0 = $color0 * $opacity0;\n"
+    "    vec3 c1 = $color1 * $opacity1;\n"
     "    float aspect = ngli_rect_size.x / ngli_rect_size.y;\n"
     "    float t = 0.0;\n"
-    "    if (gradient_mode == 0) {\n"
-    "        vec2 pa = uv - pos0, ba = pos1 - pos0;\n"
+    "    if ($gradient_mode == 0) {\n"
+    "        vec2 pa = uv - $pos0, ba = $pos1 - $pos0;\n"
     "        pa.x *= aspect; ba.x *= aspect;\n"
     "        t = dot(pa, ba) / dot(ba, ba);\n"
     "    } else {\n"
-    "        vec2 pa = uv - pos0, pb = uv - pos1;\n"
+    "        vec2 pa = uv - $pos0, pb = uv - $pos1;\n"
     "        pa.x *= aspect; pb.x *= aspect;\n"
     "        float lpa = length(pa);\n"
     "        t = lpa / (lpa + length(pb));\n"
     "    }\n"
-    "    float a = mix(opacity0, opacity1, t);\n"
-    "    if (gradient_linear != 0) return vec4(ngli_srgbmix(c0, c1, t), a);\n"
+    "    float a = mix($opacity0, $opacity1, t);\n"
+    "    if ($gradient_linear != 0) return vec4(ngli_srgbmix(c0, c1, t), a);\n"
     "    return vec4(mix(c0, c1, t), a);\n"
     "}\n";
 
-static int gradientfill_init(struct ngl_node *node)
+static int gradientpaint_init(struct ngl_node *node)
 {
-    struct gradientfill_priv *s = node->priv_data;
-    const struct gradientfill_opts *o = node->opts;
-    struct fill_info *fi = &s->fi;
-    fi->helper_flags = FILL_HELPER_SRGB;
-    fi->glsl = gradientfill_glsl;
-    fi->opts = o;
-    REGISTER_UNIFORM(fi, "color0",          NGPU_TYPE_VEC3, struct gradientfill_opts, color0);
-    REGISTER_UNIFORM(fi, "color1",          NGPU_TYPE_VEC3, struct gradientfill_opts, color1);
-    REGISTER_UNIFORM(fi, "opacity0",        NGPU_TYPE_F32,  struct gradientfill_opts, opacity0);
-    REGISTER_UNIFORM(fi, "opacity1",        NGPU_TYPE_F32,  struct gradientfill_opts, opacity1);
-    REGISTER_UNIFORM(fi, "pos0",            NGPU_TYPE_VEC2, struct gradientfill_opts, pos0);
-    REGISTER_UNIFORM(fi, "pos1",            NGPU_TYPE_VEC2, struct gradientfill_opts, pos1);
-    REGISTER_UNIFORM(fi, "gradient_mode",   NGPU_TYPE_I32,  struct gradientfill_opts, gradient_mode);
-    REGISTER_UNIFORM(fi, "gradient_linear", NGPU_TYPE_I32,  struct gradientfill_opts, gradient_linear);
+    struct gradientpaint_priv *s = node->priv_data;
+    const struct gradientpaint_opts *o = node->opts;
+    struct paint_info *info = &s->info;
+    info->helper_flags = PAINT_HELPER_SRGB;
+    info->glsl = gradientpaint_glsl;
+    info->opts = o;
+    REGISTER_UNIFORM(info, "color0",          NGPU_TYPE_VEC3, struct gradientpaint_opts, color0);
+    REGISTER_UNIFORM(info, "color1",          NGPU_TYPE_VEC3, struct gradientpaint_opts, color1);
+    REGISTER_UNIFORM(info, "opacity0",        NGPU_TYPE_F32,  struct gradientpaint_opts, opacity0);
+    REGISTER_UNIFORM(info, "opacity1",        NGPU_TYPE_F32,  struct gradientpaint_opts, opacity1);
+    REGISTER_UNIFORM(info, "pos0",            NGPU_TYPE_VEC2, struct gradientpaint_opts, pos0);
+    REGISTER_UNIFORM(info, "pos1",            NGPU_TYPE_VEC2, struct gradientpaint_opts, pos1);
+    REGISTER_UNIFORM(info, "gradient_mode",   NGPU_TYPE_I32,  struct gradientpaint_opts, gradient_mode);
+    REGISTER_UNIFORM(info, "gradient_linear", NGPU_TYPE_I32,  struct gradientpaint_opts, gradient_linear);
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct gradientfill_priv, fi) == 0,
-                   "fill_info must be first in gradientfill_priv");
+NGLI_STATIC_ASSERT(offsetof(struct gradientpaint_priv, info) == 0,
+                   "paint_info must be first in gradientpaint_priv");
 
-#define OFFSET(x) offsetof(struct gradientfill_opts, x)
-static const struct node_param gradientfill_params[] = {
+#define OFFSET(x) offsetof(struct gradientpaint_opts, x)
+static const struct node_param gradientpaint_params[] = {
     {
         .key       = "opacity",
         .type      = NGLI_PARAM_TYPE_F32,
         .offset    = OFFSET(base_opts.opacity),
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+        .desc      = NGLI_DOCSTRING("opacity of the paint content"),
     },
     {
         .key       = "premult",
@@ -407,7 +476,7 @@ static const struct node_param gradientfill_params[] = {
         .key     = "mode",
         .type    = NGLI_PARAM_TYPE_SELECT,
         .offset  = OFFSET(gradient_mode),
-        .choices = &gradientfill_mode_choices,
+        .choices = &gradientpaint_mode_choices,
         .desc    = NGLI_DOCSTRING("gradient interpolation mode"),
     },
     {
@@ -422,24 +491,24 @@ static const struct node_param gradientfill_params[] = {
 };
 #undef OFFSET
 
-const struct node_class ngli_gradientfill_class = {
-    .id        = NGL_NODE_GRADIENTFILL,
-    .name      = "GradientFill",
-    .init      = gradientfill_init,
-    .uninit    = fill_uninit,
-    .opts_size = sizeof(struct gradientfill_opts),
-    .priv_size = sizeof(struct gradientfill_priv),
-    .params    = gradientfill_params,
+const struct node_class ngli_gradientpaint_class = {
+    .id        = NGL_NODE_GRADIENTPAINT,
+    .name      = "GradientPaint",
+    .init      = gradientpaint_init,
+    .uninit    = paint_uninit,
+    .opts_size = sizeof(struct gradientpaint_opts),
+    .priv_size = sizeof(struct gradientpaint_priv),
+    .params    = gradientpaint_params,
     .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
-struct gradient4fill_priv {
-    struct fill_info fi;
+struct gradient4paint_priv {
+    struct paint_info info;
 };
 
-struct gradient4fill_opts {
-    struct fill_base_opts base_opts;
+struct gradient4paint_opts {
+    struct paint_base_opts base_opts;
     float color_tl[3];
     float color_tr[3];
     float color_br[3];
@@ -451,54 +520,62 @@ struct gradient4fill_opts {
     int gradient_linear;
 };
 
-static const char gradient4fill_glsl[] =
-    "#define ngli_g4(tl,tr,br,bl,u) mix(mix(tl,tr,u.x),mix(bl,br,u.x),u.y)\n"
-    "vec4 ngli_color(vec2 uv, vec2 tex_coord) {\n"
-    "    vec3 tl = color_tl * opacity_tl;\n"
-    "    vec3 tr = color_tr * opacity_tr;\n"
-    "    vec3 br = color_br * opacity_br;\n"
-    "    vec3 bl = color_bl * opacity_bl;\n"
-    "    float a = ngli_g4(opacity_tl, opacity_tr, opacity_br, opacity_bl, uv);\n"
-    "    if (gradient_linear != 0)\n"
-    "        return vec4(ngli_linear2srgb(ngli_g4(ngli_srgb2linear(tl),\n"
-    "                                             ngli_srgb2linear(tr),\n"
-    "                                             ngli_srgb2linear(br),\n"
-    "                                             ngli_srgb2linear(bl), uv)), a);\n"
-    "    return vec4(ngli_g4(tl, tr, br, bl, uv), a);\n"
+static const char gradient4paint_glsl[] =
+    "float $g4(float tl, float tr, float br, float bl, vec2 uv) {\n"
+    "    return mix(mix(tl, tr, uv.x), mix(bl, br, uv.x), uv.y);\n"
+    "}\n"
+    "vec3 $g4(vec3 tl, vec3 tr, vec3 br, vec3 bl, vec2 uv) {\n"
+    "    return mix(mix(tl, tr, uv.x), mix(bl, br, uv.x), uv.y);\n"
+    "}\n"
+    "vec4 main(vec2 uv, vec2 tex_coord) {\n"
+    "    vec3 tl = $color_tl * $opacity_tl;\n"
+    "    vec3 tr = $color_tr * $opacity_tr;\n"
+    "    vec3 br = $color_br * $opacity_br;\n"
+    "    vec3 bl = $color_bl * $opacity_bl;\n"
+    "    float a = $g4($opacity_tl, $opacity_tr, $opacity_br, $opacity_bl, uv);\n"
+    "    if ($gradient_linear != 0) {\n"
+    "        vec3 lin = $g4(\n"
+    "            ngli_srgb2linear(tl),\n"
+    "            ngli_srgb2linear(tr),\n"
+    "            ngli_srgb2linear(br),\n"
+    "            ngli_srgb2linear(bl), uv);\n"
+    "        return vec4(ngli_linear2srgb(lin), a);\n"
+    "    }\n"
+    "    return vec4($g4(tl, tr, br, bl, uv), a);\n"
     "}\n";
 
-static int gradient4fill_init(struct ngl_node *node)
+static int gradient4paint_init(struct ngl_node *node)
 {
-    struct gradient4fill_priv *s = node->priv_data;
-    const struct gradient4fill_opts *o = node->opts;
-    struct fill_info *fi = &s->fi;
-    fi->helper_flags = FILL_HELPER_SRGB;
-    fi->glsl = gradient4fill_glsl;
-    fi->opts = o;
-    REGISTER_UNIFORM(fi, "color_tl",        NGPU_TYPE_VEC3, struct gradient4fill_opts, color_tl);
-    REGISTER_UNIFORM(fi, "color_tr",        NGPU_TYPE_VEC3, struct gradient4fill_opts, color_tr);
-    REGISTER_UNIFORM(fi, "color_br",        NGPU_TYPE_VEC3, struct gradient4fill_opts, color_br);
-    REGISTER_UNIFORM(fi, "color_bl",        NGPU_TYPE_VEC3, struct gradient4fill_opts, color_bl);
-    REGISTER_UNIFORM(fi, "opacity_tl",      NGPU_TYPE_F32,  struct gradient4fill_opts, opacity_tl);
-    REGISTER_UNIFORM(fi, "opacity_tr",      NGPU_TYPE_F32,  struct gradient4fill_opts, opacity_tr);
-    REGISTER_UNIFORM(fi, "opacity_br",      NGPU_TYPE_F32,  struct gradient4fill_opts, opacity_br);
-    REGISTER_UNIFORM(fi, "opacity_bl",      NGPU_TYPE_F32,  struct gradient4fill_opts, opacity_bl);
-    REGISTER_UNIFORM(fi, "gradient_linear", NGPU_TYPE_I32,  struct gradient4fill_opts, gradient_linear);
+    struct gradient4paint_priv *s = node->priv_data;
+    const struct gradient4paint_opts *o = node->opts;
+    struct paint_info *info = &s->info;
+    info->helper_flags = PAINT_HELPER_SRGB;
+    info->glsl = gradient4paint_glsl;
+    info->opts = o;
+    REGISTER_UNIFORM(info, "color_tl",        NGPU_TYPE_VEC3, struct gradient4paint_opts, color_tl);
+    REGISTER_UNIFORM(info, "color_tr",        NGPU_TYPE_VEC3, struct gradient4paint_opts, color_tr);
+    REGISTER_UNIFORM(info, "color_br",        NGPU_TYPE_VEC3, struct gradient4paint_opts, color_br);
+    REGISTER_UNIFORM(info, "color_bl",        NGPU_TYPE_VEC3, struct gradient4paint_opts, color_bl);
+    REGISTER_UNIFORM(info, "opacity_tl",      NGPU_TYPE_F32,  struct gradient4paint_opts, opacity_tl);
+    REGISTER_UNIFORM(info, "opacity_tr",      NGPU_TYPE_F32,  struct gradient4paint_opts, opacity_tr);
+    REGISTER_UNIFORM(info, "opacity_br",      NGPU_TYPE_F32,  struct gradient4paint_opts, opacity_br);
+    REGISTER_UNIFORM(info, "opacity_bl",      NGPU_TYPE_F32,  struct gradient4paint_opts, opacity_bl);
+    REGISTER_UNIFORM(info, "gradient_linear", NGPU_TYPE_I32,  struct gradient4paint_opts, gradient_linear);
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct gradient4fill_priv, fi) == 0,
-                   "fill_info must be first in gradient4fill_priv");
+NGLI_STATIC_ASSERT(offsetof(struct gradient4paint_priv, info) == 0,
+                   "paint_info must be first in gradient4paint_priv");
 
-#define OFFSET(x) offsetof(struct gradient4fill_opts, x)
-static const struct node_param gradient4fill_params[] = {
+#define OFFSET(x) offsetof(struct gradient4paint_opts, x)
+static const struct node_param gradient4paint_params[] = {
     {
         .key       = "opacity",
         .type      = NGLI_PARAM_TYPE_F32,
         .offset    = OFFSET(base_opts.opacity),
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+        .desc      = NGLI_DOCSTRING("opacity of the paint content"),
     },
     {
         .key       = "premult",
@@ -583,24 +660,24 @@ static const struct node_param gradient4fill_params[] = {
 };
 #undef OFFSET
 
-const struct node_class ngli_gradient4fill_class = {
-    .id        = NGL_NODE_GRADIENT4FILL,
-    .name      = "Gradient4Fill",
-    .init      = gradient4fill_init,
-    .uninit    = fill_uninit,
-    .opts_size = sizeof(struct gradient4fill_opts),
-    .priv_size = sizeof(struct gradient4fill_priv),
-    .params    = gradient4fill_params,
+const struct node_class ngli_gradient4paint_class = {
+    .id        = NGL_NODE_GRADIENT4PAINT,
+    .name      = "Gradient4Paint",
+    .init      = gradient4paint_init,
+    .uninit    = paint_uninit,
+    .opts_size = sizeof(struct gradient4paint_opts),
+    .priv_size = sizeof(struct gradient4paint_priv),
+    .params    = gradient4paint_params,
     .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
-struct noisefill_priv {
-    struct fill_info fi;
+struct noisepaint_priv {
+    struct paint_info info;
 };
 
-struct noisefill_opts {
-    struct fill_base_opts base_opts;
+struct noisepaint_opts {
+    struct paint_base_opts base_opts;
     int noise_type;
     float amplitude;
     uint32_t octaves;
@@ -611,8 +688,8 @@ struct noisefill_opts {
     float evolution;
 };
 
-static const struct param_choices noisefill_type_choices = {
-    .name = "fill_noise_type",
+static const struct param_choices noisepaint_type_choices = {
+    .name = "paint_noise_type",
     .consts = {
         {
             .key   = "blocky",
@@ -628,46 +705,46 @@ static const struct param_choices noisefill_type_choices = {
     }
 };
 
-static const char noisefill_glsl[] =
-    "vec4 ngli_color(vec2 uv, vec2 tex_coord) {\n"
-    "    vec2 st = uv * noise_scale;\n"
-    "    float n = fbm(vec3(st, noise_evolution), noise_type, noise_amplitude,\n"
-    "                  noise_octaves, noise_lacunarity, noise_gain, noise_seed);\n"
+static const char noisepaint_glsl[] =
+    "vec4 main(vec2 uv, vec2 tex_coord) {\n"
+    "    vec2 st = uv * $noise_scale;\n"
+    "    float n = fbm(vec3(st, $noise_evolution), $noise_type, $noise_amplitude,\n"
+    "                  $noise_octaves, $noise_lacunarity, $noise_gain, $noise_seed);\n"
     "    n = (n + 1.0) / 2.0;\n"
     "    return vec4(vec3(n), 1.0);\n"
     "}\n";
 
-static int noisefill_init(struct ngl_node *node)
+static int noisepaint_init(struct ngl_node *node)
 {
-    struct noisefill_priv *s = node->priv_data;
-    const struct noisefill_opts *o = node->opts;
-    struct fill_info *fi = &s->fi;
-    fi->helper_flags = FILL_HELPER_MISC_UTILS | FILL_HELPER_NOISE;
-    fi->glsl = noisefill_glsl;
-    fi->opts = o;
-    REGISTER_UNIFORM(fi, "noise_type",       NGPU_TYPE_I32,  struct noisefill_opts, noise_type);
-    REGISTER_UNIFORM(fi, "noise_amplitude",  NGPU_TYPE_F32,  struct noisefill_opts, amplitude);
-    REGISTER_UNIFORM(fi, "noise_octaves",    NGPU_TYPE_U32,  struct noisefill_opts, octaves);
-    REGISTER_UNIFORM(fi, "noise_lacunarity", NGPU_TYPE_F32,  struct noisefill_opts, lacunarity);
-    REGISTER_UNIFORM(fi, "noise_gain",       NGPU_TYPE_F32,  struct noisefill_opts, gain);
-    REGISTER_UNIFORM(fi, "noise_seed",       NGPU_TYPE_U32,  struct noisefill_opts, seed);
-    REGISTER_UNIFORM(fi, "noise_scale",      NGPU_TYPE_VEC2, struct noisefill_opts, scale);
-    REGISTER_UNIFORM(fi, "noise_evolution",  NGPU_TYPE_F32,  struct noisefill_opts, evolution);
+    struct noisepaint_priv *s = node->priv_data;
+    const struct noisepaint_opts *o = node->opts;
+    struct paint_info *info = &s->info;
+    info->helper_flags = PAINT_HELPER_MISC_UTILS | PAINT_HELPER_NOISE;
+    info->glsl = noisepaint_glsl;
+    info->opts = o;
+    REGISTER_UNIFORM(info, "noise_type",       NGPU_TYPE_I32,  struct noisepaint_opts, noise_type);
+    REGISTER_UNIFORM(info, "noise_amplitude",  NGPU_TYPE_F32,  struct noisepaint_opts, amplitude);
+    REGISTER_UNIFORM(info, "noise_octaves",    NGPU_TYPE_U32,  struct noisepaint_opts, octaves);
+    REGISTER_UNIFORM(info, "noise_lacunarity", NGPU_TYPE_F32,  struct noisepaint_opts, lacunarity);
+    REGISTER_UNIFORM(info, "noise_gain",       NGPU_TYPE_F32,  struct noisepaint_opts, gain);
+    REGISTER_UNIFORM(info, "noise_seed",       NGPU_TYPE_U32,  struct noisepaint_opts, seed);
+    REGISTER_UNIFORM(info, "noise_scale",      NGPU_TYPE_VEC2, struct noisepaint_opts, scale);
+    REGISTER_UNIFORM(info, "noise_evolution",  NGPU_TYPE_F32,  struct noisepaint_opts, evolution);
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct noisefill_priv, fi) == 0,
-                   "fill_info must be first in noisefill_priv");
+NGLI_STATIC_ASSERT(offsetof(struct noisepaint_priv, info) == 0,
+                   "paint_info must be first in noisepaint_priv");
 
-#define OFFSET(x) offsetof(struct noisefill_opts, x)
-static const struct node_param noisefill_params[] = {
+#define OFFSET(x) offsetof(struct noisepaint_opts, x)
+static const struct node_param noisepaint_params[] = {
     {
         .key       = "opacity",
         .type      = NGLI_PARAM_TYPE_F32,
         .offset    = OFFSET(base_opts.opacity),
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+        .desc      = NGLI_DOCSTRING("opacity of the paint content"),
     },
     {
         .key       = "premult",
@@ -680,7 +757,7 @@ static const struct node_param noisefill_params[] = {
         .key     = "type",
         .type    = NGLI_PARAM_TYPE_SELECT,
         .offset  = OFFSET(noise_type),
-        .choices = &noisefill_type_choices,
+        .choices = &noisepaint_type_choices,
         .desc    = NGLI_DOCSTRING("noise algorithm"),
     },
     {
@@ -739,25 +816,25 @@ static const struct node_param noisefill_params[] = {
 };
 #undef OFFSET
 
-const struct node_class ngli_noisefill_class = {
-    .id        = NGL_NODE_NOISEFILL,
-    .name      = "NoiseFill",
-    .init      = noisefill_init,
-    .uninit    = fill_uninit,
-    .opts_size = sizeof(struct noisefill_opts),
-    .priv_size = sizeof(struct noisefill_priv),
-    .params    = noisefill_params,
+const struct node_class ngli_noisepaint_class = {
+    .id        = NGL_NODE_NOISEPAINT,
+    .name      = "NoisePaint",
+    .init      = noisepaint_init,
+    .uninit    = paint_uninit,
+    .opts_size = sizeof(struct noisepaint_opts),
+    .priv_size = sizeof(struct noisepaint_priv),
+    .params    = noisepaint_params,
     .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };
 
-struct customfill_priv {
-    struct fill_info fi;
-    char *built_glsl;   /* dynamically allocated, owned */
+struct custompaint_priv {
+    struct paint_info info;
+    char *glsl;
 };
 
-struct customfill_opts {
-    struct fill_base_opts base_opts;
+struct custompaint_opts {
+    struct paint_base_opts base_opts;
     char *glsl_header;
     char *glsl_color;
     struct hmap *resources;
@@ -765,86 +842,86 @@ struct customfill_opts {
 };
 
 
-static int register_uniform(struct fill_info *fi, const char *name, struct ngl_node *res)
+static int register_uniform(struct paint_info *info, const char *name, struct ngl_node *res)
 {
     const struct variable_info *var = res->priv_data;
-    struct fill_custom_uniform_def cu = {
+    struct paint_custom_uniform_def cu = {
         .type = var->data_type,
         .node = res,
     };
     snprintf(cu.name, sizeof(cu.name), "%s", name);
-    return ngli_darray_push(&fi->custom_uniforms, cu);
+    return ngli_darray_push(&info->custom_uniforms, cu);
 }
 
-static int register_texture(struct fill_info *fi, const char *name, struct ngl_node *res)
+static int register_texture(struct paint_info *info, const char *name, struct ngl_node *res)
 {
-    struct fill_custom_texture_def ct = {
+    struct paint_custom_texture_def ct = {
         .texture_node = res,
     };
     snprintf(ct.name, sizeof(ct.name), "%s", name);
-    return ngli_darray_push(&fi->custom_textures, ct);
+    return ngli_darray_push(&info->custom_textures, ct);
 }
 
-static int register_block(struct fill_info *fi, const char *name, struct ngl_node *res)
+static int register_block(struct paint_info *info, const char *name, struct ngl_node *res)
 {
-    struct fill_custom_block_def cb = {
+    struct paint_custom_block_def cb = {
         .node = res,
     };
     snprintf(cb.name, sizeof(cb.name), "%s", name);
-    return ngli_darray_push(&fi->custom_blocks, cb);
+    return ngli_darray_push(&info->custom_blocks, cb);
 }
 
-static int register_resource(struct fill_info *fi, const char *name, struct ngl_node *res)
+static int register_resource(struct paint_info *info, const char *name, struct ngl_node *res)
 {
     switch (res->cls->category) {
-    case NGLI_NODE_CATEGORY_VARIABLE: return register_uniform(fi, name, res);
-    case NGLI_NODE_CATEGORY_TEXTURE:  return register_texture(fi, name, res);
-    case NGLI_NODE_CATEGORY_BLOCK:    return register_block(fi, name, res);
+    case NGLI_NODE_CATEGORY_VARIABLE: return register_uniform(info, name, res);
+    case NGLI_NODE_CATEGORY_TEXTURE:  return register_texture(info, name, res);
+    case NGLI_NODE_CATEGORY_BLOCK:    return register_block(info, name, res);
     default:
         ngli_assert(0);
     }
 }
 
-static int customfill_init(struct ngl_node *node)
+static char *custompaint_build_glsl(const struct custompaint_opts *o)
 {
-    struct customfill_priv *s = node->priv_data;
-    const struct customfill_opts *o = node->opts;
+    struct bstr *bstr = ngli_bstr_create();
+    if (!bstr)
+        return NULL;
+
+    ngli_bstr_printf(bstr, "%s main(vec2 uv, vec2 tex_coord) {\n",
+                     o->color_output_count ? "void" : "vec4");
+    ngli_bstr_print(bstr, o->glsl_color);
+    ngli_bstr_print(bstr, "\n}\n");
+
+    char *glsl = ngli_bstr_check(bstr) < 0 ? NULL : ngli_bstr_strdup(bstr);
+    ngli_bstr_freep(&bstr);
+    return glsl;
+}
+
+static int custompaint_init(struct ngl_node *node)
+{
+    struct custompaint_priv *s = node->priv_data;
+    const struct custompaint_opts *o = node->opts;
 
     if (!o->glsl_color || !o->glsl_color[0]) {
-        LOG(ERROR, "CustomFill: glsl_color param is required");
+        LOG(ERROR, "CustomPaint: glsl_color param is required");
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    /* Build GLSL: optional header + ngli_color()/ngli_colors() body */
-    struct bstr *bstr = ngli_bstr_create();
-    if (!bstr)
-        return NGL_ERROR_MEMORY;
+    struct paint_info *info = &s->info;
+    info->glsl_header = o->glsl_header && o->glsl_header[0] ? o->glsl_header : NULL;
+    info->opts = o;
+    info->color_output_count = (size_t)o->color_output_count;
 
-    if (o->glsl_header && o->glsl_header[0])
-        ngli_bstr_printf(bstr, "%s\n", o->glsl_header);
-    if (o->color_output_count > 0)
-        ngli_bstr_printf(bstr, "void ngli_colors(vec2 uv, vec2 tex_coord) {\n%s\n}\n", o->glsl_color);
-    else
-        ngli_bstr_printf(bstr, "vec4 ngli_color(vec2 uv, vec2 tex_coord) {\n%s\n}\n", o->glsl_color);
-
-    if (ngli_bstr_check(bstr) < 0) {
-        ngli_bstr_freep(&bstr);
+    s->glsl = custompaint_build_glsl(o);
+    if (!s->glsl)
         return NGL_ERROR_MEMORY;
-    }
-    s->built_glsl = ngli_bstr_strdup(bstr);
-    ngli_bstr_freep(&bstr);
-    if (!s->built_glsl)
-        return NGL_ERROR_MEMORY;
-
-    struct fill_info *fi = &s->fi;
-    fi->glsl = s->built_glsl;
-    fi->opts = o;
-    fi->color_output_count = (size_t)o->color_output_count;
+    info->glsl = s->glsl;
 
     if (o->resources) {
         const struct hmap_entry *entry = NULL;
         while ((entry = ngli_hmap_next(o->resources, entry))) {
-            int ret = register_resource(fi, entry->key.str, entry->data);
+            int ret = register_resource(info, entry->key.str, entry->data);
             if (ret < 0)
                 return ret;
         }
@@ -853,38 +930,38 @@ static int customfill_init(struct ngl_node *node)
     return 0;
 }
 
-static void customfill_uninit(struct ngl_node *node)
+static void custompaint_uninit(struct ngl_node *node)
 {
-    struct customfill_priv *s = node->priv_data;
-    ngli_fill_info_reset(&s->fi);
-    ngli_freep(&s->built_glsl);
+    struct custompaint_priv *s = node->priv_data;
+    ngli_paint_info_reset(&s->info);
+    ngli_freep(&s->glsl);
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct customfill_priv, fi) == 0,
-                   "fill_info must be first in customfill_priv");
+NGLI_STATIC_ASSERT(offsetof(struct custompaint_priv, info) == 0,
+                   "paint_info must be first in custompaint_priv");
 
-#define OFFSET(x) offsetof(struct customfill_opts, x)
-static const struct node_param customfill_params[] = {
+#define OFFSET(x) offsetof(struct custompaint_opts, x)
+static const struct node_param custompaint_params[] = {
     {
         .key       = "opacity",
         .type      = NGLI_PARAM_TYPE_F32,
         .offset    = OFFSET(base_opts.opacity),
         .def_value = {.f32=1.f},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc      = NGLI_DOCSTRING("opacity of the fill content"),
+        .desc      = NGLI_DOCSTRING("opacity of the paint content"),
     },
     {
         .key     = "scaling",
         .type    = NGLI_PARAM_TYPE_SELECT,
         .offset  = OFFSET(base_opts.scaling),
-        .choices = &texturefill_scaling_choices,
-        .desc    = NGLI_DOCSTRING("texture scaling mode applied to custom fill content"),
+        .choices = &texturepaint_scaling_choices,
+        .desc    = NGLI_DOCSTRING("texture scaling mode applied to custom paint content"),
     },
     {
         .key     = "wrap",
         .type    = NGLI_PARAM_TYPE_SELECT,
         .offset  = OFFSET(base_opts.wrap),
-        .choices = &texturefill_wrap_choices,
+        .choices = &texturepaint_wrap_choices,
         .desc    = NGLI_DOCSTRING("wrap mode for out-of-bounds coordinates"),
     },
     {
@@ -898,13 +975,15 @@ static const struct node_param customfill_params[] = {
         .key    = "glsl_header",
         .type   = NGLI_PARAM_TYPE_STR,
         .offset = OFFSET(glsl_header),
-        .desc   = NGLI_DOCSTRING("GLSL code prepended before ngli_color() (helper functions, etc.)"),
+        .desc   = NGLI_DOCSTRING("GLSL code prepended before the color function (helper functions, etc.); "
+                                 "symbols declared here must be written $name so that they are namespaced "
+                                 "per shader role"),
     },
     {
         .key    = "glsl_color",
         .type   = NGLI_PARAM_TYPE_STR,
         .offset = OFFSET(glsl_color),
-        .desc   = NGLI_DOCSTRING("GLSL body of vec4 ngli_color(vec2 uv, vec2 tex_coord)"),
+        .desc   = NGLI_DOCSTRING("GLSL body of the color function"),
     },
     {
         .key        = "resources",
@@ -950,8 +1029,8 @@ static const struct node_param customfill_params[] = {
             NGL_NODE_BLOCK,
             NGLI_NODE_NONE,
         },
-        .desc = NGLI_DOCSTRING("uniform and texture nodes available to glsl_color; "
-                               "each node's label is used as the GLSL name"),
+        .desc = NGLI_DOCSTRING("uniform, texture and block nodes available to glsl_color; each node is "
+                               "referenced in the GLSL as $name, where name is the key it is bound to"),
     },
     {
         .key    = "color_output_count",
@@ -965,17 +1044,17 @@ static const struct node_param customfill_params[] = {
 };
 #undef OFFSET
 
-const struct node_class ngli_customfill_class = {
-    .id        = NGL_NODE_CUSTOMFILL,
-    .name      = "CustomFill",
-    .init      = customfill_init,
+const struct node_class ngli_custompaint_class = {
+    .id        = NGL_NODE_CUSTOMPAINT,
+    .name      = "CustomPaint",
+    .init      = custompaint_init,
     .update    = ngli_node_update_children,
     .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_node_draw_children,
-    .uninit    = customfill_uninit,
-    .opts_size = sizeof(struct customfill_opts),
-    .priv_size = sizeof(struct customfill_priv),
-    .params    = customfill_params,
+    .uninit    = custompaint_uninit,
+    .opts_size = sizeof(struct custompaint_opts),
+    .priv_size = sizeof(struct custompaint_priv),
+    .params    = custompaint_params,
     .flags     = NGLI_NODE_FLAG_SHAREABLE,
     .file      = __FILE__,
 };

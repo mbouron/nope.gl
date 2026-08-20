@@ -104,19 +104,17 @@
     action(NGL_NODE_FILTERSATURATION,       ngli_filtersaturation_class)        \
     action(NGL_NODE_FILTERSELECTOR,         ngli_filterselector_class)          \
     action(NGL_NODE_FILTERSRGB2LINEAR,      ngli_filtersrgb2linear_class)       \
-    action(NGL_NODE_COLORFILL,              ngli_colorfill_class)               \
-    action(NGL_NODE_CUSTOMFILL,             ngli_customfill_class)              \
+    action(NGL_NODE_COLORPAINT,             ngli_colorpaint_class)              \
+    action(NGL_NODE_CUSTOMPAINT,            ngli_custompaint_class)             \
     action(NGL_NODE_DRAWRECT2D,             ngli_drawrect2d_class)              \
     action(NGL_NODE_EFFECT2D,               ngli_effect2d_class)                \
     action(NGL_NODE_FASTGAUSSIANBLUR,       ngli_fgblur_class)                  \
     action(NGL_NODE_FONTFACE,               ngli_fontface_class)                \
-    action(NGL_NODE_GRADIENT4FILL,          ngli_gradient4fill_class)           \
-    action(NGL_NODE_GRADIENTFILL,           ngli_gradientfill_class)            \
-    action(NGL_NODE_NOISEFILL,              ngli_noisefill_class)               \
-    action(NGL_NODE_STROKE,                 ngli_stroke_class)                  \
-    action(NGL_NODE_STROKEGRADIENT,         ngli_strokegradient_class)          \
-    action(NGL_NODE_STROKEGRADIENT4,        ngli_strokegradient4_class)         \
-    action(NGL_NODE_TEXTUREFILL,            ngli_texturefill_class)             \
+    action(NGL_NODE_GRADIENT4PAINT,         ngli_gradient4paint_class)          \
+    action(NGL_NODE_GRADIENTPAINT,          ngli_gradientpaint_class)           \
+    action(NGL_NODE_NOISEPAINT,             ngli_noisepaint_class)              \
+    action(NGL_NODE_STROKE2D,               ngli_stroke2d_class)                \
+    action(NGL_NODE_TEXTUREPAINT,           ngli_texturepaint_class)            \
     action(NGL_NODE_GAUSSIANBLUR,           ngli_gblur_class)                   \
     action(NGL_NODE_GEOMETRY,               ngli_geometry_class)                \
     action(NGL_NODE_GRIDLAYOUT,             ngli_gridlayout_class)              \

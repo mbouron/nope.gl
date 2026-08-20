@@ -34,14 +34,14 @@ def _canvas(cfg: ngl.SceneCfg, *children, duration: float = 1.0):
 
 
 def _colored_rect(x, y, w, h, color):
-    fill = ngl.ColorFill(color=color)
+    fill = ngl.ColorPaint(color=color)
     return ngl.DrawRect2D(rect=(x, y, w, h), fill=fill)
 
 
 def _animated_scene():
     r1 = ngl.DrawRect2D(
         rect=(16, 16, 100, 100),
-        fill=ngl.ColorFill(color=(0.8, 0.2, 0.2, 1.0)),
+        fill=ngl.ColorPaint(color=(0.8, 0.2, 0.2, 1.0)),
         rotation=ngl.AnimatedFloat(
             [
                 ngl.AnimKeyFrameFloat(0.0, 0.0),
@@ -51,7 +51,7 @@ def _animated_scene():
     )
     r2 = ngl.DrawRect2D(
         rect=(80, 80, 120, 120),
-        fill=ngl.GradientFill(color0=(0.1, 0.1, 0.9), color1=(0.1, 0.9, 0.1)),
+        fill=ngl.GradientPaint(color0=(0.1, 0.1, 0.9), color1=(0.1, 0.9, 0.1)),
         translate=ngl.AnimatedVec2(
             [
                 ngl.AnimKeyFrameVec2(0.0, (0.0, 0.0)),
@@ -61,7 +61,7 @@ def _animated_scene():
     )
     r3 = ngl.DrawRect2D(
         rect=(140, 30, 80, 80),
-        fill=ngl.ColorFill(color=(0.2, 0.8, 0.2, 1.0)),
+        fill=ngl.ColorPaint(color=(0.2, 0.8, 0.2, 1.0)),
         scale=ngl.AnimatedVec2(
             [
                 ngl.AnimKeyFrameVec2(0.0, (1.0, 1.0)),
@@ -151,7 +151,7 @@ def effect2d_offscreen_canvas_density(cfg: ngl.SceneCfg):
     )
     bar = ngl.DrawRect2D(
         rect=(-32, 32, 128, 24),
-        fill=ngl.ColorFill(color=(0.95, 0.55, 0.15, 1.0)),
+        fill=ngl.ColorPaint(color=(0.95, 0.55, 0.15, 1.0)),
         rotation=30.0,
         anchor=(32, 32),
     )
@@ -170,7 +170,7 @@ def effect2d_offscreen_canvas_density(cfg: ngl.SceneCfg):
         return ((width - display_w) / 2, (height - display_h) / 2, display_w, display_h)
 
     display_rect = get_centered_crop_rect(W, H, density_scale)
-    display = ngl.DrawRect2D(rect=display_rect, fill=ngl.TextureFill(texture=texture))
+    display = ngl.DrawRect2D(rect=display_rect, fill=ngl.TexturePaint(texture=texture))
     return _canvas(cfg, offscreen, display)
 
 
@@ -189,7 +189,7 @@ def effect2d_offscreen_canvas_isolates_transform(cfg: ngl.SceneCfg):
         color_textures=[tex],
         clear_color=(0.1, 0.2, 0.15, 1.0),
     )
-    display = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.TextureFill(texture=tex))
+    display = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.TexturePaint(texture=tex))
     group = ngl.Group2D(children=[offscreen, display], translate=(48, 32), rotation=20.0, anchor=(W / 2, H / 2))
     return _canvas(cfg, group)
 

@@ -31,38 +31,30 @@
 #include "log.h"
 #include <ngpu/ngpu.h>
 #include "node_block.h"
-#include "node_fill.h"
+#include "node_paint.h"
+#include "node_stroke2d.h"
 #include "node_uniform.h"
-#include "node_stroke.h"
 #include "node_texture.h"
-#include "node_uniform.h"
-#include "nopegl/nopegl.h"
 #include "pipeline_compat.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
-/* GLSL fragments as string */
-#include "drawrect_frag.h"
+/* GLSL shaders as strings */
 #include "drawrect_vert.h"
+#include "drawrect_frag.h"
 #include "helper_misc_utils_glsl.h"
 #include "helper_noise_glsl.h"
 #include "helper_srgb_glsl.h"
 
-/* Default stroke base when no stroke node is attached (width=0 → invisible) */
-static const struct stroke_base_opts default_stroke_base = {
-    .width       = 0.f,
-    .mode        = STROKE_INSIDE,
-    .opacity     = 1.f,
-};
-
-/* ngli_stroke_color() for the no-stroke case: transparent */
+/* ngli_stroke() for the no-stroke case: transparent */
 static const char no_stroke_glsl[] =
-    "vec4 ngli_stroke_color(vec2 uv) { return vec4(0.0); }\n";
+    "vec4 ngli_stroke(vec2 uv, vec2 tex_coord) { return vec4(0.0); }\n";
 
-static const struct stroke_info default_stroke_info = {
-    .glsl = no_stroke_glsl,
+static const char *const paint_texture_names[PAINT_SHADER_ROLE_NB] = {
+    [PAINT_SHADER_ROLE_FILL]   = "ngli_fill_tex",
+    [PAINT_SHADER_ROLE_STROKE] = "ngli_stroke_tex",
 };
 
 struct resource_map {
@@ -87,6 +79,7 @@ struct drawrect2d_vert_block {
     struct ngli_mat4 modelview_matrix;
     float rect[4];
     float uv_scale[2];
+    float stroke_uv_scale[2];
     float margin_px;
     float _pad0;
     float margin_uv[2];
@@ -100,14 +93,14 @@ struct drawrect2d_frag_block {
     float opacity;
     float fill_opacity;
     float stroke_opacity;
-    int32_t content_wrap;
+    int32_t fill_content_wrap;
+    int32_t stroke_content_wrap;
     float content_zoom;
-    float _pad_ct; /* std140: align content_translate (vec2) to 8 bytes */
     float content_translate[2];
     float content_orientation[2];
     float frag_uv_scale[2];
     int32_t fill_premult;
-    float _pad0[1];
+    int32_t stroke_premult;
     struct ngli_vec4 clip_inv[NGLI_MAX_CLIPS_2D];
     struct ngli_vec4 clip_rect[NGLI_MAX_CLIPS_2D];
     struct ngli_vec4 clip_radius[NGLI_MAX_CLIPS_2D];
@@ -134,7 +127,7 @@ struct drawrect2d_opts {
     float content_orientation;
 };
 
-/* Tracks a user-supplied uniform node (CustomFill) */
+/* Tracks a user-supplied uniform node (CustomPaint) */
 struct user_uniform {
     int32_t field_index;
     const struct ngl_node *node;
@@ -170,11 +163,13 @@ struct drawrect2d_priv {
 
     NGLI_DARRAY(struct user_uniform) user_uniforms;
     NGLI_DARRAY(struct prebuilt_uniform) prebuilt_uniforms;
+    NGLI_DARRAY(struct user_uniform) stroke_user_uniforms;
     NGLI_DARRAY(struct prebuilt_uniform) stroke_prebuilt_uniforms;
-    const struct fill_info *fill_info;
-    const struct stroke_info *stroke_info;
-    char *vert_shader;
+    const struct paint_info *fill_paint;
+    const struct paint_info *stroke_paint;
+    const struct stroke2d_info *stroke;
     char *frag_shader;
+    char *vert_shader;
 };
 
 
@@ -196,16 +191,16 @@ static void compute_geometry(struct drawrect2d_priv *s, const float *rect, const
     s->corner_radius[1] = NGLI_MIN(NGLI_MAX(corner_radius[1], 0.f), half_h);
 }
 
-static const struct ngl_node *get_scaling_texture(const struct fill_info *fi)
+static const struct ngl_node *get_scaling_texture(const struct paint_info *paint)
 {
-    if (fi->texture)
-        return fi->texture;
-    if (fi->custom_textures.count)
-        return fi->custom_textures.data[0].texture_node;
+    if (paint->texture)
+        return paint->texture;
+    if (paint->custom_textures.count)
+        return paint->custom_textures.data[0].texture_node;
     return NULL;
 }
 
-static void compute_texture_uv_scale(const struct fill_info *fi,
+static void compute_texture_uv_scale(const struct paint_info *paint,
                                      const float *rect,
                                      const float *node_scale,
                                      bool orientation_is_transposed,
@@ -214,12 +209,12 @@ static void compute_texture_uv_scale(const struct fill_info *fi,
     uv_scale[0] = 1.f;
     uv_scale[1] = 1.f;
 
-    if (!fi)
+    if (!paint)
         return;
 
-    const struct fill_base_opts *fo = (const struct fill_base_opts *)fi->opts;
-    const struct ngl_node *texture = get_scaling_texture(fi);
-    if (fo->scaling == FILL_SCALING_NONE || !texture)
+    const struct paint_base_opts *opts = (const struct paint_base_opts *)paint->opts;
+    const struct ngl_node *texture = get_scaling_texture(paint);
+    if (opts->scaling == PAINT_SCALING_NONE || !texture)
         return;
 
     const struct texture_info *texture_info = ngli_node_texture_get_texture_info(texture);
@@ -232,7 +227,7 @@ static void compute_texture_uv_scale(const struct fill_info *fi,
         return;
 
     const float ratio = (scaled_w / scaled_h) / (tex_w / tex_h);
-    if (fo->scaling == FILL_SCALING_FIT) {
+    if (opts->scaling == PAINT_SCALING_FIT) {
         uv_scale[0] = ratio > 1.f ? ratio : 1.f;
         uv_scale[1] = ratio < 1.f ? 1.f / ratio : 1.f;
     } else {
@@ -271,26 +266,16 @@ static const struct node_param drawrect2d_params[] = {
         .key        = "fill",
         .type       = NGLI_PARAM_TYPE_NODE,
         .offset     = OFFSET(fill_node),
-        .node_types = (const uint32_t[]){
-            NGL_NODE_COLORFILL,
-            NGL_NODE_TEXTUREFILL,
-            NGL_NODE_GRADIENTFILL,
-            NGL_NODE_GRADIENT4FILL,
-            NGL_NODE_NOISEFILL,
-            NGL_NODE_CUSTOMFILL,
-            NGLI_NODE_NONE,
-        },
-        .flags = NGLI_PARAM_FLAG_NON_NULL,
-        .desc  = NGLI_DOCSTRING("fill paint applied inside the rect"),
+        .node_types = ngli_paint_node_types,
+        .flags      = NGLI_PARAM_FLAG_NON_NULL,
+        .desc       = NGLI_DOCSTRING("fill paint applied inside the rect"),
     },
     {
         .key        = "stroke",
         .type       = NGLI_PARAM_TYPE_NODE,
         .offset     = OFFSET(stroke_node),
         .node_types = (const uint32_t[]){
-            NGL_NODE_STROKE,
-            NGL_NODE_STROKEGRADIENT,
-            NGL_NODE_STROKEGRADIENT4,
+            NGL_NODE_STROKE2D,
             NGLI_NODE_NONE,
         },
         .desc       = NGLI_DOCSTRING("optional outline stroke"),
@@ -372,8 +357,8 @@ static const struct node_param drawrect2d_params[] = {
         .offset = OFFSET(clip_corner_radius_node),
         .flags  = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc   = NGLI_DOCSTRING("corner radii (x, y) of clip_rect in pixels, for rounded clipping; "
-                                  "(0, 0) gives sharp corners. Each radius is clamped to half the "
-                                  "corresponding clip_rect side"),
+                                 "(0, 0) gives sharp corners. Each radius is clamped to half the "
+                                 "corresponding clip_rect side"),
     },
     {
         .key       = "content_zoom",
@@ -406,7 +391,7 @@ static const struct node_param drawrect2d_params[] = {
 };
 #undef OFFSET
 
-static char *build_vertex_shader(bool has_fill_texture)
+static char *build_vertex_shader(bool has_fill_texture, bool has_stroke_texture)
 {
     struct bstr *bstr = ngli_bstr_create();
     if (!bstr)
@@ -414,6 +399,8 @@ static char *build_vertex_shader(bool has_fill_texture)
 
     if (has_fill_texture)
         ngli_bstr_print(bstr, "#define NGLI_DRAWRECT_FILL_TEXTURE\n");
+    if (has_stroke_texture)
+        ngli_bstr_print(bstr, "#define NGLI_DRAWRECT_STROKE_TEXTURE\n");
 
     ngli_bstr_print(bstr, drawrect_vert);
 
@@ -445,6 +432,7 @@ static int drawrect2d_init(struct ngl_node *node)
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct drawrect2d_priv *s = node->priv_data;
     const struct drawrect2d_opts *o = node->opts;
+    int ret;
 
     if (!is_valid_orientation(o->content_orientation)) {
         LOG(ERROR, "content_orientation must be 0, +/-90, +/-180 or +/-270, got %g", o->content_orientation);
@@ -455,19 +443,28 @@ static int drawrect2d_init(struct ngl_node *node)
     const float *corner_radius = ngli_node_get_data_ptr(o->corner_radius_node, o->corner_radius);
     compute_geometry(s, rect, corner_radius);
 
-    const struct fill_info *fi = (const struct fill_info *)o->fill_node->priv_data;
-    s->fill_info = fi;
+    const struct paint_info *fill_paint = (const struct paint_info *)o->fill_node->priv_data;
+    s->fill_paint = fill_paint;
 
-    const struct stroke_info *si = o->stroke_node
-        ? (const struct stroke_info *)o->stroke_node->priv_data
-        : &default_stroke_info;
-    s->stroke_info = si;
+    const struct stroke2d_info *stroke = o->stroke_node ? ngli_stroke2d_get_info(o->stroke_node) : NULL;
+    const struct paint_info *stroke_paint = stroke ? (const struct paint_info *)stroke->paint->priv_data : NULL;
+    if (fill_paint->color_output_count && stroke_paint) {
+        LOG(ERROR, "DrawRect2D.stroke is not supported with a multi-render-target CustomPaint");
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    if (stroke_paint && stroke_paint->color_output_count) {
+        LOG(ERROR, "a Stroke2D paint cannot be a multi-render-target CustomPaint");
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    s->stroke = stroke;
+    s->stroke_paint = stroke_paint;
 
-    const struct ngl_node *texture = fi->texture;
+    const struct ngl_node *texture = fill_paint->texture;
 
     s->pipeline_compat = NULL;
 
-    s->vert_shader = build_vertex_shader(texture != NULL);
+    s->vert_shader = build_vertex_shader(fill_paint->texture != NULL,
+                                         stroke_paint && stroke_paint->texture);
     if (!s->vert_shader)
         return NGL_ERROR_MEMORY;
 
@@ -476,15 +473,33 @@ static int drawrect2d_init(struct ngl_node *node)
     if (!bstr)
         return NGL_ERROR_MEMORY;
 
-    const uint32_t all_helper_flags = fi->helper_flags | si->helper_flags;
-    if (all_helper_flags & FILL_HELPER_MISC_UTILS) ngli_bstr_print(bstr, helper_misc_utils_glsl);
-    if (all_helper_flags & FILL_HELPER_NOISE)      ngli_bstr_print(bstr, helper_noise_glsl);
-    if (all_helper_flags & FILL_HELPER_SRGB)       ngli_bstr_print(bstr, helper_srgb_glsl);
-    ngli_bstr_print(bstr, fi->glsl);
-    if (fi->color_output_count)
+    const uint32_t all_helper_flags = fill_paint->helper_flags | (stroke_paint ? stroke_paint->helper_flags : 0);
+    if (all_helper_flags & PAINT_HELPER_MISC_UTILS) ngli_bstr_print(bstr, helper_misc_utils_glsl);
+    if (all_helper_flags & PAINT_HELPER_NOISE)      ngli_bstr_print(bstr, helper_noise_glsl);
+    if (all_helper_flags & PAINT_HELPER_SRGB)       ngli_bstr_print(bstr, helper_srgb_glsl);
+    const char *fill_header = fill_paint->glsl_header;
+    const char *stroke_header = stroke_paint ? stroke_paint->glsl_header : NULL;
+    /* A header holding no placeholder expands identically for both roles */
+    if (fill_header && stroke_header && !strcmp(fill_header, stroke_header) && !strchr(fill_header, '$'))
+        stroke_header = NULL;
+    if (fill_header) {
+        ngli_paint_glsl_write(bstr, fill_header, PAINT_SHADER_ROLE_FILL,
+                              fill_paint->color_output_count ? "ngli_colors" : "ngli_color");
+        ngli_bstr_print(bstr, "\n");
+    }
+    if (stroke_header) {
+        ngli_paint_glsl_write(bstr, stroke_header, PAINT_SHADER_ROLE_STROKE, "ngli_stroke");
+        ngli_bstr_print(bstr, "\n");
+    }
+    ngli_paint_glsl_write(bstr, fill_paint->glsl, PAINT_SHADER_ROLE_FILL,
+                          fill_paint->color_output_count ? "ngli_colors" : "ngli_color");
+    if (fill_paint->color_output_count) {
         ngli_bstr_print(bstr, "void main() { ngli_colors(ngli_uv, ngli_tex_coord); }\n");
-    else {
-        ngli_bstr_print(bstr, si->glsl);
+    } else {
+        if (stroke_paint)
+            ngli_paint_glsl_write(bstr, stroke_paint->glsl, PAINT_SHADER_ROLE_STROKE, "ngli_stroke");
+        else
+            ngli_bstr_print(bstr, no_stroke_glsl);
         ngli_bstr_print(bstr, drawrect_frag);
     }
 
@@ -503,11 +518,12 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "modelview_matrix",   .type = NGPU_TYPE_MAT4},
         {.name = "ngli_rect",          .type = NGPU_TYPE_VEC4},
         {.name = "ngli_uv_scale",      .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_stroke_uv_scale", .type = NGPU_TYPE_VEC2},
         {.name = "ngli_margin_px",     .type = NGPU_TYPE_F32},
         {.name = "ngli_margin_uv",     .type = NGPU_TYPE_VEC2},
     };
     ngpu_block_desc_init(gpu_ctx, &s->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
-    int ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
+    ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
     if (ret < 0)
         return ret;
     s->vert_block_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
@@ -522,12 +538,14 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_opacity",              .type = NGPU_TYPE_F32},
         {.name = "ngli_fill_opacity",         .type = NGPU_TYPE_F32},
         {.name = "ngli_stroke_opacity",       .type = NGPU_TYPE_F32},
-        {.name = "ngli_content_wrap",         .type = NGPU_TYPE_I32},
+        {.name = "ngli_fill_content_wrap",    .type = NGPU_TYPE_I32},
+        {.name = "ngli_stroke_content_wrap",  .type = NGPU_TYPE_I32},
         {.name = "ngli_content_zoom",         .type = NGPU_TYPE_F32},
         {.name = "ngli_content_translate",    .type = NGPU_TYPE_VEC2},
         {.name = "ngli_content_orientation",  .type = NGPU_TYPE_VEC2},
         {.name = "ngli_frag_uv_scale",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_fill_premult",         .type = NGPU_TYPE_I32},
+        {.name = "ngli_stroke_premult",       .type = NGPU_TYPE_I32},
         {.name = "ngli_clip_inv",             .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
         {.name = "ngli_clip_rect",            .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
         {.name = "ngli_clip_radius",          .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
@@ -543,13 +561,15 @@ static int drawrect2d_init(struct ngl_node *node)
     ngli_assert(frag_block_size == sizeof(struct drawrect2d_frag_block));
 
     /* Build user uniform block (dynamic fill/stroke/custom uniforms) */
-    const size_t nb_fill_uniforms = fi->uniforms.count;
-    const size_t nb_custom_uniforms = fi->custom_uniforms.count;
-    const size_t nb_stroke_uniforms = si->uniforms.count;
+    const size_t nb_fill_uniforms = fill_paint->uniforms.count;
+    const size_t nb_custom_uniforms = fill_paint->custom_uniforms.count;
+    const size_t nb_stroke_uniforms = stroke_paint ? stroke_paint->uniforms.count : 0;
+    const size_t nb_stroke_custom_uniforms = stroke_paint ? stroke_paint->custom_uniforms.count : 0;
 
     const int has_user_uniforms = nb_fill_uniforms > 0
                                || nb_custom_uniforms > 0
-                               || nb_stroke_uniforms > 0;
+                               || nb_stroke_uniforms > 0
+                               || nb_stroke_custom_uniforms > 0;
 
     s->user_block_index = -1;
     if (has_user_uniforms) {
@@ -557,23 +577,27 @@ static int drawrect2d_init(struct ngl_node *node)
 
         /* Fill prebuilt uniforms: add to user block */
         for (size_t i = 0; i < nb_fill_uniforms; i++) {
-            const struct fill_uniform_def *ud = &fi->uniforms.data[i];
-            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, ud->name, ud->type, 0);
+            const struct paint_uniform_def *ud = &fill_paint->uniforms.data[i];
+            char name[NGPU_ID_LEN];
+            ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_FILL, ud->name);
+            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, ud->type, 0);
             if (field_idx < 0)
                 return field_idx;
             const struct prebuilt_uniform pu = {
                 .field_index = field_idx,
-                .base        = (const uint8_t *)fi->opts,
+                .base        = (const uint8_t *)fill_paint->opts,
                 .offset      = ud->opts_offset,
             };
             if (ngli_darray_push(&s->prebuilt_uniforms, pu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
-        /* CustomFill user uniforms: add to user block */
+        /* CustomPaint user uniforms: add to user block */
         for (size_t i = 0; i < nb_custom_uniforms; i++) {
-            const struct fill_custom_uniform_def *cu = &fi->custom_uniforms.data[i];
-            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, cu->name, cu->type, 0);
+            const struct paint_custom_uniform_def *cu = &fill_paint->custom_uniforms.data[i];
+            char name[NGPU_ID_LEN];
+            ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_FILL, cu->name);
+            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, cu->type, 0);
             if (field_idx < 0)
                 return field_idx;
             const struct user_uniform uu = {
@@ -584,18 +608,34 @@ static int drawrect2d_init(struct ngl_node *node)
                 return NGL_ERROR_MEMORY;
         }
 
-        /* Stroke prebuilt uniforms: add to user block */
         for (size_t i = 0; i < nb_stroke_uniforms; i++) {
-            const struct stroke_uniform_def *ud = &si->uniforms.data[i];
-            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, ud->name, ud->type, 0);
+            const struct paint_uniform_def *ud = &stroke_paint->uniforms.data[i];
+            char name[NGPU_ID_LEN];
+            ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_STROKE, ud->name);
+            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, ud->type, 0);
             if (field_idx < 0)
                 return field_idx;
             const struct prebuilt_uniform pu = {
                 .field_index = field_idx,
-                .base        = (const uint8_t *)si->opts,
+                .base        = (const uint8_t *)stroke_paint->opts,
                 .offset      = ud->opts_offset,
             };
             if (ngli_darray_push(&s->stroke_prebuilt_uniforms, pu) < 0)
+                return NGL_ERROR_MEMORY;
+        }
+
+        for (size_t i = 0; i < nb_stroke_custom_uniforms; i++) {
+            const struct paint_custom_uniform_def *cu = &stroke_paint->custom_uniforms.data[i];
+            char name[NGPU_ID_LEN];
+            ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_STROKE, cu->name);
+            const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, cu->type, 0);
+            if (field_idx < 0)
+                return field_idx;
+            const struct user_uniform uu = {
+                .field_index = field_idx,
+                .node        = cu->node,
+            };
+            if (ngli_darray_push(&s->stroke_user_uniforms, uu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -607,9 +647,8 @@ static int drawrect2d_init(struct ngl_node *node)
     NGLI_DARRAY(struct ngpu_pgcraft_texture) textures = {0};
 
     if (texture) {
-        struct texture_info *texture_info = texture->priv_data;
-        const struct ngpu_pgcraft_texture tex = {
-            .name        = "tex",
+        struct texture_info *texture_info = ngli_node_texture_get_texture_info(texture);
+        struct ngpu_pgcraft_texture tex = {
             .type        = ngli_node_texture_get_pgcraft_texture_type(texture),
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
             .image       = &texture_info->image,
@@ -617,15 +656,16 @@ static int drawrect2d_init(struct ngl_node *node)
             .clamp_video = texture_info->clamp_video,
             .premult     = texture_info->premult,
         };
+        snprintf(tex.name, sizeof(tex.name), "%s", paint_texture_names[PAINT_SHADER_ROLE_FILL]);
         if (ngli_darray_push(&textures, tex) < 0) {
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
     }
 
-    const size_t nb_custom_textures = fi->custom_textures.count;
+    const size_t nb_custom_textures = fill_paint->custom_textures.count;
     for (size_t i = 0; i < nb_custom_textures; i++) {
-        const struct fill_custom_texture_def *ct = &fi->custom_textures.data[i];
+        const struct paint_custom_texture_def *ct = &fill_paint->custom_textures.data[i];
         struct texture_info *texture_info = ngli_node_texture_get_texture_info(ct->texture_node);
         struct ngpu_pgcraft_texture tex = {
             .type        = ngli_node_texture_get_pgcraft_texture_type(ct->texture_node),
@@ -635,10 +675,47 @@ static int drawrect2d_init(struct ngl_node *node)
             .clamp_video = texture_info->clamp_video,
             .premult     = texture_info->premult,
         };
-        snprintf(tex.name, sizeof(tex.name), "%s", ct->name);
+        ngli_paint_get_resource_name(tex.name, sizeof(tex.name), PAINT_SHADER_ROLE_FILL, ct->name);
         if (ngli_darray_push(&textures, tex) < 0) {
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
+        }
+    }
+
+    if (stroke_paint && stroke_paint->texture) {
+        struct texture_info *texture_info = ngli_node_texture_get_texture_info(stroke_paint->texture);
+        struct ngpu_pgcraft_texture tex = {
+            .type        = ngli_node_texture_get_pgcraft_texture_type(stroke_paint->texture),
+            .stage       = NGPU_PROGRAM_STAGE_FRAG,
+            .image       = &texture_info->image,
+            .format      = texture_info->params.format,
+            .clamp_video = texture_info->clamp_video,
+            .premult     = texture_info->premult,
+        };
+        snprintf(tex.name, sizeof(tex.name), "%s", paint_texture_names[PAINT_SHADER_ROLE_STROKE]);
+        if (ngli_darray_push(&textures, tex) < 0) {
+            ngli_darray_reset(&textures);
+            return NGL_ERROR_MEMORY;
+        }
+    }
+
+    if (stroke_paint) {
+        for (size_t i = 0; i < stroke_paint->custom_textures.count; i++) {
+            const struct paint_custom_texture_def *ct = &stroke_paint->custom_textures.data[i];
+            struct texture_info *texture_info = ngli_node_texture_get_texture_info(ct->texture_node);
+            struct ngpu_pgcraft_texture tex = {
+                .type        = ngli_node_texture_get_pgcraft_texture_type(ct->texture_node),
+                .stage       = NGPU_PROGRAM_STAGE_FRAG,
+                .image       = &texture_info->image,
+                .format      = texture_info->params.format,
+                .clamp_video = texture_info->clamp_video,
+                .premult     = texture_info->premult,
+            };
+            ngli_paint_get_resource_name(tex.name, sizeof(tex.name), PAINT_SHADER_ROLE_STROKE, ct->name);
+            if (ngli_darray_push(&textures, tex) < 0) {
+                ngli_darray_reset(&textures);
+                return NGL_ERROR_MEMORY;
+            }
         }
     }
 
@@ -688,9 +765,9 @@ static int drawrect2d_init(struct ngl_node *node)
         }
     }
 
-    const size_t nb_custom_blocks = fi->custom_blocks.count;
+    const size_t nb_custom_blocks = fill_paint->custom_blocks.count;
     for (size_t i = 0; i < nb_custom_blocks; i++) {
-        const struct fill_custom_block_def *cb = &fi->custom_blocks.data[i];
+        const struct paint_custom_block_def *cb = &fill_paint->custom_blocks.data[i];
         struct block_info *block_info = cb->node->priv_data;
         struct ngpu_block_desc *block = &block_info->block;
         const size_t block_size = ngpu_block_desc_get_size(block, 0);
@@ -717,7 +794,8 @@ static int drawrect2d_init(struct ngl_node *node)
             .block  = block,
             .buffer = {.buffer = buffer, .size = buffer_size},
         };
-        snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", cb->name);
+        ngli_paint_get_resource_name(crafter_block.name, sizeof(crafter_block.name),
+                                     PAINT_SHADER_ROLE_FILL, cb->name);
 
         if (ngli_darray_push(&blocks, crafter_block) < 0) {
             ngli_darray_reset(&blocks);
@@ -726,9 +804,50 @@ static int drawrect2d_init(struct ngl_node *node)
         }
     }
 
+    if (stroke_paint) {
+        for (size_t i = 0; i < stroke_paint->custom_blocks.count; i++) {
+            const struct paint_custom_block_def *cb = &stroke_paint->custom_blocks.data[i];
+            struct block_info *block_info = cb->node->priv_data;
+            struct ngpu_block_desc *block = &block_info->block;
+            const size_t block_size = ngpu_block_desc_get_size(block, 0);
+
+            enum ngpu_type type = NGPU_TYPE_UNIFORM_BUFFER;
+            if (block->layout == NGPU_BLOCK_LAYOUT_STD430) {
+                type = NGPU_TYPE_STORAGE_BUFFER;
+            } else {
+                const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
+                if (block_size > limits->max_uniform_block_size)
+                    type = NGPU_TYPE_STORAGE_BUFFER;
+            }
+
+            if (type == NGPU_TYPE_UNIFORM_BUFFER)
+                ngli_node_block_extend_usage(cb->node, NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+            else
+                ngli_node_block_extend_usage(cb->node, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+            const struct ngpu_buffer *buffer = block_info->buffer;
+            const size_t buffer_size = buffer ? ngpu_buffer_get_size(buffer) : 0;
+            struct ngpu_pgcraft_block crafter_block = {
+                .type   = type,
+                .stage  = NGPU_PROGRAM_STAGE_FRAG,
+                .block  = block,
+                .buffer = {.buffer = buffer, .size = buffer_size},
+            };
+            ngli_paint_get_resource_name(crafter_block.name, sizeof(crafter_block.name),
+                                         PAINT_SHADER_ROLE_STROKE, cb->name);
+
+            if (ngli_darray_push(&blocks, crafter_block) < 0) {
+                ngli_darray_reset(&blocks);
+                ngli_darray_reset(&textures);
+                return NGL_ERROR_MEMORY;
+            }
+        }
+    }
+
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
         {.name = "ngli_uv",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_tex_coord", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_stroke_tex_coord", .type = NGPU_TYPE_VEC2},
         {.name = "ngli_clip_pos",  .type = NGPU_TYPE_VEC2},
     };
 
@@ -742,7 +861,7 @@ static int drawrect2d_init(struct ngl_node *node)
         .nb_blocks        = blocks.count,
         .vert_out_vars    = vert_out_vars,
         .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
-        .nb_frag_output   = fi->color_output_count,
+        .nb_frag_output   = fill_paint->color_output_count,
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
@@ -806,18 +925,37 @@ static int drawrect2d_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
-    const struct fill_info *fi = s->fill_info;
-    const size_t nb_cblocks = fi->custom_blocks.count;
+    const struct paint_info *fill_paint = s->fill_paint;
+    const size_t nb_cblocks = fill_paint->custom_blocks.count;
     for (size_t i = 0; i < nb_cblocks; i++) {
-        const struct fill_custom_block_def *cb = &fi->custom_blocks.data[i];
+        const struct paint_custom_block_def *cb = &fill_paint->custom_blocks.data[i];
         const struct block_info *info = cb->node->priv_data;
+        char name[NGPU_ID_LEN];
+        ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_FILL, cb->name);
         const struct block_map bm = {
-            .index      = ngpu_pgcraft_get_block_index(s->crafter, cb->name, NGPU_PROGRAM_STAGE_FRAG),
+            .index      = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG),
             .info       = info,
             .buffer_rev = SIZE_MAX,
         };
         if (ngli_darray_push(&s->blocks_map, bm) < 0)
             return NGL_ERROR_MEMORY;
+    }
+
+    const struct paint_info *stroke_paint = s->stroke_paint;
+    if (stroke_paint) {
+        for (size_t i = 0; i < stroke_paint->custom_blocks.count; i++) {
+            const struct paint_custom_block_def *cb = &stroke_paint->custom_blocks.data[i];
+            const struct block_info *info = cb->node->priv_data;
+            char name[NGPU_ID_LEN];
+            ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_STROKE, cb->name);
+            const struct block_map bm = {
+                .index      = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG),
+                .info       = info,
+                .buffer_rev = SIZE_MAX,
+            };
+            if (ngli_darray_push(&s->blocks_map, bm) < 0)
+                return NGL_ERROR_MEMORY;
+        }
     }
 
     return 0;
@@ -865,10 +1003,8 @@ static void drawrect2d_pre_draw(struct ngl_node *node)
     /* Expand the AABB by the same margin the vertex shader adds so that
      * screen_aabb covers the actual rendered geometry (stroke + AA fringe).
      * Must mirror drawrect2d_draw()'s margin_px computation. */
-    const struct stroke_base_opts *so = o->stroke_node
-        ? (const struct stroke_base_opts *)o->stroke_node->opts : &default_stroke_base;
-    const float outer_edge = (so->mode == STROKE_OUTSIDE) ? so->width :
-                             (so->mode == STROKE_CENTER)  ? so->width * 0.5f : 0.f;
+    const struct stroke2d_info *stroke = s->stroke;
+    const float outer_edge = ngli_stroke2d_get_outer_edge(stroke);
     const float margin_px = outer_edge + 2.f;
     struct aabb expanded_aabb = node2d_info->aabb;
     expanded_aabb.extent[0] += margin_px;
@@ -904,11 +1040,13 @@ static void drawrect2d_draw(struct ngl_node *node)
     node2d_info->transform_matrix = modelview_matrix;
     node2d_info->screen_aabb = ngli_aabb_apply_transform(&node2d_info->aabb, modelview_matrix.m);
 
-    const struct stroke_base_opts *so = o->stroke_node
-        ? (const struct stroke_base_opts *)o->stroke_node->opts : &default_stroke_base;
+    const struct stroke2d_info *stroke = s->stroke;
+    const float stroke_width = ngli_stroke2d_get_width(stroke);
 
-    const struct fill_info *fi = s->fill_info;
-    const struct fill_base_opts *fo = (const struct fill_base_opts *)fi->opts;
+    const struct paint_info *fill_paint = s->fill_paint;
+    const struct paint_base_opts *fill_opts = (const struct paint_base_opts *)fill_paint->opts;
+    const struct paint_info *stroke_paint = s->stroke_paint;
+    const struct paint_base_opts *stroke_opts = stroke_paint ? (const struct paint_base_opts *)stroke_paint->opts : NULL;
 
     /* Update textures */
     for (size_t i = 0; i < s->textures_map.count; i++)
@@ -919,14 +1057,16 @@ static void drawrect2d_draw(struct ngl_node *node)
     const bool orientation_is_transposed = orientation_quarter & 1;
     const float *scale_val = ngli_node_get_data_ptr(o->node2d.scale_node, o->node2d.scale);
     float uv_scale[2];
-    compute_texture_uv_scale(fi, s->rect, scale_val, orientation_is_transposed, uv_scale);
+    float stroke_uv_scale[2];
+    compute_texture_uv_scale(fill_paint, s->rect, scale_val, orientation_is_transposed, uv_scale);
+    compute_texture_uv_scale(stroke_paint, s->rect, scale_val, false, stroke_uv_scale);
 
     /* Compute content transform: zoom, translate */
     const float content_zoom_val = *(const float *)ngli_node_get_data_ptr(o->content_zoom_node, &o->content_zoom);
     const float *content_translate_val = ngli_node_get_data_ptr(o->content_translate_node, o->content_translate);
     float content_zoom = content_zoom_val > 0.f ? content_zoom_val : 1.f;
     float content_translate[2] = {content_translate_val[0], content_translate_val[1]};
-    if (fo->scaling == FILL_SCALING_FIT) {
+    if (fill_opts->scaling == PAINT_SCALING_FIT) {
         content_zoom = 1.f;
         const float max_tx = (uv_scale[0] - 1.f) * 0.5f;
         const float max_ty = (uv_scale[1] - 1.f) * 0.5f;
@@ -942,8 +1082,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     };
 
     /* Compute Geometry dilation: expand quad to cover outside stroke + AA border */
-    const float outer_edge = (so->mode == STROKE_OUTSIDE) ? so->width :
-                             (so->mode == STROKE_CENTER)  ? so->width * 0.5f : 0.f;
+    const float outer_edge = ngli_stroke2d_get_outer_edge(stroke);
     const float margin_uv_px = outer_edge + 1.f;
     const float margin_px = margin_uv_px + 1.f;
     const float margin_uv[2] = {
@@ -963,6 +1102,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         vert_data.modelview_matrix = modelview_matrix;
         memcpy(vert_data.rect, s->rect, sizeof(vert_data.rect));
         memcpy(vert_data.uv_scale, uv_scale, sizeof(vert_data.uv_scale));
+        memcpy(vert_data.stroke_uv_scale, stroke_uv_scale, sizeof(vert_data.stroke_uv_scale));
         vert_data.margin_px = margin_px;
         memcpy(vert_data.margin_uv, margin_uv, sizeof(vert_data.margin_uv));
 
@@ -980,17 +1120,19 @@ static void drawrect2d_draw(struct ngl_node *node)
         frag_data.rect_size[0]  = s->rect[2];
         frag_data.rect_size[1]  = s->rect[3];
         memcpy(frag_data.corner_radius, s->corner_radius, sizeof(frag_data.corner_radius));
-        frag_data.outline_width = so->width;
-        frag_data.outline_mode  = so->mode;
+        frag_data.outline_width = stroke_width;
+        frag_data.outline_mode  = stroke ? stroke->alignment : NGLI_STROKE2D_ALIGNMENT_CENTER;
         frag_data.opacity       = final_opacity;
-        frag_data.fill_opacity  = fo->opacity;
-        frag_data.stroke_opacity = so->opacity;
-        frag_data.content_wrap  = fo->wrap;
+        frag_data.fill_opacity  = fill_opts->opacity;
+        frag_data.stroke_opacity = stroke_opts ? stroke_opts->opacity : 1.f;
+        frag_data.fill_content_wrap = fill_opts->wrap;
+        frag_data.stroke_content_wrap = stroke_opts ? stroke_opts->wrap : PAINT_WRAP_DEFAULT;
         frag_data.content_zoom  = content_zoom;
         memcpy(frag_data.content_translate, content_translate, sizeof(frag_data.content_translate));
         memcpy(frag_data.content_orientation, orientation_cos_sin[orientation_quarter], sizeof(frag_data.content_orientation));
         memcpy(frag_data.frag_uv_scale, uv_scale, sizeof(frag_data.frag_uv_scale));
-        frag_data.fill_premult = fo->premult;
+        frag_data.fill_premult = fill_opts->premult;
+        frag_data.stroke_premult = stroke_opts ? stroke_opts->premult : 1;
         size_t nb_clips = ctx->nb_clips_2d;
         for (size_t i = 0; i < nb_clips; i++) {
             frag_data.clip_inv[i]    = ctx->clips_2d[i].inv;
@@ -1035,9 +1177,14 @@ static void drawrect2d_draw(struct ngl_node *node)
         for (size_t i = 0; i < s->stroke_prebuilt_uniforms.count; i++)
             ngpu_block_field_copy(&fields[stroke_pbu[i].field_index], data + fields[stroke_pbu[i].field_index].offset, stroke_pbu[i].base + stroke_pbu[i].offset);
 
-        /* CustomFill user uniforms */
+        /* CustomPaint user uniforms */
         for (size_t i = 0; i < s->user_uniforms.count; i++) {
             const struct user_uniform *uu = &s->user_uniforms.data[i];
+            ngpu_block_field_copy(&fields[uu->field_index], data + fields[uu->field_index].offset, ngli_node_get_data_ptr(uu->node, NULL));
+        }
+
+        for (size_t i = 0; i < s->stroke_user_uniforms.count; i++) {
+            const struct user_uniform *uu = &s->stroke_user_uniforms.data[i];
             ngpu_block_field_copy(&fields[uu->field_index], data + fields[uu->field_index].offset, ngli_node_get_data_ptr(uu->node, NULL));
         }
 
@@ -1046,7 +1193,7 @@ static void drawrect2d_draw(struct ngl_node *node)
                                            buffer, offset, s->user_block_size);
     }
 
-    /* CustomFill block buffer updates */
+    /* CustomPaint block buffer updates */
     struct block_map *blocks = s->blocks_map.data;
     for (size_t i = 0; i < s->blocks_map.count; i++) {
         const struct block_info *info = blocks[i].info;
@@ -1071,12 +1218,10 @@ static void drawrect2d_uninit(struct ngl_node *node)
     ngli_pipeline_compat_freep(&s->pipeline_compat);
     ngli_darray_reset(&s->user_uniforms);
     ngli_darray_reset(&s->prebuilt_uniforms);
+    ngli_darray_reset(&s->stroke_user_uniforms);
     ngli_darray_reset(&s->stroke_prebuilt_uniforms);
     ngli_darray_reset(&s->textures_map);
     ngli_darray_reset(&s->blocks_map);
-    ngli_darray_reset(&s->user_uniforms);
-    ngli_darray_reset(&s->prebuilt_uniforms);
-    ngli_darray_reset(&s->stroke_prebuilt_uniforms);
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
     ngpu_block_desc_reset(&s->user_block_desc);

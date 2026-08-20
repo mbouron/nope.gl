@@ -83,8 +83,8 @@ fun nodeType(name: String): NGLNodeType? {
         "Compute" -> NGLNodeType.COMPUTE
         "ComputeProgram" -> NGLNodeType.COMPUTEPROGRAM
         "CustomTexture" -> NGLNodeType.CUSTOMTEXTURE
-        "ColorFill" -> NGLNodeType.COLORFILL
-        "CustomFill" -> NGLNodeType.CUSTOMFILL
+        "ColorPaint" -> NGLNodeType.COLORPAINT
+        "CustomPaint" -> NGLNodeType.CUSTOMPAINT
         "Draw" -> NGLNodeType.DRAW
         "DrawColor" -> NGLNodeType.DRAWCOLOR
         "DrawDisplace" -> NGLNodeType.DRAWDISPLACE
@@ -112,8 +112,8 @@ fun nodeType(name: String): NGLNodeType? {
         "FastGaussianBlur" -> NGLNodeType.FASTGAUSSIANBLUR
         "FontFace" -> NGLNodeType.FONTFACE
         "GaussianBlur" -> NGLNodeType.GAUSSIANBLUR
-        "Gradient4Fill" -> NGLNodeType.GRADIENT4FILL
-        "GradientFill" -> NGLNodeType.GRADIENTFILL
+        "Gradient4Paint" -> NGLNodeType.GRADIENT4PAINT
+        "GradientPaint" -> NGLNodeType.GRADIENTPAINT
         "Geometry" -> NGLNodeType.GEOMETRY
         "GridLayout" -> NGLNodeType.GRIDLAYOUT
         "Group" -> NGLNodeType.GROUP
@@ -140,7 +140,7 @@ fun nodeType(name: String): NGLNodeType? {
         "EvalVec3" -> NGLNodeType.EVALVEC3
         "EvalVec4" -> NGLNodeType.EVALVEC4
         "Media" -> NGLNodeType.MEDIA
-        "NoiseFill" -> NGLNodeType.NOISEFILL
+        "NoisePaint" -> NGLNodeType.NOISEPAINT
         "NoiseFloat" -> NGLNodeType.NOISEFLOAT
         "NoiseVec2" -> NGLNodeType.NOISEVEC2
         "NoiseVec3" -> NGLNodeType.NOISEVEC3
@@ -162,10 +162,8 @@ fun nodeType(name: String): NGLNodeType? {
         "Scissor" -> NGLNodeType.SCISSOR
         "Skew" -> NGLNodeType.SKEW
         "SmoothPath" -> NGLNodeType.SMOOTHPATH
-        "Stroke" -> NGLNodeType.STROKE
-        "StrokeGradient" -> NGLNodeType.STROKEGRADIENT
-        "StrokeGradient4" -> NGLNodeType.STROKEGRADIENT4
-        "TextureFill" -> NGLNodeType.TEXTUREFILL
+        "Stroke2D" -> NGLNodeType.STROKE2D
+        "TexturePaint" -> NGLNodeType.TEXTUREPAINT
         "Text" -> NGLNodeType.TEXT
         "TextEffect" -> NGLNodeType.TEXTEFFECT
         "Texture2D" -> NGLNodeType.TEXTURE2D
