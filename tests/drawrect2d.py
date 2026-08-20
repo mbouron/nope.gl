@@ -395,6 +395,35 @@ def drawrect2d_animated_trs(cfg: ngl.SceneCfg):
 
 @test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
 @ngl.scene(width=W, height=H)
+def drawrect2d_animated_rect(cfg: ngl.SceneCfg):
+    """Rect and corner_radius driven by animated nodes."""
+    bg = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.ColorFill(color=(0.1, 0.1, 0.15, 1.0)))
+    rect_anim = ngl.AnimatedVec4(
+        [
+            ngl.AnimKeyFrameVec4(0.0, (96, 96, 64, 64)),
+            ngl.AnimKeyFrameVec4(1.0, (32, 48, 192, 96)),
+            ngl.AnimKeyFrameVec4(2.0, (48, 32, 96, 192)),
+            ngl.AnimKeyFrameVec4(3.0, (16, 16, 224, 224)),
+        ]
+    )
+    corner_radius_anim = ngl.AnimatedVec2(
+        [
+            ngl.AnimKeyFrameVec2(0.0, (0.0, 0.0)),
+            ngl.AnimKeyFrameVec2(3.0, (32.0, 32.0)),
+        ]
+    )
+    stroke = ngl.Stroke2D(paint=ngl.ColorFill(color=(1.0, 1.0, 1.0, 1.0)), width=4, alignment="center")
+    fg = ngl.DrawRect2D(
+        rect=rect_anim,
+        fill=ngl.ColorFill(color=(0.9, 0.5, 0.1, 1.0)),
+        stroke=stroke,
+        corner_radius=corner_radius_anim,
+    )
+    return _canvas(cfg, bg, fg, duration=4.0)
+
+
+@test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
+@ngl.scene(width=W, height=H)
 def drawrect2d_animated_content(cfg: ngl.SceneCfg):
     fill = ngl.GradientFill(
         color0=(0.9, 0.1, 0.1),
