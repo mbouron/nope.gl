@@ -25,7 +25,6 @@
 
 #include "aabb.h"
 #include "blend_mode.h"
-#include "geometry.h"
 #include "internal.h"
 #include "node2d.h"
 #include "math_utils.h"
@@ -86,6 +85,7 @@ struct block_map {
 struct drawrect2d_vert_block {
     struct ngli_mat4 projection_matrix;
     struct ngli_mat4 modelview_matrix;
+    float rect[4];
     float uv_scale[2];
     float margin_px;
     float _pad0;
@@ -147,11 +147,6 @@ struct prebuilt_uniform {
 
 struct drawrect2d_priv {
     struct ngli_node2d_info node2d_info;
-    struct ngpu_pgcraft_attribute position_attr;
-    struct ngpu_pgcraft_attribute uvcoord_attr;
-    uint32_t nb_vertices;
-    struct geometry *geometry;
-    bool update_geometry;
     struct pipeline_compat *pipeline_compat;
     NGLI_DARRAY(struct texture_map) textures_map;
     NGLI_DARRAY(struct block_map) blocks_map;
@@ -179,12 +174,14 @@ struct drawrect2d_priv {
 };
 
 
-static int update_rect(struct ngl_node *node)
+static void update_aabb(struct drawrect2d_priv *s, const float *rect)
 {
-    struct drawrect2d_priv *s = node->priv_data;
-    s->update_geometry = true;
-
-    return 0;
+    const float half_w = rect[2] / 2.0f;
+    const float half_h = rect[3] / 2.0f;
+    s->node2d_info.aabb = (struct aabb) {
+        .center = {rect[0] + half_w, rect[1] + half_h, 0.0f, 1.0f},
+        .extent = {half_w, half_h},
+    };
 }
 
 static int is_valid_orientation(float angle)
@@ -212,7 +209,6 @@ static const struct node_param drawrect2d_params[] = {
         .offset      = OFFSET(rect),
         .flags       = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc        = NGLI_DOCSTRING("rect (x, y, width, height)"),
-        .update_func = update_rect,
     },
     {
         .key        = "fill",
@@ -398,12 +394,7 @@ static int drawrect2d_init(struct ngl_node *node)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    const float half_width = o->rect[2] / 2.0f;
-    const float half_height = o->rect[3] / 2.0f;
-    s->node2d_info.aabb = (struct aabb) {
-        .center = {o->rect[0] + half_width, o->rect[1] + half_height, 0.0f, 1.0f},
-        .extent = {half_width, half_height},
-    };
+    update_aabb(s, o->rect);
 
     const struct fill_info *fi = (const struct fill_info *)o->fill_node->priv_data;
     s->fill_info = fi;
@@ -416,52 +407,6 @@ static int drawrect2d_init(struct ngl_node *node)
     const struct ngl_node *texture = fi->texture;
 
     s->pipeline_compat = NULL;
-
-    snprintf(s->position_attr.name, sizeof(s->position_attr.name), "position");
-    s->position_attr.type   = NGPU_TYPE_VEC3;
-    s->position_attr.format = NGPU_FORMAT_R32G32B32_SFLOAT;
-
-    snprintf(s->uvcoord_attr.name, sizeof(s->uvcoord_attr.name), "uvcoord");
-    s->uvcoord_attr.type   = NGPU_TYPE_VEC2;
-    s->uvcoord_attr.format = NGPU_FORMAT_R32G32_SFLOAT;
-
-    const float x = o->rect[0];
-    const float y = o->rect[1];
-    const float w = o->rect[2];
-    const float h = o->rect[3];
-    const float vertices[] = {
-        x,   y,   0.f,
-        x+w, y,   0.f,
-        x,   y+h, 0.f,
-        x+w, y+h, 0.f,
-    };
-
-    const float uvcoords[] = {
-        0.f, 0.f,
-        1.f, 0.f,
-        0.f, 1.f,
-        1.f, 1.f,
-    };
-
-    s->geometry = ngli_geometry_create(gpu_ctx);
-    if (!s->geometry)
-        return NGL_ERROR_MEMORY;
-
-    int ret;
-    if ((ret = ngli_geometry_set_vertices(s->geometry, 4, vertices)) < 0 ||
-        (ret = ngli_geometry_set_uvcoords(s->geometry, 4, uvcoords)) < 0 ||
-        (ret = ngli_geometry_init(s->geometry, NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)) < 0)
-        return ret;
-
-    s->position_attr.stride = s->geometry->vertices_layout.stride;
-    s->position_attr.offset = s->geometry->vertices_layout.offset;
-    s->position_attr.buffer = s->geometry->vertices_buffer;
-
-    s->uvcoord_attr.stride = s->geometry->uvcoords_layout.stride;
-    s->uvcoord_attr.offset = s->geometry->uvcoords_layout.offset;
-    s->uvcoord_attr.buffer = s->geometry->uvcoords_buffer;
-
-    s->nb_vertices = (uint32_t)s->geometry->vertices_layout.count;
 
     s->vert_shader = build_vertex_shader(texture != NULL);
     if (!s->vert_shader)
@@ -497,12 +442,13 @@ static int drawrect2d_init(struct ngl_node *node)
     static const struct ngpu_block_field vert_fields[] = {
         {.name = "projection_matrix",  .type = NGPU_TYPE_MAT4},
         {.name = "modelview_matrix",   .type = NGPU_TYPE_MAT4},
+        {.name = "ngli_rect",          .type = NGPU_TYPE_VEC4},
         {.name = "ngli_uv_scale",      .type = NGPU_TYPE_VEC2},
         {.name = "ngli_margin_px",     .type = NGPU_TYPE_F32},
         {.name = "ngli_margin_uv",     .type = NGPU_TYPE_VEC2},
     };
     ngpu_block_desc_init(gpu_ctx, &s->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
-    ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
+    int ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
     if (ret < 0)
         return ret;
     s->vert_block_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
@@ -727,11 +673,6 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_clip_pos",  .type = NGPU_TYPE_VEC2},
     };
 
-    const struct ngpu_pgcraft_attribute attributes[] = {
-        s->position_attr,
-        s->uvcoord_attr,
-    };
-
     const struct ngpu_pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawrect",
         .vert_base        = s->vert_shader,
@@ -740,8 +681,6 @@ static int drawrect2d_init(struct ngl_node *node)
         .nb_textures      = textures.count,
         .blocks           = blocks.data,
         .nb_blocks        = blocks.count,
-        .attributes       = attributes,
-        .nb_attributes    = NGLI_ARRAY_NB(attributes),
         .vert_out_vars    = vert_out_vars,
         .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
         .nb_frag_output   = fi->color_output_count,
@@ -788,7 +727,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
     const struct pipeline_compat_params params = {
         .type = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics = {
-            .topology     = s->geometry->topology,
+            .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
             .state        = state,
             .rt_layout    = *rendertarget_layout,
             .vertex_state = ngpu_pgcraft_get_vertex_state(s->crafter),
@@ -834,31 +773,7 @@ static int drawrect2d_update(struct ngl_node *node, double t)
     if (ret < 0)
         return ret;
 
-    if (!s->update_geometry)
-        return 0;
-
-    const float x = o->rect[0];
-    const float y = o->rect[1];
-    const float w = o->rect[2];
-    const float h = o->rect[3];
-    const float vertices[] = {
-        x,   y,   0.f,
-        x+w, y,   0.f,
-        x,   y+h, 0.f,
-        x+w, y+h, 0.f,
-    };
-    ret = ngpu_buffer_upload(s->geometry->vertices_buffer, vertices, 0, sizeof(vertices));
-    if (ret < 0)
-        return ret;
-
-    const float half_w = w / 2.0f;
-    const float half_h = h / 2.0f;
-    s->node2d_info.aabb = (struct aabb) {
-        .center = {x + half_w, y + half_h, 0.0f, 1.0f},
-        .extent = {half_w, half_h},
-    };
-
-    s->update_geometry = false;
+    update_aabb(s, o->rect);
 
     return 0;
 }
@@ -1001,6 +916,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         struct drawrect2d_vert_block vert_data = {0};
         vert_data.projection_matrix = ctx->projection_2d_matrix;
         vert_data.modelview_matrix = modelview_matrix;
+        memcpy(vert_data.rect, o->rect, sizeof(vert_data.rect));
         memcpy(vert_data.uv_scale, uv_scale, sizeof(vert_data.uv_scale));
         vert_data.margin_px = margin_px;
         memcpy(vert_data.margin_uv, margin_uv, sizeof(vert_data.margin_uv));
@@ -1101,7 +1017,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_compat_draw(pl_compat, s->nb_vertices, 1, 0);
+    ngli_pipeline_compat_draw(pl_compat, 4, 1, 0);
 }
 
 static void drawrect2d_uninit(struct ngl_node *node)
@@ -1120,7 +1036,6 @@ static void drawrect2d_uninit(struct ngl_node *node)
     ngpu_block_desc_reset(&s->frag_block_desc);
     ngpu_block_desc_reset(&s->user_block_desc);
     ngpu_pgcraft_freep(&s->crafter);
-    ngli_geometry_freep(&s->geometry);
     ngli_freep(&s->vert_shader);
     ngli_freep(&s->frag_shader);
 }
