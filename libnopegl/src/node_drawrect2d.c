@@ -147,6 +147,7 @@ struct prebuilt_uniform {
 
 struct drawrect2d_priv {
     struct ngli_node2d_info node2d_info;
+    float rect[4];
     struct pipeline_compat *pipeline_compat;
     NGLI_DARRAY(struct texture_map) textures_map;
     NGLI_DARRAY(struct block_map) blocks_map;
@@ -174,12 +175,17 @@ struct drawrect2d_priv {
 };
 
 
-static void update_aabb(struct drawrect2d_priv *s, const float *rect)
+static void compute_geometry(struct drawrect2d_priv *s, const float *rect)
 {
-    const float half_w = rect[2] / 2.0f;
-    const float half_h = rect[3] / 2.0f;
+    s->rect[0] = rect[0];
+    s->rect[1] = rect[1];
+    s->rect[2] = NGLI_MAX(rect[2], 0.f);
+    s->rect[3] = NGLI_MAX(rect[3], 0.f);
+
+    const float half_w = s->rect[2] / 2.0f;
+    const float half_h = s->rect[3] / 2.0f;
     s->node2d_info.aabb = (struct aabb) {
-        .center = {rect[0] + half_w, rect[1] + half_h, 0.0f, 1.0f},
+        .center = {s->rect[0] + half_w, s->rect[1] + half_h, 0.0f, 1.0f},
         .extent = {half_w, half_h},
     };
 }
@@ -394,7 +400,7 @@ static int drawrect2d_init(struct ngl_node *node)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    update_aabb(s, o->rect);
+    compute_geometry(s, o->rect);
 
     const struct fill_info *fi = (const struct fill_info *)o->fill_node->priv_data;
     s->fill_info = fi;
@@ -773,7 +779,7 @@ static int drawrect2d_update(struct ngl_node *node, double t)
     if (ret < 0)
         return ret;
 
-    update_aabb(s, o->rect);
+    compute_geometry(s, o->rect);
 
     return 0;
 }
@@ -862,8 +868,8 @@ static void drawrect2d_draw(struct ngl_node *node)
         const float tex_w = orientation_is_transposed ? (float)image->params.height : (float)image->params.width;
         const float tex_h = orientation_is_transposed ? (float)image->params.width  : (float)image->params.height;
         const float *scale_val = ngli_node_get_data_ptr(o->node2d.scale_node, o->node2d.scale);
-        const float scaled_w = o->rect[2] * scale_val[0];
-        const float scaled_h = o->rect[3] * scale_val[1];
+        const float scaled_w = s->rect[2] * scale_val[0];
+        const float scaled_h = s->rect[3] * scale_val[1];
         if (tex_w > 0.f && tex_h > 0.f && scaled_w > 0.f && scaled_h > 0.f) {
             const float ratio = (scaled_w / scaled_h) / (tex_w / tex_h);
             if (fo->scaling == FILL_SCALING_FIT) {
@@ -902,8 +908,8 @@ static void drawrect2d_draw(struct ngl_node *node)
     const float margin_uv_px = outer_edge + 1.f;
     const float margin_px = margin_uv_px + 1.f;
     const float margin_uv[2] = {
-        o->rect[2] > 0.f ? margin_uv_px / o->rect[2] : 0.f,
-        o->rect[3] > 0.f ? margin_uv_px / o->rect[3] : 0.f,
+        s->rect[2] > 0.f ? margin_uv_px / s->rect[2] : 0.f,
+        s->rect[3] > 0.f ? margin_uv_px / s->rect[3] : 0.f,
     };
 
     /* Compute opacity: multiply local opacity by cascaded group opacity */
@@ -916,7 +922,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         struct drawrect2d_vert_block vert_data = {0};
         vert_data.projection_matrix = ctx->projection_2d_matrix;
         vert_data.modelview_matrix = modelview_matrix;
-        memcpy(vert_data.rect, o->rect, sizeof(vert_data.rect));
+        memcpy(vert_data.rect, s->rect, sizeof(vert_data.rect));
         memcpy(vert_data.uv_scale, uv_scale, sizeof(vert_data.uv_scale));
         vert_data.margin_px = margin_px;
         memcpy(vert_data.margin_uv, margin_uv, sizeof(vert_data.margin_uv));
@@ -932,8 +938,8 @@ static void drawrect2d_draw(struct ngl_node *node)
     /* Fill and push static fragment block to staging buffer */
     {
         struct drawrect2d_frag_block frag_data = {0};
-        frag_data.rect_size[0]  = o->rect[2];
-        frag_data.rect_size[1]  = o->rect[3];
+        frag_data.rect_size[0]  = s->rect[2];
+        frag_data.rect_size[1]  = s->rect[3];
         memcpy(frag_data.corner_radius, o->corner_radius, sizeof(frag_data.corner_radius));
         frag_data.outline_width = so->width;
         frag_data.outline_mode  = so->mode;
