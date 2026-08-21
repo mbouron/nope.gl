@@ -196,6 +196,51 @@ static void compute_geometry(struct drawrect2d_priv *s, const float *rect, const
     s->corner_radius[1] = NGLI_MIN(NGLI_MAX(corner_radius[1], 0.f), half_h);
 }
 
+static const struct ngl_node *get_scaling_texture(const struct fill_info *fi)
+{
+    if (fi->texture)
+        return fi->texture;
+    if (fi->custom_textures.count)
+        return fi->custom_textures.data[0].texture_node;
+    return NULL;
+}
+
+static void compute_texture_uv_scale(const struct fill_info *fi,
+                                     const float *rect,
+                                     const float *node_scale,
+                                     bool orientation_is_transposed,
+                                     float *uv_scale)
+{
+    uv_scale[0] = 1.f;
+    uv_scale[1] = 1.f;
+
+    if (!fi)
+        return;
+
+    const struct fill_base_opts *fo = (const struct fill_base_opts *)fi->opts;
+    const struct ngl_node *texture = get_scaling_texture(fi);
+    if (fo->scaling == FILL_SCALING_NONE || !texture)
+        return;
+
+    const struct texture_info *texture_info = ngli_node_texture_get_texture_info(texture);
+    const struct image *image = &texture_info->image;
+    const float tex_w = orientation_is_transposed ? (float)image->params.height : (float)image->params.width;
+    const float tex_h = orientation_is_transposed ? (float)image->params.width  : (float)image->params.height;
+    const float scaled_w = rect[2] * node_scale[0];
+    const float scaled_h = rect[3] * node_scale[1];
+    if (tex_w <= 0.f || tex_h <= 0.f || scaled_w <= 0.f || scaled_h <= 0.f)
+        return;
+
+    const float ratio = (scaled_w / scaled_h) / (tex_w / tex_h);
+    if (fo->scaling == FILL_SCALING_FIT) {
+        uv_scale[0] = ratio > 1.f ? ratio : 1.f;
+        uv_scale[1] = ratio < 1.f ? 1.f / ratio : 1.f;
+    } else {
+        uv_scale[0] = ratio < 1.f ? ratio : 1.f;
+        uv_scale[1] = ratio > 1.f ? 1.f / ratio : 1.f;
+    }
+}
+
 static int is_valid_orientation(float angle)
 {
     return angle == 0.f ||
@@ -871,26 +916,10 @@ static void drawrect2d_draw(struct ngl_node *node)
 
     /* Compute texture scaling */
     const int orientation_quarter = ((int)o->content_orientation / 90) & 3;
-    const int orientation_is_transposed = orientation_quarter & 1;
-    float uv_scale[] = {1.f, 1.f};
-    if (fo->scaling != FILL_SCALING_NONE && s->textures_map.count > 0) {
-        const struct image *image = s->textures_map.data[0].image;
-        const float tex_w = orientation_is_transposed ? (float)image->params.height : (float)image->params.width;
-        const float tex_h = orientation_is_transposed ? (float)image->params.width  : (float)image->params.height;
-        const float *scale_val = ngli_node_get_data_ptr(o->node2d.scale_node, o->node2d.scale);
-        const float scaled_w = s->rect[2] * scale_val[0];
-        const float scaled_h = s->rect[3] * scale_val[1];
-        if (tex_w > 0.f && tex_h > 0.f && scaled_w > 0.f && scaled_h > 0.f) {
-            const float ratio = (scaled_w / scaled_h) / (tex_w / tex_h);
-            if (fo->scaling == FILL_SCALING_FIT) {
-                uv_scale[0] = ratio > 1.f ? ratio : 1.f;
-                uv_scale[1] = ratio < 1.f ? 1.f / ratio : 1.f;
-            } else { /* FILL_SCALING_FILL */
-                uv_scale[0] = ratio < 1.f ? ratio : 1.f;
-                uv_scale[1] = ratio > 1.f ? 1.f / ratio : 1.f;
-            }
-        }
-    }
+    const bool orientation_is_transposed = orientation_quarter & 1;
+    const float *scale_val = ngli_node_get_data_ptr(o->node2d.scale_node, o->node2d.scale);
+    float uv_scale[2];
+    compute_texture_uv_scale(fi, s->rect, scale_val, orientation_is_transposed, uv_scale);
 
     /* Compute content transform: zoom, translate */
     const float content_zoom_val = *(const float *)ngli_node_get_data_ptr(o->content_zoom_node, &o->content_zoom);
