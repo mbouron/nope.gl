@@ -133,11 +133,10 @@ struct user_uniform {
     const struct ngl_node *node;
 };
 
-/* Tracks a prebuilt fill/stroke uniform: reads from opts at draw time */
+/* Tracks a prebuilt fill/stroke uniform: reads from stable paint storage at draw time */
 struct prebuilt_uniform {
     int32_t field_index;
-    const uint8_t *base;  /* pointer to fill/stroke node opts */
-    size_t offset;        /* byte offset within base */
+    const uint8_t *data;
 };
 
 struct drawrect2d_priv {
@@ -575,8 +574,7 @@ static int drawrect2d_init(struct ngl_node *node)
                 return field_idx;
             const struct prebuilt_uniform pu = {
                 .field_index = field_idx,
-                .base        = (const uint8_t *)fill_paint->opts,
-                .offset      = ud->opts_offset,
+                .data        = ud->data,
             };
             if (ngli_darray_push(&s->prebuilt_uniforms, pu) < 0)
                 return NGL_ERROR_MEMORY;
@@ -605,8 +603,7 @@ static int drawrect2d_init(struct ngl_node *node)
                 return field_idx;
             const struct prebuilt_uniform pu = {
                 .field_index = field_idx,
-                .base        = (const uint8_t *)stroke_paint->opts,
-                .offset      = ud->opts_offset,
+                .data        = ud->data,
             };
             if (ngli_darray_push(&s->stroke_prebuilt_uniforms, pu) < 0)
                 return NGL_ERROR_MEMORY;
@@ -1150,12 +1147,12 @@ static void drawrect2d_draw(struct ngl_node *node)
         const struct ngpu_block_field *fields = s->user_block_desc.fields;
         const struct prebuilt_uniform *pbu = s->prebuilt_uniforms.data;
         for (size_t i = 0; i < s->prebuilt_uniforms.count; i++)
-            ngpu_block_field_copy(&fields[pbu[i].field_index], data + fields[pbu[i].field_index].offset, pbu[i].base + pbu[i].offset);
+            ngpu_block_field_copy(&fields[pbu[i].field_index], data + fields[pbu[i].field_index].offset, pbu[i].data);
 
         /* Stroke prebuilt uniforms */
         const struct prebuilt_uniform *stroke_pbu = s->stroke_prebuilt_uniforms.data;
         for (size_t i = 0; i < s->stroke_prebuilt_uniforms.count; i++)
-            ngpu_block_field_copy(&fields[stroke_pbu[i].field_index], data + fields[stroke_pbu[i].field_index].offset, stroke_pbu[i].base + stroke_pbu[i].offset);
+            ngpu_block_field_copy(&fields[stroke_pbu[i].field_index], data + fields[stroke_pbu[i].field_index].offset, stroke_pbu[i].data);
 
         /* CustomPaint user uniforms */
         for (size_t i = 0; i < s->user_uniforms.count; i++) {

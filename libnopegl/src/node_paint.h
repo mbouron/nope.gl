@@ -23,6 +23,7 @@
 #define NODE_PAINT_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <ngpu/ngpu.h>
 #include "utils/darray.h"
 
@@ -43,7 +44,7 @@
 struct paint_uniform_def {
     char name[PAINT_NAME_LEN];
     enum ngpu_type type;
-    size_t opts_offset;   /* byte offset into paint node opts struct */
+    const uint8_t *data;
 };
 
 struct paint_custom_uniform_def {

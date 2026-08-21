@@ -54,7 +54,7 @@ void ngli_paint_info_reset(struct paint_info *info)
 #define REGISTER_UNIFORM(info_, name_, type_, opts_struct_, field_) do {    \
     const struct paint_uniform_def _ud = {                                  \
         .type = (type_),                                                    \
-        .opts_offset = offsetof(opts_struct_, field_),                      \
+        .data = (const uint8_t *)(info_)->opts + offsetof(opts_struct_, field_), \
     };                                                                      \
     if (ngli_darray_push(&(info_)->uniforms, _ud) < 0)                      \
         return NGL_ERROR_MEMORY;                                            \
