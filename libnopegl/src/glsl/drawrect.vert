@@ -19,6 +19,13 @@
  * under the License.
  */
 
+const vec2 uvcoords[] = vec2[](
+    vec2(0.0, 0.0),
+    vec2(1.0, 0.0),
+    vec2(0.0, 1.0),
+    vec2(1.0, 1.0)
+);
+
 void main()
 {
     /*
@@ -35,8 +42,10 @@ void main()
      * ngli_tex_coord uses the original uvcoord (undilated) so texture sampling is
      * unaffected.
      */
+    vec2 uvcoord = uvcoords[ngl_vertex_index];
+    vec2 position = ngli_rect.xy + uvcoord * ngli_rect.zw;
     vec2 dir = sign(uvcoord - 0.5);
-    vec4 canvas_pos = modelview_matrix * vec4(position.xy + dir * ngli_margin_px, 0.0, 1.0);
+    vec4 canvas_pos = modelview_matrix * vec4(position + dir * ngli_margin_px, 0.0, 1.0);
     ngl_out_pos = projection_matrix * canvas_pos;
     ngli_clip_pos = canvas_pos.xy;
     ngli_uv = uvcoord + dir * ngli_margin_uv;
