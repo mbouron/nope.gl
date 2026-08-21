@@ -148,6 +148,7 @@ struct prebuilt_uniform {
 struct drawrect2d_priv {
     struct ngli_node2d_info node2d_info;
     float rect[4];
+    float corner_radius[2];
     struct pipeline_compat *pipeline_compat;
     NGLI_DARRAY(struct texture_map) textures_map;
     NGLI_DARRAY(struct block_map) blocks_map;
@@ -175,7 +176,7 @@ struct drawrect2d_priv {
 };
 
 
-static void compute_geometry(struct drawrect2d_priv *s, const float *rect)
+static void compute_geometry(struct drawrect2d_priv *s, const float *rect, const float *corner_radius)
 {
     s->rect[0] = rect[0];
     s->rect[1] = rect[1];
@@ -188,6 +189,9 @@ static void compute_geometry(struct drawrect2d_priv *s, const float *rect)
         .center = {s->rect[0] + half_w, s->rect[1] + half_h, 0.0f, 1.0f},
         .extent = {half_w, half_h},
     };
+
+    s->corner_radius[0] = NGLI_MIN(NGLI_MAX(corner_radius[0], 0.f), half_w);
+    s->corner_radius[1] = NGLI_MIN(NGLI_MAX(corner_radius[1], 0.f), half_h);
 }
 
 static int is_valid_orientation(float angle)
@@ -400,7 +404,7 @@ static int drawrect2d_init(struct ngl_node *node)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    compute_geometry(s, o->rect);
+    compute_geometry(s, o->rect, o->corner_radius);
 
     const struct fill_info *fi = (const struct fill_info *)o->fill_node->priv_data;
     s->fill_info = fi;
@@ -779,7 +783,7 @@ static int drawrect2d_update(struct ngl_node *node, double t)
     if (ret < 0)
         return ret;
 
-    compute_geometry(s, o->rect);
+    compute_geometry(s, o->rect, o->corner_radius);
 
     return 0;
 }
@@ -940,7 +944,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         struct drawrect2d_frag_block frag_data = {0};
         frag_data.rect_size[0]  = s->rect[2];
         frag_data.rect_size[1]  = s->rect[3];
-        memcpy(frag_data.corner_radius, o->corner_radius, sizeof(frag_data.corner_radius));
+        memcpy(frag_data.corner_radius, s->corner_radius, sizeof(frag_data.corner_radius));
         frag_data.outline_width = so->width;
         frag_data.outline_mode  = so->mode;
         frag_data.opacity       = final_opacity;
