@@ -558,6 +558,20 @@
         "desc": "discard fragment if coordinates are outside texture boundaries"
       }
     ],
+    "effect2d_bounds": [
+      {
+        "name": "children",
+        "desc": "children bounding box"
+      },
+      {
+        "name": "canvas",
+        "desc": "box (0, 0, canvas width, canvas height) in local 2D space"
+      },
+      {
+        "name": "rect",
+        "desc": "box specified by `rect`"
+      }
+    ],
     "paint_gradient_mode": [
       {
         "name": "ramp",
@@ -3192,30 +3206,26 @@
           "desc": "2D scenes to render offscreen"
         },
         {
-          "name": "glsl_header",
-          "type": "str",
-          "flags": [],
-          "desc": "optional GLSL helper functions prepended before the fragment body"
+          "name": "bounds",
+          "type": "select",
+          "default": "children",
+          "choices": "effect2d_bounds",
+          "flags": ["live"],
+          "desc": "bounds used for offscreen rendering and compositing"
         },
         {
-          "name": "glsl_color",
-          "type": "str",
-          "flags": [],
-          "desc": "custom fragment shader body; receives uv (vec2), must return vec4"
-        },
-        {
-          "name": "resources",
-          "type": "node_dict",
-          "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "CustomTexture", "Block"],
-          "flags": [],
-          "desc": "uniform and texture nodes available to fragment; each node's label is used as the GLSL name"
+          "name": "rect",
+          "type": "vec4",
+          "default": [0.000000,0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "custom bounds (x, y, width, height) in local 2D space; used when `bounds` is `rect`"
         },
         {
           "name": "dilation",
           "type": "f32",
           "default": 0.000000,
           "flags": [],
-          "desc": "geometry dilation in pixels to accommodate effects that bleed beyond children bounds"
+          "desc": "geometry dilation in pixels to accommodate effects that extend beyond children bounds"
         },
         {
           "name": "translate",
@@ -3266,6 +3276,65 @@
           "choices": "blend_mode",
           "flags": [],
           "desc": "define how the rendered effect is composited with the current framebuffer"
+        },
+        {
+          "name": "enabled",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live", "node"],
+          "desc": "whether to apply shader processing before compositing"
+        },
+        {
+          "name": "shaders",
+          "type": "node_list",
+          "node_types": ["Effect2DShader"],
+          "flags": [],
+          "desc": "timed shaders in priority order; the first active shader is used, or passthrough if none is active"
+        }
+      ]
+    },
+    "Effect2DShader": {
+      "file": "src/node_effect2d_shader.c",
+      "params": [
+        {
+          "name": "glsl_header",
+          "type": "str",
+          "flags": [],
+          "desc": "optional GLSL code inserted before the fragment body"
+        },
+        {
+          "name": "glsl_color",
+          "type": "str",
+          "flags": ["nonull"],
+          "desc": "fragment shader body; receives UV coordinates (`uv` and `tex_coord` as `vec2`), must return the resulting color as a `vec4`; an empty body renders the offscreen children unchanged"
+        },
+        {
+          "name": "resources",
+          "type": "node_dict",
+          "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "CustomTexture", "Block"],
+          "flags": [],
+          "desc": "uniform, texture and block nodes; keys are used as GLSL names"
+        },
+        {
+          "name": "premult",
+          "type": "bool",
+          "default": 0,
+          "flags": [],
+          "desc": "premultiply the shader output color by its alpha"
+        },
+        {
+          "name": "start",
+          "type": "f64",
+          "default": 0.000000,
+          "flags": ["live"],
+          "desc": "active range start time (inclusive, non-negative)"
+        },
+        {
+          "name": "end",
+          "type": "f64",
+          "default": -1.000000,
+          "flags": ["live"],
+          "desc": "active range end time (exclusive); negative values mean no end"
         }
       ]
     },

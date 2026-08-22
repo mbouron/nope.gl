@@ -172,6 +172,18 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                         ).build()
                 )
             }
+            if (type == NGLNodeType.EFFECT2DSHADER) {
+                it.addFunction(
+                    FunSpec.builder("setRange")
+                        .addParameter("startTime", Double::class)
+                        .addParameter("endTime", Double::class)
+                        .addCode(
+                            CodeBlock.of(
+                                "super.${NGLNode::setEffect2DShaderRange.name}(startTime, endTime)"
+                            )
+                        ).build()
+                )
+            }
         }.addFunctions(parameterSpecs.filter { it.key.addSetter }
             .flatMap { (param, parameter) ->
                 val block = kotlinSetCall(

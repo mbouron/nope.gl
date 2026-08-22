@@ -209,6 +209,7 @@ lib_src = files(
   'src/node_drawwaveform.c',
   'src/node_drawrect2d.c',
   'src/node_effect2d.c',
+  'src/node_effect2d_shader.c',
   'src/node_paint.c',
   'src/node_stroke2d.c',
   'src/node_mask.c',

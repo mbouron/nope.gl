@@ -39,6 +39,19 @@ def py_bindings_allow_node():
     assert r.set_angle(90) == 0
     assert r.set_angle(ngl.UniformFloat()) == 0
 
+    effect = ngl.Effect2D(enabled=ngl.UniformBool(value=False))
+    assert effect.set_enabled(ngl.UniformBool(value=True)) == 0
+
+    effect = ngl.Effect2D(bounds="rect", rect=(0.0, 0.0, 16.0, 16.0), enabled=False)
+    assert effect.set_enabled(True) == 0
+    assert effect.set_bounds("canvas") == 0
+
+    shader = ngl.Effect2DShader(glsl_color="return ngl_texvideo(tex, tex_coord);", start=1.0, end=2.0)
+    assert shader.set_range(2.0, 3.0) == 0
+    assert shader.set_start(2.0) == 0
+    assert shader.set_end(3.0) == 0
+    ngl.Effect2D(shaders=[shader])
+
 
 def py_bindings_dict():
     foo = ngl.UniformVec3(value=(1, 2, 3), label="foo-node")

@@ -74,6 +74,7 @@ enum class NGLNodeType(val type: Int) {
     DRAWWAVEFORM(fourCharacters('D', 'w', 'f', 'm')),
     DRAWRECT2D(fourCharacters('D', 'R', 'c', 't')),
     EFFECT2D(fourCharacters('E', 'f', '2', 'D')),
+    EFFECT2DSHADER(fourCharacters('E', '2', 'S', 'h')),
     EVALFLOAT(fourCharacters('E', 'v', 'f', '1')),
     EVALVEC2(fourCharacters('E', 'v', 'f', '2')),
     EVALVEC3(fourCharacters('E', 'v', 'f', '3')),

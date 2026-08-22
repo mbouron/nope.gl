@@ -313,6 +313,12 @@ class _WrapperGenerator:
                     return self._timerangefilter2d_set_range(start, end)
                 """)
 
+        if class_name == "Effect2DShader":
+            return textwrap.dedent(f"""
+                def set_range(self, start: float, end: float) -> int:
+                    return self._effect2dshader_set_range(start, end)
+                """)
+
         return ""
 
     @classmethod

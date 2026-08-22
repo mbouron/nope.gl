@@ -24,6 +24,16 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   culling and color write states
 - `Stroke2D` node for configuring 2D shape strokes
 - `libxxHash` internal dependency for fast hash-map string lookups
+- `Effect2DShader` node to define a custom fragment shader for `Effect2D`
+- `Effect2D.enabled` parameter to enable/disable the effect
+- `Effect2D.shaders` parameter for selecting a list of `Effect2DShader` over
+  live-changeable time ranges, including atomic start/end updates
+- `Effect2D.bounds` to select the effect bounds (`children`, `canvas`, `rect`)
+- `ngl_effect2dshader_set_range()` to set the active time range of an
+  `Effect2DShader` atomically
+
+### Fixed
+- Incorrect `Effect2D` output positioning when wrapped in another transform
 
 ### Changed
 - `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support
@@ -50,6 +60,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   scissor through the `Scissor` node.
 - `Stroke`, `StrokeGradient`, and `StrokeGradient4` nodes, use
   `Stroke2D(paint=..., width=..., alignment=...)` instead
+- `Effect2D.glsl_header`, `Effect2D.glsl_color` and `Effect2D.resources`, use
+  `Effect2D(shaders=[Effect2DShader(...)])` instead
 
 ## [2026.2 / libnopegl 0.14.0][2026.2] - 2026-05-25
 ### Fixed
