@@ -176,16 +176,16 @@ _EXTERNAL_DEPS = dict(
         sha256="d11af569e42a1baa1650d20ad61d12e41af4fead4aa7964a01f93b08b53ab074",
     ),
     ffmpeg=dict(
-        version="7.1.1",
+        version="7.1.5",
         url="https://ffmpeg.org/releases/ffmpeg-@VERSION@.tar.xz",
         dst_file="ffmpeg-@VERSION@.tar.xz",
-        sha256="733984395e0dbbe5c046abda2dc49a5544e7e0e1e2366bba849222ae9e3a03b1",
+        sha256="de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f",
     ),
     ffmpeg_Windows=dict(
-        version="7.1.1",
-        url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2025-03-31-12-55/ffmpeg-n@VERSION@-5-g276bd388f3-win64-lgpl-shared-7.1.zip",
+        version="7.1.5",
+        url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-31-14-10/ffmpeg-n@VERSION@-12-g1fdbca85aa-win64-lgpl-shared-7.1.zip",
         dst_file="ffmpeg-@VERSION@.zip",
-        sha256="a5b24188a1a7c3d4a7a1295bd597f35ad5ef7757796e6a8db1cc1b922ff84e16",
+        sha256="0f376f96fb38554ccefb1b2ae9c7c6a7b351f0e60a372b38262c320e8392c5d0",
     ),
     nopemd=dict(
         version="13.1.0",
