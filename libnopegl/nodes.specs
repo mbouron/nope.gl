@@ -3017,7 +3017,7 @@
           "type": "select",
           "default": "none",
           "choices": "paint_scaling",
-          "flags": [],
+          "flags": ["live"],
           "desc": "texture scaling mode applied to custom paint content"
         },
         {
@@ -3589,7 +3589,7 @@
           "type": "select",
           "default": "none",
           "choices": "paint_scaling",
-          "flags": [],
+          "flags": ["live"],
           "desc": "texture scaling mode relative to the target shape bounds"
         },
         {

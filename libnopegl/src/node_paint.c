@@ -284,6 +284,7 @@ static const struct node_param texturepaint_params[] = {
         .type    = NGLI_PARAM_TYPE_SELECT,
         .offset  = OFFSET(base_opts.scaling),
         .choices = &texturepaint_scaling_choices,
+        .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc    = NGLI_DOCSTRING("texture scaling mode relative to the target shape bounds"),
     },
     {
@@ -955,6 +956,7 @@ static const struct node_param custompaint_params[] = {
         .type    = NGLI_PARAM_TYPE_SELECT,
         .offset  = OFFSET(base_opts.scaling),
         .choices = &texturepaint_scaling_choices,
+        .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc    = NGLI_DOCSTRING("texture scaling mode applied to custom paint content"),
     },
     {
