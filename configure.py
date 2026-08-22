@@ -234,14 +234,14 @@ _EXTERNAL_DEPS = dict(
         sha256="b0a7ee8ec78c4fa511eb44137380d99a748472e5fd24c877f8afcc860a172a42",
     ),
     freetype=dict(
-        version="2-13-3",
+        version="2-14-3",
         url="https://github.com/freetype/freetype/archive/refs/tags/VER-@VERSION@.tar.gz",
-        sha256="bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103",
+        sha256="dc49de6b01a266eef4876a4dd34d9842c475d3e28ff2eff63bd2fb760ab56261",
     ),
     harfbuzz=dict(
-        version="12.3.0",
+        version="14.3.1",
         url="https://github.com/harfbuzz/harfbuzz/archive/refs/tags/@VERSION@.tar.gz",
-        sha256="e93af4816128fc0a02d2e84106fdfe36a3fde01086b723be8f0656a65562ca9e",
+        sha256="05e602daf0846d7497d842807766ea32ca270f3e2c9284ce03811a2a1ed669c9",
     ),
     fribidi=dict(
         version="1.0.16",
