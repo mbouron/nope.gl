@@ -29,7 +29,7 @@
  */
 #if defined(__GNUC__) || defined(__clang__)
 # pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wimplicit-int-conversion"
+# pragma GCC diagnostic ignored "-Wconversion"
 #endif
 
 #include <libavcodec/avcodec.h>
