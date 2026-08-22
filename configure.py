@@ -132,6 +132,7 @@ _IOS_CROSS_FILE_TPL = textwrap.dedent(
     c = 'clang'
     cpp = 'clang++'
     objc = 'clang'
+    objcpp = 'clang++'
     strip = 'strip'
     pkg-config = 'pkg-config'
     [host_machine]
