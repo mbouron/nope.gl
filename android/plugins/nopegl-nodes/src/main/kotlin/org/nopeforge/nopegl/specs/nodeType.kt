@@ -98,6 +98,7 @@ fun nodeType(name: String): NGLNodeType? {
         "DrawWaveform" -> NGLNodeType.DRAWWAVEFORM
         "DrawRect2D" -> NGLNodeType.DRAWRECT2D
         "Effect2D" -> NGLNodeType.EFFECT2D
+        "Effect2DShader" -> NGLNodeType.EFFECT2DSHADER
         "FilterAlpha" -> NGLNodeType.FILTERALPHA
         "FilterColorMap" -> NGLNodeType.FILTERCOLORMAP
         "FilterContrast" -> NGLNodeType.FILTERCONTRAST

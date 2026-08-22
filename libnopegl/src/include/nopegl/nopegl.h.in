@@ -349,6 +349,7 @@ NGL_API void ngl_scene_unrefp(struct ngl_scene **sp);
 #define NGL_NODE_DRAWWAVEFORM           NGLI_FOURCC('D','w','f','m')
 #define NGL_NODE_DRAWRECT2D             NGLI_FOURCC('D','R','c','t')
 #define NGL_NODE_EFFECT2D               NGLI_FOURCC('E','f','2','D')
+#define NGL_NODE_EFFECT2DSHADER         NGLI_FOURCC('E','2','S','h')
 #define NGL_NODE_MASKTEXTURE            NGLI_FOURCC('M','T','e','x')
 #define NGL_NODE_MASKBLUR               NGLI_FOURCC('M','B','l','r')
 #define NGL_NODE_GRADIENT4PAINT         NGLI_FOURCC('G','4','P','t')
@@ -839,6 +840,17 @@ NGL_API int ngl_timerangefilter_set_range(struct ngl_node *node, double start, d
  * @return 0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_timerangefilter2d_set_range(struct ngl_node *node, double start, double end);
+
+/**
+ * Sets the active time range of an Effect2DShader node atomically.
+ *
+ * @param node      target Effect2DShader node
+ * @param start     inclusive start time
+ * @param end       exclusive end time, negative for no end
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_effect2dshader_set_range(struct ngl_node *node, double start, double end);
 
 /*
  * User defined node

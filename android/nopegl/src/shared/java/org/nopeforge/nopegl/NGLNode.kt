@@ -291,6 +291,13 @@ open class NGLNode(
         }
     }
 
+    internal fun setEffect2DShaderRange(start: Double, end: Double) {
+        val returnCode = nativeEffect2DShaderUpdate(nativePtr, start, end)
+        if (returnCode != 0) {
+            throw NGLError(returnCode)
+        }
+    }
+
     internal fun getFloat(key: String): Float = nativeGetFloat(nativePtr, key)
     internal fun getDouble(key: String): Double = nativeGetDouble(nativePtr, key)
     internal fun getInt(key: String): Int = nativeGetInt(nativePtr, key)
@@ -382,6 +389,12 @@ open class NGLNode(
     ): Int
 
     private external fun nativeTimeRangeFilter2DUpdate(
+        nativePtr: Long,
+        start: Double,
+        end: Double,
+    ): Int
+
+    private external fun nativeEffect2DShaderUpdate(
         nativePtr: Long,
         start: Double,
         end: Double,

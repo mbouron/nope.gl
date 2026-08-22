@@ -272,6 +272,7 @@ cdef extern from "nopegl/nopegl.h":
 
     int ngl_timerangefilter_set_range(ngl_node *node, double start, double end)
     int ngl_timerangefilter2d_set_range(ngl_node *node, double start, double end)
+    int ngl_effect2dshader_set_range(ngl_node *node, double start, double end)
 
 cdef extern from "nopegl/nopegl_opengl.h":
     cdef struct ngl_config_gl:
@@ -654,6 +655,9 @@ cdef class _Node:
 
     def _timerangefilter2d_set_range(self, double start, double end):
         return ngl_timerangefilter2d_set_range(self.ctx, start, end)
+
+    def _effect2dshader_set_range(self, double start, double end):
+        return ngl_effect2dshader_set_range(self.ctx, start, end)
 
 ANIM_EVALUATE, ANIM_DERIVATE, ANIM_SOLVE = range(3)
 

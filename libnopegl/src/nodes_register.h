@@ -108,6 +108,7 @@
     action(NGL_NODE_CUSTOMPAINT,            ngli_custompaint_class)             \
     action(NGL_NODE_DRAWRECT2D,             ngli_drawrect2d_class)              \
     action(NGL_NODE_EFFECT2D,               ngli_effect2d_class)                \
+    action(NGL_NODE_EFFECT2DSHADER,         ngli_effect2dshader_class)          \
     action(NGL_NODE_FASTGAUSSIANBLUR,       ngli_fgblur_class)                  \
     action(NGL_NODE_FONTFACE,               ngli_fontface_class)                \
     action(NGL_NODE_GRADIENT4PAINT,         ngli_gradient4paint_class)          \
