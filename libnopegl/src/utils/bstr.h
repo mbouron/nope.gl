@@ -24,12 +24,14 @@
 #define BSTR_H
 
 #include <stdarg.h>
+#include <stddef.h>
 
 #include "utils.h"
 
 struct bstr;
 
 struct bstr *ngli_bstr_create(void);
+void ngli_bstr_write(struct bstr *b, const char *str, size_t len);
 void ngli_bstr_print(struct bstr *b, const char *str);
 void ngli_bstr_printf(struct bstr *b, const char *fmt, ...) ngli_printf_format(2, 3);
 void ngli_bstr_clear(struct bstr *b);

@@ -52,9 +52,8 @@ struct bstr *ngli_bstr_create(void)
     return b;
 }
 
-void ngli_bstr_print(struct bstr *b, const char *str)
+void ngli_bstr_write(struct bstr *b, const char *str, size_t len)
 {
-    const size_t len = strlen(str);
     const size_t avail = b->bufsize - b->len;
     if (len + 1 > avail) {
         const size_t new_size = b->len + len + 1 + BUFFER_PADDING;
@@ -66,8 +65,14 @@ void ngli_bstr_print(struct bstr *b, const char *str)
         b->str = ptr;
         b->bufsize = new_size;
     }
-    memcpy(b->str + b->len, str, len + 1);
+    memcpy(b->str + b->len, str, len);
     b->len += len;
+    b->str[b->len] = 0;
+}
+
+void ngli_bstr_print(struct bstr *b, const char *str)
+{
+    ngli_bstr_write(b, str, strlen(str));
 }
 
 void ngli_bstr_printf(struct bstr *b, const char *fmt, ...)
