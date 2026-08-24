@@ -40,6 +40,7 @@
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
+#include "utils/string.h"
 #include "utils/utils.h"
 
 /* GLSL fragments as string */
@@ -372,12 +373,12 @@ static int effect2d_init(struct ngl_node *node)
     s->user_block_index = -1;
 
     /* Build the composite fragment shader */
-    if (o->glsl_color && o->glsl_color[0]) {
+    if (!ngli_str_is_empty(o->glsl_color)) {
         struct bstr *bstr = ngli_bstr_create();
         if (!bstr)
             return NGL_ERROR_MEMORY;
 
-        if (o->glsl_header && o->glsl_header[0])
+        if (!ngli_str_is_empty(o->glsl_header))
             ngli_bstr_printf(bstr, "%s\n", o->glsl_header);
         ngli_bstr_printf(bstr, "vec4 ngl_effect(vec2 uv) {\n%s\n}\n", o->glsl_color);
         ngli_bstr_printf(bstr, "void main() {\n");
