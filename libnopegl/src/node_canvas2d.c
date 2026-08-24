@@ -98,6 +98,7 @@ static void canvas2d_pre_draw(struct ngl_node *node)
     /* Compute canvas bbox from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
 
     ctx->transform_2d_matrix = prev_transform_2d;
     ctx->opacity_2d = prev_opacity_2d;
@@ -141,6 +142,7 @@ static void canvas2d_draw(struct ngl_node *node)
     /* Compute union bounding box from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     node2d_info->aabb = node2d_info->screen_aabb;

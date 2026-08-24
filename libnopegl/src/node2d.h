@@ -57,6 +57,7 @@ struct ngli_node2d_info {
     NGLI_ATTR_ALIGNED struct aabb aabb;
     struct ngli_mat4 transform_matrix;
     NGLI_ATTR_ALIGNED struct aabb screen_aabb;
+    float effect_margin;
 };
 
 /*
@@ -75,6 +76,16 @@ void ngli_node2d_apply_transform(struct ngl_node *node);
  * Set the default transform and opacity to the current 2D state.
  */
 void ngli_node2d_apply_default_transform(struct ngl_ctx *ctx);
+
+/*
+ * Scale the uniform margin added on all four sides of a node's local AABB
+ * into a single screen-space margin.
+ *
+ * The modelview can expand that margin by different amounts along the screen x
+ * and y axes, so use the larger amount to conservatively cover both axes. See
+ * ngli_node2d_info.effect_margin.
+ */
+float ngli_node2d_scale_effect_margin(const struct ngli_mat4 *modelview, float effect_margin);
 
 /*
  * Rounded-rectangle clip entry.

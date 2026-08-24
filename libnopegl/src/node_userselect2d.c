@@ -131,6 +131,7 @@ static void userselect2d_pre_draw(struct ngl_node *node)
     ngli_node_pre_draw(o->branches[branch_id]);
 
     s->node2d_info.screen_aabb = ngli_node_compute_children_bounding_box(&o->branches[branch_id], 1);
+    s->node2d_info.effect_margin = ngli_node_compute_children_effect_margin(&o->branches[branch_id], 1);
 }
 
 static void userselect2d_draw(struct ngl_node *node)
@@ -147,6 +148,7 @@ static void userselect2d_draw(struct ngl_node *node)
     ngli_node_draw(o->branches[branch_id]);
 
     s->node2d_info.screen_aabb = ngli_node_compute_children_bounding_box(&o->branches[branch_id], 1);
+    s->node2d_info.effect_margin = ngli_node_compute_children_effect_margin(&o->branches[branch_id], 1);
 }
 
 const struct node_class ngli_userselect2d_class = {

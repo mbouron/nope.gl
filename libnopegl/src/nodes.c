@@ -512,6 +512,21 @@ struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *chil
     return aabb;
 }
 
+float ngli_node_compute_children_effect_margin(struct ngl_node *const *children, size_t nb_children)
+{
+    float effect_margin = 0.f;
+    for (size_t i = 0; i < nb_children; i++) {
+        const struct ngl_node *child = children[i];
+        if (!has_bounding_box(child))
+            continue;
+        const struct ngli_node2d_info *child_info = child->priv_data;
+        if (child_info->screen_aabb.extent[0] < 0.f || child_info->screen_aabb.extent[1] < 0.f)
+            continue;
+        effect_margin = NGLI_MAX(effect_margin, child_info->effect_margin);
+    }
+    return effect_margin;
+}
+
 void ngli_node_draw(struct ngl_node *node)
 {
     if (node->cls->draw) {

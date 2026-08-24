@@ -146,6 +146,7 @@ static void group2d_pre_draw(struct ngl_node *node)
     /* Compute bounding box from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
     node2d_info->transform_matrix = local_transform_matrix;
 
     /* Restore the previous 2D state */
@@ -214,6 +215,7 @@ static void group2d_draw(struct ngl_node *node)
     /* Compute union bounding box from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
     node2d_info->transform_matrix = local_transform_matrix;
 
     /* Pop clip rectangle */

@@ -79,6 +79,14 @@ void ngli_node2d_apply_default_transform(struct ngl_ctx *ctx)
     ctx->opacity_2d = 1.f;
 }
 
+float ngli_node2d_scale_effect_margin(const struct ngli_mat4 *modelview, float effect_margin)
+{
+    const float *m = modelview->m;
+    const float expansion_x = fabsf(m[0]) + fabsf(m[4]);
+    const float expansion_y = fabsf(m[1]) + fabsf(m[5]);
+    return effect_margin * NGLI_MAX(expansion_x, expansion_y);
+}
+
 bool ngli_node2d_compute_clip(const struct ngli_mat4 *modelview,
                               const float clip_rect[4], const float corner_radius[2],
                               struct ngli_clip2d *out)
