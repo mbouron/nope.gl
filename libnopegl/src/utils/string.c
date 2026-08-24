@@ -113,3 +113,8 @@ char *ngli_numbered_lines(const char *s)
 
     return ret;
 }
+
+bool ngli_str_is_empty(const char *s)
+{
+    return !s || *s == '\0';
+}

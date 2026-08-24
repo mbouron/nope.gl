@@ -34,4 +34,6 @@ char *ngli_strdup(const char *s);
 char *ngli_asprintf(const char *fmt, ...) ngli_printf_format(1, 2);
 char *ngli_numbered_lines(const char *s);
 
+bool ngli_str_is_empty(const char *s);
+
 #endif /* STRING_H */
