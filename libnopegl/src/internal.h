@@ -494,6 +494,7 @@ char *ngli_scene_dot(const struct ngl_scene *s);
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par);
 
 struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children);
+float ngli_node_compute_children_effect_margin(struct ngl_node *const *children, size_t nb_children);
 
 int ngli_node_prepare(struct ngl_node *node,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);

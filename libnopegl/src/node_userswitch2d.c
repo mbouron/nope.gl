@@ -89,6 +89,7 @@ static void userswitch2d_pre_draw(struct ngl_node *node)
     ngli_node_pre_draw(o->child);
 
     s->node2d_info.screen_aabb = ngli_node_compute_children_bounding_box(&o->child, 1);
+    s->node2d_info.effect_margin = ngli_node_compute_children_effect_margin(&o->child, 1);
 }
 
 static void userswitch2d_draw(struct ngl_node *node)
@@ -105,6 +106,7 @@ static void userswitch2d_draw(struct ngl_node *node)
     ngli_node_draw(o->child);
 
     s->node2d_info.screen_aabb = ngli_node_compute_children_bounding_box(&o->child, 1);
+    s->node2d_info.effect_margin = ngli_node_compute_children_effect_margin(&o->child, 1);
 }
 
 const struct node_class ngli_userswitch2d_class = {
