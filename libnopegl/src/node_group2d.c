@@ -136,7 +136,7 @@ static void group2d_pre_draw(struct ngl_node *node)
         return;
 
     /* Save local transform */
-    struct ngli_mat4 local_transform_matrix = *(const struct ngli_mat4 *)ngli_darray_tail(&node->ctx->transform_2d_stack);
+    struct ngli_mat4 local_transform_matrix = *ngli_darray_tail(&node->ctx->transform_2d_stack);
 
     /* Pre-draw children */
     for (size_t i = 0; i < o->nb_children; i++)
@@ -198,7 +198,7 @@ static void group2d_draw(struct ngl_node *node)
         return;
 
     /* Save local transform */
-    struct ngli_mat4 local_transform_matrix = *(const struct ngli_mat4 *)ngli_darray_tail(&node->ctx->transform_2d_stack);
+    struct ngli_mat4 local_transform_matrix = *ngli_darray_tail(&node->ctx->transform_2d_stack);
 
     /* Push clip rectangle */
     const size_t saved_nb_clip = ctx->nb_clips_2d;
