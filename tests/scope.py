@@ -40,17 +40,14 @@ def _get_colorstats(media):
 @test_render(keyframes=5, tolerance=3, diff_threshold=0.01)
 @ngl.scene(width=480, height=480)
 def scope_colorstats(cfg):
-    vert = textwrap.dedent(
-        """
+    vert = textwrap.dedent("""
         void main()
         {
             ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
             uv = vec2(ngl_uvcoord.x, 1.0 - ngl_uvcoord.y);
         }
-        """
-    )
-    frag = textwrap.dedent(
-        """
+        """)
+    frag = textwrap.dedent("""
         #define NB_SLICES 8
         void main()
         {
@@ -68,8 +65,7 @@ def scope_colorstats(cfg):
             vec3 amp = vec3(sum) / (float(stats.max_rgb.y) / zoom);
             ngl_out_color = vec4(step(uv.y, amp), 1.0);
         }
-        """
-    )
+        """)
 
     media = load_media("cat")
 

@@ -91,19 +91,16 @@ def blur_hexagonal(cfg: ngl.SceneCfg):
     return ngl.Group(children=[blur, ngl.DrawTexture(blurred_texture)])
 
 
-_BLUR_HEXAGONAL_MAP_VERTEX = textwrap.dedent(
-    """
+_BLUR_HEXAGONAL_MAP_VERTEX = textwrap.dedent("""
     void main()
     {
         vec4 position = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
         uv = position.xy;
         ngl_out_pos = position;
     }
-    """
-)
+    """)
 
-_BLUR_HEXAGONAL_MAP_FRAGMENT = textwrap.dedent(
-    """
+_BLUR_HEXAGONAL_MAP_FRAGMENT = textwrap.dedent("""
     #define ngli_sat(x) clamp(x, 0.0, 1.0)
     #define ngli_linear(a, b, x) (((x) - (a)) / ((b) - (a)))
     #define ngli_linearstep(a, b, x) ngli_sat(ngli_linear(a, b, x))
@@ -120,8 +117,7 @@ _BLUR_HEXAGONAL_MAP_FRAGMENT = textwrap.dedent(
         float value = ngli_linearstep(0.0, 0.8, sd);
         ngl_out_color = vec4(value);
     }
-    """
-)
+    """)
 
 
 @test_render(keyframes=5, tolerance=5, diff_threshold=0.003)

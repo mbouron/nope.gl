@@ -187,8 +187,7 @@ def _visit_nope_html(self: HTML5Translator, node: _nope):
 
     highlighted_code = self.highlighter.highlight_block(code, "python")
 
-    html = dedent(
-        f"""
+    html = dedent(f"""
         <div class="nope-snippet">
             <div class="nope-title">{text}</div>
             <div class="nope-visual">{visual_html}</div>
@@ -205,8 +204,7 @@ def _visit_nope_html(self: HTML5Translator, node: _nope):
                 </div>
             </div>
         </div>
-        """
-    )
+        """)
     self.body.append(html)
     raise nodes.SkipNode
 
