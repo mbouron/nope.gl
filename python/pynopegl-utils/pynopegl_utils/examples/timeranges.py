@@ -38,7 +38,7 @@ def parallel_playback(cfg: ngl.SceneCfg, fast=True, segment_time=2.0, constraine
     rr2 = []
     i = 0
     while end_time < cfg.duration:
-        (rr, draw) = (rr2, draw2) if i & 1 else (rr1, draw1)
+        rr, draw = (rr2, draw2) if i & 1 else (rr1, draw1)
         start_time = i * segment_time
         end_time = (i + 1) * segment_time
         tseg = ngl.TimeRangeFilter(draw, start_time, end_time)

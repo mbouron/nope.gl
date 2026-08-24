@@ -196,15 +196,13 @@ class _WrapperGenerator:
 
         methods = []
         if param_type == "node_list":
-            code = textwrap.dedent(
-                f"""
+            code = textwrap.dedent(f"""
                 def swap_{param_name}(self, from_, to):
                     ret = self._param_swap_elem("{param_name}", from_, to)
                     if ret < 0:
                         raise Exception("Failed to move child")
                     return ret
-                """
-            )
+                """)
             # code = textwrap.indent(code, " " * 4)
             methods.append(code)
         return methods
@@ -296,30 +294,24 @@ class _WrapperGenerator:
         if not eval_type:
             return ""
         ret_type = cls._TYPING_MAP[eval_type]
-        return textwrap.dedent(
-            f"""
+        return textwrap.dedent(f"""
             def evaluate(self, t: float) -> {ret_type}:
                 return self._eval_{eval_type}(t)
-            """
-        )
+            """)
 
     @classmethod
     def _get_class_custom(cls, class_name):
         if class_name == "TimeRangeFilter":
-            return textwrap.dedent(
-                f"""
+            return textwrap.dedent(f"""
                 def set_range(self, start: float, end: float) -> int:
                     return self._timerangefilter_set_range(start, end)
-                """
-            )
+                """)
 
         if class_name == "TimeRangeFilter2D":
-            return textwrap.dedent(
-                f"""
+            return textwrap.dedent(f"""
                 def set_range(self, start: float, end: float) -> int:
                     return self._timerangefilter2d_set_range(start, end)
-                """
-            )
+                """)
 
         return ""
 
@@ -339,22 +331,18 @@ class _WrapperGenerator:
                 # argument, or a single node. We need to bridge here because we
                 # don't know yet if we need to unpack the args contrary to
                 # within the setter context
-                init_code += textwrap.dedent(
-                    f"""\
+                init_code += textwrap.dedent(f"""\
                     if {param_name} is not None:
                         if isinstance({param_name}, Node):
                             self._param_set_node("{param_name}", {param_name})
                         else:
                             {setter_code}
-                    """
-                )
+                    """)
             else:
-                init_code += textwrap.dedent(
-                    f"""\
+                init_code += textwrap.dedent(f"""\
                     if {param_name} is not None:
                         {setter_code}
-                    """
-                )
+                    """)
 
         # Build the __init__() (or _init_params()) by aggregating all the
         # parameters from the current node and the parents. This aggregation

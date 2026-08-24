@@ -68,8 +68,7 @@ _ANDROID_BUILD_MAP = dict(
     Windows="windows-x86_64",
 )
 
-_ANDROID_CROSS_FILE_TPL = textwrap.dedent(
-    """\
+_ANDROID_CROSS_FILE_TPL = textwrap.dedent("""\
     [constants]
     ndk_home = '{ndk_home}'
     toolchain = ndk_home / 'toolchains/llvm/prebuilt/{ndk_build}/bin'
@@ -84,8 +83,7 @@ _ANDROID_CROSS_FILE_TPL = textwrap.dedent(
     cpu_family = '{cpu_family}'
     cpu = '{cpu}'
     endian = 'little'
-    """
-)
+    """)
 
 
 def _get_android_cross_file_path(cfg):
@@ -112,8 +110,7 @@ _IOS_ABI_MAP = dict(
 )
 
 
-_IOS_CROSS_FILE_TPL = textwrap.dedent(
-    """\
+_IOS_CROSS_FILE_TPL = textwrap.dedent("""\
     [constants]
     root = '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
     sysroot = root / 'SDKs/iPhoneOS.sdk'
@@ -141,8 +138,7 @@ _IOS_CROSS_FILE_TPL = textwrap.dedent(
     cpu_family = '{cpu_family}'
     cpu = '{cpu}'
     endian = 'little'
-    """
-)
+    """)
 
 
 def _get_ios_cross_file_path(cfg):
@@ -1547,8 +1543,7 @@ def _build_env_cross_file(cfg):
 def _build_env_scripts(cfg):
     if _SYSTEM == "Windows":
         activate_path = os.path.join(cfg.venv_bin_path, "Activate.ps1")
-        ngl_activate_ps1 = textwrap.dedent(
-            f"""\
+        ngl_activate_ps1 = textwrap.dedent(f"""\
             function global:ngli_deactivate() {{
                 deactivate
                 if (Test-Path -Path Env:NGL_DLL_DIRS) {{
@@ -1559,16 +1554,14 @@ def _build_env_scripts(cfg):
 
             . {activate_path}
             $Env:NGL_DLL_DIRS="{cfg.venv_bin_path}"
-            """
-        )
+            """)
         with open(op.join(cfg.venv_bin_path, "ngli-activate.ps1"), "w") as fp:
             fp.write(ngl_activate_ps1)
 
         return
 
     activate_path = os.path.join(cfg.venv_bin_path, "activate")
-    ngl_activate = textwrap.dedent(
-        f"""\
+    ngl_activate = textwrap.dedent(f"""\
         ngli_deactivate() {{
             deactivate
             unset NGL_DLL_DIRS
@@ -1577,8 +1570,7 @@ def _build_env_scripts(cfg):
 
         . {activate_path}
         export NGL_DLL_DIRS="{cfg.venv_bin_path}"
-        """
-    )
+        """)
     with open(op.join(cfg.venv_bin_path, "ngli-activate"), "w") as fp:
         fp.write(ngl_activate)
 

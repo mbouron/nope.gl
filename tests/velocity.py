@@ -40,15 +40,13 @@ def velocity_triangle_rotate(cfg: ngl.SceneCfg):
     anim = ngl.AnimatedFloat(anim_kf)
     velocity = ngl.VelocityFloat(anim)
 
-    frag = textwrap.dedent(
-        """\
+    frag = textwrap.dedent("""\
     void main()
     {
         float v = clamp(velocity / 3000., 0.0, 1.0);
         ngl_out_color = vec4(v, v / 2.0, 0.0, 1.0);
     }
-    """
-    )
+    """)
 
     p0, p1, p2 = equilateral_triangle_coords(2.0)
     triangle = ngl.DrawColor(COLORS.white, geometry=ngl.Triangle(p0, p1, p2))
@@ -72,8 +70,7 @@ def velocity_circle_distort_2d(cfg: ngl.SceneCfg):
     anim = ngl.AnimatedVec2(pos_kf)
     velocity = ngl.VelocityVec2(anim)
 
-    vert = textwrap.dedent(
-        """\
+    vert = textwrap.dedent("""\
         void main()
         {
             float distort_max = 0.1;
@@ -85,8 +82,7 @@ def velocity_circle_distort_2d(cfg: ngl.SceneCfg):
             vec4 pos = vec4(ngl_position, 1.0) + vec4(translate, 0.0, 0.0) + vec4(-distort * velocity, 0.0, 0.0);
             ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * pos;
         }
-        """
-    )
+        """)
 
     geom = ngl.Circle(radius=0.2, npoints=128)
     prog = ngl.Program(vertex=vert, fragment=get_shader("color.frag"))
@@ -107,8 +103,7 @@ def velocity_circle_distort_3d(cfg: ngl.SceneCfg):
     anim = ngl.AnimatedVec3(pos_kf)
     velocity = ngl.VelocityVec3(anim)
 
-    vert = textwrap.dedent(
-        """\
+    vert = textwrap.dedent("""\
         void main()
         {
             float distort_max = 0.1;
@@ -120,8 +115,7 @@ def velocity_circle_distort_3d(cfg: ngl.SceneCfg):
             vec4 pos = vec4(ngl_position, 1.0) + vec4(-distort * velocity, 0.0);
             ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * pos;
         }
-        """
-    )
+        """)
 
     geom = ngl.Circle(radius=0.2, npoints=128)
     prog = ngl.Program(vertex=vert, fragment=get_shader("color.frag"))

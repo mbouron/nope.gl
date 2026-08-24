@@ -98,22 +98,18 @@ def _get_live_shared_uniform_scene(cfg: ngl.SceneCfg, color, debug_positions):
 
 
 def _get_live_shared_uniform_with_block_scene(cfg: ngl.SceneCfg, color, layout, debug_positions):
-    vertex = textwrap.dedent(
-        """\
+    vertex = textwrap.dedent("""\
     void main()
     {
         ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
     }
-    """
-    )
-    fragment = textwrap.dedent(
-        """\
+    """)
+    fragment = textwrap.dedent("""\
     void main()
     {
         ngl_out_color = vec4(data.color, 1.0);
     }
-    """
-    )
+    """)
     program = ngl.Program(vertex=vertex, fragment=fragment)
     group = ngl.Group()
     for i in range(2):

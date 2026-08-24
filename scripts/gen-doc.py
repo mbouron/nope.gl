@@ -82,12 +82,10 @@ def _get_node_params_block(nodes, name, params) -> str:
     if not params:
         return s
 
-    s += dedent(
-        """\
+    s += dedent("""\
         Parameter | Flags | Type | Description | Default
         --------- | ----- | ---- | ----------- | :-----:
-        """
-    )
+        """)
     for param in params:
         name = param["name"]
         type = _get_type_str(nodes, param)
@@ -100,14 +98,12 @@ def _get_node_params_block(nodes, name, params) -> str:
 
 
 def _get_parameter_types_block(types) -> str:
-    s = dedent(
-        """\
+    s = dedent("""\
         # Parameter types
 
         Type | Description
         ---- | -----------
-        """
-    )
+        """)
     for ptype in types:
         s += "`{name}` | {desc}\n".format(**ptype)
     s += "\n"
@@ -115,8 +111,7 @@ def _get_parameter_types_block(types) -> str:
 
 
 def _get_parameter_flags_block() -> str:
-    return dedent(
-        """\
+    return dedent("""\
         # Parameter flags
 
         Marker   | Meaning
@@ -125,25 +120,20 @@ def _get_parameter_flags_block() -> str:
         `node`   | nodes with the same data size are also allowed (e.g a `vec3` parameter can accept `AnimatedVec3`, `EvalVec3`, `NoiseVec3`, …)
         `nonull` | parameter must be set
         `filepath` | the parameter is a string containing a path to a file
-        """
-    )
+        """)
 
 
 def _get_parameter_choices_block(choices) -> str:
-    s = dedent(
-        """
+    s = dedent("""
         # Constants for choices parameters
-        """
-    )
+        """)
     for choice, items in choices.items():
-        s += dedent(
-            f"""
+        s += dedent(f"""
             ## {choice} choices
 
             Constant | Description
             -------- | -----------
-            """
-        )
+            """)
         for item in items:
             s += "`{name}` | {desc}\n".format(**item)
     return s
@@ -177,11 +167,9 @@ def _main():
     specs = sys.argv[1]
     data = json.loads(open(specs).read())
 
-    s = dedent(
-        """\
+    s = dedent("""\
         # Nodes
-        """
-    )
+        """)
     s += _get_nodes_block(data["nodes"])
     s += _get_parameter_types_block(data["types"])
     s += _get_parameter_flags_block()
