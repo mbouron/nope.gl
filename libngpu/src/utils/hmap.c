@@ -181,6 +181,14 @@ struct hmap *ngpu_hmap_try_create(enum hmap_type type)
     return hm;
 }
 
+struct hmap *ngpu_hmap_create(enum hmap_type type)
+{
+    struct hmap *hm = ngpu_hmap_try_create(type);
+    if (!hm)
+        ngpu_oom();
+    return hm;
+}
+
 void ngpu_hmap_set_free_func(struct hmap *hm, ngpu_user_free_func_type user_free_func, void *user_arg)
 {
     ngpu_assert(!hm->count);
@@ -262,6 +270,18 @@ int ngpu_hmap_try_set_u64(struct hmap *hm, uint64_t u64, void *data)
     ngpu_assert(hm->type == NGPU_HMAP_TYPE_U64);
     const union hmap_key key = {.u64=u64};
     return hmap_try_set(hm, key, data);
+}
+
+void ngpu_hmap_set_str(struct hmap *hm, const char *str, void *data)
+{
+    if (ngpu_hmap_try_set_str(hm, str, data) < 0)
+        ngpu_oom();
+}
+
+void ngpu_hmap_set_u64(struct hmap *hm, uint64_t u64, void *data)
+{
+    if (ngpu_hmap_try_set_u64(hm, u64, data) < 0)
+        ngpu_oom();
 }
 
 struct hmap_entry *ngpu_hmap_next(const struct hmap *hm, const struct hmap_entry *prev)
