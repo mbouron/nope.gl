@@ -330,6 +330,8 @@ lib_deps = [
   cc.find_library('m', required: false),
   dependency('libnopemd', version: '>= 12.0.0'),
   dependency('libngpu', version: '>= 0.0.0'),
+  dependency('libxxhash', version: '>= 0.8.3').partial_dependency(
+    includes: true, compile_args: true),
   dependency('threads'),
 ]
 

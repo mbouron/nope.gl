@@ -23,6 +23,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   on the draw nodes (when supported) to control the depth, stencil, face
   culling and color write states
 - `Stroke2D` node for configuring 2D shape strokes
+- `libxxHash` internal dependency for fast hash-map string lookups
 
 ### Changed
 - `DrawRect2d`.`corner_radius` changed from `f32` to `vec2` to support
