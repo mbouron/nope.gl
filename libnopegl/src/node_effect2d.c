@@ -25,7 +25,6 @@
 
 #include "aabb.h"
 #include "blend_mode.h"
-#include "geometry.h"
 #include "image.h"
 #include "internal.h"
 #include "node2d.h"
@@ -71,6 +70,7 @@ NGLI_DECLARE_DARRAY_WITH_NAME(effect2d_block_darray, struct ngpu_pgcraft_block);
 struct effect2d_vert_block {
     struct ngli_mat4 projection_matrix;
     struct ngli_mat4 modelview_matrix;
+    float rect[4];
 };
 
 struct effect2d_frag_block {
@@ -96,6 +96,7 @@ struct effect2d_priv {
     uint32_t width;
     uint32_t height;
     struct aabb children_bbox;
+    float rect[4];
 
     /* User resources */
     char *frag_glsl;
@@ -115,8 +116,6 @@ struct effect2d_priv {
     /* Crafter inputs */
     struct effect2d_texture_darray crafter_textures;
     struct effect2d_block_darray crafter_blocks;
-    struct ngpu_pgcraft_attribute position_attr;
-    struct ngpu_pgcraft_attribute uvcoord_attr;
 
     /* Pipeline state */
     int32_t vert_block_index;
@@ -124,7 +123,6 @@ struct effect2d_priv {
     int32_t user_block_index;
     NGLI_DARRAY(struct texture_map) textures_map;
     NGLI_DARRAY(struct block_map) blocks_map;
-    struct geometry *geometry;
     struct ngpu_pgcraft *crafter;
     struct pipeline_compat *pipeline;
 };
@@ -247,20 +245,6 @@ static const struct node_param effect2d_params[] = {
         .desc      = NGLI_DOCSTRING("define how the rendered effect is composited with the current framebuffer"),
     },
     {NULL}
-};
-
-static const float quad_vertices[] = {
-   -1.f,-1.f, 0.f,
-    1.f,-1.f, 0.f,
-   -1.f, 1.f, 0.f,
-    1.f, 1.f, 0.f,
-};
-
-static const float quad_uvcoords[] = {
-    0.f, 1.f,
-    1.f, 1.f,
-    0.f, 0.f,
-    1.f, 0.f,
 };
 
 static int node_is_texture(const struct ngl_node *node)
@@ -396,6 +380,7 @@ static int effect2d_init(struct ngl_node *node)
     static const struct ngpu_block_field vert_fields[] = {
         {.name = "projection_matrix", .type = NGPU_TYPE_MAT4},
         {.name = "modelview_matrix",  .type = NGPU_TYPE_MAT4},
+        {.name = "rect",              .type = NGPU_TYPE_VEC4},
     };
     ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
     if (ret < 0)
@@ -424,31 +409,6 @@ static int effect2d_init(struct ngl_node *node)
 
     if (s->user_field_indices.count > 0)
         s->user_block_size = ngpu_block_desc_get_size(&s->user_block_desc, 0);
-
-    /* Create composite quad geometry */
-    s->geometry = ngli_geometry_create(gpu_ctx);
-    if (!s->geometry)
-        return NGL_ERROR_MEMORY;
-
-    if ((ret = ngli_geometry_set_vertices(s->geometry, 4, quad_vertices)) < 0 ||
-        (ret = ngli_geometry_set_uvcoords(s->geometry, 4, quad_uvcoords)) < 0 ||
-        (ret = ngli_geometry_init(s->geometry, NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)) < 0)
-        return ret;
-
-    /* Store attributes for prepare */
-    snprintf(s->position_attr.name, sizeof(s->position_attr.name), "position");
-    s->position_attr.type   = NGPU_TYPE_VEC3;
-    s->position_attr.format = NGPU_FORMAT_R32G32B32_SFLOAT;
-    s->position_attr.stride = s->geometry->vertices_layout.stride;
-    s->position_attr.offset = s->geometry->vertices_layout.offset;
-    s->position_attr.buffer = s->geometry->vertices_buffer;
-
-    snprintf(s->uvcoord_attr.name, sizeof(s->uvcoord_attr.name), "uvcoord");
-    s->uvcoord_attr.type   = NGPU_TYPE_VEC2;
-    s->uvcoord_attr.format = NGPU_FORMAT_R32G32_SFLOAT;
-    s->uvcoord_attr.stride = s->geometry->uvcoords_layout.stride;
-    s->uvcoord_attr.offset = s->geometry->uvcoords_layout.offset;
-    s->uvcoord_attr.buffer = s->geometry->uvcoords_buffer;
 
     return 0;
 }
@@ -526,11 +486,6 @@ static int effect2d_prepare(struct ngl_node *node,
         {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
     };
 
-    const struct ngpu_pgcraft_attribute attributes[] = {
-        s->position_attr,
-        s->uvcoord_attr,
-    };
-
     const char *frag_base = s->frag_glsl ? s->frag_glsl : effect2d_composite_frag;
 
     const struct ngpu_pgcraft_params crafter_params = {
@@ -541,8 +496,6 @@ static int effect2d_prepare(struct ngl_node *node,
         .nb_textures      = textures.count,
         .blocks           = s->crafter_blocks.data,
         .nb_blocks        = s->crafter_blocks.count,
-        .attributes       = attributes,
-        .nb_attributes    = NGLI_ARRAY_NB(attributes),
         .vert_out_vars    = vert_out_vars,
         .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
     };
@@ -693,6 +646,9 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const float qw = bbox_max[0] - bbox_min[0] + 2.f * d;
     const float qh = bbox_max[1] - bbox_min[1] + 2.f * d;
 
+    const float rect[] = {qx, qy, qw, qh};
+    memcpy(s->rect, rect, sizeof(s->rect));
+
     /* Size internal rendertarget to the bbox scaled to viewport resolution */
     const float canvas_w = ctx->canvas_2d_width;
     const float canvas_h = ctx->canvas_2d_height;
@@ -732,55 +688,6 @@ static void effect2d_pre_draw(struct ngl_node *node)
     if (s->textures_map.count > 0) {
         s->textures_map.data[0].image = ngli_rtt_get_image(s->rtt, 0);
     }
-
-    /*
-     * Shift Y edges by +0.5 canvas pixels. Without the shift, the top-left
-     * fill rule picks different rows on OpenGL vs Vulkan: the two backends
-     * apply their Y-flips in opposite order so the same canvas_y maps to
-     * opposite NDC signs and the rasterizer's "top" edge flips between
-     * backends.
-     */
-    const float vertices[] = {
-        qx,      qy + 0.5f,      0.f,
-        qx + qw, qy + 0.5f,      0.f,
-        qx,      qy + qh + 0.5f, 0.f,
-        qx + qw, qy + qh + 0.5f, 0.f,
-    };
-    ngpu_buffer_upload(s->geometry->vertices_buffer, vertices, 0, sizeof(vertices));
-
-    /*
-     * Half-texel inset on uvcoords so bilinear taps land on RTT texel centers.
-     *
-     * Canvas2D, OffscreenCanvas2D and Effect2D all use a 2D ortho where
-     * pixel centers sit on integer world coordinates (the ortho bounds
-     * are inset by -0.5). The source RTT's texel i has its center at
-     * world qx + (i+0.5)*qw/W, so a fragment at world X should sample
-     * uv = (X - qx + 0.5) / qw — independent of the RTT pixel count W.
-     * With plain (0..1) corners the interpolated u is (X - qx)/qw,
-     * short by 0.5/qw; shifting both u corners by +0.5/qw fixes it.
-     *
-     * On v, the vertices already carry a +0.5 canvas-pixel shift (see
-     * the vertex comment above), which subtracts 0.5/qh from the
-     * interpolated v. Setting v0 = 1/qh (instead of 0.5/qh) cancels
-     * that shift and adds back the texel-center 0.5/qh.
-     *
-     * The shift uses canvas world units (qw, qh), NOT RTT pixel counts
-     * (s->width, s->height): they only match at viewport scale=1, and
-     * using RTT pixels at higher scales produces a one-pixel output shift.
-     *
-     * The far corners end up past 1.0 (by 0.5/qw on u, 1/qh on v). All
-     * rendered fragments stay inside [0,1], but clamp-to-edge sampling
-     * would still return the last texel if any tap overshot.
-     */
-    const float u0 = 0.5f / qw;
-    const float v0 = 1.f / qh;
-    const float uvcoords[] = {
-        u0,       v0,
-        1.f + u0, v0,
-        u0,       1.f + v0,
-        1.f + u0, 1.f + v0,
-    };
-    ngpu_buffer_upload(s->geometry->uvcoords_buffer, uvcoords, 0, sizeof(uvcoords));
 
     const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
     const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
@@ -835,6 +742,7 @@ static void effect2d_draw(struct ngl_node *node)
         struct effect2d_vert_block vert_data = {0};
         vert_data.projection_matrix = ctx->projection_2d_matrix;
         vert_data.modelview_matrix = modelview_matrix;
+        memcpy(vert_data.rect, s->rect, sizeof(vert_data.rect));
 
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
@@ -909,7 +817,6 @@ static void effect2d_uninit(struct ngl_node *node)
 
     ngli_pipeline_compat_freep(&s->pipeline);
     ngpu_pgcraft_freep(&s->crafter);
-    ngli_geometry_freep(&s->geometry);
 
     ngli_freep(&s->frag_glsl);
     ngli_darray_reset(&s->user_field_indices);
