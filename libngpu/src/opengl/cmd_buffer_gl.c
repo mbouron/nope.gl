@@ -65,7 +65,7 @@ static void cmd_buffer_gl_freep(void **sp)
 
 struct ngpu_cmd_buffer_gl *ngpu_cmd_buffer_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_cmd_buffer_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_cmd_buffer_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->rc = NGPU_RC_CREATE(cmd_buffer_gl_freep);

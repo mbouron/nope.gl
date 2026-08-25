@@ -398,7 +398,7 @@ static VkResult create_pipeline(struct ngpu_pipeline *s)
 
 struct ngpu_pipeline *ngpu_pipeline_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_pipeline_vk *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_pipeline_vk *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;

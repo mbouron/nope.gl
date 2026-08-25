@@ -236,7 +236,7 @@ static int cmp_str(const void *a, const void *b)
 
 static int check_dup_labels(const char *block_name, struct ngl_node * const *nodes, size_t nb_nodes)
 {
-    char **labels = ngli_calloc(nb_nodes, sizeof(*labels));
+    char **labels = ngli_try_calloc(nb_nodes, sizeof(*labels));
     if (!labels)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < nb_nodes; i++) {
@@ -316,7 +316,7 @@ static int block_init(struct ngl_node *node)
 
     info->data_size = info->block.size;
     LOG(DEBUG, "total %s size: %zu", node->label, info->data_size);
-    info->data = ngli_calloc(1, info->data_size);
+    info->data = ngli_try_calloc(1, info->data_size);
     if (!info->data)
         return NGL_ERROR_MEMORY;
 

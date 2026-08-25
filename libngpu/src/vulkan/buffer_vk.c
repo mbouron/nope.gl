@@ -102,7 +102,7 @@ static VkBufferUsageFlags get_vk_buffer_usage_flags(uint32_t usage)
 
 struct ngpu_buffer *ngpu_buffer_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_buffer_vk *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_buffer_vk *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;

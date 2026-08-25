@@ -46,7 +46,7 @@ struct ngpu_capture_ctx {
 
 struct ngpu_capture_ctx *ngpu_capture_ctx_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_capture_ctx *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_capture_ctx *s = ngpu_try_calloc(1, sizeof(*s));
     return s;
 }
 
@@ -108,4 +108,3 @@ void ngpu_capture_freep(struct ngpu_capture_ctx **sp)
 #endif
     ngpu_freep(sp);
 }
-

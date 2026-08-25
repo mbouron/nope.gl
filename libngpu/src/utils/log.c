@@ -56,7 +56,7 @@ static void default_callback(void *arg, enum ngpu_log_level level, const char *f
     /* handle the case where the line doesn't fit the stack buffer */
     if (len >= sizeof(logline)) {
         const size_t logbuf_size = (size_t)len + 1;
-        logbuf = ngpu_malloc(logbuf_size);
+        logbuf = ngpu_try_malloc(logbuf_size);
         if (!logbuf) {
             va_end(vl_copy);
             return;

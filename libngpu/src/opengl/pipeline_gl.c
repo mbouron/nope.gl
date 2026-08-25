@@ -225,7 +225,7 @@ static int pipeline_compute_init(struct ngpu_pipeline *s)
 
 struct ngpu_pipeline *ngpu_pipeline_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_pipeline_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_pipeline_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;

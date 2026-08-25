@@ -64,10 +64,10 @@ static int circle_init(struct ngl_node *node)
     const size_t nb_vertices = o->npoints + 1;
     const size_t nb_indices  = o->npoints * 3;
 
-    float *vertices  = ngli_calloc(nb_vertices, sizeof(*vertices)  * 3);
-    float *uvcoords  = ngli_calloc(nb_vertices, sizeof(*uvcoords)  * 2);
-    float *normals   = ngli_calloc(nb_vertices, sizeof(*normals)   * 3);
-    uint16_t *indices = ngli_calloc(nb_indices, sizeof(*indices));
+    float *vertices  = ngli_try_calloc(nb_vertices, sizeof(*vertices)  * 3);
+    float *uvcoords  = ngli_try_calloc(nb_vertices, sizeof(*uvcoords)  * 2);
+    float *normals   = ngli_try_calloc(nb_vertices, sizeof(*normals)   * 3);
+    uint16_t *indices = ngli_try_calloc(nb_indices, sizeof(*indices));
 
     if (!vertices || !uvcoords || !normals || !indices) {
         ret = NGL_ERROR_MEMORY;

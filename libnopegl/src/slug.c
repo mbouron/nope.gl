@@ -69,7 +69,7 @@ struct slug {
 
 struct slug *ngli_slug_create(struct ngl_ctx *ctx)
 {
-    struct slug *s = ngli_calloc(1, sizeof(*s));
+    struct slug *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;

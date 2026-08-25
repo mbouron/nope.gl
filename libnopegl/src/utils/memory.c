@@ -62,21 +62,21 @@ static inline int failure_requested(void)
 }
 #endif
 
-void *ngli_malloc(size_t size)
+void *ngli_try_malloc(size_t size)
 {
     if (failure_requested())
         return NULL;
     return malloc(size);
 }
 
-void *ngli_calloc(size_t n, size_t size)
+void *ngli_try_calloc(size_t n, size_t size)
 {
     if (failure_requested())
         return NULL;
     return calloc(n, size);
 }
 
-void *ngli_malloc_aligned(size_t alignment, size_t size)
+void *ngli_try_malloc_aligned(size_t alignment, size_t size)
 {
     if (failure_requested())
         return NULL;
@@ -90,7 +90,7 @@ void *ngli_malloc_aligned(size_t alignment, size_t size)
 #endif
 }
 
-void *ngli_realloc(void *ptr, size_t n, size_t size)
+void *ngli_try_realloc(void *ptr, size_t n, size_t size)
 {
     if (failure_requested())
         return NULL;
@@ -132,7 +132,7 @@ void ngli_freep_aligned(void *ptr)
 
 void *ngli_memdup(const void *src, size_t n)
 {
-    void *dst = ngli_malloc(n);
+    void *dst = ngli_try_malloc(n);
     if (!dst)
         return NULL;
     memcpy(dst, src, n);

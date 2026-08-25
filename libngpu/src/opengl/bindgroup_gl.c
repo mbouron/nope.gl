@@ -30,7 +30,7 @@
 
 struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_bindgroup_layout_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_bindgroup_layout_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -178,7 +178,7 @@ GLbitfield ngpu_bindgroup_gl_get_memory_barriers(struct ngpu_bindgroup *s)
 
 struct ngpu_bindgroup *ngpu_bindgroup_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_bindgroup_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_bindgroup_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;

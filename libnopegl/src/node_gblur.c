@@ -191,7 +191,7 @@ static int update_kernel(struct ngl_node *node)
     kernel_data.nb_weights++;
 
     if (!s->kernel_staging_cache) {
-        s->kernel_staging_cache = ngli_calloc(1, s->kernel_block_size);
+        s->kernel_staging_cache = ngli_try_calloc(1, s->kernel_block_size);
         if (!s->kernel_staging_cache)
             return NGL_ERROR_MEMORY;
     }

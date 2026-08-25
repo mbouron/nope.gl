@@ -47,7 +47,7 @@ static void reset_cached_frag_map(void *user_arg, void *data)
 
 struct ngpu_pgcache *ngpu_pgcache_create(struct ngpu_ctx *ctx)
 {
-    struct ngpu_pgcache *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_pgcache *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->gpu_ctx = ctx;

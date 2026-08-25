@@ -1324,7 +1324,7 @@ static void setup_glsl_info(struct ngpu_pgcraft *s)
 
 struct ngpu_pgcraft *ngpu_pgcraft_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_pgcraft *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_pgcraft *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 

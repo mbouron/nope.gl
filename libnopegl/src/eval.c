@@ -240,7 +240,7 @@ struct eval {
 
 struct eval *ngli_eval_create(void)
 {
-    struct eval *s = ngli_calloc(1, sizeof(*s));
+    struct eval *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     return s;

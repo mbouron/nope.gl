@@ -52,7 +52,7 @@ struct rtt_ctx {
 
 struct rtt_ctx *ngli_rtt_create(struct ngl_ctx *ctx)
 {
-    struct rtt_ctx *s = ngli_calloc(1, sizeof(*s));
+    struct rtt_ctx *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;

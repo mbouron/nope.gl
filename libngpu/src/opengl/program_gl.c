@@ -63,7 +63,7 @@ static int program_check_status(const struct glcontext *gl, GLuint shader, GLenu
     if (!info_log_length)
         return NGPU_ERROR_BUG;
 
-    info_log = ngpu_malloc((size_t)info_log_length);
+    info_log = ngpu_try_malloc((size_t)info_log_length);
     if (!info_log)
         return NGPU_ERROR_MEMORY;
 
@@ -78,7 +78,7 @@ static int program_check_status(const struct glcontext *gl, GLuint shader, GLenu
 
 struct ngpu_program *ngpu_program_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_program_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_program_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;

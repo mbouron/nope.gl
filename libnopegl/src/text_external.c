@@ -198,7 +198,7 @@ static void free_glyph(void *user_arg, void *data)
 
 static struct glyph *create_glyph(void)
 {
-    struct glyph *glyph = ngli_calloc(1, sizeof(*glyph));
+    struct glyph *glyph = ngli_try_calloc(1, sizeof(*glyph));
     return glyph;
 }
 
@@ -594,9 +594,9 @@ static int log2vis(const FriBidiChar *str, int len, FriBidiParType *pbase_dir, F
 
     const int use_local = len <= STACK_LIST_SIZE;
 
-    FriBidiCharType *bidi_types       = use_local ? bidi_types_stack       : ngli_malloc((size_t)len * sizeof(*bidi_types));
-    FriBidiBracketType *bracket_types = use_local ? bracket_types_stack    : ngli_malloc((size_t)len * sizeof(*bracket_types));
-    FriBidiLevel *embedding_levels    = use_local ? embedding_levels_stack : ngli_malloc((size_t)len * sizeof(*embedding_levels));
+    FriBidiCharType *bidi_types       = use_local ? bidi_types_stack       : ngli_try_malloc((size_t)len * sizeof(*bidi_types));
+    FriBidiBracketType *bracket_types = use_local ? bracket_types_stack    : ngli_try_malloc((size_t)len * sizeof(*bracket_types));
+    FriBidiLevel *embedding_levels    = use_local ? embedding_levels_stack : ngli_try_malloc((size_t)len * sizeof(*embedding_levels));
     if (!bidi_types || !bracket_types || !embedding_levels) {
         ret = NGL_ERROR_MEMORY;
         goto end;
@@ -637,7 +637,7 @@ static int build_text_runs(struct text *text, const char *str_orig, struct text_
         return NGL_ERROR_LIMIT_EXCEEDED;
 
     /* Convert the full string in UTF-8 to Unicode codepoints */
-    FriBidiChar *codepoints = ngli_calloc(full_len, sizeof(*codepoints));
+    FriBidiChar *codepoints = ngli_try_calloc(full_len, sizeof(*codepoints));
     if (!codepoints)
         return NGL_ERROR_MEMORY;
     FriBidiStrIndex unicode_len = fribidi_charset_to_unicode(FRIBIDI_CHAR_SET_UTF8, str_orig, (FriBidiStrIndex)full_len, codepoints);
@@ -666,7 +666,7 @@ static int build_text_runs(struct text *text, const char *str_orig, struct text_
         const size_t len = end - pos;
 
         /* Transform codepoints array from logical to visual order */
-        FriBidiChar *visual_str = ngli_calloc(len, sizeof(*visual_str));
+        FriBidiChar *visual_str = ngli_try_calloc(len, sizeof(*visual_str));
         if (!visual_str) {
             ret = NGL_ERROR_MEMORY;
             goto end;

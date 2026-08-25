@@ -151,7 +151,7 @@ int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
         LOG(WARNING, "%s", messages);
 
     const size_t size = glslang_program_SPIRV_get_size(program) * sizeof(unsigned int);
-    unsigned int *data = ngpu_malloc(size);
+    unsigned int *data = ngpu_try_malloc(size);
     if (!data) {
         glslang_program_delete(program);
         glslang_shader_delete(shader);

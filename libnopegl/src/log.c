@@ -58,7 +58,7 @@ static void default_callback(void *arg, enum ngl_log_level level, const char *fi
     /* handle the case where the line doesn't fit the stack buffer */
     if (len >= sizeof(logline)) {
         const size_t logbuf_size = (size_t)len + 1;
-        logbuf = ngli_malloc(logbuf_size);
+        logbuf = ngli_try_malloc(logbuf_size);
         if (!logbuf) {
             va_end(vl_copy);
             return;

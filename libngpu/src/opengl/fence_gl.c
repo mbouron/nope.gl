@@ -38,7 +38,7 @@ static void fence_gl_release(void **sp)
 
 struct ngpu_fence *ngpu_fence_gl_create(struct ngpu_ctx *ctx)
 {
-    struct ngpu_fence_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_fence_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 

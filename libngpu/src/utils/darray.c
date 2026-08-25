@@ -46,7 +46,7 @@ static int reserve(ngpu_darray_data_alias *data, size_t *capacity, size_t elemen
         size_t size;
         if (NGPU_CHK_MUL(&size, new_capacity, element_size))
             return NGPU_ERROR_MEMORY;
-        void *ptr = ngpu_malloc_aligned(alignment, size);
+        void *ptr = ngpu_try_malloc_aligned(alignment, size);
         if (!ptr)
             return NGPU_ERROR_MEMORY;
         if (*data) {
@@ -55,7 +55,7 @@ static int reserve(ngpu_darray_data_alias *data, size_t *capacity, size_t elemen
         }
         *data = ptr;
     } else {
-        void *ptr = ngpu_realloc(*data, new_capacity, element_size);
+        void *ptr = ngpu_try_realloc(*data, new_capacity, element_size);
         if (!ptr)
             return NGPU_ERROR_MEMORY;
         *data = ptr;

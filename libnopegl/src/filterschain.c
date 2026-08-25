@@ -46,7 +46,7 @@ struct filterschain {
 
 struct filterschain *ngli_filterschain_create(void)
 {
-    struct filterschain *s = ngli_calloc(1, sizeof(*s));
+    struct filterschain *s = ngli_try_calloc(1, sizeof(*s));
     return s;
 }
 

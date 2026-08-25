@@ -50,7 +50,7 @@ static void free_bitmap(void *user_arg, void *data)
 
 struct atlas *ngli_atlas_create(struct ngl_ctx *ctx)
 {
-    struct atlas *s = ngli_calloc(1, sizeof(*s));
+    struct atlas *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
@@ -159,7 +159,7 @@ int ngli_atlas_finalize(struct atlas *s)
     const size_t linesize = (size_t)(s->nb_cols * s->max_bitmap_w);
     if (linesize > INT32_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
-    void *data = ngli_calloc((size_t)(s->nb_rows * s->max_bitmap_h), linesize);
+    void *data = ngli_try_calloc((size_t)(s->nb_rows * s->max_bitmap_h), linesize);
     if (!data)
         return NGL_ERROR_MEMORY;
 

@@ -105,8 +105,8 @@ static int parse_func##s(const char *s, type **valsp, size_t *nb_valsp)     \
             consumed = -1;                                                  \
             break;                                                          \
         }                                                                   \
-        type *new_vals = ngli_realloc(vals,                                 \
-                                      nb_vals + 1, sizeof(*new_vals));      \
+        type *new_vals = ngli_try_realloc(vals,                             \
+                                          nb_vals + 1, sizeof(*new_vals));  \
         if (!new_vals) {                                                    \
             consumed = -1;                                                  \
             break;                                                          \
@@ -158,14 +158,14 @@ static int parse_kvs(const char *s, size_t *nb_kvsp, char ***keysp, size_t **val
             break;
         }
 
-        char **new_keys = ngli_realloc(keys, nb_vals + 1, sizeof(*new_keys));
+        char **new_keys = ngli_try_realloc(keys, nb_vals + 1, sizeof(*new_keys));
         if (!new_keys) {
             consumed = -1;
             break;
         }
         keys = new_keys;
 
-        size_t *new_vals = ngli_realloc(vals, nb_vals + 1, sizeof(*new_vals));
+        size_t *new_vals = ngli_try_realloc(vals, nb_vals + 1, sizeof(*new_vals));
         if (!new_vals) {
             consumed = -1;
             break;
@@ -278,7 +278,7 @@ static int parse_param_flags(struct ngli_node_darray *nodes_array, uint8_t *dstp
     const size_t len = strcspn(str, " \n");
     if (len > INT_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
-    char *s = ngli_malloc(len + 1);
+    char *s = ngli_try_malloc(len + 1);
     if (!s)
         return NGL_ERROR_MEMORY;
     memcpy(s, str, len);
@@ -296,7 +296,7 @@ static int parse_param_select(struct ngli_node_darray *nodes_array, uint8_t *dst
     const size_t len = strcspn(str, " \n");
     if (len > INT_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
-    char *s = ngli_malloc(len + 1);
+    char *s = ngli_try_malloc(len + 1);
     if (!s)
         return NGL_ERROR_MEMORY;
     memcpy(s, str, len);
@@ -314,7 +314,7 @@ static int parse_param_str(struct ngli_node_darray *nodes_array, uint8_t *dstp,
     const size_t len = strcspn(str, " \n");
     if (len > INT_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
-    char *s = ngli_malloc(len + 1);
+    char *s = ngli_try_malloc(len + 1);
     if (!s)
         return NGL_ERROR_MEMORY;
     char *sstart = s;
@@ -345,7 +345,7 @@ static int parse_param_data(struct ngli_node_darray *nodes_array, uint8_t *dstp,
     if (ret != 1 || !size || cur >= end - consumed)
         return NGL_ERROR_INVALID_DATA;
     cur += consumed;
-    uint8_t *data = ngli_calloc(size, sizeof(*data));
+    uint8_t *data = ngli_try_calloc(size, sizeof(*data));
     if (!data)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < size; i++) {

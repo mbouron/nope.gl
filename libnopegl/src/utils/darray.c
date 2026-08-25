@@ -47,7 +47,7 @@ static int reserve(ngli_darray_data_alias *data, size_t *capacity, size_t elemen
         size_t size;
         if (NGLI_CHK_MUL(&size, new_capacity, element_size))
             return NGL_ERROR_MEMORY;
-        void *ptr = ngli_malloc_aligned(alignment, size);
+        void *ptr = ngli_try_malloc_aligned(alignment, size);
         if (!ptr)
             return NGL_ERROR_MEMORY;
         if (*data) {
@@ -56,7 +56,7 @@ static int reserve(ngli_darray_data_alias *data, size_t *capacity, size_t elemen
         }
         *data = ptr;
     } else {
-        void *ptr = ngli_realloc(*data, new_capacity, element_size);
+        void *ptr = ngli_try_realloc(*data, new_capacity, element_size);
         if (!ptr)
             return NGL_ERROR_MEMORY;
         *data = ptr;

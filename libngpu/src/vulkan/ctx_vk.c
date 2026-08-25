@@ -317,8 +317,8 @@ static VkResult create_command_pool_and_buffers(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return res;
 
-    s_priv->cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_vk *));
-    s_priv->update_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_vk *));
+    s_priv->cmd_buffers = ngpu_try_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_vk *));
+    s_priv->update_cmd_buffers = ngpu_try_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_vk *));
     if (!s_priv->cmd_buffers || !s_priv->update_cmd_buffers)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -398,11 +398,11 @@ static VkResult create_swapchain_semaphores(struct ngpu_ctx *s)
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
     struct vkcontext *vk = s_priv->vkcontext;
 
-    s_priv->image_avail_sems = ngpu_calloc(s_priv->nb_images, sizeof(VkSemaphore));
+    s_priv->image_avail_sems = ngpu_try_calloc(s_priv->nb_images, sizeof(VkSemaphore));
     if (!s_priv->image_avail_sems)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    s_priv->image_present_sems = ngpu_calloc(s_priv->nb_images, sizeof(VkSemaphore));
+    s_priv->image_present_sems = ngpu_try_calloc(s_priv->nb_images, sizeof(VkSemaphore));
     if (!s_priv->image_present_sems)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -589,7 +589,7 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return res;
 
-    VkImage *images = ngpu_realloc(s_priv->images, s_priv->nb_images, sizeof(VkImage));
+    VkImage *images = ngpu_try_realloc(s_priv->images, s_priv->nb_images, sizeof(VkImage));
     if (!images)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     s_priv->images = images;
@@ -765,7 +765,7 @@ static VkResult swapchain_present_buffer(struct ngpu_ctx *s, double t)
 
 static struct ngpu_ctx *vk_create(const struct ngpu_ctx_params *params)
 {
-    struct ngpu_ctx_vk *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_ctx_vk *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     return (struct ngpu_ctx *)s;

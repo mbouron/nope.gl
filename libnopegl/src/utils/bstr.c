@@ -38,12 +38,12 @@ struct bstr {
 
 struct bstr *ngli_bstr_create(void)
 {
-    struct bstr *b = ngli_calloc(1, sizeof(*b));
+    struct bstr *b = ngli_try_calloc(1, sizeof(*b));
 
     if (!b)
         return NULL;
     b->bufsize = BUFFER_PADDING;
-    b->str = ngli_malloc(b->bufsize);
+    b->str = ngli_try_malloc(b->bufsize);
     if (!b->str) {
         ngli_free(b);
         return NULL;
@@ -57,7 +57,7 @@ void ngli_bstr_write(struct bstr *b, const char *str, size_t len)
     const size_t avail = b->bufsize - b->len;
     if (len + 1 > avail) {
         const size_t new_size = b->len + len + 1 + BUFFER_PADDING;
-        void *ptr = ngli_realloc(b->str, new_size, 1);
+        void *ptr = ngli_try_realloc(b->str, new_size, 1);
         if (!ptr) {
             b->state = NGL_ERROR_MEMORY;
             return;
@@ -91,7 +91,7 @@ void ngli_bstr_printf(struct bstr *b, const char *fmt, ...)
 
     if (len + 1 > avail) {
         const size_t new_size = b->len + (size_t)len + 1 + BUFFER_PADDING;
-        void *ptr = ngli_realloc(b->str, new_size, 1);
+        void *ptr = ngli_try_realloc(b->str, new_size, 1);
         if (!ptr) {
             b->state = NGL_ERROR_MEMORY;
             return;

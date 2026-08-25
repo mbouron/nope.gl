@@ -33,7 +33,7 @@ char *ngli_strdup(const char *s)
     if (!s)
         return NULL;
     const size_t len = strlen(s);
-    char *r = ngli_malloc(len + 1);
+    char *r = ngli_try_malloc(len + 1);
     if (!r)
         return NULL;
     memcpy(r, s, len);
@@ -52,7 +52,7 @@ char *ngli_asprintf(const char *fmt, ...)
         return NULL;
 
     const size_t n = (size_t)len + 1;
-    char *p = ngli_malloc(n);
+    char *p = ngli_try_malloc(n);
     if (!p)
         return NULL;
 

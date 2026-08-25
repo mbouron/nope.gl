@@ -60,7 +60,7 @@ struct path {
 
 struct path *ngli_path_create(void)
 {
-    struct path *s = ngli_calloc(1, sizeof(*s));
+    struct path *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->state = PATH_STATE_DEFAULT;
@@ -531,7 +531,7 @@ int ngli_path_init(struct path *s, int32_t precision)
 
     /* Build a lookup table associating an arc to its segment */
     const size_t nb_arcs = s->steps.count - 1;
-    s->arc_to_segment = ngli_calloc(nb_arcs, sizeof(*s->arc_to_segment));
+    s->arc_to_segment = ngli_try_calloc(nb_arcs, sizeof(*s->arc_to_segment));
     if (!s->arc_to_segment)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < nb_arcs; i++)

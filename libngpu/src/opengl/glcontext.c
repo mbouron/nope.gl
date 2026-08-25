@@ -718,7 +718,7 @@ struct glcontext *ngpu_glcontext_create(const struct glcontext_params *params)
     if (glplatform < 0 || glplatform >= NGPU_ARRAY_NB(glcontext_class_map))
         return NULL;
 
-    struct glcontext *glcontext = ngpu_calloc(1, sizeof(*glcontext));
+    struct glcontext *glcontext = ngpu_try_calloc(1, sizeof(*glcontext));
     if (!glcontext)
         return NULL;
     if (params->external) {
@@ -728,7 +728,7 @@ struct glcontext *ngpu_glcontext_create(const struct glcontext_params *params)
     }
 
     if (glcontext->cls->priv_size) {
-        glcontext->priv_data = ngpu_calloc(1, glcontext->cls->priv_size);
+        glcontext->priv_data = ngpu_try_calloc(1, glcontext->cls->priv_size);
         if (!glcontext->priv_data) {
             ngpu_free(glcontext);
             return NULL;

@@ -33,7 +33,7 @@
 
 struct geometry *ngli_geometry_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct geometry *s = ngli_calloc(1, sizeof(*s));
+    struct geometry *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->gpu_ctx = gpu_ctx;
