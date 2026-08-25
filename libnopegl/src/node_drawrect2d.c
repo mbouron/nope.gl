@@ -419,7 +419,7 @@ static int build_texture_map(struct drawrect2d_priv *s)
     const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
     for (size_t i = 0; i < texture_infos.nb_infos; i++) {
         const struct texture_map map = {.image = texture_infos.infos[i].image, .image_rev = SIZE_MAX};
-        if (ngli_darray_push(&s->textures_map, map) < 0)
+        if (ngli_darray_try_push(&s->textures_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
     return 0;
@@ -586,7 +586,7 @@ static int drawrect2d_init(struct ngl_node *node)
                 .field_index = field_idx,
                 .data        = ud->data,
             };
-            if (ngli_darray_push(&s->prebuilt_uniforms, pu) < 0)
+            if (ngli_darray_try_push(&s->prebuilt_uniforms, pu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -602,7 +602,7 @@ static int drawrect2d_init(struct ngl_node *node)
                 .field_index = field_idx,
                 .node        = cu->node,
             };
-            if (ngli_darray_push(&s->user_uniforms, uu) < 0)
+            if (ngli_darray_try_push(&s->user_uniforms, uu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -617,7 +617,7 @@ static int drawrect2d_init(struct ngl_node *node)
                 .field_index = field_idx,
                 .data        = ud->data,
             };
-            if (ngli_darray_push(&s->stroke_prebuilt_uniforms, pu) < 0)
+            if (ngli_darray_try_push(&s->stroke_prebuilt_uniforms, pu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -632,7 +632,7 @@ static int drawrect2d_init(struct ngl_node *node)
                 .field_index = field_idx,
                 .node        = cu->node,
             };
-            if (ngli_darray_push(&s->stroke_user_uniforms, uu) < 0)
+            if (ngli_darray_try_push(&s->stroke_user_uniforms, uu) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -654,7 +654,7 @@ static int drawrect2d_init(struct ngl_node *node)
             .premult     = texture_info->premult,
         };
         snprintf(tex.name, sizeof(tex.name), "%s", paint_texture_names[PAINT_SHADER_ROLE_FILL]);
-        if (ngli_darray_push(&textures, tex) < 0) {
+        if (ngli_darray_try_push(&textures, tex) < 0) {
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
@@ -673,7 +673,7 @@ static int drawrect2d_init(struct ngl_node *node)
             .premult     = texture_info->premult,
         };
         ngli_paint_get_resource_name(tex.name, sizeof(tex.name), PAINT_SHADER_ROLE_FILL, ct->name);
-        if (ngli_darray_push(&textures, tex) < 0) {
+        if (ngli_darray_try_push(&textures, tex) < 0) {
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
@@ -690,7 +690,7 @@ static int drawrect2d_init(struct ngl_node *node)
             .premult     = texture_info->premult,
         };
         snprintf(tex.name, sizeof(tex.name), "%s", paint_texture_names[PAINT_SHADER_ROLE_STROKE]);
-        if (ngli_darray_push(&textures, tex) < 0) {
+        if (ngli_darray_try_push(&textures, tex) < 0) {
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
@@ -709,7 +709,7 @@ static int drawrect2d_init(struct ngl_node *node)
                 .premult     = texture_info->premult,
             };
             ngli_paint_get_resource_name(tex.name, sizeof(tex.name), PAINT_SHADER_ROLE_STROKE, ct->name);
-            if (ngli_darray_push(&textures, tex) < 0) {
+            if (ngli_darray_try_push(&textures, tex) < 0) {
                 ngli_darray_reset(&textures);
                 return NGL_ERROR_MEMORY;
             }
@@ -726,7 +726,7 @@ static int drawrect2d_init(struct ngl_node *node)
         .block         = &s->vert_block_desc,
         .buffer        = {.buffer = staging_buf, .size = s->vert_block_size},
     };
-    if (ngli_darray_push(&blocks, vert_crafter_block) < 0) {
+    if (ngli_darray_try_push(&blocks, vert_crafter_block) < 0) {
         ngli_darray_reset(&blocks);
         ngli_darray_reset(&textures);
         return NGL_ERROR_MEMORY;
@@ -740,7 +740,7 @@ static int drawrect2d_init(struct ngl_node *node)
         .block         = &s->frag_block_desc,
         .buffer        = {.buffer = staging_buf, .size = frag_block_size},
     };
-    if (ngli_darray_push(&blocks, frag_crafter_block) < 0) {
+    if (ngli_darray_try_push(&blocks, frag_crafter_block) < 0) {
         ngli_darray_reset(&blocks);
         ngli_darray_reset(&textures);
         return NGL_ERROR_MEMORY;
@@ -755,7 +755,7 @@ static int drawrect2d_init(struct ngl_node *node)
             .block         = &s->user_block_desc,
             .buffer        = {.buffer = staging_buf, .size = s->user_block_size},
         };
-        if (ngli_darray_push(&blocks, user_crafter_block) < 0) {
+        if (ngli_darray_try_push(&blocks, user_crafter_block) < 0) {
             ngli_darray_reset(&blocks);
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
@@ -794,7 +794,7 @@ static int drawrect2d_init(struct ngl_node *node)
         ngli_paint_get_resource_name(crafter_block.name, sizeof(crafter_block.name),
                                      PAINT_SHADER_ROLE_FILL, cb->name);
 
-        if (ngli_darray_push(&blocks, crafter_block) < 0) {
+        if (ngli_darray_try_push(&blocks, crafter_block) < 0) {
             ngli_darray_reset(&blocks);
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
@@ -833,7 +833,7 @@ static int drawrect2d_init(struct ngl_node *node)
             ngli_paint_get_resource_name(crafter_block.name, sizeof(crafter_block.name),
                                          PAINT_SHADER_ROLE_STROKE, cb->name);
 
-            if (ngli_darray_push(&blocks, crafter_block) < 0) {
+            if (ngli_darray_try_push(&blocks, crafter_block) < 0) {
                 ngli_darray_reset(&blocks);
                 ngli_darray_reset(&textures);
                 return NGL_ERROR_MEMORY;
@@ -934,7 +934,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
             .info       = info,
             .buffer_rev = SIZE_MAX,
         };
-        if (ngli_darray_push(&s->blocks_map, bm) < 0)
+        if (ngli_darray_try_push(&s->blocks_map, bm) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -950,7 +950,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
                 .info       = info,
                 .buffer_rev = SIZE_MAX,
             };
-            if (ngli_darray_push(&s->blocks_map, bm) < 0)
+            if (ngli_darray_try_push(&s->blocks_map, bm) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }

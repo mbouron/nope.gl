@@ -115,7 +115,7 @@ void ngli_paint_info_reset(struct paint_info *info)
         .type = (type_),                                                    \
         .data = (const uint8_t *)(info_)->opts + offsetof(opts_struct_, field_), \
     };                                                                      \
-    if (ngli_darray_push(&(info_)->uniforms, _ud) < 0)                      \
+    if (ngli_darray_try_push(&(info_)->uniforms, _ud) < 0)                  \
         return NGL_ERROR_MEMORY;                                            \
     struct paint_uniform_def *_p = ngli_darray_tail(&(info_)->uniforms);    \
     snprintf(_p->name, sizeof(_p->name), "%s", (name_));                    \
@@ -851,7 +851,7 @@ static int register_uniform(struct paint_info *info, const char *name, struct ng
         .node = res,
     };
     snprintf(cu.name, sizeof(cu.name), "%s", name);
-    return ngli_darray_push(&info->custom_uniforms, cu);
+    return ngli_darray_try_push(&info->custom_uniforms, cu);
 }
 
 static int register_texture(struct paint_info *info, const char *name, struct ngl_node *res)
@@ -860,7 +860,7 @@ static int register_texture(struct paint_info *info, const char *name, struct ng
         .texture_node = res,
     };
     snprintf(ct.name, sizeof(ct.name), "%s", name);
-    return ngli_darray_push(&info->custom_textures, ct);
+    return ngli_darray_try_push(&info->custom_textures, ct);
 }
 
 static int register_block(struct paint_info *info, const char *name, struct ngl_node *res)
@@ -869,7 +869,7 @@ static int register_block(struct paint_info *info, const char *name, struct ngl_
         .node = res,
     };
     snprintf(cb.name, sizeof(cb.name), "%s", name);
-    return ngli_darray_push(&info->custom_blocks, cb);
+    return ngli_darray_try_push(&info->custom_blocks, cb);
 }
 
 static int register_resource(struct paint_info *info, const char *name, struct ngl_node *res)

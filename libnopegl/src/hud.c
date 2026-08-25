@@ -357,7 +357,7 @@ static int make_nodes_set(struct ngl_scene *scene, struct ngli_node_darray *node
             struct ngl_node *node = scene->nodes.data[i];
             if (node->cls->id != node_type)
                 continue;
-            if (ngli_darray_push(nodes_list, node) < 0)
+            if (ngli_darray_try_push(nodes_list, node) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -900,7 +900,7 @@ static int create_widget(struct hud *s, enum widget_type type, const void *user_
         widget.graph_rect.h = spec->graph_h;
     }
 
-    if (ngli_darray_push(&s->widgets, widget) < 0)
+    if (ngli_darray_try_push(&s->widgets, widget) < 0)
         return NGL_ERROR_MEMORY;
     struct widget *widgetp = ngli_darray_tail(&s->widgets);
 

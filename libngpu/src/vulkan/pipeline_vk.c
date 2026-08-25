@@ -163,7 +163,7 @@ static VkResult create_attribute_descs(struct ngpu_pipeline *s)
             .stride    = (uint32_t)buffer->stride,
             .inputRate = buffer->rate ? VK_VERTEX_INPUT_RATE_INSTANCE : VK_VERTEX_INPUT_RATE_VERTEX,
         };
-        if (ngpu_darray_push(&s_priv->vertex_binding_descs, binding_desc) < 0)
+        if (ngpu_darray_try_push(&s_priv->vertex_binding_descs, binding_desc) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
 
         for (size_t j = 0; j < buffer->nb_attributes; j++) {
@@ -174,7 +174,7 @@ static VkResult create_attribute_descs(struct ngpu_pipeline *s)
                 .format   = ngpu_format_ngl_to_vk(attribute->format),
                 .offset   = (uint32_t)attribute->offset,
             };
-            if (ngpu_darray_push(&s_priv->vertex_attribute_descs, attr_desc) < 0)
+            if (ngpu_darray_try_push(&s_priv->vertex_attribute_descs, attr_desc) < 0)
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
     }

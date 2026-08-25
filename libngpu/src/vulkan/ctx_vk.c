@@ -226,7 +226,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
             }
         }
 
-        if (ngpu_darray_push(&s_priv->colors, color) < 0) {
+        if (ngpu_darray_try_push(&s_priv->colors, color) < 0) {
             ngpu_texture_freep(&color);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
@@ -236,7 +236,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         if (res != VK_SUCCESS)
             return res;
 
-        if (ngpu_darray_push(&s_priv->depth_stencils, depth_stencil) < 0) {
+        if (ngpu_darray_try_push(&s_priv->depth_stencils, depth_stencil) < 0) {
             ngpu_texture_freep(&depth_stencil);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
@@ -247,7 +247,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
             if (res != VK_SUCCESS)
                 return res;
 
-            if (ngpu_darray_push(&s_priv->ms_colors, ms_color) < 0) {
+            if (ngpu_darray_try_push(&s_priv->ms_colors, ms_color) < 0) {
                 ngpu_texture_freep(&ms_color);
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
             }
@@ -261,7 +261,7 @@ static VkResult create_render_resources(struct ngpu_ctx *s)
         if (res != VK_SUCCESS)
             return res;
 
-        if (ngpu_darray_push(&s_priv->rts, rt) < 0) {
+        if (ngpu_darray_try_push(&s_priv->rts, rt) < 0) {
             ngpu_rendertarget_freep(&rt);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }

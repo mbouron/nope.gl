@@ -65,13 +65,13 @@ static int reserve(ngpu_darray_data_alias *data, size_t *capacity, size_t elemen
     return 0;
 }
 
-int ngpu_darray_grow_(ngpu_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment)
+int ngpu_darray_try_grow_(ngpu_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment)
 {
     const size_t new_capacity = *capacity ? *capacity * 2 : NGPU_DARRAY_INITIAL_CAPACITY;
     return reserve(data, capacity, element_size, alignment, new_capacity);
 }
 
-int ngpu_darray_reserve_(ngpu_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
+int ngpu_darray_try_reserve_(ngpu_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
 {
     return reserve(data, capacity, element_size, alignment, new_capacity);
 }

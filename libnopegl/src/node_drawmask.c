@@ -398,13 +398,13 @@ static int drawmask_prepare(struct ngl_node *node,
     const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
     for (size_t i = 0; i < texture_infos.nb_infos; i++) {
         const struct texture_map map = {.image = texture_infos.infos[i].image, .image_rev = SIZE_MAX};
-        if (ngli_darray_push(&desc->textures_map, map) < 0)
+        if (ngli_darray_try_push(&desc->textures_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
 
     /* Push reframing nodes for content and mask textures */
-    if (ngli_darray_push(&desc->reframing_nodes, o->content) < 0 ||
-        ngli_darray_push(&desc->reframing_nodes, o->mask) < 0)
+    if (ngli_darray_try_push(&desc->reframing_nodes, o->content) < 0 ||
+        ngli_darray_try_push(&desc->reframing_nodes, o->mask) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;

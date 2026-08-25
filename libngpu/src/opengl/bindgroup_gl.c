@@ -75,7 +75,7 @@ static int build_texture_bindings(struct ngpu_bindgroup *s)
         struct texture_binding_gl binding_gl = {
             .layout_entry = *layout_entry,
         };
-        if (ngpu_darray_push(&s_priv->texture_bindings, binding_gl) < 0)
+        if (ngpu_darray_try_push(&s_priv->texture_bindings, binding_gl) < 0)
             return NGPU_ERROR_MEMORY;
     }
 
@@ -129,7 +129,7 @@ static int build_buffer_bindings(struct ngpu_bindgroup *s)
         struct buffer_binding_gl binding = {
             .layout_entry = *layout_entry,
         };
-        if (ngpu_darray_push(&s_priv->buffer_bindings, binding) < 0)
+        if (ngpu_darray_try_push(&s_priv->buffer_bindings, binding) < 0)
             return NGPU_ERROR_MEMORY;
     }
 

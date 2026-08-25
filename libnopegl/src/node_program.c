@@ -83,7 +83,7 @@ static int program_init(struct ngl_node *node)
                 .precision_out = iovar_opts->precision_out,
             };
             snprintf(iovar.name, sizeof(iovar.name), "%s", e->key.str);
-            if (ngli_darray_push(&s->vert_out_vars_array, iovar) < 0)
+            if (ngli_darray_try_push(&s->vert_out_vars_array, iovar) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }

@@ -87,8 +87,8 @@ static void canvas2d_pre_draw(struct ngl_node *node)
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (ngli_darray_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
-        ngli_darray_push(&ctx->opacity_2d_stack, default_opacity) < 0)
+    if (ngli_darray_try_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
+        ngli_darray_try_push(&ctx->opacity_2d_stack, default_opacity) < 0)
         goto restore;
 
     /* Pre-draw children (computes bboxes) */
@@ -141,8 +141,8 @@ static void canvas2d_draw(struct ngl_node *node)
     /* Push identity transform and default opacity */
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (ngli_darray_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
-        ngli_darray_push(&ctx->opacity_2d_stack, default_opacity) < 0)
+    if (ngli_darray_try_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
+        ngli_darray_try_push(&ctx->opacity_2d_stack, default_opacity) < 0)
         goto restore;
 
     /* Draw children */

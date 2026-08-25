@@ -73,7 +73,7 @@ int ngli_node2d_push_transform(struct ngl_node *node)
     struct ngli_mat4 next_matrix;
     ngli_mat4_mul(next_matrix.m, prev_matrix.m, trs.m);
 
-    if (ngli_darray_push(&ctx->transform_2d_stack, next_matrix) < 0)
+    if (ngli_darray_try_push(&ctx->transform_2d_stack, next_matrix) < 0)
         return NGL_ERROR_MEMORY;
 
     const float opacity = *(const float *)ngli_node_get_data_ptr(opts->opacity_node, &opts->opacity);
@@ -83,7 +83,7 @@ int ngli_node2d_push_transform(struct ngl_node *node)
 
     const float next_opacity = prev_opacity * opacity;
 
-    if (ngli_darray_push(&ctx->opacity_2d_stack, next_opacity) < 0)
+    if (ngli_darray_try_push(&ctx->opacity_2d_stack, next_opacity) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;

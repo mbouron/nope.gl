@@ -152,13 +152,13 @@ static int setup_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node 
     }
 
     if (parent) {
-        if (ngli_darray_push(&parent->children, node) < 0)
+        if (ngli_darray_try_push(&parent->children, node) < 0)
             return NGL_ERROR_MEMORY;
         if (node->cls->draw) {
-            if (ngli_darray_push(&parent->draw_children, node) < 0)
+            if (ngli_darray_try_push(&parent->draw_children, node) < 0)
                 return NGL_ERROR_MEMORY;
         }
-        if (ngli_darray_push(&node->parents, parent) < 0)
+        if (ngli_darray_try_push(&node->parents, parent) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -199,7 +199,7 @@ static int build_nodes_set(struct ngl_scene *s)
     const struct hmap_entry *entry = NULL;
     while ((entry = ngli_hmap_next(nodes_set, entry))) {
         struct ngl_node *node = entry->data;
-        if (ngli_darray_push(&s->nodes, node) < 0) {
+        if (ngli_darray_try_push(&s->nodes, node) < 0) {
             ret = NGL_ERROR_MEMORY;
             goto end;
         }
@@ -227,9 +227,9 @@ static int track_files(struct ngl_scene *s)
                 char *str = *(char **)parp;
                 if (!str)
                     continue;
-                if (ngli_darray_push(&s->files, str) < 0)
+                if (ngli_darray_try_push(&s->files, str) < 0)
                     return NGL_ERROR_MEMORY;
-                if (ngli_darray_push(&s->files_par, parp) < 0)
+                if (ngli_darray_try_push(&s->files_par, parp) < 0)
                     return NGL_ERROR_MEMORY;
             }
         }

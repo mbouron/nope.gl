@@ -121,7 +121,7 @@ static int maskblur_init(struct ngl_node *node)
         .opts_offset = OFFSET_BLUR(sigma),
     };
     snprintf(ud.name, sizeof(ud.name), "mask_sigma");
-    if (ngli_darray_push(&s->info.uniforms, ud) < 0)
+    if (ngli_darray_try_push(&s->info.uniforms, ud) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;

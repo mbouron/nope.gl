@@ -69,11 +69,11 @@ int ngli_filterschain_add_filter(struct filterschain *s, const struct filter *fi
         struct ngli_filter_resource combined_res = *res;
         snprintf(combined_res.name, sizeof(combined_res.name), "%s%zu_%s",
                  filter->name, s->filters.count, res->name);
-        if (ngli_darray_push(&s->resources, combined_res) < 0)
+        if (ngli_darray_try_push(&s->resources, combined_res) < 0)
             return NGL_ERROR_MEMORY;
     }
 
-    if (ngli_darray_push(&s->filters, filter) < 0)
+    if (ngli_darray_try_push(&s->filters, filter) < 0)
         return NGL_ERROR_MEMORY;
 
     s->helpers |= filter->helpers;

@@ -110,7 +110,7 @@ int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s)
 
 int ngpu_cmd_buffer_gl_ref(struct ngpu_cmd_buffer_gl *s, struct ngpu_rc *rc)
 {
-    if (ngpu_darray_push(&s->refs, rc) < 0)
+    if (ngpu_darray_try_push(&s->refs, rc) < 0)
         return NGPU_ERROR_MEMORY;
 
     NGPU_RC_REF(rc);
@@ -124,7 +124,7 @@ int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buff
     if (ret < 0)
         return ret;
 
-    if (ngpu_darray_push(&s->buffer_refs, buffer) < 0)
+    if (ngpu_darray_try_push(&s->buffer_refs, buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
     NGPU_RC_REF(buffer);
@@ -144,7 +144,7 @@ int ngpu_cmd_buffer_gl_begin(struct ngpu_cmd_buffer_gl *s)
 
 int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_gl *cmd)
 {
-    if (ngpu_darray_push(&s->cmds, *cmd) < 0)
+    if (ngpu_darray_try_push(&s->cmds, *cmd) < 0)
         return NGPU_ERROR_MEMORY;
 
     return 0;

@@ -106,7 +106,7 @@ static void poly_from_bezier3(float *dst, float p0, float p1, float p2, float p3
 static int add_segment_and_move(struct path *s, const struct path_segment *segment, const float *to)
 {
     ngli_assert(s->state == PATH_STATE_DEFAULT);
-    if (ngli_darray_push(&s->segments, *segment) < 0)
+    if (ngli_darray_try_push(&s->segments, *segment) < 0)
         return NGL_ERROR_MEMORY;
     memcpy(s->cursor, to, sizeof(s->cursor));
     s->segment_flags &= ~NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN;
@@ -303,7 +303,7 @@ int ngli_path_add_path(struct path *s, const struct path *path)
 
     for (size_t i = 0; i < path->segments.count; i++) {
         const struct path_segment *segment = &path->segments.data[i];
-        if (ngli_darray_push(&s->segments, *segment) < 0)
+        if (ngli_darray_try_push(&s->segments, *segment) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -470,7 +470,7 @@ int ngli_path_init(struct path *s, int32_t precision)
             const float t = (float)k * segment->time_scale;
             struct path_step step = {.segment_id=(int)i};
             poly_eval(step.position, segment, t);
-            if (ngli_darray_push(&s->steps, step) < 0)
+            if (ngli_darray_try_push(&s->steps, step) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -484,7 +484,7 @@ int ngli_path_init(struct path *s, int32_t precision)
         if (i == nb_segments - 1 || (segments[i + 1].flags & NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN)) {
             struct path_step step = {.segment_id=(int)i, .flags = STEP_FLAG_DISCONTINUITY};
             poly_eval(step.position, segment, 1.f);
-            if (ngli_darray_push(&s->steps, step) < 0)
+            if (ngli_darray_try_push(&s->steps, step) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -494,7 +494,7 @@ int ngli_path_init(struct path *s, int32_t precision)
      */
     float total_length = 0.f;
 
-    if (ngli_darray_push(&s->steps_dist, total_length) < 0)
+    if (ngli_darray_try_push(&s->steps_dist, total_length) < 0)
         return NGL_ERROR_MEMORY;
 
     const struct path_step *steps = s->steps.data;
@@ -508,7 +508,7 @@ int ngli_path_init(struct path *s, int32_t precision)
             const float arc_length = ngli_vec3_length(arc_vec);
             total_length += arc_length;
         }
-        if (ngli_darray_push(&s->steps_dist, total_length) < 0)
+        if (ngli_darray_try_push(&s->steps_dist, total_length) < 0)
             return NGL_ERROR_MEMORY;
     }
 

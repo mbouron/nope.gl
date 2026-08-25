@@ -79,7 +79,7 @@ int ngli_atlas_add_bitmap(struct atlas *s, const struct bitmap *bitmap, int32_t 
         .height = bitmap->height,
     };
 
-    if (ngli_darray_push(&s->bitmaps, copy) < 0) {
+    if (ngli_darray_try_push(&s->bitmaps, copy) < 0) {
         ngli_freep(&buffer);
         return NGL_ERROR_MEMORY;
     }

@@ -116,13 +116,13 @@ VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemapho
 
 VkResult ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value)
 {
-    if (ngpu_darray_push(&s->wait_sems, sem) < 0)
+    if (ngpu_darray_try_push(&s->wait_sems, sem) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    if (ngpu_darray_push(&s->wait_stages, stage) < 0)
+    if (ngpu_darray_try_push(&s->wait_stages, stage) < 0)
         return NGPU_ERROR_MEMORY;
 
-    if (ngpu_darray_push(&s->wait_values, value) < 0)
+    if (ngpu_darray_try_push(&s->wait_values, value) < 0)
         return NGPU_ERROR_MEMORY;
 
     return VK_SUCCESS;
@@ -135,10 +135,10 @@ VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemap
 
 VkResult ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value)
 {
-    if (ngpu_darray_push(&s->signal_sems, sem) < 0)
+    if (ngpu_darray_try_push(&s->signal_sems, sem) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    if (ngpu_darray_push(&s->signal_values, value) < 0)
+    if (ngpu_darray_try_push(&s->signal_values, value) < 0)
         return NGPU_ERROR_MEMORY;
 
     return VK_SUCCESS;
@@ -146,7 +146,7 @@ VkResult ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, Vk
 
 VkResult ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc)
 {
-    if (ngpu_darray_push(&s->refs, rc) < 0)
+    if (ngpu_darray_try_push(&s->refs, rc) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     NGPU_RC_REF(rc);
@@ -160,7 +160,7 @@ VkResult ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu
     if (res != VK_SUCCESS)
         return res;
 
-    if (ngpu_darray_push(&s->buffer_refs, buffer) < 0)
+    if (ngpu_darray_try_push(&s->buffer_refs, buffer) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     NGPU_RC_REF(buffer);
@@ -257,7 +257,7 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
 
     s->submitted = VK_TRUE;
 
-    if (ngpu_darray_push(&gpu_ctx_vk->pending_cmd_buffers, s) < 0)
+    if (ngpu_darray_try_push(&gpu_ctx_vk->pending_cmd_buffers, s) < 0)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     ngpu_darray_clear(&s->wait_sems);

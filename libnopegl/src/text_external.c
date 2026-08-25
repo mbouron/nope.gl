@@ -76,7 +76,7 @@ static int load_font(struct text *text, const char *font_file, int32_t face_inde
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    if (ngli_darray_push(&s->ft_faces, ft_face) < 0) {
+    if (ngli_darray_try_push(&s->ft_faces, ft_face) < 0) {
         FT_Done_Face(ft_face);
         return NGL_ERROR_MEMORY;
     }
@@ -111,7 +111,7 @@ static int load_font(struct text *text, const char *font_file, int32_t face_inde
     if (!hb_font)
         return NGL_ERROR_MEMORY;
 
-    if (ngli_darray_push(&s->hb_fonts, hb_font) < 0) {
+    if (ngli_darray_try_push(&s->hb_fonts, hb_font) < 0) {
         hb_font_destroy(hb_font);
         return NGL_ERROR_MEMORY;
     }
@@ -472,7 +472,7 @@ static int append_run(struct text *text, struct text_run_darray *runs_array,
     hb_buffer_guess_segment_properties(buffer);
 
     const struct text_run run = {.type=type, .face_id=face_id, .buffer=buffer};
-    if (ngli_darray_push(runs_array, run) < 0) {
+    if (ngli_darray_try_push(runs_array, run) < 0) {
         hb_buffer_reset(buffer);
         return NGL_ERROR_MEMORY;
     }
@@ -757,7 +757,7 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
                 line_advance = GET_LINE_ADVANCE(0);
 
                 /* We assume the linebreak is never displayable */
-                if (ngli_darray_push(chars_dst, chr) < 0)
+                if (ngli_darray_try_push(chars_dst, chr) < 0)
                     return NGL_ERROR_MEMORY;
                 continue;
 
@@ -779,7 +779,7 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
                 ngli_slug_get_glyph_data(s->slug, glyph->slug_index, &chr.slug);
             }
 
-            if (ngli_darray_push(chars_dst, chr) < 0)
+            if (ngli_darray_try_push(chars_dst, chr) < 0)
                 return NGL_ERROR_MEMORY;
 
             x_cur += pos->x_advance;

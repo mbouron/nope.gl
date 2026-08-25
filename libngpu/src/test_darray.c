@@ -57,11 +57,11 @@ static void test_basic(void)
 
     ngpu_assert(a.count == 0);
 
-    ngpu_assert(ngpu_darray_push(&a, 0xFF) == 0);
+    ngpu_assert(ngpu_darray_try_push(&a, 0xFF) == 0);
     ngpu_assert(*ngpu_darray_tail(&a) == 0xFF);
     ngpu_assert(a.count == 1);
 
-    ngpu_assert(ngpu_darray_push(&a, 0xFFFF) == 0);
+    ngpu_assert(ngpu_darray_try_push(&a, 0xFFFF) == 0);
     ngpu_assert(*ngpu_darray_tail(&a) == 0xFFFF);
     ngpu_assert(a.count == 2);
 
@@ -80,7 +80,7 @@ static void test_basic(void)
     ngpu_assert(a.count == 0);
 
     for (int i = 0; i < 1000; i++)
-        ngpu_assert(ngpu_darray_push(&a, i) == 0);
+        ngpu_assert(ngpu_darray_try_push(&a, i) == 0);
     ngpu_assert(a.count == 1000);
 
     int sum = 0;
@@ -103,19 +103,19 @@ static void test_compound_literal_push(void)
     NGPU_DARRAY(struct my_item) a = {0};
 
     /* libplacebo-style compound literal: commas inside __VA_ARGS__ */
-    ngpu_assert(ngpu_darray_push(&a, (struct my_item){.id = 7, .ptr = (void *)0xbeef}) == 0);
+    ngpu_assert(ngpu_darray_try_push(&a, (struct my_item){.id = 7, .ptr = (void *)0xbeef}) == 0);
     struct my_item *p = ngpu_darray_tail(&a);
     ngpu_assert(p->id == 7 && p->ptr == (void *)0xbeef);
 
     /* zero-fill via compound literal */
-    ngpu_assert(ngpu_darray_push(&a, (struct my_item){0}) == 0);
+    ngpu_assert(ngpu_darray_try_push(&a, (struct my_item){0}) == 0);
     p = ngpu_darray_tail(&a);
     ngpu_assert(p->id == 0 && p->ptr == NULL);
     ngpu_assert(a.count == 2);
 
     /* copy from an existing struct */
     const struct my_item src = {.id = 42, .ptr = (void *)0xdead};
-    ngpu_assert(ngpu_darray_push(&a, src) == 0);
+    ngpu_assert(ngpu_darray_try_push(&a, src) == 0);
     p = ngpu_darray_tail(&a);
     ngpu_assert(p->id == 42 && p->ptr == (void *)0xdead);
 
@@ -126,12 +126,12 @@ static void test_reserve(void)
 {
     NGPU_DARRAY(int) a = {0};
 
-    ngpu_assert(ngpu_darray_reserve(&a, 128) == 0);
+    ngpu_assert(ngpu_darray_try_reserve(&a, 128) == 0);
     ngpu_assert(a.capacity >= 128);
     ngpu_assert(a.count == 0);
 
     const size_t cap_before = a.capacity;
-    ngpu_assert(ngpu_darray_reserve(&a, 4) == 0);
+    ngpu_assert(ngpu_darray_try_reserve(&a, 4) == 0);
     ngpu_assert(a.capacity == cap_before);
 
     ngpu_darray_reset(&a);
@@ -142,7 +142,7 @@ static void test_remove_range(void)
     NGPU_DARRAY(int) a = {0};
 
     for (int i = 0; i < 6; i++)
-        ngpu_darray_push(&a, i);
+        ngpu_darray_try_push(&a, i);
 
     ngpu_darray_remove(&a, 0);
     ngpu_assert(a.count == 5);
@@ -161,7 +161,7 @@ static void test_clear_vs_reset(void)
     NGPU_DARRAY(int) a = {0};
 
     for (int i = 0; i < 16; i++)
-        ngpu_darray_push(&a, i);
+        ngpu_darray_try_push(&a, i);
 
     const size_t cap_before_clear = a.capacity;
     ngpu_darray_clear(&a);
@@ -181,7 +181,7 @@ static void test_user_free_func(void)
     for (int i = 0; i < 6; i++) {
         void *p = malloc(10u + (size_t)i);
         ngpu_assert(p);
-        ngpu_darray_push(&a, (struct my_item){.id = i, .ptr = p});
+        ngpu_darray_try_push(&a, (struct my_item){.id = i, .ptr = p});
     }
 
     ngpu_darray_remove_range(&a, 1, 3);
@@ -192,7 +192,7 @@ static void test_user_free_func(void)
 
     void *again_ptr = malloc(8);
     ngpu_assert(again_ptr);
-    ngpu_darray_push(&a, (struct my_item){.id = 99, .ptr = again_ptr});
+    ngpu_darray_try_push(&a, (struct my_item){.id = 99, .ptr = again_ptr});
     ngpu_darray_reset(&a);
 }
 
@@ -202,7 +202,7 @@ static void test_free_func_call_count(void)
     ngpu_darray_set_free_func(&a, count_free, NULL);
 
     for (int i = 0; i < 10; i++)
-        ngpu_darray_push(&a, (struct my_item){.id = i, .ptr = NULL});
+        ngpu_darray_try_push(&a, (struct my_item){.id = i, .ptr = NULL});
 
     g_free_calls = 0;
     ngpu_darray_remove_range(&a, 2, 4);
@@ -224,7 +224,7 @@ static void test_aligned(void)
     for (int i = 0; i < 32; i++) {
         struct aligned_mat m = {0};
         m.m[0] = (float)i;
-        ngpu_assert(ngpu_darray_push(&a, m) == 0);
+        ngpu_assert(ngpu_darray_try_push(&a, m) == 0);
     }
     ngpu_assert(a.count == 32);
 

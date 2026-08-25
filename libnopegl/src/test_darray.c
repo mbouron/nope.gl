@@ -57,11 +57,11 @@ static void test_basic(void)
 
     ngli_assert(a.count == 0);
 
-    ngli_assert(ngli_darray_push(&a, 0xFF) == 0);
+    ngli_assert(ngli_darray_try_push(&a, 0xFF) == 0);
     ngli_assert(*ngli_darray_tail(&a) == 0xFF);
     ngli_assert(a.count == 1);
 
-    ngli_assert(ngli_darray_push(&a, 0xFFFF) == 0);
+    ngli_assert(ngli_darray_try_push(&a, 0xFFFF) == 0);
     ngli_assert(*ngli_darray_tail(&a) == 0xFFFF);
     ngli_assert(a.count == 2);
 
@@ -80,7 +80,7 @@ static void test_basic(void)
     ngli_assert(a.count == 0);
 
     for (int i = 0; i < 1000; i++)
-        ngli_assert(ngli_darray_push(&a, i) == 0);
+        ngli_assert(ngli_darray_try_push(&a, i) == 0);
     ngli_assert(a.count == 1000);
 
     int sum = 0;
@@ -103,19 +103,19 @@ static void test_compound_literal_push(void)
     NGLI_DARRAY(struct my_item) a = {0};
 
     /* libplacebo-style compound literal: commas inside __VA_ARGS__ */
-    ngli_assert(ngli_darray_push(&a, (struct my_item){.id = 7, .ptr = (void *)0xbeef}) == 0);
+    ngli_assert(ngli_darray_try_push(&a, (struct my_item){.id = 7, .ptr = (void *)0xbeef}) == 0);
     struct my_item *p = ngli_darray_tail(&a);
     ngli_assert(p->id == 7 && p->ptr == (void *)0xbeef);
 
     /* zero-fill via compound literal */
-    ngli_assert(ngli_darray_push(&a, (struct my_item){0}) == 0);
+    ngli_assert(ngli_darray_try_push(&a, (struct my_item){0}) == 0);
     p = ngli_darray_tail(&a);
     ngli_assert(p->id == 0 && p->ptr == NULL);
     ngli_assert(a.count == 2);
 
     /* copy from an existing struct */
     const struct my_item src = {.id = 42, .ptr = (void *)0xdead};
-    ngli_assert(ngli_darray_push(&a, src) == 0);
+    ngli_assert(ngli_darray_try_push(&a, src) == 0);
     p = ngli_darray_tail(&a);
     ngli_assert(p->id == 42 && p->ptr == (void *)0xdead);
 
@@ -126,12 +126,12 @@ static void test_reserve(void)
 {
     NGLI_DARRAY(int) a = {0};
 
-    ngli_assert(ngli_darray_reserve(&a, 128) == 0);
+    ngli_assert(ngli_darray_try_reserve(&a, 128) == 0);
     ngli_assert(a.capacity >= 128);
     ngli_assert(a.count == 0);
 
     const size_t cap_before = a.capacity;
-    ngli_assert(ngli_darray_reserve(&a, 4) == 0);
+    ngli_assert(ngli_darray_try_reserve(&a, 4) == 0);
     ngli_assert(a.capacity == cap_before);
 
     ngli_darray_reset(&a);
@@ -142,7 +142,7 @@ static void test_remove_range(void)
     NGLI_DARRAY(int) a = {0};
 
     for (int i = 0; i < 6; i++)
-        ngli_darray_push(&a, i);
+        ngli_darray_try_push(&a, i);
 
     ngli_darray_remove(&a, 0);
     ngli_assert(a.count == 5);
@@ -161,7 +161,7 @@ static void test_clear_vs_reset(void)
     NGLI_DARRAY(int) a = {0};
 
     for (int i = 0; i < 16; i++)
-        ngli_darray_push(&a, i);
+        ngli_darray_try_push(&a, i);
 
     const size_t cap_before_clear = a.capacity;
     ngli_darray_clear(&a);
@@ -181,7 +181,7 @@ static void test_user_free_func(void)
     for (int i = 0; i < 6; i++) {
         void *p = malloc(10u + (size_t)i);
         ngli_assert(p);
-        ngli_darray_push(&a, (struct my_item){.id = i, .ptr = p});
+        ngli_darray_try_push(&a, (struct my_item){.id = i, .ptr = p});
     }
 
     ngli_darray_remove_range(&a, 1, 3);
@@ -192,7 +192,7 @@ static void test_user_free_func(void)
 
     void *again_ptr = malloc(8);
     ngli_assert(again_ptr);
-    ngli_darray_push(&a, (struct my_item){.id = 99, .ptr = again_ptr});
+    ngli_darray_try_push(&a, (struct my_item){.id = 99, .ptr = again_ptr});
     ngli_darray_reset(&a);
 }
 
@@ -202,7 +202,7 @@ static void test_free_func_call_count(void)
     ngli_darray_set_free_func(&a, count_free, NULL);
 
     for (int i = 0; i < 10; i++)
-        ngli_darray_push(&a, (struct my_item){.id = i, .ptr = NULL});
+        ngli_darray_try_push(&a, (struct my_item){.id = i, .ptr = NULL});
 
     g_free_calls = 0;
     ngli_darray_remove_range(&a, 2, 4);
@@ -224,7 +224,7 @@ static void test_aligned(void)
     for (int i = 0; i < 32; i++) {
         struct aligned_mat m = {0};
         m.m[0] = (float)i;
-        ngli_assert(ngli_darray_push(&a, m) == 0);
+        ngli_assert(ngli_darray_try_push(&a, m) == 0);
     }
     ngli_assert(a.count == 32);
 
