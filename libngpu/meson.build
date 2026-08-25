@@ -208,6 +208,8 @@ hosts_cfg = {
 lib_deps = [
   cc.find_library('m', required: false),
   dependency('threads'),
+  dependency('libxxhash', version: '>= 0.8.3').partial_dependency(
+    includes: true, compile_args: true),
 ]
 
 host_cfg = hosts_cfg.get(host_system, {})

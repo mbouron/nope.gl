@@ -212,6 +212,12 @@ _EXTERNAL_DEPS = dict(
         dst_file="SDL3-@VERSION@.zip",
         sha256="a91a4f7b64ce29f1c6a4bd5ea648b18380810f7c4ac8a332fc86bd9d3ad17131",
     ),
+    xxhash=dict(
+        version="0.8.3",
+        url="https://github.com/Cyan4973/xxHash/archive/refs/tags/v@VERSION@.tar.gz",
+        dst_file="xxHash-@VERSION@.tar.gz",
+        sha256="aae608dfe8213dfd05d909a57718ef82f30722c392344583d3f39050c7f29a80",
+    ),
     glslang=dict(
         version="16.3.0",
         dst_file="glslang-@VERSION@.tar.gz",
@@ -269,6 +275,7 @@ def _get_external_deps(args):
     deps = [
         "nopemd",
         "glslang",
+        "xxhash",
     ]
 
     host, _ = _get_host(args)
@@ -814,6 +821,48 @@ def _moltenvk_install(cfg):
     return cmds
 
 
+@_block("xxhash-setup", [])
+def _xxhash_setup(cfg):
+    build_type = "Debug" if cfg.args.buildtype == "debug" else "Release"
+    cmake_args = [
+        "cmake",
+        "-GNinja",
+        f"-DCMAKE_BUILD_TYPE={build_type}",
+        f"-DCMAKE_INSTALL_PREFIX={cfg.prefix}",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DXXHASH_BUILD_XXHSUM=OFF",
+        "-S",
+        op.join(cfg.externals["xxhash"], "cmake_unofficial"),
+        "-B",
+        _get_builddir(cfg, "xxhash"),
+    ]
+    if cfg.host == "Android":
+        cmake_args += [
+            f"-DCMAKE_TOOLCHAIN_FILE={cfg.android_cmake_toolchain}",
+            "-DANDROID_STL=c++_shared",
+            "-DANDROID_TOOLCHAIN=clang",
+            f"-DANDROID_PLATFORM=android-{_ANDROID_VERSION}",
+            f"-DANDROID_ABI={cfg.android_abi}",
+        ]
+    elif cfg.host == "iOS":
+        cmake_args += [
+            f"-DCMAKE_OSX_SYSROOT=iphoneos",
+            f"-DCMAKE_OSX_ARCHITECTURES={cfg.ios_abi}",
+        ]
+    return [
+        _cmd_join(*cmake_args),
+    ]
+
+
+@_block("xxhash-install", [_xxhash_setup])
+def _xxhash_install(cfg):
+    builddir = _get_builddir(cfg, "xxhash")
+    return [
+        _cmd_join("cmake", "--build", builddir),
+        _cmd_join("cmake", "--install", builddir),
+    ]
+
+
 @_block("glslang-setup", [])
 def _glslang_setup(cfg):
     build_type = "Debug" if cfg.args.buildtype == "debug" else "Release"
@@ -920,22 +969,27 @@ def _fribidi_install(cfg):
     {
         "Android": [
             _glslang_install,
+            _xxhash_install,
         ],
         "Darwin": [
             _glslang_install,
+            _xxhash_install,
             _moltenvk_install,
         ],
         "iOS": [
             _moltenvk_install,
             _glslang_install,
+            _xxhash_install,
         ],
         "Local": [
             _glslang_install,
+            _xxhash_install,
         ],
         "Windows": [
             _egl_registry_install,
             _opengl_registry_install,
             _glslang_install,
+            _xxhash_install,
         ],
     },
 )
@@ -992,6 +1046,7 @@ def _ngpu_install(cfg):
         "Android": [
             _nopemd_install,
             _glslang_install,
+            _xxhash_install,
             _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
@@ -1000,6 +1055,7 @@ def _ngpu_install(cfg):
         "Darwin": [
             _nopemd_install,
             _glslang_install,
+            _xxhash_install,
             _moltenvk_install,
             _ngpu_install,
         ],
@@ -1007,6 +1063,7 @@ def _ngpu_install(cfg):
             _nopemd_install,
             _moltenvk_install,
             _glslang_install,
+            _xxhash_install,
             _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
@@ -1015,6 +1072,7 @@ def _ngpu_install(cfg):
         "Local": [
             _nopemd_install,
             _glslang_install,
+            _xxhash_install,
             _ngpu_install,
         ],
         "Windows": [
@@ -1023,6 +1081,7 @@ def _ngpu_install(cfg):
             _egl_registry_install,
             _opengl_registry_install,
             _glslang_install,
+            _xxhash_install,
             _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
