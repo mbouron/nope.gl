@@ -60,7 +60,7 @@ static void box_stats_init(struct box_stats *s, enum writing_mode writing_mode)
 static int box_stats_register_eol(struct box_stats *s)
 {
     const int32_t len = s->linemax == INT32_MIN ? 0 : s->linemax - s->linemin;
-    if (ngli_darray_push(&s->linelens, len) < 0)
+    if (ngli_darray_try_push(&s->linelens, len) < 0)
         return NGL_ERROR_MEMORY;
     s->max_linelen = NGLI_MAX(s->max_linelen, len);
     s->linemin = INT32_MAX;
@@ -671,7 +671,7 @@ int ngli_text_set_string(struct text *s, const char *str)
             .slug = chr_internal->slug,
         };
 
-        if (ngli_darray_push(&s->chars, chr) < 0) {
+        if (ngli_darray_try_push(&s->chars, chr) < 0) {
             ret = NGL_ERROR_MEMORY;
             goto end;
         }

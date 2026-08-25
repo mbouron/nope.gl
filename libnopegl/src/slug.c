@@ -164,7 +164,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                         .p2 = {(last[0] + subpath_start[0]) * .5f, (last[1] + subpath_start[1]) * .5f},
                         .p3 = {subpath_start[0], subpath_start[1]},
                     };
-                    if (ngli_darray_push(curves_out, closing) < 0)
+                    if (ngli_darray_try_push(curves_out, closing) < 0)
                         return NGL_ERROR_MEMORY;
                 }
             }
@@ -182,7 +182,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {(start[0] + end[0]) * .5f, (start[1] + end[1]) * .5f},
                 .p3 = {end[0], end[1]},
             };
-            if (ngli_darray_push(curves_out, c) < 0)
+            if (ngli_darray_try_push(curves_out, c) < 0)
                 return NGL_ERROR_MEMORY;
             last[0] = end[0];
             last[1] = end[1];
@@ -193,7 +193,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {seg->bezier_x[1], seg->bezier_y[1]},
                 .p3 = {seg->bezier_x[2], seg->bezier_y[2]},
             };
-            if (ngli_darray_push(curves_out, c) < 0)
+            if (ngli_darray_try_push(curves_out, c) < 0)
                 return NGL_ERROR_MEMORY;
             last[0] = seg->bezier_x[2];
             last[1] = seg->bezier_y[2];
@@ -214,7 +214,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                     .p2 = {quads[2 * j + 1].x, quads[2 * j + 1].y},
                     .p3 = {quads[2 * j + 2].x, quads[2 * j + 2].y},
                 };
-                if (ngli_darray_push(curves_out, c) < 0)
+                if (ngli_darray_try_push(curves_out, c) < 0)
                     return NGL_ERROR_MEMORY;
             }
             last[0] = seg->bezier_x[3];
@@ -238,7 +238,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {(last[0] + subpath_start[0]) * .5f, (last[1] + subpath_start[1]) * .5f},
                 .p3 = {subpath_start[0], subpath_start[1]},
             };
-            if (ngli_darray_push(curves_out, closing) < 0)
+            if (ngli_darray_try_push(curves_out, closing) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -271,7 +271,7 @@ int ngli_slug_add_glyph(struct slug *s, const struct path *path, uint32_t flags,
         entry.data.em_bounds[3] = bounds[3];
     }
 
-    if (ngli_darray_push(&s->glyphs, entry) < 0) {
+    if (ngli_darray_try_push(&s->glyphs, entry) < 0) {
         ngli_darray_reset(&entry.curves);
         return NGL_ERROR_MEMORY;
     }
@@ -299,7 +299,7 @@ static int cmp_band_entry_desc(const void *a, const void *b)
 static int push_texel(struct slug_texel_darray *texels, float x, float y, float z, float w)
 {
     const struct ngli_vec4 v = {{x, y, z, w}};
-    if (ngli_darray_push(texels, v) < 0)
+    if (ngli_darray_try_push(texels, v) < 0)
         return NGL_ERROR_MEMORY;
     return 0;
 }
@@ -421,7 +421,7 @@ static int finalize_internal(struct slug *s)
                 if (max_y >= band_y0 && min_y <= band_y1) {
                     const float max_x = NGLI_MAX(NGLI_MAX(c->p1[0], c->p2[0]), c->p3[0]);
                     const struct band_entry e = {.curve_index = (int32_t)ci, .sort_key = max_x};
-                    if (ngli_darray_push(&band_entries, e) < 0) {
+                    if (ngli_darray_try_push(&band_entries, e) < 0) {
                         ret = NGL_ERROR_MEMORY;
                         goto end;
                     }
@@ -465,7 +465,7 @@ static int finalize_internal(struct slug *s)
                 if (max_x >= band_x0 && min_x <= band_x1) {
                     const float max_y = NGLI_MAX(NGLI_MAX(c->p1[1], c->p2[1]), c->p3[1]);
                     const struct band_entry e = {.curve_index = (int32_t)ci, .sort_key = max_y};
-                    if (ngli_darray_push(&band_entries, e) < 0) {
+                    if (ngli_darray_try_push(&band_entries, e) < 0) {
                         ret = NGL_ERROR_MEMORY;
                         goto end;
                     }

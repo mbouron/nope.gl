@@ -105,7 +105,7 @@ static int grow_bindgroup_array(struct pipeline_compat *s)
             return ret;
         }
 
-        if (ngli_darray_push(&s->bindgroups, bindgroup) < 0) {
+        if (ngli_darray_try_push(&s->bindgroups, bindgroup) < 0) {
             ngpu_bindgroup_freep(&bindgroup);
             return NGL_ERROR_MEMORY;
         }

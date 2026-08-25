@@ -168,8 +168,8 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
         bezier_x = scaled_bezier(bezier_x, s->scale);
         bezier_y = scaled_bezier(bezier_y, s->scale);
 
-        if (ngli_darray_push(&s->bezier_x, bezier_x) < 0 ||
-            ngli_darray_push(&s->bezier_y, bezier_y) < 0)
+        if (ngli_darray_try_push(&s->bezier_x, bezier_x) < 0 ||
+            ngli_darray_try_push(&s->bezier_y, bezier_y) < 0)
             return NGL_ERROR_MEMORY;
 
         /* Artificially insert a closing segment if necessary */
@@ -179,8 +179,8 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
             const float *y0 = segment0->bezier_y;
             const struct bezier3 bezier_x_close = b3_from_line(bezier_x.p3, x0[0]);
             const struct bezier3 bezier_y_close = b3_from_line(bezier_y.p3, y0[0]);
-            if (ngli_darray_push(&s->bezier_x, bezier_x_close) < 0 ||
-                ngli_darray_push(&s->bezier_y, bezier_y_close) < 0)
+            if (ngli_darray_try_push(&s->bezier_x, bezier_x_close) < 0 ||
+                ngli_darray_try_push(&s->bezier_y, bezier_y_close) < 0)
                 return NGL_ERROR_MEMORY;
             nb_beziers++;
         }
@@ -192,7 +192,7 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
             const int closed = (segment->flags & NGLI_PATH_SEGMENT_FLAG_CLOSING) || (flags & NGLI_DISTMAP_FLAG_PATH_AUTO_CLOSE);
             /* Pass down the closing flag to the shader using negative integers */
             const int32_t bezier_count = (closed ? -1 : 1) * nb_beziers;
-            if (ngli_darray_push(&s->bezier_counts, bezier_count) < 0)
+            if (ngli_darray_try_push(&s->bezier_counts, bezier_count) < 0)
                 return NGL_ERROR_MEMORY;
             nb_beziergroups++;
             nb_beziers = 0;
@@ -202,8 +202,8 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
     ngli_assert(nb_beziers == 0);
 
     const struct shape shape = {.width=shape_w, .height=shape_h};
-    if (ngli_darray_push(&s->shapes, shape) < 0 ||
-        ngli_darray_push(&s->beziergroup_counts, nb_beziergroups) < 0)
+    if (ngli_darray_try_push(&s->shapes, shape) < 0 ||
+        ngli_darray_try_push(&s->beziergroup_counts, nb_beziergroups) < 0)
         return NGL_ERROR_MEMORY;
 
     s->max_shape_w = NGLI_MAX(shape_w, s->max_shape_w);

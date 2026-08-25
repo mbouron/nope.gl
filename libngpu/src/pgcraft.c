@@ -378,12 +378,12 @@ static int prepare_texture_infos(struct ngpu_pgcraft *s, const struct ngpu_pgcra
         const struct ngpu_pgcraft_texture *texture = &params->textures[i];
         ngpu_assert(!(texture->type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO && texture->texture));
 
-        if (ngpu_darray_push(&s->textures, params->textures[i]) < 0)
+        if (ngpu_darray_try_push(&s->textures, params->textures[i]) < 0)
             return NGPU_ERROR_MEMORY;
 
         struct pgcraft_symbol sym = {0};
         snprintf(sym.name, NGPU_ID_LEN, "%s", texture->name);
-        if (ngpu_darray_push(&s->symbols, sym) < 0)
+        if (ngpu_darray_try_push(&s->symbols, sym) < 0)
             return NGPU_ERROR_MEMORY;
 
         const struct ngpu_pgcraft_texture_info info = {
@@ -397,7 +397,7 @@ static int prepare_texture_infos(struct ngpu_pgcraft *s, const struct ngpu_pgcra
             .image                = texture->image,
         };
 
-        if (ngpu_darray_push(&s->texture_infos, info) < 0)
+        if (ngpu_darray_try_push(&s->texture_infos, info) < 0)
             return NGPU_ERROR_MEMORY;
     }
     return 0;
@@ -426,7 +426,7 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
         if (is_sampler(field_type) || is_image(field_type)) {
             struct pgcraft_symbol sym = {0};
             snprintf(sym.name, NGPU_ID_LEN, "%s", name);
-            if (ngpu_darray_push(&s->symbols, sym) < 0)
+            if (ngpu_darray_try_push(&s->symbols, sym) < 0)
                 return NGPU_ERROR_MEMORY;
 
             const struct ngpu_bindgroup_layout_entry layout_entry = {
@@ -478,13 +478,13 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
             const char *precision = get_precision_qualifier(s, field_type, texture->precision, "lowp");
             ngpu_bstr_printf(b, "uniform %s %s%s %s;\n", precision, prefix, type, name);
 
-            if (ngpu_darray_push(&s->pipeline_info.desc.textures, layout_entry) < 0)
+            if (ngpu_darray_try_push(&s->pipeline_info.desc.textures, layout_entry) < 0)
                 return NGPU_ERROR_MEMORY;
 
             const struct ngpu_texture_binding texture_binding = {
                 .texture = texture->texture,
             };
-            if (ngpu_darray_push(&s->pipeline_info.data.textures, texture_binding) < 0)
+            if (ngpu_darray_try_push(&s->pipeline_info.data.textures, texture_binding) < 0)
                 return NGPU_ERROR_MEMORY;
         }
     }
@@ -523,7 +523,7 @@ static int register_buffer_binding(struct ngpu_pgcraft *s, const char *name,
 {
     struct pgcraft_symbol sym = {0};
     snprintf(sym.name, NGPU_ID_LEN, "%s", name);
-    if (ngpu_darray_push(&s->symbols, sym) < 0)
+    if (ngpu_darray_try_push(&s->symbols, sym) < 0)
         return NGPU_ERROR_MEMORY;
 
     const int32_t binding = (int32_t)request_next_binding(s, NGPU_TYPE_UNIFORM_BUFFER);
@@ -535,10 +535,10 @@ static int register_buffer_binding(struct ngpu_pgcraft *s, const char *name,
         .access      = NGPU_ACCESS_READ_BIT,
         .stage_flags = stage_flags,
     };
-    if (ngpu_darray_push(&s->pipeline_info.desc.buffers, layout_entry) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.desc.buffers, layout_entry) < 0)
         return NGPU_ERROR_MEMORY;
 
-    if (ngpu_darray_push(&s->pipeline_info.data.buffers, (struct ngpu_buffer_binding){0}) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.data.buffers, (struct ngpu_buffer_binding){0}) < 0)
         return NGPU_ERROR_MEMORY;
 
     *bindingp = binding;
@@ -597,7 +597,7 @@ static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
 {
     struct pgcraft_symbol sym = {0};
     snprintf(sym.name, NGPU_ID_LEN, "%s", named_block->name);
-    if (ngpu_darray_push(&s->symbols, sym) < 0)
+    if (ngpu_darray_try_push(&s->symbols, sym) < 0)
         return NGPU_ERROR_MEMORY;
 
     const struct ngpu_bindgroup_layout_entry layout_entry = {
@@ -632,10 +632,10 @@ static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
     const char *instance_name = named_block->instance_name ? named_block->instance_name : named_block->name;
     ngpu_bstr_printf(b, "} %s;\n", instance_name);
 
-    if (ngpu_darray_push(&s->pipeline_info.desc.buffers, layout_entry) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.desc.buffers, layout_entry) < 0)
         return NGPU_ERROR_MEMORY;
 
-    if (ngpu_darray_push(&s->pipeline_info.data.buffers, named_block->buffer) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.data.buffers, named_block->buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
     return (int)layout_entry.binding;
@@ -689,7 +689,7 @@ static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
     for (uint32_t i = 0; i < attribute_count; i++) {
         struct pgcraft_symbol sym = {0};
         snprintf(sym.name, NGPU_ID_LEN, "%s", attribute->name);
-        if (ngpu_darray_push(&s->symbols, sym) < 0)
+        if (ngpu_darray_try_push(&s->symbols, sym) < 0)
             return NGPU_ERROR_MEMORY;
 
         ngpu_assert(vertex_buffer.nb_attributes < NGPU_MAX_ATTRIBUTES_PER_BUFFER);
@@ -701,9 +701,9 @@ static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
         };
     }
 
-    if (ngpu_darray_push(&s->pipeline_info.desc.vertex_buffers, vertex_buffer) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.desc.vertex_buffers, vertex_buffer) < 0)
         return NGPU_ERROR_MEMORY;
-    if (ngpu_darray_push(&s->pipeline_info.data.vertex_buffers, attribute->buffer) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.data.vertex_buffers, attribute->buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
     return 0;
@@ -1023,7 +1023,7 @@ static int samplers_preproc(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_pa
         p = read_token_id(p, token.id, sizeof(token.id));
         if (strcmp(token.id, "ngl_texvideo"))
             continue;
-        ngpu_darray_push(&token_stack, token);
+        ngpu_darray_try_push(&token_stack, token);
     }
 
     /*
@@ -1368,7 +1368,7 @@ static int get_program_graphics(struct ngpu_pgcraft *s, const struct ngpu_pgcraf
     int ret;
 
     for (size_t i = 0; i < params->nb_vert_out_vars; i++) {
-        if (ngpu_darray_push(&s->vert_out_vars, params->vert_out_vars[i]) < 0)
+        if (ngpu_darray_try_push(&s->vert_out_vars, params->vert_out_vars[i]) < 0)
             return NGPU_ERROR_MEMORY;
     }
 

@@ -107,7 +107,7 @@ static int grow(struct ngpu_staging_buffer *s, size_t min_capacity)
      * get_buffer() earlier remain valid until next reset().
      */
     ngpu_buffer_unmap(s->buffer);
-    if (ngpu_darray_push(&s->prev_buffers, s->buffer) < 0)
+    if (ngpu_darray_try_push(&s->prev_buffers, s->buffer) < 0)
         return NGPU_ERROR_MEMORY;
     s->buffer = NULL;
     s->mapped_data = NULL;

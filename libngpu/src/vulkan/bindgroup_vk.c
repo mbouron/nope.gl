@@ -124,7 +124,7 @@ static VkResult allocate_desc_pool(struct ngpu_bindgroup_layout *s, uint32_t fac
     if (res != VK_SUCCESS)
         return res;
 
-    if (ngpu_darray_push(&s_priv->desc_pools, pool) < 0) {
+    if (ngpu_darray_try_push(&s_priv->desc_pools, pool) < 0) {
         vk->funcs.DestroyDescriptorPool(vk->device, pool, NULL);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -170,7 +170,7 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
             .descriptorCount = 1,
             .stageFlags      = get_vk_stage_flags(entry->stage_flags),
         };
-        if (ngpu_darray_push(&s_priv->desc_set_layout_bindings, binding) < 0)
+        if (ngpu_darray_try_push(&s_priv->desc_set_layout_bindings, binding) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
 
         ngpu_assert(desc_pool_size_map[entry->type].type);
@@ -191,11 +191,11 @@ static VkResult create_desc_set_layout_bindings(struct ngpu_bindgroup_layout *s)
             struct ngpu_ycbcr_sampler_vk *ycbcr_sampler = entry->immutable_sampler;
             binding.pImmutableSamplers =  &ycbcr_sampler->sampler;
 
-            if (ngpu_darray_push(&s_priv->immutable_samplers, ycbcr_sampler) < 0)
+            if (ngpu_darray_try_push(&s_priv->immutable_samplers, ycbcr_sampler) < 0)
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
             ngpu_ycbcr_sampler_vk_ref(ycbcr_sampler);
         }
-        if (ngpu_darray_push(&s_priv->desc_set_layout_bindings, binding) < 0)
+        if (ngpu_darray_try_push(&s_priv->desc_set_layout_bindings, binding) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
 
         ngpu_assert(desc_pool_size_map[entry->type].type);
@@ -351,13 +351,13 @@ int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup
     const struct ngpu_bindgroup_layout *layout = s->layout;
     for (size_t i = 0; i < layout->nb_buffers; i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &layout->buffers[i];
-        if (ngpu_darray_push(&s_priv->buffer_bindings, (struct buffer_binding_vk){.layout_entry = *entry}) < 0)
+        if (ngpu_darray_try_push(&s_priv->buffer_bindings, (struct buffer_binding_vk){.layout_entry = *entry}) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     for (size_t i = 0; i < layout->nb_textures; i++) {
         const struct ngpu_bindgroup_layout_entry *entry = &layout->textures[i];
-        if (ngpu_darray_push(&s_priv->texture_bindings, (struct texture_binding_vk){.layout_entry = *entry}) < 0)
+        if (ngpu_darray_try_push(&s_priv->texture_bindings, (struct texture_binding_vk){.layout_entry = *entry}) < 0)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 

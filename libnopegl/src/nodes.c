@@ -365,7 +365,7 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
     /* Insert children (leaves) first */
     if (queue_node &&
         (node->cls->prefetch || node->cls->release) &&
-        ngli_darray_push(&node->ctx->activitycheck_nodes, node) < 0)
+        ngli_darray_try_push(&node->ctx->activitycheck_nodes, node) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -521,7 +521,7 @@ void ngli_node_draw(struct ngl_node *node)
     }
 
     if (has_bounding_box(node))
-        ngli_darray_push(&node->ctx->bounding_box_nodes, node);
+        ngli_darray_try_push(&node->ctx->bounding_box_nodes, node);
 }
 
 const struct node_param *ngli_node_param_find(const struct ngl_node *node, const char *key,

@@ -407,8 +407,8 @@ static void rtt_pre_draw(struct ngl_node *node)
     }
 
     if (!o->forward_transforms) {
-        if (ngli_darray_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) < 0 ||
-            ngli_darray_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix) < 0)
+        if (ngli_darray_try_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) < 0 ||
+            ngli_darray_try_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix) < 0)
             return;
     }
 

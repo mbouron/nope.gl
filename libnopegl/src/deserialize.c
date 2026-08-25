@@ -610,7 +610,7 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str)
             break;
         }
 
-        if (ngli_darray_push(&nodes_array, node) < 0) {
+        if (ngli_darray_try_push(&nodes_array, node) < 0) {
             ngl_node_unrefp(&node);
             ret = NGL_ERROR_MEMORY;
             break;

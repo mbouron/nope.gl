@@ -270,7 +270,7 @@ int ngpu_buffer_vk_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_
     if (index != SIZE_MAX)
         return 0;
 
-    if (ngpu_darray_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
+    if (ngpu_darray_try_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
     NGPU_RC_REF(cmd_buffer);

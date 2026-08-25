@@ -371,7 +371,7 @@ static int drawwaveform_prepare(struct ngl_node *node,
     /* Build blocks map for stats */
     const int32_t stats_index = ngpu_pgcraft_get_block_index(s->crafter, "stats", NGPU_PROGRAM_STAGE_FRAG);
     const struct resource_map rmap = {.index = stats_index, .info = block_info, .buffer_rev = SIZE_MAX};
-    if (ngli_darray_push(&desc->blocks_map, rmap) < 0)
+    if (ngli_darray_try_push(&desc->blocks_map, rmap) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;

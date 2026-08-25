@@ -299,7 +299,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     NGPU_DARRAY(const char *) layers = {0};
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(mandatory_extensions); i++) {
-        if (ngpu_darray_push(&extensions, mandatory_extensions[i]) < 0) {
+        if (ngpu_darray_try_push(&extensions, mandatory_extensions[i]) < 0) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
@@ -308,14 +308,14 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     static const char *debug_ext = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     const int has_debug_extension = ngpu_vkcontext_has_extension(s, debug_ext, 0);
     if (debug) {
-        if (has_debug_extension && ngpu_darray_push(&extensions, debug_ext) < 0) {
+        if (has_debug_extension && ngpu_darray_try_push(&extensions, debug_ext) < 0) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
 
         static const char *debug_layer = "VK_LAYER_KHRONOS_validation";
         const int has_validation_layer = has_layer(s, debug_layer);
-        if (has_validation_layer && ngpu_darray_push(&layers, debug_layer) < 0) {
+        if (has_validation_layer && ngpu_darray_try_push(&layers, debug_layer) < 0) {
             res = VK_ERROR_OUT_OF_HOST_MEMORY;
             goto end;
         }
@@ -788,7 +788,7 @@ static VkResult create_device(struct vkcontext *s)
     };
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(mandatory_device_extensions); i++) {
-        if (ngpu_darray_push(&enabled_extensions, mandatory_device_extensions[i]) < 0) {
+        if (ngpu_darray_try_push(&enabled_extensions, mandatory_device_extensions[i]) < 0) {
             ngpu_darray_reset(&enabled_extensions);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
@@ -809,7 +809,7 @@ static VkResult create_device(struct vkcontext *s)
 
     for (size_t i = 0; i < NGPU_ARRAY_NB(optional_device_extensions); i++) {
         if (ngpu_vkcontext_has_extension(s, optional_device_extensions[i], 1)) {
-            if (ngpu_darray_push(&enabled_extensions, optional_device_extensions[i]) < 0) {
+            if (ngpu_darray_try_push(&enabled_extensions, optional_device_extensions[i]) < 0) {
                 ngpu_darray_reset(&enabled_extensions);
                 return VK_ERROR_OUT_OF_HOST_MEMORY;
             }

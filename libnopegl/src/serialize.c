@@ -116,7 +116,7 @@ static int hmap_to_sorted_items(struct item_darray *items_array, struct hmap *hm
     const struct hmap_entry *entry = NULL;
     while ((entry = ngli_hmap_next(hm, entry))) {
         struct item item = {.key = entry->key.str, .data = entry->data};
-        if (ngli_darray_push(items_array, item) < 0)
+        if (ngli_darray_try_push(items_array, item) < 0)
             return NGL_ERROR_MEMORY;
     }
 

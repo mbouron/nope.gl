@@ -544,7 +544,7 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
 
     ngpu_ctx_get_projection_matrix(s->gpu_ctx, s->default_projection_matrix.m);
     ngli_darray_clear(&s->projection_matrix_stack);
-    if (ngli_darray_push(&s->projection_matrix_stack, s->default_projection_matrix) < 0) {
+    if (ngli_darray_try_push(&s->projection_matrix_stack, s->default_projection_matrix) < 0) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
     }
@@ -806,12 +806,12 @@ struct ngl_ctx *ngl_create(void)
     s->default_modelview_matrix = id_matrix;
     s->default_projection_matrix = id_matrix;
 
-    if (ngli_darray_push(&s->modelview_matrix_stack, id_matrix) < 0 ||
-        ngli_darray_push(&s->projection_matrix_stack, id_matrix) < 0 ||
-        ngli_darray_push(&s->transform_2d_stack, id_matrix) < 0)
+    if (ngli_darray_try_push(&s->modelview_matrix_stack, id_matrix) < 0 ||
+        ngli_darray_try_push(&s->projection_matrix_stack, id_matrix) < 0 ||
+        ngli_darray_try_push(&s->transform_2d_stack, id_matrix) < 0)
         goto fail;
 
-    if (ngli_darray_push(&s->opacity_2d_stack, 1.f) < 0)
+    if (ngli_darray_try_push(&s->opacity_2d_stack, 1.f) < 0)
         goto fail;
 
     LOG(INFO, "context create in nope.gl v%d.%d.%d",
@@ -1083,7 +1083,7 @@ NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t
         ngli_mat4_mul_vec4(local_point, inv.m, pixel_point);
 
         if (ngli_aabb_intersect_point(&node2d_info->aabb, local_point)) {
-            if (ngli_darray_push(&s->intersecting_nodes, bounding_box_node) < 0)
+            if (ngli_darray_try_push(&s->intersecting_nodes, bounding_box_node) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }

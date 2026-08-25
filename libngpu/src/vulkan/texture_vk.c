@@ -1228,7 +1228,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
             },
         };
 
-        if (ngpu_darray_push(&copy_regions, region) < 0) {
+        if (ngpu_darray_try_push(&copy_regions, region) < 0) {
             ngpu_darray_reset(&copy_regions);
             if (cmd_is_transient) {
                 ngpu_cmd_buffer_vk_freep(&cmd_buffer_vk);

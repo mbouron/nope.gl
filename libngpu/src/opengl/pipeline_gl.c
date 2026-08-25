@@ -65,7 +65,7 @@ static int build_attribute_bindings(struct ngpu_pipeline *s)
                 .stride   = buffer->stride,
                 .offset   = attribute->offset,
             };
-            if (ngpu_darray_push(&s_priv->attribute_bindings, binding) < 0)
+            if (ngpu_darray_try_push(&s_priv->attribute_bindings, binding) < 0)
                 return NGPU_ERROR_MEMORY;
 
             const GLuint location = attribute->location;

@@ -101,7 +101,7 @@ static int register_uniform(struct pass *s, const char *name, struct ngl_node *u
         .data = data,
         .field_index = (size_t)field_idx,
     };
-    if (ngli_darray_push(&s->user_data_ptrs, entry) < 0)
+    if (ngli_darray_try_push(&s->user_data_ptrs, entry) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -172,7 +172,7 @@ static int register_texture(struct pass *s, const char *name, struct ngl_node *t
     };
     snprintf(crafter_texture.name, sizeof(crafter_texture.name), "%s", name);
 
-    if (ngli_darray_push(&s->crafter_textures, crafter_texture) < 0)
+    if (ngli_darray_try_push(&s->crafter_textures, crafter_texture) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -240,7 +240,7 @@ static int register_block(struct pass *s, const char *name, struct ngl_node *blo
     };
     snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", name);
 
-    if (ngli_darray_push(&s->crafter_blocks, crafter_block) < 0)
+    if (ngli_darray_try_push(&s->crafter_blocks, crafter_block) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -270,7 +270,7 @@ static int register_attribute_from_buffer(struct pass *s, const char *name,
         }
     }
 
-    if (ngli_darray_push(&s->crafter_attributes, crafter_attribute) < 0)
+    if (ngli_darray_try_push(&s->crafter_attributes, crafter_attribute) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -305,7 +305,7 @@ static int register_attribute(struct pass *s, const char *name, struct ngl_node 
         }
     }
 
-    if (ngli_darray_push(&s->crafter_attributes, crafter_attribute) < 0)
+    if (ngli_darray_try_push(&s->crafter_attributes, crafter_attribute) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -441,7 +441,7 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
 
         const struct block_info *info = node->priv_data;
         const struct resource_map map = {.index = index, .info = info, .buffer_rev = SIZE_MAX};
-        if (ngli_darray_push(&desc->blocks_map, map) < 0)
+        if (ngli_darray_try_push(&desc->blocks_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -528,7 +528,7 @@ int ngli_pass_prepare(struct pass *s,
 
     for (size_t i = 0; i < tex_infos.nb_infos; i++) {
         const struct texture_map map = {.image = tex_infos.infos[i].image, .image_rev = SIZE_MAX};
-        if (ngli_darray_push(&desc->textures_map, map) < 0)
+        if (ngli_darray_try_push(&desc->textures_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -584,7 +584,7 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
             .buffer        = {.buffer = staging_buf, .size = size},
         };
         snprintf(blk.name, sizeof(blk.name), "%s", user_blocks[i].name);
-        if (ngli_darray_push(&s->crafter_blocks, blk) < 0)
+        if (ngli_darray_try_push(&s->crafter_blocks, blk) < 0)
             return NGL_ERROR_MEMORY;
     }
 

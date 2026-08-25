@@ -277,9 +277,9 @@ static int register_uniform(const char *name, struct ngl_node *res, struct effec
     const int field_idx = ngpu_block_desc_add_field(&s->user_block_desc, name, var->data_type, 0);
     if (field_idx < 0)
         return field_idx;
-    if (ngli_darray_push(&s->user_field_indices, field_idx) < 0)
+    if (ngli_darray_try_push(&s->user_field_indices, field_idx) < 0)
         return NGL_ERROR_MEMORY;
-    if (ngli_darray_push(&s->user_nodes, res) < 0)
+    if (ngli_darray_try_push(&s->user_nodes, res) < 0)
         return NGL_ERROR_MEMORY;
     return 0;
 }
@@ -296,7 +296,7 @@ static int register_texture(const char *name, struct ngl_node *res, struct effec
         .premult     = texture_info->premult,
     };
     snprintf(tex.name, sizeof(tex.name), "%s", name);
-    return ngli_darray_push(textures, tex) < 0 ? NGL_ERROR_MEMORY : 0;
+    return ngli_darray_try_push(textures, tex) < 0 ? NGL_ERROR_MEMORY : 0;
 }
 
 static int register_block(const char *name, struct ngl_node *res, struct ngpu_ctx *gpu_ctx, struct effect2d_block_darray *blocks)
@@ -328,7 +328,7 @@ static int register_block(const char *name, struct ngl_node *res, struct ngpu_ct
         .buffer = {.buffer = buffer, .size = buffer_size},
     };
     snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", name);
-    return ngli_darray_push(blocks, crafter_block) < 0 ? NGL_ERROR_MEMORY : 0;
+    return ngli_darray_try_push(blocks, crafter_block) < 0 ? NGL_ERROR_MEMORY : 0;
 }
 
 static int register_resource(const char *name, struct ngl_node *res, struct ngpu_ctx *gpu_ctx,
@@ -477,7 +477,7 @@ static int effect2d_prepare(struct ngl_node *node,
         .stage         = NGPU_PROGRAM_STAGE_VERT,
         .block         = &s->vert_block_desc,
     };
-    if (ngli_darray_push(&s->crafter_blocks, vert_crafter_block) < 0)
+    if (ngli_darray_try_push(&s->crafter_blocks, vert_crafter_block) < 0)
         return NGL_ERROR_MEMORY;
 
     const struct ngpu_pgcraft_block frag_crafter_block = {
@@ -487,7 +487,7 @@ static int effect2d_prepare(struct ngl_node *node,
         .stage         = NGPU_PROGRAM_STAGE_FRAG,
         .block         = &s->frag_block_desc,
     };
-    if (ngli_darray_push(&s->crafter_blocks, frag_crafter_block) < 0)
+    if (ngli_darray_try_push(&s->crafter_blocks, frag_crafter_block) < 0)
         return NGL_ERROR_MEMORY;
 
     if (has_user_uniforms) {
@@ -498,7 +498,7 @@ static int effect2d_prepare(struct ngl_node *node,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->user_block_desc,
         };
-        if (ngli_darray_push(&s->crafter_blocks, user_crafter_block) < 0)
+        if (ngli_darray_try_push(&s->crafter_blocks, user_crafter_block) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -509,12 +509,12 @@ static int effect2d_prepare(struct ngl_node *node,
         .stage = NGPU_PROGRAM_STAGE_FRAG,
     };
     struct effect2d_texture_darray textures = {0};
-    if (ngli_darray_push(&textures, src_tex) < 0) {
+    if (ngli_darray_try_push(&textures, src_tex) < 0) {
         ngli_darray_reset(&textures);
         return NGL_ERROR_MEMORY;
     }
     for (size_t i = 0; i < s->crafter_textures.count; i++) {
-        if (ngli_darray_push(&textures, s->crafter_textures.data[i]) < 0) {
+        if (ngli_darray_try_push(&textures, s->crafter_textures.data[i]) < 0) {
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
@@ -596,7 +596,7 @@ static int effect2d_prepare(struct ngl_node *node,
     const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
     for (size_t i = 0; i < texture_infos.nb_infos; i++) {
         const struct texture_map tm = {.image = texture_infos.infos[i].image};
-        if (ngli_darray_push(&s->textures_map, tm) < 0)
+        if (ngli_darray_try_push(&s->textures_map, tm) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -613,7 +613,7 @@ static int effect2d_prepare(struct ngl_node *node,
                 .info       = info,
                 .buffer_rev = SIZE_MAX,
             };
-            if (ngli_darray_push(&s->blocks_map, bm) < 0)
+            if (ngli_darray_try_push(&s->blocks_map, bm) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -791,8 +791,8 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     const float default_opacity = 1.f;
-    if (ngli_darray_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
-        ngli_darray_push(&ctx->opacity_2d_stack, default_opacity) < 0)
+    if (ngli_darray_try_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
+        ngli_darray_try_push(&ctx->opacity_2d_stack, default_opacity) < 0)
         goto restore_2d_state;
 
     ngli_rtt_begin(s->rtt);

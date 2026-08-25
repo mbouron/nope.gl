@@ -257,9 +257,9 @@ static int get_binary_operator_precedence(char operator)
     return 0;
 }
 
-#define PUSH(dst, token) do {               \
-    if (ngli_darray_push(dst, *(token)) < 0) \
-        return NGL_ERROR_MEMORY;            \
+#define PUSH(dst, token) do {                    \
+    if (ngli_darray_try_push(dst, *(token)) < 0) \
+        return NGL_ERROR_MEMORY;                 \
 } while (0)
 
 /*

@@ -285,7 +285,7 @@ static int register_resource(struct ngli_filter_resource_darray *resources, cons
         .data  = ngli_node_get_data_ptr(pnode, data),
     };
     snprintf(res.name, sizeof(res.name), "%s", name);
-    if (ngli_darray_push(resources, res) < 0)
+    if (ngli_darray_try_push(resources, res) < 0)
         return NGL_ERROR_MEMORY;
     return 0;
 }

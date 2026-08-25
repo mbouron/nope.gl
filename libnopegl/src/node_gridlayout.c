@@ -87,7 +87,7 @@ static int gridlayout_init(struct ngl_node *node)
                 0, 0, 1, 0,
                 pos_x, pos_y, 0, 1,
             }};
-            if (ngli_darray_push(&s->matrices, matrix) < 0)
+            if (ngli_darray_try_push(&s->matrices, matrix) < 0)
                 return NGL_ERROR_MEMORY;
             if (++i == o->nb_children)
                 return 0;
