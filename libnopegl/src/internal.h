@@ -58,7 +58,6 @@
 struct node_class;
 
 NGLI_DECLARE_DARRAY_WITH_NAME(ngli_mat4_darray, struct ngli_mat4);
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_f32_darray, float);
 NGLI_DECLARE_DARRAY_WITH_NAME(ngli_node_darray, struct ngl_node *);
 
 struct api_impl {
@@ -100,8 +99,8 @@ struct ngl_ctx {
     struct ngli_mat4 default_projection_matrix;
     struct ngli_mat4_darray modelview_matrix_stack;
     struct ngli_mat4_darray projection_matrix_stack;
-    struct ngli_mat4_darray transform_2d_stack;
-    struct ngli_f32_darray opacity_2d_stack;
+    struct ngli_mat4 transform_2d_matrix;
+    float opacity_2d;
     struct ngli_mat4 projection_2d_matrix;
     float canvas_2d_width;
     float canvas_2d_height;

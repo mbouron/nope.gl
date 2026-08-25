@@ -991,8 +991,7 @@ static void drawrect2d_pre_draw(struct ngl_node *node)
     ngli_node2d_compute_trs(node, trs_matrix.m);
 
     struct ngli_mat4 modelview_matrix;
-    const struct ngli_mat4 *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
-    ngli_mat4_mul(modelview_matrix.m, prev_matrix->m, trs_matrix.m);
+    ngli_mat4_mul(modelview_matrix.m, ctx->transform_2d_matrix.m, trs_matrix.m);
 
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->transform_matrix = modelview_matrix;
@@ -1028,8 +1027,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     ngli_node2d_compute_trs(node, trs_matrix.m);
 
     struct ngli_mat4 modelview_matrix;
-    const struct ngli_mat4 *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
-    ngli_mat4_mul(modelview_matrix.m, prev_matrix->m, trs_matrix.m);
+    ngli_mat4_mul(modelview_matrix.m, ctx->transform_2d_matrix.m, trs_matrix.m);
 
     struct pipeline_compat *pl_compat = s->pipeline_compat;
 
@@ -1088,9 +1086,9 @@ static void drawrect2d_draw(struct ngl_node *node)
     };
 
     /* Compute opacity: multiply local opacity by cascaded group opacity */
-    const float *group_opacity = ngli_darray_tail(&ctx->opacity_2d_stack);
+    const float group_opacity = ctx->opacity_2d;
     const float local_opacity = *(const float *)ngli_node_get_data_ptr(o->node2d.opacity_node, &o->node2d.opacity);
-    const float final_opacity = local_opacity * *group_opacity;
+    const float final_opacity = local_opacity * group_opacity;
 
     /* Fill and push vertex block to staging buffer */
     {

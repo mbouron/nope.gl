@@ -59,7 +59,7 @@ void ngli_node2d_compute_trs(const struct ngl_node *node, float *trs_matrix)
     ngli_mat4_mul(trs_matrix, TM.m, trs_matrix);
 }
 
-int ngli_node2d_push_transform(struct ngl_node *node)
+void ngli_node2d_apply_transform(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     const struct ngli_node2d_opts *opts = get_node2d_opts(node);
@@ -67,33 +67,16 @@ int ngli_node2d_push_transform(struct ngl_node *node)
     struct ngli_mat4 trs;
     ngli_node2d_compute_trs(node, trs.m);
 
-    const struct ngli_mat4 *prev_matrix_ptr = ngli_darray_tail(&ctx->transform_2d_stack);
-    const struct ngli_mat4 prev_matrix = *prev_matrix_ptr;
-
-    struct ngli_mat4 next_matrix;
-    ngli_mat4_mul(next_matrix.m, prev_matrix.m, trs.m);
-
-    if (ngli_darray_try_push(&ctx->transform_2d_stack, next_matrix) < 0)
-        return NGL_ERROR_MEMORY;
-
     const float opacity = *(const float *)ngli_node_get_data_ptr(opts->opacity_node, &opts->opacity);
 
-    const float *prev_opacity_ptr = ngli_darray_tail(&ctx->opacity_2d_stack);
-    const float prev_opacity = *prev_opacity_ptr;
-
-    const float next_opacity = prev_opacity * opacity;
-
-    if (ngli_darray_try_push(&ctx->opacity_2d_stack, next_opacity) < 0)
-        return NGL_ERROR_MEMORY;
-
-    return 0;
+    ngli_mat4_mul(ctx->transform_2d_matrix.m, ctx->transform_2d_matrix.m, trs.m);
+    ctx->opacity_2d *= opacity;
 }
 
-void ngli_node2d_pop_transform(struct ngl_node *node)
+void ngli_node2d_apply_default_transform(struct ngl_ctx *ctx)
 {
-    struct ngl_ctx *ctx = node->ctx;
-    ngli_darray_pop(&ctx->opacity_2d_stack);
-    ngli_darray_pop(&ctx->transform_2d_stack);
+    ctx->transform_2d_matrix = (struct ngli_mat4){.m = NGLI_MAT4_IDENTITY};
+    ctx->opacity_2d = 1.f;
 }
 
 bool ngli_node2d_compute_clip(const struct ngli_mat4 *modelview,

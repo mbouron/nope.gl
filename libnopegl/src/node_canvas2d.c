@@ -64,32 +64,32 @@ static const struct node_param canvas2d_params[] = {
     {NULL}
 };
 
+static void canvas2d_get_dimensions(const struct ngl_node *node, float *width, float *height)
+{
+    const struct ngl_ctx *ctx = node->ctx;
+    const struct canvas2d_opts *o = node->opts;
+
+    *width  = o->width  > 0 ? (float)o->width  : ctx->viewport.width;
+    *height = o->height > 0 ? (float)o->height : ctx->viewport.height;
+}
+
 static void canvas2d_pre_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct canvas2d_priv *s = node->priv_data;
     const struct canvas2d_opts *o = node->opts;
 
-    /* Save previous 2D state */
-    struct ngli_mat4_darray prev_transform_2d_stack = ctx->transform_2d_stack;
-    struct ngli_f32_darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
     const float prev_canvas_2d_width = ctx->canvas_2d_width;
     const float prev_canvas_2d_height = ctx->canvas_2d_height;
 
-    /* Initialize fresh stacks for bbox computation */
-    ctx->transform_2d_stack = (struct ngli_mat4_darray){0};
-    ctx->opacity_2d_stack = (struct ngli_f32_darray){0};
-
-    const float w = o->width  > 0 ? (float)o->width  : ctx->viewport.width;
-    const float h = o->height > 0 ? (float)o->height : ctx->viewport.height;
+    float w, h;
+    canvas2d_get_dimensions(node, &w, &h);
     ctx->canvas_2d_width = w;
     ctx->canvas_2d_height = h;
 
-    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
-    const float default_opacity = 1.f;
-    if (ngli_darray_try_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
-        ngli_darray_try_push(&ctx->opacity_2d_stack, default_opacity) < 0)
-        goto restore;
+    const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
+    const float prev_opacity_2d = ctx->opacity_2d;
+    ngli_node2d_apply_default_transform(ctx);
 
     /* Pre-draw children (computes bboxes) */
     for (size_t i = 0; i < o->nb_children; i++)
@@ -99,11 +99,8 @@ static void canvas2d_pre_draw(struct ngl_node *node)
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
 
-restore:
-    ngli_darray_reset(&ctx->transform_2d_stack);
-    ngli_darray_reset(&ctx->opacity_2d_stack);
-    ctx->transform_2d_stack = prev_transform_2d_stack;
-    ctx->opacity_2d_stack = prev_opacity_2d_stack;
+    ctx->transform_2d_matrix = prev_transform_2d;
+    ctx->opacity_2d = prev_opacity_2d;
     ctx->canvas_2d_width = prev_canvas_2d_width;
     ctx->canvas_2d_height = prev_canvas_2d_height;
 }
@@ -115,20 +112,14 @@ static void canvas2d_draw(struct ngl_node *node)
     struct canvas2d_priv *s = node->priv_data;
     const struct canvas2d_opts *o = node->opts;
 
-    /* Save previous 2D state so nested Canvas2D (e.g. via Texture2D RTT) works */
+    /* Save 2D state so nested Canvas2D (e.g. via Texture2D RTT) works */
     const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
-    struct ngli_mat4_darray prev_transform_2d_stack = ctx->transform_2d_stack;
-    struct ngli_f32_darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
-
-    /* Initialize fresh stacks for this Canvas2D */
-    ctx->transform_2d_stack = (struct ngli_mat4_darray){0};
-    ctx->opacity_2d_stack = (struct ngli_f32_darray){0};
 
     /* Compute canvas dimensions */
     const float prev_canvas_2d_width = ctx->canvas_2d_width;
     const float prev_canvas_2d_height = ctx->canvas_2d_height;
-    const float w = o->width  > 0 ? (float)o->width  : ctx->viewport.width;
-    const float h = o->height > 0 ? (float)o->height : ctx->viewport.height;
+    float w, h;
+    canvas2d_get_dimensions(node, &w, &h);
     ctx->canvas_2d_width = w;
     ctx->canvas_2d_height = h;
 
@@ -138,12 +129,9 @@ static void canvas2d_draw(struct ngl_node *node)
     ngli_mat4_orthographic(ctx->projection_2d_matrix.m, -0.5f, w - 0.5f, h - 0.5f, -0.5f, -1.f, 1.f);
     ngli_mat4_mul(ctx->projection_2d_matrix.m, base_projection_matrix.m, ctx->projection_2d_matrix.m);
 
-    /* Push identity transform and default opacity */
-    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
-    const float default_opacity = 1.f;
-    if (ngli_darray_try_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
-        ngli_darray_try_push(&ctx->opacity_2d_stack, default_opacity) < 0)
-        goto restore;
+    const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
+    const float prev_opacity_2d = ctx->opacity_2d;
+    ngli_node2d_apply_default_transform(ctx);
 
     /* Draw children */
     for (size_t i = 0; i < o->nb_children; i++) {
@@ -154,15 +142,13 @@ static void canvas2d_draw(struct ngl_node *node)
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
 
+    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     node2d_info->aabb = node2d_info->screen_aabb;
     node2d_info->transform_matrix = id_matrix;
 
-restore:
     /* Restore previous 2D state */
-    ngli_darray_reset(&ctx->transform_2d_stack);
-    ngli_darray_reset(&ctx->opacity_2d_stack);
-    ctx->transform_2d_stack = prev_transform_2d_stack;
-    ctx->opacity_2d_stack = prev_opacity_2d_stack;
+    ctx->transform_2d_matrix = prev_transform_2d;
+    ctx->opacity_2d = prev_opacity_2d;
     ctx->projection_2d_matrix = prev_projection_2d;
     ctx->canvas_2d_width = prev_canvas_2d_width;
     ctx->canvas_2d_height = prev_canvas_2d_height;

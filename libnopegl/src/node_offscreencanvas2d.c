@@ -399,8 +399,8 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
 
     /* Save previous 2D state */
     const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
-    struct ngli_mat4_darray prev_transform_2d_stack = ctx->transform_2d_stack;
-    struct ngli_f32_darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
+    const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
+    const float prev_opacity_2d = ctx->opacity_2d;
     const float prev_canvas_2d_width = ctx->canvas_2d_width;
     const float prev_canvas_2d_height = ctx->canvas_2d_height;
     const size_t prev_nb_clips_2d = ctx->nb_clips_2d;
@@ -408,8 +408,6 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
     memcpy(prev_clips_2d, ctx->clips_2d, prev_nb_clips_2d * sizeof(*prev_clips_2d));
 
     /* Start an independent 2D canvas state. */
-    ctx->transform_2d_stack = (struct ngli_mat4_darray){0};
-    ctx->opacity_2d_stack = (struct ngli_f32_darray){0};
     ctx->nb_clips_2d = 0;
 
     const float parent_w = prev_canvas_2d_width > 0.f ? prev_canvas_2d_width : (float)s->rtt_width;
@@ -419,11 +417,7 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
     ctx->canvas_2d_width = w;
     ctx->canvas_2d_height = h;
 
-    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
-    const float default_opacity = 1.f;
-    if (ngli_darray_try_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
-        ngli_darray_try_push(&ctx->opacity_2d_stack, default_opacity) < 0)
-        goto restore;
+    ngli_node2d_apply_default_transform(ctx);
 
     /*
      * Expose this target's resolution during child pre-draw, but keep the
@@ -457,12 +451,9 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
 
     ngli_rtt_end(s->rtt_ctx);
 
-restore:
     /* Restore previous 2D state */
-    ngli_darray_reset(&ctx->transform_2d_stack);
-    ngli_darray_reset(&ctx->opacity_2d_stack);
-    ctx->transform_2d_stack = prev_transform_2d_stack;
-    ctx->opacity_2d_stack = prev_opacity_2d_stack;
+    ctx->transform_2d_matrix = prev_transform_2d;
+    ctx->opacity_2d = prev_opacity_2d;
     ctx->projection_2d_matrix = prev_projection_2d;
     ctx->canvas_2d_width = prev_canvas_2d_width;
     ctx->canvas_2d_height = prev_canvas_2d_height;
