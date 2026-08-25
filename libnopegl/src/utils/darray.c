@@ -21,6 +21,7 @@
  */
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "darray.h"
@@ -75,6 +76,18 @@ int ngli_darray_try_grow_(ngli_darray_data_alias *data, size_t *capacity, size_t
 int ngli_darray_try_reserve_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
 {
     return reserve(data, capacity, element_size, alignment, new_capacity);
+}
+
+void ngli_darray_grow_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment)
+{
+    if (ngli_darray_try_grow_(data, capacity, element_size, alignment) < 0)
+        ngli_oom();
+}
+
+void ngli_darray_reserve_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
+{
+    if (ngli_darray_try_reserve_(data, capacity, element_size, alignment, new_capacity) < 0)
+        ngli_oom();
 }
 
 void ngli_darray_free_(void *ptr, size_t alignment)
