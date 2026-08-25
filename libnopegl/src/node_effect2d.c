@@ -781,19 +781,11 @@ static void effect2d_pre_draw(struct ngl_node *node)
     };
     ngpu_buffer_upload(s->geometry->uvcoords_buffer, uvcoords, 0, sizeof(uvcoords));
 
-    /* Manage transform stack and render children */
     const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
-    struct ngli_mat4_darray prev_transform_2d_stack = ctx->transform_2d_stack;
-    struct ngli_f32_darray prev_opacity_2d_stack = ctx->opacity_2d_stack;
+    const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
+    const float prev_opacity_2d = ctx->opacity_2d;
 
-    ctx->transform_2d_stack = (struct ngli_mat4_darray){0};
-    ctx->opacity_2d_stack = (struct ngli_f32_darray){0};
-
-    static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
-    const float default_opacity = 1.f;
-    if (ngli_darray_try_push(&ctx->transform_2d_stack, id_matrix) < 0 ||
-        ngli_darray_try_push(&ctx->opacity_2d_stack, default_opacity) < 0)
-        goto restore_2d_state;
+    ngli_node2d_apply_default_transform(ctx);
 
     ngli_rtt_begin(s->rtt);
 
@@ -808,13 +800,9 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     ngli_rtt_end(s->rtt);
 
-restore_2d_state:
-    ngli_darray_reset(&ctx->transform_2d_stack);
-    ngli_darray_reset(&ctx->opacity_2d_stack);
-    ctx->transform_2d_stack = prev_transform_2d_stack;
-    ctx->opacity_2d_stack = prev_opacity_2d_stack;
+    ctx->transform_2d_matrix = prev_transform_2d;
+    ctx->opacity_2d = prev_opacity_2d;
     ctx->projection_2d_matrix = prev_projection_2d;
-
 }
 
 static void effect2d_draw(struct ngl_node *node)
@@ -833,8 +821,7 @@ static void effect2d_draw(struct ngl_node *node)
     ngli_node2d_compute_trs(node, trs_matrix.m);
 
     struct ngli_mat4 modelview_matrix;
-    const struct ngli_mat4 *prev_matrix = ngli_darray_tail(&ctx->transform_2d_stack);
-    ngli_mat4_mul(modelview_matrix.m, prev_matrix->m, trs_matrix.m);
+    ngli_mat4_mul(modelview_matrix.m, ctx->transform_2d_matrix.m, trs_matrix.m);
 
     struct pipeline_compat *pl = s->pipeline;
 
@@ -855,11 +842,11 @@ static void effect2d_draw(struct ngl_node *node)
 
     /* Fill and push fragment block to staging buffer */
     {
-        const float *group_opacity = ngli_darray_tail(&ctx->opacity_2d_stack);
+        const float group_opacity = ctx->opacity_2d;
         const float local_opacity = *(const float *)ngli_node_get_data_ptr(o->node2d.opacity_node, &o->node2d.opacity);
 
         struct effect2d_frag_block frag_data = {0};
-        frag_data.opacity = local_opacity * *group_opacity;
+        frag_data.opacity = local_opacity * group_opacity;
 
         const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);

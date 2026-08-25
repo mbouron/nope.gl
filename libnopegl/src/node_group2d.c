@@ -122,6 +122,7 @@ static int group2d_init(struct ngl_node *node)
 
 static void group2d_pre_draw(struct ngl_node *node)
 {
+    struct ngl_ctx *ctx = node->ctx;
     struct group2d_priv *s = node->priv_data;
     const struct group2d_opts *o = node->opts;
 
@@ -130,13 +131,13 @@ static void group2d_pre_draw(struct ngl_node *node)
         return;
     }
 
-    /* Push composed transform + opacity */
-    int ret = ngli_node2d_push_transform(node);
-    if (ret < 0)
-        return;
+    /* Save 2D state and compose the group's transform + opacity */
+    const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
+    const float prev_opacity_2d = ctx->opacity_2d;
+    ngli_node2d_apply_transform(node);
 
     /* Save local transform */
-    struct ngli_mat4 local_transform_matrix = *ngli_darray_tail(&node->ctx->transform_2d_stack);
+    struct ngli_mat4 local_transform_matrix = ctx->transform_2d_matrix;
 
     /* Pre-draw children */
     for (size_t i = 0; i < o->nb_children; i++)
@@ -147,8 +148,9 @@ static void group2d_pre_draw(struct ngl_node *node)
     node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
     node2d_info->transform_matrix = local_transform_matrix;
 
-    /* Pop stacks */
-    ngli_node2d_pop_transform(node);
+    /* Restore the previous 2D state */
+    ctx->transform_2d_matrix = prev_transform_2d;
+    ctx->opacity_2d = prev_opacity_2d;
 }
 
 static void group2d_push_clip(struct ngl_node *node)
@@ -172,7 +174,7 @@ static void group2d_push_clip(struct ngl_node *node)
         return;
     }
 
-    const struct ngli_mat4 *trs = ngli_darray_tail(&ctx->transform_2d_stack);
+    const struct ngli_mat4 *trs = &ctx->transform_2d_matrix;
 
     const size_t k = ctx->nb_clips_2d;
     if (!ngli_node2d_compute_clip(trs, rect, corner_radius, &ctx->clips_2d[k]))
@@ -192,13 +194,13 @@ static void group2d_draw(struct ngl_node *node)
         return;
     }
 
-    /* Push composed transform */
-    int ret = ngli_node2d_push_transform(node);
-    if (ret < 0)
-        return;
+    /* Save 2D state and compose the group's transform + opacity */
+    const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
+    const float prev_opacity_2d = ctx->opacity_2d;
+    ngli_node2d_apply_transform(node);
 
     /* Save local transform */
-    struct ngli_mat4 local_transform_matrix = *ngli_darray_tail(&node->ctx->transform_2d_stack);
+    struct ngli_mat4 local_transform_matrix = ctx->transform_2d_matrix;
 
     /* Push clip rectangle */
     const size_t saved_nb_clip = ctx->nb_clips_2d;
@@ -217,8 +219,9 @@ static void group2d_draw(struct ngl_node *node)
     /* Pop clip rectangle */
     ctx->nb_clips_2d = saved_nb_clip;
 
-    /* Pop the 2D stacks */
-    ngli_node2d_pop_transform(node);
+    /* Restore the previous 2D state */
+    ctx->transform_2d_matrix = prev_transform_2d;
+    ctx->opacity_2d = prev_opacity_2d;
 }
 
 static void group2d_uninit(struct ngl_node *node)

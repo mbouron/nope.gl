@@ -667,6 +667,8 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, st
 
     ngli_darray_clear(&s->bounding_box_nodes);
 
+    ngli_node2d_apply_default_transform(s);
+
     struct ngl_scene *scene = s->scene;
     if (scene) {
         LOG(DEBUG, "draw scene %s @ t=%f", scene->params.root->label, t);
@@ -807,12 +809,10 @@ struct ngl_ctx *ngl_create(void)
     s->default_projection_matrix = id_matrix;
 
     if (ngli_darray_try_push(&s->modelview_matrix_stack, id_matrix) < 0 ||
-        ngli_darray_try_push(&s->projection_matrix_stack, id_matrix) < 0 ||
-        ngli_darray_try_push(&s->transform_2d_stack, id_matrix) < 0)
+        ngli_darray_try_push(&s->projection_matrix_stack, id_matrix) < 0)
         goto fail;
 
-    if (ngli_darray_try_push(&s->opacity_2d_stack, 1.f) < 0)
-        goto fail;
+    ngli_node2d_apply_default_transform(s);
 
     LOG(INFO, "context create in nope.gl v%d.%d.%d",
         NGL_VERSION_MAJOR, NGL_VERSION_MINOR, NGL_VERSION_MICRO);
@@ -1154,8 +1154,6 @@ void ngl_freep(struct ngl_ctx **ss)
 
     ngli_darray_reset(&s->modelview_matrix_stack);
     ngli_darray_reset(&s->projection_matrix_stack);
-    ngli_darray_reset(&s->transform_2d_stack);
-    ngli_darray_reset(&s->opacity_2d_stack);
     ngli_darray_reset(&s->activitycheck_nodes);
     ngli_darray_reset(&s->bounding_box_nodes);
     ngli_darray_reset(&s->intersecting_nodes);

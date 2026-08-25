@@ -26,6 +26,7 @@
 #include "blend_mode.h"
 #include "utils/utils.h"
 
+struct ngl_ctx;
 struct ngl_node;
 
 /*
@@ -65,16 +66,15 @@ struct ngli_node2d_info {
 void ngli_node2d_compute_trs(const struct ngl_node *node, float *trs_matrix);
 
 /*
- * Compute TRS and push composed transform + opacity onto the 2D stacks.
- * Returns 0 on success, NGL_ERROR_* on failure.
+ * Compute TRS and apply the node's transform + opacity to the current 2D
+ * state.
  */
-int ngli_node2d_push_transform(struct ngl_node *node);
+void ngli_node2d_apply_transform(struct ngl_node *node);
 
 /*
- * Pop transform + opacity from the 2D stacks. Must be paired with a
- * successful ngli_node2d_push_transform().
+ * Set the default transform and opacity to the current 2D state.
  */
-void ngli_node2d_pop_transform(struct ngl_node *node);
+void ngli_node2d_apply_default_transform(struct ngl_ctx *ctx);
 
 /*
  * Rounded-rectangle clip entry.
