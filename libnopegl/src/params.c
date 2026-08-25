@@ -381,7 +381,7 @@ int ngli_params_set_data(uint8_t *dstp, const struct node_param *par, size_t siz
 
     ngli_freep(dst);
     if (data && size) {
-        *dst = ngli_memdup(data, size);
+        *dst = ngli_try_memdup(data, size);
         if (!*dst)
             return NGL_ERROR_MEMORY;
     } else {

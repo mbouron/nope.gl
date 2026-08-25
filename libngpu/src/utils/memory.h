@@ -25,6 +25,12 @@
 
 #include <stddef.h>
 
+void *ngpu_malloc(size_t size);
+void *ngpu_calloc(size_t n, size_t size);
+void *ngpu_malloc_aligned(size_t alignment, size_t size);
+
+void *ngpu_realloc(void *ptr, size_t n, size_t size);
+
 void *ngpu_try_malloc(size_t size);
 void *ngpu_try_calloc(size_t n, size_t size);
 void *ngpu_try_malloc_aligned(size_t alignment, size_t size);
@@ -36,6 +42,8 @@ void ngpu_freep(void *ptr);
 void ngpu_free_aligned(void *ptr);
 void ngpu_freep_aligned(void *ptr);
 
-void *ngpu_memdup(const void *src, size_t n);
+void *ngpu_try_memdup(const void *src, size_t n);
+
+_Noreturn void ngpu_oom(void);
 
 #endif

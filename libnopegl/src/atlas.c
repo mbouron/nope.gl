@@ -68,7 +68,7 @@ int ngli_atlas_add_bitmap(struct atlas *s, const struct bitmap *bitmap, int32_t 
     if (s->bitmaps.count == INT32_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
 
-    uint8_t *buffer = ngli_memdup(bitmap->buffer, (size_t)bitmap->height * bitmap->stride);
+    uint8_t *buffer = ngli_try_memdup(bitmap->buffer, (size_t)bitmap->height * bitmap->stride);
     if (!buffer)
         return NGL_ERROR_MEMORY;
 

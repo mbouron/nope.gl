@@ -127,7 +127,7 @@ int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_para
         if (src->backend == NGPU_BACKEND_OPENGL ||
             src->backend == NGPU_BACKEND_OPENGLES) {
             const size_t size = sizeof(struct ngpu_ctx_params_gl);
-            tmp.backend_params = ngpu_memdup(src->backend_params, size);
+            tmp.backend_params = ngpu_try_memdup(src->backend_params, size);
             if (!tmp.backend_params) {
                 return NGPU_ERROR_MEMORY;
             }

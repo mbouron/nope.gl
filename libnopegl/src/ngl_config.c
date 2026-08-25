@@ -63,7 +63,7 @@ int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src)
         if (src->backend == NGL_BACKEND_OPENGL ||
             src->backend == NGL_BACKEND_OPENGLES) {
             const size_t size = sizeof(struct ngl_config_gl);
-            tmp.backend_config = ngli_memdup(src->backend_config, size);
+            tmp.backend_config = ngli_try_memdup(src->backend_config, size);
             if (!tmp.backend_config) {
                 ngli_freep(&tmp.hud_export_filename);
                 return NGL_ERROR_MEMORY;

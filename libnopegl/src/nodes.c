@@ -1248,7 +1248,7 @@ static struct ngl_node *duplicate_node(struct hmap *dupmap, const struct ngl_nod
                     const double *src_elems = *(const double *const *)srcp;
                     const size_t nb_elems = *(const size_t *)(srcp + sizeof(double *));
                     if (nb_elems) {
-                        double *dst_elems = ngli_memdup(src_elems, nb_elems * sizeof(*dst_elems));
+                        double *dst_elems = ngli_try_memdup(src_elems, nb_elems * sizeof(*dst_elems));
                         if (!dst_elems)
                             goto fail;
                         memcpy(dstp, &dst_elems, sizeof(double *));
@@ -1295,7 +1295,7 @@ static struct ngl_node *duplicate_node(struct hmap *dupmap, const struct ngl_nod
                     const uint8_t *src_data = *(const uint8_t *const *)srcp;
                     const size_t size = *(const size_t *)(srcp + sizeof(void *));
                     if (src_data && size) {
-                        uint8_t *dst_data = ngli_memdup(src_data, size);
+                        uint8_t *dst_data = ngli_try_memdup(src_data, size);
                         if (!dst_data)
                             goto fail;
                         memcpy(dstp, &dst_data, sizeof(uint8_t *));
