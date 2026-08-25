@@ -191,6 +191,22 @@ struct hmap *ngli_hmap_try_create(enum hmap_type type)
     return hm;
 }
 
+struct hmap *ngli_hmap_create_ptr(const struct hmap_key_funcs *key_funcs)
+{
+    struct hmap *hm = ngli_hmap_try_create_ptr(key_funcs);
+    if (!hm)
+        ngli_oom();
+    return hm;
+}
+
+struct hmap *ngli_hmap_create(enum hmap_type type)
+{
+    struct hmap *hm = ngli_hmap_try_create(type);
+    if (!hm)
+        ngli_oom();
+    return hm;
+}
+
 void ngli_hmap_set_free_func(struct hmap *hm, ngli_user_free_func_type user_free_func, void *user_arg)
 {
     ngli_assert(!hm->count);
@@ -279,6 +295,24 @@ int ngli_hmap_try_set_u64(struct hmap *hm, uint64_t u64, void *data)
     ngli_assert(hm->type == NGLI_HMAP_TYPE_U64);
     const union hmap_key key = {.u64=u64};
     return hmap_try_set(hm, key, data);
+}
+
+void ngli_hmap_set_ptr(struct hmap *hm, const void *ptr, void *data)
+{
+    if (ngli_hmap_try_set_ptr(hm, ptr, data) < 0)
+        ngli_oom();
+}
+
+void ngli_hmap_set_str(struct hmap *hm, const char *str, void *data)
+{
+    if (ngli_hmap_try_set_str(hm, str, data) < 0)
+        ngli_oom();
+}
+
+void ngli_hmap_set_u64(struct hmap *hm, uint64_t u64, void *data)
+{
+    if (ngli_hmap_try_set_u64(hm, u64, data) < 0)
+        ngli_oom();
 }
 
 struct hmap_entry *ngli_hmap_next(const struct hmap *hm, const struct hmap_entry *prev)
