@@ -54,7 +54,7 @@ int ngli_filterschain_init(struct filterschain *s, const char *source_name, cons
 {
     s->helpers = helpers;
     s->str = ngli_bstr_create();
-    s->unique_filters = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    s->unique_filters = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
     if (!s->str || !s->unique_filters)
         return NGL_ERROR_MEMORY;
     s->source_name = source_name;
@@ -80,7 +80,7 @@ int ngli_filterschain_add_filter(struct filterschain *s, const struct filter *fi
 
     if (ngli_hmap_get_str(s->unique_filters, filter->name))
         return 0;
-    return ngli_hmap_set_str(s->unique_filters, filter->name, (void *)filter->code);
+    return ngli_hmap_try_set_str(s->unique_filters, filter->name, (void *)filter->code);
 }
 
 static const struct {

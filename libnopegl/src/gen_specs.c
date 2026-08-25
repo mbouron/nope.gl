@@ -233,7 +233,7 @@ static int print_choices(void)
 {
     printf("  \"choices\": {\n");
 
-    struct hmap *choices_map = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    struct hmap *choices_map = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
     if (!choices_map)
         return -1;
 
@@ -253,7 +253,7 @@ static int print_choices(void)
                 if (ngli_hmap_count(choices_map))
                     printf(",\n");
                 print_constants(p->choices);
-                ngli_hmap_set_str(choices_map, p->choices->name, (void *)p->choices);
+                ngli_hmap_try_set_str(choices_map, p->choices->name, (void *)p->choices);
 
             }
         }
@@ -403,7 +403,7 @@ static int print_nodes(void)
     printf("  \"nodes\": {\n");
     print_node_params("_Node", ngli_base_node_params, NULL);
 
-    struct hmap *params_map = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    struct hmap *params_map = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
     if (!params_map)
         return -1;
 
@@ -432,7 +432,7 @@ static int print_nodes(void)
             } else {
                 printf(",\n");
                 print_node_params(pname, p, c->file);
-                ngli_hmap_set_str(params_map, c->params_id, (void *)p);
+                ngli_hmap_try_set_str(params_map, c->params_id, (void *)p);
             }
             printf(",\n");
             printf("    \"%s\": \"%s\"", c->name, pname);

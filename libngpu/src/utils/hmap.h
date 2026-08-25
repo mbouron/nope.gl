@@ -52,11 +52,11 @@ enum hmap_type {
     NGPU_HMAP_TYPE_NB
 };
 
-struct hmap *ngpu_hmap_create(enum hmap_type type);
+struct hmap *ngpu_hmap_try_create(enum hmap_type type);
 void ngpu_hmap_set_free_func(struct hmap *hm, ngpu_user_free_func_type user_free_func, void *user_arg);
 size_t ngpu_hmap_count(const struct hmap *hm);
-int ngpu_hmap_set_str(struct hmap *hm, const char *str, void *data);
-int ngpu_hmap_set_u64(struct hmap *hm, uint64_t u64, void *data);
+int ngpu_hmap_try_set_str(struct hmap *hm, const char *str, void *data);
+int ngpu_hmap_try_set_u64(struct hmap *hm, uint64_t u64, void *data);
 void *ngpu_hmap_get_str(const struct hmap *hm, const char *str);
 void *ngpu_hmap_get_u64(const struct hmap *hm, uint64_t u64);
 struct hmap_entry *ngpu_hmap_next(const struct hmap *hm, const struct hmap_entry *prev);

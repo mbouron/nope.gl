@@ -46,7 +46,7 @@ static int register_node(struct hmap *nlist,
     char *val = ngli_asprintf("%zx", ngli_hmap_count(nlist));
     if (!val)
         return NGL_ERROR_MEMORY;
-    int ret = ngli_hmap_set_u64(nlist, key, val);
+    int ret = ngli_hmap_try_set_u64(nlist, key, val);
     if (ret < 0)
         ngli_free(val);
     return ret;
@@ -485,7 +485,7 @@ static int serialize(struct hmap *nlist,
 char *ngli_scene_serialize(const struct ngl_scene *s)
 {
     char *str = NULL;
-    struct hmap *nlist = ngli_hmap_create(NGLI_HMAP_TYPE_U64);
+    struct hmap *nlist = ngli_hmap_try_create(NGLI_HMAP_TYPE_U64);
     struct bstr *b = ngli_bstr_create();
     if (!nlist || !b)
         goto end;

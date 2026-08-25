@@ -421,21 +421,21 @@ static int parse_post_subexpr(struct eval *s, const char *expr, const char *p)
 static int tokenize(struct eval *s, const char *expr)
 {
     /* Build temporary hash map for fast function lookups */
-    s->funcs = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    s->funcs = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
     if (!s->funcs)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < NGLI_ARRAY_NB(functions_map); i++) {
-        int ret = ngli_hmap_set_str(s->funcs, functions_map[i].name, (void *)&functions_map[i]);
+        int ret = ngli_hmap_try_set_str(s->funcs, functions_map[i].name, (void *)&functions_map[i]);
         if (ret < 0)
             return ret;
     }
 
     /* Build temporary hash map for fast constant lookups */
-    s->consts = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    s->consts = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
     if (!s->consts)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < NGLI_ARRAY_NB(constants_map); i++) {
-        int ret = ngli_hmap_set_str(s->consts, constants_map[i].name, (void *)&constants_map[i]);
+        int ret = ngli_hmap_try_set_str(s->consts, constants_map[i].name, (void *)&constants_map[i]);
         if (ret < 0)
             return ret;
     }
