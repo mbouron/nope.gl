@@ -31,6 +31,8 @@ typedef void *ngli_may_alias ngli_darray_data_alias;
 
 int ngli_darray_try_grow_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment);
 int ngli_darray_try_reserve_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity);
+void ngli_darray_grow_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment);
+void ngli_darray_reserve_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity);
 void ngli_darray_free_(void *ptr, size_t alignment);
 
 #define NGLI_DARRAY_ALIGNOF_(a) _Alignof(__typeof__(*(a)->data))
@@ -70,6 +72,13 @@ void ngli_darray_free_(void *ptr, size_t alignment);
       ? ((a)->data[(a)->count++] = (__VA_ARGS__), 0)                                 \
       : NGL_ERROR_MEMORY)
 
+#define ngli_darray_push(a, ...) do {                                            \
+    if ((a)->count >= (a)->capacity)                                             \
+        ngli_darray_grow_((ngli_darray_data_alias *)&(a)->data, &(a)->capacity,  \
+                          sizeof(*(a)->data), NGLI_DARRAY_ALIGNOF_(a));          \
+    (a)->data[(a)->count++] = (__VA_ARGS__);                                     \
+} while (0)
+
 #define ngli_darray_pop(a) \
     (ngli_assert((a)->count > 0), &(a)->data[--(a)->count])
 
@@ -79,6 +88,10 @@ void ngli_darray_free_(void *ptr, size_t alignment);
 #define ngli_darray_try_reserve(a, cap)                                            \
     ngli_darray_try_reserve_((ngli_darray_data_alias *)&(a)->data, &(a)->capacity, \
                              sizeof(*(a)->data), NGLI_DARRAY_ALIGNOF_(a), (cap))
+
+#define ngli_darray_reserve(a, cap)                                              \
+    ngli_darray_reserve_((ngli_darray_data_alias *)&(a)->data, &(a)->capacity,   \
+                         sizeof(*(a)->data), NGLI_DARRAY_ALIGNOF_(a), (cap))
 
 #define ngli_darray_clear(a) do {                                                \
     if ((a)->user_free_func)                                                     \
