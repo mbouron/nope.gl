@@ -151,7 +151,7 @@ static void callback_nopemd_log(void *arg, int level, const char *filename, int 
     /* handle the case where the line doesn't fit the stack buffer */
     if (len >= sizeof(logline)) {
         const size_t logbuf_size = (size_t)len + 1;
-        logbuf = ngli_malloc(logbuf_size);
+        logbuf = ngli_try_malloc(logbuf_size);
         if (!logbuf) {
             va_end(vl_copy);
             return;

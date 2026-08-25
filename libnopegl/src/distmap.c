@@ -84,7 +84,7 @@ struct distmap {
 
 struct distmap *ngli_distmap_create(struct ngl_ctx *ctx)
 {
-    struct distmap *s = ngli_calloc(1, sizeof(*s));
+    struct distmap *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;

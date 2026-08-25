@@ -61,7 +61,7 @@ struct pipeline_compat {
 
 struct pipeline_compat *ngli_pipeline_compat_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct pipeline_compat *s = ngli_calloc(1, sizeof(*s));
+    struct pipeline_compat *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->gpu_ctx = gpu_ctx;

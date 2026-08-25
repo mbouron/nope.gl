@@ -120,7 +120,7 @@ static int grow_indices(struct hmap *hm)
     if (NGLI_CHK_MUL(&alloc_size, new_size, sizeof(*hm->indices)))
         return NGL_ERROR_LIMIT_EXCEEDED;
 
-    size_t *new_indices = ngli_malloc(alloc_size);
+    size_t *new_indices = ngli_try_malloc(alloc_size);
     if (!new_indices)
         return NGL_ERROR_MEMORY;
 
@@ -145,7 +145,7 @@ static int grow_entries(struct hmap *hm)
     if (hm->capacity && NGLI_CHK_MUL(&new_capacity, hm->capacity, 2))
         return NGL_ERROR_LIMIT_EXCEEDED;
 
-    struct hmap_entry *entries = ngli_realloc(hm->entries, new_capacity, sizeof(*entries));
+    struct hmap_entry *entries = ngli_try_realloc(hm->entries, new_capacity, sizeof(*entries));
     if (!entries)
         return NGL_ERROR_MEMORY;
     hm->entries = entries;
@@ -155,13 +155,13 @@ static int grow_entries(struct hmap *hm)
 
 static struct hmap *hmap_create(void)
 {
-    struct hmap *hm = ngli_calloc(1, sizeof(*hm));
+    struct hmap *hm = ngli_try_calloc(1, sizeof(*hm));
     if (!hm)
         return NULL;
 
     hm->size = (size_t)1 << HMAP_SIZE_NBIT;
     hm->mask = hm->size - 1;
-    hm->indices = ngli_malloc(hm->size * sizeof(*hm->indices));
+    hm->indices = ngli_try_malloc(hm->size * sizeof(*hm->indices));
     if (!hm->indices) {
         ngli_free(hm);
         return NULL;

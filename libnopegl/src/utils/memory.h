@@ -25,11 +25,11 @@
 
 #include <stddef.h>
 
-void *ngli_malloc(size_t size);
-void *ngli_calloc(size_t n, size_t size);
-void *ngli_malloc_aligned(size_t alignment, size_t size);
+void *ngli_try_malloc(size_t size);
+void *ngli_try_calloc(size_t n, size_t size);
+void *ngli_try_malloc_aligned(size_t alignment, size_t size);
 
-void *ngli_realloc(void *ptr, size_t n, size_t size);
+void *ngli_try_realloc(void *ptr, size_t n, size_t size);
 
 void ngli_free(void *ptr);
 void ngli_freep(void *ptr);

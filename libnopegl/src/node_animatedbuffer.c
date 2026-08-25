@@ -133,7 +133,7 @@ static int animatedbuffer_init(struct ngl_node *node)
     if (!layout->count)
         return NGL_ERROR_INVALID_ARG;
 
-    info->data = ngli_calloc(layout->count, layout->stride);
+    info->data = ngli_try_calloc(layout->count, layout->stride);
     if (!info->data)
         return NGL_ERROR_MEMORY;
     info->data_size = layout->count * layout->stride;

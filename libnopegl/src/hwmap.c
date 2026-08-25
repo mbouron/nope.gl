@@ -221,7 +221,7 @@ int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct im
         ngli_assert(hwmap_class->priv_size);
         hwmap->hwmap_class = hwmap_class;
 
-        hwmap->hwmap_priv_data = ngli_calloc(1, hwmap_class->priv_size);
+        hwmap->hwmap_priv_data = ngli_try_calloc(1, hwmap_class->priv_size);
         if (!hwmap->hwmap_priv_data) {
             nmd_frame_releasep(&frame);
             return NGL_ERROR_MEMORY;

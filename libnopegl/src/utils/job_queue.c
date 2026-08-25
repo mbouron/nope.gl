@@ -249,7 +249,7 @@ static void *queue_thread(void *arg)
 
 static int ngli_queue_create_thread(struct ngli_queue *queue, uint32_t index)
 {
-    struct thread_arg *arg = ngli_calloc(1, sizeof(*arg));
+    struct thread_arg *arg = ngli_try_calloc(1, sizeof(*arg));
     if (!arg)
         return NGL_ERROR_MEMORY;
 
@@ -278,7 +278,7 @@ int ngli_queue_init(struct ngli_queue *queue, const char *name, uint32_t max_job
     pthread_cond_init(&queue->has_queued_cond, NULL);
     pthread_cond_init(&queue->has_space_cond, NULL);
 
-    queue->jobs = ngli_calloc(max_jobs, sizeof(*queue->jobs));
+    queue->jobs = ngli_try_calloc(max_jobs, sizeof(*queue->jobs));
     if (!queue->jobs)
         goto fail;
     queue->max_jobs = max_jobs;

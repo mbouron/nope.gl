@@ -139,7 +139,7 @@ static void on_buffer_available(void *context, AImageReader *reader)
 
 struct android_imagereader *ngli_android_imagereader_create(struct android_ctx *android_ctx, int32_t width, int32_t height, int format, int max_images)
 {
-    struct android_imagereader *s = ngli_calloc(1, sizeof(*s));
+    struct android_imagereader *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
@@ -235,7 +235,7 @@ int ngli_android_imagereader_acquire_next_image(struct android_imagereader *s, s
     if (status != AMEDIA_OK)
         return NGL_ERROR_EXTERNAL;
 
-    struct android_image *image = ngli_calloc(1, sizeof(*image));
+    struct android_image *image = ngli_try_calloc(1, sizeof(*image));
     if (!image) {
         android_ctx->AImage_delete(android_image);
         return NGL_ERROR_MEMORY;

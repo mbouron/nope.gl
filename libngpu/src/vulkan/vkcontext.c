@@ -246,7 +246,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     if (res != VK_SUCCESS)
         return res;
 
-    s->layers = ngpu_calloc(s->nb_layers, sizeof(*s->layers));
+    s->layers = ngpu_try_calloc(s->nb_layers, sizeof(*s->layers));
     if (!s->layers)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -262,7 +262,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     if (res != VK_SUCCESS)
         return res;
 
-    s->extensions = ngpu_calloc(s->nb_extensions, sizeof(*s->extensions));
+    s->extensions = ngpu_try_calloc(s->nb_extensions, sizeof(*s->extensions));
     if (!s->extensions)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -533,7 +533,7 @@ static VkResult enumerate_physical_devices(struct vkcontext *s, const struct ngp
     if (!s->nb_phy_devices)
         return VK_ERROR_DEVICE_LOST;
 
-    s->phy_devices = ngpu_calloc(s->nb_phy_devices, sizeof(*s->phy_devices));
+    s->phy_devices = ngpu_try_calloc(s->nb_phy_devices, sizeof(*s->phy_devices));
     if (!s->phy_devices)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -625,7 +625,7 @@ static VkResult select_physical_device(struct vkcontext *s, VkSurfaceKHR surface
 
         uint32_t qfamily_count = 0;
         s->funcs.GetPhysicalDeviceQueueFamilyProperties(phy_device, &qfamily_count, NULL);
-        VkQueueFamilyProperties *qfamily_props = ngpu_calloc(qfamily_count, sizeof(*qfamily_props));
+        VkQueueFamilyProperties *qfamily_props = ngpu_try_calloc(qfamily_count, sizeof(*qfamily_props));
         if (!qfamily_props)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         s->funcs.GetPhysicalDeviceQueueFamilyProperties(phy_device, &qfamily_count, qfamily_props);
@@ -703,7 +703,7 @@ static VkResult enumerate_extensions(struct vkcontext *s)
     if (res != VK_SUCCESS)
         return res;
 
-    s->device_extensions = ngpu_calloc(s->nb_device_extensions, sizeof(*s->device_extensions));
+    s->device_extensions = ngpu_try_calloc(s->nb_device_extensions, sizeof(*s->device_extensions));
     if (!s->device_extensions)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -890,7 +890,7 @@ VkResult ngpu_vkcontext_query_swapchain_support(struct vkcontext *s,
     if (!*nb_surface_formats)
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
-    *surface_formats = ngpu_calloc(*nb_surface_formats, sizeof(**surface_formats));
+    *surface_formats = ngpu_try_calloc(*nb_surface_formats, sizeof(**surface_formats));
     if (!*surface_formats)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     s->funcs.GetPhysicalDeviceSurfaceFormatsKHR(s->phy_device, surface, nb_surface_formats, *surface_formats);
@@ -901,7 +901,7 @@ VkResult ngpu_vkcontext_query_swapchain_support(struct vkcontext *s,
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
 
-    *present_modes = ngpu_calloc(*nb_present_modes, sizeof(**present_modes));
+    *present_modes = ngpu_try_calloc(*nb_present_modes, sizeof(**present_modes));
     if (!*present_modes) {
         ngpu_freep(surface_formats);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -1048,7 +1048,7 @@ static VkResult load_ext_functions(struct vkcontext *s)
 
 struct vkcontext *ngpu_vkcontext_create(void)
 {
-    struct vkcontext *s = ngpu_calloc(1, sizeof(*s));
+    struct vkcontext *s = ngpu_try_calloc(1, sizeof(*s));
     return s;
 }
 

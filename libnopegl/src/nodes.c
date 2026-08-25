@@ -55,7 +55,7 @@ const struct node_param ngli_base_node_params[] = {
 
 static void *aligned_allocz(size_t size)
 {
-    void *ptr = ngli_malloc_aligned(NGLI_ALIGN_VAL, size);
+    void *ptr = ngli_try_malloc_aligned(NGLI_ALIGN_VAL, size);
     if (!ptr)
         return NULL;
     memset(ptr, 0, size);
@@ -847,7 +847,7 @@ static int append_child(struct ngl_node ***arrp, size_t *countp, size_t *capp, s
 {
     if (*countp >= *capp) {
         const size_t new_cap = *capp ? *capp * 2 : 8;
-        struct ngl_node **tmp = ngli_realloc(*arrp, new_cap, sizeof(*tmp));
+        struct ngl_node **tmp = ngli_try_realloc(*arrp, new_cap, sizeof(*tmp));
         if (!tmp)
             return NGL_ERROR_MEMORY;
         *arrp = tmp;
@@ -925,7 +925,7 @@ int ngl_node_get_params_info(const struct ngl_node *node,
     if (!count)
         return 0;
 
-    struct ngl_param_info *infos = ngli_calloc(count, sizeof(*infos));
+    struct ngl_param_info *infos = ngli_try_calloc(count, sizeof(*infos));
     if (!infos)
         return NGL_ERROR_MEMORY;
 
@@ -942,7 +942,7 @@ int ngl_node_get_params_info(const struct ngl_node *node,
             while (par[i].choices->consts[nb_choices].key)
                 nb_choices++;
 
-            const char **choice_names = ngli_calloc(nb_choices + 1, sizeof(*choice_names));
+            const char **choice_names = ngli_try_calloc(nb_choices + 1, sizeof(*choice_names));
             if (!choice_names) {
                 ngl_node_params_info_freep((const struct ngl_param_info **)&infos, i);
                 return NGL_ERROR_MEMORY;
@@ -1227,7 +1227,7 @@ static struct ngl_node *duplicate_node(struct hmap *dupmap, const struct ngl_nod
                     struct ngl_node *const *src_elems = *(struct ngl_node *const *const *)srcp;
                     const size_t nb_elems = *(const size_t *)(srcp + sizeof(struct ngl_node **));
                     if (nb_elems) {
-                        struct ngl_node **dst_elems = ngli_calloc(nb_elems, sizeof(*dst_elems));
+                        struct ngl_node **dst_elems = ngli_try_calloc(nb_elems, sizeof(*dst_elems));
                         if (!dst_elems)
                             goto fail;
                         for (size_t i = 0; i < nb_elems; i++) {

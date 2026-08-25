@@ -76,7 +76,7 @@ static GLbitfield get_gl_map_flags(uint32_t usage)
 
 struct ngpu_buffer *ngpu_buffer_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_buffer_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_buffer_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;

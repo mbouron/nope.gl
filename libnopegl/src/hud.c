@@ -337,7 +337,7 @@ static int widget_latency_init(struct hud *s, struct widget *widget)
 
     s->measure_window = NGLI_MAX(s->measure_window, 1);
     for (size_t i = 0; i < NB_LATENCY; i++) {
-        int64_t *times = ngli_calloc((size_t)s->measure_window, sizeof(*times));
+        int64_t *times = ngli_try_calloc((size_t)s->measure_window, sizeof(*times));
         if (!times)
             return NGL_ERROR_MEMORY;
         priv->measures[i].times = times;
@@ -904,17 +904,17 @@ static int create_widget(struct hud *s, enum widget_type type, const void *user_
         return NGL_ERROR_MEMORY;
     struct widget *widgetp = ngli_darray_tail(&s->widgets);
 
-    widgetp->priv_data = ngli_calloc(1, spec->priv_size);
+    widgetp->priv_data = ngli_try_calloc(1, spec->priv_size);
     if (!widgetp->priv_data)
         return NGL_ERROR_MEMORY;
 
-    widgetp->data_graph = ngli_calloc(spec->nb_data_graph, sizeof(*widgetp->data_graph));
+    widgetp->data_graph = ngli_try_calloc(spec->nb_data_graph, sizeof(*widgetp->data_graph));
     if (!widgetp->data_graph)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < spec->nb_data_graph; i++) {
         struct data_graph *d = &widgetp->data_graph[i];
         d->nb_values = (size_t)widgetp->graph_rect.w;
-        d->values = ngli_calloc(d->nb_values, sizeof(*d->values));
+        d->values = ngli_try_calloc(d->nb_values, sizeof(*d->values));
         if (!d->values)
             return NGL_ERROR_MEMORY;
     }
@@ -1140,7 +1140,7 @@ static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
 
 struct hud *ngli_hud_create(struct ngl_ctx *ctx)
 {
-    struct hud *s = ngli_calloc(1, sizeof(*s));
+    struct hud *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
@@ -1187,7 +1187,7 @@ int ngli_hud_init(struct hud *s)
         return widgets_csv_header(s);
     }
 
-    s->canvas.buf = ngli_calloc((size_t)s->canvas.w * (size_t)s->canvas.h, 4);
+    s->canvas.buf = ngli_try_calloc((size_t)s->canvas.w * (size_t)s->canvas.h, 4);
     if (!s->canvas.buf)
         return NGL_ERROR_MEMORY;
 

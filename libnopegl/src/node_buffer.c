@@ -142,7 +142,7 @@ static int buffer_init_from_filename(struct ngl_node *node)
         return NGL_ERROR_INVALID_DATA;
     }
 
-    s->buf.data = ngli_calloc(layout->count, layout->stride);
+    s->buf.data = ngli_try_calloc(layout->count, layout->stride);
     if (!s->buf.data)
         return NGL_ERROR_MEMORY;
 
@@ -173,7 +173,7 @@ static int buffer_init_from_count(struct ngl_node *node)
 
     layout->count = layout->count ? layout->count : 1;
     s->buf.data_size = layout->count * layout->stride;
-    s->buf.data = ngli_calloc(layout->count, layout->stride);
+    s->buf.data = ngli_try_calloc(layout->count, layout->stride);
     if (!s->buf.data)
         return NGL_ERROR_MEMORY;
 

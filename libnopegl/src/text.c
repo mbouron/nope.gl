@@ -116,7 +116,7 @@ static int build_stats(struct box_stats *stats, struct ngli_char_info_internal_d
 
 struct text *ngli_text_create(struct ngl_ctx *ctx)
 {
-    struct text *s = ngli_calloc(1, sizeof(*s));
+    struct text *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
@@ -127,13 +127,13 @@ int ngli_text_init(struct text *s, const struct text_config *cfg)
 {
     s->config = *cfg;
 
-    s->effects = ngli_calloc(cfg->nb_effect_nodes, sizeof(*s->effects));
+    s->effects = ngli_try_calloc(cfg->nb_effect_nodes, sizeof(*s->effects));
     if (!s->effects)
         return NGL_ERROR_MEMORY;
 
     s->cls = cfg->font_faces ? &ngli_text_external : &ngli_text_builtin;
     if (s->cls->priv_size) {
-        s->priv_data = ngli_calloc(1, s->cls->priv_size);
+        s->priv_data = ngli_try_calloc(1, s->cls->priv_size);
         if (!s->priv_data)
             return NGL_ERROR_MEMORY;
     }
@@ -509,7 +509,7 @@ static int build_effects_segmentation(struct text *s)
         struct effect_segmentation *effect = &s->effects[i];
 
         const size_t nb_chars = s->chars.count;
-        size_t *new_positions = ngli_realloc(effect->positions, nb_chars, sizeof(*new_positions));
+        size_t *new_positions = ngli_try_realloc(effect->positions, nb_chars, sizeof(*new_positions));
         if (!new_positions)
             return NGL_ERROR_MEMORY;
         effect->positions = new_positions;
@@ -538,7 +538,7 @@ static int build_effects_segmentation(struct text *s)
 
         if (effect_opts->random) {
             /* Build a shuffle map associating a position with another one */
-            size_t *shuffle_map = ngli_calloc(effect->total_segments, sizeof(*shuffle_map));
+            size_t *shuffle_map = ngli_try_calloc(effect->total_segments, sizeof(*shuffle_map));
             if (!shuffle_map)
                 return NGL_ERROR_MEMORY;
             for (size_t j = 0; j < effect->total_segments; j++)
@@ -696,7 +696,7 @@ int ngli_text_set_string(struct text *s, const char *str)
          * first for a more predictible read/write memory access in
          * reset_chars_data_to_defaults()
          */
-        float *new_chars_data_default = ngli_realloc(s->chars_data_default, 2, needed_size);
+        float *new_chars_data_default = ngli_try_realloc(s->chars_data_default, 2, needed_size);
         if (!new_chars_data_default)
             return NGL_ERROR_MEMORY;
         s->chars_data_default = new_chars_data_default;

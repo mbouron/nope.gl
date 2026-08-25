@@ -35,7 +35,7 @@
 
 struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_bindgroup_layout_vk *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_bindgroup_layout_vk *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -309,7 +309,7 @@ void ngpu_bindgroup_layout_vk_freep(struct ngpu_bindgroup_layout **sp)
 
 struct ngpu_bindgroup *ngpu_bindgroup_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_bindgroup_vk *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_bindgroup_vk *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;

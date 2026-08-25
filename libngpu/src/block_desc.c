@@ -212,9 +212,9 @@ int ngpu_block_desc_add_field(struct ngpu_block_desc *s, const char *name, enum 
 
     struct ngpu_block_field *new_fields = s->fields;
     if (!s->fields) {
-        new_fields = ngpu_realloc(NULL, BLOCK_DESC_INITIAL_CAPACITY, sizeof(*s->fields));
+        new_fields = ngpu_try_realloc(NULL, BLOCK_DESC_INITIAL_CAPACITY, sizeof(*s->fields));
     } else if (s->nb_fields >= BLOCK_DESC_INITIAL_CAPACITY && NGPU_IS_POW2(s->nb_fields)) {
-        new_fields = ngpu_realloc(s->fields, s->nb_fields * 2, sizeof(*s->fields));
+        new_fields = ngpu_try_realloc(s->fields, s->nb_fields * 2, sizeof(*s->fields));
     }
     if (!new_fields)
         return NGPU_ERROR_MEMORY;

@@ -354,7 +354,7 @@ static void scene_freep(void **sp)
 
 struct ngl_scene *ngl_scene_create(void)
 {
-    struct ngl_scene *s = ngli_calloc(1, sizeof(*s));
+    struct ngl_scene *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->rc = NGLI_RC_CREATE(scene_freep);
@@ -486,7 +486,7 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
         goto end;
 
     /* +1 so that we know when to stop in ngli_node_livectls_freep() */
-    ctls = ngli_calloc(nb + 1, sizeof(*ctls));
+    ctls = ngli_try_calloc(nb + 1, sizeof(*ctls));
     if (!ctls) {
         ret = NGL_ERROR_MEMORY;
         goto end;

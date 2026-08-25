@@ -393,7 +393,7 @@ static int texture_init(struct ngpu_texture *s, const struct ngpu_texture_params
 
 struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_texture_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_texture_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;

@@ -244,10 +244,10 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
         return ret;
 
     const uint32_t nb_frames = s->nb_in_flight_frames;
-    s_priv->colors         = ngpu_calloc(nb_frames, sizeof(*s_priv->colors));
-    s_priv->ms_colors      = ngpu_calloc(nb_frames, sizeof(*s_priv->ms_colors));
-    s_priv->depth_stencils = ngpu_calloc(nb_frames, sizeof(*s_priv->depth_stencils));
-    s_priv->rts            = ngpu_calloc(nb_frames, sizeof(*s_priv->rts));
+    s_priv->colors         = ngpu_try_calloc(nb_frames, sizeof(*s_priv->colors));
+    s_priv->ms_colors      = ngpu_try_calloc(nb_frames, sizeof(*s_priv->ms_colors));
+    s_priv->depth_stencils = ngpu_try_calloc(nb_frames, sizeof(*s_priv->depth_stencils));
+    s_priv->rts            = ngpu_try_calloc(nb_frames, sizeof(*s_priv->rts));
     if (!s_priv->colors || !s_priv->ms_colors || !s_priv->depth_stencils || !s_priv->rts)
         return NGPU_ERROR_MEMORY;
 
@@ -341,7 +341,7 @@ static void timer_reset(struct ngpu_ctx *s)
 
 static struct ngpu_ctx *gl_create(const struct ngpu_ctx_params *params)
 {
-    struct ngpu_ctx_gl *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_ctx_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     return (struct ngpu_ctx *)s;
@@ -472,8 +472,8 @@ static int create_command_buffers(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
-    s_priv->update_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
-    s_priv->draw_cmd_buffers = ngpu_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
+    s_priv->update_cmd_buffers = ngpu_try_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
+    s_priv->draw_cmd_buffers = ngpu_try_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
     if (!s_priv->update_cmd_buffers || !s_priv->draw_cmd_buffers)
         return NGPU_ERROR_MEMORY;
 

@@ -219,7 +219,7 @@ static int text_builtin_init(struct text *text)
     snprintf(atlas_uid, sizeof(atlas_uid), "%d", size);
     struct text_builtin_atlas *atlas = ngli_hmap_get_str(text->ctx->text_builtin_atlasses, atlas_uid);
     if (!atlas) {
-        atlas = ngli_calloc(1, sizeof(*atlas));
+        atlas = ngli_try_calloc(1, sizeof(*atlas));
         if (!atlas)
             return NGL_ERROR_MEMORY;
 

@@ -68,7 +68,7 @@ static int create_buffer(struct ngpu_staging_buffer *s, size_t capacity)
 
 struct ngpu_staging_buffer *ngpu_staging_buffer_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_staging_buffer *s = ngpu_calloc(1, sizeof(*s));
+    struct ngpu_staging_buffer *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 

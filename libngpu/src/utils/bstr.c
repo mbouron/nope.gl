@@ -38,12 +38,12 @@ struct bstr {
 
 struct bstr *ngpu_bstr_create(void)
 {
-    struct bstr *b = ngpu_calloc(1, sizeof(*b));
+    struct bstr *b = ngpu_try_calloc(1, sizeof(*b));
 
     if (!b)
         return NULL;
     b->bufsize = BUFFER_PADDING;
-    b->str = ngpu_malloc(b->bufsize);
+    b->str = ngpu_try_malloc(b->bufsize);
     if (!b->str) {
         ngpu_free(b);
         return NULL;
@@ -58,7 +58,7 @@ void ngpu_bstr_print(struct bstr *b, const char *str)
     const size_t avail = b->bufsize - b->len;
     if (len + 1 > avail) {
         const size_t new_size = b->len + len + 1 + BUFFER_PADDING;
-        void *ptr = ngpu_realloc(b->str, new_size, 1);
+        void *ptr = ngpu_try_realloc(b->str, new_size, 1);
         if (!ptr) {
             b->state = NGPU_ERROR_MEMORY;
             return;
@@ -86,7 +86,7 @@ void ngpu_bstr_printf(struct bstr *b, const char *fmt, ...)
 
     if (len + 1 > avail) {
         const size_t new_size = b->len + (size_t)len + 1 + BUFFER_PADDING;
-        void *ptr = ngpu_realloc(b->str, new_size, 1);
+        void *ptr = ngpu_try_realloc(b->str, new_size, 1);
         if (!ptr) {
             b->state = NGPU_ERROR_MEMORY;
             return;

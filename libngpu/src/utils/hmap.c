@@ -128,7 +128,7 @@ static int grow_indices(struct hmap *hm)
     if (NGPU_CHK_MUL(&alloc_size, new_size, sizeof(*hm->indices)))
         return NGPU_ERROR_LIMIT_EXCEEDED;
 
-    size_t *new_indices = ngpu_malloc(alloc_size);
+    size_t *new_indices = ngpu_try_malloc(alloc_size);
     if (!new_indices)
         return NGPU_ERROR_MEMORY;
 
@@ -153,7 +153,7 @@ static int grow_entries(struct hmap *hm)
     if (hm->capacity && NGPU_CHK_MUL(&new_capacity, hm->capacity, 2))
         return NGPU_ERROR_LIMIT_EXCEEDED;
 
-    struct hmap_entry *entries = ngpu_realloc(hm->entries, new_capacity, sizeof(*entries));
+    struct hmap_entry *entries = ngpu_try_realloc(hm->entries, new_capacity, sizeof(*entries));
     if (!entries)
         return NGPU_ERROR_MEMORY;
     hm->entries = entries;
@@ -164,13 +164,13 @@ static int grow_entries(struct hmap *hm)
 struct hmap *ngpu_hmap_create(enum hmap_type type)
 {
     ngpu_assert((unsigned)type < NGPU_HMAP_TYPE_NB);
-    struct hmap *hm = ngpu_calloc(1, sizeof(*hm));
+    struct hmap *hm = ngpu_try_calloc(1, sizeof(*hm));
     if (!hm)
         return NULL;
 
     hm->size = (size_t)1 << HMAP_SIZE_NBIT;
     hm->mask = hm->size - 1;
-    hm->indices = ngpu_malloc(hm->size * sizeof(*hm->indices));
+    hm->indices = ngpu_try_malloc(hm->size * sizeof(*hm->indices));
     if (!hm->indices) {
         ngpu_free(hm);
         return NULL;

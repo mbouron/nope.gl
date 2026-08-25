@@ -517,15 +517,15 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
 
     const uint32_t nb_in_flight_frames = ngpu_ctx_get_nb_in_flight_frames(s->gpu_ctx);
 
-    s->frame_slots = ngli_calloc(nb_in_flight_frames, sizeof(*s->frame_slots));
+    s->frame_slots = ngli_try_calloc(nb_in_flight_frames, sizeof(*s->frame_slots));
     if (!s->frame_slots) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
     }
     s->nb_frame_slots = nb_in_flight_frames;
 
-    s->update_staging_buffers = ngli_calloc(nb_in_flight_frames, sizeof(*s->update_staging_buffers));
-    s->draw_staging_buffers = ngli_calloc(nb_in_flight_frames, sizeof(*s->draw_staging_buffers));
+    s->update_staging_buffers = ngli_try_calloc(nb_in_flight_frames, sizeof(*s->update_staging_buffers));
+    s->draw_staging_buffers = ngli_try_calloc(nb_in_flight_frames, sizeof(*s->draw_staging_buffers));
     if (!s->update_staging_buffers || !s->draw_staging_buffers) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
@@ -739,7 +739,7 @@ static int backends_probe(const struct ngl_config *user_config, size_t *nb_backe
 
     const enum ngl_platform_type platform = get_platform(user_config->platform);
 
-    struct ngl_backend *backends = ngli_calloc(NGLI_ARRAY_NB(api_map), sizeof(*backends));
+    struct ngl_backend *backends = ngli_try_calloc(NGLI_ARRAY_NB(api_map), sizeof(*backends));
     if (!backends)
         return NGL_ERROR_MEMORY;
     size_t nb_backends = 0;
@@ -791,7 +791,7 @@ void ngl_backends_freep(struct ngl_backend **backendsp)
 
 struct ngl_ctx *ngl_create(void)
 {
-    struct ngl_ctx *s = ngli_calloc(1, sizeof(*s));
+    struct ngl_ctx *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
@@ -1015,7 +1015,7 @@ int ngl_draw(struct ngl_ctx *s, double t, struct ngl_draw_output *output)
 
     struct ngl_frame *frame = NULL;
     if (output) {
-        frame = ngli_calloc(1, sizeof(*frame));
+        frame = ngli_try_calloc(1, sizeof(*frame));
         if (!frame) {
             ngpu_fence_freep(&release_fence);
             return NGL_ERROR_MEMORY;
