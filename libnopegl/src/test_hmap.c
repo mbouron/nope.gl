@@ -21,8 +21,10 @@
 
 #include <string.h>
 
+#define XXH_INLINE_ALL
+#include <xxhash.h>
+
 #define HMAP_SIZE_NBIT 1
-#include "utils/crc32.h"
 #include "utils/hmap.h"
 #include "utils/memory.h"
 #include "utils/string.h"
@@ -32,7 +34,7 @@
     printf(__VA_ARGS__);                                        \
     const struct hmap_entry *e = NULL;                          \
     while ((e = ngli_hmap_next(hm, e)))                         \
-        printf("  %08X %s: %s\n", ngli_crc32(e->key.str),       \
+        printf("  %08X %s: %s\n", e->hash,                      \
                e->key.str, (const char *)e->data);              \
     printf("\n");                                               \
 } while (0)
@@ -53,9 +55,9 @@ static const struct {
     {"lorem",   "ipsum"},
     {"bazbaz",  ""},
     {"abc",     "def"},
-    /* the two following entries have the same CRC */
-    {"codding", "data#0"},
-    {"gnu",     "data#1"},
+    /* the two following entries have the same truncated XXH3 hash */
+    {"xxh-key-84663",  "data#0"},
+    {"xxh-key-160767", "data#1"},
     {"last",    "samurai"},
 };
 
@@ -90,16 +92,55 @@ static int test_bucket_delete_reuse(void)
     return 0;
 }
 
+static int test_u64(void)
+{
+    struct hmap *hm = ngli_hmap_create(NGLI_HMAP_TYPE_U64);
+    if (!hm)
+        return -1;
+
+    for (uint64_t i = 0; i < 1024; i++) {
+        const uint64_t key = i * 2654435761U;
+        const void *data = (void *)(uintptr_t)(i + 1);
+        ngli_assert(ngli_hmap_set_u64(hm, key, (void *)data) == 0);
+        ngli_assert(ngli_hmap_get_u64(hm, key) == data);
+    }
+
+    for (uint64_t i = 0; i < 1024; i += 3) {
+        const uint64_t key = i * 2654435761U;
+        ngli_assert(ngli_hmap_set_u64(hm, key, NULL) == 1);
+        ngli_assert(!ngli_hmap_get_u64(hm, key));
+    }
+
+    size_t count = 0;
+    const struct hmap_entry *e = NULL;
+    while ((e = ngli_hmap_next(hm, e))) {
+        ngli_assert(e->key.u64 == (uint64_t)(count + count / 2 + 1) * 2654435761U);
+        count++;
+    }
+    ngli_assert(count == ngli_hmap_count(hm));
+
+    ngli_hmap_freep(&hm);
+    ngli_assert(!hm);
+    return 0;
+}
+
+
 int main(void)
 {
-    ngli_assert(ngli_crc32("codding") == ngli_crc32("gnu"));
+    const uint32_t hash0 = (uint32_t)XXH3_64bits(kvs[5].key, strlen(kvs[5].key));
+    const uint32_t hash1 = (uint32_t)XXH3_64bits(kvs[6].key, strlen(kvs[6].key));
+    ngli_assert(hash0 == hash1);
 
     int ret = test_bucket_delete_reuse();
     if (ret < 0)
         return 1;
-
+    ret = test_u64();
+    if (ret < 0)
+        return 1;
     for (int custom_alloc = 0; custom_alloc <= 1; custom_alloc++) {
         struct hmap *hm = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+
+        ngli_assert(!ngli_hmap_get_str(hm, NULL));
 
         if (custom_alloc)
             ngli_hmap_set_free_func(hm, free_func, NULL);

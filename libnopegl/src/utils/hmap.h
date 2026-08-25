@@ -34,11 +34,6 @@
 
 struct hmap;
 
-struct hmap_ref { /* internal entry reference */
-    size_t bucket_id;
-    size_t entry_id;
-};
-
 union hmap_key {
     void *ptr;
     char *str;
@@ -57,9 +52,7 @@ struct hmap_key_funcs {
 struct hmap_entry {
     union hmap_key key;
     void *data;
-    size_t bucket_id;
-    struct hmap_ref prev;
-    struct hmap_ref next;
+    uint32_t hash;
 };
 
 enum hmap_type {
