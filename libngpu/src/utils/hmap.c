@@ -161,7 +161,7 @@ static int grow_entries(struct hmap *hm)
     return 0;
 }
 
-struct hmap *ngpu_hmap_create(enum hmap_type type)
+struct hmap *ngpu_hmap_try_create(enum hmap_type type)
 {
     ngpu_assert((unsigned)type < NGPU_HMAP_TYPE_NB);
     struct hmap *hm = ngpu_try_calloc(1, sizeof(*hm));
@@ -208,7 +208,7 @@ static int delete_entry(struct hmap *hm, size_t entry_index)
     return 1;
 }
 
-static int hmap_set(struct hmap *hm, union hmap_key key, void *data)
+static int hmap_try_set(struct hmap *hm, union hmap_key key, void *data)
 {
     if (!hm->key_funcs.check(key))
         return NGPU_ERROR_INVALID_ARG;
@@ -250,18 +250,18 @@ static int hmap_set(struct hmap *hm, union hmap_key key, void *data)
     return 0;
 }
 
-int ngpu_hmap_set_str(struct hmap *hm, const char *str, void *data)
+int ngpu_hmap_try_set_str(struct hmap *hm, const char *str, void *data)
 {
     ngpu_assert(hm->type == NGPU_HMAP_TYPE_STR);
     const union hmap_key key = {.str=(char *)str};
-    return hmap_set(hm, key, data);
+    return hmap_try_set(hm, key, data);
 }
 
-int ngpu_hmap_set_u64(struct hmap *hm, uint64_t u64, void *data)
+int ngpu_hmap_try_set_u64(struct hmap *hm, uint64_t u64, void *data)
 {
     ngpu_assert(hm->type == NGPU_HMAP_TYPE_U64);
     const union hmap_key key = {.u64=u64};
-    return hmap_set(hm, key, data);
+    return hmap_try_set(hm, key, data);
 }
 
 struct hmap_entry *ngpu_hmap_next(const struct hmap *hm, const struct hmap_entry *prev)

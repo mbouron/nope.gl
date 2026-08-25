@@ -51,8 +51,8 @@ struct ngpu_pgcache *ngpu_pgcache_create(struct ngpu_ctx *ctx)
     if (!s)
         return NULL;
     s->gpu_ctx = ctx;
-    s->graphics_cache = ngpu_hmap_create(NGPU_HMAP_TYPE_STR);
-    s->compute_cache = ngpu_hmap_create(NGPU_HMAP_TYPE_STR);
+    s->graphics_cache = ngpu_hmap_try_create(NGPU_HMAP_TYPE_STR);
+    s->compute_cache = ngpu_hmap_try_create(NGPU_HMAP_TYPE_STR);
     if (!s->graphics_cache || !s->compute_cache)
         goto fail;
     ngpu_hmap_set_free_func(s->graphics_cache, reset_cached_frag_map, s);
@@ -90,7 +90,7 @@ static int query_cache(struct ngpu_pgcache *s, struct ngpu_program **dstp,
         return ret;
     }
 
-    ret = ngpu_hmap_set_str(cache, cache_key, new_program);
+    ret = ngpu_hmap_try_set_str(cache, cache_key, new_program);
     if (ret < 0) {
         ngpu_program_freep(&new_program);
         return ret;
@@ -109,12 +109,12 @@ int ngpu_pgcache_get_graphics_program(struct ngpu_pgcache *s, struct ngpu_progra
      */
     struct hmap *frag_map = ngpu_hmap_get_str(s->graphics_cache, params->vertex);
     if (!frag_map) {
-        frag_map = ngpu_hmap_create(NGPU_HMAP_TYPE_STR);
+        frag_map = ngpu_hmap_try_create(NGPU_HMAP_TYPE_STR);
         if (!frag_map)
             return NGPU_ERROR_MEMORY;
         ngpu_hmap_set_free_func(frag_map, reset_cached_program, s);
 
-        int ret = ngpu_hmap_set_str(s->graphics_cache, params->vertex, frag_map);
+        int ret = ngpu_hmap_try_set_str(s->graphics_cache, params->vertex, frag_map);
         if (ret < 0) {
             ngpu_hmap_freep(&frag_map);
             return NGPU_ERROR_MEMORY;

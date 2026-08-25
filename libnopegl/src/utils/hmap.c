@@ -153,7 +153,7 @@ static int grow_entries(struct hmap *hm)
     return 0;
 }
 
-static struct hmap *hmap_create(void)
+static struct hmap *hmap_try_create(void)
 {
     struct hmap *hm = ngli_try_calloc(1, sizeof(*hm));
     if (!hm)
@@ -170,9 +170,9 @@ static struct hmap *hmap_create(void)
     return hm;
 }
 
-struct hmap *ngli_hmap_create_ptr(const struct hmap_key_funcs *key_funcs)
+struct hmap *ngli_hmap_try_create_ptr(const struct hmap_key_funcs *key_funcs)
 {
-    struct hmap *hm = hmap_create();
+    struct hmap *hm = hmap_try_create();
     if (!hm)
         return NULL;
     hm->type = NGLI_HMAP_TYPE_PTR;
@@ -180,10 +180,10 @@ struct hmap *ngli_hmap_create_ptr(const struct hmap_key_funcs *key_funcs)
     return hm;
 }
 
-struct hmap *ngli_hmap_create(enum hmap_type type)
+struct hmap *ngli_hmap_try_create(enum hmap_type type)
 {
     ngli_assert(type > NGLI_HMAP_TYPE_PTR && type < NGLI_HMAP_TYPE_NB);
-    struct hmap *hm = hmap_create();
+    struct hmap *hm = hmap_try_create();
     if (!hm)
         return NULL;
     hm->type = type;
@@ -218,7 +218,7 @@ static int delete_entry(struct hmap *hm, size_t entry_index)
     return 1;
 }
 
-static int hmap_set(struct hmap *hm, union hmap_key key, void *data)
+static int hmap_try_set(struct hmap *hm, union hmap_key key, void *data)
 {
     if (!hm->key_funcs.check(key))
         return NGL_ERROR_INVALID_ARG;
@@ -260,25 +260,25 @@ static int hmap_set(struct hmap *hm, union hmap_key key, void *data)
     return 0;
 }
 
-int ngli_hmap_set_ptr(struct hmap *hm, const void *ptr, void *data)
+int ngli_hmap_try_set_ptr(struct hmap *hm, const void *ptr, void *data)
 {
     ngli_assert(hm->type == NGLI_HMAP_TYPE_PTR);
     const union hmap_key key = {.ptr=(void *)ptr};
-    return hmap_set(hm, key, data);
+    return hmap_try_set(hm, key, data);
 }
 
-int ngli_hmap_set_str(struct hmap *hm, const char *str, void *data)
+int ngli_hmap_try_set_str(struct hmap *hm, const char *str, void *data)
 {
     ngli_assert(hm->type == NGLI_HMAP_TYPE_STR);
     const union hmap_key key = {.str=(char *)str};
-    return hmap_set(hm, key, data);
+    return hmap_try_set(hm, key, data);
 }
 
-int ngli_hmap_set_u64(struct hmap *hm, uint64_t u64, void *data)
+int ngli_hmap_try_set_u64(struct hmap *hm, uint64_t u64, void *data)
 {
     ngli_assert(hm->type == NGLI_HMAP_TYPE_U64);
     const union hmap_key key = {.u64=u64};
-    return hmap_set(hm, key, data);
+    return hmap_try_set(hm, key, data);
 }
 
 struct hmap_entry *ngli_hmap_next(const struct hmap *hm, const struct hmap_entry *prev)

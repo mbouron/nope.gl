@@ -151,13 +151,13 @@ static const struct hmap_key_funcs key_funcs = {
 
 int main(void)
 {
-    struct hmap *hm = ngli_hmap_create_ptr(&key_funcs);
+    struct hmap *hm = ngli_hmap_try_create_ptr(&key_funcs);
     ngli_hmap_set_free_func(hm, free_func, NULL);
 
     /* Test addition */
     for (size_t i = 0; i < NGLI_ARRAY_NB(kvs); i++) {
         void *data = ngli_strdup(kvs[i].val);
-        ngli_assert(ngli_hmap_set_ptr(hm, &kvs[i].key, data) >= 0);
+        ngli_assert(ngli_hmap_try_set_ptr(hm, &kvs[i].key, data) >= 0);
         const char *val = ngli_hmap_get_ptr(hm, &kvs[i].key);
         ngli_assert(val);
         ngli_assert(!strcmp(val, kvs[i].val));
@@ -170,7 +170,7 @@ int main(void)
         /* Test replace */
         if (i & 1) {
             void *data = ngli_strdup(RSTR);
-            ngli_assert(ngli_hmap_set_ptr(hm, &kvs[i].key, data) == 0);
+            ngli_assert(ngli_hmap_try_set_ptr(hm, &kvs[i].key, data) == 0);
             const char *val = ngli_hmap_get_ptr(hm, &kvs[i].key);
             ngli_assert(val);
             ngli_assert(strcmp(val, RSTR) == 0);
@@ -179,8 +179,8 @@ int main(void)
         }
 
         /* Test delete */
-        ngli_assert(ngli_hmap_set_ptr(hm, &kvs[i].key, NULL) == 1);
-        ngli_assert(ngli_hmap_set_ptr(hm, &kvs[i].key, NULL) == 0);
+        ngli_assert(ngli_hmap_try_set_ptr(hm, &kvs[i].key, NULL) == 1);
+        ngli_assert(ngli_hmap_try_set_ptr(hm, &kvs[i].key, NULL) == 0);
         PRINT_HMAP("drop %s (%zu remaining):\n", kvs[i].val, ngli_hmap_count(hm));
         check_order(hm);
     }

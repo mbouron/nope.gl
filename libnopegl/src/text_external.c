@@ -155,7 +155,7 @@ static int text_external_init(struct text *text)
     if (ret < 0)
         return ret;
 
-    s->glyph_index = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    s->glyph_index = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
     if (!s->glyph_index)
         return NGL_ERROR_MEMORY;
     ngli_hmap_set_free_func(s->glyph_index, free_glyph, NULL);
@@ -389,7 +389,7 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
             glyph->bearing_x = (int32_t)ft_ctx.cbox.xMin;
             glyph->bearing_y = (int32_t)ft_ctx.cbox.yMin;
 
-            ret = ngli_hmap_set_str(glyph_index, glyph_uid, glyph);
+            ret = ngli_hmap_try_set_str(glyph_index, glyph_uid, glyph);
             if (ret < 0) {
                 free_glyph(NULL, glyph);
                 goto end;

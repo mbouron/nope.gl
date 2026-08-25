@@ -229,7 +229,7 @@ static int text_builtin_init(struct text *text)
             return ret;
         }
 
-        ret = ngli_hmap_set_str(text->ctx->text_builtin_atlasses, atlas_uid, atlas);
+        ret = ngli_hmap_try_set_str(text->ctx->text_builtin_atlasses, atlas_uid, atlas);
         if (ret < 0) {
             ngli_free_text_builtin_atlas(NULL, atlas);
             return ret;

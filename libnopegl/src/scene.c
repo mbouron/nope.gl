@@ -169,7 +169,7 @@ static int track_nodes(struct hmap *nodes_set, struct ngl_node *node)
 {
     const uint64_t key = (uint64_t)(uintptr_t)node;
     if (!ngli_hmap_get_u64(nodes_set, key)) {
-        int ret = ngli_hmap_set_u64(nodes_set, key, node);
+        int ret = ngli_hmap_try_set_u64(nodes_set, key, node);
         if (ret < 0)
             return ret;
     }
@@ -187,7 +187,7 @@ static int track_nodes(struct hmap *nodes_set, struct ngl_node *node)
 
 static int build_nodes_set(struct ngl_scene *s)
 {
-    struct hmap *nodes_set = ngli_hmap_create(NGLI_HMAP_TYPE_U64);
+    struct hmap *nodes_set = ngli_hmap_try_create(NGLI_HMAP_TYPE_U64);
     if (!nodes_set)
         return NGL_ERROR_MEMORY;
 
@@ -456,7 +456,7 @@ static int find_livectls(struct ngl_scene *scene, struct hmap *hm)
             ngli_assert(0); // scene->nodes is a set so each node is supposed to be present only once
         }
 
-        int ret = ngli_hmap_set_str(hm, ref_ctl->id, (void *)node);
+        int ret = ngli_hmap_try_set_str(hm, ref_ctl->id, (void *)node);
         if (ret < 0)
             return ret;
     }
@@ -473,7 +473,7 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
     if (!scene->params.root)
         return 0;
 
-    struct hmap *livectls_index = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    struct hmap *livectls_index = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
     if (!livectls_index)
         return NGL_ERROR_MEMORY;
 

@@ -1177,7 +1177,7 @@ static struct ngl_node *duplicate_node(struct hmap *dupmap, const struct ngl_nod
     if (!dup)
         return NULL;
 
-    int ret = ngli_hmap_set_u64(dupmap, key, dup);
+    int ret = ngli_hmap_try_set_u64(dupmap, key, dup);
     if (ret < 0)
         goto fail;
 
@@ -1259,7 +1259,7 @@ static struct ngl_node *duplicate_node(struct hmap *dupmap, const struct ngl_nod
                 case NGLI_PARAM_TYPE_NODEDICT: {
                     const struct hmap *src_hmap = *(const struct hmap *const *)srcp;
                     if (src_hmap) {
-                        struct hmap *dst_hmap = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+                        struct hmap *dst_hmap = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
                         if (!dst_hmap)
                             goto fail;
                         ngli_hmap_set_free_func(dst_hmap, duplicate_hmap_free, NULL);
@@ -1270,7 +1270,7 @@ static struct ngl_node *duplicate_node(struct hmap *dupmap, const struct ngl_nod
                                 ngli_hmap_freep(&dst_hmap);
                                 goto fail;
                             }
-                            ret = ngli_hmap_set_str(dst_hmap, entry->key.str, dup_child);
+                            ret = ngli_hmap_try_set_str(dst_hmap, entry->key.str, dup_child);
                             if (ret < 0) {
                                 ngl_node_unrefp(&dup_child);
                                 ngli_hmap_freep(&dst_hmap);
@@ -1325,7 +1325,7 @@ struct ngl_node *ngl_node_duplicate(struct ngl_node *node, uint32_t flags)
     if (!node)
         return NULL;
 
-    struct hmap *dupmap = ngli_hmap_create(NGLI_HMAP_TYPE_U64);
+    struct hmap *dupmap = ngli_hmap_try_create(NGLI_HMAP_TYPE_U64);
     if (!dupmap)
         return NULL;
 
