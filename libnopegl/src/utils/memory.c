@@ -104,6 +104,44 @@ void *ngli_try_realloc(void *ptr, size_t n, size_t size)
     return realloc(ptr, bytes);
 }
 
+_Noreturn void ngli_oom(void)
+{
+    fprintf(stderr, "Out of memory\n");
+    abort();
+}
+
+void *ngli_malloc(size_t size)
+{
+    void *ptr = ngli_try_malloc(size);
+    if (!ptr)
+        ngli_oom();
+    return ptr;
+}
+
+void *ngli_calloc(size_t n, size_t size)
+{
+    void *ptr = ngli_try_calloc(n, size);
+    if (!ptr)
+        ngli_oom();
+    return ptr;
+}
+
+void *ngli_malloc_aligned(size_t alignment, size_t size)
+{
+    void *ptr = ngli_try_malloc_aligned(alignment, size);
+    if (!ptr)
+        ngli_oom();
+    return ptr;
+}
+
+void *ngli_realloc(void *ptr, size_t n, size_t size)
+{
+    void *new_ptr = ngli_try_realloc(ptr, n, size);
+    if (!new_ptr)
+        ngli_oom();
+    return new_ptr;
+}
+
 void ngli_free(void *ptr)
 {
     free(ptr);
@@ -130,7 +168,7 @@ void ngli_freep_aligned(void *ptr)
     memset(ptr, 0, sizeof(void *));
 }
 
-void *ngli_memdup(const void *src, size_t n)
+void *ngli_try_memdup(const void *src, size_t n)
 {
     void *dst = ngli_try_malloc(n);
     if (!dst)

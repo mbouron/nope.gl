@@ -261,7 +261,7 @@ static int load_caps(struct ngl_backend *backend, const struct ngpu_ctx *gpu_ctx
     };
 
     backend->nb_caps = NGLI_ARRAY_NB(caps);
-    backend->caps = ngli_memdup(caps, sizeof(caps));
+    backend->caps = ngli_try_memdup(caps, sizeof(caps));
     if (!backend->caps)
         return NGL_ERROR_MEMORY;
 
@@ -292,7 +292,7 @@ static int backend_copy(struct ngl_backend *dst, const struct ngl_backend *src)
 {
     *dst = *src;
 
-    dst->caps = ngli_memdup(src->caps, src->nb_caps * sizeof(*src->caps));
+    dst->caps = ngli_try_memdup(src->caps, src->nb_caps * sizeof(*src->caps));
     if (!dst->caps)
         return NGL_ERROR_MEMORY;
 

@@ -70,17 +70,17 @@
 #define NGPU_CHK_MUL(result, a, b) (*(result) = (a) * (b), false)
 #endif
 
-#define NGPU_ARRAY_MEMDUP(dst, src, name) do {                             \
-    const size_t nb = (src)->nb_##name;                                    \
-    if (nb > 0) {                                                          \
-        (dst)->name = ngpu_memdup((src)->name, nb * sizeof(*(dst)->name)); \
-        if (!(dst)->name)                                                  \
-            return NGPU_ERROR_MEMORY;                                       \
-    } else {                                                               \
-        (dst)->name = NULL;                                                \
-    }                                                                      \
-    (dst)->nb_##name = nb;                                                 \
-} while (0)                                                                \
+#define NGPU_ARRAY_MEMDUP(dst, src, name) do {                                 \
+    const size_t nb = (src)->nb_##name;                                        \
+    if (nb > 0) {                                                              \
+        (dst)->name = ngpu_try_memdup((src)->name, nb * sizeof(*(dst)->name)); \
+        if (!(dst)->name)                                                      \
+            return NGPU_ERROR_MEMORY;                                          \
+    } else {                                                                   \
+        (dst)->name = NULL;                                                    \
+    }                                                                          \
+    (dst)->nb_##name = nb;                                                     \
+} while (0)                                                                    \
 
 #define NGPU_ARRAY_NB(x) (sizeof(x)/sizeof(*(x)))
 

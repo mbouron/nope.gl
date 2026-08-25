@@ -102,6 +102,44 @@ void *ngpu_try_realloc(void *ptr, size_t n, size_t size)
     return realloc(ptr, bytes);
 }
 
+_Noreturn void ngpu_oom(void)
+{
+    fprintf(stderr, "Out of memory\n");
+    abort();
+}
+
+void *ngpu_malloc(size_t size)
+{
+    void *ptr = ngpu_try_malloc(size);
+    if (!ptr)
+        ngpu_oom();
+    return ptr;
+}
+
+void *ngpu_calloc(size_t n, size_t size)
+{
+    void *ptr = ngpu_try_calloc(n, size);
+    if (!ptr)
+        ngpu_oom();
+    return ptr;
+}
+
+void *ngpu_malloc_aligned(size_t alignment, size_t size)
+{
+    void *ptr = ngpu_try_malloc_aligned(alignment, size);
+    if (!ptr)
+        ngpu_oom();
+    return ptr;
+}
+
+void *ngpu_realloc(void *ptr, size_t n, size_t size)
+{
+    void *new_ptr = ngpu_try_realloc(ptr, n, size);
+    if (!new_ptr)
+        ngpu_oom();
+    return new_ptr;
+}
+
 void ngpu_free(void *ptr)
 {
     free(ptr);
@@ -128,7 +166,7 @@ void ngpu_freep_aligned(void *ptr)
     memset(ptr, 0, sizeof(void *));
 }
 
-void *ngpu_memdup(const void *src, size_t n)
+void *ngpu_try_memdup(const void *src, size_t n)
 {
     void *dst = ngpu_try_malloc(n);
     if (!dst)

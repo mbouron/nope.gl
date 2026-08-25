@@ -128,7 +128,7 @@ static int key_cmp(union hmap_key a, union hmap_key b)
 
 static union hmap_key key_dup(union hmap_key x)
 {
-    return (union hmap_key){.ptr=ngli_memdup(x.ptr, sizeof(struct key))};
+    return (union hmap_key){.ptr=ngli_try_memdup(x.ptr, sizeof(struct key))};
 }
 
 static int key_check(union hmap_key x)
