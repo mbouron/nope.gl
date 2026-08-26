@@ -8,6 +8,8 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+
+## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added
 - `Group2D.clip_rect` and `Group2D.clip_corner_radius` to clip a group and all
   its children to an optionally rounded rectangle that follows the group's
@@ -479,3 +481,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 [2026.0]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.0
 [2026.1]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.1
 [2026.2]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.2
+[2026.3]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.3
