@@ -447,7 +447,7 @@ def _gaussian_kernel_1d(sigma):
     return array.array("f", [w / total for w in kernel]), radius
 
 
-_GAUSSIAN_BLUR_H_GLSL = """\
+_GAUSSIAN_BLUR_H_GLSL = textwrap.dedent("""\
     vec2 texel = 1.0 / vec2(textureSize(tex, 0));
     vec4 sum = vec4(0.0);
     for (int x = -radius; x <= radius; x++) {
@@ -455,10 +455,10 @@ _GAUSSIAN_BLUR_H_GLSL = """\
         sum += ngl_texvideo(tex, tex_coord + vec2(float(x), 0.0) * texel) * w;
     }
     return sum;
-"""
+""")
 
 
-_GAUSSIAN_BLUR_V_GLSL = """\
+_GAUSSIAN_BLUR_V_GLSL = textwrap.dedent("""\
     vec2 texel = 1.0 / vec2(textureSize(tex, 0));
     vec4 sum = vec4(0.0);
     for (int y = -radius; y <= radius; y++) {
@@ -466,7 +466,7 @@ _GAUSSIAN_BLUR_V_GLSL = """\
         sum += ngl_texvideo(tex, tex_coord + vec2(0.0, float(y)) * texel) * w;
     }
     return sum;
-"""
+""")
 
 
 @test_render(tolerance=3, diff_threshold=0.005)
