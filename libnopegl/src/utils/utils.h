@@ -58,6 +58,9 @@
 
 #define NGLI_STATIC_ASSERT(c, id) static_assert(c, id)
 
+#define NGLI_STRINGIFY_I(x) #x
+#define NGLI_STRINGIFY(x) NGLI_STRINGIFY_I(x)
+
 #define NGLI_FIELD_SIZEOF(name, field) (sizeof(((name *)0)->field))
 
 #define NGLI_MIN(a, b) ((a) < (b) ? (a) : (b))
