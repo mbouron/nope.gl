@@ -43,9 +43,6 @@
 #include "blur_upsample_frag.h"
 #include "blur_interpolate_frag.h"
 
-#define _CONSTANT_TO_STR(v) #v
-#define CONSTANT_TO_STR(v) _CONSTANT_TO_STR(v)
-
 #define MAX_MIP_LEVELS 16
 
 #define DWS_NAME "nopegl/fast-gaussian-blur-dws"

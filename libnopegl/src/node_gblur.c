@@ -41,9 +41,6 @@
 #include "blur_gaussian_vert.h"
 #include "blur_gaussian_frag.h"
 
-#define _CONSTANT_TO_STR(v) #v
-#define CONSTANT_TO_STR(v) _CONSTANT_TO_STR(v)
-
 #define MAX_KERNEL_SIZE 127
 NGLI_STATIC_ASSERT(MAX_KERNEL_SIZE & 0x1, "kernel size is odd");
 
@@ -113,7 +110,7 @@ static const struct node_param gblur_params[] = {
     {"blurriness",        NGLI_PARAM_TYPE_F32, OFFSET(blurriness_node), {.f32=0.03f},
                           .flags=NGLI_PARAM_FLAG_ALLOW_NODE,
                           .desc=NGLI_DOCSTRING("amount of blurriness in the range [0,1] "
-                                               "where 1 is equivalent of a blur radius of " CONSTANT_TO_STR(MAX_RADIUS_SIZE) "px")},
+                                               "where 1 is equivalent of a blur radius of " NGLI_STRINGIFY(MAX_RADIUS_SIZE) "px")},
     {NULL}
 };
 
