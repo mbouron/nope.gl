@@ -796,6 +796,12 @@ test_progs = {
     'exe': 'test_path',
     'src': files('src/test_path.c', 'src/path.c', 'src/log.c', ) + math_utils_src + utils_src,
   },
+  'Scene topology': {
+    'exe': 'test_scene',
+    'src': files('src/test_scene.c'),
+    'objects': libnopegl.extract_all_objects(recursive: true),
+    'c_args': lib_c_args,
+  },
   'Utils': {
     'exe': 'test_utils',
     'src': files('src/test_utils.c', 'src/log.c') + utils_src,
@@ -807,6 +813,8 @@ if get_option('tests')
     exe = executable(
       test_data.get('exe'),
       test_data.get('src'),
+      objects: test_data.get('objects', []),
+      c_args: test_data.get('c_args', []),
       dependencies: lib_deps,
       build_by_default: false,
       install: false,
