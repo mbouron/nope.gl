@@ -156,6 +156,30 @@ static void test_remove_range(void)
     ngpu_darray_reset(&a);
 }
 
+static void test_insert(void)
+{
+    NGPU_DARRAY(int) a = {0};
+
+    /* Fill the initial allocation so the first insertion also exercises growth. */
+    for (int i = 0; i < 8; i++)
+        ngpu_darray_push(&a, i);
+
+    ngpu_darray_insert(&a, 4, 42);
+    ngpu_assert(a.count == 9);
+    for (int i = 0; i < 4; i++)
+        ngpu_assert(a.data[i] == i);
+    ngpu_assert(a.data[4] == 42);
+    for (int i = 5; i < 9; i++)
+        ngpu_assert(a.data[i] == i - 1);
+
+    ngpu_darray_insert(&a, 0, -1);
+    ngpu_darray_insert(&a, a.count, 8);
+    ngpu_assert(a.data[0] == -1);
+    ngpu_assert(*ngpu_darray_tail(&a) == 8);
+
+    ngpu_darray_reset(&a);
+}
+
 static void test_clear_vs_reset(void)
 {
     NGPU_DARRAY(int) a = {0};
@@ -245,6 +269,7 @@ int main(void)
     test_compound_literal_push();
     test_reserve();
     test_remove_range();
+    test_insert();
     test_clear_vs_reset();
     test_user_free_func();
     test_free_func_call_count();

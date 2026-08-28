@@ -79,6 +79,18 @@ void ngli_darray_free_(void *ptr, size_t alignment);
     (a)->data[(a)->count++] = (__VA_ARGS__);                                     \
 } while (0)
 
+#define ngli_darray_insert(a, idx, ...) do {                                     \
+    const size_t _idx = (idx);                                                   \
+    ngli_assert(_idx <= (a)->count);                                             \
+    if ((a)->count >= (a)->capacity)                                             \
+        ngli_darray_grow_((ngli_darray_data_alias *)&(a)->data, &(a)->capacity,  \
+                          sizeof(*(a)->data), NGLI_DARRAY_ALIGNOF_(a));          \
+    memmove(&(a)->data[_idx + 1], &(a)->data[_idx],                              \
+            ((a)->count - _idx) * sizeof(*(a)->data));                           \
+    (a)->data[_idx] = (__VA_ARGS__);                                             \
+    (a)->count++;                                                                \
+} while (0)
+
 #define ngli_darray_pop(a) \
     (ngli_assert((a)->count > 0), &(a)->data[--(a)->count])
 
