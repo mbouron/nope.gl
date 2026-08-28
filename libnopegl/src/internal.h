@@ -216,6 +216,7 @@ struct ngl_node {
     struct ngli_node_darray children;
     struct ngli_node_darray draw_children; // children with a draw callback
     struct ngli_node_darray parents;
+    size_t scene_index;
 
     char *label;
 
@@ -492,6 +493,13 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str);
 char *ngli_scene_serialize(const struct ngl_scene *s);
 char *ngli_scene_dot(const struct ngl_scene *s);
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par);
+
+int ngli_scene_add_edges(struct ngl_scene *s, struct ngl_node *parent,
+                         size_t index, size_t nb_nodes, struct ngl_node **nodes);
+void ngli_scene_remove_edges(struct ngl_node *parent, size_t nb_nodes,
+                             struct ngl_node * const *nodes);
+void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
+                              struct ngl_node *child, size_t index);
 
 struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children);
 float ngli_node_compute_children_effect_margin(struct ngl_node *const *children, size_t nb_children);
