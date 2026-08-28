@@ -129,113 +129,202 @@ static void detach_root(struct ngl_scene *s)
     ngl_node_unrefp(&s->params.root);
 }
 
-static int setup_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node *node)
+static size_t get_node_index(const struct ngli_node_darray *nodes, const struct ngl_node *node)
 {
-    struct ngl_scene *s = user_arg;
-
-    if (node->scene) {
-        if (node->scene != s) {
-            LOG(ERROR, "one or more nodes of the graph are associated with another scene already");
-            return NGL_ERROR_INVALID_USAGE;
-        }
-        if (node->cls->flags & NGLI_NODE_FLAG_2D) {
-            LOG(ERROR, "2D node %s (%s) can not be shared within the graph",
-                node->label, node->cls->name);
-            return NGL_ERROR_INVALID_USAGE;
-        }
-    } else {
-        node->scene = s;
-
-        int ret = children_apply_func(setup_nodes, s, node);
-        if (ret < 0)
-            return ret;
-    }
-
-    if (parent) {
-        if (ngli_darray_try_push(&parent->children, node) < 0)
-            return NGL_ERROR_MEMORY;
-        if (node->cls->draw) {
-            if (ngli_darray_try_push(&parent->draw_children, node) < 0)
-                return NGL_ERROR_MEMORY;
-        }
-        if (ngli_darray_try_push(&node->parents, parent) < 0)
-            return NGL_ERROR_MEMORY;
-    }
-
-    return 0;
+    for (size_t i = 0; i < nodes->count; i++)
+        if (nodes->data[i] == node)
+            return i;
+    return SIZE_MAX;
 }
 
-static int track_nodes(struct hmap *nodes_set, struct ngl_node *node)
+static void add_scene_node(struct ngl_scene *s, struct ngl_node *node)
 {
-    const uint64_t key = (uint64_t)(uintptr_t)node;
-    if (!ngli_hmap_get_u64(nodes_set, key)) {
-        int ret = ngli_hmap_try_set_u64(nodes_set, key, node);
-        if (ret < 0)
-            return ret;
-    }
+    node->scene_index = s->nodes.count;
+    ngli_darray_push(&s->nodes, node);
+    node->scene = s;
 
-    struct ngli_node_darray *children_array = &node->children;
-    struct ngl_node **children = children_array->data;
-    for (size_t i = 0; i < children_array->count; i++) {
-        int ret = track_nodes(nodes_set, children[i]);
-        if (ret < 0)
-            return ret;
-    }
-
-    return 0;
-}
-
-static int build_nodes_set(struct ngl_scene *s)
-{
-    struct hmap *nodes_set = ngli_hmap_try_create(NGLI_HMAP_TYPE_U64);
-    if (!nodes_set)
-        return NGL_ERROR_MEMORY;
-
-    int ret = track_nodes(nodes_set, s->params.root);
-    if (ret < 0)
-        goto end;
-
-    // Transfer the nodes set to a flat darray set of nodes
-    const struct hmap_entry *entry = NULL;
-    while ((entry = ngli_hmap_next(nodes_set, entry))) {
-        struct ngl_node *node = entry->data;
-        if (ngli_darray_try_push(&s->nodes, node) < 0) {
-            ret = NGL_ERROR_MEMORY;
-            goto end;
-        }
-    }
-
-end:
-    ngli_hmap_freep(&nodes_set);
-    return ret;
-}
-
-static int track_files(struct ngl_scene *s)
-{
-    for (size_t i = 0; i < s->nodes.count; i++) {
-        const struct ngl_node *node = s->nodes.data[i];
-        uint8_t *base_ptr = node->opts;
-
-        const struct node_param *params = node->cls->params;
-        if (!params)
+    const struct node_param *par = node->cls->params;
+    if (!par)
+        return;
+    for (; par->key; par++) {
+        uint8_t *parp = (uint8_t *)node->opts + par->offset;
+        if (!(par->flags & NGLI_PARAM_FLAG_FILEPATH) || !*(char **)parp)
             continue;
+        ngli_darray_push(&s->files, *(char **)parp);
+        ngli_darray_push(&s->files_par, parp);
+    }
+}
 
-        for (size_t j = 0; params[j].key; j++) {
-            const struct node_param *par = &params[j];
-            uint8_t *parp = base_ptr + par->offset;
-            if (par->flags & NGLI_PARAM_FLAG_FILEPATH) {
-                char *str = *(char **)parp;
-                if (!str)
+static void remove_scene_node(struct ngl_scene *s, struct ngl_node *node)
+{
+    const size_t index = node->scene_index;
+    ngli_assert(index < s->nodes.count && s->nodes.data[index] == node);
+
+    /* Swap with the last node for an unordered O(1) removal. */
+    s->nodes.data[index] = *ngli_darray_pop(&s->nodes);
+    s->nodes.data[index]->scene_index = index;
+
+    const struct node_param *par = node->cls->params;
+    if (par) {
+        for (; par->key; par++) {
+            uint8_t *parp = (uint8_t *)node->opts + par->offset;
+            if (!(par->flags & NGLI_PARAM_FLAG_FILEPATH))
+                continue;
+            for (size_t i = 0; i < s->files_par.count; i++) {
+                if (s->files_par.data[i] != parp)
                     continue;
-                if (ngli_darray_try_push(&s->files, str) < 0)
-                    return NGL_ERROR_MEMORY;
-                if (ngli_darray_try_push(&s->files_par, parp) < 0)
-                    return NGL_ERROR_MEMORY;
+                ngli_darray_remove(&s->files, i);
+                ngli_darray_remove(&s->files_par, i);
+                break;
             }
         }
     }
+    node->scene = NULL;
+}
 
+static void add_runtime_edge(struct ngl_node *parent, struct ngl_node *child, size_t index)
+{
+    ngli_assert(index <= parent->children.count);
+
+    /* Map the children insertion index to the drawable-only array. */
+    size_t draw_index = 0;
+    for (size_t i = 0; i < index; i++)
+        draw_index += !!parent->children.data[i]->cls->draw;
+
+    ngli_darray_insert(&parent->children, index, child);
+    if (child->cls->draw)
+        ngli_darray_insert(&parent->draw_children, draw_index, child);
+    ngli_darray_push(&child->parents, parent);
+}
+
+static struct ngl_node *remove_runtime_edge_at(struct ngl_node *parent, size_t index)
+{
+    ngli_assert(index < parent->children.count);
+    struct ngl_node *child = parent->children.data[index];
+
+    size_t draw_index = 0;
+    for (size_t i = 0; i < index; i++)
+        draw_index += !!parent->children.data[i]->cls->draw;
+
+    ngli_darray_remove(&parent->children, index);
+
+    if (child->cls->draw) {
+        ngli_assert(parent->draw_children.data[draw_index] == child);
+        ngli_darray_remove(&parent->draw_children, draw_index);
+    }
+
+    const size_t parent_index = get_node_index(&child->parents, parent);
+    ngli_assert(parent_index != SIZE_MAX);
+    ngli_darray_remove(&child->parents, parent_index);
+
+    return child;
+}
+
+static void remove_runtime_edge(struct ngl_node *parent, struct ngl_node *child)
+{
+    const size_t index = get_node_index(&parent->children, child);
+    ngli_assert(index != SIZE_MAX);
+    remove_runtime_edge_at(parent, index);
+}
+
+static void remove_scene_edge(struct ngl_node *parent, struct ngl_node *child);
+static void remove_scene_edge_at(struct ngl_node *parent, size_t index);
+static int add_scene_edge(void *user_arg, struct ngl_node *parent, struct ngl_node *child);
+
+static void remove_scene_children(struct ngl_node *parent)
+{
+    while (!ngli_darray_is_empty(&parent->children))
+        remove_scene_edge(parent, *ngli_darray_tail(&parent->children));
+}
+
+static int add_scene_edge_at(struct ngl_scene *s, struct ngl_node *parent,
+                             struct ngl_node *child, size_t index)
+{
+    if (child->scene) {
+        if (child->scene != s) {
+            LOG(ERROR, "one or more nodes of the graph are associated with another scene already");
+            return NGL_ERROR_INVALID_USAGE;
+        }
+        if (child->cls->flags & NGLI_NODE_FLAG_2D) {
+            LOG(ERROR, "2D node %s (%s) can not be shared within the graph",
+                child->label, child->cls->name);
+            return NGL_ERROR_INVALID_USAGE;
+        }
+        add_runtime_edge(parent, child, index);
+        return 0;
+    }
+
+    add_runtime_edge(parent, child, index);
+    add_scene_node(s, child);
+
+    const int ret = children_apply_func(add_scene_edge, s, child);
+    if (ret < 0) {
+        remove_scene_children(child);
+        remove_scene_node(s, child);
+        remove_runtime_edge(parent, child);
+    }
+    return ret;
+}
+
+static int add_scene_edge(void *user_arg, struct ngl_node *parent, struct ngl_node *child)
+{
+    return add_scene_edge_at(user_arg, parent, child, parent->children.count);
+}
+
+static void remove_scene_edge(struct ngl_node *parent, struct ngl_node *child)
+{
+    const size_t index = get_node_index(&parent->children, child);
+    ngli_assert(index != SIZE_MAX);
+    remove_scene_edge_at(parent, index);
+}
+
+static void remove_scene_edge_at(struct ngl_node *parent, size_t index)
+{
+    struct ngl_scene *s = parent->scene;
+    ngli_assert(s);
+
+    struct ngl_node *child = remove_runtime_edge_at(parent, index);
+    ngli_assert(child->scene == s);
+    if (!ngli_darray_is_empty(&child->parents))
+        return;
+
+    ngli_assert(child != s->params.root);
+    remove_scene_children(child);
+    remove_scene_node(s, child);
+}
+
+int ngli_scene_add_edges(struct ngl_scene *s, struct ngl_node *parent,
+                         size_t index, size_t nb_nodes, struct ngl_node **nodes)
+{
+    ngli_assert(parent->scene == s);
+    for (size_t i = 0; i < nb_nodes; i++) {
+        const int ret = add_scene_edge_at(s, parent, nodes[i], index + i);
+        if (ret < 0) {
+            while (i--)
+                remove_scene_edge_at(parent, index + i);
+            return ret;
+        }
+    }
     return 0;
+}
+
+void ngli_scene_remove_edges(struct ngl_node *parent, size_t nb_nodes,
+                             struct ngl_node * const *nodes)
+{
+    for (size_t i = 0; i < nb_nodes; i++)
+        remove_scene_edge(parent, nodes[i]);
+}
+
+void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
+                              struct ngl_node *child, size_t index)
+{
+    ngli_assert(from->scene && from->scene == to->scene && child->scene == from->scene);
+    ngli_assert(index <= to->children.count);
+
+    remove_runtime_edge(from, child);
+    if (from == to)
+        index = NGLI_MIN(index, to->children.count);
+    add_runtime_edge(to, child, index);
 }
 
 static int check_nodes_params_sanity(const struct ngli_node_darray *nodes_array)
@@ -266,23 +355,24 @@ static int attach_root(struct ngl_scene *s, struct ngl_node *node)
 {
     s->params.root = ngl_node_ref(node);
 
-    int ret = setup_nodes(s, NULL, s->params.root);
-    if (ret < 0)
-        return ret;
+    add_scene_node(s, s->params.root);
 
-    ret = build_nodes_set(s);
+    int ret = children_apply_func(add_scene_edge, s, s->params.root);
     if (ret < 0)
-        return ret;
+        goto fail;
 
     ret = check_nodes_params_sanity(&s->nodes);
     if (ret < 0)
-        return ret;
-
-    ret = track_files(s);
-    if (ret < 0)
-        return ret;
+        goto fail;
 
     return 0;
+
+fail:
+    remove_scene_children(s->params.root);
+    if (s->params.root->scene == s)
+        remove_scene_node(s, s->params.root);
+    ngl_node_unrefp(&s->params.root);
+    return ret;
 }
 
 int ngl_scene_get_filepaths(struct ngl_scene *s, char ***filepathsp, size_t *nb_filepathsp)
