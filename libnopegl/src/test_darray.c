@@ -156,6 +156,30 @@ static void test_remove_range(void)
     ngli_darray_reset(&a);
 }
 
+static void test_insert(void)
+{
+    NGLI_DARRAY(int) a = {0};
+
+    /* Fill the initial allocation so the first insertion also exercises growth. */
+    for (int i = 0; i < 8; i++)
+        ngli_darray_push(&a, i);
+
+    ngli_darray_insert(&a, 4, 42);
+    ngli_assert(a.count == 9);
+    for (int i = 0; i < 4; i++)
+        ngli_assert(a.data[i] == i);
+    ngli_assert(a.data[4] == 42);
+    for (int i = 5; i < 9; i++)
+        ngli_assert(a.data[i] == i - 1);
+
+    ngli_darray_insert(&a, 0, -1);
+    ngli_darray_insert(&a, a.count, 8);
+    ngli_assert(a.data[0] == -1);
+    ngli_assert(*ngli_darray_tail(&a) == 8);
+
+    ngli_darray_reset(&a);
+}
+
 static void test_clear_vs_reset(void)
 {
     NGLI_DARRAY(int) a = {0};
@@ -245,6 +269,7 @@ int main(void)
     test_compound_literal_push();
     test_reserve();
     test_remove_range();
+    test_insert();
     test_clear_vs_reset();
     test_user_free_func();
     test_free_func_call_count();
