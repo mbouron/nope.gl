@@ -42,6 +42,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `ngl_draw` is still held by the user
 
 ### Fixed
+- Non-shareable nodes incorrectly allowed to be shared within a graph after the
+  introduction of 2D nodes
 - Garbled HUD text when the scene is letter boxed, caused by the overlay being
   sampled off the pixel grid
 - HUD overlay clipped by the viewport when `hud_scale` is too large
