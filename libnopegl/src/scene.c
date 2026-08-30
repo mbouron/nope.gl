@@ -209,11 +209,18 @@ static int add_scene_edge(void *user_arg, struct ngl_node *parent, struct ngl_no
     return add_scene_edge_at(user_arg, parent, child, parent->children.count);
 }
 
-static void remove_scene_edge(struct ngl_node *parent, struct ngl_node *child)
+static void remove_scene_edge(struct ngl_node *parent, struct ngli_edge_range *range, struct ngl_node *node)
 {
-    const size_t index = ngli_node_darray_find(&parent->children, child);
-    ngli_assert(index != SIZE_MAX);
-    remove_scene_edge_at(parent, index);
+    /*
+     * Iterate backwards so removing an entry does not change the indices
+     * of entries still to visit.
+     */
+    for (size_t i = range->index + range->count; i > range->index; i--) {
+        if (parent->children.data[i - 1] != node)
+            continue;
+        remove_scene_edge_at(parent, i - 1);
+        range->count--;
+    }
 }
 
 static void remove_scene_edge_at(struct ngl_node *parent, size_t index)
@@ -246,11 +253,14 @@ int ngli_scene_add_edges(struct ngl_scene *s, struct ngl_node *parent,
     return 0;
 }
 
-void ngli_scene_remove_edges(struct ngl_node *parent, size_t nb_nodes,
-                             struct ngl_node * const *nodes)
+void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_edge_range range,
+                             size_t nb_nodes, struct ngl_node * const *nodes)
 {
+    ngli_assert(range.index <= parent->children.count);
+    ngli_assert(range.count <= parent->children.count - range.index);
+
     for (size_t i = 0; i < nb_nodes; i++)
-        remove_scene_edge(parent, nodes[i]);
+        remove_scene_edge(parent, &range, nodes[i]);
 }
 
 void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
