@@ -712,6 +712,27 @@ void ngli_node_draw(struct ngl_node *node)
         ngli_darray_try_push(&node->ctx->bounding_box_nodes, node);
 }
 
+int ngli_node_check_params_sanity(const struct ngl_node *node)
+{
+    const uint8_t *base_ptr = node->opts;
+    const struct node_param *par = node->cls->params;
+
+    /* Identity, Time and PathKeyClose declare none */
+    if (!par)
+        return 0;
+
+    while (par->key) {
+        const void *p = base_ptr + par->offset;
+        if ((par->flags & NGLI_PARAM_FLAG_NON_NULL) && !*(uint8_t **)p) {
+            LOG(ERROR, "%s: %s parameter can not be null", node->label, par->key);
+            return NGL_ERROR_INVALID_ARG;
+        }
+        par++;
+    }
+
+    return 0;
+}
+
 const struct node_param *ngli_node_param_find(const struct ngl_node *node, const char *key,
                                               uint8_t **base_ptrp)
 {

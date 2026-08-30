@@ -30,6 +30,74 @@ static struct ngl_scene *create_scene(struct ngl_node *root)
     return scene;
 }
 
+static void test_scene_cycle(void)
+{
+    struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *child = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_scene *scene = ngl_scene_create();
+    ngli_assert(root && child && scene);
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 1, &child) == 0);
+    ngli_assert(ngl_node_param_add_nodes(child, "children", 1, &root) == 0);
+
+    const struct ngl_scene_params params = ngl_scene_default_params(root);
+    for (size_t i = 0; i < 2; i++) {
+        ngli_assert(ngl_scene_init(scene, &params) == NGL_ERROR_INVALID_ARG);
+        ngli_assert(!scene->params.root && !scene->nodes.count);
+        ngli_assert(!root->scene && !child->scene);
+    }
+
+    /* A failed traversal must not prevent attaching the repaired graph. */
+    ngli_assert(ngl_node_param_remove_nodes(child, "children", 1, &root) == 0);
+    ngli_assert(ngl_scene_init(scene, &params) == 0);
+    ngli_assert(scene->nodes.count == 2);
+
+    ngl_scene_unrefp(&scene);
+    ngl_node_unrefp(&child);
+    ngl_node_unrefp(&root);
+}
+
+static void test_scene_sharing(void)
+{
+    const uint32_t leaf_types[] = {NGL_NODE_IDENTITY, NGL_NODE_GROUP};
+    const int expected_results[] = {0, NGL_ERROR_INVALID_USAGE};
+    for (size_t i = 0; i < NGLI_ARRAY_NB(leaf_types); i++) {
+        struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
+        struct ngl_node *a = ngl_node_create(NGL_NODE_GROUP);
+        struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+        struct ngl_node *leaf = ngl_node_create(leaf_types[i]);
+        struct ngl_scene *scene = ngl_scene_create();
+        ngli_assert(root && a && b && leaf && scene);
+        ngli_assert(ngl_node_param_add_nodes(a, "children", 1, &leaf) == 0);
+        ngli_assert(ngl_node_param_add_nodes(b, "children", 1, &leaf) == 0);
+        struct ngl_node *children[] = {a, b};
+        ngli_assert(ngl_node_param_add_nodes(root, "children", 2, children) == 0);
+
+        /* Sharing is checked across separate sub-trees of one operation too. */
+        const struct ngli_scene_subtree_check_ctx check_ctx = {
+            .visiting_id = ngli_node_new_traversal_id(),
+            .visited_id = ngli_node_new_traversal_id(),
+        };
+        ngli_assert(ngli_scene_check_subtree(NULL, &check_ctx, a) == 0);
+        ngli_assert(ngli_scene_check_subtree(NULL, &check_ctx, b) == expected_results[i]);
+
+        const struct ngl_scene_params params = ngl_scene_default_params(root);
+        ngli_assert(ngl_scene_init(scene, &params) == expected_results[i]);
+        if (expected_results[i] < 0) {
+            ngli_assert(!scene->params.root && !scene->nodes.count);
+            ngli_assert(!root->scene && !a->scene && !b->scene && !leaf->scene);
+            ngli_assert(ngl_node_param_remove_nodes(b, "children", 1, &leaf) == 0);
+            ngli_assert(ngl_scene_init(scene, &params) == 0);
+        }
+        ngli_assert(scene->nodes.count == 4);
+
+        ngl_scene_unrefp(&scene);
+        ngl_node_unrefp(&leaf);
+        ngl_node_unrefp(&b);
+        ngl_node_unrefp(&a);
+        ngl_node_unrefp(&root);
+    }
+}
+
 struct customtexture_lifecycle {
     int step;
 };
@@ -205,6 +273,8 @@ static void test_swap_bounds(void)
 
 int main(void)
 {
+    test_scene_cycle();
+    test_scene_sharing();
     test_swap_bounds();
     test_duplicate_release();
     test_customtexture_lifecycle();
