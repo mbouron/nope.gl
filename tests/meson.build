@@ -68,6 +68,7 @@ foreach backend : backends
     'scene_context_transfer',
     'scene_lifetime',
     'scene_mutate',
+    'scene_incomplete_node',
     'scene_ownership',
     'scene_resilience',
     'scene_files',

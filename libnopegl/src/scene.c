@@ -336,7 +336,7 @@ static int check_nodes_params_sanity(const struct ngli_node_darray *nodes_array)
         const struct node_param *par = node->cls->params;
 
         if (!par)
-            return 0;
+            continue;
 
         while (par->key) {
             const void *p = base_ptr + par->offset;
