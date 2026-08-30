@@ -284,7 +284,7 @@ static int buffer_prepare(struct ngl_node *node,
     struct buffer_info *info = &s->buf;
 
     if (info->block)
-        return ngli_node_prepare(s->buf.block, rendertarget_layout);
+        return 0; /* the block allocates its own buffer */
 
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
         return 0;
@@ -310,15 +310,19 @@ static int buffer_prepare(struct ngl_node *node,
     return 0;
 }
 
+static void buffer_unprepare(struct ngl_node *node)
+{
+    struct buffer_info *info = node->priv_data;
+    if (!info->block)
+        ngli_buffer_resource_set(info->resource, NULL);
+}
+
 static void buffer_uninit(struct ngl_node *node)
 {
     struct buffer_priv *s = node->priv_data;
     const struct buffer_opts *o = node->opts;
 
-    if (o->block)
-        ngli_buffer_resource_unrefp(&s->buf.resource);
-    else
-        ngli_buffer_resource_releasep(&s->buf.resource);
+    ngli_buffer_resource_unrefp(&s->buf.resource);
 
     if (!o->data && !o->block)
         ngli_freep(&s->buf.data);
@@ -350,6 +354,7 @@ const struct node_class ngli_buffer##type_name##_class = {      \
     .name      = class_name,                                    \
     .init      = buffer##type_name##_init,                      \
     .prepare   = buffer_prepare,                                \
+    .unprepare = buffer_unprepare,                              \
     .update    = ngli_node_update_children,                     \
     .uninit    = buffer_uninit,                                 \
     .opts_size = sizeof(struct buffer_opts),                    \

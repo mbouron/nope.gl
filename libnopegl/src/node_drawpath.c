@@ -402,11 +402,16 @@ static void drawpath_release(struct ngl_node *node)
     ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
-static void drawpath_uninit(struct ngl_node *node)
+static void drawpath_unprepare(struct ngl_node *node)
 {
     struct drawpath_priv *s = node->priv_data;
     ngli_pipeline_freep(&s->pipeline_desc.pipeline);
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawpath_uninit(struct ngl_node *node)
+{
+    struct drawpath_priv *s = node->priv_data;
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
     ngli_distmap_freep(&s->distmap);
@@ -418,6 +423,7 @@ const struct node_class ngli_drawpath_class = {
     .name      = "DrawPath",
     .init      = drawpath_init,
     .prepare   = drawpath_prepare,
+    .unprepare = drawpath_unprepare,
     .update    = ngli_node_update_children,
     .draw      = drawpath_draw,
     .release   = drawpath_release,

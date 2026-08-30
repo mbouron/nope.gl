@@ -446,17 +446,15 @@ static void effect2d_get_rendertarget_layout(const struct ngl_node *node,
     *layout = s->layout;
 }
 
-static int prepare_program(struct ngl_node *node, struct effect2d_program *program,
-                           const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int build_crafter_blocks(const struct ngl_node *node, const struct effect2d_program *program,
+                                bool has_user_uniforms, struct effect2d_block_darray *blocks)
 {
-    struct ngl_ctx *ctx = node->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct effect2d_priv *s = node->priv_data;
-    const struct effect2d_opts *o = node->opts;
 
-    const bool has_user_uniforms = program->user_field_indices.count > 0;
+    for (size_t i = 0; i < program->crafter_blocks.count; i++)
+        if (ngli_darray_try_push(blocks, program->crafter_blocks.data[i]) < 0)
+            return NGL_ERROR_MEMORY;
 
-    /* Register built-in vert/frag/user blocks for pgcraft */
     const struct ngpu_pgcraft_block vert_crafter_block = {
         .name          = "vert",
         .instance_name = "",
@@ -464,7 +462,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         .stage         = NGPU_PROGRAM_STAGE_VERT,
         .block         = &s->vert_block_desc,
     };
-    if (ngli_darray_try_push(&program->crafter_blocks, vert_crafter_block) < 0)
+    if (ngli_darray_try_push(blocks, vert_crafter_block) < 0)
         return NGL_ERROR_MEMORY;
 
     const struct ngpu_pgcraft_block frag_crafter_block = {
@@ -474,7 +472,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         .stage         = NGPU_PROGRAM_STAGE_FRAG,
         .block         = &s->frag_block_desc,
     };
-    if (ngli_darray_try_push(&program->crafter_blocks, frag_crafter_block) < 0)
+    if (ngli_darray_try_push(blocks, frag_crafter_block) < 0)
         return NGL_ERROR_MEMORY;
 
     if (has_user_uniforms) {
@@ -485,8 +483,29 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &program->user_block_desc,
         };
-        if (ngli_darray_try_push(&program->crafter_blocks, user_crafter_block) < 0)
+        if (ngli_darray_try_push(blocks, user_crafter_block) < 0)
             return NGL_ERROR_MEMORY;
+    }
+
+    return 0;
+}
+
+static int prepare_program(struct ngl_node *node, struct effect2d_program *program,
+                           const struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
+    struct effect2d_priv *s = node->priv_data;
+    const struct effect2d_opts *o = node->opts;
+
+    const bool has_user_uniforms = program->user_field_indices.count > 0;
+
+    /* Merge the blocks registered at init with the built-in ones */
+    struct effect2d_block_darray blocks = {0};
+    int ret = build_crafter_blocks(node, program, has_user_uniforms, &blocks);
+    if (ret < 0) {
+        ngli_darray_reset(&blocks);
+        return ret;
     }
 
     /* Merge built-in texture with user textures */
@@ -497,11 +516,13 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     };
     struct effect2d_texture_darray textures = {0};
     if (ngli_darray_try_push(&textures, src_tex) < 0) {
+        ngli_darray_reset(&blocks);
         ngli_darray_reset(&textures);
         return NGL_ERROR_MEMORY;
     }
     for (size_t i = 0; i < program->crafter_textures.count; i++) {
         if (ngli_darray_try_push(&textures, program->crafter_textures.data[i]) < 0) {
+            ngli_darray_reset(&blocks);
             ngli_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
@@ -520,19 +541,21 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         .frag_base        = frag_base,
         .textures         = textures.data,
         .nb_textures      = textures.count,
-        .blocks           = program->crafter_blocks.data,
-        .nb_blocks        = program->crafter_blocks.count,
+        .blocks           = blocks.data,
+        .nb_blocks        = blocks.count,
         .vert_out_vars    = vert_out_vars,
         .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
     };
 
     program->crafter = ngpu_pgcraft_create(gpu_ctx);
     if (!program->crafter) {
+        ngli_darray_reset(&blocks);
         ngli_darray_reset(&textures);
         return NGL_ERROR_MEMORY;
     }
 
-    int ret = ngpu_pgcraft_craft(program->crafter, &crafter_params);
+    ret = ngpu_pgcraft_craft(program->crafter, &crafter_params);
+    ngli_darray_reset(&blocks);
     ngli_darray_reset(&textures);
     if (ret < 0)
         return ret;
@@ -935,6 +958,17 @@ static void effect2d_release(struct ngl_node *node)
     ngli_rtt_freep(&s->rtt);
 }
 
+static void effect2d_unprepare(struct ngl_node *node)
+{
+    struct effect2d_priv *s = node->priv_data;
+
+    for (size_t i = 0; i < s->programs.count; i++) {
+        struct effect2d_program *program = &s->programs.data[i];
+        ngli_pipeline_freep(&program->pipeline);
+        ngpu_pgcraft_freep(&program->crafter);
+    }
+}
+
 static void effect2d_uninit(struct ngl_node *node)
 {
     struct effect2d_priv *s = node->priv_data;
@@ -955,6 +989,7 @@ const struct node_class ngli_effect2d_class = {
     .init      = effect2d_init,
     .get_rendertarget_layout = effect2d_get_rendertarget_layout,
     .prepare   = effect2d_prepare,
+    .unprepare = effect2d_unprepare,
     .update    = effect2d_update,
     .pre_draw  = effect2d_pre_draw,
     .draw      = effect2d_draw,

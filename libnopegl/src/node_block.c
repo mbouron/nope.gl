@@ -313,7 +313,6 @@ static int block_init(struct ngl_node *node)
         return NGL_ERROR_MEMORY;
 
     update_block_data(node, 1);
-    s->force_update = 1; /* First update will need an upload */
 
     return 0;
 }
@@ -335,6 +334,7 @@ static int block_prepare(struct ngl_node *node,
     }
     ngli_buffer_resource_set(info->resource, buffer);
     ngpu_buffer_freep(&buffer);
+    s->force_update = 1; /* A new allocation needs an upload even if fields are unchanged. */
     return 0;
 }
 
@@ -368,12 +368,18 @@ static int block_update(struct ngl_node *node, double t)
     return 0;
 }
 
+static void block_unprepare(struct ngl_node *node)
+{
+    struct block_info *info = node->priv_data;
+    ngli_buffer_resource_set(info->resource, NULL);
+}
+
 static void block_uninit(struct ngl_node *node)
 {
     struct block_priv *s = node->priv_data;
     struct block_info *info = &s->blk;
 
-    ngli_buffer_resource_releasep(&info->resource);
+    ngli_buffer_resource_unrefp(&info->resource);
     ngpu_block_desc_reset(&info->block);
     ngli_free(info->data);
 }
@@ -384,6 +390,7 @@ const struct node_class ngli_block_class = {
     .name      = "Block",
     .init      = block_init,
     .prepare   = block_prepare,
+    .unprepare = block_unprepare,
     .invalidate = block_invalidate,
     .update    = block_update,
     .uninit    = block_uninit,

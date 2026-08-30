@@ -169,12 +169,18 @@ static int animatedbuffer_prepare(struct ngl_node *node,
     return 0;
 }
 
+static void animatedbuffer_unprepare(struct ngl_node *node)
+{
+    struct buffer_info *info = node->priv_data;
+    ngli_buffer_resource_set(info->resource, NULL);
+}
+
 static void animatedbuffer_uninit(struct ngl_node *node)
 {
     struct animatedbuffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
 
-    ngli_buffer_resource_releasep(&info->resource);
+    ngli_buffer_resource_unrefp(&info->resource);
     ngli_freep(&info->data);
 }
 
@@ -194,6 +200,7 @@ const struct node_class ngli_animatedbuffer##type_name##_class = {              
     .name      = class_name,                                                       \
     .init      = animatedbuffer##type_name##_init,                                 \
     .prepare   = animatedbuffer_prepare,                                           \
+    .unprepare = animatedbuffer_unprepare,                                         \
     .update    = animatedbuffer_update,                                            \
     .uninit    = animatedbuffer_uninit,                                            \
     .opts_size = sizeof(struct animatedbuffer_opts),                               \

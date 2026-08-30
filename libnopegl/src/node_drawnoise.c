@@ -496,16 +496,20 @@ static void drawnoise_release(struct ngl_node *node)
     ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
-static void drawnoise_uninit(struct ngl_node *node)
+static void drawnoise_unprepare(struct ngl_node *node)
 {
     struct drawnoise_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_freep(&desc->pipeline);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawnoise_uninit(struct ngl_node *node)
+{
+    struct drawnoise_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -530,6 +534,7 @@ const struct node_class ngli_drawnoise_class = {
     .name      = "DrawNoise",
     .init      = drawnoise_init,
     .prepare   = drawnoise_prepare,
+    .unprepare = drawnoise_unprepare,
     .get_renderpass_usage = drawnoise_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawnoise_draw,
