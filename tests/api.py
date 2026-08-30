@@ -110,13 +110,20 @@ def api_reconfigure_fail():
     ctx = ngl.Context()
     ret = ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend))
     assert ret == 0
-    scene = _get_scene()
+    root = ngl.Group(children=[ngl.DrawColor(geometry=ngl.Quad())])
+    scene = ngl.Scene.from_params(root)
     assert ctx.set_scene(scene) == 0
     assert ctx.draw(0) == 0
     ret = ctx.configure(ngl.Config(offscreen=False, backend=_backend))
     assert ret != 0
     assert ctx.draw(1) != 0
     del ctx
+    del scene
+
+    # The failed reconfiguration retained a scene reference for a possible
+    # retry. Destroying the unconfigured context must release that reference.
+    recovered_scene = ngl.Scene.from_params(root)
+    del recovered_scene
 
 
 def api_resize():
@@ -512,6 +519,40 @@ def api_reset_scene(width=320, height=240):
     ctx.draw(2)
     assert ctx.set_scene(None) == 0
     ctx.draw(3)
+
+
+def api_rejected_request_keeps_the_context(width=16, height=16):
+    """An unsupported request does not mark the context unconfigured."""
+    scene = _get_scene()
+
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    assert (
+        ctx.configure(
+            ngl.Config(
+                offscreen=True,
+                width=width,
+                height=height,
+                backend=_backend,
+                capture_buffer=capture_buffer,
+            )
+        )
+        == 0
+    )
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(0) == 0
+
+    # An offscreen context wraps no external framebuffer, whatever the backend
+    assert ctx.gl_wrap_framebuffer(0) != 0
+
+    # Context must still be usable
+    assert ctx.draw(1) == 0
+    assert ctx.set_scene(None) == 0
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(2) == 0
+
+    del ctx
+    del scene
 
 
 def api_shader_init_fail(width=320, height=240):

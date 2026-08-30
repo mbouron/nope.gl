@@ -77,6 +77,7 @@ foreach backend : backends
     'denied_node_live_change',
     'livectls',
     'reset_scene',
+    'rejected_request_keeps_the_context',
     'shader_init_fail',
     'trf_seek',
     'trf_seek_keep_alive',
