@@ -367,6 +367,7 @@ class NopeGLTest {
         while (i < count) {
             val callback = object : NGLCustomTexture.Callback() {
                 override fun init() {}
+                override fun initResources() {}
                 override fun prepare() {}
                 override fun unprepare() {}
                 override fun prefetch() {}

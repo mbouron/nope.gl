@@ -206,6 +206,7 @@ struct ngl_node {
     void *opts;
 
     enum node_state state;
+    bool resources_ready;
     bool prepared;
     bool is_active;
 
@@ -331,6 +332,17 @@ struct node_class {
      * when: called during set_scene() / internal node_set_ctx()
      */
     int (*init)(struct ngl_node *node);
+
+    /*
+     * Initialize the node rendering resources that do not depend on the render state.
+     *
+     * reentrant: no (guarded by node->resources_ready)
+     * execution-order: leaf first
+     * dispatch: managed
+     * when: called from the first prepare of the node, which every init
+     *       precedes, and not again for the life of the initialization
+     */
+    int (*init_resources)(struct ngl_node *node);
 
     /*
      * Prepare the node rendering resources.

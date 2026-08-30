@@ -100,6 +100,21 @@ static int customtexture_prefetch(struct ngl_node *node)
     return 0;
 }
 
+static int customtexture_init_resources(struct ngl_node *node)
+{
+    const struct customtexture_opts *o = node->opts;
+    const struct ngl_node_funcs *funcs = &o->funcs;
+
+    if (!funcs->init_resources)
+        return 0;
+
+    int ret = funcs->init_resources(NULL, o->user_data);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
 static int customtexture_prepare(struct ngl_node *node,
                                  const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
@@ -213,7 +228,7 @@ int ngl_node_set_funcs(struct ngl_node *node, void *user_data, struct ngl_node_f
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #define GL_TEXTURE_2D 0x0DE1
-#define GL_TEXTURE_EXTERNAL_OES 0x8D65 
+#define GL_TEXTURE_EXTERNAL_OES 0x8D65
 
 static enum image_layout target_to_layout(uint32_t target)
 {
@@ -268,7 +283,7 @@ static int import_texture_gl(struct ngl_node *node, const struct ngl_custom_text
     int ret = ngpu_texture_init(s->texture_info.texture, &texture_params);
     if (ret < 0)
         return ret;
-    
+
     const struct image_params image_params = {
         .width       = info->width,
         .height      = info->height,
@@ -413,6 +428,7 @@ const struct node_class ngli_customtexture_class = {
     .category       = NGLI_NODE_CATEGORY_TEXTURE,
     .name           = "CustomTexture",
     .init           = customtexture_init,
+    .init_resources = customtexture_init_resources,
     .prepare        = customtexture_prepare,
     .prefetch       = customtexture_prefetch,
     .update         = customtexture_update,

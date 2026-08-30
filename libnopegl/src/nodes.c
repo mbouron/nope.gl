@@ -191,6 +191,7 @@ static void node_uninit(struct ngl_node *node)
     }
     memset(node->priv_data, 0, node->cls->priv_size);
     node->state = NGLI_NODE_STATE_UNINITIALIZED;
+    node->resources_ready = false;
     node->prepared = false;
     node->visit_time = -1.;
 }
@@ -295,6 +296,25 @@ int ngli_node_prepare(struct ngl_node *node,
         int ret = ngli_node_prepare(node->children.data[i], &child_rendertarget_layout);
         if (ret < 0)
             return ret;
+    }
+
+    /*
+     * Initialize resources once, keeping them until uninit. All consumers have
+     * registered their buffer usage during init, so shared buffers can now be
+     * allocated. Leaf-first traversal ensures buffers and blocks are allocated
+     * before the pipelines that use them are created.
+     */
+    if (!node->resources_ready) {
+        if (node->cls->init_resources) {
+            TRACE("INIT RESOURCES %s @ %p", node->label, node);
+            int ret = node->cls->init_resources(node);
+            if (ret < 0) {
+                LOG(ERROR, "initializing the resources of node %s failed: %s",
+                    node->label, NGLI_RET_STR(ret));
+                return ret;
+            }
+        }
+        node->resources_ready = true;
     }
 
     /* Prepare this node */

@@ -41,23 +41,30 @@ static int customtexture_init(void *reserved, void *user_data)
     return 0;
 }
 
-static int customtexture_prepare(void *reserved, void *user_data)
+static int customtexture_init_resources(void *reserved, void *user_data)
 {
     struct customtexture_lifecycle *s = user_data;
     ngli_assert(s->step++ == 1);
     return 0;
 }
 
-static void customtexture_unprepare(void *reserved, void *user_data)
+static int customtexture_prepare(void *reserved, void *user_data)
 {
     struct customtexture_lifecycle *s = user_data;
     ngli_assert(s->step++ == 2);
+    return 0;
+}
+
+static void customtexture_unprepare(void *reserved, void *user_data)
+{
+    struct customtexture_lifecycle *s = user_data;
+    ngli_assert(s->step++ == 3);
 }
 
 static void customtexture_uninit(void *reserved, void *user_data)
 {
     struct customtexture_lifecycle *s = user_data;
-    ngli_assert(s->step++ == 3);
+    ngli_assert(s->step++ == 4);
 }
 
 static void test_customtexture_lifecycle(void)
@@ -65,6 +72,7 @@ static void test_customtexture_lifecycle(void)
     struct customtexture_lifecycle lifecycle = {0};
     struct ngl_node_funcs funcs = {
         .init = customtexture_init,
+        .init_resources = customtexture_init_resources,
         .prepare = customtexture_prepare,
         .unprepare = customtexture_unprepare,
         .uninit = customtexture_uninit,
@@ -75,10 +83,10 @@ static void test_customtexture_lifecycle(void)
 
     struct ngl_ctx ctx = {0};
     ngli_assert(ngli_node_attach_ctx(node, &ctx) == 0);
-    ngli_assert(lifecycle.step == 2);
+    ngli_assert(lifecycle.step == 3);
 
     ngli_node_detach_ctx(node, &ctx);
-    ngli_assert(lifecycle.step == 4);
+    ngli_assert(lifecycle.step == 5);
 
     ngl_node_unrefp(&node);
 }
