@@ -404,6 +404,14 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeResetScene(
     return 0;
 }
 
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeReleaseDetachedResources(
+    JNIEnv *env, jclass type, jlong native_ptr)
+{
+    struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
+
+    return ngl_release_detached_resources(ctx);
+}
+
 JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeRef(
     JNIEnv *env, jclass clazz, jlong native_ptr)
 {
@@ -418,6 +426,14 @@ JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeUnref(
     struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
 
     ngl_node_unrefp(&node);
+}
+
+JNIEXPORT jboolean JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeHoldsResources(
+    JNIEnv *env, jobject thiz, jlong native_ptr)
+{
+    const struct ngl_node *node = (const struct ngl_node *)(uintptr_t)native_ptr;
+
+    return ngl_node_holds_resources(node) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetLabel(

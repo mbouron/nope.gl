@@ -658,6 +658,7 @@ def api_rejected_request_keeps_the_context(width=16, height=16):
     assert ctx.set_scene(None) == 0
     assert ctx.set_scene(scene) == 0
     assert ctx.draw(2) == 0
+    assert ctx.release_detached_resources() == 0
 
     del ctx
     del scene

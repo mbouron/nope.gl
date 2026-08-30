@@ -321,11 +321,9 @@ static void reset_scene(struct ngl_ctx *s, int action)
     ngli_hud_freep(&s->hud);
     ngli_darray_clear(&s->bounding_box_nodes);
     ngli_darray_clear(&s->intersecting_nodes);
-    if (s->scene) {
-        ngli_node_detach_ctx(s->scene->params.root, s);
-        if (action == NGLI_ACTION_UNREF_SCENE)
-            ngl_scene_unrefp(&s->scene);
-    }
+    ngli_ctx_release_resources(s);
+    if (s->scene && action == NGLI_ACTION_UNREF_SCENE)
+        ngl_scene_unrefp(&s->scene);
 }
 
 static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene, uint32_t w, uint32_t h)
@@ -1167,6 +1165,20 @@ struct ngl_node *ngl_get_scene_root(struct ngl_ctx *s)
     return s->scene->params.root;
 }
 
+static int release_detached_cb(struct ngl_ctx *s, void *arg)
+{
+    ngpu_ctx_wait_idle(s->gpu_ctx);
+    ngli_ctx_release_detached_resources(s);
+    return 0;
+}
+
+int ngl_release_detached_resources(struct ngl_ctx *s)
+{
+    if (!s->configured)
+        return 0;
+    return s->api_impl->dispatch(s, release_detached_cb, NULL);
+}
+
 void ngl_freep(struct ngl_ctx **ss)
 {
     struct ngl_ctx *s = *ss;
@@ -1195,5 +1207,12 @@ void ngl_freep(struct ngl_ctx **ss)
     ngli_darray_reset(&s->activitycheck_nodes);
     ngli_darray_reset(&s->bounding_box_nodes);
     ngli_darray_reset(&s->intersecting_nodes);
+    /*
+     * Emptied by the context reset above, which an unconfigured context never
+     * needed. Releasing here would be too late anyway: ngli_ctx_reset() has
+     * freed the GPU context the uninit callbacks work against.
+     */
+    ngli_assert(ngli_darray_is_empty(&s->resource_nodes));
+    ngli_darray_reset(&s->resource_nodes);
     ngli_freep(ss);
 }

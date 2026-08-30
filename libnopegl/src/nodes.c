@@ -175,17 +175,69 @@ static void node_release(struct ngl_node *node)
     node->last_update_time = -1.;
 }
 
+/*
+ * Registry of the nodes a context holds resources for.
+ *
+ * Entered on init and left on uninit, so registered is exactly "initialized by
+ * this context". The reference kept here is what allows those resources to be
+ * reclaimed from the context side rather than depending on the node still being
+ * part of a scene.
+ */
+static int ctx_register_node(struct ngl_ctx *ctx, struct ngl_node *node)
+{
+    if (ngli_darray_try_push(&ctx->resource_nodes, node) < 0)
+        return NGL_ERROR_MEMORY;
+    node->resource_index = ctx->resource_nodes.count - 1;
+    ngl_node_ref(node);
+    return 0;
+}
+
+static void ctx_unregister_node(struct ngl_ctx *ctx, struct ngl_node *node)
+{
+    const size_t index = node->resource_index;
+    ngli_assert(index < ctx->resource_nodes.count && ctx->resource_nodes.data[index] == node);
+
+    /* Swap with the last node for an unordered O(1) removal; the registry order
+     * carries no meaning, see ctx_uninit_nodes(). */
+    ctx->resource_nodes.data[index] = *ngli_darray_pop(&ctx->resource_nodes);
+    ctx->resource_nodes.data[index]->resource_index = index;
+
+    /*
+     * Callers keep using the node after it is uninitialized, so this must
+     * not be the reference that frees it. Either the graph holds one, or the
+     * caller took one for the duration.
+     */
+    ngli_assert(node->refcount > 1);
+    ngl_node_unrefp(&node);
+}
+
+/*
+ * Drop the activity-scoped and prepare-scoped tiers of a single node, without
+ * descending into its children.
+ *
+ * Split out of node_uninit() so a whole set of nodes can be brought down to
+ * "initialized only" before any of them is uninitialized, see
+ * ctx_uninit_nodes().
+ */
+static void node_unprepare_self(struct ngl_node *node)
+{
+    if (node->state == NGLI_NODE_STATE_UNINITIALIZED)
+        return;
+
+    node_release(node);
+
+    if (node->prepared && node->cls->unprepare)
+        node->cls->unprepare(node);
+    node->prepared = false;
+}
+
 static void node_uninit(struct ngl_node *node)
 {
     if (node->state == NGLI_NODE_STATE_UNINITIALIZED)
         return;
 
     ngli_assert(node->ctx);
-    node_release(node);
-
-    if (node->prepared && node->cls->unprepare)
-        node->cls->unprepare(node);
-    node->prepared = false;
+    node_unprepare_self(node);
 
     if (node->cls->uninit) {
         LOG(VERBOSE, "UNINIT %s @ %p", node->label, node);
@@ -195,6 +247,9 @@ static void node_uninit(struct ngl_node *node)
     node->state = NGLI_NODE_STATE_UNINITIALIZED;
     node->prepared = false;
     node->visit_time = -1.;
+
+    ctx_unregister_node(node->ctx, node);
+    node->ctx = NULL;
 }
 
 static int node_init(struct ngl_node *node)
@@ -203,6 +258,11 @@ static int node_init(struct ngl_node *node)
         return 0;
 
     ngli_assert(node->ctx);
+
+    int reg_ret = ctx_register_node(node->ctx, node);
+    if (reg_ret < 0)
+        return reg_ret;
+
     if (node->cls->init) {
         LOG(VERBOSE, "INIT %s @ %p", node->label, node);
         int ret = node->cls->init(node);
@@ -233,62 +293,113 @@ uint64_t ngli_node_new_traversal_id(void)
     return traversal_id;
 }
 
-static int node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
+static int node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx, uint64_t traversal_id)
 {
-    int ret;
+    if (node->traversal_id == traversal_id)
+        return 0;
+    node->traversal_id = traversal_id;
 
     for (size_t i = 0; i < node->children.count; i++) {
         struct ngl_node *child = node->children.data[i];
-        ret = node_set_ctx(child, ctx);
+        int ret = node_set_ctx(child, ctx, traversal_id);
         if (ret < 0)
             return ret;
     }
 
+    if (node->ctx && node->ctx != ctx) {
+        LOG(ERROR, "%s already holds resources of another rendering context", node->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
     node->ctx = ctx;
-    ret = node_init(node);
+    int ret = node_init(node);
     if (ret < 0) {
-        node->ctx = NULL;
+        /* node_init() severs the association itself when it tears the node down */
+        if (node->state == NGLI_NODE_STATE_UNINITIALIZED)
+            node->ctx = NULL;
         return ret;
     }
-    node->ctx_refcount++;
 
     return 0;
 }
 
-static void node_reset_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
+int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 {
-    if (node->state > NGLI_NODE_STATE_UNINITIALIZED) {
-        if (node->ctx != ctx)
-            return;
-        if (node->ctx_refcount-- == 1) {
-            node_uninit(node);
-            node->ctx = NULL;
-        }
-    }
-    ngli_assert(node->ctx_refcount >= 0);
+    return node_set_ctx(node, ctx, ngli_node_new_traversal_id());
+}
 
-    for (size_t i = 0; i < node->children.count; i++) {
-        struct ngl_node *child = node->children.data[i];
-        node_reset_ctx(child, ctx);
+static int ngli_node_attach_ctx_with_layout(struct ngl_node *node, struct ngl_ctx *ctx,
+                                            const struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    const int ret = ngli_node_set_ctx(node, ctx);
+    if (ret < 0)
+        return ret;
+
+    return ngli_node_prepare(node, rendertarget_layout);
+}
+
+/*
+ * Uninitialize the nodes with resources held by the context.
+ *
+ * First pass:
+ * Unprepare all selected nodes to release references to other nodes' resources,
+ * such as buffers and textures bound by pipelines. These references must be
+ * released before uninitializing any selected node. Registry order cannot
+ * guarantee this: a child added live is registered after its parent.
+ *
+ * Second pass:
+ * Uninitialize the selected nodes to free their remaining resources. Walk
+ * backwards because node_uninit() removes a node from the registry by moving
+ * the last entry into its slot. That entry has already been visited, so no
+ * unvisited entries are skipped.
+ */
+static void ctx_uninit_nodes(struct ngl_ctx *s, bool detached_only)
+{
+    bool releasing = false;
+    for (size_t i = 0; i < s->resource_nodes.count; i++) {
+        struct ngl_node *node = s->resource_nodes.data[i];
+        if (detached_only && node->scene)
+            continue;
+        if (!releasing) {
+            ngli_darray_clear(&s->bounding_box_nodes);
+            ngli_darray_clear(&s->intersecting_nodes);
+            releasing = true;
+        }
+        node_unprepare_self(node);
     }
+
+    for (size_t i = s->resource_nodes.count; i > 0; i--) {
+        struct ngl_node *node = s->resource_nodes.data[i - 1];
+        if (detached_only && node->scene)
+            continue;
+        /* The registry reference is about to be dropped by the uninit */
+        ngl_node_ref(node);
+        node_uninit(node);
+        ngl_node_unrefp(&node);
+    }
+}
+
+void ngli_ctx_release_detached_resources(struct ngl_ctx *s)
+{
+    ctx_uninit_nodes(s, true);
+}
+
+int ngl_node_holds_resources(const struct ngl_node *node)
+{
+    if (!node)
+        return 0;
+    return node->ctx != NULL;
+}
+
+void ngli_ctx_release_resources(struct ngl_ctx *s)
+{
+    ctx_uninit_nodes(s, false);
+    ngli_assert(ngli_darray_is_empty(&s->resource_nodes));
 }
 
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 {
-    int ret = node_set_ctx(node, ctx);
-    if (ret < 0)
-        return ret;
-
-    ret = ngli_node_prepare(node, &ctx->default_rendertarget_layout);
-    if (ret < 0)
-        return ret;
-
-    return ret;
-}
-
-void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
-{
-    node_reset_ctx(node, ctx);
+    return ngli_node_attach_ctx_with_layout(node, ctx, &ctx->default_rendertarget_layout);
 }
 
 static bool rendertarget_layout_is_compatible(const struct ngpu_rendertarget_layout *a,
@@ -671,10 +782,17 @@ static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, vo
 int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
                              size_t nb_nodes, struct ngl_node **nodes)
 {
+    uint8_t *base_ptr;
+    const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
+    if (!par)
+        return NGL_ERROR_NOT_FOUND;
+
     if (node->scene) {
         LOG(ERROR, "the nodes graph cannot be extended after being associated with a scene");
         return NGL_ERROR_INVALID_USAGE;
     }
+
+    /* param_add() rejects any other list of a node holding context resources */
     return param_add(node, key, nb_nodes, nodes);
 }
 
@@ -1477,6 +1595,9 @@ void ngl_node_unrefp(struct ngl_node **nodep)
     if (delete) {
         LOG(VERBOSE, "DELETE %s @ %p", node->label, node);
         ngli_assert(!node->ctx);
+        ngli_darray_reset(&node->children);
+        ngli_darray_reset(&node->draw_children);
+        ngli_darray_reset(&node->parents);
         if (node->cls->free)
             node->cls->free(node);
         ngli_darray_reset(&node->children);
