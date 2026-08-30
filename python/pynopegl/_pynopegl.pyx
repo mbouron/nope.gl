@@ -67,6 +67,7 @@ cdef extern from "nopegl/nopegl.h":
     int NGL_NODE_DUPLICATE_RESOURCES
     ngl_node *ngl_node_duplicate(ngl_node *node, uint32_t flags)
     int ngl_node_param_add_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
+    int ngl_node_param_remove_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_add_f64s(ngl_node *node, const char *key, size_t nb_f64s, double *f64s)
     int ngl_node_param_swap_elem(ngl_node *node, const char *key, size_t from_, size_t to)
     int ngl_node_param_set_bool(ngl_node *node, const char *key, int value)
@@ -561,6 +562,17 @@ cdef class _Node:
         for i, node in enumerate(nodes):
             nodes_c[i] = (<_Node>node).ctx
         ret = ngl_node_param_add_nodes(self.ctx, key, nb_nodes, nodes_c)
+        free(nodes_c)
+        return ret
+
+    def _param_remove_nodes(self, const char *key, size_t nb_nodes, nodes):
+        nodes_c = <ngl_node **>calloc(nb_nodes, sizeof(ngl_node *))
+        if nodes_c is NULL:
+            raise MemoryError()
+        cdef size_t i
+        for i, node in enumerate(nodes):
+            nodes_c[i] = (<_Node>node).ctx
+        ret = ngl_node_param_remove_nodes(self.ctx, key, nb_nodes, nodes_c)
         free(nodes_c)
         return ret
 

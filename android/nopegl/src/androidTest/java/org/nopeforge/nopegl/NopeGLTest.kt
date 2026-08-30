@@ -845,4 +845,19 @@ class NopeGLTest {
     fun canvasWith2DNodesVK() {
         canvasWith2DNodes(NGLConfig.BACKEND_VULKAN)
     }
+    @Test
+    fun generatedKeyframeListEdits() {
+        NGLContext.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        val first = NGLAnimKeyFrameFloat(0.0, 0.0)
+        val second = NGLAnimKeyFrameFloat(1.0, 1.0)
+        val animation = NGLAnimatedFloat(listOf(first))
+        animation.removeKeyframes(emptyList())
+        animation.addKeyframes(listOf(second))
+        animation.swapKeyframes(0, 1)
+        animation.removeKeyframes(listOf(first))
+        animation.release()
+        first.release()
+        second.release()
+    }
+
 }

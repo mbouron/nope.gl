@@ -659,6 +659,40 @@ int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
     return param_add(node, key, nb_nodes, nodes);
 }
 
+int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
+                                size_t nb_nodes, struct ngl_node **nodes)
+{
+    uint8_t *base_ptr;
+    const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
+    if (!par)
+        return NGL_ERROR_NOT_FOUND;
+    if (par->type != NGLI_PARAM_TYPE_NODELIST) {
+        LOG(ERROR, "parameter %s.%s is not a node list", node->label, key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (node->scene) {
+        LOG(ERROR, "the nodes graph cannot be shrunk after being associated with a scene");
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    /* Counterpart of the same guard in param_add() */
+    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
+        LOG(ERROR, "%s.%s can not be live shrunk", node->label, key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (!nb_nodes)
+        return 0;
+
+    int ret = ngli_params_remove_nodes(base_ptr + par->offset, par, nb_nodes, nodes);
+    if (ret < 0)
+        return ret;
+
+    struct node_param_update_arg arg = { .node = node, .par = par };
+    return node_param_update_cb(node->ctx, &arg);
+}
+
 int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
                             size_t nb_f64s, double *f64s)
 {
