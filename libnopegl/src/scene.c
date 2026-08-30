@@ -32,6 +32,31 @@
 
 NGLI_RC_CHECK_STRUCT(ngl_scene);
 
+static int check_node_unowned(void *user_arg, struct ngl_node *parent ngli_unused,
+                              struct ngl_node *node)
+{
+    const uint64_t traversal_id = *(const uint64_t *)user_arg;
+
+    if (node->traversal_id == traversal_id)
+        return 0;
+    node->traversal_id = traversal_id;
+
+    if (node->ctx) {
+        LOG(ERROR, "%s still holds resources of a rendering context; release them with "
+            "ngl_release_detached_resources() or add the sub-tree back to the graph it came from",
+            node->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    return ngli_node_children_apply(check_node_unowned, user_arg, node);
+}
+
+static int validate_graph_unowned(struct ngl_node *root)
+{
+    const uint64_t traversal_id = ngli_node_new_traversal_id();
+    return check_node_unowned((void *)&traversal_id, NULL, root);
+}
+
 static int reset_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node *node)
 {
     struct ngl_scene *s = user_arg;
@@ -439,9 +464,10 @@ int ngl_scene_init(struct ngl_scene *s, const struct ngl_scene_params *params)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    if (s->params.root && s->params.root->ctx) {
-        LOG(ERROR, "the node graph currently held within the scene is associated with a rendering context");
-        return NGL_ERROR_INVALID_USAGE;
+    if (s->params.root) {
+        const int ret = validate_graph_unowned(s->params.root);
+        if (ret < 0)
+            return ret;
     }
 
     detach_root(s);
