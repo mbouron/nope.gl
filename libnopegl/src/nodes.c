@@ -625,8 +625,14 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
     return ret;
 }
 
-int ngli_node_invalidate_branch(struct ngl_node *node)
+static int invalidate_branch(struct ngl_node *node, struct hmap *visited)
 {
+    const uint64_t key = (uint64_t)(uintptr_t)node;
+    if (ngli_hmap_get_u64(visited, key))
+        return 0;
+
+    ngli_hmap_set_u64(visited, key, node);
+
     node->visit_time = -1.;
     node->last_update_time = -1;
     if (node->cls->invalidate) {
@@ -635,11 +641,19 @@ int ngli_node_invalidate_branch(struct ngl_node *node)
             return ret;
     }
     for (size_t i = 0; i < node->parents.count; i++) {
-        int ret = ngli_node_invalidate_branch(node->parents.data[i]);
+        int ret = invalidate_branch(node->parents.data[i], visited);
         if (ret < 0)
             return ret;
     }
     return 0;
+}
+
+int ngli_node_invalidate_branch(struct ngl_node *node)
+{
+    struct hmap *visited = ngli_hmap_create(NGLI_HMAP_TYPE_U64);
+    const int ret = invalidate_branch(node, visited);
+    ngli_hmap_freep(&visited);
+    return ret;
 }
 
 static int node_param_is_value_allowed(struct ngl_node *node, const char *key,
