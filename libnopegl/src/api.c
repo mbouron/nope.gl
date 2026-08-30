@@ -315,8 +315,28 @@ static uint64_t get_active_node_count(const struct ngl_scene *scene)
     return count;
 }
 
+/*
+ * Internal operations may nest (for example, dropping a scene from a failed
+ * live edit), so entering returns the state the matching leave must restore.
+ */
+static bool ctx_enter(struct ngl_ctx *s)
+{
+    const bool previous = s->in_node_callbacks;
+    s->in_node_callbacks = true;
+    return previous;
+}
+
+static void ctx_leave(struct ngl_ctx *s, bool previous)
+{
+    s->in_node_callbacks = previous;
+}
+
 static void reset_scene(struct ngl_ctx *s, int action)
 {
+    /* Saved and put back: this is also reached from inside a live edit, see
+     * ngli_ctx_drop_scene() */
+    const bool previous = ctx_enter(s);
+
     ngli_queue_wait(&s->background_queue);
     ngli_hud_freep(&s->hud);
     ngli_darray_clear(&s->bounding_box_nodes);
@@ -324,6 +344,30 @@ static void reset_scene(struct ngl_ctx *s, int action)
     ngli_ctx_release_resources(s);
     if (s->scene && action == NGLI_ACTION_UNREF_SCENE)
         ngl_scene_unrefp(&s->scene);
+
+    ctx_leave(s, previous);
+}
+
+static int check_context_reentry(const struct ngl_ctx *s, const char *operation)
+{
+    if (s->in_node_callbacks) {
+        LOG(ERROR, "%s can not be called from a node callback, nor while the graph is being updated or drawn",
+            operation);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    return 0;
+}
+
+int ngli_ctx_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg)
+{
+    int ret = check_context_reentry(s, "a rendering-context operation");
+    if (ret < 0)
+        return ret;
+
+    const bool previous = ctx_enter(s);
+    ret = s->api_impl->dispatch(s, fn, arg);
+    ctx_leave(s, previous);
+    return ret;
 }
 
 static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene, uint32_t w, uint32_t h)
@@ -351,14 +395,18 @@ static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene
 
 int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
 {
+    const bool previous = ctx_enter(s);
+
     ngpu_ctx_wait_idle(s->gpu_ctx);
     reset_scene(s, NGLI_ACTION_UNREF_SCENE);
 
     s->default_rendertarget_layout = *ngpu_ctx_get_default_rendertarget_layout(s->gpu_ctx);
 
     int ret = ngpu_ctx_begin_update(s->gpu_ctx);
-    if (ret < 0)
+    if (ret < 0) {
+        ctx_leave(s, previous);
         return ret;
+    }
 
     if (scene) {
         if (!scene->params.root) {
@@ -402,11 +450,13 @@ int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
     }
 
     ngpu_ctx_end_update(s->gpu_ctx, NULL);
+    ctx_leave(s, previous);
     return 0;
 
 fail:
     ngpu_ctx_end_update(s->gpu_ctx, NULL);
     reset_scene(s, NGLI_ACTION_UNREF_SCENE);
+    ctx_leave(s, previous);
     return ret;
 }
 
@@ -642,11 +692,11 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
     struct ngl_node *root = scene->params.root;
     LOG(DEBUG, "prepare scene %s @ t=%f", root->label, t);
 
+    const bool previous = ctx_enter(s);
     ret = ngli_node_honor_release_prefetch(root, t);
-    if (ret < 0)
-        return ret;
-
-    ret = ngli_node_update(root, t);
+    if (ret >= 0)
+        ret = ngli_node_update(root, t);
+    ctx_leave(s, previous);
     if (ret < 0)
         return ret;
 
@@ -688,8 +738,10 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, st
     struct ngl_scene *scene = s->scene;
     if (scene) {
         LOG(DEBUG, "draw scene %s @ t=%f", scene->params.root->label, t);
+        const bool previous = ctx_enter(s);
         ngli_node_pre_draw(scene->params.root);
         ngli_node_draw(scene->params.root);
+        ctx_leave(s, previous);
     }
 
     if (!ngpu_ctx_is_render_pass_active(s->gpu_ctx)) {
@@ -857,6 +909,10 @@ static int has_outstanding_frames(struct ngl_ctx *s)
 
 int ngl_configure(struct ngl_ctx *s, const struct ngl_config *user_config)
 {
+    int ret = check_context_reentry(s, "ngl_configure()");
+    if (ret < 0)
+        return ret;
+
     if (s->configured) {
         if (has_outstanding_frames(s)) {
             LOG(ERROR, "context cannot be reconfigured while a frame obtained "
@@ -905,7 +961,7 @@ int ngl_configure(struct ngl_ctx *s, const struct ngl_config *user_config)
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    int ret = s->api_impl->configure(s, &config);
+    ret = s->api_impl->configure(s, &config);
     if (ret < 0)
         return ret;
 
@@ -940,6 +996,10 @@ void ngl_reset_backend(struct ngl_backend *backend)
 
 int ngl_resize(struct ngl_ctx *s, uint32_t width, uint32_t height)
 {
+    int ret = check_context_reentry(s, "ngl_resize()");
+    if (ret < 0)
+        return ret;
+
     if (!s->configured) {
         LOG(ERROR, "context must be configured before resizing rendering buffers");
         return NGL_ERROR_INVALID_USAGE;
@@ -955,6 +1015,10 @@ int ngl_resize(struct ngl_ctx *s, uint32_t width, uint32_t height)
 
 int ngl_get_viewport(struct ngl_ctx *s, int32_t *viewport)
 {
+    int ret = check_context_reentry(s, "ngl_get_viewport()");
+    if (ret < 0)
+        return ret;
+
     if (!s->configured) {
         LOG(ERROR, "context must be configured to get the viewport");
         return NGL_ERROR_INVALID_USAGE;
@@ -965,6 +1029,10 @@ int ngl_get_viewport(struct ngl_ctx *s, int32_t *viewport)
 
 int ngl_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
 {
+    int ret = check_context_reentry(s, "ngl_set_capture_buffer()");
+    if (ret < 0)
+        return ret;
+
     if (!s->configured) {
         LOG(ERROR, "context must be configured before setting a capture buffer");
         return NGL_ERROR_INVALID_USAGE;
@@ -980,6 +1048,10 @@ int ngl_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
 
 int ngl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
 {
+    int ret = check_context_reentry(s, "ngl_set_scene()");
+    if (ret < 0)
+        return ret;
+
     if (!s->configured) {
         LOG(ERROR, "context must be configured before setting a scene");
         return NGL_ERROR_INVALID_USAGE;
@@ -990,6 +1062,10 @@ int ngl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
 
 int ngli_prepare_draw(struct ngl_ctx *s, double t)
 {
+    int ret = check_context_reentry(s, "ngl_update()");
+    if (ret < 0)
+        return ret;
+
     if (!s->configured) {
         LOG(ERROR, "context must be configured before updating");
         return NGL_ERROR_INVALID_USAGE;
@@ -1048,6 +1124,10 @@ void ngl_frame_release(struct ngl_frame *f, struct ngpu_fence *fence)
 
 int ngl_draw(struct ngl_ctx *s, double t, struct ngl_draw_output *output)
 {
+    int ret = check_context_reentry(s, "ngl_draw()");
+    if (ret < 0)
+        return ret;
+
     if (!s->configured) {
         LOG(ERROR, "context must be configured before drawing");
         return NGL_ERROR_INVALID_USAGE;
@@ -1082,7 +1162,7 @@ int ngl_draw(struct ngl_ctx *s, double t, struct ngl_draw_output *output)
     }
 
     struct ngpu_fence **signal_fencep = frame ? &frame->signal_fence : NULL;
-    int ret = s->api_impl->draw(s, t, release_fence, signal_fencep);
+    ret = s->api_impl->draw(s, t, release_fence, signal_fencep);
 
     ngpu_fence_freep(&release_fence);
 
@@ -1176,7 +1256,17 @@ int ngl_release_detached_resources(struct ngl_ctx *s)
 {
     if (!s->configured)
         return 0;
-    return s->api_impl->dispatch(s, release_detached_cb, NULL);
+    /*
+     * Same rule as a live topology edit: this destroys pipelines and waits for
+     * the GPU to go idle, neither of which a traversal in progress can survive.
+     * The nodes it frees are also the ones a callback made during that
+     * traversal could still be reaching through. ngli_ctx_dispatch() enforces
+     * it; saying it here names the call that was refused.
+     */
+    int ret = check_context_reentry(s, "ngl_release_detached_resources()");
+    if (ret < 0)
+        return ret;
+    return ngli_ctx_dispatch(s, release_detached_cb, NULL);
 }
 
 void ngl_freep(struct ngl_ctx **ss)
@@ -1184,6 +1274,12 @@ void ngl_freep(struct ngl_ctx **ss)
     struct ngl_ctx *s = *ss;
 
     if (!s)
+        return;
+
+    /* Refuse destruction while callbacks may still return through this
+     * context. Unlike the error-returning entry points above, ngl_freep()
+     * leaves the caller's reference intact when it cannot proceed. */
+    if (check_context_reentry(s, "ngl_freep()") < 0)
         return;
 
     if (has_outstanding_frames(s))

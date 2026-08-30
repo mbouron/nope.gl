@@ -161,6 +161,13 @@ struct ngl_ctx {
     struct ngli_queue background_queue;
 
     /*
+     * Set while the context is running node callbacks: an update, a draw, a
+     * scene association, a teardown, or a live edit. Public context operations
+     * and nested backend dispatches are refused for the duration.
+     */
+    bool in_node_callbacks;
+
+    /*
      * Array of frame slots tracking the borrow/release state of the ngl_frames.
      * Protected by frame_slots_lock since ngl_draw() and ngl_frame_release()
      * may run concurrently on different threads (producer/consumer split).
@@ -193,6 +200,22 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t);
 int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence);
 void ngli_ctx_reset(struct ngl_ctx *s, int action);
 
+/*
+ * Run @p fn with the backend ready to issue GPU work on the calling thread.
+ *
+ * Refuses to nest, which is what keeps a node callback from reaching back into
+ * the API: a CustomTexture is handed init, prepare, prefetch, update, draw,
+ * release and uninit, all of them user code, and any of them can call an entry
+ * point that dispatches. A second dispatch inside the first un-currents the
+ * rendering context on its way out -- gl_ctx_end() releases it -- which the
+ * outer one does not survive:
+ *
+ *   Assert glcontext->is_active @ src/opengl/glcontext.c:796
+ *
+ * A backend that survives it does not make the nesting safe either: the work in
+ * progress would have the nodes it is walking pulled out from under it.
+ */
+int ngli_ctx_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg);
 void ngli_ctx_release_resources(struct ngl_ctx *s);
 void ngli_ctx_release_detached_resources(struct ngl_ctx *s);
 

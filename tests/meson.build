@@ -66,6 +66,8 @@ foreach backend : backends
     'resize_rejected_with_capture_buffer',
     'capture_buffer',
     'ctx_ownership',
+    'ctx_reentry_during_traversal',
+    'capture_buffer_rejected_lifetime',
     'scene_context_transfer',
     'scene_lifetime',
     'scene_mutate',
