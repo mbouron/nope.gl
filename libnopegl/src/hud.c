@@ -333,7 +333,7 @@ static void draw_block_graph(struct hud *s,
                              const uint32_t c)
 {
     const int64_t graph_h = graph_max - graph_min;
-    const float vscale = (float)rect->h / (float)graph_h;
+    const float vscale = graph_h ? (float)rect->h / (float)graph_h : 0.f;
     const size_t start = (d->nb_values + d->pos - d->count) % d->nb_values;
 
     for (size_t k = 0; k < d->count; k++) {
@@ -351,7 +351,7 @@ static void draw_line_graph(struct hud *s,
                             const uint32_t c)
 {
     const int64_t graph_h = graph_max - graph_min;
-    const float vscale = (float)rect->h / (float)graph_h;
+    const float vscale = graph_h ? (float)rect->h / (float)graph_h : 0.f;
     const size_t start = (d->nb_values + d->pos - d->count) % d->nb_values;
     int prev_y;
 
