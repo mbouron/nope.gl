@@ -452,16 +452,20 @@ static void drawtexture_release(struct ngl_node *node)
     ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
-static void drawtexture_uninit(struct ngl_node *node)
+static void drawtexture_unprepare(struct ngl_node *node)
 {
     struct drawtexture_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_freep(&desc->pipeline);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawtexture_uninit(struct ngl_node *node)
+{
+    struct drawtexture_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -486,6 +490,7 @@ const struct node_class ngli_drawtexture_class = {
     .name      = "DrawTexture",
     .init      = drawtexture_init,
     .prepare   = drawtexture_prepare,
+    .unprepare = drawtexture_unprepare,
     .get_renderpass_usage = drawtexture_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawtexture_draw,
