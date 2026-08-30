@@ -421,6 +421,8 @@ struct ngl_frame {
 
 void ngli_ctx_reset(struct ngl_ctx *s, int action)
 {
+    s->configured = 0;
+
     if (s->gpu_ctx)
         ngpu_ctx_wait_idle(s->gpu_ctx);
 
@@ -843,10 +845,8 @@ fail:
 
 int ngl_configure(struct ngl_ctx *s, const struct ngl_config *user_config)
 {
-    if (s->configured) {
+    if (s->configured)
         s->api_impl->reset(s, NGLI_ACTION_KEEP_SCENE);
-        s->configured = 0;
-    }
 
     if (!user_config) {
         LOG(ERROR, "context configuration cannot be NULL");
@@ -936,12 +936,7 @@ int ngl_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    int ret = s->api_impl->set_capture_buffer(s, capture_buffer);
-    if (ret < 0) {
-        s->configured = 0;
-        return ret;
-    }
-    return ret;
+    return s->api_impl->set_capture_buffer(s, capture_buffer);
 }
 
 int ngl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
@@ -1137,13 +1132,8 @@ int ngl_gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer)
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    int ret = s->api_impl->gl_wrap_framebuffer(s, framebuffer);
-    if (ret < 0) {
-        s->configured = 0;
-        return ret;
-    }
-    return 0;
- }
+    return s->api_impl->gl_wrap_framebuffer(s, framebuffer);
+}
 
 void ngl_freep(struct ngl_ctx **ss)
 {
@@ -1163,7 +1153,11 @@ void ngl_freep(struct ngl_ctx **ss)
 
     if (s->configured) {
         s->api_impl->reset(s, NGLI_ACTION_UNREF_SCENE);
-        s->configured = 0;
+    } else if (s->scene) {
+        /* A failed reconfiguration may have reset the backend while retaining
+         * the scene for a retry. There is no backend left to reset here, but
+         * the context still owns its scene reference. */
+        ngl_scene_unrefp(&s->scene);
     }
 
     ngli_queue_destroy(&s->background_queue);
