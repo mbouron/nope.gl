@@ -549,10 +549,15 @@ char *ngli_scene_serialize(const struct ngl_scene *s);
 char *ngli_scene_dot(const struct ngl_scene *s);
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par);
 
+struct ngli_edge_range {
+    size_t index;
+    size_t count;
+};
+
 int ngli_scene_add_edges(struct ngl_scene *s, struct ngl_node *parent,
                          size_t index, size_t nb_nodes, struct ngl_node **nodes);
-void ngli_scene_remove_edges(struct ngl_node *parent, size_t nb_nodes,
-                             struct ngl_node * const *nodes);
+void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_edge_range range,
+                             size_t nb_nodes, struct ngl_node * const *nodes);
 void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
                               struct ngl_node *child, size_t index);
 
