@@ -1005,10 +1005,13 @@ cdef class Context:
             raise MemoryError()
 
     def configure(self, py_config):
-        self.capture_buffer = py_config.capture_buffer
+        capture_buffer = py_config.capture_buffer
         cdef uintptr_t ptr = py_config.cptr
         cdef ngl_config *configp = <ngl_config *>ptr
-        return ngl_configure(self.ctx, configp)
+        cdef int ret = ngl_configure(self.ctx, configp)
+        if ret >= 0:
+            self.capture_buffer = capture_buffer
+        return ret
 
     @property
     def gpu_ctx(self):
@@ -1044,11 +1047,13 @@ cdef class Context:
         return tuple(v for v in vp)
 
     def set_capture_buffer(self, capture_buffer):
-        self.capture_buffer = capture_buffer
         cdef uint8_t *ptr = NULL
-        if self.capture_buffer is not None:
-            ptr = <uint8_t *>self.capture_buffer
-        return ngl_set_capture_buffer(self.ctx, ptr)
+        if capture_buffer is not None:
+            ptr = <uint8_t *>capture_buffer
+        cdef int ret = ngl_set_capture_buffer(self.ctx, ptr)
+        if ret >= 0:
+            self.capture_buffer = capture_buffer
+        return ret
 
     def set_scene(self, Scene scene):
         cdef ngl_scene *c_scene = NULL

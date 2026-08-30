@@ -161,6 +161,13 @@ struct ngl_ctx {
     struct ngli_queue background_queue;
 
     /*
+     * Set while the context is running node callbacks: an update, a draw, a
+     * scene association, a teardown, or a live edit. Public context operations
+     * and nested backend dispatches are refused for the duration.
+     */
+    bool in_node_callbacks;
+
+    /*
      * Array of frame slots tracking the borrow/release state of the ngl_frames.
      * Protected by frame_slots_lock since ngl_draw() and ngl_frame_release()
      * may run concurrently on different threads (producer/consumer split).
@@ -193,6 +200,7 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t);
 int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence);
 void ngli_ctx_reset(struct ngl_ctx *s, int action);
 
+int ngli_ctx_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg);
 void ngli_ctx_release_resources(struct ngl_ctx *s);
 void ngli_ctx_release_detached_resources(struct ngl_ctx *s);
 

@@ -36,7 +36,11 @@ class NGLContext {
     }
 
     fun configure(config: NGLConfig): Int {
-        return nativeConfigure(nativePtr, config)
+        val ret = nativeConfigure(nativePtr, config)
+        if (ret >= 0) {
+            captureBuffer = config.captureBuffer
+        }
+        return ret
     }
 
     fun resize(width: Int, height: Int): Int {
@@ -64,8 +68,11 @@ class NGLContext {
     }
 
     fun setCaptureBuffer(buffer: ByteBuffer): Int {
-        captureBuffer = buffer
-        return nativeSetCaptureBuffer(nativePtr, buffer)
+        val ret = nativeSetCaptureBuffer(nativePtr, buffer)
+        if (ret >= 0) {
+            captureBuffer = buffer
+        }
+        return ret
     }
 
     fun getNodesAtPoint(point: android.graphics.PointF): List<NGLNode> {
@@ -77,8 +84,10 @@ class NGLContext {
 
     fun release() {
         if (nativePtr != 0L) {
-            nativeRelease(nativePtr)
-            nativePtr = 0
+            nativePtr = nativeRelease(nativePtr)
+            if (nativePtr == 0L) {
+                captureBuffer = null
+            }
         }
     }
 
@@ -165,6 +174,6 @@ class NGLContext {
     private external fun nativeGetGpuCtx(nativePtr: Long): Long
 
     private external fun nativeSetCaptureBuffer(nativePtr: Long, buffer: ByteBuffer): Int
-    private external fun nativeRelease(nativePtr: Long)
+    private external fun nativeRelease(nativePtr: Long): Long
     private external fun nativeNodesAtPoint(nativePtr: Long, x: Float, y: Float): LongArray?
 }
