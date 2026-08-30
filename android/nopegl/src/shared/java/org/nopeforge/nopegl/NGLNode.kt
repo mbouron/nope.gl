@@ -56,6 +56,14 @@ open class NGLNode(
         return NGLNode(dupPtr, stealRef = true)
     }
 
+    fun addChildren(nodes: List<NGLNode>) {
+        addNodes("children", nodes)
+    }
+
+    fun removeChildren(nodes: List<NGLNode>) {
+        removeNodes("children", nodes)
+    }
+
     fun release() {
         cleanable?.clean()
         cleanable = null
@@ -190,6 +198,14 @@ open class NGLNode(
     internal fun addNodes(key: String, nodes: List<NGLNode>) {
         val nodePointers = nodes.map { it.nativePtr }.toLongArray()
         val returnCode =  nativeAddNodes(nativePtr, key, nodes.size, nodePointers)
+        if (returnCode != 0) {
+            throw NGLError(returnCode)
+        }
+    }
+
+    internal fun removeNodes(key: String, nodes: List<NGLNode>) {
+        val nodePointers = nodes.map { it.nativePtr }.toLongArray()
+        val returnCode = nativeRemoveNodes(nativePtr, key, nodes.size, nodePointers)
         if (returnCode != 0) {
             throw NGLError(returnCode)
         }
@@ -376,6 +392,13 @@ open class NGLNode(
     private external fun nativeSetVec3(nativePtr: Long, key: String, value: FloatArray): Int
     private external fun nativeSetVec4(nativePtr: Long, key: String, value: FloatArray): Int
     private external fun nativeAddNodes(
+        nativePtr: Long,
+        key: String,
+        count: Int,
+        nodePointers: LongArray,
+    ): Int
+
+    private external fun nativeRemoveNodes(
         nativePtr: Long,
         key: String,
         count: Int,

@@ -586,6 +586,24 @@ NGL_API int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
                                      size_t nb_nodes, struct ngl_node **nodes);
 
 /**
+ * Remove nodes from a node-list parameter.
+ *
+ * This is the counterpart to ngl_node_param_add_nodes() and follows the same
+ * construction-time and live-update rules.
+ *
+ * Each removed node has its reference counter decremented.
+ *
+ * @param node      pointer to the target node
+ * @param key       string identifying the parameter
+ * @param nb_nodes  number of nodes in @nodes
+ * @param nodes     array of nodes to remove (matched by pointer)
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
+                                        size_t nb_nodes, struct ngl_node **nodes);
+
+/**
  * Add double precision floats to a list-based parameter of an allocated node.
  *
  * @param node      pointer to the target node
