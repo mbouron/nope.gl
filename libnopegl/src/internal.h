@@ -523,6 +523,9 @@ int ngli_node_invalidate_branch(struct ngl_node *node);
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 
+typedef int (*ngli_node_children_func)(void *user_arg, struct ngl_node *parent, struct ngl_node *node);
+int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struct ngl_node *node);
+
 int ngli_is_default_label(const char *class_name, const char *str);
 const struct node_param *ngli_node_param_find(const struct ngl_node *node, const char *key,
                                               uint8_t **base_ptrp);
