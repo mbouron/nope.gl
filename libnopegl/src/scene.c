@@ -236,8 +236,8 @@ static int add_scene_edge_at(struct ngl_scene *s, struct ngl_node *parent,
             LOG(ERROR, "one or more nodes of the graph are associated with another scene already");
             return NGL_ERROR_INVALID_USAGE;
         }
-        if (child->cls->flags & NGLI_NODE_FLAG_2D) {
-            LOG(ERROR, "2D node %s (%s) can not be shared within the graph",
+        if (!(child->cls->flags & NGLI_NODE_FLAG_SHAREABLE)) {
+            LOG(ERROR, "%s (%s) can not be shared within the graph",
                 child->label, child->cls->name);
             return NGL_ERROR_INVALID_USAGE;
         }
