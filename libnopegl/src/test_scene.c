@@ -30,6 +30,59 @@ static struct ngl_scene *create_scene(struct ngl_node *root)
     return scene;
 }
 
+struct customtexture_lifecycle {
+    int step;
+};
+
+static int customtexture_init(void *reserved, void *user_data)
+{
+    struct customtexture_lifecycle *s = user_data;
+    ngli_assert(s->step++ == 0);
+    return 0;
+}
+
+static int customtexture_prepare(void *reserved, void *user_data)
+{
+    struct customtexture_lifecycle *s = user_data;
+    ngli_assert(s->step++ == 1);
+    return 0;
+}
+
+static void customtexture_unprepare(void *reserved, void *user_data)
+{
+    struct customtexture_lifecycle *s = user_data;
+    ngli_assert(s->step++ == 2);
+}
+
+static void customtexture_uninit(void *reserved, void *user_data)
+{
+    struct customtexture_lifecycle *s = user_data;
+    ngli_assert(s->step++ == 3);
+}
+
+static void test_customtexture_lifecycle(void)
+{
+    struct customtexture_lifecycle lifecycle = {0};
+    struct ngl_node_funcs funcs = {
+        .init = customtexture_init,
+        .prepare = customtexture_prepare,
+        .unprepare = customtexture_unprepare,
+        .uninit = customtexture_uninit,
+    };
+    struct ngl_node *node = ngl_node_create(NGL_NODE_CUSTOMTEXTURE);
+    ngli_assert(node);
+    ngli_assert(ngl_node_set_funcs(node, &lifecycle, &funcs) == 0);
+
+    struct ngl_ctx ctx = {0};
+    ngli_assert(ngli_node_attach_ctx(node, &ctx) == 0);
+    ngli_assert(lifecycle.step == 2);
+
+    ngli_node_detach_ctx(node, &ctx);
+    ngli_assert(lifecycle.step == 4);
+
+    ngl_node_unrefp(&node);
+}
+
 static void test_add_edges_rollback(void)
 {
     struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
@@ -75,6 +128,7 @@ static void test_add_edges_rollback(void)
 
 int main(void)
 {
+    test_customtexture_lifecycle();
     test_add_edges_rollback();
     return 0;
 }

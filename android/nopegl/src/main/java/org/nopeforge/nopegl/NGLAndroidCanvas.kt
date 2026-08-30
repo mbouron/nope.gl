@@ -92,6 +92,10 @@ class NGLAndroidCanvas(
             /* no-op */
         }
 
+        override fun unprepare() {
+            /* no-op */
+        }
+
         override fun prefetch() {
             ensureRenderer()
             callback.onPrefetch()

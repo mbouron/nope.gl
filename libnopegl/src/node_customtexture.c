@@ -153,6 +153,17 @@ static void customtexture_release(struct ngl_node *node)
     funcs->release(NULL, o->user_data);
 }
 
+static void customtexture_unprepare(struct ngl_node *node)
+{
+    const struct customtexture_opts *o = node->opts;
+    const struct ngl_node_funcs *funcs = &o->funcs;
+
+    if (!funcs->unprepare)
+        return;
+
+    funcs->unprepare(NULL, o->user_data);
+}
+
 static void customtexture_uninit(struct ngl_node *node)
 {
     struct customtexture_priv *s = node->priv_data;
@@ -407,6 +418,7 @@ const struct node_class ngli_customtexture_class = {
     .update         = customtexture_update,
     .draw           = customtexture_draw,
     .release        = customtexture_release,
+    .unprepare      = customtexture_unprepare,
     .uninit         = customtexture_uninit,
     .free           = customtexture_free,
     .priv_size      = sizeof(struct customtexture_priv),

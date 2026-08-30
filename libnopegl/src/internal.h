@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -334,13 +335,38 @@ struct node_class {
     /*
      * Prepare the node rendering resources.
      *
-     * reentrant: no
+     * Resources created here may depend on the render state inherited from
+     * parent nodes, particularly the rendertarget layout used to create
+     * pipelines. If a node moves to a position in the graph with a different
+     * render state, it must be prepared again. The unprepare callback must
+     * therefore release all resources created here.
+     *
+     * reentrant: no (a second prepare must be preceded by an unprepare)
      * execution-order: leaf first
      * dispatch: managed
      * when: called during set_scene() / internal node_set_ctx() (after init)
      */
     int (*prepare)(struct ngl_node *node,
                    const struct ngpu_rendertarget_layout *rendertarget_layout);
+
+    /*
+     * Release all resources created by prepare, leaving the node initialized.
+     *
+     * Required for any node whose prepare creates resources. This allows a
+     * subtree to be prepared again for a different render state without
+     * returning to the uninitialized state.
+     *
+     * Called before uninit, but only if the node was prepared. A node that was
+     * initialized but never prepared goes directly to uninit. This callback
+     * must therefore release only resources created by prepare; resources
+     * created by init must be released by uninit.
+     *
+     * reentrant: no (guarded by node->prepared)
+     * execution-order: root first
+     * dispatch: managed
+     * when: before a re-prepare, and during uninit
+     */
+    void (*unprepare)(struct ngl_node *node);
 
     /*
      * Override the rendertarget layout passed to children during prepare; the

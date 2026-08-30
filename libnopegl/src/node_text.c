@@ -933,7 +933,7 @@ static void text_release(struct ngl_node *node)
         ngli_text_release(s->text_ctx);
 }
 
-static void text_uninit(struct ngl_node *node)
+static void text_unprepare(struct ngl_node *node)
 {
     struct text_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
@@ -945,6 +945,11 @@ static void text_uninit(struct ngl_node *node)
     ngpu_block_desc_reset(&desc->bg.frag_block_desc);
     ngpu_block_desc_reset(&desc->fg.vert_block_desc);
     ngpu_block_desc_reset(&desc->fg.frag_block_desc);
+}
+
+static void text_uninit(struct ngl_node *node)
+{
+    struct text_priv *s = node->priv_data;
     ngpu_buffer_freep(&s->bg_vertices);
     destroy_characters_resources(s);
     ngli_text_freep(&s->text_ctx);
@@ -956,6 +961,7 @@ const struct node_class ngli_text_class = {
     .name           = "Text",
     .init           = text_init,
     .prepare        = text_prepare,
+    .unprepare      = text_unprepare,
     .update         = text_update,
     .draw           = text_draw,
     .release        = text_release,
