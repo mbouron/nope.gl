@@ -274,6 +274,15 @@ private fun nodeListFunctions(
         .addParameter("to", Int::class.asTypeName())
         .addCode(CodeBlock.of("${NGLNode::swapElement.name}(%S, from, to)\n", param.parameterName))
         .build()
+) + if (param.parameterName == "children") emptyList() else listOf(
+    FunSpec.builder("add${param.parameterName.toCamelCase(true)}")
+        .addParameter(parameter.name, parameter.type.copy(nullable = false))
+        .addCode(CodeBlock.of("${NGLNode::addNodes.name}(%S, ${parameter.name})\n", param.parameterName))
+        .build(),
+    FunSpec.builder("remove${param.parameterName.toCamelCase(true)}")
+        .addParameter(parameter.name, parameter.type.copy(nullable = false))
+        .addCode(CodeBlock.of("${NGLNode::removeNodes.name}(%S, ${parameter.name})\n", param.parameterName))
+        .build()
 )
 
 private fun nodeDictFunctions(

@@ -205,6 +205,11 @@ class _WrapperGenerator:
                 """)
             # code = textwrap.indent(code, " " * 4)
             methods.append(code)
+            code = textwrap.dedent(f"""
+                def remove_{param_name}(self, *{param_name}):
+                    return self._remove_nodes("{param_name}", *{param_name})
+                """)
+            methods.append(code)
         return methods
 
     def _get_class_setters(self, params):

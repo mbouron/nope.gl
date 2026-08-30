@@ -228,6 +228,13 @@ class Node(_Node):
             raise Exception(f"add_{param_name}() takes elements as positional arguments, not list")
         return self._param_add_nodes(param_name, len(nodes), nodes)
 
+    def _remove_nodes(self, param_name, *nodes):
+        if not nodes:
+            return 0
+        if hasattr(nodes[0], "__iter__"):
+            raise Exception(f"remove_{param_name}() takes elements as positional arguments, not list")
+        return self._param_remove_nodes(param_name, len(nodes), nodes)
+
     def _add_f64s(self, param_name, *f64s):
         if not f64s:
             return 0

@@ -347,6 +347,12 @@ static void node_darray_free(void *user_arg, void *data)
     ngl_node_unrefp(data);
 }
 
+static int node_in_darray(const struct ngli_node_darray *nodes,
+                          struct ngl_node * const *nodep)
+{
+    return ngli_node_darray_find(nodes, *nodep) != SIZE_MAX;
+}
+
 static int check_param_type(const struct node_param *par, enum param_type expected_type)
 {
     if (par->type != expected_type) {
@@ -1144,8 +1150,7 @@ int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
     return 0;
 }
 
-int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
-                          size_t nb_nodes, struct ngl_node **nodes)
+int ngli_params_check_nodes(const struct node_param *par, size_t nb_nodes, struct ngl_node * const *nodes)
 {
     for (size_t i = 0; i < nb_nodes; i++) {
         const struct ngl_node *e = nodes[i];
@@ -1155,12 +1160,21 @@ int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
             return NGL_ERROR_INVALID_ARG;
         }
     }
+    return 0;
+}
+
+int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
+                          size_t nb_nodes, struct ngl_node **nodes)
+{
+    int ret = ngli_params_check_nodes(par, nb_nodes, nodes);
+    if (ret < 0)
+        return ret;
 
     struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
     if (nb_nodes > SIZE_MAX - array->count)
         return NGL_ERROR_MEMORY;
     const size_t new_count = array->count + nb_nodes;
-    int ret = ngli_darray_try_reserve(array, new_count);
+    ret = ngli_darray_try_reserve(array, new_count);
     if (ret < 0)
         return ret;
 
@@ -1168,6 +1182,32 @@ int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
         struct ngl_node *e = nodes[i];
         array->data[array->count++] = ngl_node_ref(e);
     }
+    return 0;
+}
+
+int ngli_params_remove_nodes(uint8_t *dstp, const struct node_param *par,
+                             size_t nb_nodes, struct ngl_node **nodes)
+{
+    struct ngli_node_darray *dst_nodes = (struct ngli_node_darray *)dstp;
+    const struct ngli_node_darray nodes_to_remove = {
+        .data = nodes,
+        .count = nb_nodes,
+    };
+
+    /* Validate the whole batch upfront so a rejected node leaves the list untouched */
+    for (size_t i = 0; i < nodes_to_remove.count; i++) {
+        struct ngl_node *node = nodes_to_remove.data[i];
+        if (ngli_node_darray_find(dst_nodes, node) == SIZE_MAX) {
+            LOG(ERROR, "%s is not in the %s list", node->label, par->key);
+            return NGL_ERROR_INVALID_ARG;
+        }
+        if (ngli_node_darray_find(&nodes_to_remove, node) != i) {
+            LOG(ERROR, "%s is listed more than once", node->label);
+            return NGL_ERROR_INVALID_ARG;
+        }
+    }
+
+    ngli_darray_remove_if(dst_nodes, node_in_darray, &nodes_to_remove);
     return 0;
 }
 

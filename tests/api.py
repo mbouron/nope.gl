@@ -76,6 +76,12 @@ def api_animation_evaluate_edits():
         assert anim.add_keyframes(last) == 0
         check_velocity(1.5, [first, middle, last])
         assert anim.evaluate(1.5) == value(2)
+        assert anim.remove_keyframes(middle) == 0
+        assert anim.evaluate(1) == value(1.5)
+        check_velocity(1, [first, last])
+        assert last.set_time(4) == 0
+        assert anim.evaluate(1) == value(0.75)
+        check_velocity(1, [first, last])
 
 
 def api_animation_live_timestamps():

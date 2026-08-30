@@ -874,6 +874,45 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddNodes(
     return ret;
 }
 
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeRemoveNodes(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jsize count,
+    jlongArray node_pointers)
+{
+    if (count == 0)
+        return 0;
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+    const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
+    CHECK(key_str);
+    jsize length = (*env)->GetArrayLength(env, node_pointers);
+    CHECK(length == count);
+
+    jlong *ptrs = (*env)->GetLongArrayElements(env, node_pointers, NULL);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        (*env)->ReleaseStringUTFChars(env, key, key_str);
+        return -1;
+    }
+
+    struct ngl_node **nodes = calloc((size_t)count, sizeof(*nodes));
+    if (!nodes) {
+        (*env)->ReleaseStringUTFChars(env, key, key_str);
+        (*env)->ReleaseLongArrayElements(env, node_pointers, ptrs, JNI_ABORT);
+        return -1;
+    }
+
+    for (jsize i = 0; i < count; i++)
+        nodes[i] = (struct ngl_node *)(uintptr_t)ptrs[i];
+
+    int ret = ngl_node_param_remove_nodes(node, key_str, (size_t)count, nodes);
+
+    free(nodes);
+
+    (*env)->ReleaseStringUTFChars(env, key, key_str);
+    (*env)->ReleaseLongArrayElements(env, node_pointers, ptrs, JNI_ABORT);
+
+    return ret;
+}
+
 JNIEXPORT jint JNICALL
 Java_org_nopeforge_nopegl_NGLNode_nativeTimeRangeFilterUpdate(
     JNIEnv *env, jobject thiz, jlong native_ptr, jdouble start_time,
