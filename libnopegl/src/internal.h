@@ -213,6 +213,7 @@ struct ngl_node {
 
     double visit_time;
     double last_update_time;
+    uint64_t traversal_id;
 
     int refcount;
     int ctx_refcount;
@@ -520,6 +521,7 @@ int ngli_prepare_draw(struct ngl_ctx *s, double t);
 void ngli_node_draw(struct ngl_node *node);
 void ngli_node_draw_children(struct ngl_node *node);
 int ngli_node_invalidate_branch(struct ngl_node *node);
+uint64_t ngli_node_new_traversal_id(void);
 
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
