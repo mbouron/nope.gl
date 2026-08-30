@@ -35,8 +35,9 @@ static void test_add_edges_rollback(void)
     struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
     struct ngl_node *a = ngl_node_create(NGL_NODE_GROUP);
     struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *c = ngl_node_create(NGL_NODE_GROUP);
     struct ngl_node *foreign = ngl_node_create(NGL_NODE_GROUP);
-    ngli_assert(root && a && b && foreign);
+    ngli_assert(root && a && b && c && foreign);
 
     struct ngl_node *children[] = {a, b};
     ngli_assert(ngl_node_param_add_nodes(root, "children", 2, children) == 0);
@@ -44,7 +45,7 @@ static void test_add_edges_rollback(void)
     struct ngl_scene *scene = create_scene(root);
     struct ngl_scene *foreign_scene = create_scene(foreign);
 
-    struct ngl_node *added_children[] = {a, foreign};
+    struct ngl_node *added_children[] = {c, foreign};
     const int ret = ngli_scene_add_edges(scene, root, root->children.count,
                                          2, added_children);
     ngli_assert(ret == NGL_ERROR_INVALID_USAGE);
@@ -57,10 +58,16 @@ static void test_add_edges_rollback(void)
     ngli_assert(root->draw_children.data[1] == b);
     ngli_assert(a->parents.count == 1 && a->parents.data[0] == root);
     ngli_assert(b->parents.count == 1 && b->parents.data[0] == root);
+    ngli_assert(c->scene == NULL);
+    ngli_assert(c->parents.count == 0);
+    ngli_assert(scene->nodes.count == 3);
+    ngli_assert(ngli_node_darray_find(&scene->nodes, c) == SIZE_MAX);
+    ngli_assert(foreign->scene == foreign_scene);
 
     ngl_scene_unrefp(&foreign_scene);
     ngl_scene_unrefp(&scene);
     ngl_node_unrefp(&foreign);
+    ngl_node_unrefp(&c);
     ngl_node_unrefp(&b);
     ngl_node_unrefp(&a);
     ngl_node_unrefp(&root);
