@@ -433,16 +433,20 @@ static void drawcolor_release(struct ngl_node *node)
     ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
-static void drawcolor_uninit(struct ngl_node *node)
+static void drawcolor_unprepare(struct ngl_node *node)
 {
     struct drawcolor_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_freep(&desc->pipeline);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawcolor_uninit(struct ngl_node *node)
+{
+    struct drawcolor_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -467,6 +471,7 @@ const struct node_class ngli_drawcolor_class = {
     .name      = "DrawColor",
     .init      = drawcolor_init,
     .prepare   = drawcolor_prepare,
+    .unprepare = drawcolor_unprepare,
     .get_renderpass_usage = drawcolor_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawcolor_draw,

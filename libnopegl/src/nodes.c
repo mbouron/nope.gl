@@ -181,6 +181,10 @@ static void node_uninit(struct ngl_node *node)
     ngli_assert(node->ctx);
     node_release(node);
 
+    if (node->prepared && node->cls->unprepare)
+        node->cls->unprepare(node);
+    node->prepared = false;
+
     if (node->cls->uninit) {
         LOG(VERBOSE, "UNINIT %s @ %p", node->label, node);
         node->cls->uninit(node);

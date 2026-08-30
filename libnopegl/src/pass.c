@@ -617,7 +617,7 @@ void ngli_pass_release(struct pass *s)
     ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
-void ngli_pass_uninit(struct pass *s)
+void ngli_pass_unprepare(struct pass *s)
 {
     if (!s->ctx)
         return;
@@ -626,6 +626,10 @@ void ngli_pass_uninit(struct pass *s)
     ngli_pipeline_freep(&desc->pipeline);
 
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+void ngli_pass_uninit(struct pass *s)
+{
     ngpu_block_desc_reset(&s->user_vert_block);
     ngpu_block_desc_reset(&s->user_frag_block);
     ngpu_block_desc_reset(&s->user_comp_block);

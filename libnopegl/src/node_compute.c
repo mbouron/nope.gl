@@ -177,6 +177,12 @@ static void compute_release(struct ngl_node *node)
     ngli_pass_release(&s->pass);
 }
 
+static void compute_unprepare(struct ngl_node *node)
+{
+    struct compute_priv *s = node->priv_data;
+    ngli_pass_unprepare(&s->pass);
+}
+
 static void compute_uninit(struct ngl_node *node)
 {
     struct compute_priv *s = node->priv_data;
@@ -196,6 +202,7 @@ const struct node_class ngli_compute_class = {
     .name      = "Compute",
     .init      = compute_init,
     .prepare   = compute_prepare,
+    .unprepare = compute_unprepare,
     .release   = compute_release,
     .uninit    = compute_uninit,
     .update    = ngli_node_update_children,

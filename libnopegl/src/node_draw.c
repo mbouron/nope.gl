@@ -278,6 +278,12 @@ static void render_release(struct ngl_node *node)
     ngli_pass_release(&s->pass);
 }
 
+static void render_unprepare(struct ngl_node *node)
+{
+    struct draw_priv *s = node->priv_data;
+    ngli_pass_unprepare(&s->pass);
+}
+
 static void render_uninit(struct ngl_node *node)
 {
     struct draw_priv *s = node->priv_data;
@@ -303,6 +309,7 @@ const struct node_class ngli_draw_class = {
     .name      = "Draw",
     .init      = render_init,
     .prepare   = render_prepare,
+    .unprepare = render_unprepare,
     .get_renderpass_usage = render_get_renderpass_usage,
     .release   = render_release,
     .uninit    = render_uninit,
