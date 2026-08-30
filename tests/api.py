@@ -241,6 +241,24 @@ def api_scene_mutate():
     del scene
 
 
+def api_scene_incomplete_node():
+    """A node missing a mandatory parameter must be rejected"""
+
+    try:
+        ngl.Scene.from_params(ngl.Group(children=[ngl.Draw()]))
+    except Exception:
+        pass
+    else:
+        assert False, "an incomplete node must be rejected"
+
+    try:
+        ngl.Scene.from_params(ngl.Group(children=[ngl.Time(), ngl.Draw()]))
+    except Exception:
+        pass
+    else:
+        assert False, "a node without param must not halt the graph validation"
+
+
 def api_scene_ownership():
     """Test if part of a graph is shared between 2 different scenes"""
     shared_geometry = ngl.Quad()
