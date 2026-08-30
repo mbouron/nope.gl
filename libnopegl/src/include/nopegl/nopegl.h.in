@@ -858,6 +858,7 @@ NGL_API int ngl_effect2dshader_set_range(struct ngl_node *node, double start, do
 
 struct ngl_node_funcs {
     int (*init)(void *reserved, void *user_data);
+    int (*init_resources)(void *reserved, void *user_data);
     int (*prepare)(void *reserved, void *user_data);
     void (*unprepare)(void *reserved, void *user_data);
     int (*prefetch)(void *reserved, void *user_data);

@@ -104,6 +104,21 @@ static int customtexture_prefetch(struct ngl_node *node)
     return 0;
 }
 
+static int customtexture_init_resources(struct ngl_node *node)
+{
+    const struct customtexture_opts *o = node->opts;
+    const struct ngl_node_funcs *funcs = &o->funcs;
+
+    if (!funcs->init_resources)
+        return 0;
+
+    int ret = funcs->init_resources(NULL, o->user_data);
+    if (ret < 0)
+        return ret;
+
+    return 0;
+}
+
 static int customtexture_prepare(struct ngl_node *node,
                                  const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
@@ -430,6 +445,7 @@ const struct node_class ngli_customtexture_class = {
     .category       = NGLI_NODE_CATEGORY_TEXTURE,
     .name           = "CustomTexture",
     .init           = customtexture_init,
+    .init_resources = customtexture_init_resources,
     .prepare        = customtexture_prepare,
     .prefetch       = customtexture_prefetch,
     .update         = customtexture_update,
