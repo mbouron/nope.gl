@@ -883,8 +883,10 @@ int ngl_configure(struct ngl_ctx *s, const struct ngl_config *user_config)
         return ret;
 
     ret = backend_init(&s->backend, s->gpu_ctx);
-    if (ret < 0)
+    if (ret < 0) {
+        s->api_impl->reset(s, NGLI_ACTION_KEEP_SCENE);
         return ret;
+    }
 
     s->configured = 1;
     return 0;
