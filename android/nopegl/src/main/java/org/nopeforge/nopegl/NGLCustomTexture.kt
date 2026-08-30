@@ -33,6 +33,7 @@ class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) 
 
         protected abstract fun init()
         protected abstract fun prepare()
+        protected abstract fun unprepare()
         protected abstract fun prefetch()
         protected abstract fun update(time: Double)
         protected abstract fun draw()

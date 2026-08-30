@@ -243,12 +243,18 @@ static int streamedbuffer_prepare(struct ngl_node *node,
     return 0;
 }
 
+static void streamedbuffer_unprepare(struct ngl_node *node)
+{
+    struct buffer_info *info = node->priv_data;
+    ngli_buffer_resource_set(info->resource, NULL);
+}
+
 static void streamedbuffer_uninit(struct ngl_node *node)
 {
     struct streamedbuffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
 
-    ngli_buffer_resource_releasep(&info->resource);
+    ngli_buffer_resource_freep(&info->resource);
 }
 
 #define DECLARE_STREAMED_CLASS(class_id, class_name, class_suffix)          \
@@ -258,6 +264,7 @@ const struct node_class ngli_streamedbuffer##class_suffix##_class = {       \
     .name      = class_name,                                                \
     .init      = streamedbuffer_init,                                       \
     .prepare   = streamedbuffer_prepare,                                    \
+    .unprepare = streamedbuffer_unprepare,                                  \
     .update    = streamedbuffer_update,                                     \
     .uninit    = streamedbuffer_uninit,                                     \
     .opts_size = sizeof(struct streamedbuffer_opts),                        \
