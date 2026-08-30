@@ -549,6 +549,16 @@ char *ngli_scene_serialize(const struct ngl_scene *s);
 char *ngli_scene_dot(const struct ngl_scene *s);
 void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_param *par);
 
+struct ngli_scene_subtree_check_ctx {
+    const struct ngl_ctx *ctx;
+    uint64_t visiting_id;
+    uint64_t visited_id;
+};
+
+int ngli_scene_check_subtree(const struct ngl_scene *s,
+                             const struct ngli_scene_subtree_check_ctx *check_ctx,
+                             struct ngl_node *node);
+
 struct ngli_edge_range {
     size_t index;
     size_t count;
@@ -587,6 +597,9 @@ typedef int (*ngli_node_children_func)(void *user_arg, struct ngl_node *parent, 
 int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struct ngl_node *node);
 
 int ngli_is_default_label(const char *class_name, const char *str);
+
+int ngli_node_check_params_sanity(const struct ngl_node *node);
+
 const struct node_param *ngli_node_param_find(const struct ngl_node *node, const char *key,
                                               uint8_t **base_ptrp);
 
