@@ -66,6 +66,7 @@ cdef extern from "nopegl/nopegl.h":
     void ngl_node_unrefp(ngl_node **nodep)
     int NGL_NODE_DUPLICATE_RESOURCES
     ngl_node *ngl_node_duplicate(ngl_node *node, uint32_t flags)
+    int ngl_node_holds_resources(const ngl_node *node)
     int ngl_node_param_add_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_remove_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_add_f64s(ngl_node *node, const char *key, size_t nb_f64s, double *f64s)
@@ -255,6 +256,7 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_get_viewport(ngl_ctx *s, int32_t *viewport)
     int ngl_set_capture_buffer(ngl_ctx *s, void *capture_buffer)
     int ngl_set_scene(ngl_ctx *s, ngl_scene *scene)
+    int ngl_release_detached_resources(ngl_ctx *s)
     int ngl_update(ngl_ctx *s, double t) nogil
     int ngl_draw(ngl_ctx *s, double t, void *output) nogil
     int ngl_get_nodes_at_point(ngl_ctx *s, const float *point, size_t *nb_nodesp, ngl_node ***nodesp)
@@ -388,6 +390,9 @@ cdef class _Node:
             return _Node(ctx=<uintptr_t>dup)
         finally:
             ngl_node_unrefp(&dup)
+
+    def _holds_resources(self):
+        return ngl_node_holds_resources(self.ctx)
 
     def _param_set_bool(self, const char *key, bint value):
         return ngl_node_param_set_bool(self.ctx, key, value)
@@ -1052,6 +1057,9 @@ cdef class Context:
             ptr = scene.cptr
             c_scene = <ngl_scene *>ptr
         return ngl_set_scene(self.ctx, c_scene)
+
+    def release_detached_resources(self):
+        return ngl_release_detached_resources(self.ctx)
 
     def update(self, double t):
         with nogil:

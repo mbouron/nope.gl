@@ -551,6 +551,19 @@ NGL_API struct ngl_node *ngl_node_ref(struct ngl_node *node);
 NGL_API void ngl_node_unrefp(struct ngl_node **nodep);
 
 /**
+ * Check whether a node holds resources allocated by a rendering context.
+ *
+ * Resources are allocated when the node is associated with a rendering context.
+ * Removing a node from the graph does not release its resources, allowing it to
+ * be added back cheaply. Use ngl_release_detached_resources() to release them.
+ *
+ * @param node  node to query
+ *
+ * @return 1 when the node holds resources, 0 otherwise
+ */
+NGL_API int ngl_node_holds_resources(const struct ngl_node *node);
+
+/**
  * Flags for ngl_node_duplicate().
  */
 #define NGL_NODE_DUPLICATE_RESOURCES (1 << 0) /* Duplicate shareable nodes (buffers, textures, etc.) */
@@ -1228,6 +1241,27 @@ NGL_API int ngl_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer);
  * @return 0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene);
+
+/**
+ * Release resources held by nodes that are no longer part of the scene.
+ *
+ * A sub-tree keeps its resources after it is removed, allowing it to be added
+ * back cheaply. Resources are otherwise kept until the scene is dropped or the
+ * context is destroyed. Use this function to reclaim resources from detached
+ * sub-trees that will not be used again. The nodes remain usable and recreate
+ * their resources if they are added to a graph again.
+ * Until then, a detached node remains owned by this context and cannot be
+ * added to a graph attached to a different context.
+ *
+ * Nodes still reachable from the scene are left untouched.
+ *
+ * This function must be called from the rendering thread of @p s, and not from
+ * within an ngl_update()/ngl_draw() in progress (such as from a CustomTexture
+ * callback).
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_release_detached_resources(struct ngl_ctx *s);
 
 /**
  * Update at the specified time.

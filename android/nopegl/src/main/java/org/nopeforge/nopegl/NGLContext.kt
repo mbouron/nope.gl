@@ -55,6 +55,10 @@ class NGLContext {
         return nativeDraw(nativePtr, time)
     }
 
+    fun releaseDetachedResources(): Int {
+        return nativeReleaseDetachedResources(nativePtr)
+    }
+
     fun getGpuCtx(): Long {
         return nativeGetGpuCtx(nativePtr)
     }
@@ -157,6 +161,7 @@ class NGLContext {
     private external fun nativeConfigure(nativePtr: Long, config: NGLConfig): Int
     private external fun nativeResize(nativePtr: Long, width: Int, height: Int): Int
     private external fun nativeDraw(nativePtr: Long, time: Double): Int
+    private external fun nativeReleaseDetachedResources(nativePtr: Long): Int
     private external fun nativeGetGpuCtx(nativePtr: Long): Long
 
     private external fun nativeSetCaptureBuffer(nativePtr: Long, buffer: ByteBuffer): Int

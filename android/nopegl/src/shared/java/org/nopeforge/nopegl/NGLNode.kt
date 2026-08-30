@@ -64,6 +64,10 @@ open class NGLNode(
         removeNodes("children", nodes)
     }
 
+    fun holdsResources(): Boolean {
+        return nativeHoldsResources(nativePtr)
+    }
+
     fun release() {
         cleanable?.clean()
         cleanable = null
@@ -422,6 +426,8 @@ open class NGLNode(
         start: Double,
         end: Double,
     ): Int
+
+    private external fun nativeHoldsResources(nativePtr: Long): Boolean
 
     companion object {
         @JvmStatic
