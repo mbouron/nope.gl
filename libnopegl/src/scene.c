@@ -200,6 +200,16 @@ static void remove_scene_children(struct ngl_node *parent)
         remove_scene_edge_at(parent, parent->children.count - 1);
 }
 
+static int check_node_is_shareable(const struct ngl_node *node)
+{
+    if (!(node->cls->flags & NGLI_NODE_FLAG_SHAREABLE)) {
+        LOG(ERROR, "%s (%s) can not be shared within the graph",
+            node->label, node->cls->name);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    return 0;
+}
+
 static int add_scene_edge_at(struct ngl_scene *s, struct ngl_node *parent,
                              struct ngl_node *child, size_t index)
 {
@@ -208,11 +218,9 @@ static int add_scene_edge_at(struct ngl_scene *s, struct ngl_node *parent,
             LOG(ERROR, "one or more nodes of the graph are associated with another scene already");
             return NGL_ERROR_INVALID_USAGE;
         }
-        if (!(child->cls->flags & NGLI_NODE_FLAG_SHAREABLE)) {
-            LOG(ERROR, "%s (%s) can not be shared within the graph",
-                child->label, child->cls->name);
-            return NGL_ERROR_INVALID_USAGE;
-        }
+        int ret = check_node_is_shareable(child);
+        if (ret < 0)
+            return ret;
         add_runtime_edge(parent, child, index);
         return 0;
     }
@@ -302,41 +310,100 @@ void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
     add_runtime_edge(to, child, index);
 }
 
-static int check_nodes_params_sanity(const struct ngli_node_darray *nodes_array)
+struct subtree_check_arg {
+    const struct ngl_scene *scene;
+    const struct ngli_scene_subtree_check_ctx *check_ctx;
+};
+
+static int check_subtree(void *user_arg, struct ngl_node *parent, struct ngl_node *node)
 {
-    for (size_t i = 0; i < nodes_array->count; i++) {
-        const struct ngl_node *node = nodes_array->data[i];
+    const struct subtree_check_arg *arg = user_arg;
+    return ngli_scene_check_subtree(arg->scene, arg->check_ctx, node);
+}
 
-        const uint8_t *base_ptr = node->opts;
-        const struct node_param *par = node->cls->params;
+/*
+ * Validate node's subtree before associating it with scene s.
+ *
+ * Reject nodes owned by another scene. Nodes already in s, or marked with
+ * check_ctx->visited_id, have already been validated: require them to be
+ * shareable and do not revisit their descendants.
+ *
+ * Detect and reject cycles. Reaching a node already marked with
+ * check_ctx->visiting_id means it is on the recursion stack and
+ * forms a cycle.
+ *
+ * When reaching a unattached node for the first time, check mandatory
+ * parameters and require node->ctx to be NULL or equal to check_ctx->ctx.
+ *
+ * Mark it visiting before checking its children, then visited on success.
+ *
+ * Use two fresh, distinct IDs in check_ctx for each operation and reuse them
+ * across all input roots. Abort on the first error; fresh IDs for the next
+ * operation make clearing marks unnecessary.
+ *
+ * Do not interleave other traversals that write node->traversal_id.
+ */
+int ngli_scene_check_subtree(const struct ngl_scene *s,
+                             const struct ngli_scene_subtree_check_ctx *check_ctx,
+                             struct ngl_node *node)
+{
+    const struct ngl_ctx *ctx = check_ctx->ctx;
 
-        if (!par)
-            continue;
-
-        while (par->key) {
-            const void *p = base_ptr + par->offset;
-            if ((par->flags & NGLI_PARAM_FLAG_NON_NULL) && !*(uint8_t **)p) {
-                LOG(ERROR, "%s: %s parameter can not be null", node->label, par->key);
-                return NGL_ERROR_INVALID_ARG;
-            }
-            par++;
-        }
+    if (node->scene && node->scene != s) {
+        LOG(ERROR, "%s belongs to another scene", node->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    if (node->scene || node->traversal_id == check_ctx->visited_id) {
+        return check_node_is_shareable(node);
     }
 
+    if (node->traversal_id == check_ctx->visiting_id) {
+        LOG(ERROR, "the sub-tree of %s contains a cycle", node->label);
+        return NGL_ERROR_INVALID_ARG;
+    }
+    if (node->ctx && node->ctx != ctx) {
+        if (ctx)
+            LOG(ERROR, "%s holds resources of another rendering context", node->label);
+        else
+            LOG(ERROR, "%s still holds resources of a rendering context; release them with "
+                "ngl_release_detached_resources() before associating the sub-tree with this scene",
+                node->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    int ret = ngli_node_check_params_sanity(node);
+    if (ret < 0)
+        return ret;
+
+    node->traversal_id = check_ctx->visiting_id;
+
+    struct subtree_check_arg arg = {
+        .scene = s,
+        .check_ctx = check_ctx,
+    };
+    ret = ngli_node_children_apply(check_subtree, &arg, node);
+    if (ret < 0)
+        return ret;
+
+    node->traversal_id = check_ctx->visited_id;
     return 0;
 }
 
 static int attach_root(struct ngl_scene *s, struct ngl_node *node)
 {
+    const struct ngli_scene_subtree_check_ctx check_ctx = {
+        .visiting_id = ngli_node_new_traversal_id(),
+        .visited_id = ngli_node_new_traversal_id(),
+    };
+    int ret = ngli_scene_check_subtree(s, &check_ctx, node);
+    if (ret < 0)
+        return ret;
+
     s->params.root = ngl_node_ref(node);
 
     add_scene_node(s, s->params.root);
 
-    int ret = ngli_node_children_apply(add_scene_edge, s, s->params.root);
-    if (ret < 0)
-        goto fail;
-
-    ret = check_nodes_params_sanity(&s->nodes);
+    ret = ngli_node_children_apply(add_scene_edge, s, s->params.root);
     if (ret < 0)
         goto fail;
 
@@ -472,7 +539,8 @@ int ngl_scene_init(struct ngl_scene *s, const struct ngl_scene_params *params)
 
     detach_root(s);
     s->params = *params;
-    return attach_root(s, s->params.root);
+    s->params.root = NULL;
+    return attach_root(s, params->root);
 }
 
 int ngl_scene_init_from_str(struct ngl_scene *s, const char *str)
