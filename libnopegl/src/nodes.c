@@ -870,18 +870,50 @@ int ngl_node_get_label(struct ngl_node *node, const char **label)
     return 0;
 }
 
-static int append_child(struct ngl_node ***arrp, size_t *countp, size_t *capp, struct ngl_node *child)
+int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struct ngl_node *node)
 {
-    if (*countp >= *capp) {
-        const size_t new_cap = *capp ? *capp * 2 : 8;
-        struct ngl_node **tmp = ngli_try_realloc(*arrp, new_cap, sizeof(*tmp));
-        if (!tmp)
-            return NGL_ERROR_MEMORY;
-        *arrp = tmp;
-        *capp = new_cap;
+    uint8_t *base_ptr = node->opts;
+    const struct node_param *par = node->cls->params;
+
+    if (!par)
+        return 0;
+
+    for (; par->key; par++) {
+        uint8_t *parp = base_ptr + par->offset;
+
+        if (par->type == NGLI_PARAM_TYPE_NODE || (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)) {
+            struct ngl_node *child = *(struct ngl_node **)parp;
+            if (child) {
+                const int ret = func(user_arg, node, child);
+                if (ret < 0)
+                    return ret;
+            }
+        } else if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+            struct ngl_node **elems = *(struct ngl_node ***)parp;
+            const size_t nb_elems = *(size_t *)(parp + sizeof(struct ngl_node **));
+            for (size_t i = 0; i < nb_elems; i++) {
+                const int ret = func(user_arg, node, elems[i]);
+                if (ret < 0)
+                    return ret;
+            }
+        } else if (par->type == NGLI_PARAM_TYPE_NODEDICT) {
+            const struct hmap *hmap = *(struct hmap **)parp;
+            const struct hmap_entry *entry = NULL;
+            while (hmap && (entry = ngli_hmap_next(hmap, entry))) {
+                const int ret = func(user_arg, node, entry->data);
+                if (ret < 0)
+                    return ret;
+            }
+        }
     }
-    (*arrp)[(*countp)++] = child;
+
     return 0;
+}
+
+static int collect_child(void *user_arg, struct ngl_node *parent ngli_unused, struct ngl_node *child)
+{
+    struct ngli_node_darray *children = user_arg;
+    return ngli_darray_try_push(children, child);
 }
 
 int ngl_node_get_children(const struct ngl_node *node,
@@ -893,39 +925,15 @@ int ngl_node_get_children(const struct ngl_node *node,
     if (!node || !node->cls || !node->cls->params)
         return 0;
 
-    struct ngl_node **children = NULL;
-    size_t count = 0, capacity = 0;
-
-    const struct node_param *par = node->cls->params;
-    const uint8_t *opts = node->opts;
-
-    while (par->key) {
-        if (par->type == NGLI_PARAM_TYPE_NODE ||
-            (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)) {
-            struct ngl_node *child = *(struct ngl_node **)(opts + par->offset);
-            if (child) {
-                int ret = append_child(&children, &count, &capacity, child);
-                if (ret < 0) {
-                    ngli_free(children);
-                    return ret;
-                }
-            }
-        } else if (par->type == NGLI_PARAM_TYPE_NODELIST) {
-            struct ngl_node **elems = *(struct ngl_node ***)(opts + par->offset);
-            const size_t nb_elems = *(const size_t *)(opts + par->offset + sizeof(struct ngl_node **));
-            for (size_t i = 0; i < nb_elems; i++) {
-                int ret = append_child(&children, &count, &capacity, elems[i]);
-                if (ret < 0) {
-                    ngli_free(children);
-                    return ret;
-                }
-            }
-        }
-        par++;
+    struct ngli_node_darray children = {0};
+    const int ret = ngli_node_children_apply(collect_child, &children, (struct ngl_node *)node);
+    if (ret < 0) {
+        ngli_darray_reset(&children);
+        return ret;
     }
 
-    *childrenp = children;
-    *nb_childrenp = count;
+    *childrenp = children.data;
+    *nb_childrenp = children.count;
     return 0;
 }
 
