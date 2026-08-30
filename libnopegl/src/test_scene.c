@@ -77,9 +77,10 @@ static void test_customtexture_lifecycle(void)
     ngli_assert(ngli_node_attach_ctx(node, &ctx) == 0);
     ngli_assert(lifecycle.step == 2);
 
-    ngli_node_detach_ctx(node, &ctx);
+    ngli_ctx_release_resources(&ctx);
     ngli_assert(lifecycle.step == 4);
 
+    ngli_darray_reset(&ctx.resource_nodes);
     ngl_node_unrefp(&node);
 }
 

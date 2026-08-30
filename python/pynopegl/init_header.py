@@ -272,6 +272,9 @@ class Node(_Node):
     def duplicate(self, duplicate_resources: bool = False) -> "Node":
         return super()._duplicate(duplicate_resources=duplicate_resources)
 
+    def holds_resources(self) -> bool:
+        return bool(super()._holds_resources())
+
     def get_type(self):
         return self._get_type()
 
@@ -363,6 +366,9 @@ class Context(_ngl.Context):
 
     def set_scene(self, scene: Optional[Scene]) -> int:
         return super().set_scene(scene)
+
+    def release_detached_resources(self) -> int:
+        return super().release_detached_resources()
 
     def draw(self, t: float) -> int:
         return super().draw(t)

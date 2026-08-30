@@ -135,6 +135,15 @@ struct ngl_ctx {
     struct ngli_node_darray bounding_box_nodes;
     struct ngli_node_darray intersecting_nodes;
 
+    /*
+     * Nodes this context has initialized and holds resources for.
+     *
+     * Tracked independently of the scene graph: a node's resources belong to
+     * the context so reclaiming them can not rely on the node still being
+     * reachable from the scene root.
+     */
+    struct ngli_node_darray resource_nodes;
+
     struct hmap *text_builtin_atlasses; // struct text_builtin_atlas
 #if HAVE_TEXT_LIBRARIES
     FT_Library ft_library;
@@ -184,6 +193,9 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t);
 int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence);
 void ngli_ctx_reset(struct ngl_ctx *s, int action);
 
+void ngli_ctx_release_resources(struct ngl_ctx *s);
+void ngli_ctx_release_detached_resources(struct ngl_ctx *s);
+
 struct livectl {
     union ngl_livectl_data val;
     char *id;
@@ -225,7 +237,8 @@ struct ngl_node {
     struct ngli_node_darray children;
     struct ngli_node_darray draw_children; // children with a draw callback
     struct ngli_node_darray parents;
-    size_t scene_index;
+    size_t scene_index; // position in ngl_scene.nodes, while associated with a scene
+    size_t resource_index; // position in ngl_ctx.resource_nodes, while holding resources
 
     char *label;
 
@@ -555,7 +568,7 @@ int ngli_node_invalidate_branch(struct ngl_node *node);
 uint64_t ngli_node_new_traversal_id(void);
 
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
-void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
+int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 
 typedef int (*ngli_node_children_func)(void *user_arg, struct ngl_node *parent, struct ngl_node *node);
 int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struct ngl_node *node);
