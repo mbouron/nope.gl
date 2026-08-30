@@ -28,6 +28,7 @@ import os
 import pprint
 import random
 import tempfile
+import weakref
 from collections import namedtuple
 from pathlib import Path
 
@@ -257,6 +258,124 @@ def api_ctx_ownership():
     assert ctx2.draw(0) == 0
     del ctx
     del ctx2
+
+
+def api_ctx_reentry_during_traversal(width=64, height=64):
+    """Context operations are refused from within a context callback"""
+
+    class ReenteringCustomTexture(ngl.CustomTexture):
+        def __init__(self):
+            self.ctx = None
+            self.config = None
+            self.capture_buffer = None
+            self.results = []
+            self.draw_calls = 0
+            self.viewport_rejected = False
+            super().__init__()
+
+        def _draw(self):
+            self.draw_calls += 1
+            try:
+                self.ctx.get_viewport()
+            except Exception:
+                self.viewport_rejected = True
+            self.results = [
+                self.ctx.release_detached_resources(),
+                self.ctx.configure(self.config),
+                self.ctx.resize(width, height),
+                self.ctx.set_capture_buffer(self.capture_buffer),
+                self.ctx.set_scene(None),
+                self.ctx.update(0),
+                self.ctx.draw(0),
+            ]
+
+    custom_texture = ReenteringCustomTexture()
+    root = ngl.Group(children=[custom_texture, ngl.DrawColor(geometry=ngl.Quad())])
+    scene = ngl.Scene.from_params(root, width=width, height=height)
+
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    custom_texture.ctx = ctx
+    config = ngl.Config(
+        offscreen=True,
+        width=width,
+        height=height,
+        backend=_backend,
+        capture_buffer=capture_buffer,
+        debug=True,
+    )
+    custom_texture.config = config
+    custom_texture.capture_buffer = capture_buffer
+    ret = ctx.configure(config)
+    assert ret == 0
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(0) == 0
+
+    assert custom_texture.draw_calls == 1
+    assert custom_texture.viewport_rejected
+    assert len(custom_texture.results) == 7
+    assert all(ret != 0 for ret in custom_texture.results), custom_texture.results
+
+    # The context came out of the draw intact and still usable
+    assert ctx.get_viewport() == (0, 0, width, height)
+    assert ctx.release_detached_resources() == 0
+    assert ctx.draw(1) == 0
+
+    # Break the cycles the callback needed
+    custom_texture.ctx = None
+    custom_texture.config = None
+    custom_texture.capture_buffer = None
+
+    del ctx
+    del scene
+
+
+def api_capture_buffer_rejected_lifetime():
+    """Rejected buffer replacements keep the native capture pointer alive."""
+
+    class Capture(bytearray):
+        pass
+
+    events = []
+    ctx = ngl.Context()
+    old = Capture(16 * 16 * 4)
+    old_ref = weakref.ref(old)
+    assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend, capture_buffer=old)) == 0
+    del old
+
+    class EditingTexture(ngl.CustomTexture):
+        def edit(self):
+            events.append(ctx.set_capture_buffer(None))
+            events.append(old_ref() is not None)
+            events.append(ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)))
+            events.append(old_ref() is not None)
+
+        def _init(self):
+            self.edit()
+
+        def _draw(self):
+            self.edit()
+
+    custom = EditingTexture()
+    scene = ngl.Scene.from_params(ngl.Group(children=[custom, ngl.DrawColor(color=(1, 0, 0))]))
+    try:
+        assert ctx.set_scene(scene) == 0
+        # Check the lifetime before issuing GPU work with the stored pointer.
+        assert events == [ngl.Error.INVALID_USAGE, True] * 2, events
+        assert ctx.draw(0) == 0
+        assert events == [ngl.Error.INVALID_USAGE, True] * 4, events
+        assert tuple(old_ref()[:4]) == (255, 0, 0, 255)
+        replacement = Capture(16 * 16 * 4)
+        replacement_ref = weakref.ref(replacement)
+        assert ctx.set_capture_buffer(replacement) == 0
+        del replacement
+        assert old_ref() is None
+        assert replacement_ref() is not None
+        assert ctx.set_capture_buffer(None) == 0
+        assert replacement_ref() is None
+    finally:
+        assert ctx.set_capture_buffer(None) == 0
+        assert ctx.set_scene(None) == 0
 
 
 def api_scene_context_transfer():

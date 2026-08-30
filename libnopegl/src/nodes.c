@@ -894,6 +894,12 @@ static int node_param_is_value_allowed(struct ngl_node *node, const char *key,
     if (!node->ctx)
         return 0;
 
+    if (node->ctx->in_node_callbacks) {
+        LOG(ERROR, "%s.%s can not be changed from a node callback, "
+            "nor while the graph is being updated or drawn", node->label, key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
     if (!(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
         LOG(ERROR, "%s.%s can not be live changed", node->label, key);
         return NGL_ERROR_INVALID_USAGE;
@@ -919,7 +925,7 @@ static int node_param_update(struct ngl_node *node, const struct node_param *par
         return 0;
 
     struct node_param_update_arg arg = { .node = node, .par = par };
-    return node->ctx->api_impl->dispatch(node->ctx, node_param_update_cb, &arg);
+    return ngli_ctx_dispatch(node->ctx, node_param_update_cb, &arg);
 }
 
 #define FORWARD_TO_PARAM(type, ...)                                     \

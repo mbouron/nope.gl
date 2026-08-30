@@ -383,12 +383,13 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeGetGpuCtx(
     return (jlong)(uintptr_t)ngl_get_gpu_ctx(ctx);
 }
 
-JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeRelease(
+JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeRelease(
     JNIEnv *env, jclass type, jlong native_ptr)
 {
     struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
 
     ngl_freep(&ctx);
+    return (jlong)(uintptr_t)ctx;
 }
 
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeResetScene(
