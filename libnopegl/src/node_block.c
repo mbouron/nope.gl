@@ -137,18 +137,6 @@ void ngli_node_block_extend_usage(struct ngl_node *node, uint32_t usage)
     s->usage |= usage;
 }
 
-size_t ngli_node_block_get_cpu_size(struct ngl_node *node)
-{
-    struct block_info *s = node->priv_data;
-    return s->data_size;
-}
-
-size_t ngli_node_block_get_gpu_size(struct ngl_node *node)
-{
-    struct block_info *s = node->priv_data;
-    return s->data_size;
-}
-
 static enum ngpu_type get_node_data_type(const struct ngl_node *node)
 {
     if (node->cls->category == NGLI_NODE_CATEGORY_VARIABLE) {

@@ -342,9 +342,19 @@ def api_hud_csv(width=16, height=16):
 
     with open(csvpath) as csvfile:
         reader = csv.DictReader(csvfile)
-        time_column = [row["time"] for row in reader]
+        rows = list(reader)
 
+    time_column = [row["time"] for row in rows]
     assert time_column == ["0.000000", "0.150000", "0.300000", "0.450000", "1.000000"], time_column
+    assert all(int(row["Nodes total"]) == 2 for row in rows)
+    assert all(int(row["Nodes active"]) == 2 for row in rows)
+    assert all(int(row["Render passes"]) == 1 for row in rows)
+    assert all(int(row["Draw calls"]) == 1 for row in rows)
+    assert all(int(row["Dispatches"]) == 0 for row in rows)
+    for column in ("Buffers", "Buffer memory", "Textures", "Texture memory"):
+        values = [int(row[column]) for row in rows]
+        assert all(value > 0 for value in values), (column, values)
+        assert len(set(values)) == 1, (column, values)
 
 
 def _api_text_live_change(width=320, height=240, font_faces=None):

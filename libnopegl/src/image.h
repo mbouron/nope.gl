@@ -88,6 +88,5 @@ struct image {
 
 void ngli_image_init(struct image *s, const struct image_params *params, struct ngpu_texture **planes);
 void ngli_image_reset(struct image *s);
-uint64_t ngli_image_get_memory_size(const struct image *s);
 
 #endif

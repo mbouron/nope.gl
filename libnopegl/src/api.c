@@ -305,6 +305,18 @@ static void backend_reset(struct ngl_backend *backend)
     memset(backend, 0, sizeof(*backend));
 }
 
+static uint64_t get_active_node_count(const struct ngl_scene *scene)
+{
+    if (!scene)
+        return 0;
+
+    uint64_t count = 0;
+    for (size_t i = 0; i < scene->nodes.count; i++)
+        count += scene->nodes.data[i]->is_active;
+
+    return count;
+}
+
 static void reset_scene(struct ngl_ctx *s, int action)
 {
     ngli_queue_wait(&s->background_queue);
@@ -642,7 +654,7 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
     if (ret < 0)
         return ret;
 
-    s->cpu_update_time = s->hud ? ngli_gettime_relative() - start_time : 0;
+    s->frame_stats.cpu_update_time = s->hud ? ngli_gettime_relative() - start_time : 0;
 
     return 0;
 }
@@ -681,8 +693,13 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, st
     }
 
     if (s->hud) {
-        s->cpu_draw_time = ngli_gettime_relative() - cpu_start_time;
-        ngli_hud_draw(s->hud);
+        struct ngli_frame_stats *stats = &s->frame_stats;
+        stats->cpu_draw_time = ngli_gettime_relative() - cpu_start_time;
+        stats->node_count = s->scene ? s->scene->nodes.count : 0;
+        stats->active_node_count = get_active_node_count(s->scene);
+        stats->gpu = *ngpu_ctx_get_frame_stats(s->gpu_ctx);
+        stats->memory = *ngpu_ctx_get_memory_stats(s->gpu_ctx);
+        ngli_hud_draw(s->hud, stats);
     }
 
     if (ngpu_ctx_is_render_pass_active(s->gpu_ctx)) {
@@ -690,7 +707,7 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, st
     }
 
     if (s->hud) {
-        ngpu_ctx_query_draw_time(s->gpu_ctx, &s->gpu_draw_time);
+        ngpu_ctx_query_draw_time(s->gpu_ctx, &s->frame_stats.gpu_draw_time);
     }
 
     ret = ngpu_staging_buffer_flush(s->current_staging_buffer);

@@ -25,11 +25,12 @@
 #include <stdint.h>
 
 struct ngl_ctx;
+struct ngli_frame_stats;
 struct hud;
 
 struct hud *ngli_hud_create(struct ngl_ctx *ctx);
 int ngli_hud_init(struct hud *s);
-void ngli_hud_draw(struct hud *s);
+void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats);
 void ngli_hud_freep(struct hud **sp);
 
 #endif
