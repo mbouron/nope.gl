@@ -15,6 +15,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 ### Fixed
 - Garbled HUD text when the scene is letter boxed, caused by the overlay being
   sampled off the pixel grid
+- HUD overlay clipped by the viewport when `hud_scale` is too large
 
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added
