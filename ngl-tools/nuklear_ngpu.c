@@ -41,12 +41,25 @@ struct nk_ngpu_proj {
     float proj_mat[16];
 };
 
+/*
+ * Font wrapper with fixed-width decimal digits.
+ *
+ * Nuklear does not enable OpenType features such as `tnum`. Give each digit
+ * the advance of the widest digit and center its glyph in that space.
+ */
+struct nk_fixed_digit_font {
+    struct nk_user_font font;           /* font exposed to Nuklear */
+    const struct nk_user_font *base;
+    float digit_advance;                /* digit advance at base->height */
+};
+
 struct nk_ngpu_ctx {
     struct ngpu_ctx *gpu_ctx;
     struct nk_context nk;
     struct nk_font_atlas atlas;
     struct nk_buffer cmds;
     struct nk_draw_null_texture tex_null;
+    struct nk_fixed_digit_font fixed_digit_font;
 
     /* GPU resources. */
     struct ngpu_texture *font_tex;
@@ -93,6 +106,58 @@ struct nk_ngpu_ctx *nk_ngpu_create(struct ngpu_ctx *gpu_ctx)
     return s;
 }
 
+static float fixed_digit_font_text_width(nk_handle handle, float height, const char *text, int len)
+{
+    const struct nk_fixed_digit_font *s = handle.ptr;
+    const struct nk_user_font *base = s->base;
+    const float digit_advance = s->digit_advance * height / base->height;
+
+    float width = 0.0f;
+    int off = 0;
+    while (off < len) {
+        nk_rune unicode;
+        const int glyph_len = nk_utf_decode(text + off, &unicode, len - off);
+        if (!glyph_len)
+            break;
+        if (unicode >= '0' && unicode <= '9')
+            width += digit_advance;
+        else
+            width += base->width(base->userdata, height, text + off, glyph_len);
+        off += glyph_len;
+    }
+    return width;
+}
+
+static void fixed_digit_font_query_glyph(nk_handle handle, float height,
+                                         struct nk_user_font_glyph *glyph,
+                                         nk_rune codepoint, nk_rune next_codepoint)
+{
+    const struct nk_fixed_digit_font *s = handle.ptr;
+    const struct nk_user_font *base = s->base;
+
+    base->query(base->userdata, height, glyph, codepoint, next_codepoint);
+    if (codepoint >= '0' && codepoint <= '9') {
+        const float digit_advance = s->digit_advance * height / base->height;
+        glyph->offset.x += (digit_advance - glyph->xadvance) * 0.5f;
+        glyph->xadvance = digit_advance;
+    }
+}
+
+static void init_fixed_digit_font(struct nk_fixed_digit_font *s, const struct nk_user_font *base)
+{
+    s->base = base;
+    s->digit_advance = 0.0f;
+    for (char digit = '0'; digit <= '9'; digit++) {
+        const float width = base->width(base->userdata, base->height, &digit, 1);
+        s->digit_advance = NK_MAX(s->digit_advance, width);
+    }
+
+    s->font = *base;
+    s->font.userdata = nk_handle_ptr(s);
+    s->font.width = fixed_digit_font_text_width;
+    s->font.query = fixed_digit_font_query_glyph;
+}
+
 static int init_font_atlas(struct nk_ngpu_ctx *s, float font_size, const char *font_path)
 {
     const void *image;
@@ -136,6 +201,7 @@ static int init_font_atlas(struct nk_ngpu_ctx *s, float font_size, const char *f
 
     nk_font_atlas_end(&s->atlas, nk_handle_id(0), &s->tex_null);
     nk_style_set_font(&s->nk, &font->handle);
+    init_fixed_digit_font(&s->fixed_digit_font, &font->handle);
 
     return 0;
 }
@@ -388,6 +454,11 @@ int nk_ngpu_init(struct nk_ngpu_ctx *s, float font_size, const char *font_path)
 struct nk_context *nk_ngpu_get_nk_ctx(struct nk_ngpu_ctx *s)
 {
     return &s->nk;
+}
+
+const struct nk_user_font *nk_ngpu_get_fixed_digit_font(struct nk_ngpu_ctx *s)
+{
+    return &s->fixed_digit_font.font;
 }
 
 static void update_projection(struct nk_ngpu_ctx *s, uint32_t width, uint32_t height)

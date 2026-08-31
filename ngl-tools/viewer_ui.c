@@ -1075,7 +1075,7 @@ export_section_done:
     if (nk_begin(nk, "Playback", nk_rect(preview_x, playback_y, preview_w, playback_bar_h),
                  NK_WINDOW_BORDER | NK_WINDOW_NO_SCROLLBAR)) {
         const float btn_w  = 40.0f * K;
-        const float time_w = 280.0f * K;
+        const float time_w = 300.0f * K;
         nk_layout_row_template_begin(nk, 25 * K);
         nk_layout_row_template_push_static(nk, btn_w);
         nk_layout_row_template_push_static(nk, btn_w);
@@ -1133,7 +1133,11 @@ export_section_done:
         char timebuf[96];
         format_time_label(timebuf, sizeof(timebuf), frame_time, s->duration,
                           s->framerate[0], s->framerate[1]);
+        const nk_bool font_pushed =
+            nk_style_push_font(nk, nk_ngpu_get_fixed_digit_font(s->nk_ngpu_ctx));
         nk_label(nk, timebuf, NK_TEXT_RIGHT);
+        if (font_pushed)
+            nk_style_pop_font(nk);
     }
     nk_end(nk);
 
