@@ -139,6 +139,8 @@ struct ngpu_ctx {
 
     uint32_t nb_in_flight_frames;
     uint32_t current_frame_index;
+    struct ngpu_frame_stats frame_stats;
+    struct ngpu_memory_stats memory_stats;
 
     struct ngpu_pgcache *program_cache;
 

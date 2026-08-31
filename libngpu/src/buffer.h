@@ -23,6 +23,7 @@
 #ifndef NGPU_BUFFER_H
 #define NGPU_BUFFER_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -35,6 +36,7 @@ struct ngpu_buffer {
     struct ngpu_ctx *gpu_ctx;
     size_t size;
     uint32_t usage;
+    bool size_accounted;
 };
 
 NGPU_RC_CHECK_STRUCT(ngpu_buffer);

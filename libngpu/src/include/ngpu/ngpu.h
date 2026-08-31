@@ -976,6 +976,19 @@ struct ngpu_ctx_params {
     struct ngpu_ctx *shared_ctx; /* Optional shared context */
 };
 
+struct ngpu_frame_stats {
+    uint64_t render_passes;
+    uint64_t draw_calls;
+    uint64_t compute_dispatches;
+};
+
+struct ngpu_memory_stats {
+    uint64_t buffer_count;
+    uint64_t buffer_bytes;
+    uint64_t texture_count;
+    uint64_t texture_bytes;
+};
+
 NGPU_API void ngpu_ctx_params_init_from_shared_ctx(struct ngpu_ctx_params *params, struct ngpu_ctx *parent);
 NGPU_API int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_params *src);
 NGPU_API void ngpu_ctx_params_reset(struct ngpu_ctx_params *params);
@@ -1001,6 +1014,8 @@ NGPU_API int ngpu_ctx_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffe
 NGPU_API uint32_t ngpu_ctx_advance_frame(struct ngpu_ctx *s);
 NGPU_API uint32_t ngpu_ctx_get_current_frame_index(struct ngpu_ctx *s);
 NGPU_API uint32_t ngpu_ctx_get_nb_in_flight_frames(struct ngpu_ctx *s);
+NGPU_API const struct ngpu_frame_stats *ngpu_ctx_get_frame_stats(const struct ngpu_ctx *s);
+NGPU_API const struct ngpu_memory_stats *ngpu_ctx_get_memory_stats(const struct ngpu_ctx *s);
 NGPU_API int ngpu_ctx_begin_update(struct ngpu_ctx *s);
 NGPU_API int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence);
 NGPU_API int ngpu_ctx_begin_draw(struct ngpu_ctx *s);

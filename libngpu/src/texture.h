@@ -33,6 +33,8 @@ struct ngpu_texture {
     struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_texture_params params;
+    uint64_t memory_size;
+    bool memory_size_accounted;
 };
 
 NGPU_RC_CHECK_STRUCT(ngpu_texture);
