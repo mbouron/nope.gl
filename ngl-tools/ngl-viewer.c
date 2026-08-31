@@ -42,6 +42,7 @@ static const struct opt options[] = {
     {"-b", "--backend",       OPT_TYPE_BACKEND,  .offset=OFFSET(ngl_cfg.backend)},
     {"-s", "--size",          OPT_TYPE_RATIONAL, .offset=OFFSET(ngl_cfg.width)},
     {"-k", "--hooks-script",  OPT_TYPE_STR,      .offset=OFFSET(hooks_script_path)},
+    {"-m", "--metrics",       OPT_TYPE_TOGGLE,   .offset=OFFSET(ngl_cfg.hud)},
 };
 
 /* Map libnopegl's level enum to SDL's priority enum so -l drives both. */
