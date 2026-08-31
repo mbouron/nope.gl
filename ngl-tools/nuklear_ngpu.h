@@ -72,6 +72,14 @@ int nk_ngpu_init(struct nk_ngpu_ctx *s, float font_size, const char *font_path);
 struct nk_context *nk_ngpu_get_nk_ctx(struct nk_ngpu_ctx *s);
 
 /*
+ * Return the UI font with fixed-width decimal digits.
+ *
+ * Use nk_style_push_font() and nk_style_pop_font() around numeric labels.
+ * The returned pointer remains valid until nk_ngpu_freep().
+ */
+const struct nk_user_font *nk_ngpu_get_fixed_digit_font(struct nk_ngpu_ctx *s);
+
+/*
  * Convert Nuklear draw commands to vertex/index buffers and upload to GPU.
  */
 void nk_ngpu_prepare(struct nk_ngpu_ctx *s, enum nk_anti_aliasing aa,
