@@ -12,6 +12,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - The HUD now rely on metrics exported by the NGPU layer instead of inspecting
   the graph, only the count of active nodes remains
 
+### Fixed
+- Garbled HUD text when the scene is letter boxed, caused by the overlay being
+  sampled off the pixel grid
+
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added
 - `Group2D.clip_rect` and `Group2D.clip_corner_radius` to clip a group and all

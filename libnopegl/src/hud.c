@@ -1021,9 +1021,18 @@ void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats)
         widgets_draw(s);
     }
 
+    const struct ngpu_viewport viewport = {
+        .x      = truncf(ctx->viewport.x),
+        .y      = truncf(ctx->viewport.y),
+        .width  = truncf(ctx->viewport.width),
+        .height = truncf(ctx->viewport.height),
+    };
+    if (!ngpu_viewport_is_valid(&viewport))
+        return;
+
     const int scale = s->scale > 0 ? s->scale : 1;
-    const float ratio_w = (float)(scale * s->canvas.w) / (float)ctx->viewport.width;
-    const float ratio_h = (float)(scale * s->canvas.h) / (float)ctx->viewport.height;
+    const float ratio_w = (float)(scale * s->canvas.w) / viewport.width;
+    const float ratio_h = (float)(scale * s->canvas.h) / viewport.height;
     const float x =-1.0f + 2 * ratio_w;
     const float y = 1.0f - 2 * ratio_h;
     const float coords[] = {
@@ -1045,7 +1054,7 @@ void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats)
         ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     }
 
-    ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
+    ngpu_ctx_set_viewport(gpu_ctx, &viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
     const struct ngli_mat4 *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
