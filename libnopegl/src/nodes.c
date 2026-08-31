@@ -439,7 +439,6 @@ int ngli_node_update(struct ngl_node *node, double t)
                 return ret;
             }
             node->last_update_time = t;
-            node->draw_count = 0;
         } else {
             TRACE("%s already updated for t=%g, skip it", node->label, t);
         }
@@ -532,7 +531,6 @@ void ngli_node_draw(struct ngl_node *node)
     if (node->cls->draw) {
         TRACE("DRAW %s @ %p", node->label, node);
         node->cls->draw(node);
-        node->draw_count++;
     }
 
     if (has_bounding_box(node))

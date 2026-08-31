@@ -84,6 +84,16 @@ struct text_builtin_atlas {
     struct slug_glyph_data slug_data[256];
 };
 
+struct ngli_frame_stats {
+    int64_t cpu_update_time;
+    int64_t cpu_draw_time;
+    int64_t gpu_draw_time;
+    uint64_t node_count;
+    uint64_t active_node_count;
+    struct ngpu_frame_stats gpu;
+    struct ngpu_memory_stats memory;
+};
+
 struct ngl_ctx {
     int configured;
     const struct api_impl *api_impl;
@@ -137,9 +147,7 @@ struct ngl_ctx {
     struct android_ctx android_ctx;
 #endif
     struct hud *hud;
-    int64_t cpu_update_time;
-    int64_t cpu_draw_time;
-    int64_t gpu_draw_time;
+    struct ngli_frame_stats frame_stats;
 
     struct ngli_queue background_queue;
 
@@ -207,8 +215,6 @@ struct ngl_node {
 
     double visit_time;
     double last_update_time;
-
-    int draw_count;
 
     int refcount;
     int ctx_refcount;

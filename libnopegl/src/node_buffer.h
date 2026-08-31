@@ -47,7 +47,5 @@ struct buffer_info {
 };
 
 void ngli_node_buffer_extend_usage(struct ngl_node *node, uint32_t usage);
-size_t ngli_node_buffer_get_cpu_size(struct ngl_node *node);
-size_t ngli_node_buffer_get_gpu_size(struct ngl_node *node);
 
 #endif

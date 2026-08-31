@@ -8,6 +8,9 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Changed
+- The HUD now rely on metrics exported by the NGPU layer instead of inspecting
+  the graph, only the count of active nodes remains
 
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added
