@@ -43,7 +43,7 @@ jobs:
     - name: Build
       run: |
         export PATH="$(pwd)/cov-analysis-linux64/bin:$PATH"
-        ./configure.py --buildtype debug --debug-opts gl vk scene gpu_capture
+        ./configure.py --buildtype debug --debug-opts gl vk gpu_capture
         . venv/bin/activate
         make nopegl-setup
         cov-build --dir cov-int ninja -C builddir/libnopegl

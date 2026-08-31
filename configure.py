@@ -992,7 +992,7 @@ def _fribidi_install(cfg):
 def _ngpu_setup(cfg):
     ngpu_opts = []
     if cfg.args.debug_opts:
-        debug_opts = ",".join([opt for opt in cfg.args.debug_opts if opt != "scene"])
+        debug_opts = ",".join(cfg.args.debug_opts)
         ngpu_opts += [f"-Ddebug_opts={debug_opts}"]
 
     if cfg.args.sanitize:
@@ -1592,7 +1592,7 @@ def _run():
         "--debug-opts",
         nargs="+",
         default=[],
-        choices=("gl", "vk", "mem", "scene", "gpu_capture"),
+        choices=("gl", "vk", "mem", "gpu_capture"),
         help="Debug options",
     )
     parser.add_argument("--build-backend", choices=("ninja", "vs"), default="ninja", help="Build backend to use")

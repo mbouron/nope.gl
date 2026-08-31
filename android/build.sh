@@ -29,7 +29,7 @@ gradle_rule=""
 case $build_opt in
     "debug")
         buildtype="debug"
-        configure_opts="$configure_opts -d gl vk mem scene"
+        configure_opts="$configure_opts -d gl vk mem"
         gradle_rule="assembleDebug"
     ;;
     "release")
