@@ -1030,7 +1030,10 @@ void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats)
     if (!ngpu_viewport_is_valid(&viewport))
         return;
 
-    const int scale = s->scale > 0 ? s->scale : 1;
+    const int int_ratio_w = (int)viewport.width  / s->canvas.w;
+    const int int_ratio_h = (int)viewport.height / s->canvas.h;
+    const int max_scale = NGLI_MIN(int_ratio_w, int_ratio_h);
+    const int scale = NGLI_CLAMP(s->scale > 0 ? s->scale : 1, 1, max_scale);
     const float ratio_w = (float)(scale * s->canvas.w) / viewport.width;
     const float ratio_h = (float)(scale * s->canvas.h) / viewport.height;
     const float x =-1.0f + 2 * ratio_w;
