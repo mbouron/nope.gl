@@ -22,6 +22,7 @@
 
 #include "ctx.h"
 #include "texture.h"
+#include "utils/bits.h"
 #include "utils/utils.h"
 
 static void texture_freep(void **texturep)
@@ -30,7 +31,14 @@ static void texture_freep(void **texturep)
     if (!*sp)
         return;
 
-    (*sp)->gpu_ctx->cls->texture_freep(sp);
+    struct ngpu_texture *s = *sp;
+    if (s->memory_size_accounted) {
+        struct ngpu_memory_stats *stats = &s->gpu_ctx->memory_stats;
+        stats->texture_count -= NGPU_MIN(stats->texture_count, 1);
+        stats->texture_bytes -= NGPU_MIN(stats->texture_bytes, s->memory_size);
+    }
+
+    s->gpu_ctx->cls->texture_freep(sp);
 }
 
 struct ngpu_texture *ngpu_texture_create(struct ngpu_ctx *gpu_ctx)
@@ -51,12 +59,57 @@ static const uint64_t import_feature_map[] = {
     [NGPU_IMPORT_TYPE_METAL_TEXTURE]    = NGPU_FEATURE_IMPORT_METAL_TEXTURE_BIT,
 };
 
+static uint64_t get_memory_size(const struct ngpu_texture_params *params)
+{
+    uint32_t depth = params->type == NGPU_TEXTURE_TYPE_3D ? params->depth : 1;
+    uint32_t layers = 1;
+    if (params->type == NGPU_TEXTURE_TYPE_2D_ARRAY)
+        layers = params->depth;
+    else if (params->type == NGPU_TEXTURE_TYPE_CUBE)
+        layers = 6;
+
+    const uint32_t samples = params->samples ? params->samples : 1;
+    const uint64_t bytes_per_pixel = ngpu_format_get_bytes_per_pixel(params->format);
+
+    uint32_t levels = 1;
+    if (params->mipmap_filter != NGPU_MIPMAP_FILTER_NONE)
+        levels = ngpu_log2(params->width | params->height | 1);
+
+    uint32_t width = params->width;
+    uint32_t height = params->height;
+    uint64_t size = 0;
+    for (uint32_t i = 0; i < levels; i++) {
+        size += (uint64_t)width
+              * (uint64_t)height
+              * (uint64_t)depth
+              * (uint64_t)layers
+              * (uint64_t)samples
+              * bytes_per_pixel;
+
+        width = NGPU_MAX(width >> 1, 1);
+        height = NGPU_MAX(height >> 1, 1);
+        if (params->type == NGPU_TEXTURE_TYPE_3D)
+            depth = NGPU_MAX(depth >> 1, 1);
+    }
+    return size;
+}
+
 int ngpu_texture_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
     const enum ngpu_import_type import_type = params->import_params.type;
     if (import_type == NGPU_IMPORT_TYPE_NONE) {
         ngpu_assert(NGPU_HAS_ALL_FLAGS(s->gpu_ctx->features, import_feature_map[import_type]));
-        return s->gpu_ctx->cls->texture_init(s, params);
+        int ret = s->gpu_ctx->cls->texture_init(s, params);
+        if (ret < 0)
+            return ret;
+
+        s->memory_size = get_memory_size(params);
+        struct ngpu_memory_stats *stats = &s->gpu_ctx->memory_stats;
+        stats->texture_count++;
+        stats->texture_bytes += s->memory_size;
+        s->memory_size_accounted = true;
+
+        return 0;
     }
 
     return s->gpu_ctx->cls->texture_import(s, params);

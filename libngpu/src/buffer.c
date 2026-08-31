@@ -23,6 +23,7 @@
 
 #include "buffer.h"
 #include "ctx.h"
+#include "utils/utils.h"
 
 static void buffer_freep(void **bufferp)
 {
@@ -30,9 +31,16 @@ static void buffer_freep(void **bufferp)
     if (!*sp)
         return;
 
-    ngpu_buffer_wait(*sp);
+    struct ngpu_buffer *s = *sp;
+    ngpu_buffer_wait(s);
 
-    (*sp)->gpu_ctx->cls->buffer_freep(sp);
+    if (s->size_accounted) {
+        struct ngpu_memory_stats *stats = &s->gpu_ctx->memory_stats;
+        stats->buffer_count -= NGPU_MIN(stats->buffer_count, 1);
+        stats->buffer_bytes -= NGPU_MIN(stats->buffer_bytes, s->size);
+    }
+
+    s->gpu_ctx->cls->buffer_freep(sp);
 }
 
 struct ngpu_buffer *ngpu_buffer_create(struct ngpu_ctx *gpu_ctx)
@@ -49,7 +57,16 @@ int ngpu_buffer_init(struct ngpu_buffer *s, size_t size, uint32_t usage)
     s->size = size;
     s->usage = usage;
 
-    return s->gpu_ctx->cls->buffer_init(s);
+    int ret = s->gpu_ctx->cls->buffer_init(s);
+    if (ret < 0)
+        return ret;
+
+    struct ngpu_memory_stats *stats = &s->gpu_ctx->memory_stats;
+    stats->buffer_count++;
+    stats->buffer_bytes += size;
+    s->size_accounted = true;
+
+    return 0;
 }
 
 int ngpu_buffer_wait(struct ngpu_buffer *s)

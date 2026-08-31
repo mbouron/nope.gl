@@ -248,6 +248,7 @@ int ngpu_ctx_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 uint32_t ngpu_ctx_advance_frame(struct ngpu_ctx *s)
 {
     s->current_frame_index = (s->current_frame_index + 1) % s->nb_in_flight_frames;
+    memset(&s->frame_stats, 0, sizeof(s->frame_stats));
     return s->current_frame_index;
 }
 
@@ -259,6 +260,16 @@ uint32_t ngpu_ctx_get_current_frame_index(struct ngpu_ctx *s)
 uint32_t ngpu_ctx_get_nb_in_flight_frames(struct ngpu_ctx *s)
 {
     return s->nb_in_flight_frames;
+}
+
+const struct ngpu_frame_stats *ngpu_ctx_get_frame_stats(const struct ngpu_ctx *s)
+{
+    return &s->frame_stats;
+}
+
+const struct ngpu_memory_stats *ngpu_ctx_get_memory_stats(const struct ngpu_ctx *s)
+{
+    return &s->memory_stats;
 }
 
 int ngpu_ctx_begin_update(struct ngpu_ctx *s)
@@ -358,6 +369,7 @@ void ngpu_ctx_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt
 
     s->rendertarget = rt;
     s->cls->begin_render_pass(s, rt);
+    s->frame_stats.render_passes++;
 }
 
 void ngpu_ctx_end_render_pass(struct ngpu_ctx *s)
@@ -461,6 +473,7 @@ void ngpu_ctx_draw(struct ngpu_ctx *s, uint32_t nb_vertices, uint32_t nb_instanc
     ngpu_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
 
     s->cls->draw(s, nb_vertices, nb_instances, first_vertex);
+    s->frame_stats.draw_calls++;
 }
 
 void ngpu_ctx_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_instances, uint32_t first_index)
@@ -473,6 +486,7 @@ void ngpu_ctx_draw_indexed(struct ngpu_ctx *s, uint32_t nb_indices, uint32_t nb_
     ngpu_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
 
     s->cls->draw_indexed(s, nb_indices, nb_instances, first_index);
+    s->frame_stats.draw_calls++;
 }
 
 void ngpu_ctx_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
@@ -484,6 +498,7 @@ void ngpu_ctx_dispatch(struct ngpu_ctx *s, uint32_t nb_group_x, uint32_t nb_grou
     ngpu_assert(ngpu_bindgroup_layout_is_compatible(p_layout, b_layout));
 
     s->cls->dispatch(s, nb_group_x, nb_group_y, nb_group_z);
+    s->frame_stats.compute_dispatches++;
 }
 
 void ngpu_ctx_set_vertex_buffer(struct ngpu_ctx *s, uint32_t index, const struct ngpu_buffer *buffer)
