@@ -179,7 +179,7 @@ static void texture_allocate_storage(struct ngpu_texture *s)
         gl->funcs.TexStorage3D(s_priv->target, mipmap_levels, s_priv->internal_format, width, height, array_layers);
         break;
     case GL_TEXTURE_3D:
-        gl->funcs.TexStorage3D(s_priv->target, 1, s_priv->internal_format, width, height, depth);
+        gl->funcs.TexStorage3D(s_priv->target, mipmap_levels, s_priv->internal_format, width, height, depth);
         break;
     case GL_TEXTURE_CUBE_MAP:
         /* glTexStorage2D automatically accomodates for 6 faces when using the cubemap target */
