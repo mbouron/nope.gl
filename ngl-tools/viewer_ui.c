@@ -99,6 +99,14 @@ static int param_is_editable(const struct ngl_param_info *p, struct ngl_node *no
     return 1;
 }
 
+static bool param_is_color_vec(const struct ngl_param_info *p)
+{
+    if (p->type == NGL_PARAM_TYPE_VEC3 || p->type == NGL_PARAM_TYPE_VEC4) {
+        return strstr(p->key, "color") != NULL;
+    }
+    return false;
+}
+
 static void property_row(struct nk_context *nk, float K, float h, int cells)
 {
     nk_layout_row_template_begin(nk, h);
@@ -115,9 +123,7 @@ static void render_param_widget(struct viewer_ctx *s, struct nk_context *nk,
     const float K = viewer_ui_scale(s);
     const int live = param_is_editable(p, node);
 
-    /* Color-like params: any vec3/vec4 whose key contains "color". */
-    const bool is_color_vec = p->key && strstr(p->key, "color")
-                             && (p->type == NGL_PARAM_TYPE_VEC3 || p->type == NGL_PARAM_TYPE_VEC4);
+    const bool is_color_vec = param_is_color_vec(p);
     if (is_color_vec) {
         const int n = (p->type == NGL_PARAM_TYPE_VEC3) ? 3 : 4;
         float v[4] = {0, 0, 0, 1.0f};
