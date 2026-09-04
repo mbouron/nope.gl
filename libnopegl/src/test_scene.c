@@ -126,8 +126,61 @@ static void test_add_edges_rollback(void)
     ngl_node_unrefp(&root);
 }
 
+static void check_duplicate_release(struct ngl_node *root, struct ngl_scene *scene)
+{
+    struct ngl_node **children = NULL;
+    size_t count = 0;
+    ngli_assert(ngl_node_get_children(root, &children, &count) == 0 && count == 2);
+    struct ngl_node *branch = ngl_node_ref(children[0]);
+    struct ngl_node *resource = ngl_node_ref(children[1]);
+    const int resource_refs = resource->refcount;
+    ngl_node_children_freep(&children);
+    ngli_assert(ngl_node_get_children(branch, &children, &count) == 0 && count == 1);
+    struct ngl_node *leaf = ngl_node_ref(children[0]);
+    const int leaf_refs = leaf->refcount;
+    ngl_node_children_freep(&children);
+
+    if (scene)
+        ngl_scene_unrefp(&scene);
+    else
+        ngl_node_unrefp(&root);
+    ngli_assert(branch->refcount == 1);
+    ngli_assert(resource->refcount == resource_refs - 1);
+    ngl_node_unrefp(&branch);
+    ngli_assert(leaf->refcount == leaf_refs - 1);
+    ngl_node_unrefp(&leaf);
+    ngl_node_unrefp(&resource);
+}
+
+static void test_duplicate_release(void)
+{
+    struct ngl_node *leaf = ngl_node_create(NGL_NODE_IDENTITY);
+    struct ngl_node *branch = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *resource = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
+    struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(leaf && branch && resource && root);
+    ngli_assert(ngl_node_param_add_nodes(branch, "children", 1, &leaf) == 0);
+    struct ngl_node *children[] = {branch, resource};
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 2, children) == 0);
+    for (size_t i = 0; i < 2; i++) {
+        struct ngl_node *dup = ngl_node_duplicate(root, i ? NGL_NODE_DUPLICATE_RESOURCES : 0);
+        ngli_assert(dup);
+        check_duplicate_release(dup, NULL);
+    }
+    struct ngl_scene *scene = create_scene(root);
+    struct ngl_scene *dup_scene = ngl_scene_duplicate(scene);
+    ngli_assert(dup_scene);
+    check_duplicate_release(dup_scene->params.root, dup_scene);
+    ngl_scene_unrefp(&scene);
+    ngl_node_unrefp(&root);
+    ngl_node_unrefp(&resource);
+    ngl_node_unrefp(&branch);
+    ngl_node_unrefp(&leaf);
+}
+
 int main(void)
 {
+    test_duplicate_release();
     test_customtexture_lifecycle();
     test_add_edges_rollback();
     return 0;

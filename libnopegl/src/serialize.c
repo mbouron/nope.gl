@@ -270,27 +270,23 @@ static void serialize_node(struct bstr *b, const uint8_t *srcp,
 static void serialize_nodelist(struct bstr *b, const uint8_t *srcp,
                                const struct node_param *par, struct hmap *nlist)
 {
-    struct ngl_node **nodes = *(struct ngl_node ***)srcp;
-    const size_t nb_nodes = *(size_t *)(srcp + sizeof(struct ngl_node **));
-    if (!nb_nodes)
+    const struct ngli_node_darray *array = (const struct ngli_node_darray *)srcp;
+    if (!array->count)
         return;
     ngli_bstr_printf(b, " %s:", par->key);
-    for (size_t i = 0; i < nb_nodes; i++) {
-        const int node_id = get_rel_node_id(nlist, nodes[i]);
+    for (size_t i = 0; i < array->count; i++) {
+        const int node_id = get_rel_node_id(nlist, array->data[i]);
         ngli_bstr_printf(b, "%s%x", i ? "," : "", (uint32_t)node_id);
     }
 }
 
 static void serialize_f64list(struct bstr *b, const uint8_t *srcp, const struct node_param *par)
 {
-    const uint8_t *elems_p = srcp;
-    const uint8_t *nb_elems_p = srcp + sizeof(double *);
-    const double *elems = *(double **)elems_p;
-    const size_t nb_elems = *(size_t *)nb_elems_p;
-    if (!nb_elems)
+    const struct ngli_f64_darray *array = (const struct ngli_f64_darray *)srcp;
+    if (!array->count)
         return;
     ngli_bstr_printf(b, " %s:", par->key);
-    print_f64s(b, nb_elems, elems);
+    print_f64s(b, array->count, array->data);
 }
 
 static int serialize_nodedict(struct bstr *b, const uint8_t *srcp,
@@ -405,11 +401,10 @@ static int serialize_children(struct hmap *nlist,
                 break;
             }
             case NGLI_PARAM_TYPE_NODELIST: {
-                struct ngl_node **children = *(struct ngl_node ***)srcp;
-                const size_t nb_children = *(size_t *)(srcp + sizeof(struct ngl_node **));
+                const struct ngli_node_darray *array = (const struct ngli_node_darray *)srcp;
 
-                for (size_t i = 0; i < nb_children; i++) {
-                    int ret = serialize(nlist, b, children[i]);
+                for (size_t i = 0; i < array->count; i++) {
+                    int ret = serialize(nlist, b, array->data[i]);
                     if (ret < 0)
                         return ret;
                 }

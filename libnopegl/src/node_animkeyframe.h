@@ -25,7 +25,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-struct ngl_node;
+#include "internal.h"
 
 enum easing_id {
     EASING_LINEAR,
@@ -81,8 +81,7 @@ struct animkeyframe_opts {
     uint8_t *data;
     size_t data_size;
     int easing;
-    double *args;
-    size_t nb_args;
+    struct ngli_f64_darray args;
     double offsets[2];
 };
 

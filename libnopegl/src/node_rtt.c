@@ -35,8 +35,7 @@
 
 struct rtt_opts {
     struct ngl_node *child;
-    struct ngl_node **color_textures;
-    size_t nb_color_textures;
+    struct ngli_node_darray color_textures;
     struct ngl_node *depth_texture;
     uint32_t samples;
     float clear_color[4];
@@ -123,7 +122,7 @@ static int rtt_init(struct ngl_node *node)
     const struct rtt_opts *o = node->opts;
     struct rtt_priv *s = node->priv_data;
 
-    if (!o->nb_color_textures) {
+    if (!o->color_textures.count) {
         LOG(ERROR, "at least one color texture must be specified");
         return NGL_ERROR_INVALID_ARG;
     }
@@ -133,8 +132,8 @@ static int rtt_init(struct ngl_node *node)
     s->layout.samples = o->samples;
 
     size_t nb_color_attachments = 0;
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
-        const struct rtt_texture_info texture_info = get_rtt_texture_info(o->color_textures[i]);
+    for (size_t i = 0; i < o->color_textures.count; i++) {
+        const struct rtt_texture_info texture_info = get_rtt_texture_info(o->color_textures.data[i]);
 
         nb_color_attachments += texture_info.layer_count;
 
@@ -224,8 +223,8 @@ static int rtt_prefetch(struct ngl_node *node)
         .samples = o->samples,
     };
 
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
-        const struct rtt_texture_info rtt_texture_info = get_rtt_texture_info(o->color_textures[i]);
+    for (size_t i = 0; i < o->color_textures.count; i++) {
+        const struct rtt_texture_info rtt_texture_info = get_rtt_texture_info(o->color_textures.data[i]);
         struct texture_info *texture_info = rtt_texture_info.info;
         struct ngpu_texture *texture = texture_info->texture;
         const uint32_t layer_end = rtt_texture_info.layer_base + rtt_texture_info.layer_count;
@@ -305,14 +304,14 @@ static int rtt_resize(struct ngl_node *node)
     struct ngli_image *depth_image = NULL;
     struct rtt_ctx *rtt_ctx = NULL;
 
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
+    for (size_t i = 0; i < o->color_textures.count; i++) {
         textures[i] = ngpu_texture_create(ctx->gpu_ctx);
         if (!textures[i]) {
             ret = NGL_ERROR_MEMORY;
             goto fail;
         }
 
-        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures[i]);
+        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures.data[i]);
         struct ngpu_texture_params texture_params = info.info->params;
         texture_params.width = width;
         texture_params.height = height;
@@ -349,7 +348,7 @@ static int rtt_resize(struct ngl_node *node)
     params.width  = width;
     params.height = height;
 
-    for (size_t i = 0; i < o->nb_color_textures; i++)
+    for (size_t i = 0; i < o->color_textures.count; i++)
         params.colors[i].attachment = textures[i];
     params.depth_stencil.attachment = depth_texture;
 
@@ -357,8 +356,8 @@ static int rtt_resize(struct ngl_node *node)
     if (ret < 0)
         goto fail;
 
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
-        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures[i]);
+    for (size_t i = 0; i < o->color_textures.count; i++) {
+        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures.data[i]);
         struct ngli_image_params image_params = *ngli_image_get_params(info.info->image);
         image_params.width = width;
         image_params.height = height;
@@ -389,8 +388,8 @@ static int rtt_resize(struct ngl_node *node)
     s->rtt_params = params;
     s->rtt_ctx = rtt_ctx;
 
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
-        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures[i]);
+    for (size_t i = 0; i < o->color_textures.count; i++) {
+        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures.data[i]);
         struct texture_info *texture_info = info.info;
         struct ngpu_texture *old_texture = texture_info->texture;
         texture_info->texture = textures[i];
@@ -417,7 +416,7 @@ fail:
     for (size_t i = 0; i < NGLI_ARRAY_NB(images); i++)
         ngli_image_unrefp(&images[i]);
     ngli_image_unrefp(&depth_image);
-    for (size_t i = 0; i < o->nb_color_textures; i++)
+    for (size_t i = 0; i < o->color_textures.count; i++)
         ngpu_texture_freep(&textures[i]);
     ngpu_texture_freep(&depth_texture);
     ngli_rtt_freep(&rtt_ctx);
