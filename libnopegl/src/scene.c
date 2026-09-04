@@ -129,14 +129,6 @@ static void detach_root(struct ngl_scene *s)
     ngl_node_unrefp(&s->params.root);
 }
 
-static size_t get_node_index(const struct ngli_node_darray *nodes, const struct ngl_node *node)
-{
-    for (size_t i = 0; i < nodes->count; i++)
-        if (nodes->data[i] == node)
-            return i;
-    return SIZE_MAX;
-}
-
 static void add_scene_node(struct ngl_scene *s, struct ngl_node *node)
 {
     node->scene_index = s->nodes.count;
@@ -213,7 +205,7 @@ static struct ngl_node *remove_runtime_edge_at(struct ngl_node *parent, size_t i
         ngli_darray_remove(&parent->draw_children, draw_index);
     }
 
-    const size_t parent_index = get_node_index(&child->parents, parent);
+    const size_t parent_index = ngli_node_darray_find(&child->parents, parent);
     ngli_assert(parent_index != SIZE_MAX);
     ngli_darray_remove(&child->parents, parent_index);
 
@@ -222,7 +214,7 @@ static struct ngl_node *remove_runtime_edge_at(struct ngl_node *parent, size_t i
 
 static void remove_runtime_edge(struct ngl_node *parent, struct ngl_node *child)
 {
-    const size_t index = get_node_index(&parent->children, child);
+    const size_t index = ngli_node_darray_find(&parent->children, child);
     ngli_assert(index != SIZE_MAX);
     remove_runtime_edge_at(parent, index);
 }
@@ -272,7 +264,7 @@ static int add_scene_edge(void *user_arg, struct ngl_node *parent, struct ngl_no
 
 static void remove_scene_edge(struct ngl_node *parent, struct ngl_node *child)
 {
-    const size_t index = get_node_index(&parent->children, child);
+    const size_t index = ngli_node_darray_find(&parent->children, child);
     ngli_assert(index != SIZE_MAX);
     remove_scene_edge_at(parent, index);
 }
