@@ -54,6 +54,11 @@ static void count_free(void *user_arg, void *data)
     g_free_calls++;
 }
 
+static int divisible_by(const int *divisor, const int *data)
+{
+    return *data % *divisor == 0;
+}
+
 static void test_basic(void)
 {
     struct int_darray a = {0};
@@ -162,6 +167,30 @@ static void test_remove_range(void)
     ngpu_assert(a.data[1] == 5);
 
     ngpu_darray_reset(&a);
+}
+
+static void test_remove_if(void)
+{
+    NGPU_DARRAY(int) a = {0};
+    ngpu_darray_set_free_func(&a, count_free, NULL);
+
+    for (int i = 0; i < 6; i++)
+        ngpu_darray_push(&a, i);
+
+    const int divisor = 2;
+    g_free_calls = 0;
+    ngpu_darray_remove_if(&a, divisible_by, &divisor);
+    ngpu_assert(g_free_calls == 3);
+    ngpu_assert(a.count == 3);
+    ngpu_assert(a.data[0] == 1);
+    ngpu_assert(a.data[1] == 3);
+    ngpu_assert(a.data[2] == 5);
+
+    ngpu_darray_remove_if(&a, divisible_by, &divisor);
+    ngpu_assert(g_free_calls == 3);
+
+    ngpu_darray_reset(&a);
+    ngpu_assert(g_free_calls == 6);
 }
 
 static void test_insert(void)
@@ -277,6 +306,7 @@ int main(void)
     test_compound_literal_push();
     test_reserve();
     test_remove_range();
+    test_remove_if();
     test_insert();
     test_clear_vs_reset();
     test_user_free_func();
