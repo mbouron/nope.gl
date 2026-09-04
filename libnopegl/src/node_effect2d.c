@@ -70,8 +70,7 @@ struct effect2d_frag_block {
 };
 
 struct effect2d_opts {
-    struct ngl_node **children;
-    size_t nb_children;
+    struct ngli_node_darray children;
     int bounds;
     struct ngl_node *rect_node;
     float rect[4];
@@ -79,8 +78,7 @@ struct effect2d_opts {
     struct ngli_node2d_opts node2d;
     struct ngl_node *enabled_node;
     int enabled;
-    struct ngl_node **shaders;
-    size_t nb_shaders;
+    struct ngli_node_darray shaders;
 };
 
 enum {
@@ -429,8 +427,8 @@ static int effect2d_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    for (size_t i = 0; i < o->nb_shaders; i++) {
-        const struct effect2d_shader_info info = ngli_effect2d_shader_get_info(o->shaders[i]);
+    for (size_t i = 0; i < o->shaders.count; i++) {
+        const struct effect2d_shader_info info = ngli_effect2d_shader_get_info(o->shaders.data[i]);
         ret = add_program(node, info.glsl_header, info.glsl_color, info.resources, info.premult);
         if (ret < 0)
             return ret;
@@ -729,8 +727,8 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const float prev_opacity_2d = ctx->opacity_2d;
     ngli_node2d_apply_default_transform(ctx);
 
-    for (size_t i = 0; i < o->nb_children; i++)
-        ngli_node_pre_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++)
+        ngli_node_pre_draw(o->children.data[i]);
 
     /* Compute or apply the bounding box and position of the composite quad */
     struct aabb children_bbox;
@@ -757,8 +755,8 @@ static void effect2d_pre_draw(struct ngl_node *node)
             };
         }
     } else {
-        children_bbox = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
-        children_effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
+        children_bbox = ngli_node_compute_children_bounding_box(o->children.data, o->children.count);
+        children_effect_margin = ngli_node_compute_children_effect_margin(o->children.data, o->children.count);
     }
 
     ctx->transform_2d_matrix = prev_transform_2d;
@@ -840,8 +838,8 @@ static void effect2d_pre_draw(struct ngl_node *node)
     ngli_mat4_orthographic(ctx->projection_2d_matrix.m, qx - 0.5f, qx + qw - 0.5f, qy + qh - 0.5f, qy - 0.5f, -1.f, 1.f);
     ngli_mat4_mul(ctx->projection_2d_matrix.m, fbo_base_projection.m, ctx->projection_2d_matrix.m);
 
-    for (size_t i = 0; i < o->nb_children; i++) {
-        ngli_node_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++) {
+        ngli_node_draw(o->children.data[i]);
     }
 
     ngli_rtt_end(s->rtt);
@@ -865,8 +863,8 @@ static int effect2d_update(struct ngl_node *node, double t)
         return ret;
 
     s->active_program_index = 0;
-    for (size_t i = 0; i < o->nb_shaders; i++) {
-        const struct effect2d_shader_info info = ngli_effect2d_shader_get_info(o->shaders[i]);
+    for (size_t i = 0; i < o->shaders.count; i++) {
+        const struct effect2d_shader_info info = ngli_effect2d_shader_get_info(o->shaders.data[i]);
         if (t >= info.start && (info.end < 0.0 || t < info.end)) {
             s->active_program_index = i + 1;
             break;

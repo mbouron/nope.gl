@@ -33,8 +33,7 @@
 #include "utils/utils.h"
 
 struct gridlayout_opts {
-    struct ngl_node **children;
-    size_t nb_children;
+    struct ngli_node_darray children;
     int32_t size[2];
 };
 
@@ -57,16 +56,16 @@ static int gridlayout_init(struct ngl_node *node)
     struct gridlayout_priv *s = node->priv_data;
     const struct gridlayout_opts *o = node->opts;
 
-    if (o->nb_children > 1U << 24)
+    if (o->children.count > 1U << 24)
         return NGL_ERROR_LIMIT_EXCEEDED;
 
-    const float n = (float)o->nb_children;
+    const float n = (float)o->children.count;
 
     int32_t cols = o->size[0];
     int32_t rows = o->size[1];
-    if ((int32_t)o->nb_children > rows * cols) {
+    if ((int32_t)o->children.count > rows * cols) {
         LOG(ERROR, "the number of specified children (%zu) does not fit in the requested %dx%d grid",
-            o->nb_children, rows, cols);
+            o->children.count, rows, cols);
         return NGL_ERROR_INVALID_ARG;
     }
 
@@ -89,7 +88,7 @@ static int gridlayout_init(struct ngl_node *node)
             }};
             if (ngli_darray_try_push(&s->matrices, matrix) < 0)
                 return NGL_ERROR_MEMORY;
-            if (++i == o->nb_children)
+            if (++i == o->children.count)
                 return 0;
         }
     }
@@ -102,8 +101,8 @@ static void gridlayout_draw(struct ngl_node *node)
     struct gridlayout_priv *s = node->priv_data;
     const struct gridlayout_opts *o = node->opts;
 
-    for (size_t i = 0; i < o->nb_children; i++) {
-        s->trf.child = o->children[i];
+    for (size_t i = 0; i < o->children.count; i++) {
+        s->trf.child = o->children.data[i];
         s->trf.matrix = s->matrices.data[i];
         ngli_transform_draw(node);
     }

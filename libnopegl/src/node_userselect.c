@@ -26,8 +26,7 @@
 #include "params.h"
 
 struct userselect_opts {
-    struct ngl_node **branches;
-    size_t nb_branches;
+    struct ngli_node_darray branches;
     struct livectl live;
 };
 
@@ -69,8 +68,8 @@ static int userselect_visit(struct ngl_node *node, bool is_active, double t)
     const struct userselect_opts *o = node->opts;
 
     const int branch_id = o->live.val.i[0];
-    for (size_t i = 0; i < o->nb_branches; i++) {
-        struct ngl_node *branch = o->branches[i];
+    for (size_t i = 0; i < o->branches.count; i++) {
+        struct ngl_node *branch = o->branches.data[i];
         int ret = ngli_node_visit(branch, is_active && i == branch_id, t);
         if (ret < 0)
             return ret;
@@ -83,9 +82,9 @@ static int userselect_update(struct ngl_node *node, double t)
     const struct userselect_opts *o = node->opts;
 
     const int branch_id = o->live.val.i[0];
-    if (branch_id < 0 || branch_id >= o->nb_branches)
+    if (branch_id < 0 || branch_id >= o->branches.count)
         return 0;
-    return ngli_node_update(o->branches[branch_id], t);
+    return ngli_node_update(o->branches.data[branch_id], t);
 }
 
 static void userselect_pre_draw(struct ngl_node *node)
@@ -93,9 +92,9 @@ static void userselect_pre_draw(struct ngl_node *node)
     const struct userselect_opts *o = node->opts;
 
     const int branch_id = o->live.val.i[0];
-    if (branch_id < 0 || branch_id >= o->nb_branches)
+    if (branch_id < 0 || branch_id >= o->branches.count)
         return;
-    ngli_node_pre_draw(o->branches[branch_id]);
+    ngli_node_pre_draw(o->branches.data[branch_id]);
 }
 
 static void userselect_draw(struct ngl_node *node)
@@ -103,9 +102,9 @@ static void userselect_draw(struct ngl_node *node)
     const struct userselect_opts *o = node->opts;
 
     const int branch_id = o->live.val.i[0];
-    if (branch_id < 0 || branch_id >= o->nb_branches)
+    if (branch_id < 0 || branch_id >= o->branches.count)
         return;
-    ngli_node_draw(o->branches[branch_id]);
+    ngli_node_draw(o->branches.data[branch_id]);
 }
 
 const struct node_class ngli_userselect_class = {

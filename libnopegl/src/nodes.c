@@ -82,6 +82,7 @@ static struct ngl_node *node_create(const struct node_class *cls)
     ngli_assert(NGLI_IS_ALIGNED((uintptr_t)node->priv_data, NGLI_ALIGN_VAL));
 
     node->cls = cls;
+    ngli_params_init(node->opts, cls->params);
     node->last_update_time = -1.;
     node->visit_time = -1.;
 
@@ -900,10 +901,9 @@ int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struc
                     return ret;
             }
         } else if (par->type == NGLI_PARAM_TYPE_NODELIST) {
-            struct ngl_node **elems = *(struct ngl_node ***)parp;
-            const size_t nb_elems = *(size_t *)(parp + sizeof(struct ngl_node **));
-            for (size_t i = 0; i < nb_elems; i++) {
-                const int ret = func(user_arg, node, elems[i]);
+            const struct ngli_node_darray *array = (const struct ngli_node_darray *)parp;
+            for (size_t i = 0; i < array->count; i++) {
+                const int ret = func(user_arg, node, array->data[i]);
                 if (ret < 0)
                     return ret;
             }
@@ -1270,35 +1270,30 @@ static struct ngl_node *duplicate_node(struct hmap *dupmap, const struct ngl_nod
                     break;
                 }
                 case NGLI_PARAM_TYPE_NODELIST: {
-                    struct ngl_node *const *src_elems = *(struct ngl_node *const *const *)srcp;
-                    const size_t nb_elems = *(const size_t *)(srcp + sizeof(struct ngl_node **));
-                    if (nb_elems) {
-                        struct ngl_node **dst_elems = ngli_try_calloc(nb_elems, sizeof(*dst_elems));
-                        if (!dst_elems)
+                    const struct ngli_node_darray *src_array = (const struct ngli_node_darray *)srcp;
+                    struct ngli_node_darray *dst_array = (struct ngli_node_darray *)dstp;
+                    if (src_array->count) {
+                        ret = ngli_darray_try_reserve(dst_array, src_array->count);
+                        if (ret < 0)
                             goto fail;
-                        for (size_t i = 0; i < nb_elems; i++) {
-                            dst_elems[i] = duplicate_node(dupmap, src_elems[i], flags);
-                            if (!dst_elems[i]) {
-                                for (size_t j = 0; j < i; j++)
-                                    ngl_node_unrefp(&dst_elems[j]);
-                                ngli_free(dst_elems);
+                        for (size_t i = 0; i < src_array->count; i++) {
+                            struct ngl_node *dst_elem = duplicate_node(dupmap, src_array->data[i], flags);
+                            if (!dst_elem)
                                 goto fail;
-                            }
+                            dst_array->data[dst_array->count++] = dst_elem;
                         }
-                        memcpy(dstp, &dst_elems, sizeof(struct ngl_node **));
-                        memcpy(dstp + sizeof(struct ngl_node **), &nb_elems, sizeof(nb_elems));
                     }
                     break;
                 }
                 case NGLI_PARAM_TYPE_F64LIST: {
-                    const double *src_elems = *(const double *const *)srcp;
-                    const size_t nb_elems = *(const size_t *)(srcp + sizeof(double *));
-                    if (nb_elems) {
-                        double *dst_elems = ngli_try_memdup(src_elems, nb_elems * sizeof(*dst_elems));
-                        if (!dst_elems)
+                    const struct ngli_f64_darray *src_array = (const struct ngli_f64_darray *)srcp;
+                    struct ngli_f64_darray *dst_array = (struct ngli_f64_darray *)dstp;
+                    if (src_array->count) {
+                        ret = ngli_darray_try_reserve(dst_array, src_array->count);
+                        if (ret < 0)
                             goto fail;
-                        memcpy(dstp, &dst_elems, sizeof(double *));
-                        memcpy(dstp + sizeof(double *), &nb_elems, sizeof(nb_elems));
+                        memcpy(dst_array->data, src_array->data, src_array->count * sizeof(*src_array->data));
+                        dst_array->count = src_array->count;
                     }
                     break;
                 }
