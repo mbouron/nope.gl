@@ -28,12 +28,15 @@
 #include "opengl/glincludes.h"
 #include "utils/darray.h"
 
+NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_gl_darray, struct ngpu_cmd_buffer_gl *);
+NGPU_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_gl_darray)
+
 struct ngpu_buffer_gl {
     struct ngpu_buffer parent;
     GLuint buffer;
     GLbitfield map_flags;
     GLbitfield barriers;
-    NGPU_DARRAY(struct ngpu_cmd_buffer_gl *) cmd_buffers;
+    struct ngpu_cmd_buffer_gl_darray cmd_buffers;
 };
 
 struct ngpu_ctx;

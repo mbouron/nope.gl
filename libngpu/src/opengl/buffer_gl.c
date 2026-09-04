@@ -161,23 +161,11 @@ void ngpu_buffer_gl_unmap(struct ngpu_buffer *s)
     gl->funcs.UnmapBuffer(GL_ARRAY_BUFFER);
 }
 
-static size_t buffer_gl_find_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
-{
-    struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
-
-    for (size_t i = 0; i < s_priv->cmd_buffers.count; i++) {
-        if (s_priv->cmd_buffers.data[i] == cmd_buffer)
-            return i;
-    }
-
-    return SIZE_MAX;
-}
-
 int ngpu_buffer_gl_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
 {
     struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
-    size_t index = buffer_gl_find_cmd_buffer(s, cmd_buffer);
+    size_t index = ngpu_cmd_buffer_gl_darray_find(&s_priv->cmd_buffers, cmd_buffer);
     if (index != SIZE_MAX)
         return 0;
 
@@ -193,7 +181,7 @@ int ngpu_buffer_gl_unref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffe
 {
     struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
-    size_t index = buffer_gl_find_cmd_buffer(s, cmd_buffer);
+    size_t index = ngpu_cmd_buffer_gl_darray_find(&s_priv->cmd_buffers, cmd_buffer);
     if (index == SIZE_MAX)
         return 0;
 
