@@ -30,7 +30,6 @@ struct ngl_node;
 #define NGLI_RENDERPASS_USAGE_STENCIL (1 << 1)
 
 struct renderpass_info {
-    int nb_interruptions;
     uint32_t usage;
 };
 
