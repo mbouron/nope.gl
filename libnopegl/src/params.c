@@ -134,12 +134,12 @@ const struct param_specs ngli_params_specs[] = {
     },
     [NGLI_PARAM_TYPE_NODELIST] = {
         .name = "node_list",
-        .size = sizeof(struct ngl_node **) + sizeof(size_t),
+        .size = sizeof(struct ngli_node_darray),
         .desc = NGLI_DOCSTRING("List of nope.gl Node"),
     },
     [NGLI_PARAM_TYPE_F64LIST] = {
         .name = "f64_list",
-        .size = sizeof(double *) + sizeof(size_t),
+        .size = sizeof(struct ngli_f64_darray),
         .desc = NGLI_DOCSTRING("List of 64-bit floats"),
     },
     [NGLI_PARAM_TYPE_NODEDICT] = {
@@ -312,11 +312,9 @@ void ngli_params_bstr_print_val(struct bstr *b, uint8_t *base_ptr, const struct 
             break;
         }
         case NGLI_PARAM_TYPE_F64LIST: {
-            const uint8_t *nb_elems_p = srcp + sizeof(double *);
-            const double *elems = *(const double **)srcp;
-            const size_t nb_elems = *(const size_t *)nb_elems_p;
-            for (size_t i = 0; i < nb_elems; i++)
-                ngli_bstr_printf(b, "%s%g", i ? "," : "", elems[i]);
+            const struct ngli_f64_darray *array = (const struct ngli_f64_darray *)srcp;
+            for (size_t i = 0; i < array->count; i++)
+                ngli_bstr_printf(b, "%s%g", i ? "," : "", array->data[i]);
             break;
         }
         case NGLI_PARAM_TYPE_RATIONAL:
@@ -342,6 +340,11 @@ static void node_hmap_free(void *user_arg, void *data)
 {
     struct ngl_node *node = data;
     ngl_node_unrefp(&node);
+}
+
+static void node_darray_free(void *user_arg, void *data)
+{
+    ngl_node_unrefp(data);
 }
 
 static int check_param_type(const struct node_param *par, enum param_type expected_type)
@@ -1028,6 +1031,18 @@ int ngli_params_get_node(const uint8_t *srcp, const struct node_param *par, stru
     return 0;
 }
 
+void ngli_params_init(uint8_t *base_ptr, const struct node_param *params)
+{
+    if (!params)
+        return;
+    for (const struct node_param *par = params; par->key; par++) {
+        if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+            struct ngli_node_darray *array = (struct ngli_node_darray *)(base_ptr + par->offset);
+            ngli_darray_set_free_func(array, node_darray_free, NULL);
+        }
+    }
+}
+
 int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
 {
     size_t last_offset = 0;
@@ -1132,18 +1147,6 @@ int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
 int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
                           size_t nb_nodes, struct ngl_node **nodes)
 {
-    uint8_t *cur_elems_p = dstp;
-    uint8_t *nb_cur_elems_p = dstp + sizeof(struct ngl_node **);
-    struct ngl_node **cur_elems = *(struct ngl_node ***)cur_elems_p;
-    const size_t nb_cur_elems = *(size_t *)nb_cur_elems_p;
-    const size_t nb_new_elems = nb_cur_elems + nb_nodes;
-    struct ngl_node **new_elems = ngli_try_realloc(cur_elems, nb_new_elems, sizeof(*new_elems));
-    struct ngl_node **new_elems_addp = new_elems + nb_cur_elems;
-
-    if (!new_elems)
-        return NGL_ERROR_MEMORY;
-
-    *(struct ngl_node ***)cur_elems_p = new_elems;
     for (size_t i = 0; i < nb_nodes; i++) {
         const struct ngl_node *e = nodes[i];
         if (!allowed_node(e, par->node_types)) {
@@ -1152,31 +1155,35 @@ int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
             return NGL_ERROR_INVALID_ARG;
         }
     }
+
+    struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
+    if (nb_nodes > SIZE_MAX - array->count)
+        return NGL_ERROR_MEMORY;
+    const size_t new_count = array->count + nb_nodes;
+    int ret = ngli_darray_try_reserve(array, new_count);
+    if (ret < 0)
+        return ret;
+
     for (size_t i = 0; i < nb_nodes; i++) {
         struct ngl_node *e = nodes[i];
-        new_elems_addp[i] = ngl_node_ref(e);
+        array->data[array->count++] = ngl_node_ref(e);
     }
-    *(size_t *)nb_cur_elems_p = nb_new_elems;
     return 0;
 }
 
 int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par,
                          size_t nb_f64s, const double *f64s)
 {
-    uint8_t *cur_elems_p = dstp;
-    uint8_t *nb_cur_elems_p = dstp + sizeof(double *);
-    double *cur_elems = *(double **)cur_elems_p;
-    const size_t nb_cur_elems = *(size_t *)nb_cur_elems_p;
-    const size_t nb_new_elems = nb_cur_elems + nb_f64s;
-    double *new_elems = ngli_try_realloc(cur_elems, nb_new_elems, sizeof(*new_elems));
-    double *new_elems_addp = new_elems + nb_cur_elems;
-
-    if (!new_elems)
+    struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
+    if (nb_f64s > SIZE_MAX - array->count)
         return NGL_ERROR_MEMORY;
+    const size_t new_count = array->count + nb_f64s;
+    int ret = ngli_darray_try_reserve(array, new_count);
+    if (ret < 0)
+        return ret;
+
     for (size_t i = 0; i < nb_f64s; i++)
-        new_elems_addp[i] = f64s[i];
-    *(double **)cur_elems_p = new_elems;
-    *(size_t *)nb_cur_elems_p = nb_new_elems;
+        array->data[array->count++] = f64s[i];
     return 0;
 }
 
@@ -1200,13 +1207,12 @@ int ngli_params_add(uint8_t *base_ptr, const struct node_param *par,
 static int ngli_params_move_node(uint8_t *dstp, const struct node_param *par,
                                  size_t from, size_t to)
 {
-    struct ngl_node **elems = *(struct ngl_node***)(dstp);
-    const size_t nb_elems = *(size_t *)(dstp + sizeof(struct ngl_node **));
+    struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
 
-    if (from >= nb_elems)
+    if (from >= array->count)
         return NGL_ERROR_INVALID_ARG;
 
-    NGLI_SWAP(elems[from], elems[to]);
+    NGLI_SWAP(array->data[from], array->data[to]);
 
     return 0;
 }
@@ -1214,13 +1220,12 @@ static int ngli_params_move_node(uint8_t *dstp, const struct node_param *par,
 static int ngli_params_move_f64(uint8_t *dstp, const struct node_param *par,
                                 size_t from, size_t to)
 {
-    double *elems = *(double**)(dstp);
-    const size_t nb_elems = *(size_t *)(dstp + sizeof(double *));
+    struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
 
-    if (from >= nb_elems)
+    if (from >= array->count)
         return NGL_ERROR_INVALID_ARG;
 
-    NGLI_SWAP(elems[from], elems[to]);
+    NGLI_SWAP(array->data[from], array->data[to]);
 
     return 0;
 }
@@ -1273,18 +1278,12 @@ void ngli_params_free(uint8_t *base_ptr, const struct node_param *params)
                 ngl_node_unrefp(&node);
                 break;
             }
-            case NGLI_PARAM_TYPE_NODELIST: {
-                uint8_t *nb_elems_p = parp + sizeof(struct ngl_node **);
-                struct ngl_node **elems = *(struct ngl_node ***)parp;
-                const size_t nb_elems = *(size_t *)nb_elems_p;
-                for (size_t j = 0; j < nb_elems; j++)
-                    ngl_node_unrefp(&elems[j]);
-                ngli_free(elems);
+            case NGLI_PARAM_TYPE_NODELIST:
+                ngli_darray_reset((struct ngli_node_darray *)parp);
                 break;
-            }
             case NGLI_PARAM_TYPE_F64LIST: {
-                double *elems = *(double **)parp;
-                ngli_free(elems);
+                struct ngli_f64_darray *array = (struct ngli_f64_darray *)parp;
+                ngli_darray_reset(array);
                 break;
             }
             case NGLI_PARAM_TYPE_NODEDICT: {

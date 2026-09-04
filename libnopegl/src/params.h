@@ -219,6 +219,7 @@ int ngli_params_get_vec2(const uint8_t *srcp, const struct node_param *par, floa
 int ngli_params_get_vec3(const uint8_t *srcp, const struct node_param *par, float *value);
 int ngli_params_get_vec4(const uint8_t *srcp, const struct node_param *par, float *value);
 
+void ngli_params_init(uint8_t *base_ptr, const struct node_param *params);
 int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params);
 int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par, size_t nb_nodes, struct ngl_node **nodes);
 int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par, size_t nb_f64s, const double *f64s);
