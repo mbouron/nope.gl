@@ -36,6 +36,9 @@ struct aligned_mat {
     _Alignas(32) float m[16];
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(int_darray, int);
+NGLI_DEFINE_DARRAY_FIND(int_darray)
+
 static void free_elem(void *user_arg, void *data)
 {
     struct my_item *item = data;
@@ -53,7 +56,7 @@ static void count_free(void *user_arg, void *data)
 
 static void test_basic(void)
 {
-    NGLI_DARRAY(int) a = {0};
+    struct int_darray a = {0};
 
     ngli_assert(a.count == 0);
 
@@ -67,6 +70,10 @@ static void test_basic(void)
 
     ngli_assert(a.data[0] == 0xFF);
 
+    ngli_assert(int_darray_find(&a, 0xFF) == 0);
+    ngli_assert(int_darray_find(&a, 0xFFFF) == 1);
+    ngli_assert(int_darray_find(&a, 42) == SIZE_MAX);
+
     /* get/tail/pop assert on out-of-bounds / empty access */
     ngli_assert(*ngli_darray_get(&a, 0) == 0xFF);
     ngli_assert(*ngli_darray_get(&a, 1) == 0xFFFF);
@@ -78,6 +85,7 @@ static void test_basic(void)
     popped = ngli_darray_pop(&a);
     ngli_assert(*popped == 0xFF);
     ngli_assert(a.count == 0);
+    ngli_assert(int_darray_find(&a, 0xFF) == SIZE_MAX);
 
     for (int i = 0; i < 1000; i++)
         ngli_assert(ngli_darray_try_push(&a, i) == 0);
