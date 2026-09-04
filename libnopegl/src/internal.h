@@ -360,7 +360,7 @@ struct node_class {
      * as a bitmask of NGLI_RENDERPASS_USAGE_* flags. A node issuing multiple
      * draws must report the union of the usages of its pipelines.
      *
-     * dispatch: managed (through ngli_node_get_renderpass_info())
+     * dispatch: managed (through ngli_node_get_renderpass_reqs())
      */
     uint32_t (*get_renderpass_usage)(const struct ngl_node *node);
 

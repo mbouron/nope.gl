@@ -55,7 +55,7 @@ struct texture_priv {
     struct texture_info texture_info;
     struct hwmap hwmap;
     int rtt_resizable;
-    struct renderpass_info renderpass_info;
+    struct renderpass_reqs renderpass_reqs;
     struct ngpu_rendertarget_layout rendertarget_layout;
     struct rtt_params rtt_params;
     struct rtt_ctx *rtt_ctx;
@@ -468,9 +468,9 @@ static int texture_prefetch(struct ngl_node *node)
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, i->image.coordinates_matrix.m);
 
         enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
-        if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_STENCIL)
+        if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
-        else if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_DEPTH)
+        else if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_DEPTH)
             depth_format = ngpu_ctx_get_preferred_depth_format(gpu_ctx);
 
         s->rtt_params = (struct rtt_params) {
@@ -750,16 +750,16 @@ static int texture2d_init(struct ngl_node *node)
         s->texture_info.rtt = 1;
         s->rtt_resizable = (i->params.width == 0 && i->params.height == 0);
 
-        ngli_node_get_renderpass_info(data_src, &s->renderpass_info);
+        ngli_node_get_renderpass_reqs(&data_src, 1, &s->renderpass_reqs);
 
         i->params.usage |= NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT;
         s->rendertarget_layout.colors[s->rendertarget_layout.nb_colors].format = i->params.format;
         s->rendertarget_layout.nb_colors++;
 
         enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
-        if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_STENCIL)
+        if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
-        else if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_DEPTH)
+        else if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_DEPTH)
             depth_format = ngpu_ctx_get_preferred_depth_format(gpu_ctx);
         s->rendertarget_layout.depth_stencil.format = depth_format;
     }
