@@ -44,7 +44,7 @@ struct rtt_opts {
 };
 
 struct rtt_priv {
-    struct renderpass_info renderpass_info;
+    struct renderpass_reqs renderpass_reqs;
     uint32_t width;
     uint32_t height;
     int resizable;
@@ -128,7 +128,7 @@ static int rtt_init(struct ngl_node *node)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    ngli_node_get_renderpass_info(o->child, &s->renderpass_info);
+    ngli_node_get_renderpass_reqs(&o->child, 1, &s->renderpass_reqs);
 
     s->layout.samples = o->samples;
 
@@ -193,9 +193,9 @@ static int rtt_init(struct ngl_node *node)
         s->layout.depth_stencil.resolve = o->samples > 1;
     } else {
         enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
-        if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_STENCIL)
+        if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
-        else if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_DEPTH)
+        else if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_DEPTH)
             depth_format = ngpu_ctx_get_preferred_depth_format(gpu_ctx);
         s->layout.depth_stencil.format = depth_format;
     }
@@ -260,9 +260,9 @@ static int rtt_prefetch(struct ngl_node *node)
         struct image *depth_image = &depth_texture_info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, depth_image->coordinates_matrix.m);
     } else {
-        if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_STENCIL)
+        if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
-        else if (s->renderpass_info.usage & NGLI_RENDERPASS_USAGE_DEPTH)
+        else if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_DEPTH)
             depth_format = ngpu_ctx_get_preferred_depth_format(gpu_ctx);
         s->rtt_params.depth_stencil_format = depth_format;
     }

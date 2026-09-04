@@ -34,9 +34,9 @@ static uint32_t get_renderpass_usage(const struct ngl_node *node)
     return node->cls->get_renderpass_usage(node);
 }
 
-static void get_renderpass_info(const struct ngl_node *node, struct renderpass_info *info)
+static void get_renderpass_reqs(const struct ngl_node *node, struct renderpass_reqs *reqs)
 {
-    info->usage |= get_renderpass_usage(node);
+    reqs->usage |= get_renderpass_usage(node);
 
     for (size_t i = 0; i < node->children.count; i++) {
         const struct ngl_node *child = node->children.data[i];
@@ -49,11 +49,13 @@ static void get_renderpass_info(const struct ngl_node *node, struct renderpass_i
                 continue;
         }
 
-        get_renderpass_info(child, info);
+        get_renderpass_reqs(child, reqs);
     }
 }
 
-void ngli_node_get_renderpass_info(const struct ngl_node *node, struct renderpass_info *info)
+void ngli_node_get_renderpass_reqs(struct ngl_node * const *children, size_t nb_children,
+                                   struct renderpass_reqs *reqs)
 {
-    get_renderpass_info(node, info);
+    for (size_t i = 0; i < nb_children; i++)
+        get_renderpass_reqs(children[i], reqs);
 }
