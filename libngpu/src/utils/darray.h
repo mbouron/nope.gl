@@ -23,6 +23,7 @@
 #define NGPU_DARRAY_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "utils.h"
@@ -51,6 +52,16 @@ void ngpu_darray_free_(void *ptr, size_t alignment);
     size_t capacity;                                                             \
     ngpu_user_free_func_type user_free_func;                                     \
     void *user_arg;                                                              \
+}
+
+#define NGPU_DEFINE_DARRAY_FIND(name)                                           \
+static inline size_t name##_find(                                               \
+    const struct name *array, __typeof__(((struct name *)0)->data[0]) value)    \
+{                                                                               \
+    for (size_t i = 0; i < array->count; i++)                                   \
+        if (array->data[i] == value)                                            \
+            return i;                                                           \
+    return SIZE_MAX;                                                            \
 }
 
 #define ngpu_darray_is_empty(a) ((a)->count == 0)
