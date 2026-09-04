@@ -257,16 +257,15 @@ static void print_decls(struct bstr *b, const struct ngl_node *node,
                 break;
             }
             case NGLI_PARAM_TYPE_NODELIST: {
-                struct ngl_node **children = *(struct ngl_node ***)srcp;
-                const size_t nb_children = *(size_t *)(srcp + sizeof(struct ngl_node **));
+                const struct ngli_node_darray *array = (const struct ngli_node_darray *)srcp;
 
-                if (nb_children && (p->flags & NGLI_PARAM_FLAG_DOT_DISPLAY_PACKED)) {
-                    print_list_packed_decls(b, p->key, children, nb_children, !node->ctx || node->is_active);
+                if (array->count && (p->flags & NGLI_PARAM_FLAG_DOT_DISPLAY_PACKED)) {
+                    print_list_packed_decls(b, p->key, array->data, array->count, !node->ctx || node->is_active);
                     break;
                 }
 
-                for (size_t i = 0; i < nb_children; i++)
-                    print_all_decls(b, children[i], decls);
+                for (size_t i = 0; i < array->count; i++)
+                    print_all_decls(b, array->data[i], decls);
                 break;
             }
             case NGLI_PARAM_TYPE_NODEDICT: {
@@ -327,8 +326,9 @@ static void print_nodelist_links(struct bstr *b, const struct ngl_node *node,
                                  const struct node_param *p, const uint8_t *srcp,
                                  struct hmap *links, const char *edge_attrs)
 {
-    struct ngl_node **children = *(struct ngl_node ***)srcp;
-    const size_t nb_children = *(size_t *)(srcp + sizeof(struct ngl_node **));
+    const struct ngli_node_darray *array = (const struct ngli_node_darray *)srcp;
+    struct ngl_node **children = array->data;
+    const size_t nb_children = array->count;
 
     if (!nb_children)
         return;

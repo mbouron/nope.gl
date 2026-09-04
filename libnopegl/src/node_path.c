@@ -29,8 +29,7 @@
 #include "path.h"
 
 struct path_opts {
-    struct ngl_node **keyframes;
-    size_t nb_keyframes;
+    struct ngli_node_darray keyframes;
     int32_t precision;
 };
 
@@ -69,8 +68,8 @@ static int path_init(struct ngl_node *node)
     if (!s->path)
         return NGL_ERROR_MEMORY;
 
-    for (size_t i = 0; i < o->nb_keyframes; i++) {
-        const struct ngl_node *kf = o->keyframes[i];
+    for (size_t i = 0; i < o->keyframes.count; i++) {
+        const struct ngl_node *kf = o->keyframes.data[i];
         if (kf->cls->id == NGL_NODE_PATHKEYMOVE) {
             const struct pathkey_move_opts *move = kf->opts;
             ret = ngli_path_move_to(s->path, move->to);
