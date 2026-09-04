@@ -34,23 +34,27 @@ static uint32_t get_renderpass_usage(const struct ngl_node *node)
     return node->cls->get_renderpass_usage(node);
 }
 
+static bool is_renderpass_boundary(const struct ngl_node *node)
+{
+    if (node->cls->id == NGL_NODE_TEXTURE2D) {
+        const struct texture_info *texture_info = node->priv_data;
+        return texture_info->rtt;
+    } else if (node->cls->id == NGL_NODE_COMPUTE) {
+        return true;
+    }
+
+    return node->cls->get_rendertarget_layout != NULL;
+}
+
 static void get_renderpass_reqs(const struct ngl_node *node, struct renderpass_reqs *reqs)
 {
     reqs->usage |= get_renderpass_usage(node);
 
-    for (size_t i = 0; i < node->children.count; i++) {
-        const struct ngl_node *child = node->children.data[i];
-        if (child->cls->id == NGL_NODE_RENDERTOTEXTURE ||
-            child->cls->id == NGL_NODE_COMPUTE) {
-            continue;
-        } else if (child->cls->id == NGL_NODE_TEXTURE2D) {
-            struct texture_info *texture_info = child->priv_data;
-            if (texture_info->rtt)
-                continue;
-        }
+    if (is_renderpass_boundary(node))
+        return;
 
-        get_renderpass_reqs(child, reqs);
-    }
+    for (size_t i = 0; i < node->children.count; i++)
+        get_renderpass_reqs(node->children.data[i], reqs);
 }
 
 void ngli_node_get_renderpass_reqs(struct ngl_node * const *children, size_t nb_children,
