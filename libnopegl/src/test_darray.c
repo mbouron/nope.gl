@@ -54,6 +54,11 @@ static void count_free(void *user_arg, void *data)
     g_free_calls++;
 }
 
+static int divisible_by(const int *divisor, const int *data)
+{
+    return *data % *divisor == 0;
+}
+
 static void test_basic(void)
 {
     struct int_darray a = {0};
@@ -162,6 +167,30 @@ static void test_remove_range(void)
     ngli_assert(a.data[1] == 5);
 
     ngli_darray_reset(&a);
+}
+
+static void test_remove_if(void)
+{
+    NGLI_DARRAY(int) a = {0};
+    ngli_darray_set_free_func(&a, count_free, NULL);
+
+    for (int i = 0; i < 6; i++)
+        ngli_darray_push(&a, i);
+
+    const int divisor = 2;
+    g_free_calls = 0;
+    ngli_darray_remove_if(&a, divisible_by, &divisor);
+    ngli_assert(g_free_calls == 3);
+    ngli_assert(a.count == 3);
+    ngli_assert(a.data[0] == 1);
+    ngli_assert(a.data[1] == 3);
+    ngli_assert(a.data[2] == 5);
+
+    ngli_darray_remove_if(&a, divisible_by, &divisor);
+    ngli_assert(g_free_calls == 3);
+
+    ngli_darray_reset(&a);
+    ngli_assert(g_free_calls == 6);
 }
 
 static void test_insert(void)
@@ -277,6 +306,7 @@ int main(void)
     test_compound_literal_push();
     test_reserve();
     test_remove_range();
+    test_remove_if();
     test_insert();
     test_clear_vs_reset();
     test_user_free_func();
