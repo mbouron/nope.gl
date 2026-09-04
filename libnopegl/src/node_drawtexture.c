@@ -99,8 +99,7 @@ struct drawtexture_opts {
     int wrap;
     struct ngli_graphics_state_opts state;
     struct ngl_node *geometry;
-    struct ngl_node **filters;
-    size_t nb_filters;
+    struct ngli_node_darray filters;
 };
 
 struct drawtexture_vert_block {
@@ -244,8 +243,8 @@ static int drawtexture_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    for (size_t i = 0; i < o->nb_filters; i++) {
-        const struct ngl_node *filter_node = o->filters[i];
+    for (size_t i = 0; i < o->filters.count; i++) {
+        const struct ngl_node *filter_node = o->filters.data[i];
         const struct filter *filter = filter_node->priv_data;
         ret = ngli_filterschain_add_filter(s->filterschain, filter);
         if (ret < 0)

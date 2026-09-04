@@ -59,6 +59,7 @@
 struct node_class;
 
 NGLI_DECLARE_DARRAY_WITH_NAME(ngli_mat4_darray, struct ngli_mat4);
+NGLI_DECLARE_DARRAY_WITH_NAME(ngli_f64_darray, double);
 NGLI_DECLARE_DARRAY_WITH_NAME(ngli_node_darray, struct ngl_node *);
 
 struct api_impl {

@@ -29,8 +29,7 @@
 #include "nopegl/nopegl.h"
 
 struct group2d_opts {
-    struct ngl_node **children;
-    size_t nb_children;
+    struct ngli_node_darray children;
     struct ngli_node2d_opts node2d;
     struct ngl_node *clip_rect_node;
     float clip_rect[4];
@@ -140,13 +139,13 @@ static void group2d_pre_draw(struct ngl_node *node)
     struct ngli_mat4 local_transform_matrix = ctx->transform_2d_matrix;
 
     /* Pre-draw children */
-    for (size_t i = 0; i < o->nb_children; i++)
-        ngli_node_pre_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++)
+        ngli_node_pre_draw(o->children.data[i]);
 
     /* Compute bounding box from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
-    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
-    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
+    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children.data, o->children.count);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children.data, o->children.count);
     node2d_info->transform_matrix = local_transform_matrix;
 
     /* Restore the previous 2D state */
@@ -208,14 +207,14 @@ static void group2d_draw(struct ngl_node *node)
     group2d_push_clip(node);
 
     /* Draw children */
-    for (size_t i = 0; i < o->nb_children; i++) {
-        ngli_node_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++) {
+        ngli_node_draw(o->children.data[i]);
     }
 
     /* Compute union bounding box from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
-    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
-    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
+    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children.data, o->children.count);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children.data, o->children.count);
     node2d_info->transform_matrix = local_transform_matrix;
 
     /* Pop clip rectangle */

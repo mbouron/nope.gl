@@ -25,8 +25,7 @@
 #include "internal.h"
 
 struct group_opts {
-    struct ngl_node **children;
-    size_t nb_children;
+    struct ngli_node_darray children;
 };
 
 #define OFFSET(x) offsetof(struct group_opts, x)
@@ -40,8 +39,8 @@ static const struct node_param group_params[] = {
 static void group_draw(struct ngl_node *node)
 {
     const struct group_opts *o = node->opts;
-    for (size_t i = 0; i < o->nb_children; i++)
-        ngli_node_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++)
+        ngli_node_draw(o->children.data[i]);
 }
 
 const struct node_class ngli_group_class = {

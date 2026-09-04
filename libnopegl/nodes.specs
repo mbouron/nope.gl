@@ -92,12 +92,12 @@
     },
     {
       "name": "node_list",
-      "size": 16,
+      "size": 40,
       "desc": "List of nope.gl Node"
     },
     {
       "name": "f64_list",
-      "size": 16,
+      "size": 40,
       "desc": "List of 64-bit floats"
     },
     {

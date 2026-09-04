@@ -212,11 +212,11 @@ static void get_start_end_time(struct ngl_node *node, double *start, double *end
     struct ngl_node *anim_node = o->anim;
     if (anim_node) {
         const struct variable_opts *anim = anim_node->opts;
-        if (anim->nb_animkf) {
-            const struct animkeyframe_opts *kf0 = anim->animkf[0]->opts;
+        if (anim->animkf.count) {
+            const struct animkeyframe_opts *kf0 = anim->animkf.data[0]->opts;
             *start = kf0->scalar;
-            if (anim->nb_animkf > 1) {
-                const struct animkeyframe_opts *kfn = anim->animkf[anim->nb_animkf - 1]->opts;
+            if (anim->animkf.count > 1) {
+                const struct animkeyframe_opts *kfn = anim->animkf.data[anim->animkf.count - 1]->opts;
                 *end = kfn->scalar;
             }
         }
@@ -354,8 +354,8 @@ static int media_update(struct ngl_node *node, double t)
     if (anim_node) {
         struct variable_info *anim = anim_node->priv_data;
         const struct variable_opts *anim_o = anim_node->opts;
-        const struct animkeyframe_opts *kf0 = anim_o->animkf[0]->opts;
-        const struct animkeyframe_opts *kfn = anim_o->animkf[anim_o->nb_animkf - 1]->opts;
+        const struct animkeyframe_opts *kf0 = anim_o->animkf.data[0]->opts;
+        const struct animkeyframe_opts *kfn = anim_o->animkf.data[anim_o->animkf.count - 1]->opts;
         initial_seek    = kf0->scalar;
         time_origin     = kf0->time;
         has_kf_interval = kfn->time > kf0->time;
