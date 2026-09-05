@@ -291,6 +291,24 @@ void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     node_reset_ctx(node, ctx);
 }
 
+static bool rendertarget_layout_is_compatible(const struct ngpu_rendertarget_layout *a,
+                                              const struct ngpu_rendertarget_layout *b)
+{
+    if (a->samples != b->samples || a->nb_colors != b->nb_colors)
+        return false;
+    for (size_t i = 0; i < a->nb_colors; i++) {
+        if (memcmp(&a->colors[i], &b->colors[i], sizeof(*a->colors)))
+            return false;
+    }
+    return memcmp(&a->depth_stencil, &b->depth_stencil, sizeof(a->depth_stencil)) == 0;
+}
+
+bool ngli_node_prepared_against(const struct ngl_node *node,
+                                const struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    return rendertarget_layout_is_compatible(&node->prepared_rendertarget_layout, rendertarget_layout);
+}
+
 static int node_prepare(struct ngl_node *node,
                         const struct ngpu_rendertarget_layout *rendertarget_layout,
                         struct ngli_node_darray *prepared_nodes)
@@ -300,6 +318,7 @@ static int node_prepare(struct ngl_node *node,
     if (node->prepared)
         return 0;
     node->prepared = true;
+    node->prepared_rendertarget_layout = *rendertarget_layout;
 
     /* Compute the rendertarget layout for children (may be overridden by this node) */
     struct ngpu_rendertarget_layout child_rendertarget_layout = *rendertarget_layout;
