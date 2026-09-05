@@ -220,6 +220,8 @@ struct ngl_node {
     int refcount;
     int ctx_refcount;
 
+    struct ngpu_rendertarget_layout prepared_rendertarget_layout;
+
     struct ngli_node_darray children;
     struct ngli_node_darray draw_children; // children with a draw callback
     struct ngli_node_darray parents;
@@ -538,6 +540,8 @@ float ngli_node_compute_children_effect_margin(struct ngl_node *const *children,
 
 int ngli_node_prepare(struct ngl_node *node,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
+bool ngli_node_prepared_against(const struct ngl_node *node,
+                                const struct ngpu_rendertarget_layout *rendertarget_layout);
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t);
 int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t);
 int ngli_node_update(struct ngl_node *node, double t);
