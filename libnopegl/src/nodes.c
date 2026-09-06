@@ -572,13 +572,22 @@ const struct node_param *ngli_node_param_find(const struct ngl_node *node, const
 struct node_param_update_arg {
     struct ngl_node *node;
     const struct node_param *par;
+    size_t from;
+    size_t to;
 };
 
 static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
 {
     const struct node_param_update_arg *a = arg;
+    if (!ctx)
+        return 0;
     if (a->par->update_func) {
         int ret = a->par->update_func(a->node);
+        if (ret < 0)
+            return ret;
+    }
+    if (a->par->swap_func && a->from != a->to) {
+        int ret = a->par->swap_func(a->node, a->from, a->to);
         if (ret < 0)
             return ret;
     }
@@ -605,10 +614,11 @@ static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, vo
         return ret;
     }
 
-    if (node->ctx && par->update_func)
-        ret = par->update_func(node);
+    if (!nb_elems)
+        return 0;
 
-    return ret;
+    struct node_param_update_arg arg = { .node = node, .par = par };
+    return node_param_update_cb(node->ctx, &arg);
 }
 
 int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
@@ -646,16 +656,11 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
         return ret;
     }
 
-    if (!node->ctx)
-        return ret;
+    if (from == to)
+        return 0;
 
-    if (par->update_func)
-        ret = par->update_func(node);
-
-    if (par->swap_func)
-        ret = par->swap_func(node, from, to);
-
-    return ret;
+    struct node_param_update_arg arg = { .node = node, .par = par, .from = from, .to = to };
+    return node_param_update_cb(node->ctx, &arg);
 }
 
 static int invalidate_branch(struct ngl_node *node, uint64_t traversal_id)
