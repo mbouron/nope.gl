@@ -178,8 +178,34 @@ static void test_duplicate_release(void)
     ngl_node_unrefp(&leaf);
 }
 
+static void test_swap_bounds(void)
+{
+    struct ngl_node *group = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *a = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(group && a && b);
+
+    struct ngl_node *children[] = {a, b};
+    ngli_assert(ngl_node_param_add_nodes(group, "children", 2, children) == 0);
+    ngli_assert(ngl_node_param_swap_elem(group, "children", 0, 2) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_swap_elem(group, "children", 2, 0) == NGL_ERROR_INVALID_ARG);
+
+    struct ngl_node *keyframe = ngl_node_create(NGL_NODE_ANIMKEYFRAMEFLOAT);
+    ngli_assert(keyframe);
+    double easing_args[] = {1.0, 2.0};
+    ngli_assert(ngl_node_param_add_f64s(keyframe, "easing_args", 2, easing_args) == 0);
+    ngli_assert(ngl_node_param_swap_elem(keyframe, "easing_args", 0, 2) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_swap_elem(keyframe, "easing_args", 2, 0) == NGL_ERROR_INVALID_ARG);
+
+    ngl_node_unrefp(&keyframe);
+    ngl_node_unrefp(&b);
+    ngl_node_unrefp(&a);
+    ngl_node_unrefp(&group);
+}
+
 int main(void)
 {
+    test_swap_bounds();
     test_duplicate_release();
     test_customtexture_lifecycle();
     test_add_edges_rollback();
