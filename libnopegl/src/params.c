@@ -1212,7 +1212,7 @@ static int ngli_params_move_node(uint8_t *dstp, const struct node_param *par,
 {
     struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
 
-    if (from >= array->count)
+    if (from >= array->count || to >= array->count)
         return NGL_ERROR_INVALID_ARG;
 
     NGLI_SWAP(array->data[from], array->data[to]);
@@ -1225,7 +1225,7 @@ static int ngli_params_move_f64(uint8_t *dstp, const struct node_param *par,
 {
     struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
 
-    if (from >= array->count)
+    if (from >= array->count || to >= array->count)
         return NGL_ERROR_INVALID_ARG;
 
     NGLI_SWAP(array->data[from], array->data[to]);
