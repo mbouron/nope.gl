@@ -569,6 +569,22 @@ const struct node_param *ngli_node_param_find(const struct ngl_node *node, const
     return par;
 }
 
+struct node_param_update_arg {
+    struct ngl_node *node;
+    const struct node_param *par;
+};
+
+static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
+{
+    const struct node_param_update_arg *a = arg;
+    if (a->par->update_func) {
+        int ret = a->par->update_func(a->node);
+        if (ret < 0)
+            return ret;
+    }
+    return ngli_node_invalidate_branch(a->node);
+}
+
 static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, void *elems)
 {
     int ret = 0;
@@ -688,22 +704,6 @@ static int node_param_is_value_allowed(struct ngl_node *node, const char *key,
     }
 
     return 0;
-}
-
-struct node_param_update_arg {
-    struct ngl_node *node;
-    const struct node_param *par;
-};
-
-static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
-{
-    const struct node_param_update_arg *a = arg;
-    if (a->par->update_func) {
-        int ret = a->par->update_func(a->node);
-        if (ret < 0)
-            return ret;
-    }
-    return ngli_node_invalidate_branch(a->node);
 }
 
 static int node_param_update(struct ngl_node *node, const struct node_param *par)
