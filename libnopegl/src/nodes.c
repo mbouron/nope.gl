@@ -621,6 +621,9 @@ static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, vo
         return ret;
     }
 
+    if (!nb_elems)
+        return 0;
+
     struct node_param_update_arg arg = { .node = node, .par = par };
     return node_param_update_cb(node->ctx, &arg);
 }
@@ -659,6 +662,9 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
         LOG(ERROR, "unable to add elements to %s.%s", node->label, key);
         return ret;
     }
+
+    if (from == to)
+        return 0;
 
     struct node_param_update_arg arg = { .node = node, .par = par, .from = from, .to = to };
     return node_param_update_cb(node->ctx, &arg);
