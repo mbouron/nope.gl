@@ -1184,6 +1184,35 @@ def api_bounding_box_intersection(width=256, height=256):
     ctx.set_scene(None)
 
 
+def api_bounding_box_intersection_after_scene_reset(width=64, height=64):
+    """Test the node intersection API after a scene reset"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+        )
+    )
+    assert ret == 0
+
+    fill = ngl.ColorPaint(color=(1.0, 0.5, 0.0, 1.0))
+    rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=fill)
+    canvas = ngl.Canvas2D(children=[rect], width=width, height=height)
+
+    scene = ngl.Scene.from_params(canvas, width=width, height=height)
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(0.0) == 0
+    assert len(ctx.get_nodes_at_point((width // 2, height // 2))) == 1
+
+    assert ctx.set_scene(None) == 0
+    del scene, canvas, rect, fill
+    assert len(ctx.get_nodes_at_point((width // 2, height // 2))) == 0
+
+    del ctx
+
+
 def api_bounding_box_rotation(width=256, height=256):
     """Test the bounding box API with a 90° rotated DrawRect2D"""
     ctx = ngl.Context()

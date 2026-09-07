@@ -97,6 +97,7 @@ foreach backend : backends
     'bounding_box_offscreen_canvas',
     'bounding_box_multiple_children',
     'bounding_box_intersection',
+    'bounding_box_intersection_after_scene_reset',
     'bounding_box_rotation',
     'bounding_box_intersection_rotated',
     'transform_matrix',
