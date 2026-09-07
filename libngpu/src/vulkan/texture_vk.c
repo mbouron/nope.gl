@@ -869,7 +869,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
 
 static int import_metal_texture(struct ngpu_texture *s)
 {
-#if defined(TARGET_DARWIN)
+#if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
