@@ -148,7 +148,6 @@ static enum ngpu_capture_buffer_type ngl_capture_buffer_type_to_ngpu(enum ngl_ca
 {
     switch (type) {
     case NGL_CAPTURE_BUFFER_TYPE_CPU:       return NGPU_CAPTURE_BUFFER_TYPE_CPU;
-    case NGL_CAPTURE_BUFFER_TYPE_COREVIDEO: return NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO;
     default: ngli_assert(0);
     }
 }

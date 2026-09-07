@@ -907,7 +907,6 @@ enum ngpu_backend_type {
 
 enum ngpu_capture_buffer_type {
     NGPU_CAPTURE_BUFFER_TYPE_CPU,
-    NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO,
     NGPU_CAPTURE_BUFFER_TYPE_MAX_ENUM = 0x7FFFFFFF
 };
 
@@ -961,9 +960,7 @@ struct ngpu_ctx_params {
     void *capture_buffer; /* An optional pointer to a capture buffer.
                              - If the capture buffer type is CPU, the user
                                allocated size of the specified buffer must be of
-                               at least width * height * 4 bytes (RGBA)
-                             - If the capture buffer type is COREVIDEO, the
-                               specified pointer must reference a CVPixelBuffer */
+                               at least width * height * 4 bytes (RGBA) */
 
     enum ngpu_capture_buffer_type capture_buffer_type;
 

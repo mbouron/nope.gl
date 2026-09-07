@@ -134,7 +134,6 @@ cdef extern from "nopegl/nopegl.h":
 
     cdef enum ngl_capture_buffer_type:
         NGL_CAPTURE_BUFFER_TYPE_CPU,
-        NGL_CAPTURE_BUFFER_TYPE_COREVIDEO,
         NGL_CAPTURE_BUFFER_TYPE_MAX_ENUM
 
     cdef int NGL_CAP_COMPUTE

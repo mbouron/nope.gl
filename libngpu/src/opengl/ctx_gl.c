@@ -25,10 +25,6 @@
 
 #include "config.h"
 
-#if defined(TARGET_IPHONE)
-#include <CoreVideo/CoreVideo.h>
-#endif
-
 #include "utils/log.h"
 #include "ctx.h"
 #include "ngpu/ngpu.h"
@@ -62,68 +58,6 @@ static void capture_cpu(struct ngpu_ctx *s)
     const GLint w = (GLint)rt->width, h = (GLint)rt->height;
     gl->funcs.ReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, params->capture_buffer);
 }
-
-static void capture_corevideo(struct ngpu_ctx *s)
-{
-    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
-    struct glcontext *gl = s_priv->glcontext;
-
-    gl->funcs.Finish();
-}
-
-#if defined(TARGET_IPHONE)
-static int wrap_capture_cvpixelbuffer(struct ngpu_ctx *s,
-                                      CVPixelBufferRef buffer,
-                                      struct ngpu_texture **texturep)
-{
-    const size_t width = CVPixelBufferGetWidth(buffer);
-    const size_t height = CVPixelBufferGetHeight(buffer);
-
-    struct ngpu_texture *texture = ngpu_texture_create(s);
-    if (!texture)
-        return NGPU_ERROR_MEMORY;
-
-    const struct ngpu_texture_params texture_params = {
-        .type   = NGPU_TEXTURE_TYPE_2D,
-        .format = NGPU_FORMAT_B8G8R8A8_UNORM,
-        .width  = (uint32_t)width,
-        .height = (uint32_t)height,
-        .usage  = NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT,
-        .import_params = {
-            .type = NGPU_IMPORT_TYPE_COREVIDEO_BUFFER,
-            .corevideo_buffer = {
-                .corevideo_buffer = buffer,
-                .plane = 0,
-            }
-        },
-    };
-
-
-    int ret = ngpu_texture_init(texture, &texture_params);
-    if (ret < 0) {
-        ngpu_texture_freep(&texture);
-        return ret;
-    }
-
-    *texturep = texture;
-
-    return 0;
-}
-
-static void reset_capture_cvpixelbuffer(struct ngpu_ctx *s)
-{
-    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
-
-    if (s_priv->capture_cvbuffer) {
-        CFRelease(s_priv->capture_cvbuffer);
-        s_priv->capture_cvbuffer = NULL;
-    }
-    if (s_priv->capture_cvtexture) {
-        CFRelease(s_priv->capture_cvtexture);
-        s_priv->capture_cvtexture = NULL;
-    }
-}
-#endif
 
 static int create_texture(struct ngpu_ctx *s, enum ngpu_format format, uint32_t samples, uint32_t usage, struct ngpu_texture **texturep)
 {
@@ -214,32 +148,16 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx_params *ctx_params = &s->params;
 
-    if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO) {
-#if defined(TARGET_IPHONE)
-        if (ctx_params->capture_buffer) {
-            s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(ctx_params->capture_buffer);
-            int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer, &s_priv->capture_texture);
-            if (ret < 0)
-                return ret;
-        } else {
-            int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
-            if (ret < 0)
-                return ret;
-        }
-#else
-        LOG(ERROR, "CoreVideo capture is only supported on iOS");
-        return NGPU_ERROR_UNSUPPORTED;
-#endif
-    } else if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_CPU) {
-        int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
-        if (ret < 0)
-            return ret;
-    } else {
+    if (ctx_params->capture_buffer_type != NGPU_CAPTURE_BUFFER_TYPE_CPU) {
         LOG(ERROR, "unsupported capture buffer type: %u", ctx_params->capture_buffer_type);
         return NGPU_ERROR_UNSUPPORTED;
     }
 
-    int ret = create_rendertarget(s, s_priv->capture_texture, NULL, NULL, &s_priv->capture_rt);
+    int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
+    if (ret < 0)
+        return ret;
+
+    ret = create_rendertarget(s, s_priv->capture_texture, NULL, NULL, &s_priv->capture_rt);
     if (ret < 0)
         return ret;
 
@@ -278,7 +196,6 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
 
     static const capture_func_type capture_func_map[] = {
         [NGPU_CAPTURE_BUFFER_TYPE_CPU]       = capture_cpu,
-        [NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO] = capture_corevideo,
     };
     s_priv->capture_func = capture_func_map[ctx_params->capture_buffer_type];
 
@@ -313,9 +230,6 @@ static void rendertarget_reset(struct ngpu_ctx *s)
 
     ngpu_rendertarget_freep(&s_priv->capture_rt);
     ngpu_texture_freep(&s_priv->capture_texture);
-#if defined(TARGET_IPHONE)
-    reset_capture_cvpixelbuffer(s);
-#endif
     s_priv->capture_func = NULL;
 }
 
@@ -688,34 +602,6 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
     return 0;
 }
 
-#if defined(TARGET_IPHONE)
-static int update_capture_cvpixelbuffer(struct ngpu_ctx *s, CVPixelBufferRef capture_buffer)
-{
-    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
-
-    ngpu_rendertarget_freep(&s_priv->capture_rt);
-    ngpu_texture_freep(&s_priv->capture_texture);
-    reset_capture_cvpixelbuffer(s);
-
-    if (capture_buffer) {
-        s_priv->capture_cvbuffer = (CVPixelBufferRef)CFRetain(capture_buffer);
-        int ret = wrap_capture_cvpixelbuffer(s, s_priv->capture_cvbuffer, &s_priv->capture_texture);
-        if (ret < 0)
-            return ret;
-    } else {
-        int ret = create_texture(s, NGPU_FORMAT_R8G8B8A8_UNORM, 0, COLOR_USAGE, &s_priv->capture_texture);
-        if (ret < 0)
-            return ret;
-    }
-
-    int ret = create_rendertarget(s, s_priv->capture_texture, NULL, NULL, &s_priv->capture_rt);
-    if (ret < 0)
-        return ret;
-
-    return 0;
-}
-#endif
-
 static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 {
     struct ngpu_ctx_params *ctx_params = &s->params;
@@ -732,14 +618,9 @@ static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
         return NGPU_ERROR_UNSUPPORTED;
     }
 
-    if (ctx_params->capture_buffer_type == NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO) {
-#if defined(TARGET_IPHONE)
-        int ret = update_capture_cvpixelbuffer(s, capture_buffer);
-        if (ret < 0)
-            return ret;
-#else
+    if (ctx_params->capture_buffer_type != NGPU_CAPTURE_BUFFER_TYPE_CPU) {
+        LOG(ERROR, "unsupported capture buffer type: %u", ctx_params->capture_buffer_type);
         return NGPU_ERROR_UNSUPPORTED;
-#endif
     }
 
     ctx_params->capture_buffer = capture_buffer;
