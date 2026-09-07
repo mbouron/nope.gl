@@ -128,46 +128,6 @@ static int eagl_init(struct glcontext *ctx, uintptr_t display, uintptr_t window,
     return 0;
 }
 
-static int eagl_init_external(struct glcontext *ctx, uintptr_t display, uintptr_t window, uintptr_t other)
-{
-    struct eagl_priv *eagl = ctx->priv_data;
-
-    if (ctx->backend != NGPU_BACKEND_OPENGLES) {
-        LOG(ERROR, "unsupported backend: %d, only OpenGLES is supported by EAGL", ctx->backend);
-        return NGPU_ERROR_UNSUPPORTED;
-    }
-
-    CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengles"));
-    if (!framework) {
-        LOG(ERROR, "could not retrieve OpenGLES framework");
-        return NGPU_ERROR_EXTERNAL;
-    }
-
-    eagl->framework = (CFBundleRef)CFRetain(framework);
-    if (!eagl->framework) {
-        LOG(ERROR, "could not retain OpenGL framework object");
-        return NGPU_ERROR_EXTERNAL;
-    }
-
-    eagl->handle = [EAGLContext currentContext];
-    if (!eagl->handle) {
-        LOG(ERROR, "could not retrieve EAGL context");
-        return NGPU_ERROR_EXTERNAL;
-    }
-
-    CVReturn err = CVOpenGLESTextureCacheCreate(kCFAllocatorDefault,
-                                                NULL,
-                                                eagl->handle,
-                                                NULL,
-                                                &eagl->texture_cache);
-    if (err != noErr) {
-        LOG(ERROR, "could not create CoreVideo texture cache: 0x%x", err);
-        return NGPU_ERROR_EXTERNAL;
-    }
-
-    return 0;
-}
-
 static int eagl_init_framebuffer(struct glcontext *ctx)
 {
     struct eagl_priv *eagl = ctx->priv_data;
@@ -253,17 +213,6 @@ static void eagl_uninit(struct glcontext *ctx)
 
     if (eagl->handle)
         CFRelease(eagl->handle);
-}
-
-static void eagl_uninit_external(struct glcontext *ctx)
-{
-    struct eagl_priv *eagl = ctx->priv_data;
-
-    if (eagl->framework)
-        CFRelease(eagl->framework);
-
-    if (eagl->texture_cache)
-        CFRelease(eagl->texture_cache);
 }
 
 static int eagl_resize(struct glcontext *ctx, uint32_t width, uint32_t height)
@@ -357,12 +306,3 @@ const struct glcontext_class ngpu_glcontext_eagl_class = {
     .priv_size = sizeof(struct eagl_priv),
 };
 
-const struct glcontext_class ngpu_glcontext_eagl_external_class = {
-    .init = eagl_init_external,
-    .uninit = eagl_uninit_external,
-    .make_current = eagl_make_current,
-    .get_texture_cache = eagl_get_texture_cache,
-    .get_proc_address = eagl_get_proc_address,
-    .get_handle = eagl_get_handle,
-    .priv_size = sizeof(struct eagl_priv),
-};

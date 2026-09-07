@@ -63,6 +63,7 @@
 #include "opengl/glincludes.h"
 #include "opengl/priv_gl.h"
 #include "opengl/texture_gl.h"
+#include "ngpu/ngpu_opengl.h"
 #include "utils/bits.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -837,4 +838,16 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
 #endif
 
     ngpu_freep(sp);
+}
+
+uint32_t ngpu_texture_gl_get_name(const struct ngpu_texture *s)
+{
+    const struct ngpu_texture_gl *s_priv = (const struct ngpu_texture_gl *)s;
+    return s_priv->texture;
+}
+
+uint32_t ngpu_texture_gl_get_target(const struct ngpu_texture *s)
+{
+    const struct ngpu_texture_gl *s_priv = (const struct ngpu_texture_gl *)s;
+    return s_priv->target;
 }

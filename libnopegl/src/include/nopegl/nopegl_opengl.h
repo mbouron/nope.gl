@@ -26,33 +26,29 @@
 
 struct ngl_config_gl {
     /*
-     * Whether the OpenGL context is external or not. If the OpenGL context is
-     * external, it is the user responsibility to manage the OpenGL context and
-     * make sure it is current before calling any of the ngl_* functions.
+     * Native OpenGL context handle (EGLContext, HGLRC, NSOpenGLContext, or
+     * EAGLContext, depending on the platform), or zero.
+     *
+     * If nonzero, the OpenGL context created by nope.gl shares all shareable
+     * data, as defined by the client API, with the specified context and the
+     * contexts in its share group. The specified context must be valid and
+     * must have been created on the display specified by ngl_config.display
+     * and for the same client API (OpenGL or OpenGL ES) as the selected backend.
+     *
+     * The application can access textures from frames returned by ngl_draw()
+     * using ngpu_texture_gl_get_name(). The application must synchronize access
+     * to shared objects. See ngpu_fence_gl_get_sync().
+     *
+     * If shared_context is nonzero, ngl_config.shared_gpu_ctx must be NULL.
+     * ngl_configure() returns NGL_ERROR_INVALID_ARG if both are specified.
+     *
+     * nope.gl makes its OpenGL context current to the calling thread for
+     * operations that require it and releases it afterwards. If the application
+     * uses the same thread for its own context, it must make that context
+     * current again before issuing OpenGL commands.
      */
-    int external;
-    /*
-     * External OpenGL framebuffer used for rendering. The framebuffer must
-     * have a color attachment composed of 4 color components (R, G, B, A) and
-     * a combined depth and stencil buffer attached to it.
-     */
-    uint32_t external_framebuffer;
+    uintptr_t shared_context;
 };
-
-/**
- * Wrap a new external OpenGL framebuffer and use it for rendering
- *
- * The framebuffer must have a color attachment composed of 4 color components
- * (R, G, B, A) and a combined depth and stencil buffer attached to it.
- *
- * This function only works if the OpenGL context is external.
- *
- * @param s               pointer to a nope.gl context
- * @param framebuffer     OpenGL framebuffer identifier to wrap
- *
- * @return 0 on success, NGL_ERROR_* (< 0) on error
- */
-NGL_API int ngl_gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer);
 
 struct ngl_custom_texture_info_gl {
    uint32_t texture;

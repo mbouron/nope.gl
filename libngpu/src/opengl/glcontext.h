@@ -74,7 +74,6 @@ struct glcontext_class;
 struct glcontext_params {
     enum ngpu_platform_type platform;
     enum ngpu_backend_type backend;
-    int external;
     uintptr_t display;
     uintptr_t window;
     uintptr_t shared_ctx;
@@ -94,7 +93,6 @@ struct glcontext {
     /* User options */
     enum ngpu_platform_type platform;
     enum ngpu_backend_type backend;
-    int external;
     int offscreen;
     uint32_t width;
     uint32_t height;

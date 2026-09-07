@@ -72,9 +72,6 @@ struct api_impl {
 
     /* Invoke a callback with the backend ready to issue GPU work */
     int (*dispatch)(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg);
-
-    /* OpenGL */
-    int (*gl_wrap_framebuffer)(struct ngl_ctx *s, uint32_t framebuffer);
 };
 
 void ngli_free_text_builtin_atlas(void *user_arg, void *data);

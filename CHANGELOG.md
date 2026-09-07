@@ -8,6 +8,29 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Added
+- `ngl_config_gl.shared_context`, specified through `ngl_config.backend_config`,
+  to share OpenGL objects with an application context
+- `ngpu_ctx_params_gl.shared_context` to share OpenGL objects between libngpu
+  and an application context
+- `ngpu_texture_gl_get_name()` and `ngpu_texture_gl_get_target()` to access
+  OpenGL textures, and `ngpu_fence_gl_get_sync()` and
+  `ngpu_fence_gl_create_from_sync()` to synchronize access from application
+  OpenGL code
+
+### Removed
+- Support for rendering into an application's OpenGL context:
+  `ngl_config_gl.external`, `ngl_config_gl.external_framebuffer` and
+  `ngl_gl_wrap_framebuffer()`. Embedding applications must now render offscreen
+  and retrieve frames through `ngl_draw()`. Use `ngl_config.shared_gpu_ctx` to
+  share GPU resources with another `ngpu_ctx`, or `ngl_config_gl.shared_context`
+  to share OpenGL objects with an application context
+- Support for rendering into an application's OpenGL context in libngpu:
+  `ngpu_ctx_params_gl.external`, `ngpu_ctx_params_gl.external_framebuffer`,
+  `ngpu_ctx_gl_wrap_framebuffer()`  and `ngpu_ctx_gl_reset_state()`. Use
+  `ngpu_ctx_params_gl.shared_context` to share OpenGL objects with an
+  application context
+
 ### Changed
 - The HUD now rely on metrics exported by the NGPU layer instead of inspecting
   the graph, only the count of active nodes remains

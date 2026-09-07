@@ -22,29 +22,15 @@
 #include "internal.h"
 #include "log.h"
 #include "ngpu/ngpu_opengl.h"
-#include "nopegl/nopegl_opengl.h"
-
-static int is_glw(const struct ngl_config *config)
-{
-    const struct ngl_config_gl *config_gl = config->backend_config;
-    return config_gl && config_gl->external;
-}
 
 static int gl_ctx_begin(struct ngl_ctx *s)
 {
-    if (is_glw(&s->config))
-        ngpu_ctx_gl_reset_state(s->gpu_ctx);
-    else
-        return ngpu_ctx_gl_make_current(s->gpu_ctx);
-    return 0;
+    return ngpu_ctx_gl_make_current(s->gpu_ctx);
 }
 
 static void gl_ctx_end(struct ngl_ctx *s)
 {
-    if (is_glw(&s->config))
-        ngpu_ctx_gl_reset_state(s->gpu_ctx);
-    else
-        ngpu_ctx_gl_release_current(s->gpu_ctx);
+    ngpu_ctx_gl_release_current(s->gpu_ctx);
 }
 
 static int gl_configure(struct ngl_ctx *s, const struct ngl_config *config)
@@ -80,11 +66,6 @@ static int gl_get_viewport(struct ngl_ctx *s, int32_t *viewport)
 
 static int gl_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
 {
-    if (is_glw(&s->config)) {
-        LOG(ERROR, "capture_buffer is not supported by external OpenGL context");
-        return NGL_ERROR_UNSUPPORTED;
-    }
-
     int ret = gl_ctx_begin(s);
     if (ret < 0)
         return ret;
@@ -127,7 +108,7 @@ static int gl_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, s
 
 static void gl_reset(struct ngl_ctx *s, int action)
 {
-    if (s->gpu_ctx && !is_glw(&s->config))
+    if (s->gpu_ctx)
         ngpu_ctx_gl_make_current(s->gpu_ctx);
     ngli_ctx_reset(s, action);
 }
@@ -142,26 +123,6 @@ static int gl_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), v
     return ret;
 }
 
-static int gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer)
-{
-    if (!is_glw(&s->config)) {
-        LOG(ERROR, "wrapping external OpenGL framebuffer is not supported by context");
-        return NGL_ERROR_UNSUPPORTED;
-    }
-
-    int ret = ngpu_ctx_gl_wrap_framebuffer(s->gpu_ctx, framebuffer);
-    if (ret < 0) {
-        ngli_ctx_reset(s, NGLI_ACTION_KEEP_SCENE);
-        return ret;
-    }
-
-    struct ngl_config *config = &s->config;
-    struct ngl_config_gl *config_gl = config->backend_config;
-    config_gl->external_framebuffer = framebuffer;
-
-    return 0;
-}
-
 const struct api_impl api_gl = {
     .configure           = gl_configure,
     .resize              = gl_resize,
@@ -172,5 +133,4 @@ const struct api_impl api_gl = {
     .draw                = gl_draw,
     .reset               = gl_reset,
     .dispatch            = gl_dispatch,
-    .gl_wrap_framebuffer = gl_wrap_framebuffer,
 };
