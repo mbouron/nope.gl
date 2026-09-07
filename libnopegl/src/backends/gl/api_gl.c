@@ -62,8 +62,10 @@ static int gl_resize(struct ngl_ctx *s, uint32_t width, uint32_t height)
     if (ret < 0)
         return ret;
     ret = ngli_ctx_resize(s, width, height);
+    if (ret < 0)
+        return ret;
     gl_ctx_end(s);
-    return ret;
+    return 0;
 }
 
 static int gl_get_viewport(struct ngl_ctx *s, int32_t *viewport)

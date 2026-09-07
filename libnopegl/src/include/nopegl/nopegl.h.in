@@ -1162,6 +1162,11 @@ NGL_API int ngl_get_viewport(struct ngl_ctx *s, int32_t *viewport);
  *
  * This function must be called on the UI/main thread on iOS/macOS.
  *
+ * Resizing is refused with NGL_ERROR_UNSUPPORTED while a capture buffer is
+ * set. Any other failure leaves the context unconfigured, as its rendering
+ * buffers could not be rebuilt; the scene is retained and re-attached by the
+ * next successful ngl_configure().
+ *
  * @param s pointer to the configured nope.gl context
  * @param width new width of the swap chain buffers
  * @param height new height of the swap chain buffers

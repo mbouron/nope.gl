@@ -585,8 +585,10 @@ fail:
 int ngli_ctx_resize(struct ngl_ctx *s, uint32_t width, uint32_t height)
 {
     int ret = ngpu_ctx_resize(s->gpu_ctx, width, height);
-    if (ret < 0)
+    if (ret < 0) {
+        ngli_ctx_reset(s, NGLI_ACTION_KEEP_SCENE);
         return ret;
+    }
 
     s->viewport = compute_scene_viewport(s->scene, width, height);
     s->scissor = (struct ngpu_scissor){0, 0, width, height};
@@ -935,6 +937,11 @@ int ngl_resize(struct ngl_ctx *s, uint32_t width, uint32_t height)
     if (!s->configured) {
         LOG(ERROR, "context must be configured before resizing rendering buffers");
         return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (s->config.capture_buffer) {
+        LOG(ERROR, "resize is not supported while a capture buffer is set");
+        return NGL_ERROR_UNSUPPORTED;
     }
 
     return s->api_impl->resize(s, width, height);
