@@ -61,6 +61,7 @@ foreach backend : backends
     'reconfigure_clearcolor',
     'reconfigure_fail',
     'resize',
+    'resize_rejected_with_capture_buffer',
     'capture_buffer',
     'ctx_ownership',
     'scene_context_transfer',

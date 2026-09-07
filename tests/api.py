@@ -135,6 +135,34 @@ def api_resize():
     del ctx
 
 
+def api_resize_rejected_with_capture_buffer(width=16, height=16):
+    """Resizing while a capture buffer is set is refused and keeps the context usable"""
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            capture_buffer=capture_buffer,
+        )
+    )
+    assert ret == 0
+    assert ctx.set_scene(_get_scene()) == 0
+    assert ctx.draw(0) == 0
+
+    # The request must be rejected before the backend rebuilds anything, as any
+    # other resize failure resets the context
+    assert ctx.resize(width * 2, height * 2) != 0
+    assert ctx.draw(1) == 0
+
+    assert ctx.set_capture_buffer(None) == 0
+    assert ctx.resize(width * 2, height * 2) == 0
+    assert ctx.draw(2) == 0
+    del ctx
+
+
 def api_capture_buffer(width=16, height=16):
     import zlib
 
