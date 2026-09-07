@@ -1116,6 +1116,9 @@ NGL_API struct ngl_ctx *ngl_create(void);
  * any associated scene, reconfigure the rendering backend and finally
  * re-allocate the ressources of any previously associated scene.
  *
+ * A reconfiguration is refused with NGL_ERROR_BUSY while a frame obtained from
+ * ngl_draw() has not been returned with ngl_frame_release().
+ *
  * @param s        pointer to a nope.gl context
  * @param config   pointer to a nope.gl configuration structure (cannot be NULL)
  *
@@ -1221,7 +1224,8 @@ NGL_API int ngl_update(struct ngl_ctx *s, double t);
  * Must be returned to the ngl context via ngl_frame_release().
  *
  * Outstanding frames must be released before ngl_freep() is called on the
- * context.
+ * context, and before ngl_configure() which is otherwise refused with
+ * NGL_ERROR_BUSY.
  */
 struct ngl_frame;
 
