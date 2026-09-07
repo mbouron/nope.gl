@@ -11,6 +11,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 ### Changed
 - The HUD now rely on metrics exported by the NGPU layer instead of inspecting
   the graph, only the count of active nodes remains
+- `ngl_configure()` now fails with `NGL_ERROR_BUSY` if a frame obtained from
+  `ngl_draw` is still held by the user
 
 ### Fixed
 - Garbled HUD text when the scene is letter boxed, caused by the overlay being

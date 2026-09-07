@@ -427,6 +427,7 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
     if (s->gpu_ctx)
         ngpu_ctx_wait_idle(s->gpu_ctx);
 
+    pthread_mutex_lock(&s->frame_slots_lock);
     if (s->frame_slots) {
         for (uint32_t i = 0; i < s->nb_frame_slots; i++) {
             if (s->frame_slots[i].frame) {
@@ -440,6 +441,7 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
         ngli_freep(&s->frame_slots);
         s->nb_frame_slots = 0;
     }
+    pthread_mutex_unlock(&s->frame_slots_lock);
     reset_scene(s, action);
 #if defined(HAVE_VAAPI)
     ngli_vaapi_ctx_reset(&s->vaapi_ctx);
@@ -844,10 +846,26 @@ fail:
     return NULL;
 }
 
+static int has_outstanding_frames(struct ngl_ctx *s)
+{
+    int outstanding = 0;
+    pthread_mutex_lock(&s->frame_slots_lock);
+    for (uint32_t i = 0; i < s->nb_frame_slots; i++)
+        outstanding |= s->frame_slots[i].frame != NULL;
+    pthread_mutex_unlock(&s->frame_slots_lock);
+    return outstanding;
+}
+
 int ngl_configure(struct ngl_ctx *s, const struct ngl_config *user_config)
 {
-    if (s->configured)
+    if (s->configured) {
+        if (has_outstanding_frames(s)) {
+            LOG(ERROR, "context cannot be reconfigured while a frame obtained "
+                       "from ngl_draw() is still held by the user");
+            return NGL_ERROR_BUSY;
+        }
         s->api_impl->reset(s, NGLI_ACTION_KEEP_SCENE);
+    }
 
     if (!user_config) {
         LOG(ERROR, "context configuration cannot be NULL");
@@ -988,10 +1006,9 @@ void ngl_frame_release(struct ngl_frame *f, struct ngpu_fence *fence)
         return;
 
     struct ngl_ctx *s = f->ctx;
-    struct ngli_frame_slot *slot = &s->frame_slots[f->index];
 
     pthread_mutex_lock(&s->frame_slots_lock);
-    slot->frame = NULL;
+    struct ngli_frame_slot *slot = &s->frame_slots[f->index];
     /*
      * Release previous fence.
      */
@@ -1002,10 +1019,17 @@ void ngl_frame_release(struct ngl_frame *f, struct ngpu_fence *fence)
      * ngl_draw() that picks this slot can wait on it before writing.
      */
     slot->release_fence = fence;
-    pthread_mutex_unlock(&s->frame_slots_lock);
-
+    /*
+     * Release the GPU resources.
+     */
     ngpu_texture_unrefp(&f->texture);
     ngpu_fence_freep(&f->signal_fence);
+    /*
+     * Free the slot.
+     */
+    slot->frame = NULL;
+    pthread_mutex_unlock(&s->frame_slots_lock);
+
     ngli_freep(&f);
 }
 
@@ -1150,14 +1174,9 @@ void ngl_freep(struct ngl_ctx **ss)
     if (!s)
         return;
 
-    if (s->frame_slots) {
-        for (uint32_t i = 0; i < s->nb_frame_slots; i++) {
-            if (s->frame_slots[i].frame) {
-                LOG(WARNING, "freeing context with an outstanding ngl_frame; releasing implicitly");
-                break;
-            }
-        }
-    }
+    if (has_outstanding_frames(s))
+        LOG(WARNING, "freeing context with an outstanding ngl_frame: it is released "
+                     "implicitly and must not be passed to ngl_frame_release() anymore");
 
     if (s->configured) {
         s->api_impl->reset(s, NGLI_ACTION_UNREF_SCENE);
