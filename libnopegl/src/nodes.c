@@ -279,9 +279,12 @@ void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     node_reset_ctx(node, ctx);
 }
 
-int ngli_node_prepare(struct ngl_node *node,
-                      const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int node_prepare(struct ngl_node *node,
+                         const struct ngpu_rendertarget_layout *rendertarget_layout,
+                         struct ngli_node_darray *prepared_nodes)
 {
+    int ret;
+
     if (node->prepared)
         return 0;
     node->prepared = true;
@@ -293,9 +296,10 @@ int ngli_node_prepare(struct ngl_node *node,
 
     /* Leaf-first: prepare all children before this node */
     for (size_t i = 0; i < node->children.count; i++) {
-        int ret = ngli_node_prepare(node->children.data[i], &child_rendertarget_layout);
+        struct ngl_node *child = node->children.data[i];
+        ret = node_prepare(child, &child_rendertarget_layout, prepared_nodes);
         if (ret < 0)
-            return ret;
+            goto fail;
     }
 
     /*
@@ -307,11 +311,11 @@ int ngli_node_prepare(struct ngl_node *node,
     if (!node->resources_ready) {
         if (node->cls->init_resources) {
             TRACE("INIT RESOURCES %s @ %p", node->label, node);
-            int ret = node->cls->init_resources(node);
+            ret = node->cls->init_resources(node);
             if (ret < 0) {
                 LOG(ERROR, "initializing the resources of node %s failed: %s",
                     node->label, NGLI_RET_STR(ret));
-                return ret;
+                goto fail;
             }
         }
         node->resources_ready = true;
@@ -320,14 +324,38 @@ int ngli_node_prepare(struct ngl_node *node,
     /* Prepare this node */
     if (node->cls->prepare) {
         TRACE("PREPARE %s @ %p", node->label, node);
-        int ret = node->cls->prepare(node, rendertarget_layout);
+        ret = node->cls->prepare(node, rendertarget_layout);
         if (ret < 0) {
             LOG(ERROR, "preparing node %s failed: %s", node->label, NGLI_RET_STR(ret));
-            return ret;
+            if (node->cls->unprepare)
+                node->cls->unprepare(node);
+            goto fail;
         }
     }
 
+    ngli_darray_push(prepared_nodes, node);
     return 0;
+
+fail:
+    node->prepared = false;
+    return ret;
+}
+
+int ngli_node_prepare(struct ngl_node *node,
+                      const struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    struct ngli_node_darray prepared_nodes = {0};
+    const int ret = node_prepare(node, rendertarget_layout, &prepared_nodes);
+    if (ret < 0) {
+        while (!ngli_darray_is_empty(&prepared_nodes)) {
+            struct ngl_node *prepared_node = *ngli_darray_pop(&prepared_nodes);
+            prepared_node->prepared = false;
+            if (prepared_node->cls->unprepare)
+                prepared_node->cls->unprepare(prepared_node);
+        }
+    }
+    ngli_darray_reset(&prepared_nodes);
+    return ret;
 }
 
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
