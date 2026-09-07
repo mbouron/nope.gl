@@ -179,9 +179,8 @@ static struct ngpu_ctx *gpu_ctx_create_from_config(const struct ngl_config *conf
     case NGL_BACKEND_OPENGLES: {
         const struct ngl_config_gl *config_gl = config->backend_config;
         struct ngpu_ctx_params_gl backend_params = {0};
-        if (config->backend_config) {
-            backend_params.external = config_gl->external;
-            backend_params.external_framebuffer = config_gl->external_framebuffer;
+        if (config_gl) {
+            backend_params.shared_context = config_gl->shared_context;
             params.backend_params = &backend_params;
         }
         return ngpu_ctx_create(&params);
@@ -880,6 +879,15 @@ int ngl_configure(struct ngl_ctx *s, const struct ngl_config *user_config)
         return NGL_ERROR_INVALID_USAGE;
     }
 
+    if ((user_config->backend == NGL_BACKEND_OPENGL ||
+         user_config->backend == NGL_BACKEND_OPENGLES)) {
+        const struct ngl_config_gl *config_gl = user_config->backend_config;
+        if (config_gl && config_gl->shared_context && user_config->shared_gpu_ctx) {
+            LOG(ERROR, "OpenGL shared_context and shared_gpu_ctx cannot be set together");
+            return NGL_ERROR_INVALID_ARG;
+        }
+    }
+
     struct ngl_config config = *user_config;
     if (config.backend == NGL_BACKEND_AUTO)
         config.backend = DEFAULT_BACKEND;
@@ -1157,21 +1165,6 @@ struct ngl_node *ngl_get_scene_root(struct ngl_ctx *s)
     if (!s->configured || !s->scene)
         return NULL;
     return s->scene->params.root;
-}
-
-int ngl_gl_wrap_framebuffer(struct ngl_ctx *s, uint32_t framebuffer)
-{
-    if (!s->configured) {
-        LOG(ERROR, "context must be configured before wrapping a new external OpenGL framebuffer");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    if (!s->api_impl->gl_wrap_framebuffer) {
-        LOG(ERROR, "wrapping external OpenGL framebuffer is not supported by context");
-        return NGL_ERROR_UNSUPPORTED;
-    }
-
-    return s->api_impl->gl_wrap_framebuffer(s, framebuffer);
 }
 
 void ngl_freep(struct ngl_ctx **ss)

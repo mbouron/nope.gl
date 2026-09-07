@@ -943,8 +943,7 @@ struct ngpu_ctx_params {
                           Android (iOS does not provide swap interval control).
                           */
 
-    int offscreen; /* Whether the rendering should happen offscreen or not.
-                      This field is ignored if the context is external. */
+    int offscreen; /* Whether the rendering should happen offscreen or not */
 
     uint32_t width; /* Graphics context width, mandatory for offscreen rendering */
 

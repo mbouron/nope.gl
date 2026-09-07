@@ -125,8 +125,8 @@ def error_to_string(error: Error):
 
 
 class ConfigGL(_ngl.ConfigGL):
-    def __init__(self, external: bool = False, external_framebuffer: int = 0):
-        super().__init__(external, external_framebuffer)
+    def __init__(self, shared_context: int = 0):
+        super().__init__(shared_context)
 
 
 class Config(_ngl.Config):
@@ -361,9 +361,6 @@ class Context(_ngl.Context):
 
     def dot(self, t: float) -> Optional[str]:
         return super().dot(t)
-
-    def gl_wrap_framebuffer(self, framebuffer: int) -> int:
-        return super().gl_wrap_framebuffer(framebuffer)
 
 
 def easing_evaluate(

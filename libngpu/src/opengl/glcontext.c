@@ -56,40 +56,31 @@ enum {
 };
 
 extern const struct glcontext_class ngpu_glcontext_egl_class;
-extern const struct glcontext_class ngpu_glcontext_egl_external_class;
 extern const struct glcontext_class ngpu_glcontext_nsgl_class;
-extern const struct glcontext_class ngpu_glcontext_nsgl_external_class;
 extern const struct glcontext_class ngpu_glcontext_eagl_class;
-extern const struct glcontext_class ngpu_glcontext_eagl_external_class;
 extern const struct glcontext_class ngpu_glcontext_wgl_class;
-extern const struct glcontext_class ngpu_glcontext_wgl_external_class;
 
 static const struct {
     const struct glcontext_class *cls;
-    const struct glcontext_class *external_cls;
 } glcontext_class_map[] = {
 #ifdef HAVE_GLPLATFORM_EGL
     [GLPLATFORM_EGL] = {
         .cls = &ngpu_glcontext_egl_class,
-        .external_cls = &ngpu_glcontext_egl_external_class,
     },
 #endif
 #ifdef HAVE_GLPLATFORM_NSGL
     [GLPLATFORM_NSGL] = {
         .cls = &ngpu_glcontext_nsgl_class,
-        .external_cls = &ngpu_glcontext_nsgl_external_class,
     },
 #endif
 #ifdef HAVE_GLPLATFORM_EAGL
     [GLPLATFORM_EAGL] = {
         .cls = &ngpu_glcontext_eagl_class,
-        .external_cls = &ngpu_glcontext_eagl_external_class,
     },
 #endif
 #ifdef HAVE_GLPLATFORM_WGL
     [GLPLATFORM_WGL] = {
         .cls = &ngpu_glcontext_wgl_class,
-        .external_cls = &ngpu_glcontext_wgl_external_class,
     },
 #endif
 };
@@ -721,11 +712,7 @@ struct glcontext *ngpu_glcontext_create(const struct glcontext_params *params)
     struct glcontext *glcontext = ngpu_try_calloc(1, sizeof(*glcontext));
     if (!glcontext)
         return NULL;
-    if (params->external) {
-        glcontext->cls = glcontext_class_map[glplatform].external_cls;
-    } else {
-        glcontext->cls = glcontext_class_map[glplatform].cls;
-    }
+    glcontext->cls = glcontext_class_map[glplatform].cls;
 
     if (glcontext->cls->priv_size) {
         glcontext->priv_data = ngpu_try_calloc(1, glcontext->cls->priv_size);
@@ -737,7 +724,6 @@ struct glcontext *ngpu_glcontext_create(const struct glcontext_params *params)
 
     glcontext->platform = params->platform;
     glcontext->backend = params->backend;
-    glcontext->external = params->external;
     glcontext->offscreen = params->offscreen;
     glcontext->width = params->width;
     glcontext->height = params->height;
@@ -763,13 +749,13 @@ struct glcontext *ngpu_glcontext_create(const struct glcontext_params *params)
         glcontext->funcs.Enable(GL_FRAMEBUFFER_SRGB);
     }
 
-    if (!glcontext->external && !glcontext->offscreen) {
+    if (!glcontext->offscreen) {
         ret = ngpu_glcontext_resize(glcontext, glcontext->width, glcontext->height);
         if (ret < 0)
             goto fail;
     }
 
-    if (!params->external && params->swap_interval >= 0)
+    if (params->swap_interval >= 0)
         ngpu_glcontext_set_swap_interval(glcontext, params->swap_interval);
 
     return glcontext;
@@ -827,11 +813,6 @@ int ngpu_glcontext_resize(struct glcontext *glcontext, uint32_t width, uint32_t 
 {
     if (glcontext->offscreen) {
         LOG(ERROR, "offscreen context does not support resize operation");
-        return NGPU_ERROR_INVALID_USAGE;
-    }
-
-    if (glcontext->external) {
-        LOG(ERROR, "external context does not support resize operation");
         return NGPU_ERROR_INVALID_USAGE;
     }
 

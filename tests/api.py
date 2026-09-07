@@ -570,8 +570,8 @@ def api_rejected_request_keeps_the_context(width=16, height=16):
     assert ctx.set_scene(scene) == 0
     assert ctx.draw(0) == 0
 
-    # An offscreen context wraps no external framebuffer, whatever the backend
-    assert ctx.gl_wrap_framebuffer(0) != 0
+    # Resizing is refused while a capture buffer is set, whatever the backend
+    assert ctx.resize(width * 2, height * 2) != 0
 
     # Context must still be usable
     assert ctx.draw(1) == 0
@@ -581,6 +581,53 @@ def api_rejected_request_keeps_the_context(width=16, height=16):
 
     del ctx
     del scene
+
+
+def api_backend_config(width=16, height=16):
+    """Backend specific configuration rules"""
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend_config=ngl.ConfigGL(),
+        )
+    )
+    assert ret != 0
+    del ctx
+
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            backend_config=ngl.ConfigGL(),
+        )
+    )
+    if _backend in (ngl.Backend.OPENGL, ngl.Backend.OPENGLES):
+        assert ret == 0
+        assert ctx.set_scene(_get_scene()) == 0
+        assert ctx.draw(0) == 0
+    else:
+        assert ret != 0
+    del ctx
+
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            backend_config=ngl.ConfigGL(shared_context=0xBAD),
+            shared_gpu_ctx=0xBAD,
+        )
+    )
+    assert ret != 0
+    del ctx
 
 
 def api_shader_init_fail(width=320, height=240):

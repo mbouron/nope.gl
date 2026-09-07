@@ -79,6 +79,7 @@ foreach backend : backends
     'livectls',
     'reset_scene',
     'rejected_request_keeps_the_context',
+    'backend_config',
     'shader_init_fail',
     'trf_seek',
     'trf_seek_keep_alive',

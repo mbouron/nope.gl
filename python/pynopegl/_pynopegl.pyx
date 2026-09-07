@@ -275,10 +275,7 @@ cdef extern from "nopegl/nopegl.h":
 
 cdef extern from "nopegl/nopegl_opengl.h":
     cdef struct ngl_config_gl:
-        int external
-        uint32_t external_framebuffer
-
-    int ngl_gl_wrap_framebuffer(ngl_ctx *s, uint32_t framebuffer)
+        uintptr_t shared_context
 
     cdef struct ngl_custom_texture_info_gl:
        uint32_t texture
@@ -902,9 +899,8 @@ cdef class ConfigGL:
     def __cinit__(self):
         memset(&self.config, 0, sizeof(self.config))
 
-    def __init__(self, external, external_framebuffer):
-        self.config.external = external
-        self.config.external_framebuffer = external_framebuffer
+    def __init__(self, shared_context):
+        self.config.shared_context = shared_context
 
     @property
     def cptr(self):
@@ -1071,9 +1067,6 @@ cdef class Context:
 
     def __dealloc__(self):
         ngl_freep(&self.ctx)
-
-    def gl_wrap_framebuffer(self, uint32_t framebuffer):
-        return ngl_gl_wrap_framebuffer(self.ctx, framebuffer)
 
 
 def _wrap_func(func, *args):

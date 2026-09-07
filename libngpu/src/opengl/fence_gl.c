@@ -22,6 +22,7 @@
 #include "utils/log.h"
 #include "opengl/ctx_gl.h"
 #include "opengl/fence_gl.h"
+#include "ngpu/ngpu_opengl.h"
 #include "opengl/priv_gl.h"
 #include "utils/memory.h"
 
@@ -130,3 +131,21 @@ int ngpu_fence_gl_is_signaled(struct ngpu_fence *s)
 }
 
 void ngpu_fence_gl_freep(struct ngpu_fence **sp) { NGPU_RC_UNREFP(sp); }
+
+void *ngpu_fence_gl_get_sync(const struct ngpu_fence *s)
+{
+    const struct ngpu_fence_gl *s_priv = (const struct ngpu_fence_gl *)s;
+    return s_priv->fence;
+}
+
+struct ngpu_fence *ngpu_fence_gl_create_from_sync(struct ngpu_ctx *ctx, void *sync)
+{
+    struct ngpu_fence *s = ngpu_fence_gl_create(ctx);
+    if (!s)
+        return NULL;
+
+    struct ngpu_fence_gl *s_priv = NGPU_PRIV_GL(s);
+    s_priv->fence = (GLsync)sync;
+
+    return s;
+}

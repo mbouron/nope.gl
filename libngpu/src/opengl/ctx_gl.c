@@ -126,10 +126,8 @@ static int create_rendertarget(struct ngpu_ctx *s,
     if (color) {
         ret = ngpu_rendertarget_init(rendertarget, &params);
     } else {
-        const int external = ctx_params_gl ? ctx_params_gl->external : 0;
         const GLuint default_fbo = ngpu_glcontext_get_default_framebuffer(gl);
-        const GLuint fbo = external ? ctx_params_gl->external_framebuffer : default_fbo;
-        ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, fbo);
+        ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, default_fbo);
     }
     if (ret < 0) {
         ngpu_rendertarget_freep(&rendertarget);
@@ -437,18 +435,7 @@ static int gl_init(struct ngpu_ctx *s)
     const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
-    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
-    if (external) {
-        if (ctx_params->width <= 0 || ctx_params->height <= 0) {
-            LOG(ERROR, "could not create external context with invalid dimensions (%ux%u)",
-                ctx_params->width, ctx_params->height);
-            return NGPU_ERROR_INVALID_ARG;
-        }
-        if (ctx_params->capture_buffer) {
-            LOG(ERROR, "capture_buffer is not supported by external context");
-            return NGPU_ERROR_INVALID_ARG;
-        }
-    } else if (ctx_params->offscreen) {
+    if (ctx_params->offscreen) {
         if (ctx_params->width <= 0 || ctx_params->height <= 0) {
             LOG(ERROR, "could not create offscreen context with invalid dimensions (%ux%u)",
                 ctx_params->width, ctx_params->height);
@@ -480,6 +467,10 @@ static int gl_init(struct ngpu_ctx *s)
 #endif
 
     uintptr_t shared_handle = 0;
+    if (ctx_params->shared_ctx && ctx_params_gl && ctx_params_gl->shared_context) {
+        LOG(ERROR, "shared_ctx and shared_context cannot be set together");
+        return NGPU_ERROR_INVALID_ARG;
+    }
     if (ctx_params->shared_ctx) {
         struct ngpu_ctx_gl *shared_priv = NGPU_PRIV_GL(ctx_params->shared_ctx);
         if (!shared_priv->glcontext) {
@@ -487,12 +478,13 @@ static int gl_init(struct ngpu_ctx *s)
             return NGPU_ERROR_INVALID_USAGE;
         }
         shared_handle = ngpu_glcontext_get_handle(shared_priv->glcontext);
+    } else if (ctx_params_gl) {
+        shared_handle = ctx_params_gl->shared_context;
     }
 
     const struct glcontext_params params = {
         .platform      = ctx_params->platform,
         .backend       = ctx_params->backend,
-        .external      = external,
         .display       = ctx_params->display,
         .window        = ctx_params->window,
         .shared_ctx    = shared_handle,
@@ -523,9 +515,7 @@ static int gl_init(struct ngpu_ctx *s)
         ngpu_capture_begin(s->gpu_capture_ctx);
 #endif
 
-    if (external) {
-        ret = ngpu_ctx_gl_wrap_framebuffer(s, ctx_params_gl->external_framebuffer);
-    } else if (gl->offscreen) {
+    if (gl->offscreen) {
         ret = offscreen_rendertarget_init(s);
     } else {
         /* Sync context config dimensions with glcontext (swapchain) dimensions */
@@ -562,8 +552,6 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     struct ngpu_ctx_params *ctx_params = &s->params;
-    struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
-    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
 
     if (ctx_params->offscreen) {
         if (ctx_params->capture_buffer) {
@@ -574,14 +562,6 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
         ctx_params->width = width;
         ctx_params->height = height;
         return offscreen_rendertarget_init(s);
-    }
-
-    if (external) {
-        ctx_params->width = width;
-        ctx_params->height = height;
-        s_priv->default_rt->width = width;
-        s_priv->default_rt->height = height;
-        return 0;
     }
 
     int ret = ngpu_glcontext_resize(gl, width, height);
@@ -605,13 +585,6 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
 static int gl_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
 {
     struct ngpu_ctx_params *ctx_params = &s->params;
-    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
-    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
-
-    if (external) {
-        LOG(ERROR, "capture_buffer is not supported by external context");
-        return NGPU_ERROR_UNSUPPORTED;
-    }
 
     if (!ctx_params->offscreen) {
         LOG(ERROR, "capture_buffer is not supported by onscreen context");
@@ -638,82 +611,6 @@ int ngpu_ctx_gl_release_current(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     return ngpu_glcontext_make_current(s_priv->glcontext, 0);
-}
-
-void ngpu_ctx_gl_reset_state(struct ngpu_ctx *s)
-{
-    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
-    ngpu_glstate_reset(s_priv->glcontext, &s_priv->glstate);
-}
-
-int ngpu_ctx_gl_wrap_framebuffer(struct ngpu_ctx *s, GLuint fbo)
-{
-    struct ngpu_ctx_params *ctx_params = &s->params;
-    struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
-    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
-    struct glcontext *gl = s_priv->glcontext;
-
-    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
-    if (!external) {
-        LOG(ERROR, "wrapping external OpenGL framebuffers is not supported by context");
-        return NGPU_ERROR_UNSUPPORTED;
-    }
-
-    GLuint prev_fbo = 0;
-    gl->funcs.GetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&prev_fbo);
-
-    const GLenum target = GL_DRAW_FRAMEBUFFER;
-    gl->funcs.BindFramebuffer(target, fbo);
-
-    const int es = ctx_params->backend == NGPU_BACKEND_OPENGLES;
-    const GLenum default_color_attachment = es ? GL_BACK : GL_FRONT_LEFT;
-    const GLenum color_attachment   = fbo ? GL_COLOR_ATTACHMENT0  : default_color_attachment;
-    const GLenum depth_attachment   = fbo ? GL_DEPTH_ATTACHMENT   : GL_DEPTH;
-    const GLenum stencil_attachment = fbo ? GL_STENCIL_ATTACHMENT : GL_STENCIL;
-    const struct {
-        const char *buffer_name;
-        const char *component_name;
-        GLenum attachment;
-        const GLenum property;
-    } components[] = {
-        {"color",   "red",     color_attachment,   GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE},
-        {"color",   "green",   color_attachment,   GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE},
-        {"color",   "blue",    color_attachment,   GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE},
-        {"color",   "alpha",   color_attachment,   GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE},
-        {"depth",   "depth",   depth_attachment,   GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE},
-        {"stencil", "stencil", stencil_attachment, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE},
-    };
-    for (size_t i = 0; i < NGPU_ARRAY_NB(components); i++) {
-        GLint type = 0;
-        gl->funcs.GetFramebufferAttachmentParameteriv(target,
-            components[i].attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
-        if (!type) {
-            LOG(ERROR, "external framebuffer have no %s buffer attached to it", components[i].buffer_name);
-            gl->funcs.BindFramebuffer(target, prev_fbo);
-            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
-        }
-
-        GLint size = 0;
-        gl->funcs.GetFramebufferAttachmentParameteriv(target,
-            components[i].attachment, components[i].property, &size);
-        if (!size) {
-            LOG(ERROR, "external framebuffer have no %s component", components[i].component_name);
-            gl->funcs.BindFramebuffer(target, prev_fbo);
-            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
-        }
-    }
-
-    gl->funcs.BindFramebuffer(target, prev_fbo);
-
-    ngpu_rendertarget_freep(&s_priv->default_rt);
-
-    int ret = create_rendertarget(s, NULL, NULL, NULL, &s_priv->default_rt);
-    if (ret < 0)
-        return ret;
-
-    ctx_params_gl->external_framebuffer = fbo;
-
-    return 0;
 }
 
 static int gl_begin_update(struct ngpu_ctx *s)
@@ -802,7 +699,6 @@ static int gl_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fen
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     const struct ngpu_ctx_params *ctx_params = &s->params;
-    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
 
     if (signal_fencep) {
         *signal_fencep = ngpu_fence_create(s);
@@ -821,8 +717,7 @@ static int gl_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fen
         s_priv->capture_func(s);
     }
 
-    const int external = ctx_params_gl ? ctx_params_gl->external : 0;
-    if (!external && !ctx_params->offscreen) {
+    if (!ctx_params->offscreen) {
         if (ctx_params->set_surface_pts)
             ngpu_glcontext_set_surface_pts(gl, t);
 
