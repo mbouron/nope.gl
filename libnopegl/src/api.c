@@ -320,6 +320,8 @@ static void reset_scene(struct ngl_ctx *s, int action)
 {
     ngli_queue_wait(&s->background_queue);
     ngli_hud_freep(&s->hud);
+    ngli_darray_clear(&s->bounding_box_nodes);
+    ngli_darray_clear(&s->intersecting_nodes);
     if (s->scene) {
         ngli_node_detach_ctx(s->scene->params.root, s);
         if (action == NGLI_ACTION_UNREF_SCENE)
