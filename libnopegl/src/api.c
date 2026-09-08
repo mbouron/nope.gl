@@ -937,6 +937,11 @@ int ngl_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
         return NGL_ERROR_INVALID_USAGE;
     }
 
+    if (!s->config.offscreen) {
+        LOG(ERROR, "capture_buffer is not supported by onscreen context");
+        return NGL_ERROR_UNSUPPORTED;
+    }
+
     return s->api_impl->set_capture_buffer(s, capture_buffer);
 }
 
