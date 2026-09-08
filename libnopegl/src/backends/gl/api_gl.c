@@ -87,8 +87,10 @@ static int gl_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
     if (ret < 0)
         return ret;
     ret = ngli_ctx_set_capture_buffer(s, capture_buffer);
+    if (ret < 0)
+        return ret;
     gl_ctx_end(s);
-    return ret;
+    return 0;
 }
 
 static int gl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
