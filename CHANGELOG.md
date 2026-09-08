@@ -19,6 +19,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   OpenGL code
 
 ### Removed
+- CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and
+  `NGPU_CAPTURE_BUFFER_TYPE_COREVIDEO`). Users must now import a
+  `CVPixelBuffer` as an `ngpu_texture` and blit the frames returned by
+  `ngl_draw()` to it
 - Support for rendering into an application's OpenGL context:
   `ngl_config_gl.external`, `ngl_config_gl.external_framebuffer` and
   `ngl_gl_wrap_framebuffer()`. Embedding applications must now render offscreen
