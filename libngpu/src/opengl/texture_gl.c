@@ -559,8 +559,16 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
     CVPixelBufferRef cv_pixel_buffer = cv_buffer_params->corevideo_buffer;
     size_t index = cv_buffer_params->plane;
 
-    const size_t width  = CVPixelBufferGetWidthOfPlane(cv_pixel_buffer, index);
-    const size_t height = CVPixelBufferGetHeightOfPlane(cv_pixel_buffer, index);
+    const int is_planar = CVPixelBufferIsPlanar(cv_pixel_buffer);
+    if (!is_planar && index != 0)
+        return NGPU_ERROR_INVALID_ARG;
+
+    const size_t width = is_planar
+        ? CVPixelBufferGetWidthOfPlane(cv_pixel_buffer, index)
+        : CVPixelBufferGetWidth(cv_pixel_buffer);
+    const size_t height = is_planar
+        ? CVPixelBufferGetHeightOfPlane(cv_pixel_buffer, index)
+        : CVPixelBufferGetHeight(cv_pixel_buffer);
     if (width > INT_MAX || height > INT_MAX)
         return NGPU_ERROR_LIMIT_EXCEEDED;
 
