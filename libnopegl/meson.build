@@ -795,6 +795,27 @@ test_progs = {
     'exe': 'test_path',
     'src': files('src/test_path.c', 'src/path.c', 'src/log.c', ) + math_utils_src + utils_src,
   },
+  'Resource bindings OpenGL': {
+    'exe': 'test_pipeline_gl',
+    'src': files('src/test_pipeline.c'),
+    'objects': libnopegl.extract_all_objects(recursive: true),
+    'c_args': lib_c_args,
+    'args': ['0'],
+  },
+  'Resource bindings OpenGLES': {
+    'exe': 'test_pipeline_gles',
+    'src': files('src/test_pipeline.c'),
+    'objects': libnopegl.extract_all_objects(recursive: true),
+    'c_args': lib_c_args,
+    'args': ['1'],
+  },
+  'Resource bindings Vulkan': {
+    'exe': 'test_pipeline_vk',
+    'src': files('src/test_pipeline.c'),
+    'objects': libnopegl.extract_all_objects(recursive: true),
+    'c_args': lib_c_args,
+    'args': ['2'],
+  },
   'Scene topology': {
     'exe': 'test_scene',
     'src': files('src/test_scene.c'),
