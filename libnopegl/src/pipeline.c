@@ -46,7 +46,7 @@ struct pipeline {
     struct bindgroup_darray bindgroups;
     struct ngpu_bindgroup *cur_bindgroup;
     size_t cur_bindgroup_index;
-    const struct ngpu_buffer **vertex_buffers;
+    struct ngpu_buffer **vertex_buffers;
     size_t nb_vertex_buffers;
     struct ngpu_texture_binding *textures;
     size_t nb_textures;
@@ -211,8 +211,13 @@ int ngli_pipeline_update_vertex_buffer(struct pipeline *s, int32_t index, const 
     if (index == -1)
         return NGL_ERROR_NOT_FOUND;
 
-    ngli_assert(index >= 0 && index < s->nb_vertex_buffers);
-    s->vertex_buffers[index] = buffer;
+    if (index < 0 || index >= s->nb_vertex_buffers)
+        return NGL_ERROR_INVALID_ARG;
+    if (s->vertex_buffers[index] == buffer)
+        return 0;
+    struct ngpu_buffer *ref = ngpu_buffer_ref(buffer);
+    ngpu_buffer_freep(&s->vertex_buffers[index]);
+    s->vertex_buffers[index] = ref;
     return 0;
 }
 
@@ -221,7 +226,12 @@ static int update_texture(struct pipeline *s, int32_t index, const struct ngpu_t
     if (index == -1)
         return NGL_ERROR_NOT_FOUND;
 
-    ngli_assert(index >= 0 && index < s->nb_textures);
+    if (index < 0 || index >= s->nb_textures)
+        return NGL_ERROR_INVALID_ARG;
+    const struct ngpu_texture_binding *previous = &s->textures[index];
+    if (previous->texture == binding->texture &&
+        previous->immutable_sampler == binding->immutable_sampler)
+        return 0;
 
     if (s->textures[index].immutable_sampler != binding->immutable_sampler) {
         struct ngpu_bindgroup_layout_entry *entry = &s->bindgroup_layout_desc.textures[index];
@@ -229,7 +239,11 @@ static int update_texture(struct pipeline *s, int32_t index, const struct ngpu_t
         s->need_pipeline_recreation = 1;
     }
 
+    struct ngpu_texture *ref = ngpu_texture_ref(binding->texture);
+    struct ngpu_texture *old = (struct ngpu_texture *)s->textures[index].texture;
+    ngpu_texture_freep(&old);
     s->textures[index] = *binding;
+    s->textures[index].texture = ref;
     s->updated = 1;
 
     return 0;
@@ -389,11 +403,29 @@ int ngli_pipeline_update_buffer(struct pipeline *s, int32_t index, const struct 
     if (index == -1)
         return NGL_ERROR_NOT_FOUND;
 
-    ngli_assert(index >= 0 && index < s->nb_buffers);
+    if (index < 0 || index >= s->nb_buffers)
+        return NGL_ERROR_INVALID_ARG;
+    if (!buffer)
+        return NGL_ERROR_INVALID_USAGE;
+    const size_t allocation_size = ngpu_buffer_get_size(buffer);
+    if (offset > allocation_size)
+        return NGL_ERROR_INVALID_ARG;
+    if (size == NGPU_BUFFER_WHOLE_SIZE)
+        size = allocation_size - offset;
+    else if (!size)
+        size = allocation_size; /* Legacy direct-update convention */
+    if (!size || size > allocation_size - offset)
+        return NGL_ERROR_INVALID_ARG;
+    const struct ngpu_buffer_binding *previous = &s->buffers[index];
+    if (previous->buffer == buffer && previous->offset == offset && previous->size == size)
+        return 0;
+    struct ngpu_buffer *ref = ngpu_buffer_ref(buffer);
+    struct ngpu_buffer *old = (struct ngpu_buffer *)previous->buffer;
+    ngpu_buffer_freep(&old);
     s->buffers[index] = (struct ngpu_buffer_binding) {
-        .buffer = buffer,
+        .buffer = ref,
         .offset = offset,
-        .size   = size ? size : ngpu_buffer_get_size(buffer),
+        .size   = size,
     };
     s->updated = 1;
     return 0;
@@ -437,14 +469,12 @@ static int prepare_bindgroup(struct pipeline *s)
     if (!s->updated)
         return 0;
 
-    s->updated = 0;
-
     if (s->need_pipeline_recreation) {
-        s->need_pipeline_recreation = 0;
         reset_pipeline(s);
         int ret = create_pipeline(s);
         if (ret < 0)
             return ret;
+        s->need_pipeline_recreation = 0;
     }
 
     int ret = select_next_available_bindgroup(s);
@@ -463,6 +493,7 @@ static int prepare_bindgroup(struct pipeline *s)
             return ret;
     }
 
+    s->updated = 0;
     return 0;
 }
 
@@ -533,6 +564,16 @@ void ngli_pipeline_freep(struct pipeline **sp)
     ngli_freep(&s->bindgroup_layout_desc.textures);
     ngli_freep(&s->bindgroup_layout_desc.buffers);
 
+    for (size_t i = 0; s->vertex_buffers && i < s->nb_vertex_buffers; i++)
+        ngpu_buffer_freep(&s->vertex_buffers[i]);
+    for (size_t i = 0; s->buffers && i < s->nb_buffers; i++) {
+        struct ngpu_buffer *buffer = (struct ngpu_buffer *)s->buffers[i].buffer;
+        ngpu_buffer_freep(&buffer);
+    }
+    for (size_t i = 0; s->textures && i < s->nb_textures; i++) {
+        struct ngpu_texture *texture = (struct ngpu_texture *)s->textures[i].texture;
+        ngpu_texture_freep(&texture);
+    }
     ngli_freep(&s->vertex_buffers);
     ngli_freep(&s->textures);
     ngli_freep(&s->buffers);

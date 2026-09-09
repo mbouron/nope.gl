@@ -24,7 +24,6 @@
 #define PIPELINE_H
 
 #include <ngpu/ngpu.h>
-#include <ngpu/ngpu.h>
 
 struct image;
 struct ngpu_staging_buffer;

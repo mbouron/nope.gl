@@ -451,6 +451,7 @@ NGPU_API int ngpu_buffer_map(struct ngpu_buffer *s, size_t offset, size_t size, 
 NGPU_API void ngpu_buffer_unmap(struct ngpu_buffer *s);
 NGPU_API void ngpu_buffer_freep(struct ngpu_buffer **sp);
 
+NGPU_API struct ngpu_buffer *ngpu_buffer_ref(const struct ngpu_buffer *s);
 NGPU_API size_t ngpu_buffer_get_size(const struct ngpu_buffer *s);
 NGPU_API uint32_t ngpu_buffer_get_usage(const struct ngpu_buffer *s);
 
@@ -593,7 +594,7 @@ NGPU_API int ngpu_texture_upload(struct ngpu_texture *s, const uint8_t *data, ui
 NGPU_API int ngpu_texture_upload_with_params(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params);
 NGPU_API int ngpu_texture_read_pixels(struct ngpu_texture *s, uint8_t *data);
 NGPU_API int ngpu_texture_generate_mipmap(struct ngpu_texture *s);
-NGPU_API struct ngpu_texture *ngpu_texture_ref(struct ngpu_texture *s);
+NGPU_API struct ngpu_texture *ngpu_texture_ref(const struct ngpu_texture *s);
 NGPU_API void ngpu_texture_unrefp(struct ngpu_texture **sp);
 NGPU_API void ngpu_texture_freep(struct ngpu_texture **sp);
 
