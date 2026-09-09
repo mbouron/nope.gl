@@ -56,6 +56,7 @@ static void test_add_edges_rollback(void)
     ngli_assert(root->draw_children.data[0] == a);
     ngli_assert(root->draw_children.data[1] == b);
     ngli_assert(a->parents.count == 1 && a->parents.data[0] == root);
+    ngli_assert(b->parents.count == 1 && b->parents.data[0] == root);
 
     ngl_scene_unrefp(&foreign_scene);
     ngl_scene_unrefp(&scene);
