@@ -267,11 +267,9 @@ static int buffer_init(struct ngl_node *node)
 
     if (s->buf.block) {
         const struct block_info *block_info = s->buf.block->priv_data;
-        s->buf.buffer = block_info->buffer;
+        s->buf.resource = &block_info->resource;
     } else {
-        s->buf.buffer = ngpu_buffer_create(node->ctx->gpu_ctx);
-        if (!s->buf.buffer)
-            return NGL_ERROR_MEMORY;
+        s->buf.resource = &s->buf.owned_resource;
     }
 
     return 0;
@@ -289,16 +287,23 @@ static int buffer_prepare(struct ngl_node *node,
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
         return 0;
 
-    ngli_assert(info->buffer);
+    struct ngpu_buffer *buffer = ngpu_buffer_create(node->ctx->gpu_ctx);
+    if (!buffer)
+        return NGL_ERROR_MEMORY;
 
-    int ret = ngpu_buffer_init(info->buffer, info->data_size, info->usage);
-    if (ret < 0)
+    int ret = ngpu_buffer_init(buffer, info->data_size, info->usage);
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
         return ret;
+    }
 
-    ret = ngpu_buffer_upload(info->buffer, info->data, 0, info->data_size);
-    if (ret < 0)
+    ret = ngpu_buffer_upload(buffer, info->data, 0, info->data_size);
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
         return ret;
+    }
 
+    info->owned_resource.buffer = buffer;
     return 0;
 }
 
@@ -307,10 +312,7 @@ static void buffer_uninit(struct ngl_node *node)
     struct buffer_priv *s = node->priv_data;
     const struct buffer_opts *o = node->opts;
 
-    if (s->buf.block)
-        s->buf.buffer = NULL;
-    else
-        ngpu_buffer_freep(&s->buf.buffer);
+    ngli_buffer_resource_reset(&s->buf.owned_resource);
 
     if (!o->data && !o->block)
         ngli_freep(&s->buf.data);

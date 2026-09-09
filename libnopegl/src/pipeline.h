@@ -25,7 +25,10 @@
 
 #include <ngpu/ngpu.h>
 
+#include "resource.h"
+
 struct image;
+struct ngl_node;
 struct ngpu_staging_buffer;
 
 struct pipeline_params {
@@ -36,20 +39,53 @@ struct pipeline_params {
     struct ngpu_pgcraft_texture_infos texture_infos;
 };
 
+struct pipeline_buffer_source {
+    const struct buffer_resource *resource;
+    size_t offset;
+    size_t size; /* NGPU_BUFFER_WHOLE_SIZE resolves the remaining allocation */
+};
+
+enum pipeline_image_source_type {
+    PIPELINE_IMAGE_SOURCE_DIRECT,
+    PIPELINE_IMAGE_SOURCE_INDIRECT,
+};
+
+struct pipeline_image_source {
+    enum pipeline_image_source_type type;
+    union {
+        const struct image *image;
+        const struct image *const *image_slot;
+    };
+};
+
+struct pipeline_execution {
+    struct ngpu_staging_buffer *staging;
+};
+
 struct pipeline;
 
 struct pipeline *ngli_pipeline_create(struct ngpu_ctx *gpu_ctx);
-/* Resources must be bound with the update functions before drawing or dispatching. */
+/* Register sources or supply direct bindings before the first execution. */
 int ngli_pipeline_init(struct pipeline *s, const struct pipeline_params *params);
+/* Registrations borrow stable CPU owners, and never query GPU allocations.
+ * -1 is optimized out (NOT_FOUND). NULL removes a registration. Direct setters
+ * conflict with registered sources, including an image's generated slots. */
+int ngli_pipeline_set_buffer_source(struct pipeline *s, int32_t index, const struct pipeline_buffer_source *source);
+int ngli_pipeline_set_vertex_source(struct pipeline *s, int32_t index, const struct buffer_resource *source);
+int ngli_pipeline_set_index_source(struct pipeline *s, const struct buffer_resource *source, enum ngpu_format format);
+int ngli_pipeline_set_image_source(struct pipeline *s, int32_t image_index, const struct pipeline_image_source *source, struct ngl_node *reframing_node);
+int ngli_pipeline_set_texture_source(struct pipeline *s, int32_t index, struct ngpu_texture *const *texture_slot);
+int ngli_pipeline_update_index_buffer(struct pipeline *s, const struct ngpu_buffer *buffer, enum ngpu_format format);
+/* Discard resolved references and pooled groups while preserving registrations.
+ * Direct bindings and dynamic offsets must be supplied again before execution. */
+void ngli_pipeline_discard_resources(struct pipeline *s);
 int ngli_pipeline_update_vertex_buffer(struct pipeline *s, int32_t index, const struct ngpu_buffer *buffer);
 int ngli_pipeline_update_texture(struct pipeline *s, int32_t index, const struct ngpu_texture *texture);
-void ngli_pipeline_apply_reframing_matrix(struct pipeline *s, int32_t index, const struct image *image, const float *reframing, struct ngpu_staging_buffer *staging);
-void ngli_pipeline_update_image(struct pipeline *s, int32_t index, const struct image *image, struct ngpu_staging_buffer *staging);
 int ngli_pipeline_update_buffer(struct pipeline *s, int32_t index, const struct ngpu_buffer *buffer, size_t offset, size_t size);
 int ngli_pipeline_update_dynamic_offsets(struct pipeline *s, const uint32_t *offsets, size_t nb_offsets);
-void ngli_pipeline_draw(struct pipeline *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex);
-void ngli_pipeline_draw_indexed(struct pipeline *s, const struct ngpu_buffer *indices, enum ngpu_format indices_format, uint32_t nb_indices, uint32_t nb_instances);
-void ngli_pipeline_dispatch(struct pipeline *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z);
+int ngli_pipeline_draw(struct pipeline *s, const struct pipeline_execution *execution, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex);
+int ngli_pipeline_draw_indexed(struct pipeline *s, const struct pipeline_execution *execution, uint32_t nb_indices, uint32_t nb_instances);
+int ngli_pipeline_dispatch(struct pipeline *s, const struct pipeline_execution *execution, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z);
 void ngli_pipeline_freep(struct pipeline **sp);
 
 #endif

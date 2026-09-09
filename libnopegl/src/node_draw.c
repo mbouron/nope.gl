@@ -199,7 +199,7 @@ static int check_params(const struct ngl_node *node)
             const struct ngl_node *anode = entry->data;
             const struct buffer_info *buffer = anode->priv_data;
 
-            if (geometry->indices_buffer) {
+            if (geometry->indices) {
                 if (max_indices >= buffer->layout.count) {
                     LOG(ERROR, "indices buffer contains values exceeding attribute buffer %s count (%" PRId64 " >= %zu)",
                         entry->key.str, max_indices, buffer->layout.count);
@@ -272,6 +272,12 @@ static int render_prepare(struct ngl_node *node,
     return ngli_pass_prepare(&s->pass, rendertarget_layout);
 }
 
+static void render_release(struct ngl_node *node)
+{
+    struct draw_priv *s = node->priv_data;
+    ngli_pass_release(&s->pass);
+}
+
 static void render_uninit(struct ngl_node *node)
 {
     struct draw_priv *s = node->priv_data;
@@ -298,6 +304,7 @@ const struct node_class ngli_draw_class = {
     .init      = render_init,
     .prepare   = render_prepare,
     .get_renderpass_usage = render_get_renderpass_usage,
+    .release   = render_release,
     .uninit    = render_uninit,
     .update    = ngli_node_update_children,
     .draw      = render_draw,

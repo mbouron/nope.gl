@@ -1,5 +1,6 @@
 /*
- * Copyright 2018-2022 GoPro Inc.
+ * Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,31 +20,22 @@
  * under the License.
  */
 
-#ifndef HWCONV_H
-#define HWCONV_H
+#ifndef RESOURCE_H
+#define RESOURCE_H
 
-#include "image.h"
 #include <ngpu/ngpu.h>
-#include <ngpu/ngpu.h>
-#include "pipeline.h"
 
-struct ngl_ctx;
-
-struct hwconv {
-    struct ngl_ctx *ctx;
-    struct image_params src_params;
-
-    struct ngpu_rendertarget *rt;
-    struct ngpu_pgcraft *crafter;
-    struct pipeline *pipeline;
-    const struct image *input_image;
+/* Stable owner; publish only initialized allocations. Consumers borrow this
+ * object and retain the GPU allocation they resolve from it. */
+struct buffer_resource {
+    struct ngpu_buffer *buffer;
 };
 
-int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
-                     const struct image *dst_image,
-                     const struct image_params *src_params);
-
-int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image);
-void ngli_hwconv_reset(struct hwconv *texconv);
+static inline void ngli_buffer_resource_reset(struct buffer_resource *s)
+{
+    struct ngpu_buffer *buffer = s->buffer;
+    s->buffer = NULL;
+    ngpu_buffer_freep(&buffer);
+}
 
 #endif

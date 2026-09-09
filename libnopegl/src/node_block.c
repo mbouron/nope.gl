@@ -311,10 +311,6 @@ static int block_init(struct ngl_node *node)
     update_block_data(node, 1);
     s->force_update = 1; /* First update will need an upload */
 
-    info->buffer = ngpu_buffer_create(gpu_ctx);
-    if (!info->buffer)
-        return NGL_ERROR_MEMORY;
-
     return 0;
 }
 
@@ -324,12 +320,16 @@ static int block_prepare(struct ngl_node *node,
     struct block_priv *s = node->priv_data;
     struct block_info *info = &s->blk;
 
-    ngli_assert(info->buffer);
+    struct ngpu_buffer *buffer = ngpu_buffer_create(node->ctx->gpu_ctx);
+    if (!buffer)
+        return NGL_ERROR_MEMORY;
 
-    int ret = ngpu_buffer_init(info->buffer, info->data_size, info->usage);
-    if (ret < 0)
+    int ret = ngpu_buffer_init(buffer, info->data_size, info->usage);
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
         return ret;
-
+    }
+    info->resource.buffer = buffer;
     return 0;
 }
 
@@ -355,7 +355,7 @@ static int block_update(struct ngl_node *node, double t)
     s->force_update = 0;
 
     if (has_changed) {
-        ret = ngpu_buffer_upload(info->buffer, info->data, 0, info->data_size);
+        ret = ngpu_buffer_upload(info->resource.buffer, info->data, 0, info->data_size);
         if (ret < 0)
             return ret;
     }
@@ -368,7 +368,7 @@ static void block_uninit(struct ngl_node *node)
     struct block_priv *s = node->priv_data;
     struct block_info *info = &s->blk;
 
-    ngpu_buffer_freep(&info->buffer);
+    ngli_buffer_resource_reset(&info->resource);
     ngpu_block_desc_reset(&info->block);
     ngli_free(info->data);
 }

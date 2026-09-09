@@ -242,14 +242,12 @@ static const struct param_choices format_choices = {
     NGL_NODE_BUFFERVEC2,            \
     NGL_NODE_BUFFERVEC4,            \
 
-
 #define DATA_SRC_TYPES_LIST_2D (const uint32_t[]){NGL_NODE_MEDIA,                   \
                                                   BUFFER_NODES                      \
                                                   NGLI_NODE_NONE}
 
 #define DATA_SRC_TYPES_LIST_3D (const uint32_t[]){BUFFER_NODES                      \
                                                   NGLI_NODE_NONE}
-
 
 #define OFFSET(x) offsetof(struct texture_opts, x)
 static const struct node_param texture2d_params[] = {
@@ -460,7 +458,6 @@ static int texture_prefetch(struct ngl_node *node)
         .layout = NGLI_IMAGE_LAYOUT_DEFAULT,
     };
     ngli_image_init(&i->image, &image_params, &i->texture);
-    i->image.rev = i->image_rev++;
 
     if (s->texture_info.rtt) {
         /* Transform the color textures coordinates so it matches how the
@@ -529,9 +526,6 @@ static int handle_media_frame(struct ngl_node *node)
     ngli_image_reset(&i->image);
 
     int ret = ngli_hwmap_map_frame(&s->hwmap, frame, &i->image);
-
-    /* Signal image change on new frame */
-    i->image.rev = i->image_rev++;
 
     if (ret < 0) {
         LOG(ERROR, "could not map media frame");
@@ -638,14 +632,15 @@ static int rtt_resize(struct ngl_node *node)
         goto fail;
 
     ngli_rtt_freep(&s->rtt_ctx);
-    ngpu_texture_freep(&i->texture);
+    struct ngpu_texture *old_texture = i->texture;
 
     i->params = texture_params;
     i->texture = texture;
     i->image.params.width = width;
     i->image.params.height = height;
     i->image.planes[0] = texture;
-    i->image.rev = i->image_rev++;
+    ngpu_texture_freep(&old_texture);
+
     s->rtt_params = rtt_params;
     s->rtt_ctx = rtt_ctx;
 
@@ -701,11 +696,10 @@ static void texture_release(struct ngl_node *node)
     struct texture_priv *s = node->priv_data;
     struct texture_info *i = node->priv_data;
 
+    ngli_image_reset(&i->image);
     ngli_rtt_freep(&s->rtt_ctx);
     ngli_hwmap_uninit(&s->hwmap);
     ngpu_texture_freep(&i->texture);
-    ngli_image_reset(&i->image);
-    i->image.rev = i->image_rev++;
 }
 
 static enum ngpu_format get_preferred_format(struct ngpu_ctx *gpu_ctx, int format)

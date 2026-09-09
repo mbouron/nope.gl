@@ -355,6 +355,8 @@ end:
  */
 static int draw_glyphs(struct distmap *s)
 {
+    const struct pipeline_execution execution = {.staging = NULL};
+
     int ret = map_and_load_buffers_data(s);
     if (ret < 0)
         return ret;
@@ -374,7 +376,9 @@ static int draw_glyphs(struct distmap *s)
             ret = ngli_pipeline_update_dynamic_offsets(s->pipeline, offsets, NGLI_ARRAY_NB(offsets));
             if (ret < 0)
                 return ret;
-            ngli_pipeline_draw(s->pipeline, 3, 1, 0);
+            ret = ngli_pipeline_draw(s->pipeline, &execution, 3, 1, 0);
+            if (ret < 0)
+                return ret;
             shape_id++;
         }
     }

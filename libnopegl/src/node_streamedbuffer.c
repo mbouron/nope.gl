@@ -135,7 +135,7 @@ static int streamedbuffer_update(struct ngl_node *node, double t)
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
         return 0;
 
-    return ngpu_buffer_upload(info->buffer, info->data, 0, info->data_size);
+    return ngpu_buffer_upload(info->owned_resource.buffer, info->data, 0, info->data_size);
 }
 
 static int check_timestamps_buffer(const struct ngl_node *node)
@@ -212,9 +212,7 @@ static int streamedbuffer_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    info->buffer = ngpu_buffer_create(node->ctx->gpu_ctx);
-    if (!info->buffer)
-        return NGL_ERROR_MEMORY;
+    info->resource = &info->owned_resource;
 
     return 0;
 }
@@ -228,10 +226,17 @@ static int streamedbuffer_prepare(struct ngl_node *node,
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
         return 0;
 
-    int ret = ngpu_buffer_init(info->buffer, info->data_size, info->usage);
-    if (ret < 0)
-        return ret;
+    struct ngpu_buffer *buffer = ngpu_buffer_create(node->ctx->gpu_ctx);
+    if (!buffer)
+        return NGL_ERROR_MEMORY;
 
+    int ret = ngpu_buffer_init(buffer, info->data_size, info->usage);
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
+        return ret;
+    }
+
+    info->owned_resource.buffer = buffer;
     return 0;
 }
 
@@ -240,7 +245,7 @@ static void streamedbuffer_uninit(struct ngl_node *node)
     struct streamedbuffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
 
-    ngpu_buffer_freep(&info->buffer);
+    ngli_buffer_resource_reset(&info->owned_resource);
 }
 
 #define DECLARE_STREAMED_CLASS(class_id, class_name, class_suffix)          \

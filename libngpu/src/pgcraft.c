@@ -426,6 +426,7 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
                 .binding     = request_next_binding(s, field_type),
                 .access      = texture->writable ? NGPU_ACCESS_READ_WRITE : NGPU_ACCESS_READ_BIT,
                 .stage_flags = 1U << stage,
+                .format      = is_image(field_type) ? texture->format : NGPU_FORMAT_UNDEFINED,
             };
 
             const char *prefix = "";

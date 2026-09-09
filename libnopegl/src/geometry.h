@@ -25,6 +25,7 @@
 #include <stdint.h>
 
 #include "buffer_layout.h"
+#include "resource.h"
 #include <ngpu/ngpu.h>
 
 struct ngpu_ctx;
@@ -32,10 +33,14 @@ struct ngpu_ctx;
 struct geometry {
     struct ngpu_ctx *gpu_ctx;
 
-    struct ngpu_buffer *vertices_buffer;
-    struct ngpu_buffer *uvcoords_buffer;
-    struct ngpu_buffer *normals_buffer;
-    struct ngpu_buffer *indices_buffer;
+    struct buffer_resource owned_vertices;
+    const struct buffer_resource *vertices;
+    struct buffer_resource owned_uvcoords;
+    const struct buffer_resource *uvcoords;
+    struct buffer_resource owned_normals;
+    const struct buffer_resource *normals;
+    struct buffer_resource owned_indices;
+    const struct buffer_resource *indices;
 
     uint32_t buffer_ownership;
 
@@ -58,10 +63,10 @@ int ngli_geometry_set_normals(struct geometry *s, size_t n, const float *indices
 int ngli_geometry_set_indices(struct geometry *s, size_t n, const uint16_t *indices);
 
 /* With the following functions, the user own the buffers already */
-void ngli_geometry_set_vertices_buffer(struct geometry *s, struct ngpu_buffer *buffer, struct buffer_layout layout);
-void ngli_geometry_set_uvcoords_buffer(struct geometry *s, struct ngpu_buffer *buffer, struct buffer_layout layout);
-void ngli_geometry_set_normals_buffer(struct geometry *s, struct ngpu_buffer *buffer, struct buffer_layout layout);
-void ngli_geometry_set_indices_buffer(struct geometry *s, struct ngpu_buffer *buffer, struct buffer_layout layout, int64_t max_indices);
+void ngli_geometry_set_vertices_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout);
+void ngli_geometry_set_uvcoords_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout);
+void ngli_geometry_set_normals_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout);
+void ngli_geometry_set_indices_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout, int64_t max_indices);
 
 /* Must be called when vertices/uvs/normals/indices are set */
 int ngli_geometry_init(struct geometry *s, enum ngpu_primitive_topology topology);

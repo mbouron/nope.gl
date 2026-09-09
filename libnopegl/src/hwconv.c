@@ -143,11 +143,22 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     if (ret < 0)
         return ret;
 
+    {
+        const struct pipeline_image_source source = {
+            .type = PIPELINE_IMAGE_SOURCE_INDIRECT,
+            .image_slot = &hwconv->input_image,
+        };
+        ret = ngli_pipeline_set_image_source(hwconv->pipeline, 0, &source, NULL);
+        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+            return ret;
+    }
     return 0;
 }
 
 int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image)
 {
+    const struct pipeline_execution execution = {.staging = hwconv->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = hwconv->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     ngli_assert(hwconv->src_params.layout == image->params.layout);
@@ -157,12 +168,13 @@ int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image)
 
     ngpu_ctx_begin_render_pass(gpu_ctx, rt);
 
-    ngli_pipeline_update_image(pipeline, 0, image, ctx->current_staging_buffer);
-    ngli_pipeline_draw(pipeline, 3, 1, 0);
+    hwconv->input_image = image;
+    int ret = ngli_pipeline_draw(pipeline, &execution, 3, 1, 0);
+    hwconv->input_image = NULL;
 
     ngpu_ctx_end_render_pass(gpu_ctx);
 
-    return 0;
+    return ret;
 }
 
 void ngli_hwconv_reset(struct hwconv *hwconv)

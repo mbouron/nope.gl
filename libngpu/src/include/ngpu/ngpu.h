@@ -620,6 +620,7 @@ struct ngpu_bindgroup_layout_entry {
     enum ngpu_access access;
     uint32_t stage_flags;
     void *immutable_sampler;
+    enum ngpu_format format; /* Storage image format, UNDEFINED when unspecified */
 };
 
 struct ngpu_bindgroup_layout_desc {

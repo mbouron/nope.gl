@@ -32,13 +32,9 @@
 
 struct ngl_ctx;
 struct pipeline;
-struct resource_map;
-struct texture_map;
 
 struct pipeline_desc {
     struct pipeline *pipeline;
-    NGLI_DARRAY(struct resource_map) blocks_map;
-    NGLI_DARRAY(struct texture_map) textures_map;
 };
 
 struct pass_params {
@@ -84,7 +80,6 @@ struct pass {
     struct ngl_ctx *ctx;
     struct pass_params params;
 
-    struct ngpu_buffer *indices;
     const struct buffer_layout *indices_layout;
     uint32_t nb_vertices;
     uint32_t nb_instances;
@@ -108,6 +103,7 @@ struct pass {
 int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params *params);
 int ngli_pass_prepare(struct pass *s,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
+void ngli_pass_release(struct pass *s);
 void ngli_pass_uninit(struct pass *s);
 int ngli_pass_exec(struct pass *s);
 

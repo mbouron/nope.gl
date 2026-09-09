@@ -46,17 +46,6 @@
 #include "utils/hmap.h"
 #include "utils/utils.h"
 
-struct resource_map {
-    int32_t index;
-    const struct block_info *info;
-    size_t buffer_rev;
-};
-
-struct texture_map {
-    const struct image *image;
-    size_t image_rev;
-};
-
 static int register_uniform(struct pass *s, const char *name, struct ngl_node *uniform, enum ngpu_program_stage stage)
 {
     struct ngpu_block_desc *block;
@@ -336,8 +325,7 @@ static int pass_graphics_init(struct pass *s)
     s->pipeline_type = NGPU_PIPELINE_TYPE_GRAPHICS;
     s->topology = geometry->topology;
 
-    if (geometry->indices_buffer) {
-        s->indices = geometry->indices_buffer;
+    if (geometry->indices) {
         s->indices_layout = &geometry->indices_layout;
     } else {
         s->nb_vertices = (uint32_t)geometry->vertices_layout.count;
@@ -400,7 +388,7 @@ static enum ngpu_program_stage get_program_shader_stage(uint32_t stage_flags)
     ngli_assert(0);
 }
 
-static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
+static int register_block_sources(struct pass *s, struct pipeline_desc *desc)
 {
     struct ngpu_bindgroup_layout_desc layout_desc = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter);
 
@@ -431,9 +419,13 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
             continue;
 
         const struct block_info *info = node->priv_data;
-        const struct resource_map map = {.index = index, .info = info, .buffer_rev = SIZE_MAX};
-        if (ngli_darray_try_push(&desc->blocks_map, map) < 0)
-            return NGL_ERROR_MEMORY;
+        const struct pipeline_buffer_source source = {
+            .resource = &info->resource,
+            .size = NGPU_BUFFER_WHOLE_SIZE,
+        };
+        int ret = ngli_pipeline_set_buffer_source(desc->pipeline, index, &source);
+        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+            return ret;
     }
 
     return 0;
@@ -511,7 +503,7 @@ int ngli_pass_prepare(struct pass *s,
     if (ret < 0)
         return ret;
 
-    ret = build_blocks_map(s, desc);
+    ret = register_block_sources(s, desc);
     if (ret < 0)
         return ret;
 
@@ -522,24 +514,35 @@ int ngli_pass_prepare(struct pass *s,
                                                                                : s->params.compute_resources;
         const struct ngl_node *node = ngli_hmap_get_str(resources, texture->name);
         const struct texture_info *info = ngli_node_texture_get_texture_info(node);
-        const struct texture_map map = {.image = &info->image, .image_rev = SIZE_MAX};
-        if (ngli_darray_try_push(&desc->textures_map, map) < 0)
-            return NGL_ERROR_MEMORY;
+        const struct pipeline_image_source source = {
+            .type = PIPELINE_IMAGE_SOURCE_DIRECT,
+            .image = &info->image,
+        };
+        ret = ngli_pipeline_set_image_source(desc->pipeline, (int32_t)i, &source, NULL);
+        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+            return ret;
     }
 
     if (s->params.geometry) {
         const struct geometry *geometry = s->params.geometry;
+        if (geometry->indices) {
+            ret = ngli_pipeline_set_index_source(desc->pipeline, geometry->indices, geometry->indices_layout.format);
+            if (ret < 0)
+                return ret;
+        }
         const struct {
             const char *name;
-            const struct ngpu_buffer *buffer;
+            const struct buffer_resource *resource;
         } attributes[] = {
-            {"ngl_position", geometry->vertices_buffer},
-            {"ngl_uvcoord",  geometry->uvcoords_buffer},
-            {"ngl_normal",   geometry->normals_buffer},
+            {"ngl_position", geometry->vertices},
+            {"ngl_uvcoord",  geometry->uvcoords},
+            {"ngl_normal",   geometry->normals},
         };
         for (size_t i = 0; i < NGLI_ARRAY_NB(attributes); i++) {
             const int32_t index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, attributes[i].name);
-            ngli_pipeline_update_vertex_buffer(desc->pipeline, index, attributes[i].buffer);
+            ret = ngli_pipeline_set_vertex_source(desc->pipeline, index, attributes[i].resource);
+            if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+                return ret;
         }
         const struct hmap *maps[] = {s->params.attributes, s->params.instance_attributes};
         for (size_t i = 0; i < NGLI_ARRAY_NB(maps); i++) {
@@ -550,7 +553,9 @@ int ngli_pass_prepare(struct pass *s,
                 const struct ngl_node *node = entry->data;
                 const struct buffer_info *info = node->priv_data;
                 const int32_t index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, entry->key.str);
-                ngli_pipeline_update_vertex_buffer(desc->pipeline, index, info->buffer);
+                ret = ngli_pipeline_set_vertex_source(desc->pipeline, index, info->resource);
+                if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+                    return ret;
             }
         }
     }
@@ -611,6 +616,11 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
     return 0;
 }
 
+void ngli_pass_release(struct pass *s)
+{
+    ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
+}
+
 void ngli_pass_uninit(struct pass *s)
 {
     if (!s->ctx)
@@ -618,8 +628,6 @@ void ngli_pass_uninit(struct pass *s)
 
     struct pipeline_desc *desc = &s->pipeline_desc;
     ngli_pipeline_freep(&desc->pipeline);
-    ngli_darray_reset(&desc->blocks_map);
-    ngli_darray_reset(&desc->textures_map);
 
     ngpu_pgcraft_freep(&s->crafter);
     ngpu_block_desc_reset(&s->user_vert_block);
@@ -635,11 +643,12 @@ void ngli_pass_uninit(struct pass *s)
 
 int ngli_pass_exec(struct pass *s)
 {
+    const struct pipeline_execution execution = {.staging = s->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = s->ctx;
     const struct pass_params *params = &s->params;
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct pipeline *pipeline = desc->pipeline;
-
 
     /* Fill and push user uniform blocks */
     const struct {
@@ -700,19 +709,6 @@ int ngli_pass_exec(struct pass *s)
         ngli_pipeline_update_buffer(pipeline, block_idx, buffer, offset, block_size);
     }
 
-    for (size_t i = 0; i < desc->textures_map.count; i++) {
-        ngli_pipeline_update_image(pipeline, (int32_t)i, desc->textures_map.data[i].image, ctx->current_staging_buffer);
-    }
-
-    struct resource_map *resource_map = desc->blocks_map.data;
-    for (size_t i = 0; i < desc->blocks_map.count; i++) {
-        const struct block_info *info = resource_map[i].info;
-        if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
-            resource_map[i].buffer_rev = info->buffer_rev;
-        }
-    }
-
     if (s->pipeline_type == NGPU_PIPELINE_TYPE_GRAPHICS) {
         struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
@@ -723,11 +719,10 @@ int ngli_pass_exec(struct pass *s)
         ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
         ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-        if (s->indices)
-            ngli_pipeline_draw_indexed(pipeline, s->indices, s->indices_layout->format,
-                                              (uint32_t)s->indices_layout->count, s->nb_instances);
+        if (params->geometry->indices)
+            return ngli_pipeline_draw_indexed(pipeline, &execution, (uint32_t)s->indices_layout->count, s->nb_instances);
         else
-            ngli_pipeline_draw(pipeline, s->nb_vertices, s->nb_instances, 0);
+            return ngli_pipeline_draw(pipeline, &execution, s->nb_vertices, s->nb_instances, 0);
     } else {
         struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
@@ -735,7 +730,7 @@ int ngli_pass_exec(struct pass *s)
             ngpu_ctx_end_render_pass(gpu_ctx);
         }
 
-        ngli_pipeline_dispatch(pipeline, NGLI_ARG_VEC3(params->workgroup_count));
+        return ngli_pipeline_dispatch(pipeline, &execution, NGLI_ARG_VEC3(params->workgroup_count));
     }
 
     return 0;
