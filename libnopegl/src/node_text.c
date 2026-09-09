@@ -115,15 +115,13 @@ struct text_opts {
     float bg_color[3];
     float bg_opacity;
     float box[4];
-    struct ngl_node **font_faces;
-    size_t nb_font_faces;
+    struct ngli_node_darray font_faces;
     int32_t padding;
     int32_t pt_size;
     int32_t dpi;
     float font_scale;
     enum text_scale_mode scale_mode;
-    struct ngl_node **effect_nodes;
-    size_t nb_effect_nodes;
+    struct ngli_node_darray effect_nodes;
     enum text_valign valign;
     enum text_halign halign;
     enum writing_mode writing_mode;
@@ -433,8 +431,8 @@ static int text_init(struct ngl_node *node)
         return NGL_ERROR_MEMORY;
 
     const struct text_config config = {
-        .font_faces = o->font_faces,
-        .nb_font_faces = o->nb_font_faces,
+        .font_faces = o->font_faces.data,
+        .nb_font_faces = o->font_faces.count,
         .pt_size = o->pt_size,
         .dpi = o->dpi,
         .padding = o->padding,
@@ -444,8 +442,8 @@ static int text_init(struct ngl_node *node)
         .halign = o->halign,
         .writing_mode = o->writing_mode,
         .box = {NGLI_ARG_VEC4(o->box)},
-        .effect_nodes = o->effect_nodes,
-        .nb_effect_nodes = o->nb_effect_nodes,
+        .effect_nodes = o->effect_nodes.data,
+        .nb_effect_nodes = o->effect_nodes.count,
         .defaults = {
             .color = {NGLI_ARG_VEC3(o->fg_color)},
             .opacity = o->fg_opacity,
@@ -933,7 +931,7 @@ static void text_release(struct ngl_node *node)
         ngli_text_release(s->text_ctx);
 }
 
-static void text_uninit(struct ngl_node *node)
+static void text_unprepare(struct ngl_node *node)
 {
     struct text_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
@@ -945,6 +943,11 @@ static void text_uninit(struct ngl_node *node)
     ngpu_block_desc_reset(&desc->bg.frag_block_desc);
     ngpu_block_desc_reset(&desc->fg.vert_block_desc);
     ngpu_block_desc_reset(&desc->fg.frag_block_desc);
+}
+
+static void text_uninit(struct ngl_node *node)
+{
+    struct text_priv *s = node->priv_data;
     ngpu_buffer_freep(&s->bg_vertices);
     destroy_characters_resources(s);
     ngli_text_freep(&s->text_ctx);
@@ -956,6 +959,7 @@ const struct node_class ngli_text_class = {
     .name           = "Text",
     .init           = text_init,
     .prepare        = text_prepare,
+    .unprepare      = text_unprepare,
     .update         = text_update,
     .draw           = text_draw,
     .release        = text_release,

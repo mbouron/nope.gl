@@ -440,8 +440,8 @@ static int animkeyframe_init(struct ngl_node *node)
             return ret;
         s->scale_boundaries = 1;
 
-        const double y0 = s->function(x0, o->nb_args, o->args);
-        const double y1 = s->function(x1, o->nb_args, o->args);
+        const double y0 = s->function(x0, o->args.count, o->args.data);
+        const double y1 = s->function(x1, o->args.count, o->args.data);
         ret = check_boundaries(y0, y1);
         if (ret < 0)
             return ret;
@@ -464,7 +464,7 @@ static char *animkeyframe_info_str(const struct ngl_node *node)
 
     const char *easing_name = ngli_params_get_select_str(easing_choices.consts, o->easing);
     ngli_bstr_printf(b, "%s @ t=%g ", easing_name, o->time);
-    if (o->nb_args) {
+    if (o->args.count) {
         const struct node_param *easing_args_par = ngli_params_find(params, "easing_args");
         ngli_assert(easing_args_par);
         ngli_bstr_print(b, "(args: ");

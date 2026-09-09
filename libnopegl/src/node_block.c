@@ -113,8 +113,7 @@ struct block_priv {
 };
 
 struct block_opts {
-    struct ngl_node **fields;
-    size_t nb_fields;
+    struct ngli_node_darray fields;
     enum ngpu_block_layout layout;
 };
 
@@ -203,8 +202,8 @@ static int update_block_data(struct ngl_node *node, int forced)
     struct block_info *info = &s->blk;
     const struct block_opts *o = node->opts;
     const struct ngpu_block_field *field_info = info->block.fields;
-    for (size_t i = 0; i < o->nb_fields; i++) {
-        const struct ngl_node *field_node = o->fields[i];
+    for (size_t i = 0; i < o->fields.count; i++) {
+        const struct ngl_node *field_node = o->fields.data[i];
         const struct ngpu_block_field *fi = &field_info[i];
         if (!forced && !field_is_dynamic(field_node, fi))
             continue;
@@ -262,12 +261,12 @@ static int block_init(struct ngl_node *node)
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    if (!o->nb_fields) {
+    if (!o->fields.count) {
         LOG(ERROR, "block fields must not be empty");
         return NGL_ERROR_INVALID_ARG;
     }
 
-    int ret = check_dup_labels(node->label, o->fields, o->nb_fields);
+    int ret = check_dup_labels(node->label, o->fields.data, o->fields.count);
     if (ret < 0)
         return ret;
 
@@ -275,8 +274,8 @@ static int block_init(struct ngl_node *node)
 
     info->usage = NGPU_BUFFER_USAGE_TRANSFER_DST_BIT;
 
-    for (size_t i = 0; i < o->nb_fields; i++) {
-        const struct ngl_node *field_node = o->fields[i];
+    for (size_t i = 0; i < o->fields.count; i++) {
+        const struct ngl_node *field_node = o->fields.data[i];
 
         if (field_node->cls->category == NGLI_NODE_CATEGORY_BUFFER) {
             const struct buffer_info *buffer_info = field_node->priv_data;
@@ -318,8 +317,7 @@ static int block_init(struct ngl_node *node)
     return 0;
 }
 
-static int block_prepare(struct ngl_node *node,
-                         const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int block_init_resources(struct ngl_node *node)
 {
     struct block_priv *s = node->priv_data;
     struct block_info *info = &s->blk;
@@ -378,7 +376,7 @@ const struct node_class ngli_block_class = {
     .category  = NGLI_NODE_CATEGORY_BLOCK,
     .name      = "Block",
     .init      = block_init,
-    .prepare   = block_prepare,
+    .init_resources = block_init_resources,
     .invalidate = block_invalidate,
     .update    = block_update,
     .uninit    = block_uninit,

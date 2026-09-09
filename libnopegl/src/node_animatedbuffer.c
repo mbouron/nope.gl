@@ -34,8 +34,7 @@
 #include "utils/memory.h"
 
 struct animatedbuffer_opts {
-    struct ngl_node **animkf;
-    size_t nb_animkf;
+    struct ngli_node_darray animkf;
 };
 
 struct animatedbuffer_priv {
@@ -106,13 +105,13 @@ static int animatedbuffer_init(struct ngl_node *node)
     layout->stride = ngpu_format_get_bytes_per_pixel(layout->format);
 
     int ret = ngli_animation_init(&s->anim, s,
-                                  o->animkf, o->nb_animkf,
+                                  o->animkf.data, o->animkf.count,
                                   mix_buffer, cpy_buffer);
     if (ret < 0)
         return ret;
 
-    for (size_t i = 0; i < o->nb_animkf; i++) {
-        const struct animkeyframe_opts *kf = o->animkf[i]->opts;
+    for (size_t i = 0; i < o->animkf.count; i++) {
+        const struct animkeyframe_opts *kf = o->animkf.data[i]->opts;
         const size_t data_count = kf->data_size / layout->stride;
         const size_t data_pad   = kf->data_size % layout->stride;
 
@@ -145,8 +144,7 @@ static int animatedbuffer_init(struct ngl_node *node)
     return 0;
 }
 
-static int animatedbuffer_prepare(struct ngl_node *node,
-                                  const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int animatedbuffer_init_resources(struct ngl_node *node)
 {
     struct animatedbuffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
@@ -185,7 +183,7 @@ const struct node_class ngli_animatedbuffer##type_name##_class = {              
     .category  = NGLI_NODE_CATEGORY_BUFFER,                                        \
     .name      = class_name,                                                       \
     .init      = animatedbuffer##type_name##_init,                                 \
-    .prepare   = animatedbuffer_prepare,                                           \
+    .init_resources = animatedbuffer_init_resources,                               \
     .update    = animatedbuffer_update,                                            \
     .uninit    = animatedbuffer_uninit,                                            \
     .opts_size = sizeof(struct animatedbuffer_opts),                               \

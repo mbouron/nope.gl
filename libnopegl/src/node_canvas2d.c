@@ -31,8 +31,7 @@
 #include "utils/utils.h"
 
 struct canvas2d_opts {
-    struct ngl_node **children;
-    size_t nb_children;
+    struct ngli_node_darray children;
     int32_t width;
     int32_t height;
 };
@@ -92,13 +91,13 @@ static void canvas2d_pre_draw(struct ngl_node *node)
     ngli_node2d_apply_default_transform(ctx);
 
     /* Pre-draw children (computes bboxes) */
-    for (size_t i = 0; i < o->nb_children; i++)
-        ngli_node_pre_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++)
+        ngli_node_pre_draw(o->children.data[i]);
 
     /* Compute canvas bbox from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
-    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
-    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
+    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children.data, o->children.count);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children.data, o->children.count);
 
     ctx->transform_2d_matrix = prev_transform_2d;
     ctx->opacity_2d = prev_opacity_2d;
@@ -135,14 +134,14 @@ static void canvas2d_draw(struct ngl_node *node)
     ngli_node2d_apply_default_transform(ctx);
 
     /* Draw children */
-    for (size_t i = 0; i < o->nb_children; i++) {
-        ngli_node_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++) {
+        ngli_node_draw(o->children.data[i]);
     }
 
     /* Compute union bounding box from children */
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
-    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children, o->nb_children);
-    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children, o->nb_children);
+    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children.data, o->children.count);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children.data, o->children.count);
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
     node2d_info->aabb = node2d_info->screen_aabb;

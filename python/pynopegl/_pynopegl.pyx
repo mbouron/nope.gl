@@ -232,7 +232,9 @@ cdef extern from "nopegl/nopegl.h":
 
     cdef struct ngl_node_funcs:
         int (*init)(void *reserved, void *user_data)
+        int (*init_resources)(void *reserved, void *user_data)
         int (*prepare)(void *reserved, void *user_data)
+        void (*unprepare)(void *reserved, void *user_data)
         int (*prefetch)(void *reserved, void *user_data)
         int (*update)(void *reserved, void *user_data, double t)
         void (*draw)(void *reserved, void *user_data)
@@ -1086,12 +1088,27 @@ cdef int _py_custom_texture_init(void *reserved, void *user_data) noexcept:
     return ret
 
 
+cdef int _py_custom_texture_init_resources(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    ret = _wrap_func(node._init_resources)
+    pystate.PyGILState_Release(gil_state)
+    return ret
+
+
 cdef int _py_custom_texture_prepare(void *reserved, void *user_data) noexcept:
     cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
     node = <CustomTexture>user_data
     ret = _wrap_func(node._prepare)
     pystate.PyGILState_Release(gil_state)
     return ret
+
+
+cdef void _py_custom_texture_unprepare(void *reserved, void *user_data) noexcept:
+    cdef pystate.PyGILState_STATE gil_state = pystate.PyGILState_Ensure()
+    node = <CustomTexture>user_data
+    _wrap_func(node._unprepare)
+    pystate.PyGILState_Release(gil_state)
 
 
 cdef int _py_custom_texture_prefetch(void *reserved, void *user_data) noexcept:
@@ -1170,7 +1187,9 @@ cdef class CustomTexture(_Node):
         cdef ngl_node_funcs funcs;
         memset(&funcs, 0, sizeof(funcs))
         funcs.init = _py_custom_texture_init
+        funcs.init_resources = _py_custom_texture_init_resources
         funcs.prepare = _py_custom_texture_prepare
+        funcs.unprepare = _py_custom_texture_unprepare
         funcs.prefetch = _py_custom_texture_prefetch
         funcs.invalidate = _py_custom_texture_invalidate
         funcs.update = _py_custom_texture_update
@@ -1195,7 +1214,13 @@ cdef class CustomTexture(_Node):
     def _init(self):
         pass
 
+    def _init_resources(self):
+        pass
+
     def _prepare(self):
+        pass
+
+    def _unprepare(self):
         pass
 
     def _prefetch(self):

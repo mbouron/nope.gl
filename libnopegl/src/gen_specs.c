@@ -303,6 +303,23 @@ static const struct node_class *node_type_to_class(uint32_t type)
     }
 }
 
+static int check_node_callbacks(const struct node_class *cls)
+{
+    if (cls->prepare && !cls->unprepare) {
+        fprintf(stderr, "%s has a prepare callback but no unprepare\n", cls->name);
+        return NGL_ERROR_BUG;
+    }
+
+    if (cls->id != NGL_NODE_CUSTOMTEXTURE) {
+        if (cls->prepare && (cls->flags & NGLI_NODE_FLAG_SHAREABLE)) {
+            fprintf(stderr, "%s is shareable but a prepare callback is specified\n", cls->name);
+            return NGL_ERROR_BUG;
+        }
+    }
+
+    return 0;
+}
+
 static int check_node_params(const struct node_class *cls)
 {
     const struct node_param *par = cls->params;
@@ -414,6 +431,10 @@ static int print_nodes(void)
     for (size_t i = 0; i < NGLI_ARRAY_NB(node_classes); i++) {
         const struct node_class *c = node_classes[i];
         const struct node_param *p = &c->params[0];
+
+        ret = check_node_callbacks(c);
+        if (ret < 0)
+            goto end;
 
         ret = check_node_params(c);
         if (ret < 0)

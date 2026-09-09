@@ -1203,7 +1203,9 @@ struct custom_texture_ctx {
     struct ngl_node *node;
     jobject object;
     jmethodID init;
+    jmethodID init_resources;
     jmethodID prepare;
+    jmethodID unprepare;
     jmethodID prefetch;
     jmethodID update;
     jmethodID draw;
@@ -1223,6 +1225,18 @@ static int custom_texture_init(void *reversed, void *user_data)
     return 0;
 }
 
+static int custom_texture_init_resources(void *reversed, void *user_data)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = ngl_jni_get_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->init_resources);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return NGL_ERROR_EXTERNAL;
+    }
+    return 0;
+}
+
 static int custom_texture_prepare(void *reversed, void *user_data)
 {
     struct custom_texture_ctx *ctx = user_data;
@@ -1233,6 +1247,17 @@ static int custom_texture_prepare(void *reversed, void *user_data)
         return NGL_ERROR_EXTERNAL;
     }
     return 0;
+}
+
+static void custom_texture_unprepare(void *reversed, void *user_data)
+{
+    struct custom_texture_ctx *ctx = user_data;
+    JNIEnv *env = ngl_jni_get_env();
+    (*env)->CallVoidMethod(env, ctx->object, ctx->unprepare);
+    if ((*env)->ExceptionCheck(env)) {
+        ((*env)->ExceptionClear(env));
+        return;
+    }
 }
 
 static int custom_texture_prefetch(void *reversed, void *user_data)
@@ -1305,7 +1330,9 @@ void custom_texture_free(void *reversed, void *user_data)
 
 static struct ngl_node_funcs custom_texture_funcs = {
     .init = custom_texture_init,
+    .init_resources = custom_texture_init_resources,
     .prepare = custom_texture_prepare,
+    .unprepare = custom_texture_unprepare,
     .prefetch = custom_texture_prefetch,
     .update = custom_texture_update,
     .draw = custom_texture_draw,
@@ -1336,7 +1363,9 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nopegl_NGLCustomTexture_nativeCreate(
 
     jclass cls = (*env)->GetObjectClass(env, ctx->object);
     ctx->init = (*env)->GetMethodID(env, cls, "init", "()V");
+    ctx->init_resources = (*env)->GetMethodID(env, cls, "initResources", "()V");
     ctx->prepare = (*env)->GetMethodID(env, cls, "prepare", "()V");
+    ctx->unprepare = (*env)->GetMethodID(env, cls, "unprepare", "()V");
     ctx->prefetch = (*env)->GetMethodID(env, cls, "prefetch", "()V");
     ctx->update = (*env)->GetMethodID(env, cls, "update", "(D)V");
     ctx->draw = (*env)->GetMethodID(env, cls, "draw", "()V");

@@ -29,13 +29,16 @@
 #include "vulkan/cmd_buffer_vk.h"
 #include "utils/darray.h"
 
+NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_vk_darray, struct ngpu_cmd_buffer_vk *);
+NGPU_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_vk_darray)
+
 struct ngpu_buffer_vk {
     struct ngpu_buffer parent;
     VkBuffer buffer;
     VkDeviceMemory memory;
     VkBuffer staging_buffer;
     VkDeviceMemory staging_memory;
-    NGPU_DARRAY(struct ngpu_cmd_buffer_vk *) cmd_buffers;
+    struct ngpu_cmd_buffer_vk_darray cmd_buffers;
 };
 
 struct ngpu_buffer *ngpu_buffer_vk_create(struct ngpu_ctx *gpu_ctx);

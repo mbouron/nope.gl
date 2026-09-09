@@ -768,9 +768,9 @@ NGL_API void ngl_node_params_info_freep(const struct ngl_param_info **infosp, si
 /**
  * Get the direct child nodes of a node.
  *
- * Walks all NODE and NODELIST parameters and returns a newly allocated array
- * of borrowed node pointers (the lifetime of the nodes is bound to the parent
- * graph, do not unref them individually).
+ * Walks all NODE, NODELIST and NODEDICT parameters and returns a newly
+ * allocated array of borrowed node pointers (the lifetime of the nodes is
+ * bound to the parent graph, do not unref them individually).
  *
  * The returned array must be released with ngl_node_children_freep().
  *
@@ -858,7 +858,9 @@ NGL_API int ngl_effect2dshader_set_range(struct ngl_node *node, double start, do
 
 struct ngl_node_funcs {
     int (*init)(void *reserved, void *user_data);
+    int (*init_resources)(void *reserved, void *user_data);
     int (*prepare)(void *reserved, void *user_data);
+    void (*unprepare)(void *reserved, void *user_data);
     int (*prefetch)(void *reserved, void *user_data);
     int (*update)(void *reserved, void *user_data, double t);
     void (*draw)(void *reserved, void *user_data);

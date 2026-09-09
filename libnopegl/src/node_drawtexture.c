@@ -99,8 +99,7 @@ struct drawtexture_opts {
     int wrap;
     struct ngli_graphics_state_opts state;
     struct ngl_node *geometry;
-    struct ngl_node **filters;
-    size_t nb_filters;
+    struct ngli_node_darray filters;
 };
 
 struct drawtexture_vert_block {
@@ -244,8 +243,8 @@ static int drawtexture_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    for (size_t i = 0; i < o->nb_filters; i++) {
-        const struct ngl_node *filter_node = o->filters[i];
+    for (size_t i = 0; i < o->filters.count; i++) {
+        const struct ngl_node *filter_node = o->filters.data[i];
         const struct filter *filter = filter_node->priv_data;
         ret = ngli_filterschain_add_filter(s->filterschain, filter);
         if (ret < 0)
@@ -490,19 +489,23 @@ static void drawtexture_draw(struct ngl_node *node)
     }
 }
 
-static void drawtexture_uninit(struct ngl_node *node)
+static void drawtexture_unprepare(struct ngl_node *node)
 {
     struct drawtexture_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_compat_freep(&desc->pipeline_compat);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawtexture_uninit(struct ngl_node *node)
+{
+    struct drawtexture_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -527,6 +530,7 @@ const struct node_class ngli_drawtexture_class = {
     .name      = "DrawTexture",
     .init      = drawtexture_init,
     .prepare   = drawtexture_prepare,
+    .unprepare = drawtexture_unprepare,
     .get_renderpass_usage = drawtexture_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawtexture_draw,

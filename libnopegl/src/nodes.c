@@ -181,12 +181,17 @@ static void node_uninit(struct ngl_node *node)
     ngli_assert(node->ctx);
     node_release(node);
 
+    if (node->prepared && node->cls->unprepare)
+        node->cls->unprepare(node);
+    node->prepared = false;
+
     if (node->cls->uninit) {
         LOG(VERBOSE, "UNINIT %s @ %p", node->label, node);
         node->cls->uninit(node);
     }
     memset(node->priv_data, 0, node->cls->priv_size);
     node->state = NGLI_NODE_STATE_UNINITIALIZED;
+    node->resources_ready = false;
     node->prepared = false;
     node->visit_time = -1.;
 }
@@ -274,9 +279,12 @@ void ngli_node_detach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     node_reset_ctx(node, ctx);
 }
 
-int ngli_node_prepare(struct ngl_node *node,
-                      const struct ngpu_rendertarget_layout *rendertarget_layout)
+static int node_prepare(struct ngl_node *node,
+                         const struct ngpu_rendertarget_layout *rendertarget_layout,
+                         struct ngli_node_darray *prepared_nodes)
 {
+    int ret;
+
     if (node->prepared)
         return 0;
     node->prepared = true;
@@ -288,22 +296,66 @@ int ngli_node_prepare(struct ngl_node *node,
 
     /* Leaf-first: prepare all children before this node */
     for (size_t i = 0; i < node->children.count; i++) {
-        int ret = ngli_node_prepare(node->children.data[i], &child_rendertarget_layout);
+        struct ngl_node *child = node->children.data[i];
+        ret = node_prepare(child, &child_rendertarget_layout, prepared_nodes);
         if (ret < 0)
-            return ret;
+            goto fail;
+    }
+
+    /*
+     * Initialize resources once, keeping them until uninit. All consumers have
+     * registered their buffer usage during init, so shared buffers can now be
+     * allocated. Leaf-first traversal ensures buffers and blocks are allocated
+     * before the pipelines that use them are created.
+     */
+    if (!node->resources_ready) {
+        if (node->cls->init_resources) {
+            TRACE("INIT RESOURCES %s @ %p", node->label, node);
+            ret = node->cls->init_resources(node);
+            if (ret < 0) {
+                LOG(ERROR, "initializing the resources of node %s failed: %s",
+                    node->label, NGLI_RET_STR(ret));
+                goto fail;
+            }
+        }
+        node->resources_ready = true;
     }
 
     /* Prepare this node */
     if (node->cls->prepare) {
         TRACE("PREPARE %s @ %p", node->label, node);
-        int ret = node->cls->prepare(node, rendertarget_layout);
+        ret = node->cls->prepare(node, rendertarget_layout);
         if (ret < 0) {
             LOG(ERROR, "preparing node %s failed: %s", node->label, NGLI_RET_STR(ret));
-            return ret;
+            if (node->cls->unprepare)
+                node->cls->unprepare(node);
+            goto fail;
         }
     }
 
+    ngli_darray_push(prepared_nodes, node);
     return 0;
+
+fail:
+    node->prepared = false;
+    return ret;
+}
+
+int ngli_node_prepare(struct ngl_node *node,
+                      const struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    struct ngli_node_darray prepared_nodes = {0};
+    const int ret = node_prepare(node, rendertarget_layout, &prepared_nodes);
+    if (ret < 0) {
+        while (!ngli_darray_is_empty(&prepared_nodes)) {
+            struct ngl_node *prepared_node = *ngli_darray_pop(&prepared_nodes);
+            prepared_node->prepared = false;
+            if (prepared_node->cls->unprepare)
+                prepared_node->cls->unprepare(prepared_node);
+        }
+    }
+    ngli_darray_reset(&prepared_nodes);
+    return ret;
 }
 
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
@@ -552,6 +604,31 @@ const struct node_param *ngli_node_param_find(const struct ngl_node *node, const
     return par;
 }
 
+struct node_param_update_arg {
+    struct ngl_node *node;
+    const struct node_param *par;
+    size_t from;
+    size_t to;
+};
+
+static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
+{
+    const struct node_param_update_arg *a = arg;
+    if (!ctx)
+        return 0;
+    if (a->par->update_func) {
+        int ret = a->par->update_func(a->node);
+        if (ret < 0)
+            return ret;
+    }
+    if (a->par->swap_func && a->from != a->to) {
+        int ret = a->par->swap_func(a->node, a->from, a->to);
+        if (ret < 0)
+            return ret;
+    }
+    return ngli_node_invalidate_branch(a->node);
+}
+
 static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, void *elems)
 {
     int ret = 0;
@@ -572,10 +649,11 @@ static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, vo
         return ret;
     }
 
-    if (node->ctx && par->update_func)
-        ret = par->update_func(node);
+    if (!nb_elems)
+        return 0;
 
-    return ret;
+    struct node_param_update_arg arg = { .node = node, .par = par };
+    return node_param_update_cb(node->ctx, &arg);
 }
 
 int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
@@ -613,20 +691,21 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
         return ret;
     }
 
-    if (!node->ctx)
-        return ret;
+    if (from == to)
+        return 0;
 
-    if (par->update_func)
-        ret = par->update_func(node);
-
-    if (par->swap_func)
-        ret = par->swap_func(node, from, to);
-
-    return ret;
+    struct node_param_update_arg arg = { .node = node, .par = par, .from = from, .to = to };
+    return node_param_update_cb(node->ctx, &arg);
 }
 
-int ngli_node_invalidate_branch(struct ngl_node *node)
+static int invalidate_branch(struct ngl_node *node, struct hmap *visited)
 {
+    const uint64_t key = (uint64_t)(uintptr_t)node;
+    if (ngli_hmap_get_u64(visited, key))
+        return 0;
+
+    ngli_hmap_set_u64(visited, key, node);
+
     node->visit_time = -1.;
     node->last_update_time = -1;
     if (node->cls->invalidate) {
@@ -635,11 +714,19 @@ int ngli_node_invalidate_branch(struct ngl_node *node)
             return ret;
     }
     for (size_t i = 0; i < node->parents.count; i++) {
-        int ret = ngli_node_invalidate_branch(node->parents.data[i]);
+        int ret = invalidate_branch(node->parents.data[i], visited);
         if (ret < 0)
             return ret;
     }
     return 0;
+}
+
+int ngli_node_invalidate_branch(struct ngl_node *node)
+{
+    struct hmap *visited = ngli_hmap_create(NGLI_HMAP_TYPE_U64);
+    const int ret = invalidate_branch(node, visited);
+    ngli_hmap_freep(&visited);
+    return ret;
 }
 
 static int node_param_is_value_allowed(struct ngl_node *node, const char *key,
@@ -662,22 +749,6 @@ static int node_param_is_value_allowed(struct ngl_node *node, const char *key,
     }
 
     return 0;
-}
-
-struct node_param_update_arg {
-    struct ngl_node *node;
-    const struct node_param *par;
-};
-
-static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
-{
-    const struct node_param_update_arg *a = arg;
-    if (a->par->update_func) {
-        int ret = a->par->update_func(a->node);
-        if (ret < 0)
-            return ret;
-    }
-    return ngli_node_invalidate_branch(a->node);
 }
 
 static int node_param_update(struct ngl_node *node, const struct node_param *par)
@@ -856,18 +927,49 @@ int ngl_node_get_label(struct ngl_node *node, const char **label)
     return 0;
 }
 
-static int append_child(struct ngl_node ***arrp, size_t *countp, size_t *capp, struct ngl_node *child)
+int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struct ngl_node *node)
 {
-    if (*countp >= *capp) {
-        const size_t new_cap = *capp ? *capp * 2 : 8;
-        struct ngl_node **tmp = ngli_try_realloc(*arrp, new_cap, sizeof(*tmp));
-        if (!tmp)
-            return NGL_ERROR_MEMORY;
-        *arrp = tmp;
-        *capp = new_cap;
+    uint8_t *base_ptr = node->opts;
+    const struct node_param *par = node->cls->params;
+
+    if (!par)
+        return 0;
+
+    for (; par->key; par++) {
+        uint8_t *parp = base_ptr + par->offset;
+
+        if (par->type == NGLI_PARAM_TYPE_NODE || (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)) {
+            struct ngl_node *child = *(struct ngl_node **)parp;
+            if (child) {
+                const int ret = func(user_arg, node, child);
+                if (ret < 0)
+                    return ret;
+            }
+        } else if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+            const struct ngli_node_darray *array = (const struct ngli_node_darray *)parp;
+            for (size_t i = 0; i < array->count; i++) {
+                const int ret = func(user_arg, node, array->data[i]);
+                if (ret < 0)
+                    return ret;
+            }
+        } else if (par->type == NGLI_PARAM_TYPE_NODEDICT) {
+            const struct hmap *hmap = *(struct hmap **)parp;
+            const struct hmap_entry *entry = NULL;
+            while (hmap && (entry = ngli_hmap_next(hmap, entry))) {
+                const int ret = func(user_arg, node, entry->data);
+                if (ret < 0)
+                    return ret;
+            }
+        }
     }
-    (*arrp)[(*countp)++] = child;
+
     return 0;
+}
+
+static int collect_child(void *user_arg, struct ngl_node *parent ngli_unused, struct ngl_node *child)
+{
+    struct ngli_node_darray *children = user_arg;
+    return ngli_darray_try_push(children, child);
 }
 
 int ngl_node_get_children(const struct ngl_node *node,
@@ -879,39 +981,15 @@ int ngl_node_get_children(const struct ngl_node *node,
     if (!node || !node->cls || !node->cls->params)
         return 0;
 
-    struct ngl_node **children = NULL;
-    size_t count = 0, capacity = 0;
-
-    const struct node_param *par = node->cls->params;
-    const uint8_t *opts = node->opts;
-
-    while (par->key) {
-        if (par->type == NGLI_PARAM_TYPE_NODE ||
-            (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)) {
-            struct ngl_node *child = *(struct ngl_node **)(opts + par->offset);
-            if (child) {
-                int ret = append_child(&children, &count, &capacity, child);
-                if (ret < 0) {
-                    ngli_free(children);
-                    return ret;
-                }
-            }
-        } else if (par->type == NGLI_PARAM_TYPE_NODELIST) {
-            struct ngl_node **elems = *(struct ngl_node ***)(opts + par->offset);
-            const size_t nb_elems = *(const size_t *)(opts + par->offset + sizeof(struct ngl_node **));
-            for (size_t i = 0; i < nb_elems; i++) {
-                int ret = append_child(&children, &count, &capacity, elems[i]);
-                if (ret < 0) {
-                    ngli_free(children);
-                    return ret;
-                }
-            }
-        }
-        par++;
+    struct ngli_node_darray children = {0};
+    const int ret = ngli_node_children_apply(collect_child, &children, (struct ngl_node *)node);
+    if (ret < 0) {
+        ngli_darray_reset(&children);
+        return ret;
     }
 
-    *childrenp = children;
-    *nb_childrenp = count;
+    *childrenp = children.data;
+    *nb_childrenp = children.count;
     return 0;
 }
 
@@ -1237,35 +1315,30 @@ static struct ngl_node *duplicate_node(struct hmap *dupmap, const struct ngl_nod
                     break;
                 }
                 case NGLI_PARAM_TYPE_NODELIST: {
-                    struct ngl_node *const *src_elems = *(struct ngl_node *const *const *)srcp;
-                    const size_t nb_elems = *(const size_t *)(srcp + sizeof(struct ngl_node **));
-                    if (nb_elems) {
-                        struct ngl_node **dst_elems = ngli_try_calloc(nb_elems, sizeof(*dst_elems));
-                        if (!dst_elems)
+                    const struct ngli_node_darray *src_array = (const struct ngli_node_darray *)srcp;
+                    struct ngli_node_darray *dst_array = (struct ngli_node_darray *)dstp;
+                    if (src_array->count) {
+                        ret = ngli_darray_try_reserve(dst_array, src_array->count);
+                        if (ret < 0)
                             goto fail;
-                        for (size_t i = 0; i < nb_elems; i++) {
-                            dst_elems[i] = duplicate_node(dupmap, src_elems[i], flags);
-                            if (!dst_elems[i]) {
-                                for (size_t j = 0; j < i; j++)
-                                    ngl_node_unrefp(&dst_elems[j]);
-                                ngli_free(dst_elems);
+                        for (size_t i = 0; i < src_array->count; i++) {
+                            struct ngl_node *dst_elem = duplicate_node(dupmap, src_array->data[i], flags);
+                            if (!dst_elem)
                                 goto fail;
-                            }
+                            dst_array->data[dst_array->count++] = dst_elem;
                         }
-                        memcpy(dstp, &dst_elems, sizeof(struct ngl_node **));
-                        memcpy(dstp + sizeof(struct ngl_node **), &nb_elems, sizeof(nb_elems));
                     }
                     break;
                 }
                 case NGLI_PARAM_TYPE_F64LIST: {
-                    const double *src_elems = *(const double *const *)srcp;
-                    const size_t nb_elems = *(const size_t *)(srcp + sizeof(double *));
-                    if (nb_elems) {
-                        double *dst_elems = ngli_try_memdup(src_elems, nb_elems * sizeof(*dst_elems));
-                        if (!dst_elems)
+                    const struct ngli_f64_darray *src_array = (const struct ngli_f64_darray *)srcp;
+                    struct ngli_f64_darray *dst_array = (struct ngli_f64_darray *)dstp;
+                    if (src_array->count) {
+                        ret = ngli_darray_try_reserve(dst_array, src_array->count);
+                        if (ret < 0)
                             goto fail;
-                        memcpy(dstp, &dst_elems, sizeof(double *));
-                        memcpy(dstp + sizeof(double *), &nb_elems, sizeof(nb_elems));
+                        memcpy(dst_array->data, src_array->data, src_array->count * sizeof(*src_array->data));
+                        dst_array->count = src_array->count;
                     }
                     break;
                 }
@@ -1365,6 +1438,9 @@ void ngl_node_unrefp(struct ngl_node **nodep)
         ngli_assert(!node->ctx);
         if (node->cls->free)
             node->cls->free(node);
+        ngli_darray_reset(&node->children);
+        ngli_darray_reset(&node->draw_children);
+        ngli_darray_reset(&node->parents);
         ngli_params_free((uint8_t *)node, ngli_base_node_params);
         ngli_params_free(node->opts, node->cls->params);
         ngli_free_aligned(node);

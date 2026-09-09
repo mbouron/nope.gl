@@ -36,6 +36,9 @@ struct aligned_mat {
     _Alignas(32) float m[16];
 };
 
+NGLI_DECLARE_DARRAY_WITH_NAME(int_darray, int);
+NGLI_DEFINE_DARRAY_FIND(int_darray)
+
 static void free_elem(void *user_arg, void *data)
 {
     struct my_item *item = data;
@@ -51,9 +54,14 @@ static void count_free(void *user_arg, void *data)
     g_free_calls++;
 }
 
+static int divisible_by(const int *divisor, const int *data)
+{
+    return *data % *divisor == 0;
+}
+
 static void test_basic(void)
 {
-    NGLI_DARRAY(int) a = {0};
+    struct int_darray a = {0};
 
     ngli_assert(a.count == 0);
 
@@ -67,6 +75,10 @@ static void test_basic(void)
 
     ngli_assert(a.data[0] == 0xFF);
 
+    ngli_assert(int_darray_find(&a, 0xFF) == 0);
+    ngli_assert(int_darray_find(&a, 0xFFFF) == 1);
+    ngli_assert(int_darray_find(&a, 42) == SIZE_MAX);
+
     /* get/tail/pop assert on out-of-bounds / empty access */
     ngli_assert(*ngli_darray_get(&a, 0) == 0xFF);
     ngli_assert(*ngli_darray_get(&a, 1) == 0xFFFF);
@@ -78,6 +90,7 @@ static void test_basic(void)
     popped = ngli_darray_pop(&a);
     ngli_assert(*popped == 0xFF);
     ngli_assert(a.count == 0);
+    ngli_assert(int_darray_find(&a, 0xFF) == SIZE_MAX);
 
     for (int i = 0; i < 1000; i++)
         ngli_assert(ngli_darray_try_push(&a, i) == 0);
@@ -154,6 +167,30 @@ static void test_remove_range(void)
     ngli_assert(a.data[1] == 5);
 
     ngli_darray_reset(&a);
+}
+
+static void test_remove_if(void)
+{
+    NGLI_DARRAY(int) a = {0};
+    ngli_darray_set_free_func(&a, count_free, NULL);
+
+    for (int i = 0; i < 6; i++)
+        ngli_darray_push(&a, i);
+
+    const int divisor = 2;
+    g_free_calls = 0;
+    ngli_darray_remove_if(&a, divisible_by, &divisor);
+    ngli_assert(g_free_calls == 3);
+    ngli_assert(a.count == 3);
+    ngli_assert(a.data[0] == 1);
+    ngli_assert(a.data[1] == 3);
+    ngli_assert(a.data[2] == 5);
+
+    ngli_darray_remove_if(&a, divisible_by, &divisor);
+    ngli_assert(g_free_calls == 3);
+
+    ngli_darray_reset(&a);
+    ngli_assert(g_free_calls == 6);
 }
 
 static void test_insert(void)
@@ -269,6 +306,7 @@ int main(void)
     test_compound_literal_push();
     test_reserve();
     test_remove_range();
+    test_remove_if();
     test_insert();
     test_clear_vs_reset();
     test_user_free_func();

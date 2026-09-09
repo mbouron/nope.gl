@@ -148,22 +148,22 @@ int ngli_velocity_evaluate(struct ngl_node *node, void *dst, double t)
         return NGL_ERROR_INVALID_USAGE;
 
     const struct variable_opts *anim = o->anim_node->opts;
-    if (!anim->nb_animkf)
+    if (!anim->animkf.count)
         return NGL_ERROR_INVALID_ARG;
 
     if (!s->anim_eval.kfs) {
         int ret = ngli_animation_init(&s->anim_eval, NULL,
-                                      anim->animkf, anim->nb_animkf,
+                                      anim->animkf.data, anim->animkf.count,
                                       get_mix_func(node->cls->id),
                                       get_cpy_func(node->cls->id));
         if (ret < 0)
             return ret;
     }
 
-    struct animkeyframe_priv *kf0 = anim->animkf[0]->priv_data;
+    struct animkeyframe_priv *kf0 = anim->animkf.data[0]->priv_data;
     if (!kf0->derivative) {
-        for (size_t i = 0; i < anim->nb_animkf; i++) {
-            int ret = anim->animkf[i]->cls->init(anim->animkf[i]);
+        for (size_t i = 0; i < anim->animkf.count; i++) {
+            int ret = anim->animkf.data[i]->cls->init(anim->animkf.data[i]);
             if (ret < 0)
                 return ret;
         }
@@ -179,7 +179,7 @@ static int velocity_init(struct ngl_node *node)
     const struct variable_opts *anim = o->anim_node->opts;
     s->var.dynamic = 1;
     return ngli_animation_init(&s->anim, NULL,
-                               anim->animkf, anim->nb_animkf,
+                               anim->animkf.data, anim->animkf.count,
                                get_mix_func(node->cls->id),
                                get_cpy_func(node->cls->id));
 }

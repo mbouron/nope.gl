@@ -29,8 +29,7 @@
 struct variable_opts {
     struct livectl live;
 
-    struct ngl_node **animkf;
-    size_t nb_animkf;
+    struct ngli_node_darray animkf;
 
     union {
         struct ngl_node *path_node; /* AnimatedPath only */

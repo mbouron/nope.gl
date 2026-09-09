@@ -32,7 +32,9 @@ class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) 
         private var nativePtr: Long = 0L
 
         protected abstract fun init()
+        protected abstract fun initResources()
         protected abstract fun prepare()
+        protected abstract fun unprepare()
         protected abstract fun prefetch()
         protected abstract fun update(time: Double)
         protected abstract fun draw()

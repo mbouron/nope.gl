@@ -35,12 +35,10 @@
 #include "utils/utils.h"
 
 struct offscreencanvas2d_opts {
-    struct ngl_node **children;
-    size_t nb_children;
+    struct ngli_node_darray children;
     int32_t width;
     int32_t height;
-    struct ngl_node **color_textures;
-    size_t nb_color_textures;
+    struct ngli_node_darray color_textures;
     struct ngl_node *depth_texture;
     uint32_t samples;
     float clear_color[4];
@@ -140,7 +138,7 @@ static int offscreencanvas2d_init(struct ngl_node *node)
     struct offscreencanvas2d_priv *s = node->priv_data;
     const struct offscreencanvas2d_opts *o = node->opts;
 
-    if (!o->nb_color_textures) {
+    if (!o->color_textures.count) {
         LOG(ERROR, "at least one color texture must be specified");
         return NGL_ERROR_INVALID_ARG;
     }
@@ -148,8 +146,8 @@ static int offscreencanvas2d_init(struct ngl_node *node)
     s->layout.samples = o->samples;
 
     size_t nb_color_attachments = 0;
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
-        const struct rtt_texture_info texture_info = get_rtt_texture_info(o->color_textures[i]);
+    for (size_t i = 0; i < o->color_textures.count; i++) {
+        const struct rtt_texture_info texture_info = get_rtt_texture_info(o->color_textures.data[i]);
         nb_color_attachments += texture_info.layer_count;
 
         if (ngli_node_texture_has_media_data_src(texture_info.node)) {
@@ -230,8 +228,8 @@ static int offscreencanvas2d_prefetch(struct ngl_node *node)
         .samples = o->samples,
     };
 
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
-        const struct rtt_texture_info rti = get_rtt_texture_info(o->color_textures[i]);
+    for (size_t i = 0; i < o->color_textures.count; i++) {
+        const struct rtt_texture_info rti = get_rtt_texture_info(o->color_textures.data[i]);
         struct ngpu_texture *texture = rti.info->texture;
         const uint32_t layer_end = rti.layer_base + rti.layer_count;
         for (uint32_t j = rti.layer_base; j < layer_end; j++) {
@@ -287,14 +285,14 @@ static int offscreencanvas2d_resize(struct ngl_node *node)
     struct ngpu_texture *depth_texture = NULL;
     struct rtt_ctx *rtt_ctx = NULL;
 
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
+    for (size_t i = 0; i < o->color_textures.count; i++) {
         textures[i] = ngpu_texture_create(ctx->gpu_ctx);
         if (!textures[i]) {
             ret = NGL_ERROR_MEMORY;
             goto fail;
         }
 
-        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures[i]);
+        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures.data[i]);
         struct ngpu_texture_params texture_params = info.info->params;
         texture_params.width = width;
         texture_params.height = height;
@@ -331,7 +329,7 @@ static int offscreencanvas2d_resize(struct ngl_node *node)
     params.width  = width;
     params.height = height;
 
-    for (size_t i = 0; i < o->nb_color_textures; i++)
+    for (size_t i = 0; i < o->color_textures.count; i++)
         params.colors[i].attachment = textures[i];
     params.depth_stencil.attachment = depth_texture;
 
@@ -346,8 +344,8 @@ static int offscreencanvas2d_resize(struct ngl_node *node)
     s->rtt_params = params;
     s->rtt_ctx = rtt_ctx;
 
-    for (size_t i = 0; i < o->nb_color_textures; i++) {
-        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures[i]);
+    for (size_t i = 0; i < o->color_textures.count; i++) {
+        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures.data[i]);
         struct texture_info *texture_info = info.info;
         ngpu_texture_freep(&texture_info->texture);
         texture_info->texture = textures[i];
@@ -371,7 +369,7 @@ static int offscreencanvas2d_resize(struct ngl_node *node)
     return 0;
 
 fail:
-    for (size_t i = 0; i < o->nb_color_textures; i++)
+    for (size_t i = 0; i < o->color_textures.count; i++)
         ngpu_texture_freep(&textures[i]);
     ngpu_texture_freep(&depth_texture);
     ngli_rtt_freep(&rtt_ctx);
@@ -430,8 +428,8 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
     ctx->viewport = (struct ngpu_viewport){0.f, 0.f, (float)rtt_width, (float)rtt_height};
     ctx->scissor = (struct ngpu_scissor){0, 0, rtt_width, rtt_height};
 
-    for (size_t i = 0; i < o->nb_children; i++)
-        ngli_node_pre_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++)
+        ngli_node_pre_draw(o->children.data[i]);
 
     /* Let ngli_rtt_begin() save the enclosing viewport and scissor. */
     ctx->viewport = prev_viewport;
@@ -445,8 +443,8 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
     ngli_mat4_mul(ctx->projection_2d_matrix.m, base_projection.m, ctx->projection_2d_matrix.m);
 
     /* Draw children */
-    for (size_t i = 0; i < o->nb_children; i++) {
-        ngli_node_draw(o->children[i]);
+    for (size_t i = 0; i < o->children.count; i++) {
+        ngli_node_draw(o->children.data[i]);
     }
 
     ngli_rtt_end(s->rtt_ctx);

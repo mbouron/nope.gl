@@ -591,7 +591,7 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
     return 0;
 }
 
-void ngli_pass_uninit(struct pass *s)
+void ngli_pass_unprepare(struct pass *s)
 {
     if (!s->ctx)
         return;
@@ -602,6 +602,10 @@ void ngli_pass_uninit(struct pass *s)
     ngli_darray_reset(&desc->textures_map);
 
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+void ngli_pass_uninit(struct pass *s)
+{
     ngpu_block_desc_reset(&s->user_vert_block);
     ngpu_block_desc_reset(&s->user_frag_block);
     ngpu_block_desc_reset(&s->user_comp_block);

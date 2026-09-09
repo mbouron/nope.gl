@@ -88,7 +88,15 @@ class NGLAndroidCanvas(
             callback.onInit()
         }
 
+        override fun initResources() {
+            /* no-op */
+        }
+
         override fun prepare() {
+            /* no-op */
+        }
+
+        override fun unprepare() {
             /* no-op */
         }
 

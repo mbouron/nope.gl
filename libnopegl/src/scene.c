@@ -32,59 +32,6 @@
 
 NGLI_RC_CHECK_STRUCT(ngl_scene);
 
-typedef int (*children_func_type)(void *user_arg, struct ngl_node *parent, struct ngl_node *node);
-
-/*
- * Apply a function on all children by walking through them. This is useful when
- * node->children is not yet initialized (or confirmed to be complete yet).
- */
-static int children_apply_func(children_func_type func, void *user_arg, struct ngl_node *node)
-{
-    uint8_t *base_ptr = node->opts;
-    const struct node_param *par = node->cls->params;
-
-    if (!par)
-        return 0;
-
-    while (par->key) {
-        uint8_t *parp = base_ptr + par->offset;
-
-        if (par->type == NGLI_PARAM_TYPE_NODE || (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)) {
-            struct ngl_node *child = *(struct ngl_node **)parp;
-            if (child) {
-                int ret = func(user_arg, node, child);
-                if (ret < 0)
-                    return ret;
-            }
-        } else if (par->type == NGLI_PARAM_TYPE_NODELIST) {
-            uint8_t *elems_p = parp;
-            uint8_t *nb_elems_p = parp + sizeof(struct ngl_node **);
-            struct ngl_node **elems = *(struct ngl_node ***)elems_p;
-            const size_t nb_elems = *(size_t *)nb_elems_p;
-            for (size_t i = 0; i < nb_elems; i++) {
-                struct ngl_node *child = elems[i];
-                int ret = func(user_arg, node, child);
-                if (ret < 0)
-                    return ret;
-            }
-        } else if (par->type == NGLI_PARAM_TYPE_NODEDICT) {
-            struct hmap *hmap = *(struct hmap **)parp;
-            if (hmap) {
-                const struct hmap_entry *entry = NULL;
-                while ((entry = ngli_hmap_next(hmap, entry))) {
-                    struct ngl_node *child = entry->data;
-                    int ret = func(user_arg, node, child);
-                    if (ret < 0)
-                        return ret;
-                }
-            }
-        }
-        par++;
-    }
-
-    return 0;
-}
-
 static int reset_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node *node)
 {
     struct ngl_scene *s = user_arg;
@@ -102,7 +49,7 @@ static int reset_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node 
 
     ngli_assert(!node->ctx);
 
-    int ret = children_apply_func(reset_nodes, s, node);
+    int ret = ngli_node_children_apply(reset_nodes, s, node);
     ngli_assert(ret == 0);
 
     ngli_darray_reset(&node->children);
@@ -127,14 +74,6 @@ static void detach_root(struct ngl_scene *s)
     ngli_assert(ret == 0);
 
     ngl_node_unrefp(&s->params.root);
-}
-
-static size_t get_node_index(const struct ngli_node_darray *nodes, const struct ngl_node *node)
-{
-    for (size_t i = 0; i < nodes->count; i++)
-        if (nodes->data[i] == node)
-            return i;
-    return SIZE_MAX;
 }
 
 static void add_scene_node(struct ngl_scene *s, struct ngl_node *node)
@@ -213,7 +152,7 @@ static struct ngl_node *remove_runtime_edge_at(struct ngl_node *parent, size_t i
         ngli_darray_remove(&parent->draw_children, draw_index);
     }
 
-    const size_t parent_index = get_node_index(&child->parents, parent);
+    const size_t parent_index = ngli_node_darray_find(&child->parents, parent);
     ngli_assert(parent_index != SIZE_MAX);
     ngli_darray_remove(&child->parents, parent_index);
 
@@ -222,7 +161,7 @@ static struct ngl_node *remove_runtime_edge_at(struct ngl_node *parent, size_t i
 
 static void remove_runtime_edge(struct ngl_node *parent, struct ngl_node *child)
 {
-    const size_t index = get_node_index(&parent->children, child);
+    const size_t index = ngli_node_darray_find(&parent->children, child);
     ngli_assert(index != SIZE_MAX);
     remove_runtime_edge_at(parent, index);
 }
@@ -245,8 +184,8 @@ static int add_scene_edge_at(struct ngl_scene *s, struct ngl_node *parent,
             LOG(ERROR, "one or more nodes of the graph are associated with another scene already");
             return NGL_ERROR_INVALID_USAGE;
         }
-        if (child->cls->flags & NGLI_NODE_FLAG_2D) {
-            LOG(ERROR, "2D node %s (%s) can not be shared within the graph",
+        if (!(child->cls->flags & NGLI_NODE_FLAG_SHAREABLE)) {
+            LOG(ERROR, "%s (%s) can not be shared within the graph",
                 child->label, child->cls->name);
             return NGL_ERROR_INVALID_USAGE;
         }
@@ -257,7 +196,7 @@ static int add_scene_edge_at(struct ngl_scene *s, struct ngl_node *parent,
     add_runtime_edge(parent, child, index);
     add_scene_node(s, child);
 
-    const int ret = children_apply_func(add_scene_edge, s, child);
+    const int ret = ngli_node_children_apply(add_scene_edge, s, child);
     if (ret < 0) {
         remove_scene_children(child);
         remove_scene_node(s, child);
@@ -273,7 +212,7 @@ static int add_scene_edge(void *user_arg, struct ngl_node *parent, struct ngl_no
 
 static void remove_scene_edge(struct ngl_node *parent, struct ngl_node *child)
 {
-    const size_t index = get_node_index(&parent->children, child);
+    const size_t index = ngli_node_darray_find(&parent->children, child);
     ngli_assert(index != SIZE_MAX);
     remove_scene_edge_at(parent, index);
 }
@@ -336,7 +275,7 @@ static int check_nodes_params_sanity(const struct ngli_node_darray *nodes_array)
         const struct node_param *par = node->cls->params;
 
         if (!par)
-            return 0;
+            continue;
 
         while (par->key) {
             const void *p = base_ptr + par->offset;
@@ -357,7 +296,7 @@ static int attach_root(struct ngl_scene *s, struct ngl_node *node)
 
     add_scene_node(s, s->params.root);
 
-    int ret = children_apply_func(add_scene_edge, s, s->params.root);
+    int ret = ngli_node_children_apply(add_scene_edge, s, s->params.root);
     if (ret < 0)
         goto fail;
 

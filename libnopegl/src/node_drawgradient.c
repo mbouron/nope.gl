@@ -161,8 +161,7 @@ struct drawgradient_opts {
     int linear;
     struct ngli_graphics_state_opts state;
     struct ngl_node *geometry;
-    struct ngl_node **filters;
-    size_t nb_filters;
+    struct ngli_node_darray filters;
 };
 
 struct drawgradient_priv {
@@ -303,8 +302,8 @@ static int drawgradient_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    for (size_t i = 0; i < o->nb_filters; i++) {
-        const struct ngl_node *filter_node = o->filters[i];
+    for (size_t i = 0; i < o->filters.count; i++) {
+        const struct ngl_node *filter_node = o->filters.data[i];
         const struct filter *filter = filter_node->priv_data;
         ret = ngli_filterschain_add_filter(s->filterschain, filter);
         if (ret < 0)
@@ -537,19 +536,23 @@ static void drawgradient_draw(struct ngl_node *node)
     }
 }
 
-static void drawgradient_uninit(struct ngl_node *node)
+static void drawgradient_unprepare(struct ngl_node *node)
 {
     struct drawgradient_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_compat_freep(&desc->pipeline_compat);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawgradient_uninit(struct ngl_node *node)
+{
+    struct drawgradient_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -574,6 +577,7 @@ const struct node_class ngli_drawgradient_class = {
     .name      = "DrawGradient",
     .init      = drawgradient_init,
     .prepare   = drawgradient_prepare,
+    .unprepare = drawgradient_unprepare,
     .get_renderpass_usage = drawgradient_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawgradient_draw,
@@ -609,8 +613,7 @@ struct drawgradient4_opts {
     int linear;
     struct ngli_graphics_state_opts state;
     struct ngl_node *geometry;
-    struct ngl_node **filters;
-    size_t nb_filters;
+    struct ngli_node_darray filters;
 };
 
 struct drawgradient4_priv {
@@ -741,8 +744,8 @@ static int drawgradient4_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    for (size_t i = 0; i < o->nb_filters; i++) {
-        const struct ngl_node *filter_node = o->filters[i];
+    for (size_t i = 0; i < o->filters.count; i++) {
+        const struct ngl_node *filter_node = o->filters.data[i];
         const struct filter *filter = filter_node->priv_data;
         ret = ngli_filterschain_add_filter(s->filterschain, filter);
         if (ret < 0)
@@ -983,19 +986,23 @@ static void drawgradient4_draw(struct ngl_node *node)
     }
 }
 
-static void drawgradient4_uninit(struct ngl_node *node)
+static void drawgradient4_unprepare(struct ngl_node *node)
 {
     struct drawgradient4_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    /* Free pipeline desc resources */
     ngli_pipeline_compat_freep(&desc->pipeline_compat);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
-
-    /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
+}
+
+static void drawgradient4_uninit(struct ngl_node *node)
+{
+    struct drawgradient4_priv *s = node->priv_data;
+
+    /* Free block descriptors */
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
 
@@ -1020,6 +1027,7 @@ const struct node_class ngli_drawgradient4_class = {
     .name      = "DrawGradient4",
     .init      = drawgradient4_init,
     .prepare   = drawgradient4_prepare,
+    .unprepare = drawgradient4_unprepare,
     .get_renderpass_usage = drawgradient4_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawgradient4_draw,

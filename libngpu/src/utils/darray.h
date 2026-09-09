@@ -23,6 +23,7 @@
 #define NGPU_DARRAY_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "utils.h"
@@ -51,6 +52,16 @@ void ngpu_darray_free_(void *ptr, size_t alignment);
     size_t capacity;                                                             \
     ngpu_user_free_func_type user_free_func;                                     \
     void *user_arg;                                                              \
+}
+
+#define NGPU_DEFINE_DARRAY_FIND(name)                                           \
+static inline size_t name##_find(                                               \
+    const struct name *array, __typeof__(((struct name *)0)->data[0]) value)    \
+{                                                                               \
+    for (size_t i = 0; i < array->count; i++)                                   \
+        if (array->data[i] == value)                                            \
+            return i;                                                           \
+    return SIZE_MAX;                                                            \
 }
 
 #define ngpu_darray_is_empty(a) ((a)->count == 0)
@@ -125,6 +136,32 @@ void ngpu_darray_free_(void *ptr, size_t alignment);
 } while (0)
 
 #define ngpu_darray_remove(a, idx) ngpu_darray_remove_range((a), (idx), 1)
+
+#define ngpu_darray_remove_if(a, predicate, arg) do {                            \
+    __typeof__(a) _ngpu_darray_remove_if_array = (a);                            \
+    __typeof__((void)0, (predicate)) _ngpu_darray_remove_if_predicate =          \
+        (predicate);                                                             \
+    __typeof__(arg) _ngpu_darray_remove_if_arg = (arg);                          \
+    const size_t _ngpu_darray_remove_if_old_count =                              \
+        _ngpu_darray_remove_if_array->count;                                     \
+    size_t _ngpu_darray_remove_if_dst = 0;                                       \
+    for (size_t _src = 0; _src < _ngpu_darray_remove_if_old_count; _src++) {     \
+        __typeof__(_ngpu_darray_remove_if_array->data) _element =                \
+            &_ngpu_darray_remove_if_array->data[_src];                           \
+        if (_ngpu_darray_remove_if_predicate(_ngpu_darray_remove_if_arg,         \
+                                              _element)) {                       \
+            if (_ngpu_darray_remove_if_array->user_free_func)                    \
+                _ngpu_darray_remove_if_array->user_free_func(                    \
+                    _ngpu_darray_remove_if_array->user_arg, _element);           \
+            continue;                                                            \
+        }                                                                        \
+        if (_ngpu_darray_remove_if_dst != _src)                                  \
+            _ngpu_darray_remove_if_array->data[_ngpu_darray_remove_if_dst] =     \
+                *_element;                                                       \
+        _ngpu_darray_remove_if_dst++;                                            \
+    }                                                                            \
+    _ngpu_darray_remove_if_array->count = _ngpu_darray_remove_if_dst;            \
+} while (0)
 
 #define ngpu_darray_reset(a) do {                                                \
     ngpu_darray_clear(a);                                                        \
