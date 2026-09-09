@@ -95,7 +95,6 @@ static int create_rendertarget(struct ngpu_ctx *s,
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
     const struct ngpu_ctx_params *ctx_params = &s->params;
-    const struct ngpu_ctx_params_gl *ctx_params_gl = ctx_params->backend_params;
 
     struct ngpu_rendertarget *rendertarget = ngpu_rendertarget_create(s);
     if (!rendertarget)
