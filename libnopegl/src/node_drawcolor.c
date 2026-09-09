@@ -63,21 +63,8 @@
                                               NGL_NODE_FILTERSRGB2LINEAR,    \
                                               NGLI_NODE_NONE}
 
-struct resource_map {
-    int32_t index;
-    const struct block_info *info;
-    size_t buffer_rev;
-};
-
-struct texture_map {
-    const struct image *image;
-    size_t image_rev;
-};
-
 struct pipeline_desc {
     struct ngli_pipeline *pipeline;
-    NGLI_DARRAY(struct resource_map) blocks_map;
-    NGLI_DARRAY(struct texture_map) textures_map;
 };
 
 struct drawcolor_opts {
@@ -154,7 +141,6 @@ static const struct node_param drawcolor_params[] = {
 };
 #undef OFFSET
 
-
 static int drawcolor_init(struct ngl_node *node)
 {
     struct drawcolor_priv *s = node->priv_data;
@@ -178,8 +164,7 @@ static int drawcolor_init(struct ngl_node *node)
         s->geometry = *(struct geometry **)o->geometry->priv_data;
     }
 
-    struct ngpu_buffer *vertices = s->geometry->vertices_buffer;
-    struct ngpu_buffer *uvcoords = s->geometry->uvcoords_buffer;
+    const struct resource *uvcoords = s->geometry->uvcoords;
     struct buffer_layout vertices_layout = s->geometry->vertices_layout;
     struct buffer_layout uvcoords_layout = s->geometry->uvcoords_layout;
 
@@ -203,14 +188,12 @@ static int drawcolor_init(struct ngl_node *node)
     s->position_attr.format = NGPU_FORMAT_R32G32B32_SFLOAT;
     s->position_attr.stride = vertices_layout.stride;
     s->position_attr.offset = vertices_layout.offset;
-    s->position_attr.buffer = vertices;
 
     snprintf(s->uvcoord_attr.name, sizeof(s->uvcoord_attr.name), "uvcoord");
     s->uvcoord_attr.type   = NGPU_TYPE_VEC2;
     s->uvcoord_attr.format = NGPU_FORMAT_R32G32_SFLOAT;
     s->uvcoord_attr.stride = uvcoords_layout.stride;
     s->uvcoord_attr.offset = uvcoords_layout.offset;
-    s->uvcoord_attr.buffer = uvcoords;
 
     s->nb_vertices = (uint32_t)vertices_layout.count;
     s->topology = s->geometry->topology;
@@ -345,8 +328,6 @@ static int drawcolor_prepare(struct ngl_node *node,
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
@@ -354,11 +335,27 @@ static int drawcolor_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
+    const int32_t position_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "position");
+    const int32_t uvcoord_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "uvcoord");
+    ret = ngli_pipeline_set_vertex_source(desc->pipeline, position_index, s->geometry->vertices);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    if (s->geometry->indices) {
+        ret = ngli_pipeline_set_index_source(desc->pipeline, s->geometry->indices, s->geometry->indices_layout.format);
+        if (ret < 0)
+            return ret;
+    }
+    ret = ngli_pipeline_set_vertex_source(desc->pipeline, uvcoord_index, s->geometry->uvcoords);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+
     return 0;
 }
 
 static void drawcolor_draw(struct ngl_node *node)
 {
+    const struct pipeline_execution execution = {.staging = node->ctx->current_staging_buffer};
+
     struct drawcolor_priv *s = node->priv_data;
     const struct drawcolor_opts *o = node->opts;
 
@@ -366,7 +363,7 @@ static void drawcolor_draw(struct ngl_node *node)
 
     struct ngl_ctx *ctx = node->ctx;
     struct pipeline_desc *desc = &s->pipeline_desc;
-    struct ngli_pipeline *pipeline = desc->pipeline;
+    struct ngli_pipeline *pl = desc->pipeline;
 
     const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
@@ -379,8 +376,8 @@ static void drawcolor_draw(struct ngl_node *node)
     if (s->vert_block_index >= 0) {
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_update_buffer(pipeline, s->vert_block_index,
-                                    staging_buf, vert_offset, sizeof(vert_data));
+        ngli_pipeline_update_buffer(pl, s->vert_block_index,
+                                           staging_buf, vert_offset, sizeof(vert_data));
     }
 
     /* Fill and push fragment block to staging buffer */
@@ -409,25 +406,8 @@ static void drawcolor_draw(struct ngl_node *node)
         }
 
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_update_buffer(pipeline, s->frag_block_index,
-                                    staging_buf, frag_offset, frag_size);
-    }
-
-    struct texture_map *texture_map = desc->textures_map.data;
-    for (size_t i = 0; i < desc->textures_map.count; i++) {
-        if (texture_map[i].image_rev != texture_map[i].image->rev) {
-            ngli_pipeline_update_image(pipeline, (int32_t)i, texture_map[i].image);
-            texture_map[i].image_rev = texture_map[i].image->rev;
-        }
-    }
-
-    struct resource_map *resource_map = desc->blocks_map.data;
-    for (size_t i = 0; i < desc->blocks_map.count; i++) {
-        const struct block_info *info = resource_map[i].info;
-        if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
-            resource_map[i].buffer_rev = info->buffer_rev;
-        }
+        ngli_pipeline_update_buffer(pl, s->frag_block_index,
+                                           staging_buf, frag_offset, frag_size);
     }
 
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
@@ -439,13 +419,18 @@ static void drawcolor_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    if (s->geometry->indices_buffer) {
-        const struct ngpu_buffer *indices = s->geometry->indices_buffer;
+    if (s->geometry->indices) {
         const struct buffer_layout *layout = &s->geometry->indices_layout;
-        ngli_pipeline_draw_indexed(pipeline, ctx->current_staging_buffer, indices, layout->format, (uint32_t)layout->count, 1);
+        ngli_pipeline_draw_indexed(pl, &execution, (uint32_t)layout->count, 1);
     } else {
-        ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, 1, 0);
+        ngli_pipeline_draw(pl, &execution, s->nb_vertices, 1, 0);
     }
+}
+
+static void drawcolor_release(struct ngl_node *node)
+{
+    struct drawcolor_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
 static void drawcolor_uninit(struct ngl_node *node)
@@ -455,8 +440,6 @@ static void drawcolor_uninit(struct ngl_node *node)
 
     /* Free pipeline desc resources */
     ngli_pipeline_freep(&desc->pipeline);
-    ngli_darray_reset(&desc->blocks_map);
-    ngli_darray_reset(&desc->textures_map);
 
     /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
@@ -487,6 +470,7 @@ const struct node_class ngli_drawcolor_class = {
     .get_renderpass_usage = drawcolor_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawcolor_draw,
+    .release   = drawcolor_release,
     .uninit    = drawcolor_uninit,
     .opts_size = sizeof(struct drawcolor_opts),
     .priv_size = sizeof(struct drawcolor_priv),

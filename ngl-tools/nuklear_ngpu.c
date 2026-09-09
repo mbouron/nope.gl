@@ -284,21 +284,18 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
             .format = NGPU_FORMAT_R32G32_SFLOAT,
             .stride = sizeof(struct nk_ngpu_vertex),
             .offset = offsetof(struct nk_ngpu_vertex, position),
-            .buffer = s->vbo,
         }, {
             .name   = "texcoord",
             .type   = NGPU_TYPE_VEC2,
             .format = NGPU_FORMAT_R32G32_SFLOAT,
             .stride = sizeof(struct nk_ngpu_vertex),
             .offset = offsetof(struct nk_ngpu_vertex, uv),
-            .buffer = s->vbo,
         }, {
             .name   = "color",
             .type   = NGPU_TYPE_VEC4,
             .format = NGPU_FORMAT_R32G32B32A32_SFLOAT,
             .stride = sizeof(struct nk_ngpu_vertex),
             .offset = offsetof(struct nk_ngpu_vertex, col),
-            .buffer = s->vbo,
         },
     };
 
@@ -312,7 +309,6 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
             .name        = "tex",
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .texture     = s->font_tex,
             .no_metadata = true,
         },
     };
@@ -324,7 +320,6 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_VERT,
             .block         = &s->proj_block_desc,
-            .buffer        = {.buffer = s->proj_buffer, .size = proj_size},
         },
     };
 
@@ -363,12 +358,8 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
     if (ret < 0)
         return ret;
 
-    struct ngpu_bindgroup_resources bg_resources =
-        ngpu_pgcraft_get_bindgroup_resources(s->crafter);
-
     const struct ngpu_bindgroup_params bg_params = {
         .layout    = s->bg_layout,
-        .resources = bg_resources,
     };
     s->bindgroup = ngpu_bindgroup_create(s->gpu_ctx);
     if (!s->bindgroup)
@@ -377,11 +368,11 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
     if (ret < 0)
         return ret;
 
-    /* Explicitly set all bindings (GL backend requires update calls after init). */
-    for (size_t i = 0; i < bg_resources.nb_textures; i++)
-        ngpu_bindgroup_update_texture(s->bindgroup, (int32_t)i, &bg_resources.textures[i]);
-    for (size_t i = 0; i < bg_resources.nb_buffers; i++)
-        ngpu_bindgroup_update_buffer(s->bindgroup, (int32_t)i, &bg_resources.buffers[i]);
+    const struct ngpu_texture_binding texture_binding = {.texture = s->font_tex};
+    const struct ngpu_buffer_binding buffer_binding = {.buffer = s->proj_buffer, .size = proj_size};
+    if ((ret = ngpu_bindgroup_update_texture(s->bindgroup, 0, &texture_binding)) < 0 ||
+        (ret = ngpu_bindgroup_update_buffer(s->bindgroup, s->proj_block_index, &buffer_binding)) < 0)
+        return ret;
 
     /* Pipeline. */
     const struct ngpu_graphics_state graphics_state = {

@@ -83,7 +83,7 @@ struct image {
     /* mutable fields after initialization */
     struct ngli_mat4 coordinates_matrix;
     float ts;
-    size_t rev;
+
 };
 
 void ngli_image_init(struct image *s, const struct image_params *params, struct ngpu_texture **planes);

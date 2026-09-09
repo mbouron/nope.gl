@@ -242,6 +242,7 @@ static int rtt_prefetch(struct ngl_node *node)
          * graphics context uv coordinate system works */
         struct image *image = &texture_info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix.m);
+        ngli_resource_set_image(texture_info->resource, image);
     }
 
     enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
@@ -259,6 +260,7 @@ static int rtt_prefetch(struct ngl_node *node)
          * graphics context uv coordinate system works */
         struct image *depth_image = &depth_texture_info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, depth_image->coordinates_matrix.m);
+        ngli_resource_set_image(depth_texture_info->resource, depth_image);
     } else {
         if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
@@ -363,23 +365,25 @@ static int rtt_resize(struct ngl_node *node)
     for (size_t i = 0; i < o->nb_color_textures; i++) {
         const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures[i]);
         struct texture_info *texture_info = info.info;
-        ngpu_texture_freep(&texture_info->texture);
+        struct ngpu_texture *old_texture = texture_info->texture;
         texture_info->texture = textures[i];
         texture_info->image.params.width = width;
         texture_info->image.params.height = height;
         texture_info->image.planes[0] = textures[i];
-        texture_info->image.rev = texture_info->image_rev++;
+        ngli_resource_set_image(texture_info->resource, &texture_info->image);
+        ngpu_texture_freep(&old_texture);
     }
 
     if (o->depth_texture) {
         const struct rtt_texture_info info = get_rtt_texture_info(o->depth_texture);
         struct texture_info *texture_info = info.info;
-        ngpu_texture_freep(&texture_info->texture);
+        struct ngpu_texture *old_texture = texture_info->texture;
         texture_info->texture = depth_texture;
         texture_info->image.params.width = width;
         texture_info->image.params.height = height;
         texture_info->image.planes[0] = depth_texture;
-        texture_info->image.rev = texture_info->image_rev++;
+        ngli_resource_set_image(texture_info->resource, &texture_info->image);
+        ngpu_texture_freep(&old_texture);
     }
 
     return 0;

@@ -56,16 +56,9 @@ struct pgcraft_symbol {
 };
 
 struct pgcraft_pipeline_info {
-    struct {
-        NGPU_DARRAY(struct ngpu_bindgroup_layout_entry) textures;
-        NGPU_DARRAY(struct ngpu_bindgroup_layout_entry) buffers;
-        NGPU_DARRAY(struct ngpu_vertex_buffer_layout) vertex_buffers;
-    } desc;
-    struct {
-        NGPU_DARRAY(struct ngpu_texture_binding) textures;
-        NGPU_DARRAY(struct ngpu_buffer_binding) buffers;
-        NGPU_DARRAY(struct ngpu_buffer *) vertex_buffers;
-    } data;
+    NGPU_DARRAY(struct ngpu_bindgroup_layout_entry) textures;
+    NGPU_DARRAY(struct ngpu_bindgroup_layout_entry) buffers;
+    NGPU_DARRAY(struct ngpu_vertex_buffer_layout) vertex_buffers;
 };
 
 struct ngpu_pgcraft {
@@ -376,7 +369,6 @@ static int prepare_texture_infos(struct ngpu_pgcraft *s, const struct ngpu_pgcra
 {
     for (size_t i = 0; i < params->nb_textures; i++) {
         const struct ngpu_pgcraft_texture *texture = &params->textures[i];
-        ngpu_assert(!(texture->type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO && texture->texture));
 
         if (ngpu_darray_try_push(&s->textures, params->textures[i]) < 0)
             return NGPU_ERROR_MEMORY;
@@ -394,7 +386,6 @@ static int prepare_texture_infos(struct ngpu_pgcraft *s, const struct ngpu_pgcra
             .sampler_rect_0_index = -1,
             .sampler_rect_1_index = -1,
             .block_index          = -1,
-            .image                = texture->image,
         };
 
         if (ngpu_darray_try_push(&s->texture_infos, info) < 0)
@@ -435,6 +426,7 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
                 .binding     = request_next_binding(s, field_type),
                 .access      = texture->writable ? NGPU_ACCESS_READ_WRITE : NGPU_ACCESS_READ_BIT,
                 .stage_flags = 1U << stage,
+                .format      = is_image(field_type) ? texture->format : NGPU_FORMAT_UNDEFINED,
             };
 
             const char *prefix = "";
@@ -478,13 +470,7 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
             const char *precision = get_precision_qualifier(s, field_type, texture->precision, "lowp");
             ngpu_bstr_printf(b, "uniform %s %s%s %s;\n", precision, prefix, type, name);
 
-            if (ngpu_darray_try_push(&s->pipeline_info.desc.textures, layout_entry) < 0)
-                return NGPU_ERROR_MEMORY;
-
-            const struct ngpu_texture_binding texture_binding = {
-                .texture = texture->texture,
-            };
-            if (ngpu_darray_try_push(&s->pipeline_info.data.textures, texture_binding) < 0)
+            if (ngpu_darray_try_push(&s->pipeline_info.textures, layout_entry) < 0)
                 return NGPU_ERROR_MEMORY;
         }
     }
@@ -507,9 +493,9 @@ static int32_t find_buffer_binding(const struct ngpu_pgcraft *s, const char *nam
 {
     for (size_t i = 0; i < s->symbols.count; i++) {
         if (!strcmp(ngpu_pgcraft_get_symbol_name(s, i), name)) {
-            for (size_t k = 0; k < s->pipeline_info.desc.buffers.count; k++) {
-                if (s->pipeline_info.desc.buffers.data[k].id == i)
-                    return (int32_t)s->pipeline_info.desc.buffers.data[k].binding;
+            for (size_t k = 0; k < s->pipeline_info.buffers.count; k++) {
+                if (s->pipeline_info.buffers.data[k].id == i)
+                    return (int32_t)s->pipeline_info.buffers.data[k].binding;
             }
             break;
         }
@@ -535,10 +521,7 @@ static int register_buffer_binding(struct ngpu_pgcraft *s, const char *name,
         .access      = NGPU_ACCESS_READ_BIT,
         .stage_flags = stage_flags,
     };
-    if (ngpu_darray_try_push(&s->pipeline_info.desc.buffers, layout_entry) < 0)
-        return NGPU_ERROR_MEMORY;
-
-    if (ngpu_darray_try_push(&s->pipeline_info.data.buffers, (struct ngpu_buffer_binding){0}) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.buffers, layout_entry) < 0)
         return NGPU_ERROR_MEMORY;
 
     *bindingp = binding;
@@ -632,10 +615,7 @@ static int inject_block(struct ngpu_pgcraft *s, struct bstr *b,
     const char *instance_name = named_block->instance_name ? named_block->instance_name : named_block->name;
     ngpu_bstr_printf(b, "} %s;\n", instance_name);
 
-    if (ngpu_darray_try_push(&s->pipeline_info.desc.buffers, layout_entry) < 0)
-        return NGPU_ERROR_MEMORY;
-
-    if (ngpu_darray_try_push(&s->pipeline_info.data.buffers, named_block->buffer) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.buffers, layout_entry) < 0)
         return NGPU_ERROR_MEMORY;
 
     return (int)layout_entry.binding;
@@ -701,9 +681,7 @@ static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
         };
     }
 
-    if (ngpu_darray_try_push(&s->pipeline_info.desc.vertex_buffers, vertex_buffer) < 0)
-        return NGPU_ERROR_MEMORY;
-    if (ngpu_darray_try_push(&s->pipeline_info.data.vertex_buffers, attribute->buffer) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.vertex_buffers, vertex_buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
     return 0;
@@ -1183,8 +1161,8 @@ NGPU_STATIC_ASSERT(offsetof(struct ngpu_bindgroup_layout_entry, id) == 0, "resou
 
 static int32_t get_texture_index(const struct ngpu_pgcraft *s, const char *name)
 {
-    for (int32_t i = 0; i < (int32_t)s->pipeline_info.desc.textures.count; i++) {
-        const struct ngpu_bindgroup_layout_entry *entry = &s->pipeline_info.desc.textures.data[i];
+    for (int32_t i = 0; i < (int32_t)s->pipeline_info.textures.count; i++) {
+        const struct ngpu_bindgroup_layout_entry *entry = &s->pipeline_info.textures.data[i];
         const char *texture_name = ngpu_pgcraft_get_symbol_name(s, entry->id);
         if (!strcmp(texture_name, name))
             return i;
@@ -1223,8 +1201,8 @@ static void probe_texture_infos(struct ngpu_pgcraft *s)
         if (!texture->no_metadata) {
             char block_name[NGPU_ID_LEN];
             snprintf(block_name, sizeof(block_name), "%s_info", texture->name);
-            for (int32_t j = 0; j < (int32_t)s->pipeline_info.desc.buffers.count; j++) {
-                const char *entry_name = ngpu_pgcraft_get_symbol_name(s, s->pipeline_info.desc.buffers.data[j].id);
+            for (int32_t j = 0; j < (int32_t)s->pipeline_info.buffers.count; j++) {
+                const char *entry_name = ngpu_pgcraft_get_symbol_name(s, s->pipeline_info.buffers.data[j].id);
                 if (!strcmp(entry_name, block_name)) {
                     info->block_index = j;
                     break;
@@ -1422,8 +1400,8 @@ int ngpu_pgcraft_craft(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params 
 
 int32_t ngpu_pgcraft_get_block_index(const struct ngpu_pgcraft *s, const char *name, enum ngpu_program_stage stage)
 {
-    for (int32_t i = 0; i < (int32_t)s->pipeline_info.desc.buffers.count; i++) {
-        const struct ngpu_bindgroup_layout_entry *entry = &s->pipeline_info.desc.buffers.data[i];
+    for (int32_t i = 0; i < (int32_t)s->pipeline_info.buffers.count; i++) {
+        const struct ngpu_bindgroup_layout_entry *entry = &s->pipeline_info.buffers.data[i];
         const char *desc_name = ngpu_pgcraft_get_symbol_name(s, entry->id);
         if (!strcmp(desc_name, name) && entry->stage_flags == (1U << stage))
             return i;
@@ -1456,24 +1434,15 @@ struct ngpu_program *ngpu_pgcraft_get_program(const struct ngpu_pgcraft *s)
 struct ngpu_vertex_state ngpu_pgcraft_get_vertex_state(const struct ngpu_pgcraft *s)
 {
     return (const struct ngpu_vertex_state) {
-        .buffers    = s->pipeline_info.desc.vertex_buffers.data,
-        .nb_buffers = s->pipeline_info.desc.vertex_buffers.count,
+        .buffers    = s->pipeline_info.vertex_buffers.data,
+        .nb_buffers = s->pipeline_info.vertex_buffers.count,
     };
-}
-
-struct ngpu_vertex_resources ngpu_pgcraft_get_vertex_resources(const struct ngpu_pgcraft *s)
-{
-    const struct ngpu_vertex_resources resources = {
-        .vertex_buffers    = s->pipeline_info.data.vertex_buffers.data,
-        .nb_vertex_buffers = s->pipeline_info.data.vertex_buffers.count,
-    };
-    return resources;
 }
 
 int32_t ngpu_pgcraft_get_vertex_buffer_index(const struct ngpu_pgcraft *s, const char *name)
 {
-    for (int32_t i = 0; i < (int32_t)s->pipeline_info.desc.vertex_buffers.count; i++) {
-        struct ngpu_vertex_buffer_layout *layout = &s->pipeline_info.desc.vertex_buffers.data[i];
+    for (int32_t i = 0; i < (int32_t)s->pipeline_info.vertex_buffers.count; i++) {
+        struct ngpu_vertex_buffer_layout *layout = &s->pipeline_info.vertex_buffers.data[i];
         for (size_t j = 0; j < layout->nb_attributes; j++) {
             struct ngpu_vertex_attribute *attribute = &layout->attributes[j];
             const char *attribute_name = ngpu_pgcraft_get_symbol_name(s, attribute->id);
@@ -1492,23 +1461,12 @@ const char *ngpu_pgcraft_get_symbol_name(const struct ngpu_pgcraft *s, size_t id
 struct ngpu_bindgroup_layout_desc ngpu_pgcraft_get_bindgroup_layout_desc(const struct ngpu_pgcraft *s)
 {
     const struct ngpu_bindgroup_layout_desc bindgroup_layout_params = {
-        .textures    = s->pipeline_info.desc.textures.data,
-        .nb_textures = s->pipeline_info.desc.textures.count,
-        .buffers     = s->pipeline_info.desc.buffers.data,
-        .nb_buffers  = s->pipeline_info.desc.buffers.count,
+        .textures    = s->pipeline_info.textures.data,
+        .nb_textures = s->pipeline_info.textures.count,
+        .buffers     = s->pipeline_info.buffers.data,
+        .nb_buffers  = s->pipeline_info.buffers.count,
     };
     return bindgroup_layout_params;
-}
-
-struct ngpu_bindgroup_resources ngpu_pgcraft_get_bindgroup_resources(const struct ngpu_pgcraft *s)
-{
-    const struct ngpu_bindgroup_resources resources = {
-        .textures          = s->pipeline_info.data.textures.data,
-        .nb_textures       = s->pipeline_info.data.textures.count,
-        .buffers           = s->pipeline_info.data.buffers.data,
-        .nb_buffers        = s->pipeline_info.data.buffers.count,
-    };
-    return resources;
 }
 
 void ngpu_pgcraft_freep(struct ngpu_pgcraft **sp)
@@ -1526,13 +1484,9 @@ void ngpu_pgcraft_freep(struct ngpu_pgcraft **sp)
 
     ngpu_darray_reset(&s->symbols);
 
-    ngpu_darray_reset(&s->pipeline_info.desc.textures);
-    ngpu_darray_reset(&s->pipeline_info.desc.buffers);
-    ngpu_darray_reset(&s->pipeline_info.desc.vertex_buffers);
-
-    ngpu_darray_reset(&s->pipeline_info.data.textures);
-    ngpu_darray_reset(&s->pipeline_info.data.buffers);
-    ngpu_darray_reset(&s->pipeline_info.data.vertex_buffers);
+    ngpu_darray_reset(&s->pipeline_info.textures);
+    ngpu_darray_reset(&s->pipeline_info.buffers);
+    ngpu_darray_reset(&s->pipeline_info.vertex_buffers);
 
     ngpu_freep(sp);
 }

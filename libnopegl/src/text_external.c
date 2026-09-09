@@ -171,8 +171,8 @@ static int text_external_prefetch(struct text *text)
     if (ret < 0)
         return ret;
 
-    text->curve_texture = ngli_slug_get_curve_texture(s->slug);
-    text->band_texture = ngli_slug_get_band_texture(s->slug);
+    ngli_resource_set_texture(text->curve_texture, ngli_slug_get_curve_texture(s->slug));
+    ngli_resource_set_texture(text->band_texture, ngli_slug_get_band_texture(s->slug));
     return 0;
 }
 
@@ -180,8 +180,8 @@ static void text_external_release(struct text *text)
 {
     struct text_external *s = text->priv_data;
     ngli_slug_release(s->slug);
-    text->curve_texture = NULL;
-    text->band_texture = NULL;
+    ngli_resource_set_texture(text->curve_texture, NULL);
+    ngli_resource_set_texture(text->band_texture, NULL);
 }
 
 struct glyph {
@@ -809,8 +809,8 @@ static int text_external_set_string(struct text *text, const char *str, struct n
         ret = ngli_slug_finalize(s->slug);
         if (ret < 0)
             goto end;
-        text->curve_texture = ngli_slug_get_curve_texture(s->slug);
-        text->band_texture = ngli_slug_get_band_texture(s->slug);
+        ngli_resource_set_texture(text->curve_texture, ngli_slug_get_curve_texture(s->slug));
+        ngli_resource_set_texture(text->band_texture, ngli_slug_get_band_texture(s->slug));
     }
 
     ret = register_chars(text, str, chars_dst, &runs_array, s->glyph_index);

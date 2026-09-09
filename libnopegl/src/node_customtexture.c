@@ -72,8 +72,12 @@ static const struct node_param customtexture_params[] = {
 
 static int customtexture_init(struct ngl_node *node)
 {
+    struct customtexture_priv *s = node->priv_data;
     const struct customtexture_opts *o = node->opts;
     const struct ngl_node_funcs *funcs = &o->funcs;
+    s->texture_info.resource = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!s->texture_info.resource)
+        return NGL_ERROR_MEMORY;
 
     if (!funcs->init)
         return 0;
@@ -87,16 +91,16 @@ static int customtexture_init(struct ngl_node *node)
 
 static int customtexture_prefetch(struct ngl_node *node)
 {
+    struct customtexture_priv *s = node->priv_data;
     const struct customtexture_opts *o = node->opts;
     const struct ngl_node_funcs *funcs = &o->funcs;
 
-    if (!funcs->prefetch)
-        return 0;
-
-    int ret = funcs->prefetch(NULL, o->user_data);
-    if (ret < 0)
-        return ret;
-
+    if (funcs->prefetch) {
+        int ret = funcs->prefetch(NULL, o->user_data);
+        if (ret < 0)
+            return ret;
+    }
+    ngli_resource_set_image(s->texture_info.resource, &s->texture_info.image);
     return 0;
 }
 
@@ -144,13 +148,13 @@ static void customtexture_draw(struct ngl_node *node)
 
 static void customtexture_release(struct ngl_node *node)
 {
+    struct customtexture_priv *s = node->priv_data;
     const struct customtexture_opts *o = node->opts;
     const struct ngl_node_funcs *funcs = &o->funcs;
 
-    if (!funcs->release)
-        return;
-
-    funcs->release(NULL, o->user_data);
+    if (funcs->release)
+        funcs->release(NULL, o->user_data);
+    ngli_resource_clear(s->texture_info.resource);
 }
 
 static void customtexture_uninit(struct ngl_node *node)
@@ -159,13 +163,13 @@ static void customtexture_uninit(struct ngl_node *node)
     const struct customtexture_opts *o = node->opts;
     const struct ngl_node_funcs *funcs = &o->funcs;
 
-    ngpu_texture_freep(&s->texture_info.texture);
+    ngli_resource_clear(s->texture_info.resource);
     ngli_image_reset(&s->texture_info.image);
+    ngpu_texture_freep(&s->texture_info.texture);
 
-    if (!funcs->uninit)
-        return;
-
-    funcs->uninit(NULL, o->user_data);
+    if (funcs->uninit)
+        funcs->uninit(NULL, o->user_data);
+    ngli_resource_freep(&s->texture_info.resource);
 }
 
 static void customtexture_free(struct ngl_node *node)
@@ -266,8 +270,7 @@ static int import_texture_gl(struct ngl_node *node, const struct ngl_custom_text
         .color_info  = NGLI_COLOR_INFO_DEFAULTS,
     };
     ngli_image_init(&s->texture_info.image, &image_params, &s->texture_info.texture);
-
-    s->texture_info.image.rev = s->texture_info.image_rev++;
+    ngli_resource_set_image(s->texture_info.resource, &s->texture_info.image);
 
     return 0;
 }
@@ -292,9 +295,10 @@ int ngl_custom_texture_set_texture_info_gl(struct ngl_node *node, const struct n
     struct customtexture_priv *s = node->priv_data;
 
     /* Cleanup previous texture/image */
-    ngpu_texture_freep(&s->texture_info.texture);
+    ngli_resource_clear(s->texture_info.resource);
     ngli_image_reset(&s->texture_info.image);
-    s->texture_info.image.rev = s->texture_info.image_rev++;
+    ngpu_texture_freep(&s->texture_info.texture);
+
     if (!info) {
         return ngli_node_invalidate_branch(node);
     }
@@ -363,8 +367,7 @@ static int import_texture_ahb(struct ngl_node *node, const struct ngl_custom_tex
         .color_info  = NGLI_COLOR_INFO_DEFAULTS,
     };
     ngli_image_init(&s->texture_info.image, &image_params, &s->texture_info.texture);
-
-    s->texture_info.image.rev = s->texture_info.image_rev++;
+    ngli_resource_set_image(s->texture_info.resource, &s->texture_info.image);
 
     return 0;
 }
@@ -383,9 +386,10 @@ int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct 
     struct customtexture_priv *s = node->priv_data;
 
     /* Cleanup previous texture/image */
-    ngpu_texture_freep(&s->texture_info.texture);
+    ngli_resource_clear(s->texture_info.resource);
     ngli_image_reset(&s->texture_info.image);
-    s->texture_info.image.rev = s->texture_info.image_rev++;
+    ngpu_texture_freep(&s->texture_info.texture);
+
     if (!info || !info->hardware_buffer)
         return ngli_node_invalidate_branch(node);
 

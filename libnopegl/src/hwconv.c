@@ -48,6 +48,10 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     hwconv->ctx = ctx;
     hwconv->src_params = *src_params;
+    hwconv->input_image = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!hwconv->input_image)
+        return NGL_ERROR_MEMORY;
+
 
     if (dst_image->params.layout != NGLI_IMAGE_LAYOUT_DEFAULT) {
         LOG(ERROR, "unsupported output image layout: 0x%x", dst_image->params.layout);
@@ -136,8 +140,6 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         },
         .program          = ngpu_pgcraft_get_program(hwconv->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(hwconv->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(hwconv->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(hwconv->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(hwconv->crafter),
     };
 
@@ -145,11 +147,16 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     if (ret < 0)
         return ret;
 
+    ret = ngli_pipeline_set_image_source(hwconv->pipeline, 0, hwconv->input_image);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
     return 0;
 }
 
 int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image)
 {
+    const struct pipeline_execution execution = {.staging = hwconv->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = hwconv->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     ngli_assert(hwconv->src_params.layout == image->params.layout);
@@ -159,12 +166,13 @@ int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image)
 
     ngpu_ctx_begin_render_pass(gpu_ctx, rt);
 
-    ngli_pipeline_update_image(pipeline, 0, image);
-    ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, 3, 1, 0);
+    ngli_resource_set_image(hwconv->input_image, image);
+    int ret = ngli_pipeline_draw(pipeline, &execution, 3, 1, 0);
+    ngli_resource_clear(hwconv->input_image);
 
     ngpu_ctx_end_render_pass(gpu_ctx);
 
-    return 0;
+    return ret;
 }
 
 void ngli_hwconv_reset(struct hwconv *hwconv)
@@ -177,5 +185,6 @@ void ngli_hwconv_reset(struct hwconv *hwconv)
     ngpu_pgcraft_freep(&hwconv->crafter);
     ngpu_rendertarget_freep(&hwconv->rt);
 
+    ngli_resource_freep(&hwconv->input_image);
     memset(hwconv, 0, sizeof(*hwconv));
 }

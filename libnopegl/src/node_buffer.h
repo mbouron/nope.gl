@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include "buffer_layout.h"
+#include "resource.h"
 
 struct ngl_node;
 
@@ -43,7 +44,8 @@ struct buffer_info {
 
     uint32_t flags;
 
-    struct ngpu_buffer *buffer;
+    /* Owned holder, shared with the backing Block for a view. */
+    struct resource *resource;
 };
 
 void ngli_node_buffer_extend_usage(struct ngl_node *node, uint32_t usage);
