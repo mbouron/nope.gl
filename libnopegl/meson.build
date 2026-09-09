@@ -264,7 +264,7 @@ lib_src = files(
   'src/params.c',
   'src/pass.c',
   'src/path.c',
-  'src/pipeline_compat.c',
+  'src/pipeline.c',
   'src/precision.c',
   'src/renderpass.c',
   'src/rtt.c',

@@ -31,7 +31,7 @@
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "rtt.h"
 #include <ngpu/ngpu.h>
 #include "utils/utils.h"
@@ -79,7 +79,7 @@ struct hblur_priv {
         struct ngpu_rendertarget_layout layout;
         struct rtt_ctx *rtt_ctx;
         struct ngpu_pgcraft *crafter;
-        struct pipeline_compat *pl;
+        struct pipeline *pl;
         int32_t blur_block_index;
     } pass1;
 
@@ -89,7 +89,7 @@ struct hblur_priv {
         struct ngpu_rendertarget_layout layout;
         struct rtt_ctx *rtt_ctx;
         struct ngpu_pgcraft *crafter;
-        struct pipeline_compat *pl;
+        struct pipeline *pl;
         int32_t blur_block_index;
     } pass2;
 };
@@ -242,7 +242,7 @@ static int setup_pass1_pipeline(struct ngl_node *node)
         .colors[1].format = s->preferred_format,
     };
 
-    const struct pipeline_compat_params params = {
+    const struct pipeline_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
             .topology = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -255,15 +255,15 @@ static int setup_pass1_pipeline(struct ngl_node *node)
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->pass1.crafter),
     };
 
-    s->pass1.pl = ngli_pipeline_compat_create(gpu_ctx);
+    s->pass1.pl = ngli_pipeline_create(gpu_ctx);
     if (!s->pass1.pl)
         return NGL_ERROR_MEMORY;
 
-    ret = ngli_pipeline_compat_init(s->pass1.pl, &params);
+    ret = ngli_pipeline_init(s->pass1.pl, &params);
     if (ret < 0)
         return ret;
 
-    ngli_pipeline_compat_update_texture(s->pass1.pl, 1, s->dummy_map);
+    ngli_pipeline_update_texture(s->pass1.pl, 1, s->dummy_map);
 
     return 0;
 }
@@ -326,11 +326,11 @@ static int setup_pass2_pipeline(struct ngl_node *node)
 
     s->pass2.blur_block_index = ngpu_pgcraft_get_block_index(s->pass2.crafter, "blur", NGPU_PROGRAM_STAGE_FRAG);
 
-    s->pass2.pl = ngli_pipeline_compat_create(gpu_ctx);
+    s->pass2.pl = ngli_pipeline_create(gpu_ctx);
     if (!s->pass2.pl)
         return NGL_ERROR_MEMORY;
 
-    const struct pipeline_compat_params params = {
+    const struct pipeline_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
             .topology = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -343,11 +343,11 @@ static int setup_pass2_pipeline(struct ngl_node *node)
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->pass2.crafter),
     };
 
-    ret = ngli_pipeline_compat_init(s->pass2.pl, &params);
+    ret = ngli_pipeline_init(s->pass2.pl, &params);
     if (ret < 0)
         return ret;
 
-    ngli_pipeline_compat_update_texture(s->pass2.pl, 2, s->dummy_map);
+    ngli_pipeline_update_texture(s->pass2.pl, 2, s->dummy_map);
 
     return 0;
 }
@@ -578,24 +578,24 @@ static void hblur_pre_draw(struct ngl_node *node)
     };
     const size_t blur_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &blur_data, sizeof(blur_data));
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_buffer(s->pass1.pl, s->pass1.blur_block_index,
+    ngli_pipeline_update_buffer(s->pass1.pl, s->pass1.blur_block_index,
                                        buffer, blur_offset, sizeof(blur_data));
-    ngli_pipeline_compat_update_buffer(s->pass2.pl, s->pass2.blur_block_index,
+    ngli_pipeline_update_buffer(s->pass2.pl, s->pass2.blur_block_index,
                                        buffer, blur_offset, sizeof(blur_data));
 
     ngli_rtt_begin(s->pass1.rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_compat_update_image(s->pass1.pl, 0, s->image, ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_image(s->pass1.pl, 1, s->map_image, ctx->current_staging_buffer);
-    ngli_pipeline_compat_draw(s->pass1.pl, 3, 1, 0);
+    ngli_pipeline_update_image(s->pass1.pl, 0, s->image, ctx->current_staging_buffer);
+    ngli_pipeline_update_image(s->pass1.pl, 1, s->map_image, ctx->current_staging_buffer);
+    ngli_pipeline_draw(s->pass1.pl, 3, 1, 0);
     ngli_rtt_end(s->pass1.rtt_ctx);
 
     ngli_rtt_begin(s->pass2.rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_compat_update_image(s->pass2.pl, 0, ngli_rtt_get_image(s->pass1.rtt_ctx, 0), ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_image(s->pass2.pl, 1, ngli_rtt_get_image(s->pass1.rtt_ctx, 1), ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_image(s->pass2.pl, 2, s->map_image, ctx->current_staging_buffer);
-    ngli_pipeline_compat_draw(s->pass2.pl, 3, 1, 0);
+    ngli_pipeline_update_image(s->pass2.pl, 0, ngli_rtt_get_image(s->pass1.rtt_ctx, 0), ctx->current_staging_buffer);
+    ngli_pipeline_update_image(s->pass2.pl, 1, ngli_rtt_get_image(s->pass1.rtt_ctx, 1), ctx->current_staging_buffer);
+    ngli_pipeline_update_image(s->pass2.pl, 2, s->map_image, ctx->current_staging_buffer);
+    ngli_pipeline_draw(s->pass2.pl, 3, 1, 0);
     ngli_rtt_end(s->pass2.rtt_ctx);
 
     /*
@@ -624,8 +624,8 @@ static void hblur_uninit(struct ngl_node *node)
 
     ngpu_block_desc_reset(&s->blur_block_desc);
     ngpu_texture_freep(&s->dummy_map);
-    ngli_pipeline_compat_freep(&s->pass2.pl);
-    ngli_pipeline_compat_freep(&s->pass1.pl);
+    ngli_pipeline_freep(&s->pass2.pl);
+    ngli_pipeline_freep(&s->pass1.pl);
     ngpu_pgcraft_freep(&s->pass1.crafter);
     ngpu_pgcraft_freep(&s->pass2.crafter);
 }

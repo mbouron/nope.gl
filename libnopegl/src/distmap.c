@@ -34,7 +34,7 @@
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 #include "path.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include <ngpu/ngpu.h>
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -79,7 +79,7 @@ struct distmap {
     size_t vert_offset;
     struct ngpu_buffer *frag_buffer;
     size_t frag_offset;
-    struct pipeline_compat *pipeline_compat;
+    struct pipeline *pipeline;
 };
 
 struct distmap *ngli_distmap_create(struct ngl_ctx *ctx)
@@ -359,8 +359,8 @@ static int draw_glyphs(struct distmap *s)
     if (ret < 0)
         return ret;
 
-    ngli_pipeline_compat_update_buffer(s->pipeline_compat, 0, s->vert_buffer, 0, s->vert_offset);
-    ngli_pipeline_compat_update_buffer(s->pipeline_compat, 1, s->frag_buffer, 0, s->frag_offset);
+    ngli_pipeline_update_buffer(s->pipeline, 0, s->vert_buffer, 0, s->vert_offset);
+    ngli_pipeline_update_buffer(s->pipeline, 1, s->frag_buffer, 0, s->frag_offset);
 
     const int32_t nb_shapes = (int32_t)s->shapes.count;
     int32_t shape_id = 0;
@@ -371,10 +371,10 @@ static int draw_glyphs(struct distmap *s)
                 return 0;
 
             const uint32_t offsets[] = {(uint32_t)shape_id * (uint32_t)s->vert_offset, (uint32_t)shape_id * (uint32_t)s->frag_offset};
-            ret = ngli_pipeline_compat_update_dynamic_offsets(s->pipeline_compat, offsets, NGLI_ARRAY_NB(offsets));
+            ret = ngli_pipeline_update_dynamic_offsets(s->pipeline, offsets, NGLI_ARRAY_NB(offsets));
             if (ret < 0)
                 return ret;
-            ngli_pipeline_compat_draw(s->pipeline_compat, 3, 1, 0);
+            ngli_pipeline_draw(s->pipeline, 3, 1, 0);
             shape_id++;
         }
     }
@@ -389,7 +389,7 @@ static void reset_tmp_data(struct distmap *s)
     ngli_darray_reset(&s->bezier_counts);
     ngli_darray_reset(&s->beziergroup_counts);
 
-    ngli_pipeline_compat_freep(&s->pipeline_compat);
+    ngli_pipeline_freep(&s->pipeline);
     ngpu_block_desc_reset(&s->vert_block);
     ngpu_buffer_freep(&s->vert_buffer);
     ngpu_block_desc_reset(&s->frag_block);
@@ -572,11 +572,11 @@ int ngli_distmap_finalize(struct distmap *s)
     if (ret < 0)
         return ret;
 
-    s->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!s->pipeline_compat)
+    s->pipeline = ngli_pipeline_create(gpu_ctx);
+    if (!s->pipeline)
         return NGL_ERROR_MEMORY;
 
-    const struct pipeline_compat_params params = {
+    const struct pipeline_params params = {
         .type = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics = {
             .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -589,7 +589,7 @@ int ngli_distmap_finalize(struct distmap *s)
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
-    ret = ngli_pipeline_compat_init(s->pipeline_compat, &params);
+    ret = ngli_pipeline_init(s->pipeline, &params);
     if (ret < 0)
         return ret;
 

@@ -35,7 +35,7 @@
 #include "node_stroke2d.h"
 #include "node_uniform.h"
 #include "node_texture.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -143,7 +143,7 @@ struct drawrect2d_priv {
     struct ngli_node2d_info node2d_info;
     float rect[4];
     float corner_radius[2];
-    struct pipeline_compat *pipeline_compat;
+    struct pipeline *pipeline;
     NGLI_DARRAY(struct texture_map) textures_map;
     NGLI_DARRAY(struct block_map) blocks_map;
     struct ngpu_pgcraft *crafter;
@@ -473,7 +473,7 @@ static int drawrect2d_init(struct ngl_node *node)
 
     const struct ngl_node *texture = fill_paint->texture;
 
-    s->pipeline_compat = NULL;
+    s->pipeline = NULL;
 
     s->vert_shader = build_vertex_shader(fill_paint->texture != NULL,
                                          stroke_paint && stroke_paint->texture);
@@ -893,11 +893,11 @@ static int drawrect2d_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
-    s->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!s->pipeline_compat)
+    s->pipeline = ngli_pipeline_create(gpu_ctx);
+    if (!s->pipeline)
         return NGL_ERROR_MEMORY;
 
-    const struct pipeline_compat_params params = {
+    const struct pipeline_params params = {
         .type = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics = {
             .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
@@ -910,7 +910,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
-    ret = ngli_pipeline_compat_init(s->pipeline_compat, &params);
+    ret = ngli_pipeline_init(s->pipeline, &params);
     if (ret < 0)
         return ret;
 
@@ -1025,7 +1025,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     struct ngli_mat4 modelview_matrix;
     ngli_mat4_mul(modelview_matrix.m, ctx->transform_2d_matrix.m, trs_matrix.m);
 
-    struct pipeline_compat *pl_compat = s->pipeline_compat;
+    struct pipeline *pl_compat = s->pipeline;
 
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->transform_matrix = modelview_matrix;
@@ -1041,7 +1041,7 @@ static void drawrect2d_draw(struct ngl_node *node)
 
     /* Update textures */
     for (size_t i = 0; i < s->textures_map.count; i++)
-        ngli_pipeline_compat_update_image(pl_compat, (int32_t)i, s->textures_map.data[i].image, ctx->current_staging_buffer);
+        ngli_pipeline_update_image(pl_compat, (int32_t)i, s->textures_map.data[i].image, ctx->current_staging_buffer);
 
     /* Compute texture scaling */
     const int orientation_quarter = ((int)o->content_orientation / 90) & 3;
@@ -1101,7 +1101,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         if (vert_offset == SIZE_MAX)
             return;
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl_compat, s->vert_block_index,
+        ngli_pipeline_update_buffer(pl_compat, s->vert_block_index,
                                            staging_buf, vert_offset, s->vert_block_size);
     }
 
@@ -1147,7 +1147,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         if (frag_offset == SIZE_MAX)
             return;
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl_compat, s->frag_block_index,
+        ngli_pipeline_update_buffer(pl_compat, s->frag_block_index,
                                            staging_buf, frag_offset, sizeof(frag_data));
     }
 
@@ -1180,7 +1180,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         }
 
         struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl_compat, s->user_block_index,
+        ngli_pipeline_update_buffer(pl_compat, s->user_block_index,
                                            buffer, offset, s->user_block_size);
     }
 
@@ -1189,7 +1189,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     for (size_t i = 0; i < s->blocks_map.count; i++) {
         const struct block_info *info = blocks[i].info;
         if (blocks[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_compat_update_buffer(pl_compat, blocks[i].index, info->buffer, 0, 0);
+            ngli_pipeline_update_buffer(pl_compat, blocks[i].index, info->buffer, 0, 0);
             blocks[i].buffer_rev = info->buffer_rev;
         }
     }
@@ -1200,13 +1200,13 @@ static void drawrect2d_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_compat_draw(pl_compat, 4, 1, 0);
+    ngli_pipeline_draw(pl_compat, 4, 1, 0);
 }
 
 static void drawrect2d_uninit(struct ngl_node *node)
 {
     struct drawrect2d_priv *s = node->priv_data;
-    ngli_pipeline_compat_freep(&s->pipeline_compat);
+    ngli_pipeline_freep(&s->pipeline);
     ngli_darray_reset(&s->user_uniforms);
     ngli_darray_reset(&s->prebuilt_uniforms);
     ngli_darray_reset(&s->stroke_user_uniforms);

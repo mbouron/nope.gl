@@ -46,7 +46,7 @@
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "utils/memory.h"
 #include "utils/time.h"
 
@@ -156,7 +156,7 @@ struct hud {
     struct ngpu_texture *texture;
     struct ngpu_buffer *coords;
     int32_t transforms_block_index;
-    struct pipeline_compat *pipeline_compat;
+    struct pipeline *pipeline;
     struct ngpu_graphics_state graphics_state;
 };
 
@@ -965,13 +965,13 @@ int ngli_hud_init(struct hud *s)
 
     s->transforms_block_index = ngpu_pgcraft_get_block_index(s->crafter, "transforms", NGPU_PROGRAM_STAGE_VERT);
 
-    s->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!s->pipeline_compat) {
+    s->pipeline = ngli_pipeline_create(gpu_ctx);
+    if (!s->pipeline) {
         ret = NGL_ERROR_MEMORY;
         goto done;
     }
 
-    const struct pipeline_compat_params params = {
+    const struct pipeline_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
             .topology = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
@@ -984,15 +984,15 @@ int ngli_hud_init(struct hud *s)
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
-    ret = ngli_pipeline_compat_init(s->pipeline_compat, &params);
+    ret = ngli_pipeline_init(s->pipeline, &params);
     if (ret < 0)
         goto done;
 
     const int32_t coords_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "coords");
-    ret = ngli_pipeline_compat_update_vertex_buffer(s->pipeline_compat, coords_index, s->coords);
+    ret = ngli_pipeline_update_vertex_buffer(s->pipeline, coords_index, s->coords);
     if (ret < 0)
         goto done;
-    ret = ngli_pipeline_compat_update_texture(s->pipeline_compat, 0, s->texture);
+    ret = ngli_pipeline_update_texture(s->pipeline, 0, s->texture);
 
 done:
     ngpu_block_desc_reset(&transforms_block_desc);
@@ -1066,9 +1066,9 @@ void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats)
 
     const size_t offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &transforms_data, sizeof(transforms_data));
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_buffer(s->pipeline_compat, s->transforms_block_index, buffer, offset, sizeof(transforms_data));
+    ngli_pipeline_update_buffer(s->pipeline, s->transforms_block_index, buffer, offset, sizeof(transforms_data));
 
-    ngli_pipeline_compat_draw(s->pipeline_compat, 4, 1, 0);
+    ngli_pipeline_draw(s->pipeline, 4, 1, 0);
 }
 
 void ngli_hud_freep(struct hud **sp)
@@ -1077,7 +1077,7 @@ void ngli_hud_freep(struct hud **sp)
     if (!s)
         return;
 
-    ngli_pipeline_compat_freep(&s->pipeline_compat);
+    ngli_pipeline_freep(&s->pipeline);
     ngpu_pgcraft_freep(&s->crafter);
     ngpu_texture_freep(&s->texture);
     ngpu_buffer_freep(&s->coords);

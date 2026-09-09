@@ -33,7 +33,7 @@
 #include <ngpu/ngpu.h>
 #include "node_block.h"
 #include "node_uniform.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -77,7 +77,7 @@ struct texture_map {
 };
 
 struct pipeline_desc {
-    struct pipeline_compat *pipeline_compat;
+    struct pipeline *pipeline;
     NGLI_DARRAY(struct resource_map) blocks_map;
     NGLI_DARRAY(struct texture_map) textures_map;
     struct ngli_node_darray reframing_nodes;
@@ -413,11 +413,11 @@ static int drawgradient_prepare(struct ngl_node *node,
         return ret;
 
     /* Create and init pipeline */
-    desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!desc->pipeline_compat)
+    desc->pipeline = ngli_pipeline_create(gpu_ctx);
+    if (!desc->pipeline)
         return NGL_ERROR_MEMORY;
 
-    const struct pipeline_compat_params params = {
+    const struct pipeline_params params = {
         .type = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics = {
             .topology     = s->topology,
@@ -430,14 +430,14 @@ static int drawgradient_prepare(struct ngl_node *node,
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
-    ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
+    ret = ngli_pipeline_init(desc->pipeline, &params);
     if (ret < 0)
         return ret;
 
     const int32_t position_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "position");
     const int32_t uvcoord_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "uvcoord");
-    ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, position_index, s->geometry->vertices_buffer);
-    ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, uvcoord_index, s->geometry->uvcoords_buffer);
+    ngli_pipeline_update_vertex_buffer(desc->pipeline, position_index, s->geometry->vertices_buffer);
+    ngli_pipeline_update_vertex_buffer(desc->pipeline, uvcoord_index, s->geometry->uvcoords_buffer);
 
     return 0;
 }
@@ -451,7 +451,7 @@ static void drawgradient_draw(struct ngl_node *node)
 
     struct ngl_ctx *ctx = node->ctx;
     struct pipeline_desc *desc = &s->pipeline_desc;
-    struct pipeline_compat *pl_compat = desc->pipeline_compat;
+    struct pipeline *pl_compat = desc->pipeline;
 
     const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
@@ -464,7 +464,7 @@ static void drawgradient_draw(struct ngl_node *node)
     if (s->vert_block_index >= 0) {
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl_compat, s->vert_block_index,
+        ngli_pipeline_update_buffer(pl_compat, s->vert_block_index,
                                            staging_buf, vert_offset, sizeof(vert_data));
     }
 
@@ -506,7 +506,7 @@ static void drawgradient_draw(struct ngl_node *node)
         }
 
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl_compat, s->frag_block_index,
+        ngli_pipeline_update_buffer(pl_compat, s->frag_block_index,
                                            staging_buf, frag_offset, frag_size);
     }
 
@@ -514,7 +514,7 @@ static void drawgradient_draw(struct ngl_node *node)
     for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
         if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_compat_update_buffer(pl_compat, resource_map[i].index, info->buffer, 0, 0);
+            ngli_pipeline_update_buffer(pl_compat, resource_map[i].index, info->buffer, 0, 0);
             resource_map[i].buffer_rev = info->buffer_rev;
         }
     }
@@ -531,9 +531,9 @@ static void drawgradient_draw(struct ngl_node *node)
     if (s->geometry->indices_buffer) {
         const struct ngpu_buffer *indices = s->geometry->indices_buffer;
         const struct buffer_layout *layout = &s->geometry->indices_layout;
-        ngli_pipeline_compat_draw_indexed(pl_compat, indices, layout->format, (uint32_t)layout->count, 1);
+        ngli_pipeline_draw_indexed(pl_compat, indices, layout->format, (uint32_t)layout->count, 1);
     } else {
-        ngli_pipeline_compat_draw(pl_compat, s->nb_vertices, 1, 0);
+        ngli_pipeline_draw(pl_compat, s->nb_vertices, 1, 0);
     }
 }
 
@@ -543,7 +543,7 @@ static void drawgradient_uninit(struct ngl_node *node)
     struct pipeline_desc *desc = &s->pipeline_desc;
 
     /* Free pipeline desc resources */
-    ngli_pipeline_compat_freep(&desc->pipeline_compat);
+    ngli_pipeline_freep(&desc->pipeline);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);
@@ -852,11 +852,11 @@ static int drawgradient4_prepare(struct ngl_node *node,
         return ret;
 
     /* Create and init pipeline */
-    desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!desc->pipeline_compat)
+    desc->pipeline = ngli_pipeline_create(gpu_ctx);
+    if (!desc->pipeline)
         return NGL_ERROR_MEMORY;
 
-    const struct pipeline_compat_params params = {
+    const struct pipeline_params params = {
         .type = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics = {
             .topology     = s->topology,
@@ -869,14 +869,14 @@ static int drawgradient4_prepare(struct ngl_node *node,
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
-    ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
+    ret = ngli_pipeline_init(desc->pipeline, &params);
     if (ret < 0)
         return ret;
 
     const int32_t position_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "position");
     const int32_t uvcoord_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "uvcoord");
-    ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, position_index, s->geometry->vertices_buffer);
-    ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, uvcoord_index, s->geometry->uvcoords_buffer);
+    ngli_pipeline_update_vertex_buffer(desc->pipeline, position_index, s->geometry->vertices_buffer);
+    ngli_pipeline_update_vertex_buffer(desc->pipeline, uvcoord_index, s->geometry->uvcoords_buffer);
 
     return 0;
 }
@@ -890,7 +890,7 @@ static void drawgradient4_draw(struct ngl_node *node)
 
     struct ngl_ctx *ctx = node->ctx;
     struct pipeline_desc *desc = &s->pipeline_desc;
-    struct pipeline_compat *pl_compat = desc->pipeline_compat;
+    struct pipeline *pl_compat = desc->pipeline;
 
     const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
@@ -903,7 +903,7 @@ static void drawgradient4_draw(struct ngl_node *node)
     if (s->vert_block_index >= 0) {
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, sizeof(vert_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl_compat, s->vert_block_index,
+        ngli_pipeline_update_buffer(pl_compat, s->vert_block_index,
                                            staging_buf, vert_offset, sizeof(vert_data));
     }
 
@@ -948,7 +948,7 @@ static void drawgradient4_draw(struct ngl_node *node)
         }
 
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl_compat, s->frag_block_index,
+        ngli_pipeline_update_buffer(pl_compat, s->frag_block_index,
                                            staging_buf, frag_offset, frag_size);
     }
 
@@ -956,7 +956,7 @@ static void drawgradient4_draw(struct ngl_node *node)
     for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
         if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_compat_update_buffer(pl_compat, resource_map[i].index, info->buffer, 0, 0);
+            ngli_pipeline_update_buffer(pl_compat, resource_map[i].index, info->buffer, 0, 0);
             resource_map[i].buffer_rev = info->buffer_rev;
         }
     }
@@ -973,9 +973,9 @@ static void drawgradient4_draw(struct ngl_node *node)
     if (s->geometry->indices_buffer) {
         const struct ngpu_buffer *indices = s->geometry->indices_buffer;
         const struct buffer_layout *layout = &s->geometry->indices_layout;
-        ngli_pipeline_compat_draw_indexed(pl_compat, indices, layout->format, (uint32_t)layout->count, 1);
+        ngli_pipeline_draw_indexed(pl_compat, indices, layout->format, (uint32_t)layout->count, 1);
     } else {
-        ngli_pipeline_compat_draw(pl_compat, s->nb_vertices, 1, 0);
+        ngli_pipeline_draw(pl_compat, s->nb_vertices, 1, 0);
     }
 }
 
@@ -985,7 +985,7 @@ static void drawgradient4_uninit(struct ngl_node *node)
     struct pipeline_desc *desc = &s->pipeline_desc;
 
     /* Free pipeline desc resources */
-    ngli_pipeline_compat_freep(&desc->pipeline_compat);
+    ngli_pipeline_freep(&desc->pipeline);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
     ngli_darray_reset(&desc->reframing_nodes);

@@ -25,7 +25,7 @@
 #include "image.h"
 #include <ngpu/ngpu.h>
 #include <ngpu/ngpu.h>
-#include "pipeline_compat.h"
+#include "pipeline.h"
 
 struct ngl_ctx;
 
@@ -35,7 +35,7 @@ struct hwconv {
 
     struct ngpu_rendertarget *rt;
     struct ngpu_pgcraft *crafter;
-    struct pipeline_compat *pipeline_compat;
+    struct pipeline *pipeline;
 };
 
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,

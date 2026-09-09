@@ -27,7 +27,7 @@
 #include "internal.h"
 #include "log.h"
 #include <ngpu/ngpu.h>
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include <ngpu/ngpu.h>
 #include "utils/utils.h"
 
@@ -122,11 +122,11 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     if (ret < 0)
         return ret;
 
-    hwconv->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!hwconv->pipeline_compat)
+    hwconv->pipeline = ngli_pipeline_create(gpu_ctx);
+    if (!hwconv->pipeline)
         return NGL_ERROR_MEMORY;
 
-    const struct pipeline_compat_params params = {
+    const struct pipeline_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
             .topology = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -139,7 +139,7 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         .texture_infos    = ngpu_pgcraft_get_texture_infos(hwconv->crafter),
     };
 
-    ret = ngli_pipeline_compat_init(hwconv->pipeline_compat, &params);
+    ret = ngli_pipeline_init(hwconv->pipeline, &params);
     if (ret < 0)
         return ret;
 
@@ -153,12 +153,12 @@ int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image)
     ngli_assert(hwconv->src_params.layout == image->params.layout);
 
     struct ngpu_rendertarget *rt = hwconv->rt;
-    struct pipeline_compat *pipeline = hwconv->pipeline_compat;
+    struct pipeline *pipeline = hwconv->pipeline;
 
     ngpu_ctx_begin_render_pass(gpu_ctx, rt);
 
-    ngli_pipeline_compat_update_image(pipeline, 0, image, ctx->current_staging_buffer);
-    ngli_pipeline_compat_draw(pipeline, 3, 1, 0);
+    ngli_pipeline_update_image(pipeline, 0, image, ctx->current_staging_buffer);
+    ngli_pipeline_draw(pipeline, 3, 1, 0);
 
     ngpu_ctx_end_render_pass(gpu_ctx);
 
@@ -171,7 +171,7 @@ void ngli_hwconv_reset(struct hwconv *hwconv)
     if (!ctx)
         return;
 
-    ngli_pipeline_compat_freep(&hwconv->pipeline_compat);
+    ngli_pipeline_freep(&hwconv->pipeline);
     ngpu_pgcraft_freep(&hwconv->crafter);
     ngpu_rendertarget_freep(&hwconv->rt);
 
