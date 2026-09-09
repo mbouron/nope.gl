@@ -180,7 +180,6 @@ static int drawwaveform_init(struct ngl_node *node)
         s->geometry = *(struct geometry **)o->geometry->priv_data;
     }
 
-    struct ngpu_buffer *vertices = s->geometry->vertices_buffer;
     struct ngpu_buffer *uvcoords = s->geometry->uvcoords_buffer;
     struct buffer_layout vertices_layout = s->geometry->vertices_layout;
     struct buffer_layout uvcoords_layout = s->geometry->uvcoords_layout;
@@ -205,14 +204,12 @@ static int drawwaveform_init(struct ngl_node *node)
     s->position_attr.format = NGPU_FORMAT_R32G32B32_SFLOAT;
     s->position_attr.stride = vertices_layout.stride;
     s->position_attr.offset = vertices_layout.offset;
-    s->position_attr.buffer = vertices;
 
     snprintf(s->uvcoord_attr.name, sizeof(s->uvcoord_attr.name), "uvcoord");
     s->uvcoord_attr.type   = NGPU_TYPE_VEC2;
     s->uvcoord_attr.format = NGPU_FORMAT_R32G32_SFLOAT;
     s->uvcoord_attr.stride = uvcoords_layout.stride;
     s->uvcoord_attr.offset = uvcoords_layout.offset;
-    s->uvcoord_attr.buffer = uvcoords;
 
     s->nb_vertices = (uint32_t)vertices_layout.count;
     s->topology = s->geometry->topology;
@@ -269,8 +266,6 @@ static int drawwaveform_prepare(struct ngl_node *node,
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
     const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
     ngli_assert(vert_size == sizeof(struct drawwaveform_vert_block));
@@ -291,7 +286,6 @@ static int drawwaveform_prepare(struct ngl_node *node,
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_VERT,
             .block         = &s->vert_block_desc,
-            .buffer        = {.buffer = staging_buf, .size = vert_size},
         },
         {
             .name          = "frag_params",
@@ -299,7 +293,6 @@ static int drawwaveform_prepare(struct ngl_node *node,
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->frag_block_desc,
-            .buffer        = {.buffer = staging_buf, .size = frag_size},
         },
         stats_block,
     };
@@ -359,14 +352,17 @@ static int drawwaveform_prepare(struct ngl_node *node,
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
     ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
     if (ret < 0)
         return ret;
+
+    const int32_t position_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "position");
+    const int32_t uvcoord_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "uvcoord");
+    ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, position_index, s->geometry->vertices_buffer);
+    ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, uvcoord_index, s->geometry->uvcoords_buffer);
 
     /* Build blocks map for stats */
     const int32_t stats_index = ngpu_pgcraft_get_block_index(s->crafter, "stats", NGPU_PROGRAM_STAGE_FRAG);

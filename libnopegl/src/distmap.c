@@ -586,8 +586,6 @@ int ngli_distmap_finalize(struct distmap *s)
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 

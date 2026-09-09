@@ -204,18 +204,12 @@ static int setup_pass1_pipeline(struct ngl_node *node)
         }
     };
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_block blocks[] = {
         {
             .name          = "blur",
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->blur_block_desc,
-            .buffer        = {
-                .buffer    = staging_buf,
-                .size      = s->blur_block_size,
-            },
         }
     };
 
@@ -258,8 +252,6 @@ static int setup_pass1_pipeline(struct ngl_node *node)
         },
         .program          = ngpu_pgcraft_get_program(s->pass1.crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->pass1.crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->pass1.crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->pass1.crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->pass1.crafter),
     };
 
@@ -303,18 +295,12 @@ static int setup_pass2_pipeline(struct ngl_node *node)
         }
     };
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
             .name          = "blur",
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->blur_block_desc,
-            .buffer        = {
-                .buffer = staging_buf,
-                .size   = s->blur_block_size,
-            },
         },
     };
 
@@ -354,8 +340,6 @@ static int setup_pass2_pipeline(struct ngl_node *node)
         },
         .program          = ngpu_pgcraft_get_program(s->pass2.crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->pass2.crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->pass2.crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->pass2.crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->pass2.crafter),
     };
 

@@ -136,8 +136,6 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         },
         .program          = ngpu_pgcraft_get_program(hwconv->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(hwconv->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(hwconv->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(hwconv->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(hwconv->crafter),
     };
 

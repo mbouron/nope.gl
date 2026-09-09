@@ -247,7 +247,6 @@ static int drawpath_prepare(struct ngl_node *node,
             .name = "tex",
             .type = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage = NGPU_PROGRAM_STAGE_FRAG,
-            .texture = texture,
             .no_metadata = true,
         },
     };
@@ -322,8 +321,6 @@ static int drawpath_prepare(struct ngl_node *node,
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
@@ -331,7 +328,7 @@ static int drawpath_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
-    return 0;
+    return ngli_pipeline_compat_update_texture(desc->pipeline_compat, 0, texture);
 }
 
 static void drawpath_draw(struct ngl_node *node)

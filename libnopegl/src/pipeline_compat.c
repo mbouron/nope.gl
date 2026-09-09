@@ -178,12 +178,24 @@ int ngli_pipeline_compat_init(struct pipeline_compat *s, const struct pipeline_c
     NGLI_ARRAY_MEMDUP(&s->bindgroup_layout_desc, &params->layout_desc, textures);
     NGLI_ARRAY_MEMDUP(&s->bindgroup_layout_desc, &params->layout_desc, buffers);
 
-    const struct ngpu_bindgroup_resources *bindgroup_resources = &params->resources;
-    NGLI_ARRAY_MEMDUP(s, bindgroup_resources, buffers);
-    NGLI_ARRAY_MEMDUP(s, bindgroup_resources, textures);
-
-    const struct ngpu_vertex_resources *vertex_resources = &params->vertex_resources;
-    NGLI_ARRAY_MEMDUP(s, vertex_resources, vertex_buffers);
+    s->nb_buffers = params->layout_desc.nb_buffers;
+    s->nb_textures = params->layout_desc.nb_textures;
+    s->nb_vertex_buffers = params->graphics.vertex_state.nb_buffers;
+    if (s->nb_buffers) {
+        s->buffers = ngli_try_calloc(s->nb_buffers, sizeof(*s->buffers));
+        if (!s->buffers)
+            return NGL_ERROR_MEMORY;
+    }
+    if (s->nb_textures) {
+        s->textures = ngli_try_calloc(s->nb_textures, sizeof(*s->textures));
+        if (!s->textures)
+            return NGL_ERROR_MEMORY;
+    }
+    if (s->nb_vertex_buffers) {
+        s->vertex_buffers = ngli_try_calloc(s->nb_vertex_buffers, sizeof(*s->vertex_buffers));
+        if (!s->vertex_buffers)
+            return NGL_ERROR_MEMORY;
+    }
 
     s->texture_infos = params->texture_infos;
 

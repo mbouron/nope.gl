@@ -134,11 +134,8 @@ static int setup_down_up_pipeline(struct ngl_ctx *ctx,
                                   const char *frag_base,
                                   struct pipeline_compat *pipeline,
                                   const struct ngpu_rendertarget_layout *layout,
-                                  struct ngpu_block_desc *block_desc,
-                                  size_t block_size)
+                                  struct ngpu_block_desc *block_desc)
 {
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_iovar vert_out_vars[] = {
         {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
     };
@@ -159,10 +156,6 @@ static int setup_down_up_pipeline(struct ngl_ctx *ctx,
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = block_desc,
-            .buffer        = {
-                .buffer    = staging_buf,
-                .size      = block_size,
-            },
         }
     };
 
@@ -192,8 +185,6 @@ static int setup_down_up_pipeline(struct ngl_ctx *ctx,
         },
         .program          = ngpu_pgcraft_get_program(crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(crafter),
     };
 
@@ -233,18 +224,12 @@ static int setup_interpolate_pipeline(struct ngl_node *node)
     s->interpolate.block_size = ngpu_block_desc_get_size(&s->interpolate.block_desc, 0);
     ngli_assert(s->interpolate.block_size == sizeof(struct interpolate_block));
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
             .name          = "interpolate",
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->interpolate.block_desc,
-            .buffer        = {
-                .buffer    = staging_buf,
-                .size      = s->interpolate.block_size,
-            },
         }
     };
 
@@ -276,8 +261,6 @@ static int setup_interpolate_pipeline(struct ngl_node *node)
         },
         .program          = ngpu_pgcraft_get_program(s->interpolate.crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->interpolate.crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->interpolate.crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->interpolate.crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->interpolate.crafter),
     };
 
@@ -334,8 +317,8 @@ static int fgblur_init(struct ngl_node *node)
     if (!s->dws.pl || !s->ups.pl || !s->interpolate.pl)
         return NGL_ERROR_MEMORY;
 
-    if ((ret = setup_down_up_pipeline(ctx, s->dws.crafter, DWS_NAME, blur_downsample_frag, s->dws.pl, &s->mip_layout, &s->down_up_block_desc, s->down_up_block_size)) < 0 ||
-        (ret = setup_down_up_pipeline(ctx, s->ups.crafter, UPS_NAME, blur_upsample_frag, s->ups.pl, &s->mip_layout, &s->down_up_block_desc, s->down_up_block_size)) < 0)
+    if ((ret = setup_down_up_pipeline(ctx, s->dws.crafter, DWS_NAME, blur_downsample_frag, s->dws.pl, &s->mip_layout, &s->down_up_block_desc)) < 0 ||
+        (ret = setup_down_up_pipeline(ctx, s->ups.crafter, UPS_NAME, blur_upsample_frag, s->ups.pl, &s->mip_layout, &s->down_up_block_desc)) < 0)
         return ret;
 
     s->down_up_block_index_dws = ngpu_pgcraft_get_block_index(s->dws.crafter, "data", NGPU_PROGRAM_STAGE_FRAG);

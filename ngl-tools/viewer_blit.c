@@ -66,7 +66,6 @@ struct blit_ctx *viewer_blit_create(struct ngpu_ctx *gpu_ctx)
             .name        = "tex",
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .texture     = NULL, /* Set at draw time. */
             .no_metadata = true,
         },
     };
@@ -99,11 +98,8 @@ struct blit_ctx *viewer_blit_create(struct ngpu_ctx *gpu_ctx)
     if (ngpu_bindgroup_layout_init(s->bindgroup_layout, &bg_layout_desc) < 0)
         goto fail;
 
-    struct ngpu_bindgroup_resources bg_resources = ngpu_pgcraft_get_bindgroup_resources(s->crafter);
-
     const struct ngpu_bindgroup_params bg_params = {
         .layout    = s->bindgroup_layout,
-        .resources = bg_resources,
     };
     s->bindgroup = ngpu_bindgroup_create(gpu_ctx);
     if (!s->bindgroup)

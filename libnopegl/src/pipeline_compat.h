@@ -26,6 +26,7 @@
 #include <ngpu/ngpu.h>
 #include <ngpu/ngpu.h>
 
+struct image;
 struct ngpu_staging_buffer;
 
 struct pipeline_compat_params {
@@ -33,14 +34,13 @@ struct pipeline_compat_params {
     struct ngpu_pipeline_graphics graphics;
     const struct ngpu_program *program;
     struct ngpu_bindgroup_layout_desc layout_desc;
-    struct ngpu_bindgroup_resources resources;
-    struct ngpu_vertex_resources vertex_resources;
     struct ngpu_pgcraft_texture_infos texture_infos;
 };
 
 struct pipeline_compat;
 
 struct pipeline_compat *ngli_pipeline_compat_create(struct ngpu_ctx *gpu_ctx);
+/* Resources must be bound with the update functions before drawing or dispatching. */
 int ngli_pipeline_compat_init(struct pipeline_compat *s, const struct pipeline_compat_params *params);
 int ngli_pipeline_compat_update_vertex_buffer(struct pipeline_compat *s, int32_t index, const struct ngpu_buffer *buffer);
 int ngli_pipeline_compat_update_texture(struct pipeline_compat *s, int32_t index, const struct ngpu_texture *texture);

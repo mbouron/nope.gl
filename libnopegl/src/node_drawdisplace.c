@@ -188,7 +188,6 @@ static int drawdisplace_init(struct ngl_node *node)
         s->geometry = *(struct geometry **)o->geometry->priv_data;
     }
 
-    struct ngpu_buffer *vertices = s->geometry->vertices_buffer;
     struct ngpu_buffer *uvcoords = s->geometry->uvcoords_buffer;
     struct buffer_layout vertices_layout = s->geometry->vertices_layout;
     struct buffer_layout uvcoords_layout = s->geometry->uvcoords_layout;
@@ -213,14 +212,12 @@ static int drawdisplace_init(struct ngl_node *node)
     s->position_attr.format = NGPU_FORMAT_R32G32B32_SFLOAT;
     s->position_attr.stride = vertices_layout.stride;
     s->position_attr.offset = vertices_layout.offset;
-    s->position_attr.buffer = vertices;
 
     snprintf(s->uvcoord_attr.name, sizeof(s->uvcoord_attr.name), "uvcoord");
     s->uvcoord_attr.type   = NGPU_TYPE_VEC2;
     s->uvcoord_attr.format = NGPU_FORMAT_R32G32_SFLOAT;
     s->uvcoord_attr.stride = uvcoords_layout.stride;
     s->uvcoord_attr.offset = uvcoords_layout.offset;
-    s->uvcoord_attr.buffer = uvcoords;
 
     s->nb_vertices = (uint32_t)vertices_layout.count;
     s->topology = s->geometry->topology;
@@ -304,7 +301,6 @@ static int drawdisplace_prepare(struct ngl_node *node,
             .name        = "source",
             .type        = ngli_node_texture_get_pgcraft_texture_type(o->source_node),
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .image       = &source_info->image,
             .format      = source_info->params.format,
             .clamp_video = source_info->clamp_video,
             .premult     = source_info->premult,
@@ -312,7 +308,6 @@ static int drawdisplace_prepare(struct ngl_node *node,
             .name        = "displacement",
             .type        = ngli_node_texture_get_pgcraft_texture_type(o->displacement_node),
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .image       = &displacement_info->image,
             .format      = displacement_info->params.format,
             .clamp_video = displacement_info->clamp_video,
             .premult     = source_info->premult,
@@ -380,8 +375,6 @@ static int drawdisplace_prepare(struct ngl_node *node,
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
@@ -389,10 +382,15 @@ static int drawdisplace_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
+    const int32_t position_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "position");
+    const int32_t uvcoord_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "uvcoord");
+    ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, position_index, s->geometry->vertices_buffer);
+    ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, uvcoord_index, s->geometry->uvcoords_buffer);
+
     /* Build texture map */
-    const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
-    for (size_t i = 0; i < texture_infos.nb_infos; i++) {
-        const struct texture_map map = {.image = texture_infos.infos[i].image, .image_rev = SIZE_MAX};
+    const struct texture_info *texture_infos[] = {source_info, displacement_info};
+    for (size_t i = 0; i < NGLI_ARRAY_NB(texture_infos); i++) {
+        const struct texture_map map = {.image = &texture_infos[i]->image, .image_rev = SIZE_MAX};
         if (ngli_darray_try_push(&desc->textures_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }

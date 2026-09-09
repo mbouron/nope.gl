@@ -111,7 +111,6 @@ static int setup_compute(struct ngl_ctx *ctx, struct colorstats_priv *s, struct 
         .type             = NGPU_PIPELINE_TYPE_COMPUTE,
         .program          = ngpu_pgcraft_get_program(crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(crafter),
     };
 
@@ -147,7 +146,6 @@ static int setup_waveform_compute(struct ngl_ctx *ctx, struct colorstats_priv *s
             .name        = "source",
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO,
             .stage       = NGPU_PROGRAM_STAGE_COMP,
-            .image       = &texture_info->image,
             .format      = texture_info->params.format,
             .clamp_video = 0, /* clamping is done manually in the shader */
         },

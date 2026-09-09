@@ -233,8 +233,6 @@ static int setup_pipeline(struct ngl_ctx *ctx, struct ngpu_pgcraft *crafter, str
         },
         .program          = ngpu_pgcraft_get_program(crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(crafter),
     };
 
@@ -301,27 +299,17 @@ static int gblur_init(struct ngl_node *node)
         },
     };
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
             .name          = "direction",
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->direction_block_desc,
-            .buffer        = {
-                .buffer = staging_buf,
-                .size   = s->direction_block_size,
-            },
         }, {
             .name          = "kernel",
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->kernel_block_desc,
-            .buffer        = {
-                .buffer = staging_buf,
-                .size   = s->kernel_block_size,
-            },
         },
     };
 

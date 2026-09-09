@@ -904,8 +904,6 @@ int ngli_hud_init(struct hud *s)
     ngpu_block_desc_add_field(&transforms_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
     ngli_assert(ngpu_block_desc_get_size(&transforms_block_desc, 0) == sizeof(struct transforms_block));
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_block blocks[] = {
         {
             .name          = "transforms",
@@ -913,10 +911,6 @@ int ngli_hud_init(struct hud *s)
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_VERT,
             .block         = &transforms_block_desc,
-            .buffer = {
-                .buffer = staging_buf,
-                .size   = sizeof(struct transforms_block),
-            }
         },
     };
 
@@ -925,7 +919,6 @@ int ngli_hud_init(struct hud *s)
             .name        = "tex",
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .texture     = s->texture,
             .no_metadata = true,
         },
     };
@@ -936,7 +929,6 @@ int ngli_hud_init(struct hud *s)
             .type     = NGPU_TYPE_VEC4,
             .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
             .stride   = 4 * sizeof(float),
-            .buffer   = s->coords,
         },
     };
 
@@ -989,12 +981,18 @@ int ngli_hud_init(struct hud *s)
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
     ret = ngli_pipeline_compat_init(s->pipeline_compat, &params);
+    if (ret < 0)
+        goto done;
+
+    const int32_t coords_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, "coords");
+    ret = ngli_pipeline_compat_update_vertex_buffer(s->pipeline_compat, coords_index, s->coords);
+    if (ret < 0)
+        goto done;
+    ret = ngli_pipeline_compat_update_texture(s->pipeline_compat, 0, s->texture);
 
 done:
     ngpu_block_desc_reset(&transforms_block_desc);

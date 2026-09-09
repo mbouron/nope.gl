@@ -270,7 +270,6 @@ static int register_texture(const char *name, struct ngl_node *res, struct effec
     struct ngpu_pgcraft_texture tex = {
         .type        = ngli_node_texture_get_pgcraft_texture_type(res),
         .stage       = NGPU_PROGRAM_STAGE_FRAG,
-        .image       = &texture_info->image,
         .format      = texture_info->params.format,
         .clamp_video = texture_info->clamp_video,
         .premult     = texture_info->premult,
@@ -299,13 +298,10 @@ static int register_block(const char *name, struct ngl_node *res, struct ngpu_ct
     else
         ngli_node_block_extend_usage(res, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-    const struct ngpu_buffer *buffer = block_info->buffer;
-    const size_t buffer_size = buffer ? ngpu_buffer_get_size(buffer) : 0;
     struct ngpu_pgcraft_block crafter_block = {
         .type   = btype,
         .stage  = NGPU_PROGRAM_STAGE_FRAG,
         .block  = block,
-        .buffer = {.buffer = buffer, .size = buffer_size},
     };
     snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", name);
     return ngli_darray_try_push(blocks, crafter_block) < 0 ? NGL_ERROR_MEMORY : 0;
@@ -580,8 +576,6 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         },
         .program          = ngpu_pgcraft_get_program(program->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(program->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(program->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(program->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(program->crafter),
     };
 
@@ -589,10 +583,14 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     if (ret < 0)
         return ret;
 
-    /* Build texture map */
-    const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(program->crafter);
-    for (size_t i = 0; i < texture_infos.nb_infos; i++) {
-        const struct texture_map tm = {.image = texture_infos.infos[i].image};
+    /* Build the texture map, starting with the offscreen result supplied at draw time. */
+    if (ngli_darray_try_push(&program->textures_map, (struct texture_map){0}) < 0)
+        return NGL_ERROR_MEMORY;
+    for (size_t i = 0; i < program->crafter_textures.count; i++) {
+        const char *name = program->crafter_textures.data[i].name;
+        const struct ngl_node *res = ngli_hmap_get_str(program->resources, name);
+        const struct texture_info *info = ngli_node_texture_get_texture_info(res);
+        const struct texture_map tm = {.image = &info->image};
         if (ngli_darray_try_push(&program->textures_map, tm) < 0)
             return NGL_ERROR_MEMORY;
     }
