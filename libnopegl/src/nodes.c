@@ -1365,6 +1365,9 @@ void ngl_node_unrefp(struct ngl_node **nodep)
         ngli_assert(!node->ctx);
         if (node->cls->free)
             node->cls->free(node);
+        ngli_darray_reset(&node->children);
+        ngli_darray_reset(&node->draw_children);
+        ngli_darray_reset(&node->parents);
         ngli_params_free((uint8_t *)node, ngli_base_node_params);
         ngli_params_free(node->opts, node->cls->params);
         ngli_free_aligned(node);
