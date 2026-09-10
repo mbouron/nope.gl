@@ -26,7 +26,7 @@
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -35,7 +35,7 @@
 
 NGLI_DECLARE_DARRAY_WITH_NAME(bindgroup_darray, struct ngpu_bindgroup *);
 
-struct pipeline_compat {
+struct ngli_pipeline {
     struct ngpu_ctx *gpu_ctx;
     enum ngpu_pipeline_type type;
     struct ngpu_pipeline_graphics graphics;
@@ -59,9 +59,9 @@ struct pipeline_compat {
     struct ngpu_pgcraft_texture_infos texture_infos;
 };
 
-struct pipeline_compat *ngli_pipeline_compat_create(struct ngpu_ctx *gpu_ctx)
+struct ngli_pipeline *ngli_pipeline_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct pipeline_compat *s = ngli_try_calloc(1, sizeof(*s));
+    struct ngli_pipeline *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->gpu_ctx = gpu_ctx;
@@ -74,7 +74,7 @@ static void free_bindgroup(void *user_arg, void *data)
     ngpu_bindgroup_freep(bindgroup);
 }
 
-static int grow_bindgroup_array(struct pipeline_compat *s)
+static int grow_bindgroup_array(struct ngli_pipeline *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
@@ -114,7 +114,7 @@ static int grow_bindgroup_array(struct pipeline_compat *s)
     return 0;
 }
 
-static int create_pipeline(struct pipeline_compat *s)
+static int create_pipeline(struct ngli_pipeline *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
@@ -156,7 +156,7 @@ static int create_pipeline(struct pipeline_compat *s)
     return 0;
 }
 
-static void reset_pipeline(struct pipeline_compat *s)
+static void reset_pipeline(struct ngli_pipeline *s)
 {
     ngpu_pipeline_freep(&s->pipeline);
     ngli_darray_clear(&s->bindgroups);
@@ -165,7 +165,7 @@ static void reset_pipeline(struct pipeline_compat *s)
     ngpu_bindgroup_layout_freep(&s->bindgroup_layout);
 }
 
-int ngli_pipeline_compat_init(struct pipeline_compat *s, const struct pipeline_compat_params *params)
+int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_params *params)
 {
     s->type = params->type;
 
@@ -194,7 +194,7 @@ int ngli_pipeline_compat_init(struct pipeline_compat *s, const struct pipeline_c
     return 0;
 }
 
-int ngli_pipeline_compat_update_vertex_buffer(struct pipeline_compat *s, int32_t index, const struct ngpu_buffer *buffer)
+int ngli_pipeline_update_vertex_buffer(struct ngli_pipeline *s, int32_t index, const struct ngpu_buffer *buffer)
 {
     if (index == -1)
         return NGL_ERROR_NOT_FOUND;
@@ -204,7 +204,7 @@ int ngli_pipeline_compat_update_vertex_buffer(struct pipeline_compat *s, int32_t
     return 0;
 }
 
-static int update_texture(struct pipeline_compat *s, int32_t index, const struct ngpu_texture_binding *binding)
+static int update_texture(struct ngli_pipeline *s, int32_t index, const struct ngpu_texture_binding *binding)
 {
     if (index == -1)
         return NGL_ERROR_NOT_FOUND;
@@ -223,13 +223,13 @@ static int update_texture(struct pipeline_compat *s, int32_t index, const struct
     return 0;
 }
 
-int ngli_pipeline_compat_update_texture(struct pipeline_compat *s, int32_t index, const struct ngpu_texture *texture)
+int ngli_pipeline_update_texture(struct ngli_pipeline *s, int32_t index, const struct ngpu_texture *texture)
 {
     const struct ngpu_texture_binding binding = {.texture = texture};
     return update_texture(s, index, &binding);
 }
 
-int ngli_pipeline_compat_update_dynamic_offsets(struct pipeline_compat *s, const uint32_t *offsets, size_t nb_offsets)
+int ngli_pipeline_update_dynamic_offsets(struct ngli_pipeline *s, const uint32_t *offsets, size_t nb_offsets)
 {
     ngli_assert(ngpu_bindgroup_layout_get_nb_dynamic_offsets(s->bindgroup_layout) == nb_offsets);
     memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
@@ -237,7 +237,7 @@ int ngli_pipeline_compat_update_dynamic_offsets(struct pipeline_compat *s, const
     return 0;
 }
 
-static void push_texture_info_block(struct pipeline_compat *s,
+static void push_texture_info_block(struct ngli_pipeline *s,
                                     struct ngpu_staging_buffer *staging,
                                     size_t tex_index, const struct image *image,
                                     const void *coord_matrix_override)
@@ -260,12 +260,12 @@ static void push_texture_info_block(struct pipeline_compat *s,
 
     const size_t offset = ngpu_staging_buffer_push(staging, &texture_info, sizeof(texture_info));
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(staging);
-    ngli_pipeline_compat_update_buffer(s, info->block_index, buffer, offset, sizeof(texture_info));
+    ngli_pipeline_update_buffer(s, info->block_index, buffer, offset, sizeof(texture_info));
 }
 
-void ngli_pipeline_compat_apply_reframing_matrix(struct pipeline_compat *s, int32_t index,
-                                                 const struct image *image, const float *reframing,
-                                                 struct ngpu_staging_buffer *staging)
+void ngli_pipeline_apply_reframing_matrix(struct ngli_pipeline *s, int32_t index,
+                                          const struct image *image, const float *reframing,
+                                          struct ngpu_staging_buffer *staging)
 {
     if (index == -1)
         return;
@@ -304,9 +304,9 @@ void ngli_pipeline_compat_apply_reframing_matrix(struct pipeline_compat *s, int3
     push_texture_info_block(s, staging, (size_t)index, image, matrix.m);
 }
 
-void ngli_pipeline_compat_update_image(struct pipeline_compat *s, int32_t index,
-                                       const struct image *image,
-                                       struct ngpu_staging_buffer *staging)
+void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index,
+                                const struct image *image,
+                                struct ngpu_staging_buffer *staging)
 {
     if (index == -1)
         return;
@@ -372,7 +372,7 @@ void ngli_pipeline_compat_update_image(struct pipeline_compat *s, int32_t index,
     }
 }
 
-int ngli_pipeline_compat_update_buffer(struct pipeline_compat *s, int32_t index, const struct ngpu_buffer *buffer, size_t offset, size_t size)
+int ngli_pipeline_update_buffer(struct ngli_pipeline *s, int32_t index, const struct ngpu_buffer *buffer, size_t offset, size_t size)
 {
     if (index == -1)
         return NGL_ERROR_NOT_FOUND;
@@ -387,7 +387,7 @@ int ngli_pipeline_compat_update_buffer(struct pipeline_compat *s, int32_t index,
     return 0;
 }
 
-static int select_next_available_bindgroup(struct pipeline_compat *s)
+static int select_next_available_bindgroup(struct ngli_pipeline *s)
 {
     /* If current bindgroup is not in use, select it */
     if (ngpu_bindgroup_get_refcount(s->cur_bindgroup) == 1)
@@ -420,7 +420,7 @@ static int select_next_available_bindgroup(struct pipeline_compat *s)
     return 0;
 }
 
-static int prepare_bindgroup(struct pipeline_compat *s)
+static int prepare_bindgroup(struct ngli_pipeline *s)
 {
     if (!s->updated)
         return 0;
@@ -454,7 +454,7 @@ static int prepare_bindgroup(struct pipeline_compat *s)
     return 0;
 }
 
-static int prepare_pipeline(struct pipeline_compat *s)
+static int prepare_pipeline(struct ngli_pipeline *s)
 {
     int ret = prepare_bindgroup(s);
     if (ret < 0)
@@ -463,7 +463,7 @@ static int prepare_pipeline(struct pipeline_compat *s)
     return 0;
 }
 
-void ngli_pipeline_compat_draw(struct pipeline_compat *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex)
+void ngli_pipeline_draw(struct ngli_pipeline *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
@@ -478,7 +478,7 @@ void ngli_pipeline_compat_draw(struct pipeline_compat *s, uint32_t nb_vertices, 
     ngpu_ctx_draw(gpu_ctx, nb_vertices, nb_instances, first_vertex);
 }
 
-void ngli_pipeline_compat_draw_indexed(struct pipeline_compat *s, const struct ngpu_buffer *indices, enum ngpu_format indices_format, uint32_t nb_indices, uint32_t nb_instances)
+void ngli_pipeline_draw_indexed(struct ngli_pipeline *s, const struct ngpu_buffer *indices, enum ngpu_format indices_format, uint32_t nb_indices, uint32_t nb_instances)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
@@ -494,7 +494,7 @@ void ngli_pipeline_compat_draw_indexed(struct pipeline_compat *s, const struct n
     ngpu_ctx_draw_indexed(gpu_ctx, nb_indices, nb_instances, 0);
 }
 
-void ngli_pipeline_compat_dispatch(struct pipeline_compat *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
+void ngli_pipeline_dispatch(struct ngli_pipeline *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
@@ -507,9 +507,9 @@ void ngli_pipeline_compat_dispatch(struct pipeline_compat *s, uint32_t nb_group_
     ngpu_ctx_dispatch(gpu_ctx, nb_group_x, nb_group_y, nb_group_z);
 }
 
-void ngli_pipeline_compat_freep(struct pipeline_compat **sp)
+void ngli_pipeline_freep(struct ngli_pipeline **sp)
 {
-    struct pipeline_compat *s = *sp;
+    struct ngli_pipeline *s = *sp;
     if (!s)
         return;
 

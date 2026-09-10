@@ -29,7 +29,7 @@
 #include <ngpu/ngpu.h>
 #include <ngpu/ngpu.h>
 #include "params.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "text.h"
 #include "utils/darray.h"
 #include "utils/utils.h"
@@ -53,7 +53,7 @@
 
 struct pipeline_desc_common {
     struct ngpu_pgcraft *crafter;
-    struct pipeline_compat *pipeline_compat;
+    struct ngli_pipeline *pipeline;
 };
 
 struct pipeline_desc_bg {
@@ -324,27 +324,27 @@ static int refresh_pipeline_data(struct ngl_node *node)
 
         struct pipeline_desc_fg *desc_fg = &s->pipeline_desc.fg;
         struct pipeline_desc_common *desc = &desc_fg->common;
-        if (desc->pipeline_compat) {
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->vertices_index,       s->vertices);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->atlas_coords_index,   s->atlas_coords);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->texcoord_bounds_index, s->texcoord_bounds);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->banding_index,        s->band_transforms);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->glyph_data_index,     s->glyph_data);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->user_transform_index, s->user_transforms);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->color_index,          s->colors);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->outline_index,        s->outlines);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->glow_index,           s->glows);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->blur_index,           s->blurs);
-            ngli_pipeline_compat_update_vertex_buffer(desc->pipeline_compat, desc_fg->outline_pos_index,    s->outline_positions);
+        if (desc->pipeline) {
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->vertices_index,       s->vertices);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->atlas_coords_index,   s->atlas_coords);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->texcoord_bounds_index, s->texcoord_bounds);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->banding_index,        s->band_transforms);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->glyph_data_index,     s->glyph_data);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->user_transform_index, s->user_transforms);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->color_index,          s->colors);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->outline_index,        s->outlines);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->glow_index,           s->glows);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->blur_index,           s->blurs);
+            ngli_pipeline_update_vertex_buffer(desc->pipeline, desc_fg->outline_pos_index,    s->outline_positions);
         }
     }
 
     if (text->cls->flags & NGLI_TEXT_FLAG_MUTABLE_ATLAS) {
         struct pipeline_desc_fg *desc_fg = &s->pipeline_desc.fg;
         struct pipeline_desc_common *desc = &desc_fg->common;
-        if (desc->pipeline_compat &&
-            ((ret = ngli_pipeline_compat_update_texture(desc->pipeline_compat, 0, text->curve_texture)) < 0 ||
-             (ret = ngli_pipeline_compat_update_texture(desc->pipeline_compat, 1, text->band_texture)) < 0))
+        if (desc->pipeline &&
+            ((ret = ngli_pipeline_update_texture(desc->pipeline, 0, text->curve_texture)) < 0 ||
+             (ret = ngli_pipeline_update_texture(desc->pipeline, 1, text->band_texture)) < 0))
             return ret;
     }
 
@@ -491,11 +491,11 @@ static int init_subdesc(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
-    desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!desc->pipeline_compat)
+    desc->pipeline = ngli_pipeline_create(gpu_ctx);
+    if (!desc->pipeline)
         return NGL_ERROR_MEMORY;
 
-    const struct pipeline_compat_params params = {
+    const struct ngli_pipeline_params params = {
         .type          = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics      = {
             .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
@@ -510,7 +510,7 @@ static int init_subdesc(struct ngl_node *node,
         .texture_infos    = ngpu_pgcraft_get_texture_infos(desc->crafter),
     };
 
-    ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
+    ret = ngli_pipeline_init(desc->pipeline, &params);
     if (ret < 0)
         return ret;
 
@@ -875,8 +875,8 @@ static void text_draw(struct ngl_node *node)
     if (bg_desc->vert_block_index >= 0) {
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &bg_vert_data, sizeof(bg_vert_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(bg_desc->common.pipeline_compat, bg_desc->vert_block_index,
-                                           staging_buf, vert_offset, sizeof(bg_vert_data));
+        ngli_pipeline_update_buffer(bg_desc->common.pipeline, bg_desc->vert_block_index,
+                                    staging_buf, vert_offset, sizeof(bg_vert_data));
     }
 
     /* Fill and push background fragment block to staging buffer */
@@ -887,15 +887,15 @@ static void text_draw(struct ngl_node *node)
     if (bg_desc->frag_block_index >= 0) {
         const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &bg_frag_data, sizeof(bg_frag_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(bg_desc->common.pipeline_compat, bg_desc->frag_block_index,
-                                           staging_buf, frag_offset, sizeof(bg_frag_data));
+        ngli_pipeline_update_buffer(bg_desc->common.pipeline, bg_desc->frag_block_index,
+                                    staging_buf, frag_offset, sizeof(bg_frag_data));
     }
 
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_compat_draw(bg_desc->common.pipeline_compat, 4, 1, 0);
+    ngli_pipeline_draw(bg_desc->common.pipeline, 4, 1, 0);
 
     if (s->nb_chars) {
         /* Fill and push foreground vertex block to staging buffer */
@@ -907,8 +907,8 @@ static void text_draw(struct ngl_node *node)
         if (fg_desc->vert_block_index >= 0) {
             const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &fg_vert_data, sizeof(fg_vert_data));
             struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-            ngli_pipeline_compat_update_buffer(fg_desc->common.pipeline_compat, fg_desc->vert_block_index,
-                                               staging_buf, vert_offset, sizeof(fg_vert_data));
+            ngli_pipeline_update_buffer(fg_desc->common.pipeline, fg_desc->vert_block_index,
+                                        staging_buf, vert_offset, sizeof(fg_vert_data));
         }
 
         /* Fill and push foreground fragment block to staging buffer */
@@ -918,11 +918,11 @@ static void text_draw(struct ngl_node *node)
         if (fg_desc->frag_block_index >= 0) {
             const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &fg_frag_data, sizeof(fg_frag_data));
             struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-            ngli_pipeline_compat_update_buffer(fg_desc->common.pipeline_compat, fg_desc->frag_block_index,
-                                               staging_buf, frag_offset, sizeof(fg_frag_data));
+            ngli_pipeline_update_buffer(fg_desc->common.pipeline, fg_desc->frag_block_index,
+                                        staging_buf, frag_offset, sizeof(fg_frag_data));
         }
 
-        ngli_pipeline_compat_draw(fg_desc->common.pipeline_compat, 4, (uint32_t)s->nb_chars, 0);
+        ngli_pipeline_draw(fg_desc->common.pipeline, 4, (uint32_t)s->nb_chars, 0);
     }
 }
 
@@ -937,8 +937,8 @@ static void text_uninit(struct ngl_node *node)
 {
     struct text_priv *s = node->priv_data;
     struct pipeline_desc *desc = &s->pipeline_desc;
-    ngli_pipeline_compat_freep(&desc->bg.common.pipeline_compat);
-    ngli_pipeline_compat_freep(&desc->fg.common.pipeline_compat);
+    ngli_pipeline_freep(&desc->bg.common.pipeline);
+    ngli_pipeline_freep(&desc->fg.common.pipeline);
     ngpu_pgcraft_freep(&desc->bg.common.crafter);
     ngpu_pgcraft_freep(&desc->fg.common.crafter);
     ngpu_block_desc_reset(&desc->bg.vert_block_desc);

@@ -40,7 +40,7 @@
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "pass.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include <ngpu/ngpu.h>
 #include "utils/darray.h"
 #include "utils/hmap.h"
@@ -498,13 +498,13 @@ int ngli_pass_prepare(struct pass *s,
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    desc->pipeline_compat = ngli_pipeline_compat_create(gpu_ctx);
-    if (!desc->pipeline_compat)
+    desc->pipeline = ngli_pipeline_create(gpu_ctx);
+    if (!desc->pipeline)
         return NGL_ERROR_MEMORY;
 
     const struct ngpu_pgcraft_texture_infos tex_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
 
-    const struct pipeline_compat_params params = {
+    const struct ngli_pipeline_params params = {
         .type = s->pipeline_type,
         .graphics = {
             .topology     = s->topology,
@@ -518,7 +518,7 @@ int ngli_pass_prepare(struct pass *s,
         .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = tex_infos,
     };
-    ret = ngli_pipeline_compat_init(desc->pipeline_compat, &params);
+    ret = ngli_pipeline_init(desc->pipeline, &params);
     if (ret < 0)
         return ret;
 
@@ -597,7 +597,7 @@ void ngli_pass_uninit(struct pass *s)
         return;
 
     struct pipeline_desc *desc = &s->pipeline_desc;
-    ngli_pipeline_compat_freep(&desc->pipeline_compat);
+    ngli_pipeline_freep(&desc->pipeline);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
 
@@ -618,7 +618,7 @@ int ngli_pass_exec(struct pass *s)
     struct ngl_ctx *ctx = s->ctx;
     const struct pass_params *params = &s->params;
     struct pipeline_desc *desc = &s->pipeline_desc;
-    struct pipeline_compat *pipeline_compat = desc->pipeline_compat;
+    struct ngli_pipeline *pipeline = desc->pipeline;
 
 
     /* Fill and push user uniform blocks */
@@ -677,18 +677,18 @@ int ngli_pass_exec(struct pass *s)
         }
 
         struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pipeline_compat, block_idx, buffer, offset, block_size);
+        ngli_pipeline_update_buffer(pipeline, block_idx, buffer, offset, block_size);
     }
 
     for (size_t i = 0; i < desc->textures_map.count; i++) {
-        ngli_pipeline_compat_update_image(pipeline_compat, (int32_t)i, desc->textures_map.data[i].image, ctx->current_staging_buffer);
+        ngli_pipeline_update_image(pipeline, (int32_t)i, desc->textures_map.data[i].image, ctx->current_staging_buffer);
     }
 
     struct resource_map *resource_map = desc->blocks_map.data;
     for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
         if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_compat_update_buffer(pipeline_compat, resource_map[i].index, info->buffer, 0, 0);
+            ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
             resource_map[i].buffer_rev = info->buffer_rev;
         }
     }
@@ -704,10 +704,10 @@ int ngli_pass_exec(struct pass *s)
         ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
         if (s->indices)
-            ngli_pipeline_compat_draw_indexed(pipeline_compat, s->indices, s->indices_layout->format,
-                                              (uint32_t)s->indices_layout->count, s->nb_instances);
+            ngli_pipeline_draw_indexed(pipeline, s->indices, s->indices_layout->format,
+                                       (uint32_t)s->indices_layout->count, s->nb_instances);
         else
-            ngli_pipeline_compat_draw(pipeline_compat, s->nb_vertices, s->nb_instances, 0);
+            ngli_pipeline_draw(pipeline, s->nb_vertices, s->nb_instances, 0);
     } else {
         struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
@@ -715,7 +715,7 @@ int ngli_pass_exec(struct pass *s)
             ngpu_ctx_end_render_pass(gpu_ctx);
         }
 
-        ngli_pipeline_compat_dispatch(pipeline_compat, NGLI_ARG_VEC3(params->workgroup_count));
+        ngli_pipeline_dispatch(pipeline, NGLI_ARG_VEC3(params->workgroup_count));
     }
 
     return 0;
