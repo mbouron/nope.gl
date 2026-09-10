@@ -34,6 +34,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `ngpu_ctx_gl_wrap_framebuffer()`  and `ngpu_ctx_gl_reset_state()`. Use
   `ngpu_ctx_params_gl.shared_context` to share OpenGL objects with an
   application context
+- Reframing transform nodes placed on top of texture nodes
 
 ### Changed
 - The HUD now rely on metrics exported by the NGPU layer instead of inspecting

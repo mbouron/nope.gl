@@ -1045,7 +1045,7 @@ static void drawrect2d_draw(struct ngl_node *node)
 
     /* Update textures */
     for (size_t i = 0; i < s->textures_map.count; i++)
-        ngli_pipeline_update_image(pipeline, (int32_t)i, s->textures_map.data[i].image, ctx->current_staging_buffer);
+        ngli_pipeline_update_image(pipeline, (int32_t)i, s->textures_map.data[i].image);
 
     /* Compute texture scaling */
     const int orientation_quarter = ((int)o->content_orientation / 90) & 3;
@@ -1204,7 +1204,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_draw(pipeline, 4, 1, 0);
+    ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, 4, 1, 0);
 }
 
 static void drawrect2d_uninit(struct ngl_node *node)

@@ -584,6 +584,43 @@ def texture_mipmap(cfg: ngl.SceneCfg):
     return ngl.Group(children=[draw])
 
 
+_TEXTURE_REFRAMING_VERT = """
+void main()
+{
+    ngl_out_pos = ngl_projection_matrix * ngl_modelview_matrix * vec4(ngl_position, 1.0);
+
+    /* Scale up from normalized [0,1] UV to centered [-1,1], swapping y-axis */
+    vec2 coord = (tex0_coord_matrix * vec4(ngl_uvcoord, 0.0, 1.0)).xy * vec2(2.0, -2.0) + vec2(-1.0, 1.0);
+
+    /* Moving the picture around is the opposite of moving its coordinates */
+    coord = (inverse(reframing) * vec4(coord, 0.0, 1.0)).xy;
+
+    /* Scale down from centered [-1,1] to normalized [0,1] UV, swapping y-axis */
+    var_tex0_coord = coord * vec2(0.5, -0.5) + vec2(0.5, 0.5);
+}
+"""
+
+
+_TEXTURE_REFRAMING_FRAG = """
+void main()
+{
+    ngl_out_color = ngl_texvideo(tex0, var_tex0_coord);
+}
+"""
+
+
+_TEXTURE_REFRAMING_DISCARD_FRAG = """
+void main()
+{
+    if (any(lessThan(var_tex0_coord, vec2(0.0))) ||
+        any(greaterThan(var_tex0_coord, vec2(1.0))))
+        discard;
+
+    ngl_out_color = ngl_texvideo(tex0, var_tex0_coord);
+}
+"""
+
+
 def _get_texture_reframing_scene(d, wrap="default"):
     media = load_media("hamster")
     anim_pos_kf = [
@@ -593,11 +630,20 @@ def _get_texture_reframing_scene(d, wrap="default"):
     ]
     anim_angle_kf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(d, 360)]
     tex = ngl.Texture2D(data_src=ngl.Media(filename=media.filename))
-    tex = ngl.Scale(tex, factors=(1.2, 1.2, 1))
-    tex = ngl.Rotate(tex, angle=ngl.AnimatedFloat(anim_angle_kf))
-    tex = ngl.Translate(tex, vector=ngl.AnimatedVec3(anim_pos_kf))
+
+    reframing = ngl.Scale(ngl.Identity(), factors=(1.2, 1.2, 1))
+    reframing = ngl.Rotate(reframing, angle=ngl.AnimatedFloat(anim_angle_kf))
+    reframing = ngl.Translate(reframing, vector=ngl.AnimatedVec3(anim_pos_kf))
+
+    frag = _TEXTURE_REFRAMING_DISCARD_FRAG if wrap == "discard" else _TEXTURE_REFRAMING_FRAG
+    program = ngl.Program(vertex=_TEXTURE_REFRAMING_VERT, fragment=frag)
+    program.update_vert_out_vars(var_tex0_coord=ngl.IOVec2())
+
     geometry = ngl.Quad(corner=(-0.8, -0.8, 0), width=(1.6, 0, 0), height=(0, 1.6, 0))
-    return ngl.DrawTexture(texture=tex, wrap=wrap, geometry=geometry)
+    draw = ngl.Draw(geometry, program)
+    draw.update_frag_resources(tex0=tex)
+    draw.update_vert_resources(reframing=ngl.UniformMat4(transform=reframing))
+    return draw
 
 
 @test_render(keyframes=5, tolerance=1)
@@ -612,26 +658,6 @@ def texture_reframing(cfg: ngl.SceneCfg):
 def texture_reframing_wrap_discard(cfg: ngl.SceneCfg):
     cfg.duration = d = 3
     return _get_texture_reframing_scene(d, "discard")
-
-
-@test_render(keyframes=5, tolerance=1)
-@ngl.scene(width=320, height=320)
-def texture_reframing(cfg: ngl.SceneCfg):
-    cfg.duration = d = 3
-
-    media = load_media("hamster")
-    anim_pos_kf = [
-        ngl.AnimKeyFrameVec3(0, (-1, -1, 0)),
-        ngl.AnimKeyFrameVec3(d / 2, (1, 1, 0)),
-        ngl.AnimKeyFrameVec3(d, (-1, -1, 0)),
-    ]
-    anim_angle_kf = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(d, 360)]
-    tex = ngl.Texture2D(data_src=ngl.Media(filename=media.filename))
-    tex = ngl.Scale(tex, factors=(1.2, 1.2, 1))
-    tex = ngl.Rotate(tex, angle=ngl.AnimatedFloat(anim_angle_kf))
-    tex = ngl.Translate(tex, vector=ngl.AnimatedVec3(anim_pos_kf))
-    geometry = ngl.Quad(corner=(-0.8, -0.8, 0), width=(1.6, 0, 0), height=(0, 1.6, 0))
-    return ngl.DrawTexture(texture=tex, geometry=geometry)
 
 
 @test_render(keyframes=5, tolerance=3, diff_threshold=0.005)

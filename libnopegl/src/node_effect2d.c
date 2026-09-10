@@ -883,7 +883,7 @@ static void effect2d_draw(struct ngl_node *node)
 
     /* Update textures */
     for (size_t i = 0; i < program->textures_map.count; i++)
-        ngli_pipeline_update_image(pl, (int32_t)i, program->textures_map.data[i].image, ctx->current_staging_buffer);
+        ngli_pipeline_update_image(pl, (int32_t)i, program->textures_map.data[i].image);
 
     /* Fill and push vertex block to staging buffer */
     {
@@ -942,7 +942,7 @@ static void effect2d_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_draw(pl, 4, 1, 0);
+    ngli_pipeline_draw(pl, ctx->current_staging_buffer, 4, 1, 0);
 }
 
 static void effect2d_release(struct ngl_node *node)

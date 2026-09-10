@@ -23,7 +23,6 @@
 #include <string.h>
 
 #include "image.h"
-#include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
@@ -57,6 +56,7 @@ struct ngli_pipeline {
     int updated;
     int need_pipeline_recreation;
     struct ngpu_pgcraft_texture_infos texture_infos;
+    const struct image **images;
 };
 
 struct ngli_pipeline *ngli_pipeline_create(struct ngpu_ctx *gpu_ctx)
@@ -187,6 +187,12 @@ int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_param
 
     s->texture_infos = params->texture_infos;
 
+    if (s->texture_infos.nb_infos) {
+        s->images = ngli_try_calloc(s->texture_infos.nb_infos, sizeof(*s->images));
+        if (!s->images)
+            return NGL_ERROR_MEMORY;
+    }
+
     ret = create_pipeline(s);
     if (ret < 0)
         return ret;
@@ -239,16 +245,14 @@ int ngli_pipeline_update_dynamic_offsets(struct ngli_pipeline *s, const uint32_t
 
 static void push_texture_info_block(struct ngli_pipeline *s,
                                     struct ngpu_staging_buffer *staging,
-                                    size_t tex_index, const struct image *image,
-                                    const void *coord_matrix_override)
+                                    size_t tex_index, const struct image *image)
 {
     const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[tex_index];
     if (info->block_index < 0)
         return;
 
     struct ngpu_pgcraft_texture_info_block texture_info = {0};
-    const void *coord_src = coord_matrix_override ? coord_matrix_override : image->coordinates_matrix.m;
-    memcpy(texture_info.coord_matrix, coord_src, sizeof(texture_info.coord_matrix));
+    memcpy(texture_info.coord_matrix, image->coordinates_matrix.m, sizeof(texture_info.coord_matrix));
     memcpy(texture_info.color_matrix, image->color_matrix.m, sizeof(texture_info.color_matrix));
     memcpy(texture_info.mapping_color_matrix, image->mapping_color_matrix.m, sizeof(texture_info.mapping_color_matrix));
     if (image->params.layout) {
@@ -263,59 +267,13 @@ static void push_texture_info_block(struct ngli_pipeline *s,
     ngli_pipeline_update_buffer(s, info->block_index, buffer, offset, sizeof(texture_info));
 }
 
-void ngli_pipeline_apply_reframing_matrix(struct ngli_pipeline *s, int32_t index,
-                                          const struct image *image, const float *reframing,
-                                          struct ngpu_staging_buffer *staging)
+void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index, const struct image *image)
 {
     if (index == -1)
         return;
 
     ngli_assert(index >= 0 && index < s->texture_infos.nb_infos);
     const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[index];
-
-    /* No texture metadata block means no reframing to apply */
-    if (info->block_index < 0)
-        return;
-
-    /* Scale up from normalized [0,1] UV to centered [-1,1], swapping y-axis */
-    static const struct ngli_mat4 remap_uv_to_centered = {.m = {
-        2.f,  0.f, 0.f, 0.f,
-        0.f, -2.f, 0.f, 0.f,
-        0.f,  0.f, 1.f, 0.f,
-       -1.f,  1.f, 0.f, 1.f,
-    }};
-
-    /* Scale down from centered [-1,1] to normalized [0,1] UV, swapping y-axis */
-    static const struct ngli_mat4 remap_centered_to_uv = {.m = {
-        .5f,  0.f, 0.f, 0.f,
-        0.f, -.5f, 0.f, 0.f,
-        0.f,  0.f, 1.f, 0.f,
-        .5f,  .5f, 0.f, 1.f,
-    }};
-
-    struct ngli_mat4 inverse_reframing;
-    ngli_mat4_inverse(inverse_reframing.m, reframing);
-
-    struct ngli_mat4 matrix;
-    ngli_mat4_mul(matrix.m, remap_uv_to_centered.m, image->coordinates_matrix.m);
-    ngli_mat4_mul(matrix.m, inverse_reframing.m, matrix.m);
-    ngli_mat4_mul(matrix.m, remap_centered_to_uv.m, matrix.m);
-
-    push_texture_info_block(s, staging, (size_t)index, image, matrix.m);
-}
-
-void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index,
-                                const struct image *image,
-                                struct ngpu_staging_buffer *staging)
-{
-    if (index == -1)
-        return;
-
-    ngli_assert(index >= 0 && index < s->texture_infos.nb_infos);
-    const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[index];
-
-    push_texture_info_block(s, staging, (size_t)index, image, NULL);
-
     const struct ngpu_texture_binding empty_binding = {0};
 
     switch (image->params.layout) {
@@ -370,6 +328,8 @@ void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index,
     default:
         break;
     }
+
+    s->images[index] = image;
 }
 
 int ngli_pipeline_update_buffer(struct ngli_pipeline *s, int32_t index, const struct ngpu_buffer *buffer, size_t offset, size_t size)
@@ -454,8 +414,21 @@ static int prepare_bindgroup(struct ngli_pipeline *s)
     return 0;
 }
 
-static int prepare_pipeline(struct ngli_pipeline *s)
+static void prepare_images(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer)
 {
+    for (size_t i = 0; i < s->texture_infos.nb_infos; i++) {
+        const struct image *image = s->images[i];
+        if (!image)
+            continue;
+
+        push_texture_info_block(s, staging_buffer, i, image);
+    }
+}
+
+static int prepare_pipeline(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer)
+{
+    prepare_images(s, staging_buffer);
+
     int ret = prepare_bindgroup(s);
     if (ret < 0)
         return ret;
@@ -463,11 +436,11 @@ static int prepare_pipeline(struct ngli_pipeline *s)
     return 0;
 }
 
-void ngli_pipeline_draw(struct ngli_pipeline *s, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex)
+void ngli_pipeline_draw(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
-    int ret = prepare_pipeline(s);
+    int ret = prepare_pipeline(s, staging_buffer);
     if (ret < 0)
         return;
 
@@ -478,11 +451,11 @@ void ngli_pipeline_draw(struct ngli_pipeline *s, uint32_t nb_vertices, uint32_t 
     ngpu_ctx_draw(gpu_ctx, nb_vertices, nb_instances, first_vertex);
 }
 
-void ngli_pipeline_draw_indexed(struct ngli_pipeline *s, const struct ngpu_buffer *indices, enum ngpu_format indices_format, uint32_t nb_indices, uint32_t nb_instances)
+void ngli_pipeline_draw_indexed(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging, const struct ngpu_buffer *indices, enum ngpu_format indices_format, uint32_t nb_indices, uint32_t nb_instances)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
-    int ret = prepare_pipeline(s);
+    int ret = prepare_pipeline(s, staging);
     if (ret < 0)
         return;
 
@@ -494,11 +467,11 @@ void ngli_pipeline_draw_indexed(struct ngli_pipeline *s, const struct ngpu_buffe
     ngpu_ctx_draw_indexed(gpu_ctx, nb_indices, nb_instances, 0);
 }
 
-void ngli_pipeline_dispatch(struct ngli_pipeline *s, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
+void ngli_pipeline_dispatch(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
-    int ret = prepare_pipeline(s);
+    int ret = prepare_pipeline(s, staging_buffer);
     if (ret < 0)
         return;
 
@@ -524,6 +497,7 @@ void ngli_pipeline_freep(struct ngli_pipeline **sp)
     ngli_freep(&s->vertex_buffers);
     ngli_freep(&s->textures);
     ngli_freep(&s->buffers);
+    ngli_freep(&s->images);
 
     ngli_freep(sp);
 }

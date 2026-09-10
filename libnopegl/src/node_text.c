@@ -895,7 +895,7 @@ static void text_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_draw(bg_desc->common.pipeline, 4, 1, 0);
+    ngli_pipeline_draw(bg_desc->common.pipeline, ctx->current_staging_buffer, 4, 1, 0);
 
     if (s->nb_chars) {
         /* Fill and push foreground vertex block to staging buffer */
@@ -922,7 +922,7 @@ static void text_draw(struct ngl_node *node)
                                         staging_buf, frag_offset, sizeof(fg_frag_data));
         }
 
-        ngli_pipeline_draw(fg_desc->common.pipeline, 4, (uint32_t)s->nb_chars, 0);
+        ngli_pipeline_draw(fg_desc->common.pipeline, ctx->current_staging_buffer, 4, (uint32_t)s->nb_chars, 0);
     }
 }
 
