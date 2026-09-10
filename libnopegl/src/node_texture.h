@@ -25,6 +25,7 @@
 #include <stdint.h>
 
 #include "image.h"
+#include "resource.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 #include "params.h"
@@ -42,6 +43,7 @@ struct texture_info {
     int rtt;
     struct ngpu_texture *texture;
     struct image image;
+    struct resource *resource;
 
 };
 

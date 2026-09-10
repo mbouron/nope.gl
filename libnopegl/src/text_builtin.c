@@ -238,8 +238,8 @@ static int text_builtin_init(struct text *text)
 
     s->atlas = atlas;
 
-    text->curve_texture = ngli_slug_get_curve_texture(atlas->slug);
-    text->band_texture = ngli_slug_get_band_texture(atlas->slug);
+    ngli_resource_set_texture(text->curve_texture, ngli_slug_get_curve_texture(atlas->slug));
+    ngli_resource_set_texture(text->band_texture, ngli_slug_get_band_texture(atlas->slug));
 
     return 0;
 }

@@ -162,7 +162,7 @@ static int drawhistogram_init(struct ngl_node *node)
         s->geometry = *(struct geometry **)o->geometry->priv_data;
     }
 
-    const struct buffer_resource *uvcoords = s->geometry->uvcoords;
+    const struct resource *uvcoords = s->geometry->uvcoords;
     struct buffer_layout vertices_layout = s->geometry->vertices_layout;
     struct buffer_layout uvcoords_layout = s->geometry->uvcoords_layout;
 
@@ -360,7 +360,7 @@ static int drawhistogram_prepare(struct ngl_node *node,
     /* Follow the stats owner, including allocations published after preparation. */
     const int32_t stats_index = ngpu_pgcraft_get_block_index(s->crafter, "stats", NGPU_PROGRAM_STAGE_FRAG);
     const struct pipeline_buffer_source source = {
-        .resource = &block_info->resource,
+        .resource = block_info->resource,
         .size = NGPU_BUFFER_WHOLE_SIZE,
     };
     ret = ngli_pipeline_set_buffer_source(desc->pipeline, stats_index, &source);

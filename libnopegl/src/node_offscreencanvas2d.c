@@ -245,6 +245,7 @@ static int offscreencanvas2d_prefetch(struct ngl_node *node)
         }
         struct image *image = &rti.info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix.m);
+        ngli_resource_set_image(rti.info->resource, image);
     }
 
     if (o->depth_texture) {
@@ -354,6 +355,7 @@ static int offscreencanvas2d_resize(struct ngl_node *node)
         texture_info->image.params.width = width;
         texture_info->image.params.height = height;
         texture_info->image.planes[0] = textures[i];
+        ngli_resource_set_image(texture_info->resource, &texture_info->image);
         ngpu_texture_freep(&old_texture);
     }
 
@@ -365,6 +367,7 @@ static int offscreencanvas2d_resize(struct ngl_node *node)
         texture_info->image.params.width = width;
         texture_info->image.params.height = height;
         texture_info->image.planes[0] = depth_texture;
+        ngli_resource_set_image(texture_info->resource, &texture_info->image);
         ngpu_texture_freep(&old_texture);
     }
 

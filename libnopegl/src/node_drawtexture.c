@@ -180,7 +180,7 @@ static int drawtexture_init(struct ngl_node *node)
         s->geometry = *(struct geometry **)o->geometry->priv_data;
     }
 
-    const struct buffer_resource *uvcoords = s->geometry->uvcoords;
+    const struct resource *uvcoords = s->geometry->uvcoords;
     struct buffer_layout vertices_layout = s->geometry->vertices_layout;
     struct buffer_layout uvcoords_layout = s->geometry->uvcoords_layout;
 
@@ -379,11 +379,7 @@ static int drawtexture_prepare(struct ngl_node *node,
     if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
         return ret;
 
-    const struct pipeline_image_source source = {
-        .type = PIPELINE_IMAGE_SOURCE_DIRECT,
-        .image = &texture_info->image,
-    };
-    ret = ngli_pipeline_set_image_source(desc->pipeline, 0, &source, o->texture_node);
+    ret = ngli_pipeline_set_image_source(desc->pipeline, 0, texture_info->resource, o->texture_node);
     if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
         return ret;
 

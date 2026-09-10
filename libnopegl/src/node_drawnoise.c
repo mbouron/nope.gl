@@ -216,7 +216,7 @@ static int drawnoise_init(struct ngl_node *node)
         s->geometry = *(struct geometry **)o->geometry->priv_data;
     }
 
-    const struct buffer_resource *uvcoords = s->geometry->uvcoords;
+    const struct resource *uvcoords = s->geometry->uvcoords;
     struct buffer_layout vertices_layout = s->geometry->vertices_layout;
     struct buffer_layout uvcoords_layout = s->geometry->uvcoords_layout;
 

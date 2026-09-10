@@ -420,7 +420,7 @@ static int register_block_sources(struct pass *s, struct pipeline_desc *desc)
 
         const struct block_info *info = node->priv_data;
         const struct pipeline_buffer_source source = {
-            .resource = &info->resource,
+            .resource = info->resource,
             .size = NGPU_BUFFER_WHOLE_SIZE,
         };
         int ret = ngli_pipeline_set_buffer_source(desc->pipeline, index, &source);
@@ -514,11 +514,7 @@ int ngli_pass_prepare(struct pass *s,
                                                                                : s->params.compute_resources;
         const struct ngl_node *node = ngli_hmap_get_str(resources, texture->name);
         const struct texture_info *info = ngli_node_texture_get_texture_info(node);
-        const struct pipeline_image_source source = {
-            .type = PIPELINE_IMAGE_SOURCE_DIRECT,
-            .image = &info->image,
-        };
-        ret = ngli_pipeline_set_image_source(desc->pipeline, (int32_t)i, &source, NULL);
+        ret = ngli_pipeline_set_image_source(desc->pipeline, (int32_t)i, info->resource, NULL);
         if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
             return ret;
     }
@@ -532,7 +528,7 @@ int ngli_pass_prepare(struct pass *s,
         }
         const struct {
             const char *name;
-            const struct buffer_resource *resource;
+            const struct resource *resource;
         } attributes[] = {
             {"ngl_position", geometry->vertices},
             {"ngl_uvcoord",  geometry->uvcoords},

@@ -991,7 +991,7 @@ int ngli_hud_init(struct hud *s)
     ret = ngli_pipeline_update_vertex_buffer(s->pipeline, coords_index, s->coords);
     if (ret < 0)
         goto done;
-    ret = ngli_pipeline_set_texture_source(s->pipeline, 0, &s->texture);
+    ret = ngli_pipeline_update_texture(s->pipeline, 0, s->texture);
 
 done:
     ngpu_block_desc_reset(&transforms_block_desc);

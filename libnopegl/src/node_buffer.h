@@ -44,8 +44,8 @@ struct buffer_info {
 
     uint32_t flags;
 
-    struct buffer_resource owned_resource;
-    const struct buffer_resource *resource;
+    /* Owned holder, shared with the backing Block for a view. */
+    struct resource *resource;
 };
 
 void ngli_node_buffer_extend_usage(struct ngl_node *node, uint32_t usage);

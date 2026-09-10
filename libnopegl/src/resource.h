@@ -25,17 +25,36 @@
 
 #include <ngpu/ngpu.h>
 
-/* Stable owner; publish only initialized allocations. Consumers borrow this
- * object and retain the GPU allocation they resolve from it. */
-struct buffer_resource {
-    struct ngpu_buffer *buffer;
+struct image;
+struct resource;
+
+enum resource_type {
+    NGLI_RESOURCE_BUFFER,
+    NGLI_RESOURCE_TEXTURE,
+    NGLI_RESOURCE_IMAGE,
 };
 
-static inline void ngli_buffer_resource_reset(struct buffer_resource *s)
-{
-    struct ngpu_buffer *buffer = s->buffer;
-    s->buffer = NULL;
-    ngpu_buffer_freep(&buffer);
-}
+/* A resource owns its current GPU references. Consumers retain this holder and
+ * resolve its current value before execution. All operations run on the render
+ * thread; reference counting does not synchronize publication and resolution. */
+struct resource *ngli_resource_create(enum resource_type type);
+struct resource *ngli_resource_ref(const struct resource *s);
+void ngli_resource_freep(struct resource **sp);
+enum resource_type ngli_resource_get_type(const struct resource *s);
+
+/* Setters retain inputs before releasing the previous value. Images are copied
+ * with references to their planes. NULL clears a publication, preserving the
+ * holder and its type. Clear before producer release if consumers must see an
+ * unavailable resource; dropping a reference alone preserves the current value. */
+void ngli_resource_set_buffer(struct resource *s, const struct ngpu_buffer *buffer);
+void ngli_resource_set_texture(struct resource *s, const struct ngpu_texture *texture);
+void ngli_resource_set_image(struct resource *s, const struct image *image);
+void ngli_resource_clear(struct resource *s);
+
+/* Values are borrowed until the next publication. An empty image resource
+ * returns an image with NGLI_IMAGE_LAYOUT_NONE. */
+struct ngpu_buffer *ngli_resource_get_buffer(const struct resource *s);
+struct ngpu_texture *ngli_resource_get_texture(const struct resource *s);
+const struct image *ngli_resource_get_image(const struct resource *s);
 
 #endif

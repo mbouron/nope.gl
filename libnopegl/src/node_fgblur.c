@@ -69,8 +69,8 @@ struct fgblur_opts {
 };
 
 struct fgblur_priv {
-    const struct image *pass_input;
-    const struct image *interpolate_inputs[2];
+    struct resource *pass_input;
+    struct resource *interpolate_inputs[2];
     uint32_t width;
     uint32_t height;
     uint32_t max_lod;
@@ -280,6 +280,16 @@ static int fgblur_init(struct ngl_node *node)
     struct fgblur_priv *s = node->priv_data;
     const struct fgblur_opts *o = node->opts;
 
+    s->pass_input = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!s->pass_input)
+        return NGL_ERROR_MEMORY;
+    s->interpolate_inputs[0] = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!s->interpolate_inputs[0])
+        return NGL_ERROR_MEMORY;
+    s->interpolate_inputs[1] = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!s->interpolate_inputs[1])
+        return NGL_ERROR_MEMORY;
+
     /* Disable direct rendering */
     struct texture_info *src_info = o->source->priv_data;
     src_info->supported_image_layouts = NGLI_IMAGE_LAYOUT_DEFAULT_BIT;
@@ -330,42 +340,18 @@ static int fgblur_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    {
-        const struct pipeline_image_source source = {
-            .type = PIPELINE_IMAGE_SOURCE_INDIRECT,
-            .image_slot = &s->pass_input,
-        };
-        ret = ngli_pipeline_set_image_source(s->dws.pl, 0, &source, NULL);
-        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
-            return ret;
-    }
-    {
-        const struct pipeline_image_source source = {
-            .type = PIPELINE_IMAGE_SOURCE_INDIRECT,
-            .image_slot = &s->pass_input,
-        };
-        ret = ngli_pipeline_set_image_source(s->ups.pl, 0, &source, NULL);
-        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
-            return ret;
-    }
-    {
-        const struct pipeline_image_source source = {
-            .type = PIPELINE_IMAGE_SOURCE_INDIRECT,
-            .image_slot = &s->interpolate_inputs[0],
-        };
-        ret = ngli_pipeline_set_image_source(s->interpolate.pl, 0, &source, NULL);
-        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
-            return ret;
-    }
-    {
-        const struct pipeline_image_source source = {
-            .type = PIPELINE_IMAGE_SOURCE_INDIRECT,
-            .image_slot = &s->interpolate_inputs[1],
-        };
-        ret = ngli_pipeline_set_image_source(s->interpolate.pl, 1, &source, NULL);
-        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
-            return ret;
-    }
+    ret = ngli_pipeline_set_image_source(s->dws.pl, 0, s->pass_input, NULL);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    ret = ngli_pipeline_set_image_source(s->ups.pl, 0, s->pass_input, NULL);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    ret = ngli_pipeline_set_image_source(s->interpolate.pl, 0, s->interpolate_inputs[0], NULL);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    ret = ngli_pipeline_set_image_source(s->interpolate.pl, 1, s->interpolate_inputs[1], NULL);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
     return 0;
 }
 
@@ -489,6 +475,7 @@ static int resize(struct ngl_node *node)
         dst_info->image.params.width = ngpu_texture_get_params(dst)->width;
         dst_info->image.params.height = ngpu_texture_get_params(dst)->height;
         dst_info->image.planes[0] = dst;
+        ngli_resource_set_image(dst_info->resource, &dst_info->image);
         ngpu_texture_freep(&old_texture);
     }
 
@@ -531,9 +518,9 @@ static int execute_down_up_pass(struct ngl_ctx *ctx, struct fgblur_priv *s,
 
     ngli_rtt_begin(rtt_ctx);
     ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
-    s->pass_input = image;
+    ngli_resource_set_image(s->pass_input, image);
     int ret = ngli_pipeline_draw(pipeline, &execution, 3, 1, 0);
-    s->pass_input = NULL;
+    ngli_resource_clear(s->pass_input);
     ngli_rtt_end(rtt_ctx);
     return ret;
 }
@@ -647,10 +634,11 @@ static void fgblur_pre_draw(struct ngl_node *node)
      */
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
-    s->interpolate_inputs[0] = mip;
-    s->interpolate_inputs[1] = ngli_rtt_get_image(s->mips[0], 0);
+    ngli_resource_set_image(s->interpolate_inputs[0], mip);
+    ngli_resource_set_image(s->interpolate_inputs[1], ngli_rtt_get_image(s->mips[0], 0));
     ngli_pipeline_draw(s->interpolate.pl, &execution, 3, 1, 0);
-    s->interpolate_inputs[0] = s->interpolate_inputs[1] = NULL;
+    ngli_resource_clear(s->interpolate_inputs[0]);
+    ngli_resource_clear(s->interpolate_inputs[1]);
     ngli_rtt_end(s->dst_rtt_ctx);
 
     /*
@@ -661,6 +649,7 @@ static void fgblur_pre_draw(struct ngl_node *node)
     struct texture_info *dst_info = o->destination->priv_data;
     struct image *dst_image = &dst_info->image;
     dst_image->coordinates_matrix = src_image->coordinates_matrix;
+    ngli_resource_set_image(dst_info->resource, dst_image);
 }
 
 static void fgblur_release(struct ngl_node *node)
@@ -692,6 +681,9 @@ static void fgblur_uninit(struct ngl_node *node)
     ngli_pipeline_freep(&s->interpolate.pl);
     ngpu_pgcraft_freep(&s->interpolate.crafter);
     ngpu_block_desc_reset(&s->interpolate.block_desc);
+    ngli_resource_freep(&s->pass_input);
+    ngli_resource_freep(&s->interpolate_inputs[0]);
+    ngli_resource_freep(&s->interpolate_inputs[1]);
 }
 
 const struct node_class ngli_fgblur_class = {

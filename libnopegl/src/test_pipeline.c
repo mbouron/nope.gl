@@ -102,15 +102,14 @@ static struct pipeline *create_pipeline(struct fixture *f, struct ngpu_pgcraft *
     return pipeline;
 }
 
-static void publish_buffer(struct fixture *f, struct buffer_resource *owner, size_t size, const void *data, uint32_t usage)
+static void publish_buffer(struct fixture *f, struct resource *resource, size_t size, const void *data, uint32_t usage)
 {
     struct ngpu_buffer *buffer = ngpu_buffer_create(f->gpu);
     CHECK(buffer);
     CHECK(ngpu_buffer_init(buffer, size, usage | NGPU_BUFFER_USAGE_TRANSFER_DST_BIT) == 0);
     CHECK(ngpu_buffer_upload(buffer, data, 0, size) == 0);
-    struct ngpu_buffer *old = owner->buffer;
-    owner->buffer = buffer;
-    ngpu_buffer_freep(&old);
+    ngli_resource_set_buffer(resource, buffer);
+    ngpu_buffer_freep(&buffer);
 }
 
 static void test_buffer_sources(struct fixture *f)
@@ -134,10 +133,12 @@ static void test_buffer_sources(struct fixture *f)
     };
     struct ngpu_pgcraft *crafter = ngpu_pgcraft_create(f->gpu);
     CHECK(crafter && ngpu_pgcraft_craft(crafter, &params) == 0);
-    struct buffer_resource owner = {0}, indices = {0};
+    struct resource *owner = ngli_resource_create(NGLI_RESOURCE_BUFFER);
+    struct resource *indices = ngli_resource_create(NGLI_RESOURCE_BUFFER);
+    CHECK(owner && indices);
     /* Exercise the same Block -> Buffer view -> Geometry indirection as nodes. */
     const struct buffer_info view = {
-        .resource = &owner,
+        .resource = owner,
         .layout = {.type = NGPU_TYPE_VEC2, .format = NGPU_FORMAT_R32G32_SFLOAT,
                    .stride = 16, .offset = 16, .count = 3},
     };
@@ -150,16 +151,23 @@ static void test_buffer_sources(struct fixture *f)
     struct pipeline *b = create_pipeline(f, crafter);
     const int32_t block_index = ngpu_pgcraft_get_block_index(crafter, "params", NGPU_PROGRAM_STAGE_FRAG);
     const int32_t vertex_index = ngpu_pgcraft_get_vertex_buffer_index(crafter, "position");
-    const struct pipeline_buffer_source source = {.resource = &owner, .size = NGPU_BUFFER_WHOLE_SIZE};
+    const struct pipeline_buffer_source source = {.resource = owner, .size = NGPU_BUFFER_WHOLE_SIZE};
     CHECK(ngli_pipeline_set_buffer_source(a, -1, NULL) == NGL_ERROR_NOT_FOUND);
     CHECK(ngli_pipeline_set_buffer_source(a, 99, &source) == NGL_ERROR_INVALID_ARG);
-    CHECK(ngli_pipeline_set_vertex_source(a, 99, &owner) == NGL_ERROR_INVALID_ARG);
+    CHECK(ngli_pipeline_set_vertex_source(a, 99, owner) == NGL_ERROR_INVALID_ARG);
     struct pipeline *pipelines[] = {a, b};
     for (size_t i = 0; i < 2; i++) {
         CHECK(ngli_pipeline_set_buffer_source(pipelines[i], block_index, &source) == 0);
         CHECK(ngli_pipeline_set_vertex_source(pipelines[i], vertex_index, geometry->vertices) == 0);
-        CHECK(ngli_pipeline_set_index_source(pipelines[i], &indices, NGPU_FORMAT_R32_UINT) == 0);
+        CHECK(ngli_pipeline_set_index_source(pipelines[i], indices, NGPU_FORMAT_R32_UINT) == 0);
     }
+    struct resource *wrong_type = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    CHECK(wrong_type);
+    const struct pipeline_buffer_source wrong_source = {.resource = wrong_type, .size = 16};
+    CHECK(ngli_pipeline_set_buffer_source(a, block_index, &wrong_source) == NGL_ERROR_INVALID_ARG);
+    CHECK(ngli_pipeline_set_vertex_source(a, vertex_index, wrong_type) == NGL_ERROR_INVALID_ARG);
+    CHECK(ngli_pipeline_set_index_source(a, wrong_type, NGPU_FORMAT_R32_UINT) == NGL_ERROR_INVALID_ARG);
+    ngli_resource_freep(&wrong_type);
     CHECK(ngli_pipeline_update_buffer(a, block_index, NULL, 0, 0) == NGL_ERROR_INVALID_USAGE);
     CHECK(ngli_pipeline_update_vertex_buffer(a, vertex_index, NULL) == NGL_ERROR_INVALID_USAGE);
     CHECK(ngli_pipeline_update_index_buffer(a, NULL, NGPU_FORMAT_R32_UINT) == NGL_ERROR_INVALID_USAGE);
@@ -172,16 +180,16 @@ static void test_buffer_sources(struct fixture *f)
     end_frame(f);
 
     const uint32_t index_data[] = {0, 1, 2};
-    publish_buffer(f, &indices, sizeof(index_data), index_data, NGPU_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    publish_buffer(f, indices, sizeof(index_data), index_data, NGPU_BUFFER_USAGE_INDEX_BUFFER_BIT);
     float data[32] = {1, 0, 0, 1, -1, -1, 0, 0, 3, -1, 0, 0, -1, 3, 0, 0};
     const uint32_t usage = NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT | NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    publish_buffer(f, &owner, 64, data, usage);
+    publish_buffer(f, owner, 64, data, usage);
     begin_frame(f);
     viewport(f, 0);
     CHECK(ngli_pipeline_draw_indexed(a, NULL, 3, 1) == 0);
     /* Replace the allocation while the first draw still retains its inputs. */
     data[0] = 0; data[1] = 1;
-    publish_buffer(f, &owner, sizeof(data), data, usage);
+    publish_buffer(f, owner, sizeof(data), data, usage);
     viewport(f, 1);
     CHECK(ngli_pipeline_draw_indexed(b, NULL, 3, 1) == 0);
     end_frame(f);
@@ -200,7 +208,7 @@ static void test_buffer_sources(struct fixture *f)
 
     /* Content updates do not reconstruct the buffer from its initial CPU data. */
     data[1] = 0; data[2] = 1;
-    CHECK(ngpu_buffer_upload(owner.buffer, data, 0, sizeof(data)) == 0);
+    CHECK(ngpu_buffer_upload(ngli_resource_get_buffer(owner), data, 0, sizeof(data)) == 0);
     begin_frame(f);
     viewport(f, 0);
     for (size_t i = 0; i < 40; i++)
@@ -212,7 +220,7 @@ static void test_buffer_sources(struct fixture *f)
     check_pixel(f, 1, (const uint8_t[]){0, 0, 255, 255});
 
     /* Range errors repeat without drawing stale bindings, and are recoverable. */
-    const struct pipeline_buffer_source invalid = {.resource = &owner, .offset = SIZE_MAX, .size = 16};
+    const struct pipeline_buffer_source invalid = {.resource = owner, .offset = SIZE_MAX, .size = 16};
     CHECK(ngli_pipeline_set_buffer_source(a, block_index, &invalid) == 0);
     begin_frame(f);
     CHECK(ngli_pipeline_draw_indexed(a, NULL, 3, 1) < 0);
@@ -224,14 +232,14 @@ static void test_buffer_sources(struct fixture *f)
     end_frame(f);
     check_pixel(f, 0, (const uint8_t[]){0, 0, 255, 255});
 
-    ngli_buffer_resource_reset(&owner);
+    ngli_resource_clear(owner);
     begin_frame(f);
     CHECK(ngli_pipeline_draw_indexed(a, NULL, 3, 1) < 0);
     CHECK(ngli_pipeline_draw_indexed(b, NULL, 3, 1) < 0);
     CHECK(ngpu_ctx_get_frame_stats(f->gpu)->draw_calls == 0);
     end_frame(f);
     data[0] = 1; data[2] = 0;
-    publish_buffer(f, &owner, 64, data, usage); /* Whole-size binding shrinks. */
+    publish_buffer(f, owner, 64, data, usage); /* Whole-size binding shrinks. */
     ngli_pipeline_discard_resources(a);
     ngli_pipeline_discard_resources(b);
     begin_frame(f);
@@ -245,21 +253,27 @@ static void test_buffer_sources(struct fixture *f)
 
     /* Direct mode requires the caller to supply its value after cache discard. */
     CHECK(ngli_pipeline_set_buffer_source(a, block_index, NULL) == 0);
-    CHECK(ngli_pipeline_update_buffer(a, block_index, owner.buffer, 0, 0) == 0);
+    CHECK(ngli_pipeline_update_buffer(a, block_index, ngli_resource_get_buffer(owner), 0, 0) == 0);
     CHECK(ngli_pipeline_set_buffer_source(a, block_index, &source) == NGL_ERROR_INVALID_USAGE);
     ngli_pipeline_discard_resources(a);
     begin_frame(f);
     CHECK(ngli_pipeline_draw_indexed(a, NULL, 3, 1) < 0);
-    CHECK(ngli_pipeline_update_buffer(a, block_index, owner.buffer, 0, 16) == 0);
+    CHECK(ngli_pipeline_update_buffer(a, block_index, ngli_resource_get_buffer(owner), 0, 16) == 0);
     viewport(f, 0);
     CHECK(ngli_pipeline_draw_indexed(a, NULL, 3, 1) == 0);
     end_frame(f);
 
+    ngli_resource_freep(&owner);
+    ngli_resource_freep(&indices);
+    ngli_geometry_freep(&geometry);
+    ngli_pipeline_discard_resources(b);
+    begin_frame(f);
+    viewport(f, 0);
+    CHECK(ngli_pipeline_draw_indexed(b, NULL, 3, 1) == 0);
+    end_frame(f);
+    check_pixel(f, 0, (const uint8_t[]){255, 0, 0, 255});
     ngli_pipeline_freep(&a);
     ngli_pipeline_freep(&b);
-    ngli_buffer_resource_reset(&owner);
-    ngli_buffer_resource_reset(&indices);
-    ngli_geometry_freep(&geometry);
     ngpu_pgcraft_freep(&crafter);
     ngpu_block_desc_reset(&block);
     /* Retire recorded work before checking the cache's allocation ownership. */
@@ -315,25 +329,31 @@ static void test_image_sources(struct fixture *f)
     struct image *selected = malloc(sizeof(*selected));
     CHECK(selected);
     *selected = image;
-    const struct image *slot = selected;
-    const struct pipeline_image_source direct = {.type = PIPELINE_IMAGE_SOURCE_DIRECT, .image = &image};
-    const struct pipeline_image_source indirect = {.type = PIPELINE_IMAGE_SOURCE_INDIRECT, .image_slot = &slot};
+    struct resource *source_a = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    struct resource *source_b = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    struct resource *raw = ngli_resource_create(NGLI_RESOURCE_TEXTURE);
+    CHECK(source_a && source_b && raw);
+    ngli_resource_set_image(source_a, &image);
+    ngli_resource_set_image(source_b, selected);
+    ngli_resource_set_texture(raw, texture);
     struct transform transform = {.matrix = {.m = NGLI_MAT4_IDENTITY}};
     transform.matrix.m[12] = .5f;
     const struct node_class transform_class = {.category = NGLI_NODE_CATEGORY_TRANSFORM};
     struct ngl_node reframing = {.cls = &transform_class, .priv_data = &transform};
-    CHECK(ngli_pipeline_set_image_source(a, 0, &direct, NULL) == 0);
-    CHECK(ngli_pipeline_set_image_source(b, 0, &indirect, &reframing) == 0);
+    CHECK(ngli_pipeline_set_image_source(a, 0, source_a, NULL) == 0);
+    CHECK(ngli_pipeline_set_image_source(b, 0, source_b, &reframing) == 0);
     CHECK(ngli_pipeline_set_image_source(a, -1, NULL, NULL) == NGL_ERROR_NOT_FOUND);
-    CHECK(ngli_pipeline_set_image_source(a, 1, &direct, NULL) == NGL_ERROR_INVALID_ARG);
+    CHECK(ngli_pipeline_set_image_source(a, 1, source_a, NULL) == NGL_ERROR_INVALID_ARG);
+    CHECK(ngli_pipeline_set_image_source(a, 0, raw, NULL) == NGL_ERROR_INVALID_ARG);
     const struct ngpu_pgcraft_texture_info *info = ngpu_pgcraft_get_texture_infos(crafter).infos;
     CHECK(ngli_pipeline_update_texture(a, info->sampler_index, texture) == NGL_ERROR_INVALID_USAGE);
     CHECK(ngli_pipeline_update_buffer(a, info->block_index, NULL, 0, 0) == NGL_ERROR_INVALID_USAGE);
-    CHECK(ngli_pipeline_set_texture_source(a, info->sampler_index, &texture) == NGL_ERROR_INVALID_USAGE);
+    CHECK(ngli_pipeline_set_texture_source(a, info->sampler_index, raw) == NGL_ERROR_INVALID_USAGE);
     const struct pipeline_execution execution = {.staging = f->staging};
     begin_frame(f);
     CHECK(ngli_pipeline_draw(a, NULL, 3, 1, 0) < 0); /* Metadata requires staging. */
     viewport(f, 0);
+    ngli_resource_set_image(source_a, &image);
     CHECK(ngli_pipeline_draw(a, &execution, 3, 1, 0) == 0);
     viewport(f, 1);
     CHECK(ngli_pipeline_draw(b, &execution, 3, 1, 0) == 0);
@@ -346,10 +366,12 @@ static void test_image_sources(struct fixture *f)
     begin_frame(f);
     viewport(f, 0);
     image.ts = .5f;
+    ngli_resource_set_image(source_a, &image);
     CHECK(ngli_pipeline_draw(a, &execution, 3, 1, 0) == 0);
     viewport(f, 1);
     image.ts = .75f;
     image.coordinates_matrix.m[12] = .25f;
+    ngli_resource_set_image(source_a, &image);
     CHECK(ngli_pipeline_draw(a, &execution, 3, 1, 0) == 0);
     end_frame(f);
     check_pixel(f, 0, (const uint8_t[]){128, 128, 64, 255});
@@ -361,40 +383,104 @@ static void test_image_sources(struct fixture *f)
     image.nb_planes = 2;
     begin_frame(f);
     viewport(f, 0);
+    ngli_resource_set_image(source_a, &image);
     CHECK(ngli_pipeline_draw(a, &execution, 3, 1, 0) == 0);
     image.params.layout = NGLI_IMAGE_LAYOUT_DEFAULT;
     image.planes[1] = NULL;
     image.nb_planes = 1;
     viewport(f, 1);
+    ngli_resource_set_image(source_a, &image);
     CHECK(ngli_pipeline_draw(a, &execution, 3, 1, 0) == 0);
     end_frame(f);
     check_pixel(f, 0, (const uint8_t[]){191, 64, 192, 255});
     check_pixel(f, 1, (const uint8_t[]){191, 64, 64, 255});
 
-    /* Replace the CPU image owner behind a stable slot, then release it. */
-    slot = NULL;
+    /* Publication owns a snapshot even after the CPU image owner is freed. */
+    ngli_resource_clear(source_b);
     free(selected);
     selected = malloc(sizeof(*selected));
     CHECK(selected);
     *selected = image;
     selected->ts = .5f;
     selected->coordinates_matrix.m[12] = .5f;
-    slot = selected;
+    ngli_resource_set_image(source_b, selected);
+    free(selected);
+    selected = NULL;
     begin_frame(f);
     viewport(f, 0);
     CHECK(ngli_pipeline_draw(b, &execution, 3, 1, 0) == 0);
-    slot = NULL;
-    free(selected);
+    ngli_resource_clear(source_b);
     viewport(f, 1);
     CHECK(ngli_pipeline_draw(b, &execution, 3, 1, 0) == 0);
     end_frame(f);
     check_pixel(f, 0, (const uint8_t[]){128, 64, 64, 255});
     check_pixel(f, 1, (const uint8_t[]){0, 0, 0, 0});
 
+    /* The source and plane outlive both producer references and CPU storage. */
+    ngli_resource_set_image(source_a, ngli_resource_get_image(source_a));
+    ngli_resource_freep(&source_a);
+    ngli_resource_freep(&raw);
+    ngpu_texture_freep(&texture);
+    ngli_pipeline_discard_resources(a);
+    begin_frame(f);
+    viewport(f, 0);
+    CHECK(ngli_pipeline_draw(a, &execution, 3, 1, 0) == 0);
+    end_frame(f);
+    check_pixel(f, 0, (const uint8_t[]){191, 64, 64, 255});
+    ngli_resource_freep(&source_b);
     ngli_pipeline_freep(&a);
     ngli_pipeline_freep(&b);
     ngpu_texture_freep(&chroma);
     ngpu_texture_freep(&texture);
+    ngpu_pgcraft_freep(&crafter);
+}
+
+static void test_texture_sources(struct fixture *f)
+{
+    const struct ngpu_pgcraft_texture texture_desc = {
+        .name = "tex", .type = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
+        .stage = NGPU_PROGRAM_STAGE_FRAG, .no_metadata = true,
+    };
+    const struct ngpu_pgcraft_params params = {
+        .vert_base = "void main() { vec2 p = vec2((ngl_vertex_index << 1) & 2, ngl_vertex_index & 2); ngl_out_pos = vec4(p * 2.0 - 1.0, 0.0, 1.0); }",
+        .frag_base = "void main() { ngl_out_color = texture(tex, vec2(0.5)); }",
+        .textures = &texture_desc, .nb_textures = 1,
+    };
+    struct ngpu_pgcraft *crafter = ngpu_pgcraft_create(f->gpu);
+    CHECK(crafter && ngpu_pgcraft_craft(crafter, &params) == 0);
+    struct pipeline *pipeline = create_pipeline(f, crafter);
+    struct resource *source = ngli_resource_create(NGLI_RESOURCE_TEXTURE);
+    struct resource *wrong_type = ngli_resource_create(NGLI_RESOURCE_BUFFER);
+    CHECK(source && wrong_type);
+    const int32_t index = ngpu_pgcraft_get_texture_infos(crafter).infos[0].sampler_index;
+    CHECK(ngli_pipeline_set_texture_source(pipeline, index, source) == 0);
+    CHECK(ngli_pipeline_set_texture_source(pipeline, index, wrong_type) == NGL_ERROR_INVALID_ARG);
+    ngli_resource_freep(&wrong_type);
+
+    struct ngpu_texture *texture = create_texture(f, (const uint8_t[]){255, 0, 0, 255});
+    ngli_resource_set_texture(source, texture);
+    ngpu_texture_freep(&texture);
+    begin_frame(f);
+    viewport(f, 0);
+    CHECK(ngli_pipeline_draw(pipeline, NULL, 3, 1, 0) == 0);
+    texture = create_texture(f, (const uint8_t[]){0, 255, 0, 255});
+    ngli_resource_set_texture(source, texture);
+    ngpu_texture_freep(&texture);
+    viewport(f, 1);
+    CHECK(ngli_pipeline_draw(pipeline, NULL, 3, 1, 0) == 0);
+    end_frame(f);
+    check_pixel(f, 0, (const uint8_t[]){255, 0, 0, 255});
+    check_pixel(f, 1, (const uint8_t[]){0, 255, 0, 255});
+
+    ngli_resource_set_texture(source, ngli_resource_get_texture(source));
+    ngli_resource_freep(&source);
+    ngli_pipeline_discard_resources(pipeline);
+    begin_frame(f);
+    viewport(f, 0);
+    CHECK(ngli_pipeline_draw(pipeline, NULL, 3, 1, 0) == 0);
+    end_frame(f);
+    check_pixel(f, 0, (const uint8_t[]){0, 255, 0, 255});
+    ngli_pipeline_freep(&pipeline);
     ngpu_pgcraft_freep(&crafter);
 }
 
@@ -415,16 +501,17 @@ static void test_dynamic_ranges(struct fixture *f)
     struct ngpu_pgcraft *crafter = ngpu_pgcraft_create(f->gpu);
     CHECK(crafter && ngpu_pgcraft_craft(crafter, &params) == 0);
     struct pipeline *pipeline = create_pipeline(f, crafter);
-    struct buffer_resource owner = {0};
+    struct resource *owner = ngli_resource_create(NGLI_RESOURCE_BUFFER);
+    CHECK(owner);
     const size_t alignment = NGLI_MAX(16, ngpu_ctx_get_limits(f->gpu)->min_uniform_block_offset_alignment);
     const size_t size = alignment + 16;
     uint8_t *data = calloc(1, size);
     CHECK(data);
     memcpy(data, (const float[]){1, 0, 0, 1}, 16);
     memcpy(data + alignment, (const float[]){0, 1, 0, 1}, 16);
-    publish_buffer(f, &owner, size, data, NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    publish_buffer(f, owner, size, data, NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     free(data);
-    const struct pipeline_buffer_source source = {.resource = &owner, .size = 16};
+    const struct pipeline_buffer_source source = {.resource = owner, .size = 16};
     const int32_t index = ngpu_pgcraft_get_block_index(crafter, "params", NGPU_PROGRAM_STAGE_FRAG);
     CHECK(ngli_pipeline_set_buffer_source(pipeline, index, &source) == 0);
 
@@ -460,7 +547,7 @@ static void test_dynamic_ranges(struct fixture *f)
     end_frame(f);
     check_pixel(f, 0, (const uint8_t[]){0, 255, 0, 255});
     ngli_pipeline_freep(&pipeline);
-    ngli_buffer_resource_reset(&owner);
+    ngli_resource_freep(&owner);
     ngpu_pgcraft_freep(&crafter);
     ngpu_block_desc_reset(&block);
 }
@@ -490,9 +577,9 @@ static void test_required_storage_image(struct fixture *f)
         .texture_infos = ngpu_pgcraft_get_texture_infos(crafter),
     };
     CHECK(pipeline && ngli_pipeline_init(pipeline, &pipeline_params) == 0);
-    const struct image *slot = NULL;
-    const struct pipeline_image_source source = {.type = PIPELINE_IMAGE_SOURCE_INDIRECT, .image_slot = &slot};
-    CHECK(ngli_pipeline_set_image_source(pipeline, 0, &source, NULL) == 0);
+    struct resource *source = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    CHECK(source);
+    CHECK(ngli_pipeline_set_image_source(pipeline, 0, source, NULL) == 0);
     ngpu_ctx_advance_frame(f->gpu);
     CHECK(ngpu_ctx_begin_update(f->gpu) == 0);
     CHECK(ngli_pipeline_dispatch(pipeline, NULL, 1, 1, 1) < 0);
@@ -507,7 +594,7 @@ static void test_required_storage_image(struct fixture *f)
         .color_scale = 1, .color_info = NGLI_COLOR_INFO_DEFAULTS,
     };
     ngli_image_init(&image, &image_params, &sampled);
-    slot = &image;
+    ngli_resource_set_image(source, &image);
     ngpu_ctx_advance_frame(f->gpu);
     CHECK(ngpu_ctx_begin_update(f->gpu) == 0);
     CHECK(ngli_pipeline_dispatch(pipeline, NULL, 1, 1, 1) < 0); /* Incompatible usage */
@@ -520,6 +607,7 @@ static void test_required_storage_image(struct fixture *f)
     };
     CHECK(wrong_format && ngpu_texture_init(wrong_format, &wrong_params) == 0);
     image.planes[0] = wrong_format;
+    ngli_resource_set_image(source, &image);
     ngpu_ctx_advance_frame(f->gpu);
     CHECK(ngpu_ctx_begin_update(f->gpu) == 0);
     CHECK(ngli_pipeline_dispatch(pipeline, NULL, 1, 1, 1) < 0);
@@ -533,13 +621,14 @@ static void test_required_storage_image(struct fixture *f)
     };
     CHECK(storage && ngpu_texture_init(storage, &storage_params) == 0);
     image.planes[0] = storage;
+    ngli_resource_set_image(source, &image);
     ngpu_ctx_advance_frame(f->gpu);
     CHECK(ngpu_ctx_begin_update(f->gpu) == 0);
     CHECK(ngli_pipeline_dispatch(pipeline, NULL, 1, 1, 1) == 0);
     CHECK(ngpu_ctx_get_frame_stats(f->gpu)->compute_dispatches == 1);
     CHECK(ngpu_ctx_end_update(f->gpu, NULL) == 0);
     ngpu_ctx_wait_idle(f->gpu);
-    slot = NULL;
+    ngli_resource_freep(&source);
     ngli_pipeline_freep(&pipeline);
     ngpu_texture_freep(&sampled);
     ngpu_texture_freep(&wrong_format);
@@ -569,6 +658,7 @@ int main(int argc, char **argv)
     }
     test_buffer_sources(&f);
     test_image_sources(&f);
+    test_texture_sources(&f);
     test_dynamic_ranges(&f);
     test_required_storage_image(&f);
     ngpu_ctx_wait_idle(f.gpu);

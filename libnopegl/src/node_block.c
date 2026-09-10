@@ -256,6 +256,10 @@ static int block_init(struct ngl_node *node)
     struct block_info *info = &s->blk;
     const struct block_opts *o = node->opts;
 
+    info->resource = ngli_resource_create(NGLI_RESOURCE_BUFFER);
+    if (!info->resource)
+        return NGL_ERROR_MEMORY;
+
     uint64_t features = ngpu_ctx_get_features(gpu_ctx);
     if (o->layout == NGPU_BLOCK_LAYOUT_STD430 && !(features & NGPU_FEATURE_COMPUTE_BIT)) {
         LOG(ERROR, "std430 blocks are not supported by this context");
@@ -329,7 +333,8 @@ static int block_prepare(struct ngl_node *node,
         ngpu_buffer_freep(&buffer);
         return ret;
     }
-    info->resource.buffer = buffer;
+    ngli_resource_set_buffer(info->resource, buffer);
+    ngpu_buffer_freep(&buffer);
     return 0;
 }
 
@@ -355,7 +360,7 @@ static int block_update(struct ngl_node *node, double t)
     s->force_update = 0;
 
     if (has_changed) {
-        ret = ngpu_buffer_upload(info->resource.buffer, info->data, 0, info->data_size);
+        ret = ngpu_buffer_upload(ngli_resource_get_buffer(info->resource), info->data, 0, info->data_size);
         if (ret < 0)
             return ret;
     }
@@ -368,7 +373,8 @@ static void block_uninit(struct ngl_node *node)
     struct block_priv *s = node->priv_data;
     struct block_info *info = &s->blk;
 
-    ngli_buffer_resource_reset(&info->resource);
+    ngli_resource_clear(info->resource);
+    ngli_resource_freep(&info->resource);
     ngpu_block_desc_reset(&info->block);
     ngli_free(info->data);
 }

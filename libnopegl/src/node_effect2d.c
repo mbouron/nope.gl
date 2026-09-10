@@ -119,7 +119,7 @@ struct effect2d_priv {
     struct ngli_node2d_info node2d_info;
 
     struct rtt_ctx *rtt;
-    const struct image *input_image;
+    struct resource *input_image;
     struct ngpu_rendertarget_layout layout;
     uint32_t width;
     uint32_t height;
@@ -392,6 +392,10 @@ static int effect2d_init(struct ngl_node *node)
     struct effect2d_priv *s = node->priv_data;
     int ret;
 
+    s->input_image = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!s->input_image)
+        return NGL_ERROR_MEMORY;
+
     s->layout.nb_colors = 1;
     s->layout.colors[0].format = NGPU_FORMAT_R8G8B8A8_UNORM;
 
@@ -567,22 +571,14 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     if (ret < 0)
         return ret;
 
-    const struct pipeline_image_source input_source = {
-        .type = PIPELINE_IMAGE_SOURCE_INDIRECT,
-        .image_slot = &s->input_image,
-    };
-    ret = ngli_pipeline_set_image_source(program->pipeline, 0, &input_source, NULL);
+    ret = ngli_pipeline_set_image_source(program->pipeline, 0, s->input_image, NULL);
     if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
         return ret;
     for (size_t i = 0; i < program->crafter_textures.count; i++) {
         const char *name = program->crafter_textures.data[i].name;
         const struct ngl_node *res = ngli_hmap_get_str(program->resources, name);
         const struct texture_info *info = ngli_node_texture_get_texture_info(res);
-        const struct pipeline_image_source source = {
-            .type = PIPELINE_IMAGE_SOURCE_DIRECT,
-            .image = &info->image,
-        };
-        ret = ngli_pipeline_set_image_source(program->pipeline, (int32_t)i + 1, &source, NULL);
+        ret = ngli_pipeline_set_image_source(program->pipeline, (int32_t)i + 1, info->resource, NULL);
         if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
             return ret;
     }
@@ -597,7 +593,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
             const struct block_info *info = res->priv_data;
             const int32_t index = ngpu_pgcraft_get_block_index(program->crafter, entry->key.str, NGPU_PROGRAM_STAGE_FRAG);
             const struct pipeline_buffer_source source = {
-                .resource = &info->resource,
+                .resource = info->resource,
                 .size = NGPU_BUFFER_WHOLE_SIZE,
             };
             ret = ngli_pipeline_set_buffer_source(program->pipeline, index, &source);
@@ -626,7 +622,7 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
     if (s->width == width && s->height == height && s->rtt)
         return 0;
 
-    s->input_image = NULL;
+    ngli_resource_clear(s->input_image);
     ngli_rtt_freep(&s->rtt);
 
     s->rtt = ngli_rtt_create(ctx);
@@ -872,7 +868,7 @@ static void effect2d_draw(struct ngl_node *node)
     struct effect2d_program *program = &s->programs.data[program_index];
     struct pipeline *pl = program->pipeline;
 
-    s->input_image = s->rtt ? ngli_rtt_get_image(s->rtt, 0) : NULL;
+    ngli_resource_set_image(s->input_image, s->rtt ? ngli_rtt_get_image(s->rtt, 0) : NULL);
 
     /* Fill and push vertex block to staging buffer */
     {
@@ -932,7 +928,7 @@ static void effect2d_release(struct ngl_node *node)
     for (size_t i = 0; i < s->programs.count; i++)
         ngli_pipeline_discard_resources(s->programs.data[i].pipeline);
 
-    s->input_image = NULL;
+    ngli_resource_clear(s->input_image);
     ngli_rtt_freep(&s->rtt);
     s->width = 0;
     s->height = 0;
@@ -945,6 +941,7 @@ static void effect2d_uninit(struct ngl_node *node)
     for (size_t i = 0; i < s->programs.count; i++)
         reset_program(&s->programs.data[i]);
     ngli_darray_reset(&s->programs);
+    ngli_resource_freep(&s->input_image);
 
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);

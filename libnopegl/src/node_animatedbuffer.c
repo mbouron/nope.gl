@@ -90,7 +90,7 @@ static int animatedbuffer_update(struct ngl_node *node, double t)
     if (!(info->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD))
         return 0;
 
-    return ngpu_buffer_upload(info->owned_resource.buffer, info->data, 0, info->data_size);
+    return ngpu_buffer_upload(ngli_resource_get_buffer(info->resource), info->data, 0, info->data_size);
 }
 
 static int animatedbuffer_init(struct ngl_node *node)
@@ -138,7 +138,9 @@ static int animatedbuffer_init(struct ngl_node *node)
         return NGL_ERROR_MEMORY;
     info->data_size = layout->count * layout->stride;
 
-    info->resource = &info->owned_resource;
+    info->resource = ngli_resource_create(NGLI_RESOURCE_BUFFER);
+    if (!info->resource)
+        return NGL_ERROR_MEMORY;
 
     return 0;
 }
@@ -162,7 +164,8 @@ static int animatedbuffer_prepare(struct ngl_node *node,
         return ret;
     }
 
-    info->owned_resource.buffer = buffer;
+    ngli_resource_set_buffer(info->resource, buffer);
+    ngpu_buffer_freep(&buffer);
     return 0;
 }
 
@@ -171,7 +174,8 @@ static void animatedbuffer_uninit(struct ngl_node *node)
     struct animatedbuffer_priv *s = node->priv_data;
     struct buffer_info *info = &s->buf;
 
-    ngli_buffer_resource_reset(&info->owned_resource);
+    ngli_resource_clear(info->resource);
+    ngli_resource_freep(&info->resource);
     ngli_freep(&info->data);
 }
 

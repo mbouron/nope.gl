@@ -404,22 +404,16 @@ static int register_image_sources(struct drawrect2d_priv *s)
             continue;
         if (paint->texture) {
             const struct texture_info *info = ngli_node_texture_get_texture_info(paint->texture);
-            const struct pipeline_image_source source = {
-                .type = PIPELINE_IMAGE_SOURCE_DIRECT,
-                .image = &info->image,
-            };
-            int ret = ngli_pipeline_set_image_source(s->pipeline, image_index++, &source, NULL);
+            const struct resource *source = info->resource;
+            int ret = ngli_pipeline_set_image_source(s->pipeline, image_index++, source, NULL);
             if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
                 return ret;
         }
         for (size_t j = 0; j < paint->custom_textures.count; j++) {
             const struct ngl_node *node = paint->custom_textures.data[j].texture_node;
             const struct texture_info *info = ngli_node_texture_get_texture_info(node);
-            const struct pipeline_image_source source = {
-                .type = PIPELINE_IMAGE_SOURCE_DIRECT,
-                .image = &info->image,
-            };
-            int ret = ngli_pipeline_set_image_source(s->pipeline, image_index++, &source, NULL);
+            const struct resource *source = info->resource;
+            int ret = ngli_pipeline_set_image_source(s->pipeline, image_index++, source, NULL);
             if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
                 return ret;
         }
@@ -916,7 +910,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
         ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_FILL, cb->name);
         const int32_t index = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG);
         const struct pipeline_buffer_source source = {
-            .resource = &info->resource,
+            .resource = info->resource,
             .size = NGPU_BUFFER_WHOLE_SIZE,
         };
         ret = ngli_pipeline_set_buffer_source(s->pipeline, index, &source);
@@ -933,7 +927,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
             ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_STROKE, cb->name);
             const int32_t index = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG);
             const struct pipeline_buffer_source source = {
-                .resource = &info->resource,
+                .resource = info->resource,
                 .size = NGPU_BUFFER_WHOLE_SIZE,
             };
             ret = ngli_pipeline_set_buffer_source(s->pipeline, index, &source);

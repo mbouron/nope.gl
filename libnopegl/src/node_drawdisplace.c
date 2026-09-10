@@ -174,7 +174,7 @@ static int drawdisplace_init(struct ngl_node *node)
         s->geometry = *(struct geometry **)o->geometry->priv_data;
     }
 
-    const struct buffer_resource *uvcoords = s->geometry->uvcoords;
+    const struct resource *uvcoords = s->geometry->uvcoords;
     struct buffer_layout vertices_layout = s->geometry->vertices_layout;
     struct buffer_layout uvcoords_layout = s->geometry->uvcoords_layout;
 
@@ -385,11 +385,7 @@ static int drawdisplace_prepare(struct ngl_node *node,
     const struct texture_info *texture_infos[] = {source_info, displacement_info};
     struct ngl_node *reframing_nodes[] = {o->source_node, o->displacement_node};
     for (size_t i = 0; i < NGLI_ARRAY_NB(texture_infos); i++) {
-        const struct pipeline_image_source source = {
-            .type = PIPELINE_IMAGE_SOURCE_DIRECT,
-            .image = &texture_infos[i]->image,
-        };
-        ret = ngli_pipeline_set_image_source(desc->pipeline, (int32_t)i, &source, reframing_nodes[i]);
+        ret = ngli_pipeline_set_image_source(desc->pipeline, (int32_t)i, texture_infos[i]->resource, reframing_nodes[i]);
         if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
             return ret;
     }

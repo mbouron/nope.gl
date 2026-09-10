@@ -242,6 +242,7 @@ static int rtt_prefetch(struct ngl_node *node)
          * graphics context uv coordinate system works */
         struct image *image = &texture_info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix.m);
+        ngli_resource_set_image(texture_info->resource, image);
     }
 
     enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
@@ -259,6 +260,7 @@ static int rtt_prefetch(struct ngl_node *node)
          * graphics context uv coordinate system works */
         struct image *depth_image = &depth_texture_info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, depth_image->coordinates_matrix.m);
+        ngli_resource_set_image(depth_texture_info->resource, depth_image);
     } else {
         if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
@@ -368,6 +370,7 @@ static int rtt_resize(struct ngl_node *node)
         texture_info->image.params.width = width;
         texture_info->image.params.height = height;
         texture_info->image.planes[0] = textures[i];
+        ngli_resource_set_image(texture_info->resource, &texture_info->image);
         ngpu_texture_freep(&old_texture);
     }
 
@@ -379,6 +382,7 @@ static int rtt_resize(struct ngl_node *node)
         texture_info->image.params.width = width;
         texture_info->image.params.height = height;
         texture_info->image.planes[0] = depth_texture;
+        ngli_resource_set_image(texture_info->resource, &texture_info->image);
         ngpu_texture_freep(&old_texture);
     }
 

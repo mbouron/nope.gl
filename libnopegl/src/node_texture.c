@@ -494,6 +494,7 @@ static int texture_prefetch(struct ngl_node *node)
         }
     }
 
+    ngli_resource_set_image(i->resource, &i->image);
     return 0;
 }
 
@@ -524,6 +525,7 @@ static int handle_media_frame(struct ngl_node *node)
 
     /* Reset destination image */
     ngli_image_reset(&i->image);
+    ngli_resource_clear(i->resource);
 
     int ret = ngli_hwmap_map_frame(&s->hwmap, frame, &i->image);
 
@@ -532,6 +534,7 @@ static int handle_media_frame(struct ngl_node *node)
         return ret;
     }
 
+    ngli_resource_set_image(i->resource, &i->image);
     return 0;
 }
 
@@ -639,6 +642,7 @@ static int rtt_resize(struct ngl_node *node)
     i->image.params.width = width;
     i->image.params.height = height;
     i->image.planes[0] = texture;
+    ngli_resource_set_image(i->resource, &i->image);
     ngpu_texture_freep(&old_texture);
 
     s->rtt_params = rtt_params;
@@ -696,10 +700,18 @@ static void texture_release(struct ngl_node *node)
     struct texture_priv *s = node->priv_data;
     struct texture_info *i = node->priv_data;
 
+    ngli_resource_clear(i->resource);
     ngli_image_reset(&i->image);
     ngli_rtt_freep(&s->rtt_ctx);
     ngli_hwmap_uninit(&s->hwmap);
     ngpu_texture_freep(&i->texture);
+}
+
+static void texture_uninit(struct ngl_node *node)
+{
+    struct texture_info *i = node->priv_data;
+    ngli_resource_clear(i->resource);
+    ngli_resource_freep(&i->resource);
 }
 
 static enum ngpu_format get_preferred_format(struct ngpu_ctx *gpu_ctx, int format)
@@ -721,6 +733,10 @@ static int texture2d_init(struct ngl_node *node)
     struct texture_priv *s = node->priv_data;
     struct texture_info *i = node->priv_data;
     const struct texture_opts *o = node->opts;
+
+    i->resource = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!i->resource)
+        return NGL_ERROR_MEMORY;
 
     i->params = o->params;
 
@@ -776,6 +792,10 @@ static int texture2d_array_init(struct ngl_node *node)
     struct texture_info *i = node->priv_data;
     const struct texture_opts *o = node->opts;
 
+    i->resource = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!i->resource)
+        return NGL_ERROR_MEMORY;
+
     i->params = o->params;
 
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
@@ -804,6 +824,10 @@ static int texture3d_init(struct ngl_node *node)
     struct texture_info *i = node->priv_data;
     const struct texture_opts *o = node->opts;
 
+    i->resource = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!i->resource)
+        return NGL_ERROR_MEMORY;
+
     i->params = o->params;
 
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
@@ -830,6 +854,10 @@ static int texturecube_init(struct ngl_node *node)
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct texture_info *i = node->priv_data;
     const struct texture_opts *o = node->opts;
+
+    i->resource = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!i->resource)
+        return NGL_ERROR_MEMORY;
 
     i->params = o->params;
     i->params.height = i->params.width;
@@ -862,6 +890,7 @@ const struct node_class ngli_texture2d_class = {
     .pre_draw  = texture_pre_draw,
     .draw      = texture_draw,
     .release   = texture_release,
+    .uninit    = texture_uninit,
     .opts_size = sizeof(struct texture_opts),
     .priv_size = sizeof(struct texture_priv),
     .params    = texture2d_params,
@@ -877,6 +906,7 @@ const struct node_class ngli_texture2darray_class = {
     .prefetch  = texture_prefetch,
     .update    = texture_update,
     .release   = texture_release,
+    .uninit    = texture_uninit,
     .opts_size = sizeof(struct texture_opts),
     .priv_size = sizeof(struct texture_priv),
     .params    = texture2d_array_params,
@@ -892,6 +922,7 @@ const struct node_class ngli_texture3d_class = {
     .prefetch  = texture_prefetch,
     .update    = texture_update,
     .release   = texture_release,
+    .uninit    = texture_uninit,
     .opts_size = sizeof(struct texture_opts),
     .priv_size = sizeof(struct texture_priv),
     .params    = texture3d_params,
@@ -907,6 +938,7 @@ const struct node_class ngli_texturecube_class = {
     .prefetch  = texture_prefetch,
     .update    = texture_update,
     .release   = texture_release,
+    .uninit    = texture_uninit,
     .opts_size = sizeof(struct texture_opts),
     .priv_size = sizeof(struct texture_priv),
     .params    = texturecube_params,

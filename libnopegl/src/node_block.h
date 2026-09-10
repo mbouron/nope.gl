@@ -37,8 +37,7 @@ struct block_info {
     size_t data_size;
     uint32_t usage;
 
-    struct buffer_resource resource;
-
+    struct resource *resource;
 };
 
 void ngli_node_block_extend_usage(struct ngl_node *node, uint32_t usage);

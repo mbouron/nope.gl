@@ -45,9 +45,8 @@ enum slot_mode {
 };
 
 struct image_source {
-    struct pipeline_image_source source;
+    struct resource *resource;
     struct ngl_node *reframing_node;
-    int registered;
 };
 
 struct pipeline {
@@ -71,13 +70,13 @@ struct pipeline {
     uint32_t dynamic_offsets[NGPU_MAX_DYNAMIC_OFFSETS];
     size_t nb_dynamic_offsets;
     struct pipeline_buffer_source *buffer_sources;
-    const struct buffer_resource **vertex_sources;
-    struct ngpu_texture *const **texture_sources;
+    struct resource **vertex_sources;
+    struct resource **texture_sources;
     struct image_source *image_sources;
     enum slot_mode *buffer_modes;
     enum slot_mode *vertex_modes;
     enum slot_mode *texture_modes;
-    const struct buffer_resource *index_source;
+    struct resource *index_source;
     struct ngpu_buffer *index_buffer;
     enum ngpu_format index_format;
     int updated;
@@ -591,14 +590,19 @@ int ngli_pipeline_set_buffer_source(struct pipeline *s, int32_t index, const str
         return NGL_ERROR_INVALID_ARG;
     if (s->buffer_modes[index] == SLOT_IMAGE || s->buffer_modes[index] == SLOT_DIRECT)
         return NGL_ERROR_INVALID_USAGE;
-    if (source && (!source->resource || !source->size))
+    if (source && (!source->resource || !source->size ||
+                   ngli_resource_get_type(source->resource) != NGLI_RESOURCE_BUFFER))
         return NGL_ERROR_INVALID_ARG;
-    s->buffer_sources[index] = source ? *source : (struct pipeline_buffer_source){0};
+    const struct pipeline_buffer_source next = source ? *source : (struct pipeline_buffer_source){0};
+    struct resource *ref = ngli_resource_ref(next.resource);
+    ngli_resource_freep(&s->buffer_sources[index].resource);
+    s->buffer_sources[index] = next;
+    s->buffer_sources[index].resource = ref;
     s->buffer_modes[index] = source ? SLOT_SOURCE : SLOT_UNBOUND;
     return 0;
 }
 
-int ngli_pipeline_set_vertex_source(struct pipeline *s, int32_t index, const struct buffer_resource *source)
+int ngli_pipeline_set_vertex_source(struct pipeline *s, int32_t index, const struct resource *resource)
 {
     if (index == -1)
         return NGL_ERROR_NOT_FOUND;
@@ -606,12 +610,16 @@ int ngli_pipeline_set_vertex_source(struct pipeline *s, int32_t index, const str
         return NGL_ERROR_INVALID_ARG;
     if (s->vertex_modes[index] == SLOT_DIRECT)
         return NGL_ERROR_INVALID_USAGE;
-    s->vertex_sources[index] = source;
-    s->vertex_modes[index] = source ? SLOT_SOURCE : SLOT_UNBOUND;
+    if (resource && ngli_resource_get_type(resource) != NGLI_RESOURCE_BUFFER)
+        return NGL_ERROR_INVALID_ARG;
+    struct resource *ref = ngli_resource_ref(resource);
+    ngli_resource_freep(&s->vertex_sources[index]);
+    s->vertex_sources[index] = ref;
+    s->vertex_modes[index] = resource ? SLOT_SOURCE : SLOT_UNBOUND;
     return 0;
 }
 
-int ngli_pipeline_set_texture_source(struct pipeline *s, int32_t index, struct ngpu_texture *const *texture_slot)
+int ngli_pipeline_set_texture_source(struct pipeline *s, int32_t index, const struct resource *resource)
 {
     if (index == -1)
         return NGL_ERROR_NOT_FOUND;
@@ -619,8 +627,12 @@ int ngli_pipeline_set_texture_source(struct pipeline *s, int32_t index, struct n
         return NGL_ERROR_INVALID_ARG;
     if (s->texture_modes[index] == SLOT_IMAGE || s->texture_modes[index] == SLOT_DIRECT)
         return NGL_ERROR_INVALID_USAGE;
-    s->texture_sources[index] = texture_slot;
-    s->texture_modes[index] = texture_slot ? SLOT_SOURCE : SLOT_UNBOUND;
+    if (resource && ngli_resource_get_type(resource) != NGLI_RESOURCE_TEXTURE)
+        return NGL_ERROR_INVALID_ARG;
+    struct resource *ref = ngli_resource_ref(resource);
+    ngli_resource_freep(&s->texture_sources[index]);
+    s->texture_sources[index] = ref;
+    s->texture_modes[index] = resource ? SLOT_SOURCE : SLOT_UNBOUND;
     return 0;
 }
 
@@ -642,13 +654,17 @@ int ngli_pipeline_update_index_buffer(struct pipeline *s, const struct ngpu_buff
     return 0;
 }
 
-int ngli_pipeline_set_index_source(struct pipeline *s, const struct buffer_resource *source, enum ngpu_format format)
+int ngli_pipeline_set_index_source(struct pipeline *s, const struct resource *resource, enum ngpu_format format)
 {
     if (!s->index_source && s->index_buffer)
         return NGL_ERROR_INVALID_USAGE;
-    if (!source)
+    if (resource && ngli_resource_get_type(resource) != NGLI_RESOURCE_BUFFER)
+        return NGL_ERROR_INVALID_ARG;
+    if (!resource)
         apply_index_buffer(s, NULL, format);
-    s->index_source = source;
+    struct resource *ref = ngli_resource_ref(resource);
+    ngli_resource_freep(&s->index_source);
+    s->index_source = ref;
     s->index_format = format;
     return 0;
 }
@@ -664,22 +680,19 @@ static void get_image_texture_indices(const struct ngpu_pgcraft_texture_info *in
 }
 
 int ngli_pipeline_set_image_source(struct pipeline *s, int32_t image_index,
-                                   const struct pipeline_image_source *source,
+                                   const struct resource *resource,
                                    struct ngl_node *reframing_node)
 {
     if (image_index == -1)
         return NGL_ERROR_NOT_FOUND;
     if (image_index < 0 || image_index >= s->texture_infos.nb_infos)
         return NGL_ERROR_INVALID_ARG;
-    if (source && source->type != PIPELINE_IMAGE_SOURCE_DIRECT && source->type != PIPELINE_IMAGE_SOURCE_INDIRECT)
-        return NGL_ERROR_INVALID_ARG;
-    if (source && ((source->type == PIPELINE_IMAGE_SOURCE_DIRECT && !source->image) ||
-                   (source->type == PIPELINE_IMAGE_SOURCE_INDIRECT && !source->image_slot)))
+    if (resource && ngli_resource_get_type(resource) != NGLI_RESOURCE_IMAGE)
         return NGL_ERROR_INVALID_ARG;
 
     const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[image_index];
     const struct image_source *previous = &s->image_sources[image_index];
-    const enum slot_mode expected = previous->registered ? SLOT_IMAGE : SLOT_UNBOUND;
+    const enum slot_mode expected = previous->resource ? SLOT_IMAGE : SLOT_UNBOUND;
     int32_t indices[6];
     get_image_texture_indices(info, indices);
     int used = info->block_index >= 0;
@@ -696,17 +709,18 @@ int ngli_pipeline_set_image_source(struct pipeline *s, int32_t image_index,
     if (!used)
         return NGL_ERROR_NOT_FOUND;
 
-    const enum slot_mode mode = source ? SLOT_IMAGE : SLOT_UNBOUND;
+    const enum slot_mode mode = resource ? SLOT_IMAGE : SLOT_UNBOUND;
     if (info->block_index >= 0)
         s->buffer_modes[info->block_index] = mode;
     for (size_t i = 0; i < NGLI_ARRAY_NB(indices); i++)
         if (indices[i] >= 0)
             s->texture_modes[indices[i]] = mode;
-    s->image_sources[image_index] = source ? (struct image_source){
-        .source = *source,
-        .reframing_node = reframing_node,
-        .registered = 1,
-    } : (struct image_source){0};
+    struct resource *ref = ngli_resource_ref(resource);
+    ngli_resource_freep(&s->image_sources[image_index].resource);
+    s->image_sources[image_index] = (struct image_source){
+        .resource = ref,
+        .reframing_node = resource ? reframing_node : NULL,
+    };
     return 0;
 }
 
@@ -771,13 +785,13 @@ static int refresh_sources(struct pipeline *s, const struct pipeline_execution *
         if (s->buffer_modes[i] != SLOT_SOURCE)
             continue;
         const struct pipeline_buffer_source *source = &s->buffer_sources[i];
-        int ret = apply_buffer(s, (int32_t)i, source->resource->buffer, source->offset, source->size);
+        int ret = apply_buffer(s, (int32_t)i, ngli_resource_get_buffer(source->resource), source->offset, source->size);
         if (ret < 0)
             return ret;
     }
     for (size_t i = 0; i < s->nb_vertex_buffers; i++) {
         if (s->vertex_modes[i] == SLOT_SOURCE)
-            apply_vertex_buffer(s, (int32_t)i, s->vertex_sources[i]->buffer);
+            apply_vertex_buffer(s, (int32_t)i, ngli_resource_get_buffer(s->vertex_sources[i]));
         const struct ngpu_buffer *buffer = s->vertex_buffers[i];
         if (s->vertex_modes[i] == SLOT_UNBOUND || !buffer || !ngpu_buffer_get_size(buffer) ||
             !(ngpu_buffer_get_usage(buffer) & NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT))
@@ -792,14 +806,14 @@ static int refresh_sources(struct pipeline *s, const struct pipeline_execution *
         }
     }
     if (s->index_source) {
-        const struct ngpu_buffer *buffer = s->index_source->buffer;
+        const struct ngpu_buffer *buffer = ngli_resource_get_buffer(s->index_source);
         if (!buffer || !ngpu_buffer_get_size(buffer) || !(ngpu_buffer_get_usage(buffer) & NGPU_BUFFER_USAGE_INDEX_BUFFER_BIT))
             return NGL_ERROR_INVALID_USAGE;
         apply_index_buffer(s, buffer, s->index_format);
     }
     for (size_t i = 0; i < s->nb_textures; i++) {
         if (s->texture_modes[i] == SLOT_SOURCE) {
-            const struct ngpu_texture_binding binding = {.texture = *s->texture_sources[i]};
+            const struct ngpu_texture_binding binding = {.texture = ngli_resource_get_texture(s->texture_sources[i])};
             int ret = update_texture(s, (int32_t)i, &binding);
             if (ret < 0)
                 return ret;
@@ -807,13 +821,9 @@ static int refresh_sources(struct pipeline *s, const struct pipeline_execution *
     }
     for (size_t i = 0; i < s->texture_infos.nb_infos; i++) {
         const struct image_source *source = &s->image_sources[i];
-        if (!source->registered)
+        if (!source->resource)
             continue;
-        const struct image *image = source->source.type == PIPELINE_IMAGE_SOURCE_DIRECT
-                                 ? source->source.image : *source->source.image_slot;
-        const struct image empty_image = {0};
-        if (!image)
-            image = &empty_image;
+        const struct image *image = ngli_resource_get_image(source->resource);
         const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[i];
         if (info->block_index >= 0 && (!execution || !execution->staging))
             return NGL_ERROR_INVALID_USAGE;
@@ -1039,6 +1049,16 @@ void ngli_pipeline_freep(struct pipeline **sp)
     ngli_freep(&s->textures);
     ngli_freep(&s->empty_textures);
     ngli_freep(&s->buffers);
+
+    for (size_t i = 0; s->buffer_sources && i < s->nb_buffers; i++)
+        ngli_resource_freep(&s->buffer_sources[i].resource);
+    for (size_t i = 0; s->vertex_sources && i < s->nb_vertex_buffers; i++)
+        ngli_resource_freep(&s->vertex_sources[i]);
+    for (size_t i = 0; s->texture_sources && i < s->nb_textures; i++)
+        ngli_resource_freep(&s->texture_sources[i]);
+    for (size_t i = 0; s->image_sources && i < s->texture_infos.nb_infos; i++)
+        ngli_resource_freep(&s->image_sources[i].resource);
+    ngli_resource_freep(&s->index_source);
 
     ngli_freep(&s->buffer_sources);
     ngli_freep(&s->vertex_sources);

@@ -48,6 +48,10 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     hwconv->ctx = ctx;
     hwconv->src_params = *src_params;
+    hwconv->input_image = ngli_resource_create(NGLI_RESOURCE_IMAGE);
+    if (!hwconv->input_image)
+        return NGL_ERROR_MEMORY;
+
 
     if (dst_image->params.layout != NGLI_IMAGE_LAYOUT_DEFAULT) {
         LOG(ERROR, "unsupported output image layout: 0x%x", dst_image->params.layout);
@@ -143,15 +147,9 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     if (ret < 0)
         return ret;
 
-    {
-        const struct pipeline_image_source source = {
-            .type = PIPELINE_IMAGE_SOURCE_INDIRECT,
-            .image_slot = &hwconv->input_image,
-        };
-        ret = ngli_pipeline_set_image_source(hwconv->pipeline, 0, &source, NULL);
-        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
-            return ret;
-    }
+    ret = ngli_pipeline_set_image_source(hwconv->pipeline, 0, hwconv->input_image, NULL);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
     return 0;
 }
 
@@ -168,9 +166,9 @@ int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image)
 
     ngpu_ctx_begin_render_pass(gpu_ctx, rt);
 
-    hwconv->input_image = image;
+    ngli_resource_set_image(hwconv->input_image, image);
     int ret = ngli_pipeline_draw(pipeline, &execution, 3, 1, 0);
-    hwconv->input_image = NULL;
+    ngli_resource_clear(hwconv->input_image);
 
     ngpu_ctx_end_render_pass(gpu_ctx);
 
@@ -187,5 +185,6 @@ void ngli_hwconv_reset(struct hwconv *hwconv)
     ngpu_pgcraft_freep(&hwconv->crafter);
     ngpu_rendertarget_freep(&hwconv->rt);
 
+    ngli_resource_freep(&hwconv->input_image);
     memset(hwconv, 0, sizeof(*hwconv));
 }

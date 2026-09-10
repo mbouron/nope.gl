@@ -36,7 +36,7 @@ struct hwconv {
     struct ngpu_rendertarget *rt;
     struct ngpu_pgcraft *crafter;
     struct pipeline *pipeline;
-    const struct image *input_image;
+    struct resource *input_image;
 };
 
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,

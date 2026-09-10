@@ -267,9 +267,11 @@ static int buffer_init(struct ngl_node *node)
 
     if (s->buf.block) {
         const struct block_info *block_info = s->buf.block->priv_data;
-        s->buf.resource = &block_info->resource;
+        s->buf.resource = ngli_resource_ref(block_info->resource);
     } else {
-        s->buf.resource = &s->buf.owned_resource;
+        s->buf.resource = ngli_resource_create(NGLI_RESOURCE_BUFFER);
+        if (!s->buf.resource)
+            return NGL_ERROR_MEMORY;
     }
 
     return 0;
@@ -303,7 +305,8 @@ static int buffer_prepare(struct ngl_node *node,
         return ret;
     }
 
-    info->owned_resource.buffer = buffer;
+    ngli_resource_set_buffer(info->resource, buffer);
+    ngpu_buffer_freep(&buffer);
     return 0;
 }
 
@@ -312,7 +315,9 @@ static void buffer_uninit(struct ngl_node *node)
     struct buffer_priv *s = node->priv_data;
     const struct buffer_opts *o = node->opts;
 
-    ngli_buffer_resource_reset(&s->buf.owned_resource);
+    if (!o->block)
+        ngli_resource_clear(s->buf.resource);
+    ngli_resource_freep(&s->buf.resource);
 
     if (!o->data && !o->block)
         ngli_freep(&s->buf.data);
