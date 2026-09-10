@@ -80,7 +80,6 @@ struct pipeline_desc {
     struct ngli_pipeline *pipeline;
     NGLI_DARRAY(struct resource_map) blocks_map;
     NGLI_DARRAY(struct texture_map) textures_map;
-    struct ngli_node_darray reframing_nodes;
 };
 
 static const float default_vertices[] = {
@@ -531,9 +530,9 @@ static void drawgradient_draw(struct ngl_node *node)
     if (s->geometry->indices_buffer) {
         const struct ngpu_buffer *indices = s->geometry->indices_buffer;
         const struct buffer_layout *layout = &s->geometry->indices_layout;
-        ngli_pipeline_draw_indexed(pipeline, indices, layout->format, (uint32_t)layout->count, 1);
+        ngli_pipeline_draw_indexed(pipeline, ctx->current_staging_buffer, indices, layout->format, (uint32_t)layout->count, 1);
     } else {
-        ngli_pipeline_draw(pipeline, s->nb_vertices, 1, 0);
+        ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, 1, 0);
     }
 }
 
@@ -546,7 +545,6 @@ static void drawgradient_uninit(struct ngl_node *node)
     ngli_pipeline_freep(&desc->pipeline);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
-    ngli_darray_reset(&desc->reframing_nodes);
 
     /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);
@@ -977,9 +975,9 @@ static void drawgradient4_draw(struct ngl_node *node)
     if (s->geometry->indices_buffer) {
         const struct ngpu_buffer *indices = s->geometry->indices_buffer;
         const struct buffer_layout *layout = &s->geometry->indices_layout;
-        ngli_pipeline_draw_indexed(pipeline, indices, layout->format, (uint32_t)layout->count, 1);
+        ngli_pipeline_draw_indexed(pipeline, ctx->current_staging_buffer, indices, layout->format, (uint32_t)layout->count, 1);
     } else {
-        ngli_pipeline_draw(pipeline, s->nb_vertices, 1, 0);
+        ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, 1, 0);
     }
 }
 
@@ -992,7 +990,6 @@ static void drawgradient4_uninit(struct ngl_node *node)
     ngli_pipeline_freep(&desc->pipeline);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
-    ngli_darray_reset(&desc->reframing_nodes);
 
     /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);

@@ -1070,7 +1070,7 @@ void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats)
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_update_buffer(s->pipeline, s->transforms_block_index, buffer, offset, sizeof(transforms_data));
 
-    ngli_pipeline_draw(s->pipeline, 4, 1, 0);
+    ngli_pipeline_draw(s->pipeline, ctx->current_staging_buffer, 4, 1, 0);
 }
 
 void ngli_hud_freep(struct hud **sp)

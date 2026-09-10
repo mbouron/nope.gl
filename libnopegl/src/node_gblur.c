@@ -511,16 +511,16 @@ static void gblur_pre_draw(struct ngl_node *node)
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     uint32_t offset = 0;
     ngli_pipeline_update_dynamic_offsets(s->pl_blur_h, &offset, 1);
-    ngli_pipeline_update_image(s->pl_blur_h, 0, s->image, ctx->current_staging_buffer);
-    ngli_pipeline_draw(s->pl_blur_h, 3, 1, 0);
+    ngli_pipeline_update_image(s->pl_blur_h, 0, s->image);
+    ngli_pipeline_draw(s->pl_blur_h, ctx->current_staging_buffer, 3, 1, 0);
     ngli_rtt_end(s->tmp);
 
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     offset = (uint32_t)(dir_v_offset - dir_h_offset);
     ngli_pipeline_update_dynamic_offsets(s->pl_blur_v, &offset, 1);
-    ngli_pipeline_update_image(s->pl_blur_v, 0, ngli_rtt_get_image(s->tmp, 0), ctx->current_staging_buffer);
-    ngli_pipeline_draw(s->pl_blur_v, 3, 1, 0);
+    ngli_pipeline_update_image(s->pl_blur_v, 0, ngli_rtt_get_image(s->tmp, 0));
+    ngli_pipeline_draw(s->pl_blur_v, ctx->current_staging_buffer, 3, 1, 0);
     ngli_rtt_end(s->dst_rtt_ctx);
 }
 

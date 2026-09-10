@@ -428,14 +428,14 @@ static void colorstats_pre_draw(struct ngl_node *node)
                                 buffer, offset, sizeof(params));
 
     /* Init */
-    ngli_pipeline_dispatch(s->init.pipeline, s->init.wg_count, 1, 1);
+    ngli_pipeline_dispatch(s->init.pipeline, ctx->current_staging_buffer, s->init.wg_count, 1, 1);
 
     /* Waveform */
-    ngli_pipeline_update_image(s->waveform.pipeline, 0, s->waveform.image, ctx->current_staging_buffer);
-    ngli_pipeline_dispatch(s->waveform.pipeline, s->waveform.wg_count, 1, 1);
+    ngli_pipeline_update_image(s->waveform.pipeline, 0, s->waveform.image);
+    ngli_pipeline_dispatch(s->waveform.pipeline, ctx->current_staging_buffer, s->waveform.wg_count, 1, 1);
 
     /* Summary-scale */
-    ngli_pipeline_dispatch(s->sumscale.pipeline, s->sumscale.wg_count, 1, 1);
+    ngli_pipeline_dispatch(s->sumscale.pipeline, ctx->current_staging_buffer, s->sumscale.wg_count, 1, 1);
 }
 
 static void colorstats_uninit(struct ngl_node *node)

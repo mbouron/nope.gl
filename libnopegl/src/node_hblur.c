@@ -601,17 +601,17 @@ static void hblur_pre_draw(struct ngl_node *node)
 
     ngli_rtt_begin(s->pass1.rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_update_image(s->pass1.pl, 0, s->image, ctx->current_staging_buffer);
-    ngli_pipeline_update_image(s->pass1.pl, 1, s->map_image, ctx->current_staging_buffer);
-    ngli_pipeline_draw(s->pass1.pl, 3, 1, 0);
+    ngli_pipeline_update_image(s->pass1.pl, 0, s->image);
+    ngli_pipeline_update_image(s->pass1.pl, 1, s->map_image);
+    ngli_pipeline_draw(s->pass1.pl, ctx->current_staging_buffer, 3, 1, 0);
     ngli_rtt_end(s->pass1.rtt_ctx);
 
     ngli_rtt_begin(s->pass2.rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_update_image(s->pass2.pl, 0, ngli_rtt_get_image(s->pass1.rtt_ctx, 0), ctx->current_staging_buffer);
-    ngli_pipeline_update_image(s->pass2.pl, 1, ngli_rtt_get_image(s->pass1.rtt_ctx, 1), ctx->current_staging_buffer);
-    ngli_pipeline_update_image(s->pass2.pl, 2, s->map_image, ctx->current_staging_buffer);
-    ngli_pipeline_draw(s->pass2.pl, 3, 1, 0);
+    ngli_pipeline_update_image(s->pass2.pl, 0, ngli_rtt_get_image(s->pass1.rtt_ctx, 0));
+    ngli_pipeline_update_image(s->pass2.pl, 1, ngli_rtt_get_image(s->pass1.rtt_ctx, 1));
+    ngli_pipeline_update_image(s->pass2.pl, 2, s->map_image);
+    ngli_pipeline_draw(s->pass2.pl, ctx->current_staging_buffer, 3, 1, 0);
     ngli_rtt_end(s->pass2.rtt_ctx);
 
     /*

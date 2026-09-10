@@ -508,8 +508,8 @@ static void execute_down_up_pass(struct ngl_ctx *ctx,
 {
     ngli_rtt_begin(rtt_ctx);
     ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_update_image(pipeline, 0, image, ctx->current_staging_buffer);
-    ngli_pipeline_draw(pipeline, 3, 1, 0);
+    ngli_pipeline_update_image(pipeline, 0, image);
+    ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, 3, 1, 0);
     ngli_rtt_end(rtt_ctx);
 }
 
@@ -607,9 +607,9 @@ static void fgblur_pre_draw(struct ngl_node *node)
      */
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_update_image(s->interpolate.pl, 0, mip, ctx->current_staging_buffer);
-    ngli_pipeline_update_image(s->interpolate.pl, 1, ngli_rtt_get_image(s->mips[0], 0), ctx->current_staging_buffer);
-    ngli_pipeline_draw(s->interpolate.pl, 3, 1, 0);
+    ngli_pipeline_update_image(s->interpolate.pl, 0, mip);
+    ngli_pipeline_update_image(s->interpolate.pl, 1, ngli_rtt_get_image(s->mips[0], 0));
+    ngli_pipeline_draw(s->interpolate.pl, ctx->current_staging_buffer, 3, 1, 0);
     ngli_rtt_end(s->dst_rtt_ctx);
 
     /*

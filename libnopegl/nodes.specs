@@ -2029,14 +2029,14 @@
         {
           "name": "source",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "source texture to displace"
         },
         {
           "name": "displacement",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "displacement vectors stored in a texture"
         },
@@ -2414,14 +2414,14 @@
         {
           "name": "content",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "content texture being masked"
         },
         {
           "name": "mask",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D"],
+          "node_types": ["Texture2D"],
           "flags": ["nonull"],
           "desc": "texture serving as mask (only the red channel is used)"
         },
@@ -2706,7 +2706,7 @@
         {
           "name": "texture",
           "type": "node",
-          "node_types": ["Rotate", "RotateQuat", "Transform", "Translate", "Scale", "Skew", "Texture2D", "CustomTexture"],
+          "node_types": ["Texture2D", "CustomTexture"],
           "flags": ["nonull"],
           "desc": "texture to render"
         },

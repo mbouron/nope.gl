@@ -34,7 +34,6 @@
 #include "node_block.h"
 #include "node_uniform.h"
 #include "pipeline.h"
-#include "transforms.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -79,7 +78,6 @@ struct pipeline_desc {
     struct ngli_pipeline *pipeline;
     NGLI_DARRAY(struct resource_map) blocks_map;
     NGLI_DARRAY(struct texture_map) textures_map;
-    struct ngli_node_darray reframing_nodes;
 };
 
 struct drawnoise_opts {
@@ -481,16 +479,11 @@ static void drawnoise_draw(struct ngl_node *node)
     }
 
     struct texture_map *texture_map = desc->textures_map.data;
-    struct ngl_node **reframing_nodes = desc->reframing_nodes.data;
     for (size_t i = 0; i < desc->textures_map.count; i++) {
         if (texture_map[i].image_rev != texture_map[i].image->rev) {
-            ngli_pipeline_update_image(pipeline, (int32_t)i, texture_map[i].image, ctx->current_staging_buffer);
+            ngli_pipeline_update_image(pipeline, (int32_t)i, texture_map[i].image);
             texture_map[i].image_rev = texture_map[i].image->rev;
         }
-
-        struct ngli_mat4 reframing_matrix = {0};
-        ngli_transform_chain_compute(reframing_nodes[i], reframing_matrix.m);
-        ngli_pipeline_apply_reframing_matrix(pipeline, (int32_t)i, texture_map[i].image, reframing_matrix.m, ctx->current_staging_buffer);
     }
 
     struct resource_map *resource_map = desc->blocks_map.data;
@@ -514,9 +507,9 @@ static void drawnoise_draw(struct ngl_node *node)
     if (s->geometry->indices_buffer) {
         const struct ngpu_buffer *indices = s->geometry->indices_buffer;
         const struct buffer_layout *layout = &s->geometry->indices_layout;
-        ngli_pipeline_draw_indexed(pipeline, indices, layout->format, (uint32_t)layout->count, 1);
+        ngli_pipeline_draw_indexed(pipeline, ctx->current_staging_buffer, indices, layout->format, (uint32_t)layout->count, 1);
     } else {
-        ngli_pipeline_draw(pipeline, s->nb_vertices, 1, 0);
+        ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, 1, 0);
     }
 }
 
@@ -529,7 +522,6 @@ static void drawnoise_uninit(struct ngl_node *node)
     ngli_pipeline_freep(&desc->pipeline);
     ngli_darray_reset(&desc->blocks_map);
     ngli_darray_reset(&desc->textures_map);
-    ngli_darray_reset(&desc->reframing_nodes);
 
     /* Free crafter and block descriptors */
     ngpu_pgcraft_freep(&s->crafter);

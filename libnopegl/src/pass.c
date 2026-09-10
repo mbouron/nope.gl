@@ -681,7 +681,7 @@ int ngli_pass_exec(struct pass *s)
     }
 
     for (size_t i = 0; i < desc->textures_map.count; i++) {
-        ngli_pipeline_update_image(pipeline, (int32_t)i, desc->textures_map.data[i].image, ctx->current_staging_buffer);
+        ngli_pipeline_update_image(pipeline, (int32_t)i, desc->textures_map.data[i].image);
     }
 
     struct resource_map *resource_map = desc->blocks_map.data;
@@ -704,10 +704,10 @@ int ngli_pass_exec(struct pass *s)
         ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
         if (s->indices)
-            ngli_pipeline_draw_indexed(pipeline, s->indices, s->indices_layout->format,
+            ngli_pipeline_draw_indexed(pipeline, ctx->current_staging_buffer, s->indices, s->indices_layout->format,
                                        (uint32_t)s->indices_layout->count, s->nb_instances);
         else
-            ngli_pipeline_draw(pipeline, s->nb_vertices, s->nb_instances, 0);
+            ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, s->nb_instances, 0);
     } else {
         struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
@@ -715,7 +715,7 @@ int ngli_pass_exec(struct pass *s)
             ngpu_ctx_end_render_pass(gpu_ctx);
         }
 
-        ngli_pipeline_dispatch(pipeline, NGLI_ARG_VEC3(params->workgroup_count));
+        ngli_pipeline_dispatch(pipeline, ctx->current_staging_buffer, NGLI_ARG_VEC3(params->workgroup_count));
     }
 
     return 0;
