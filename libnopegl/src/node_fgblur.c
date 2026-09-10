@@ -31,7 +31,7 @@
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "rtt.h"
 #include <ngpu/ngpu.h>
 #include "utils/bits.h"
@@ -88,13 +88,13 @@ struct fgblur_priv {
     /* Downsampling pass */
     struct {
         struct ngpu_pgcraft *crafter;
-        struct pipeline_compat *pl;
+        struct ngli_pipeline *pl;
     } dws;
 
     /* Upsampling pass */
     struct {
         struct ngpu_pgcraft *crafter;
-        struct pipeline_compat *pl;
+        struct ngli_pipeline *pl;
     } ups;
 
     /* Render target (destination) used by the interpolate pass */
@@ -108,7 +108,7 @@ struct fgblur_priv {
         size_t block_size;
         int32_t block_index;
         struct ngpu_pgcraft *crafter;
-        struct pipeline_compat *pl;
+        struct ngli_pipeline *pl;
     } interpolate;
 };
 
@@ -132,7 +132,7 @@ static int setup_down_up_pipeline(struct ngl_ctx *ctx,
                                   struct ngpu_pgcraft *crafter,
                                   const char *name,
                                   const char *frag_base,
-                                  struct pipeline_compat *pipeline,
+                                  struct ngli_pipeline *pipeline,
                                   const struct ngpu_rendertarget_layout *layout,
                                   struct ngpu_block_desc *block_desc,
                                   size_t block_size)
@@ -182,7 +182,7 @@ static int setup_down_up_pipeline(struct ngl_ctx *ctx,
     if (ret < 0)
         return ret;
 
-    const struct pipeline_compat_params params = {
+    const struct ngli_pipeline_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
             .topology = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -197,7 +197,7 @@ static int setup_down_up_pipeline(struct ngl_ctx *ctx,
         .texture_infos    = ngpu_pgcraft_get_texture_infos(crafter),
     };
 
-    ret = ngli_pipeline_compat_init(pipeline, &params);
+    ret = ngli_pipeline_init(pipeline, &params);
     if (ret < 0)
         return ret;
 
@@ -266,7 +266,7 @@ static int setup_interpolate_pipeline(struct ngl_node *node)
 
     s->interpolate.block_index = ngpu_pgcraft_get_block_index(s->interpolate.crafter, "interpolate", NGPU_PROGRAM_STAGE_FRAG);
 
-    const struct pipeline_compat_params params = {
+    const struct ngli_pipeline_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
             .topology = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -281,7 +281,7 @@ static int setup_interpolate_pipeline(struct ngl_node *node)
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->interpolate.crafter),
     };
 
-    ret = ngli_pipeline_compat_init(s->interpolate.pl, &params);
+    ret = ngli_pipeline_init(s->interpolate.pl, &params);
     if (ret < 0)
         return ret;
 
@@ -328,9 +328,9 @@ static int fgblur_init(struct ngl_node *node)
     if (!s->dws.crafter || !s->ups.crafter || !s->interpolate.crafter)
         return NGL_ERROR_MEMORY;
 
-    s->dws.pl = ngli_pipeline_compat_create(gpu_ctx);
-    s->ups.pl = ngli_pipeline_compat_create(gpu_ctx);
-    s->interpolate.pl = ngli_pipeline_compat_create(gpu_ctx);
+    s->dws.pl = ngli_pipeline_create(gpu_ctx);
+    s->ups.pl = ngli_pipeline_create(gpu_ctx);
+    s->interpolate.pl = ngli_pipeline_create(gpu_ctx);
     if (!s->dws.pl || !s->ups.pl || !s->interpolate.pl)
         return NGL_ERROR_MEMORY;
 
@@ -503,13 +503,13 @@ fail:
 
 static void execute_down_up_pass(struct ngl_ctx *ctx,
                                  struct rtt_ctx *rtt_ctx,
-                                 struct pipeline_compat *pipeline,
+                                 struct ngli_pipeline *pipeline,
                                  const struct image *image)
 {
     ngli_rtt_begin(rtt_ctx);
     ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_compat_update_image(pipeline, 0, image, ctx->current_staging_buffer);
-    ngli_pipeline_compat_draw(pipeline, 3, 1, 0);
+    ngli_pipeline_update_image(pipeline, 0, image, ctx->current_staging_buffer);
+    ngli_pipeline_draw(pipeline, 3, 1, 0);
     ngli_rtt_end(rtt_ctx);
 }
 
@@ -562,10 +562,10 @@ static void fgblur_pre_draw(struct ngl_node *node)
     const struct down_up_data_block down_up_data = {.offset = 1.f};
     const size_t down_up_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &down_up_data, sizeof(down_up_data));
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_buffer(s->dws.pl, s->down_up_block_index_dws,
-                                       buffer, down_up_offset, sizeof(down_up_data));
-    ngli_pipeline_compat_update_buffer(s->ups.pl, s->down_up_block_index_ups,
-                                       buffer, down_up_offset, sizeof(down_up_data));
+    ngli_pipeline_update_buffer(s->dws.pl, s->down_up_block_index_dws,
+                                buffer, down_up_offset, sizeof(down_up_data));
+    ngli_pipeline_update_buffer(s->ups.pl, s->down_up_block_index_ups,
+                                buffer, down_up_offset, sizeof(down_up_data));
 
     /* Downsample source to mips[1] */
     struct texture_info *src_info = o->source->priv_data;
@@ -598,8 +598,8 @@ static void fgblur_pre_draw(struct ngl_node *node)
     const struct interpolate_block interp_data = {.lod = lod_f};
     const size_t interp_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &interp_data, sizeof(interp_data));
     buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_buffer(s->interpolate.pl, s->interpolate.block_index,
-                                       buffer, interp_offset, sizeof(interp_data));
+    ngli_pipeline_update_buffer(s->interpolate.pl, s->interpolate.block_index,
+                                buffer, interp_offset, sizeof(interp_data));
 
     /*
      * Interpolate the two blurred layers, source and mips[0], which
@@ -607,9 +607,9 @@ static void fgblur_pre_draw(struct ngl_node *node)
      */
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_compat_update_image(s->interpolate.pl, 0, mip, ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_image(s->interpolate.pl, 1, ngli_rtt_get_image(s->mips[0], 0), ctx->current_staging_buffer);
-    ngli_pipeline_compat_draw(s->interpolate.pl, 3, 1, 0);
+    ngli_pipeline_update_image(s->interpolate.pl, 0, mip, ctx->current_staging_buffer);
+    ngli_pipeline_update_image(s->interpolate.pl, 1, ngli_rtt_get_image(s->mips[0], 0), ctx->current_staging_buffer);
+    ngli_pipeline_draw(s->interpolate.pl, 3, 1, 0);
     ngli_rtt_end(s->dst_rtt_ctx);
 
     /*
@@ -637,15 +637,15 @@ static void fgblur_uninit(struct ngl_node *node)
 {
     struct fgblur_priv *s = node->priv_data;
 
-    ngli_pipeline_compat_freep(&s->dws.pl);
+    ngli_pipeline_freep(&s->dws.pl);
     ngpu_pgcraft_freep(&s->dws.crafter);
 
-    ngli_pipeline_compat_freep(&s->ups.pl);
+    ngli_pipeline_freep(&s->ups.pl);
     ngpu_pgcraft_freep(&s->ups.crafter);
 
     ngpu_block_desc_reset(&s->down_up_block_desc);
 
-    ngli_pipeline_compat_freep(&s->interpolate.pl);
+    ngli_pipeline_freep(&s->interpolate.pl);
     ngpu_pgcraft_freep(&s->interpolate.crafter);
     ngpu_block_desc_reset(&s->interpolate.block_desc);
 }

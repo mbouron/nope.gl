@@ -33,7 +33,7 @@
 #include "node_effect2d_shader.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "rtt.h"
 #include "node_block.h"
 #include "node_texture.h"
@@ -125,7 +125,7 @@ struct effect2d_program {
     NGLI_DARRAY(struct texture_map) textures_map;
     NGLI_DARRAY(struct block_map) blocks_map;
     struct ngpu_pgcraft *crafter;
-    struct pipeline_compat *pipeline;
+    struct ngli_pipeline *pipeline;
 };
 
 struct effect2d_priv {
@@ -338,7 +338,7 @@ static int register_resources(struct hmap *resources, struct ngpu_ctx *gpu_ctx,
 
 static void reset_program(struct effect2d_program *program)
 {
-    ngli_pipeline_compat_freep(&program->pipeline);
+    ngli_pipeline_freep(&program->pipeline);
     ngpu_pgcraft_freep(&program->crafter);
     ngli_freep(&program->frag_glsl);
     ngli_darray_reset(&program->user_field_indices);
@@ -566,11 +566,11 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         return ret;
 
     /* Create and init pipeline */
-    program->pipeline = ngli_pipeline_compat_create(gpu_ctx);
+    program->pipeline = ngli_pipeline_create(gpu_ctx);
     if (!program->pipeline)
         return NGL_ERROR_MEMORY;
 
-    const struct pipeline_compat_params params = {
+    const struct ngli_pipeline_params params = {
         .type = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics = {
             .topology     = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
@@ -585,7 +585,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         .texture_infos    = ngpu_pgcraft_get_texture_infos(program->crafter),
     };
 
-    ret = ngli_pipeline_compat_init(program->pipeline, &params);
+    ret = ngli_pipeline_init(program->pipeline, &params);
     if (ret < 0)
         return ret;
 
@@ -876,14 +876,14 @@ static void effect2d_draw(struct ngl_node *node)
     const int enabled = *(const int *)ngli_node_get_data_ptr(o->enabled_node, &o->enabled);
     const size_t program_index = enabled ? s->active_program_index : 0;
     struct effect2d_program *program = &s->programs.data[program_index];
-    struct pipeline_compat *pl = program->pipeline;
+    struct ngli_pipeline *pl = program->pipeline;
 
     if (program->textures_map.count > 0 && s->rtt)
         program->textures_map.data[0].image = ngli_rtt_get_image(s->rtt, 0);
 
     /* Update textures */
     for (size_t i = 0; i < program->textures_map.count; i++)
-        ngli_pipeline_compat_update_image(pl, (int32_t)i, program->textures_map.data[i].image, ctx->current_staging_buffer);
+        ngli_pipeline_update_image(pl, (int32_t)i, program->textures_map.data[i].image, ctx->current_staging_buffer);
 
     /* Fill and push vertex block to staging buffer */
     {
@@ -894,7 +894,7 @@ static void effect2d_draw(struct ngl_node *node)
 
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl, program->vert_block_index, staging_buf, vert_offset, s->vert_block_size);
+        ngli_pipeline_update_buffer(pl, program->vert_block_index, staging_buf, vert_offset, s->vert_block_size);
     }
 
     /* Fill and push fragment block to staging buffer */
@@ -907,7 +907,7 @@ static void effect2d_draw(struct ngl_node *node)
 
         const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl, program->frag_block_index, staging_buf, frag_offset, sizeof(frag_data));
+        ngli_pipeline_update_buffer(pl, program->frag_block_index, staging_buf, frag_offset, sizeof(frag_data));
     }
 
     /* Fill and push user uniform block to staging buffer (if any) */
@@ -923,7 +923,7 @@ static void effect2d_draw(struct ngl_node *node)
         }
 
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_compat_update_buffer(pl, program->user_block_index, staging_buf, offset, program->user_block_size);
+        ngli_pipeline_update_buffer(pl, program->user_block_index, staging_buf, offset, program->user_block_size);
     }
 
     /* Update blocks */
@@ -931,7 +931,7 @@ static void effect2d_draw(struct ngl_node *node)
     for (size_t i = 0; i < program->blocks_map.count; i++) {
         const struct block_info *info = block_maps[i].info;
         if (block_maps[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_compat_update_buffer(pl, block_maps[i].index, info->buffer, 0, 0);
+            ngli_pipeline_update_buffer(pl, block_maps[i].index, info->buffer, 0, 0);
             block_maps[i].buffer_rev = info->buffer_rev;
         }
     }
@@ -942,7 +942,7 @@ static void effect2d_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_compat_draw(pl, 4, 1, 0);
+    ngli_pipeline_draw(pl, 4, 1, 0);
 }
 
 static void effect2d_release(struct ngl_node *node)

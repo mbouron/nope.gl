@@ -31,12 +31,12 @@
 #include "utils/darray.h"
 
 struct ngl_ctx;
-struct pipeline_compat;
+struct ngli_pipeline;
 struct resource_map;
 struct texture_map;
 
 struct pipeline_desc {
-    struct pipeline_compat *pipeline_compat;
+    struct ngli_pipeline *pipeline;
     NGLI_DARRAY(struct resource_map) blocks_map;
     NGLI_DARRAY(struct texture_map) textures_map;
 };

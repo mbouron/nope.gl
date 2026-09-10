@@ -31,7 +31,7 @@
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "pipeline_compat.h"
+#include "pipeline.h"
 #include "rtt.h"
 #include <ngpu/ngpu.h>
 #include "utils/memory.h"
@@ -96,8 +96,8 @@ struct gblur_priv {
     uint8_t *kernel_staging_cache;
 
     struct ngpu_pgcraft *crafter;
-    struct pipeline_compat *pl_blur_h;
-    struct pipeline_compat *pl_blur_v;
+    struct ngli_pipeline *pl_blur_h;
+    struct ngli_pipeline *pl_blur_v;
 };
 
 #define OFFSET(x) offsetof(struct gblur_opts, x)
@@ -215,15 +215,15 @@ static void push_kernel_block(struct ngl_node *node)
 
     const size_t kernel_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, s->kernel_staging_cache, s->kernel_block_size);
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_buffer(s->pl_blur_h, s->kernel_block_index,
-                                       buffer, kernel_offset, s->kernel_block_size);
-    ngli_pipeline_compat_update_buffer(s->pl_blur_v, s->kernel_block_index,
-                                       buffer, kernel_offset, s->kernel_block_size);
+    ngli_pipeline_update_buffer(s->pl_blur_h, s->kernel_block_index,
+                                buffer, kernel_offset, s->kernel_block_size);
+    ngli_pipeline_update_buffer(s->pl_blur_v, s->kernel_block_index,
+                                buffer, kernel_offset, s->kernel_block_size);
 }
 
-static int setup_pipeline(struct ngl_ctx *ctx, struct ngpu_pgcraft *crafter, struct pipeline_compat *pipeline, const struct ngpu_rendertarget_layout *layout)
+static int setup_pipeline(struct ngl_ctx *ctx, struct ngpu_pgcraft *crafter, struct ngli_pipeline *pipeline, const struct ngpu_rendertarget_layout *layout)
 {
-    const struct pipeline_compat_params params = {
+    const struct ngli_pipeline_params params = {
         .type         = NGPU_PIPELINE_TYPE_GRAPHICS,
         .graphics     = {
             .topology = NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -238,7 +238,7 @@ static int setup_pipeline(struct ngl_ctx *ctx, struct ngpu_pgcraft *crafter, str
         .texture_infos    = ngpu_pgcraft_get_texture_infos(crafter),
     };
 
-    int ret = ngli_pipeline_compat_init(pipeline, &params);
+    int ret = ngli_pipeline_init(pipeline, &params);
     if (ret < 0)
         return ret;
 
@@ -347,8 +347,8 @@ static int gblur_init(struct ngl_node *node)
     s->direction_block_index = ngpu_pgcraft_get_block_index(s->crafter, "direction", NGPU_PROGRAM_STAGE_FRAG);
     s->kernel_block_index = ngpu_pgcraft_get_block_index(s->crafter, "kernel", NGPU_PROGRAM_STAGE_FRAG);
 
-    s->pl_blur_h = ngli_pipeline_compat_create(gpu_ctx);
-    s->pl_blur_v = ngli_pipeline_compat_create(gpu_ctx);
+    s->pl_blur_h = ngli_pipeline_create(gpu_ctx);
+    s->pl_blur_v = ngli_pipeline_create(gpu_ctx);
     if (!s->pl_blur_h || !s->pl_blur_v)
         return NGL_ERROR_MEMORY;
 
@@ -502,25 +502,25 @@ static void gblur_pre_draw(struct ngl_node *node)
     const size_t dir_h_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &dir_h, sizeof(dir_h));
     const size_t dir_v_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &dir_v, sizeof(dir_v));
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-    ngli_pipeline_compat_update_buffer(s->pl_blur_h, s->direction_block_index,
-                                       buffer, dir_h_offset, s->direction_block_size);
-    ngli_pipeline_compat_update_buffer(s->pl_blur_v, s->direction_block_index,
-                                       buffer, dir_h_offset, s->direction_block_size);
+    ngli_pipeline_update_buffer(s->pl_blur_h, s->direction_block_index,
+                                buffer, dir_h_offset, s->direction_block_size);
+    ngli_pipeline_update_buffer(s->pl_blur_v, s->direction_block_index,
+                                buffer, dir_h_offset, s->direction_block_size);
 
     ngli_rtt_begin(s->tmp);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     uint32_t offset = 0;
-    ngli_pipeline_compat_update_dynamic_offsets(s->pl_blur_h, &offset, 1);
-    ngli_pipeline_compat_update_image(s->pl_blur_h, 0, s->image, ctx->current_staging_buffer);
-    ngli_pipeline_compat_draw(s->pl_blur_h, 3, 1, 0);
+    ngli_pipeline_update_dynamic_offsets(s->pl_blur_h, &offset, 1);
+    ngli_pipeline_update_image(s->pl_blur_h, 0, s->image, ctx->current_staging_buffer);
+    ngli_pipeline_draw(s->pl_blur_h, 3, 1, 0);
     ngli_rtt_end(s->tmp);
 
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
     offset = (uint32_t)(dir_v_offset - dir_h_offset);
-    ngli_pipeline_compat_update_dynamic_offsets(s->pl_blur_v, &offset, 1);
-    ngli_pipeline_compat_update_image(s->pl_blur_v, 0, ngli_rtt_get_image(s->tmp, 0), ctx->current_staging_buffer);
-    ngli_pipeline_compat_draw(s->pl_blur_v, 3, 1, 0);
+    ngli_pipeline_update_dynamic_offsets(s->pl_blur_v, &offset, 1);
+    ngli_pipeline_update_image(s->pl_blur_v, 0, ngli_rtt_get_image(s->tmp, 0), ctx->current_staging_buffer);
+    ngli_pipeline_draw(s->pl_blur_v, 3, 1, 0);
     ngli_rtt_end(s->dst_rtt_ctx);
 }
 
@@ -539,8 +539,8 @@ static void gblur_uninit(struct ngl_node *node)
     ngli_freep(&s->kernel_staging_cache);
     ngpu_block_desc_reset(&s->direction_block_desc);
     ngpu_block_desc_reset(&s->kernel_block_desc);
-    ngli_pipeline_compat_freep(&s->pl_blur_h);
-    ngli_pipeline_compat_freep(&s->pl_blur_v);
+    ngli_pipeline_freep(&s->pl_blur_h);
+    ngli_pipeline_freep(&s->pl_blur_v);
     ngpu_pgcraft_freep(&s->crafter);
 }
 
