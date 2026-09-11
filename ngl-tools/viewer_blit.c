@@ -66,7 +66,6 @@ struct blit_ctx *viewer_blit_create(struct ngpu_ctx *gpu_ctx)
             .name        = "tex",
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .texture     = NULL, /* Set at draw time. */
             .no_metadata = true,
         },
     };

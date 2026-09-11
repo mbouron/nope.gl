@@ -355,23 +355,33 @@ end:
  */
 static int draw_glyphs(struct distmap *s)
 {
+    const struct pipeline_execution execution = {.staging = NULL};
+
     int ret = map_and_load_buffers_data(s);
     if (ret < 0)
         return ret;
 
     const int32_t nb_shapes = (int32_t)s->shapes.count;
     int32_t shape_id = 0;
+    const int32_t vert_index = ngpu_pgcraft_get_block_index(s->crafter, "vert", NGPU_PROGRAM_STAGE_VERT);
+    const int32_t frag_index = ngpu_pgcraft_get_block_index(s->crafter, "frag", NGPU_PROGRAM_STAGE_FRAG);
 
     for (int32_t y = 0; y < s->nb_rows; y++) {
         for (int32_t x = 0; x < s->nb_cols; x++) {
             if (shape_id == nb_shapes)
                 return 0;
 
-            ngli_pipeline_update_buffer(s->pipeline, 0, s->vert_buffer,
-                                        (size_t)shape_id * s->vert_offset, s->vert_offset);
-            ngli_pipeline_update_buffer(s->pipeline, 1, s->frag_buffer,
-                                        (size_t)shape_id * s->frag_offset, s->frag_offset);
-            ngli_pipeline_draw(s->pipeline, s->ctx->current_staging_buffer, 3, 1, 0);
+            ret = ngli_pipeline_update_buffer(s->pipeline, vert_index, s->vert_buffer,
+                                              (size_t)shape_id * s->vert_offset, ngpu_block_desc_get_size(&s->vert_block, 0));
+            if (ret < 0)
+                return ret;
+            ret = ngli_pipeline_update_buffer(s->pipeline, frag_index, s->frag_buffer,
+                                              (size_t)shape_id * s->frag_offset, ngpu_block_desc_get_size(&s->frag_block, 0));
+            if (ret < 0)
+                return ret;
+            ret = ngli_pipeline_draw(s->pipeline, &execution, 3, 1, 0);
+            if (ret < 0)
+                return ret;
             shape_id++;
         }
     }
@@ -583,8 +593,6 @@ int ngli_distmap_finalize(struct distmap *s)
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 

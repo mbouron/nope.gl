@@ -74,6 +74,7 @@ static int vt_get_format_desc(OSType format, struct format_desc *desc)
 }
 
 struct hwmap_vt_darwin {
+    struct ngli_image_color_cache color_cache;
     struct nmd_frame *frame;
     struct ngpu_texture *planes[2];
     OSType format;
@@ -121,12 +122,10 @@ static int vt_darwin_map_plane(struct hwmap *hwmap, IOSurfaceRef surface, size_t
     if (ret < 0)
         return ret;
 
-    hwmap->mapped_image.planes[index] = vt->planes[index];
-
     return 0;
 }
 
-static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
+static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image **imagep)
 {
     struct hwmap_vt_darwin *vt = hwmap->hwmap_priv_data;
     CVPixelBufferRef cvpixbuf = (CVPixelBufferRef)frame->datap[0];
@@ -151,6 +150,25 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
         if (ret < 0)
             return ret;
     }
+
+    const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
+    ngli_image_color_cache_update(&vt->color_cache, vt->format_desc.layout, &color_info, 1.f);
+
+    const struct ngli_image_params image_params = {
+        .width                = (uint32_t)frame->width,
+        .height               = (uint32_t)frame->height,
+        .layout               = vt->format_desc.layout,
+        .planes               = {vt->planes[0], vt->planes[1]},
+        .color_scale          = 1.f,
+        .color_info           = color_info,
+        .color_matrix         = vt->color_cache.color_matrix,
+        .mapping_color_matrix = vt->color_cache.mapping_color_matrix,
+        .coordinates_matrix   = {.m = NGLI_MAT4_IDENTITY},
+        .ts                   = (float)frame->ts,
+    };
+    *imagep = ngli_image_create(&image_params);
+    if (!*imagep)
+        return NGL_ERROR_MEMORY;
 
     return 0;
 }
@@ -203,15 +221,6 @@ static int vt_darwin_init(struct hwmap *hwmap, struct nmd_frame * frame)
     int ret = vt_get_format_desc(vt->format, &vt->format_desc);
     if (ret < 0)
         return ret;
-
-    const struct ngli_image_params image_params = {
-        .width = (uint32_t)frame->width,
-        .height = (uint32_t)frame->height,
-        .layout = vt->format_desc.layout,
-        .color_scale = 1.f,
-        .color_info = ngli_color_info_from_nopemd_frame(frame),
-    };
-    ngli_image_init(&hwmap->mapped_image, &image_params, vt->planes);
 
     hwmap->require_hwconv = !support_direct_rendering(hwmap, frame);
 

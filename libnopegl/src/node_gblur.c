@@ -71,8 +71,8 @@ struct gblur_priv {
     float blurriness;
 
     /* Source image */
-    struct ngli_image *image;
-    size_t image_rev;
+    struct image_resource *image;
+    struct image_resource *tmp_image;
 
     /* Render the horizontal pass to a temporary destination */
     struct ngpu_rendertarget_layout tmp_layout;
@@ -231,8 +231,6 @@ static int setup_pipeline(struct ngl_ctx *ctx, struct ngpu_pgcraft *crafter, str
         },
         .program          = ngpu_pgcraft_get_program(crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(crafter),
     };
 
@@ -251,8 +249,10 @@ static int gblur_init(struct ngl_node *node)
     const struct gblur_opts *o = node->opts;
 
     struct texture_info *src_info = o->source->priv_data;
-    s->image = &src_info->image;
-    s->image_rev = SIZE_MAX;
+    s->image = ngli_image_resource_ref(src_info->resource);
+    s->tmp_image = ngli_image_resource_create();
+    if (!s->tmp_image)
+        return NGL_ERROR_MEMORY;
 
     /* Disable direct rendering */
     src_info->supported_image_layouts = NGLI_IMAGE_LAYOUT_DEFAULT_BIT;
@@ -299,27 +299,17 @@ static int gblur_init(struct ngl_node *node)
         },
     };
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
             .name          = "direction",
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->direction_block_desc,
-            .buffer        = {
-                .buffer = staging_buf,
-                .size   = s->direction_block_size,
-            },
         }, {
             .name          = "kernel",
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->kernel_block_desc,
-            .buffer        = {
-                .buffer = staging_buf,
-                .size   = s->kernel_block_size,
-            },
         },
     };
 
@@ -354,6 +344,12 @@ static int gblur_init(struct ngl_node *node)
         (ret = setup_pipeline(ctx, s->crafter, s->pl_blur_v, &s->dst_layout)) < 0)
         return ret;
 
+    ret = ngli_pipeline_set_image_source(s->pl_blur_h, 0, s->image);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    ret = ngli_pipeline_set_image_source(s->pl_blur_v, 0, s->tmp_image);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
     return 0;
 }
 
@@ -368,8 +364,8 @@ static int resize(struct ngl_node *node)
     ngli_node_draw(o->source);
 
     struct texture_info *src_info = o->source->priv_data;
-    const uint32_t width = src_info->image.params.width;
-    const uint32_t height = src_info->image.params.height;
+    const uint32_t width = ngli_image_get_params(src_info->image)->width;
+    const uint32_t height = ngli_image_get_params(src_info->image)->height;
     if (s->tmp) {
         uint32_t current_width, current_height;
         ngli_rtt_get_dimensions(s->tmp, &current_width, &current_height);
@@ -387,6 +383,7 @@ static int resize(struct ngl_node *node)
     struct rtt_ctx *tmp = NULL;
 
     struct ngpu_texture *dst = NULL;
+    struct ngli_image *dst_image = NULL;
     struct rtt_ctx *dst_rtt_ctx = NULL;
 
     const struct ngpu_texture_params texture_params = {
@@ -449,16 +446,30 @@ static int resize(struct ngl_node *node)
     if (ret < 0)
         goto fail;
 
+    if (s->dst_is_resizable) {
+        struct ngli_image_params image_params = *ngli_image_get_params(dst_info->image);
+        image_params.width = ngpu_texture_get_params(dst)->width;
+        image_params.height = ngpu_texture_get_params(dst)->height;
+        image_params.planes[0] = dst;
+        dst_image = ngli_image_create(&image_params);
+        if (!dst_image) {
+            ret = NGL_ERROR_MEMORY;
+            goto fail;
+        }
+    }
+
+    ngli_image_resource_set(s->tmp_image, NULL);
     ngli_rtt_freep(&s->tmp);
     s->tmp = tmp;
+    ngli_image_resource_set(s->tmp_image, ngli_rtt_get_image(s->tmp, 0));
 
     if (s->dst_is_resizable) {
-        ngpu_texture_freep(&dst_info->texture);
+        struct ngpu_texture *old_texture = dst_info->texture;
         dst_info->texture = dst;
-        dst_info->image.params.width = ngpu_texture_get_params(dst)->width;
-        dst_info->image.params.height = ngpu_texture_get_params(dst)->height;
-        dst_info->image.planes[0] = dst;
-        dst_info->image.rev = dst_info->image_rev++;
+        ngli_image_unrefp(&dst_info->image);
+        dst_info->image = dst_image;
+        ngli_image_resource_set(dst_info->resource, dst_info->image);
+        ngpu_texture_freep(&old_texture);
     }
 
     ngli_rtt_freep(&s->dst_rtt_ctx);
@@ -470,6 +481,7 @@ static int resize(struct ngl_node *node)
     return 0;
 
 fail:
+    ngli_image_unrefp(&dst_image);
     ngli_rtt_freep(&tmp);
 
     ngli_rtt_freep(&dst_rtt_ctx);
@@ -482,6 +494,8 @@ fail:
 
 static void gblur_pre_draw(struct ngl_node *node)
 {
+    const struct pipeline_execution execution = {.staging = node->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct gblur_priv *s = node->priv_data;
@@ -509,14 +523,14 @@ static void gblur_pre_draw(struct ngl_node *node)
 
     ngli_rtt_begin(s->tmp);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_update_image(s->pl_blur_h, 0, s->image);
-    ngli_pipeline_draw(s->pl_blur_h, ctx->current_staging_buffer, 3, 1, 0);
+    ret = ngli_pipeline_draw(s->pl_blur_h, &execution, 3, 1, 0);
     ngli_rtt_end(s->tmp);
+    if (ret < 0)
+        return;
 
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_update_image(s->pl_blur_v, 0, ngli_rtt_get_image(s->tmp, 0));
-    ngli_pipeline_draw(s->pl_blur_v, ctx->current_staging_buffer, 3, 1, 0);
+    ngli_pipeline_draw(s->pl_blur_v, &execution, 3, 1, 0);
     ngli_rtt_end(s->dst_rtt_ctx);
 }
 
@@ -526,6 +540,7 @@ static void gblur_release(struct ngl_node *node)
     ngli_pipeline_discard_resources(s->pl_blur_h);
     ngli_pipeline_discard_resources(s->pl_blur_v);
 
+    ngli_image_resource_set(s->tmp_image, NULL);
     ngli_rtt_freep(&s->tmp);
     ngli_rtt_freep(&s->dst_rtt_ctx);
 }
@@ -540,6 +555,8 @@ static void gblur_uninit(struct ngl_node *node)
     ngli_pipeline_freep(&s->pl_blur_h);
     ngli_pipeline_freep(&s->pl_blur_v);
     ngpu_pgcraft_freep(&s->crafter);
+    ngli_image_resource_unrefp(&s->image);
+    ngli_image_resource_unrefp(&s->tmp_image);
 }
 
 const struct node_class ngli_gblur_class = {

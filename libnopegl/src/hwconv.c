@@ -48,13 +48,17 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     hwconv->ctx = ctx;
     hwconv->src_params = *src_params;
+    hwconv->input_image = ngli_image_resource_create();
+    if (!hwconv->input_image)
+        return NGL_ERROR_MEMORY;
 
-    if (dst_image->params.layout != NGLI_IMAGE_LAYOUT_DEFAULT) {
-        LOG(ERROR, "unsupported output image layout: 0x%x", dst_image->params.layout);
+    const struct ngli_image_params *dst_params = ngli_image_get_params(dst_image);
+    if (dst_params->layout != NGLI_IMAGE_LAYOUT_DEFAULT) {
+        LOG(ERROR, "unsupported output image layout: 0x%x", dst_params->layout);
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    struct ngpu_texture *texture = dst_image->planes[0];
+    struct ngpu_texture *texture = dst_params->planes[0];
     const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
 
     const struct ngpu_rendertarget_layout rt_layout = {
@@ -62,8 +66,8 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         .colors[0].format = texture_params->format,
     };
     const struct ngpu_rendertarget_params rt_params = {
-        .width = dst_image->params.width,
-        .height = dst_image->params.height,
+        .width = dst_params->width,
+        .height = dst_params->height,
         .nb_colors = 1,
         .colors[0] = {
             .attachment = texture,
@@ -136,8 +140,6 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         },
         .program          = ngpu_pgcraft_get_program(hwconv->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(hwconv->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(hwconv->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(hwconv->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(hwconv->crafter),
     };
 
@@ -145,26 +147,32 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     if (ret < 0)
         return ret;
 
+    ret = ngli_pipeline_set_image_source(hwconv->pipeline, 0, hwconv->input_image);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
     return 0;
 }
 
 int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct ngli_image *image)
 {
+    const struct pipeline_execution execution = {.staging = hwconv->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = hwconv->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    ngli_assert(hwconv->src_params.layout == image->params.layout);
+    ngli_assert(hwconv->src_params.layout == ngli_image_get_params(image)->layout);
 
     struct ngpu_rendertarget *rt = hwconv->rt;
     struct ngli_pipeline *pipeline = hwconv->pipeline;
 
     ngpu_ctx_begin_render_pass(gpu_ctx, rt);
 
-    ngli_pipeline_update_image(pipeline, 0, image);
-    ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, 3, 1, 0);
+    ngli_image_resource_set(hwconv->input_image, image);
+    int ret = ngli_pipeline_draw(pipeline, &execution, 3, 1, 0);
+    ngli_image_resource_set(hwconv->input_image, NULL);
 
     ngpu_ctx_end_render_pass(gpu_ctx);
 
-    return 0;
+    return ret;
 }
 
 void ngli_hwconv_reset(struct hwconv *hwconv)
@@ -177,5 +185,6 @@ void ngli_hwconv_reset(struct hwconv *hwconv)
     ngpu_pgcraft_freep(&hwconv->crafter);
     ngpu_rendertarget_freep(&hwconv->rt);
 
+    ngli_image_resource_unrefp(&hwconv->input_image);
     memset(hwconv, 0, sizeof(*hwconv));
 }
