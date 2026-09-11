@@ -117,7 +117,6 @@ struct drawhistogram_priv {
     int32_t frag_block_index;
 };
 
-
 static const float default_vertices[] = {
    -1.f,-1.f, 0.f,
     1.f,-1.f, 0.f,

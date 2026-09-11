@@ -153,7 +153,6 @@ static const struct node_param drawcolor_params[] = {
 };
 #undef OFFSET
 
-
 static int drawcolor_init(struct ngl_node *node)
 {
     struct drawcolor_priv *s = node->priv_data;

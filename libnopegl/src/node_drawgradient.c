@@ -237,7 +237,6 @@ static int drawgradient_init(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
-
     /* Setup geometry */
     if (!o->geometry) {
         s->own_geometry = 1;
@@ -679,7 +678,6 @@ static int drawgradient4_init(struct ngl_node *node)
     const struct drawgradient4_opts *o = node->opts;
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-
 
     if (!o->geometry) {
         s->own_geometry = 1;

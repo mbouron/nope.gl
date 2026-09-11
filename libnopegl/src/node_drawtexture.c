@@ -162,8 +162,6 @@ static const struct node_param drawtexture_params[] = {
 };
 #undef OFFSET
 
-
-
 static int drawtexture_init(struct ngl_node *node)
 {
     struct drawtexture_priv *s = node->priv_data;
@@ -274,7 +272,6 @@ static int drawtexture_prepare(struct ngl_node *node,
     const struct drawtexture_opts *o = node->opts;
 
     struct pipeline_desc *desc = &s->pipeline_desc;
-
 
     const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
     const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
@@ -517,7 +514,7 @@ const struct node_class ngli_drawtexture_class = {
     .get_renderpass_usage = drawtexture_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawtexture_draw,
-    .release    = drawtexture_release,
+    .release   = drawtexture_release,
     .uninit    = drawtexture_uninit,
     .opts_size = sizeof(struct drawtexture_opts),
     .priv_size = sizeof(struct drawtexture_priv),
