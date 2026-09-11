@@ -169,7 +169,6 @@ struct drawrect2d_priv {
     char *vert_shader;
 };
 
-
 static void compute_geometry(struct drawrect2d_priv *s, const float *rect, const float *corner_radius)
 {
     s->rect[0] = rect[0];
@@ -1156,7 +1155,6 @@ static void drawrect2d_draw(struct ngl_node *node)
     if (s->user_block_index >= 0) {
         size_t offset = 0;
         uint8_t *data = ngpu_staging_buffer_reserve(ctx->current_staging_buffer, s->user_block_size, &offset);
-
 
         /* Fill prebuilt uniforms */
         const struct ngpu_block_field *fields = s->user_block_desc.fields;

@@ -154,7 +154,6 @@ static const struct node_param drawmask_params[] = {
 };
 #undef OFFSET
 
-
 static int drawmask_init(struct ngl_node *node)
 {
     struct drawmask_priv *s = node->priv_data;

@@ -437,7 +437,6 @@ static int text_init(struct ngl_node *node)
 
     s->dist_scale = 72.f / (float)(o->pt_size * o->dpi);
 
-
     ret = init_bounding_box_geometry(node);
     if (ret < 0)
         return ret;

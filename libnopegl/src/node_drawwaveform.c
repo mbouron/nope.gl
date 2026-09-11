@@ -131,7 +131,6 @@ static const float default_uvcoords[] = {
     1.f, 0.f,
 };
 
-
 #define OFFSET(x) offsetof(struct drawwaveform_opts, x)
 static const struct node_param drawwaveform_params[] = {
     {"stats",    NGLI_PARAM_TYPE_NODE, OFFSET(stats),
@@ -151,8 +150,6 @@ static const struct node_param drawwaveform_params[] = {
     {NULL}
 };
 #undef OFFSET
-
-
 
 static int drawwaveform_init(struct ngl_node *node)
 {

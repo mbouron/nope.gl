@@ -49,7 +49,6 @@
 
 #include "effect2d_vert.h"
 
-
 struct uniform_map {
     int32_t index;
     const void *data;
@@ -332,7 +331,6 @@ static int register_resources(struct hmap *resources, struct ngpu_ctx *gpu_ctx,
     return 0;
 }
 
-
 static void reset_program(struct effect2d_program *program)
 {
     ngli_pipeline_freep(&program->pipeline);
@@ -524,7 +522,6 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         {.name = "uv",        .type = NGPU_TYPE_VEC2},
         {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
     };
-
 
     const char *frag_base = program->frag_glsl ? program->frag_glsl : effect2d_composite_frag;
 

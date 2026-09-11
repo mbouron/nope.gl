@@ -445,6 +445,7 @@ static void colorstats_pre_draw(struct ngl_node *node)
 static void colorstats_release(struct ngl_node *node)
 {
     struct colorstats_priv *s = node->priv_data;
+
     ngli_pipeline_discard_resources(s->init.pipeline);
     ngli_pipeline_discard_resources(s->sumscale.pipeline);
     ngli_pipeline_discard_resources(s->waveform.pipeline);
