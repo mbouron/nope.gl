@@ -75,7 +75,6 @@ struct colorstats_priv {
         struct ngpu_pgcraft *crafter;
         struct ngli_pipeline *pipeline;
         uint32_t wg_count;
-        int32_t stats_block_index;
     } init;
 
     /* Waveform compute */
@@ -83,9 +82,6 @@ struct colorstats_priv {
         struct ngpu_pgcraft *crafter;
         struct ngli_pipeline *pipeline;
         uint32_t wg_count;
-        const struct ngli_image *image;
-        size_t image_rev;
-        int32_t stats_block_index;
     } waveform;
 
     /* Summary-scale compute */
@@ -93,7 +89,6 @@ struct colorstats_priv {
         struct ngpu_pgcraft *crafter;
         struct ngli_pipeline *pipeline;
         uint32_t wg_count;
-        int32_t stats_block_index;
     } sumscale;
 };
 
@@ -111,11 +106,14 @@ static int setup_compute(struct ngl_ctx *ctx, struct colorstats_priv *s, struct 
         .type             = NGPU_PIPELINE_TYPE_COMPUTE,
         .program          = ngpu_pgcraft_get_program(crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(crafter),
     };
 
-    return ngli_pipeline_init(pipeline, &params);
+    ret = ngli_pipeline_init(pipeline, &params);
+    if (ret < 0)
+        return ret;
+    const int32_t index = ngpu_pgcraft_get_block_index(crafter, "stats", NGPU_PROGRAM_STAGE_COMP);
+    return ngli_pipeline_set_buffer_source(pipeline, index, s->blk.resource, 0, NGPU_BUFFER_WHOLE_SIZE);
 }
 
 /* Phase 1: initialization (set globally shared values) */
@@ -132,8 +130,6 @@ static int setup_init_compute(struct ngl_ctx *ctx, struct colorstats_priv *s, co
     if (ret < 0)
         return ret;
 
-    s->init.stats_block_index = ngpu_pgcraft_get_block_index(s->init.crafter, "stats", NGPU_PROGRAM_STAGE_COMP);
-
     return 0;
 }
 
@@ -147,7 +143,6 @@ static int setup_waveform_compute(struct ngl_ctx *ctx, struct colorstats_priv *s
             .name        = "source",
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO,
             .stage       = NGPU_PROGRAM_STAGE_COMP,
-            .image       = &texture_info->image,
             .format      = texture_info->params.format,
             .clamp_video = 0, /* clamping is done manually in the shader */
         },
@@ -166,9 +161,9 @@ static int setup_waveform_compute(struct ngl_ctx *ctx, struct colorstats_priv *s
     if (ret < 0)
         return ret;
 
-    s->waveform.stats_block_index = ngpu_pgcraft_get_block_index(s->waveform.crafter, "stats", NGPU_PROGRAM_STAGE_COMP);
-    s->waveform.image = &texture_info->image;
-    s->waveform.image_rev = SIZE_MAX;
+    ret = ngli_pipeline_set_image_source(s->waveform.pipeline, 0, texture_info->resource);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
 
     return 0;
 }
@@ -186,8 +181,6 @@ static int setup_sumscale_compute(struct ngl_ctx *ctx, struct colorstats_priv *s
     int ret = setup_compute(ctx, s, s->sumscale.crafter, s->sumscale.pipeline, &crafter_params);
     if (ret < 0)
         return ret;
-
-    s->sumscale.stats_block_index = ngpu_pgcraft_get_block_index(s->sumscale.crafter, "stats", NGPU_PROGRAM_STAGE_COMP);
 
     return 0;
 }
@@ -303,6 +296,10 @@ static int colorstats_init(struct ngl_node *node)
         return NGL_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
+    s->blk.resource = ngli_buffer_resource_create();
+    if (!s->blk.resource)
+        return NGL_ERROR_MEMORY;
+
     int ret;
     if ((ret = init_block(s, gpu_ctx)) < 0 ||
         (ret = init_computes(node)) < 0)
@@ -344,8 +341,8 @@ static int alloc_block_buffer(struct ngl_node *node, uint32_t length)
 
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    s->blk.buffer = ngpu_buffer_create(gpu_ctx);
-    if (!s->blk.buffer)
+    struct ngpu_buffer *buffer = ngpu_buffer_create(gpu_ctx);
+    if (!buffer)
         return NGL_ERROR_MEMORY;
 
     /*
@@ -354,18 +351,14 @@ static int alloc_block_buffer(struct ngl_node *node, uint32_t length)
      */
     const size_t data_field_count = length * s->depth;
     s->blk.data_size = ngpu_block_desc_get_size(&s->blk.block, data_field_count);
-    int ret = ngpu_buffer_init(s->blk.buffer, s->blk.data_size, s->blk.usage);
-    if (ret < 0)
+    int ret = ngpu_buffer_init(buffer, s->blk.data_size, s->blk.usage);
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
         return ret;
+    }
 
-    if ((ret = ngli_pipeline_update_buffer(s->init.pipeline, s->init.stats_block_index, s->blk.buffer, 0, 0)) < 0 ||
-        (ret = ngli_pipeline_update_buffer(s->sumscale.pipeline, s->sumscale.stats_block_index, s->blk.buffer, 0, 0)) < 0 ||
-        (ret = ngli_pipeline_update_buffer(s->waveform.pipeline, s->waveform.stats_block_index, s->blk.buffer, 0, 0)) < 0)
-        return ret;
-
-    /* Signal buffer change */
-    s->blk.buffer_rev++;
-
+    ngli_buffer_resource_set(s->blk.resource, buffer);
+    ngpu_buffer_freep(&buffer);
     return 0;
 }
 
@@ -383,12 +376,12 @@ static int colorstats_update(struct ngl_node *node, double t)
      * dimensions
      */
     const struct texture_info *texture_info = o->texture_node->priv_data;
-    if (texture_info->image.params.width <= 0) {
-        LOG(ERROR, "invalid texture width: %u", texture_info->image.params.width);
+    const uint32_t source_w = ngli_image_get_params(texture_info->image)->width;
+    if (source_w <= 0) {
+        LOG(ERROR, "invalid texture width: %u", source_w);
         return NGL_ERROR_INVALID_DATA;
     }
-    const uint32_t source_w = (uint32_t)texture_info->image.params.width;
-    if (!s->blk.buffer)
+    if (!ngli_buffer_resource_get(s->blk.resource))
         return alloc_block_buffer(node, source_w);
 
     /* Stream size change event */
@@ -403,6 +396,8 @@ static int colorstats_update(struct ngl_node *node, double t)
 
 static void colorstats_pre_draw(struct ngl_node *node)
 {
+    const struct pipeline_execution execution = {.staging = node->ctx->current_staging_buffer};
+
     struct colorstats_priv *s = node->priv_data;
     const struct colorstats_opts *o = node->opts;
 
@@ -427,19 +422,18 @@ static void colorstats_pre_draw(struct ngl_node *node)
     ngli_pipeline_update_buffer(s->sumscale.pipeline, s->params_block_index_sumscale,
                                 buffer, offset, sizeof(params));
 
-    ngli_pipeline_update_buffer(s->init.pipeline, s->init.stats_block_index, s->blk.buffer, 0, 0);
-    ngli_pipeline_update_buffer(s->sumscale.pipeline, s->sumscale.stats_block_index, s->blk.buffer, 0, 0);
-    ngli_pipeline_update_buffer(s->waveform.pipeline, s->waveform.stats_block_index, s->blk.buffer, 0, 0);
-
     /* Init */
-    ngli_pipeline_dispatch(s->init.pipeline, ctx->current_staging_buffer, s->init.wg_count, 1, 1);
+    int ret = ngli_pipeline_dispatch(s->init.pipeline, &execution, s->init.wg_count, 1, 1);
+    if (ret < 0)
+        return;
 
     /* Waveform */
-    ngli_pipeline_update_image(s->waveform.pipeline, 0, s->waveform.image);
-    ngli_pipeline_dispatch(s->waveform.pipeline, ctx->current_staging_buffer, s->waveform.wg_count, 1, 1);
+    ret = ngli_pipeline_dispatch(s->waveform.pipeline, &execution, s->waveform.wg_count, 1, 1);
+    if (ret < 0)
+        return;
 
     /* Summary-scale */
-    ngli_pipeline_dispatch(s->sumscale.pipeline, ctx->current_staging_buffer, s->sumscale.wg_count, 1, 1);
+    ngli_pipeline_dispatch(s->sumscale.pipeline, &execution, s->sumscale.wg_count, 1, 1);
 }
 
 static void colorstats_release(struct ngl_node *node)
@@ -447,8 +441,14 @@ static void colorstats_release(struct ngl_node *node)
     struct colorstats_priv *s = node->priv_data;
 
     ngli_pipeline_discard_resources(s->init.pipeline);
-    ngli_pipeline_discard_resources(s->sumscale.pipeline);
     ngli_pipeline_discard_resources(s->waveform.pipeline);
+    ngli_pipeline_discard_resources(s->sumscale.pipeline);
+
+    /*
+     * The stats buffer is sized from the source width, so it is reallocated by
+     * colorstats_update() once the node is active again.
+     */
+    ngli_buffer_resource_set(s->blk.resource, NULL);
 }
 
 static void colorstats_uninit(struct ngl_node *node)
@@ -461,7 +461,7 @@ static void colorstats_uninit(struct ngl_node *node)
     ngli_pipeline_freep(&s->init.pipeline);
     ngli_pipeline_freep(&s->waveform.pipeline);
     ngli_pipeline_freep(&s->sumscale.pipeline);
-    ngpu_buffer_freep(&s->blk.buffer);
+    ngli_buffer_resource_releasep(&s->blk.resource);
     ngpu_block_desc_reset(&s->blk.block);
 }
 

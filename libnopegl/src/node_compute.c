@@ -174,7 +174,7 @@ static int compute_prepare(struct ngl_node *node,
 static void compute_release(struct ngl_node *node)
 {
     struct compute_priv *s = node->priv_data;
-    ngli_pass_discard_resources(&s->pass);
+    ngli_pass_release(&s->pass);
 }
 
 static void compute_uninit(struct ngl_node *node)

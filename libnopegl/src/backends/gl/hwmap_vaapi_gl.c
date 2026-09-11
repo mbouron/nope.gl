@@ -39,6 +39,7 @@
 #include "utils/utils.h"
 
 struct hwmap_vaapi {
+    struct ngli_image_color_cache color_cache;
     struct nmd_frame *frame;
     struct ngpu_texture *planes[2];
 
@@ -64,17 +65,6 @@ static bool support_direct_rendering(struct hwmap *hwmap)
 
 static int vaapi_init(struct hwmap *hwmap, struct nmd_frame *frame)
 {
-    struct hwmap_vaapi *vaapi = hwmap->hwmap_priv_data;
-
-    const struct ngli_image_params image_params = {
-        .width = (uint32_t)frame->width,
-        .height = (uint32_t)frame->height,
-        .layout = NGLI_IMAGE_LAYOUT_NV12,
-        .color_scale = 1.f,
-        .color_info = ngli_color_info_from_nopemd_frame(frame),
-    };
-    ngli_image_init(&hwmap->mapped_image, &image_params, vaapi->planes);
-
     hwmap->require_hwconv = !support_direct_rendering(hwmap);
 
     return 0;
@@ -102,7 +92,7 @@ static void vaapi_uninit(struct hwmap *hwmap)
     vaapi_release_frame_resources(hwmap);
 }
 
-static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
+static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image **imagep)
 {
     struct ngl_ctx *ctx = hwmap->ctx;
     struct vaapi_ctx *vaapi_ctx = &ctx->vaapi_ctx;
@@ -176,9 +166,26 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
         int ret = ngpu_texture_init(vaapi->planes[i], &texture_params);
         if (ret < 0)
             return ret;
-
-        hwmap->mapped_image.planes[i] = vaapi->planes[i];
     }
+
+    const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
+    ngli_image_color_cache_update(&vaapi->color_cache, NGLI_IMAGE_LAYOUT_NV12, &color_info, 1.f);
+
+    const struct ngli_image_params image_params = {
+        .width                = (uint32_t)frame->width,
+        .height               = (uint32_t)frame->height,
+        .layout               = NGLI_IMAGE_LAYOUT_NV12,
+        .planes               = {vaapi->planes[0], vaapi->planes[1]},
+        .color_scale          = 1.f,
+        .color_info           = color_info,
+        .color_matrix         = vaapi->color_cache.color_matrix,
+        .mapping_color_matrix = vaapi->color_cache.mapping_color_matrix,
+        .coordinates_matrix   = {.m = NGLI_MAT4_IDENTITY},
+        .ts                   = (float)frame->ts,
+    };
+    *imagep = ngli_image_create(&image_params);
+    if (!*imagep)
+        return NGL_ERROR_MEMORY;
 
     return 0;
 }

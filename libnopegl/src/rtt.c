@@ -42,7 +42,7 @@ struct rtt_ctx {
     size_t nb_ms_colors;
     struct ngpu_texture *ms_depth;
 
-    struct ngli_image images[NGPU_MAX_COLOR_ATTACHMENTS];
+    struct ngli_image *images[NGPU_MAX_COLOR_ATTACHMENTS];
 
     int started;
     struct ngpu_viewport prev_viewport;
@@ -109,12 +109,20 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
         }
 
         const struct ngli_image_params image_params = {
-            .width = s->params.width,
-            .height = s->params.height,
-            .layout = NGLI_IMAGE_LAYOUT_DEFAULT,
-            .color_info = NGLI_COLOR_INFO_DEFAULTS,
+            .width                = s->params.width,
+            .height               = s->params.height,
+            .layout               = NGLI_IMAGE_LAYOUT_DEFAULT,
+            .planes               = {rt_params.colors[i].attachment},
+            .color_info           = NGLI_COLOR_INFO_DEFAULTS,
+            .color_matrix         = {.m = NGLI_MAT4_IDENTITY},
+            .mapping_color_matrix = {.m = NGLI_MAT4_IDENTITY},
+            .coordinates_matrix   = {.m = NGLI_MAT4_IDENTITY},
         };
-        ngli_image_init(&s->images[i], &image_params, &rt_params.colors[i].attachment);
+        struct ngli_image *image = ngli_image_create(&image_params);
+        if (!image)
+            return NGL_ERROR_MEMORY;
+        ngli_image_unrefp(&s->images[i]);
+        s->images[i] = image;
 
         rt_params.nb_colors++;
     }
@@ -227,7 +235,7 @@ struct ngpu_texture *ngli_rtt_get_texture(struct rtt_ctx *s, size_t index)
 struct ngli_image *ngli_rtt_get_image(struct rtt_ctx *s, size_t index)
 {
     ngli_assert(index < s->params.nb_colors);
-    return &s->images[index];
+    return s->images[index];
 }
 
 void ngli_rtt_begin(struct rtt_ctx *s)
@@ -293,5 +301,7 @@ void ngli_rtt_freep(struct rtt_ctx **sp)
     ngpu_texture_freep(&s->ms_depth);
     ngpu_texture_freep(&s->color);
 
+    for (size_t i = 0; i < NGLI_ARRAY_NB(s->images); i++)
+        ngli_image_unrefp(&s->images[i]);
     ngli_freep(sp);
 }

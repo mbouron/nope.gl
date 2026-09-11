@@ -51,17 +51,16 @@ static const struct hwmap_class *get_hwmap_class(const struct hwmap *hwmap, cons
     return &ngli_hwmap_common_class;
 }
 
-static int init_hwconv(struct hwmap *hwmap)
+static int init_hwconv(struct hwmap *hwmap, const struct ngli_image *mapped_image)
 {
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     const struct hwmap_params *params = &hwmap->params;
-    struct ngli_image *mapped_image = &hwmap->mapped_image;
-    struct ngli_image *hwconv_image = &hwmap->hwconv_image;
+    const struct ngli_image_params *mapped_params = ngli_image_get_params(mapped_image);
     struct hwconv *hwconv = &hwmap->hwconv;
 
     ngli_hwconv_reset(hwconv);
-    ngli_image_reset(hwconv_image);
+    ngli_image_unrefp(&hwmap->hwconv_image);
     ngpu_texture_freep(&hwmap->hwconv_texture);
 
     LOG(DEBUG, "converting texture '%s' from %s to rgba", hwmap->params.label, hwmap->hwmap_class->name);
@@ -69,8 +68,8 @@ static int init_hwconv(struct hwmap *hwmap)
     const struct ngpu_texture_params texture_params = {
         .type          = NGPU_TEXTURE_TYPE_2D,
         .format        = NGPU_FORMAT_R8G8B8A8_UNORM,
-        .width         = mapped_image->params.width,
-        .height        = mapped_image->params.height,
+        .width         = mapped_params->width,
+        .height        = mapped_params->height,
         .min_filter    = params->texture_min_filter,
         .mag_filter    = params->texture_mag_filter,
         .mipmap_filter = params->texture_mipmap_filter,
@@ -87,20 +86,28 @@ static int init_hwconv(struct hwmap *hwmap)
         goto end;
 
     const struct ngli_image_params image_params = {
-        .width = mapped_image->params.width,
-        .height = mapped_image->params.height,
-        .layout = NGLI_IMAGE_LAYOUT_DEFAULT,
-        .color_scale = 1.f,
-        .color_info = {
+        .width                = mapped_params->width,
+        .height               = mapped_params->height,
+        .layout               = NGLI_IMAGE_LAYOUT_DEFAULT,
+        .planes               = {hwmap->hwconv_texture},
+        .color_scale          = 1.f,
+        .color_info           = {
             .space     = NMD_COL_SPC_BT709,
             .range     = NMD_COL_RNG_UNSPECIFIED,
             .primaries = NMD_COL_PRI_BT709,
             .transfer  = NMD_COL_TRC_IEC61966_2_1, // sRGB
         },
+        .color_matrix         = {.m = NGLI_MAT4_IDENTITY},
+        .mapping_color_matrix = {.m = NGLI_MAT4_IDENTITY},
+        .coordinates_matrix   = {.m = NGLI_MAT4_IDENTITY},
     };
-    ngli_image_init(hwconv_image, &image_params, &hwmap->hwconv_texture);
+    hwmap->hwconv_image = ngli_image_create(&image_params);
+    if (!hwmap->hwconv_image) {
+        ret = NGL_ERROR_MEMORY;
+        goto end;
+    }
 
-    ret = ngli_hwconv_init(hwconv, ctx, hwconv_image, &mapped_image->params);
+    ret = ngli_hwconv_init(hwconv, ctx, hwmap->hwconv_image, mapped_params);
     if (ret < 0)
         goto end;
 
@@ -108,18 +115,17 @@ static int init_hwconv(struct hwmap *hwmap)
 
 end:
     ngli_hwconv_reset(hwconv);
-    ngli_image_reset(hwconv_image);
+    ngli_image_unrefp(&hwmap->hwconv_image);
     ngpu_texture_freep(&hwmap->hwconv_texture);
     return ret;
 }
 
-static int exec_hwconv(struct hwmap *hwmap)
+static int exec_hwconv(struct hwmap *hwmap, const struct ngli_image *mapped_image)
 {
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct ngpu_texture *texture = hwmap->hwconv_texture;
     const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
-    struct ngli_image *mapped_image = &hwmap->mapped_image;
     struct hwconv *hwconv = &hwmap->hwconv;
 
     int ret = ngli_hwconv_convert_image(hwconv, mapped_image);
@@ -184,10 +190,9 @@ static void hwmap_reset(struct hwmap *hwmap)
 {
     hwmap->require_hwconv = false;
     ngli_hwconv_reset(&hwmap->hwconv);
-    ngli_image_reset(&hwmap->hwconv_image);
+    ngli_image_unrefp(&hwmap->hwconv_image);
     ngpu_texture_freep(&hwmap->hwconv_texture);
     hwmap->hwconv_initialized = false;
-    ngli_image_reset(&hwmap->mapped_image);
     if (hwmap->hwmap_priv_data && hwmap->hwmap_class) {
         hwmap->hwmap_class->uninit(hwmap);
     }
@@ -209,7 +214,7 @@ static int is_hdr(int trc)
     }
 }
 
-int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image *image)
+int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image **imagep)
 {
     if (frame->width  != hwmap->width ||
         frame->height != hwmap->height ||
@@ -240,34 +245,44 @@ int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ng
     }
 
     // Access frame properties prior to map_frame() call as it may take ownership of the frame
-    const float ts = (float)frame->ts;
     const int color_trc = frame->color_trc;
 
-    int ret = hwmap->hwmap_class->map_frame(hwmap, frame);
+    struct ngli_image *image = NULL;
+    int ret = hwmap->hwmap_class->map_frame(hwmap, frame, &image);
     if (ret < 0)
         goto end;
+    ngli_assert(image);
 
     if (is_hdr(color_trc))
         hwmap->require_hwconv = true;
 
     if (hwmap->require_hwconv) {
         if (!hwmap->hwconv_initialized) {
-            ret = init_hwconv(hwmap);
+            ret = init_hwconv(hwmap, image);
             if (ret < 0)
                 goto end;
             hwmap->hwconv_initialized = true;
         }
-        ret = exec_hwconv(hwmap);
+        ret = exec_hwconv(hwmap, image);
         if (ret < 0)
             goto end;
-        *image = hwmap->hwconv_image;
-    } else {
-        *image = hwmap->mapped_image;
+        struct ngli_image_params image_params = *ngli_image_get_params(hwmap->hwconv_image);
+        image_params.ts = ngli_image_get_params(image)->ts;
+        struct ngli_image *converted_image = ngli_image_create(&image_params);
+        if (!converted_image) {
+            ret = NGL_ERROR_MEMORY;
+            goto end;
+        }
+        ngli_image_unrefp(&image);
+        image = converted_image;
     }
 
-end:
-    image->ts = ts;
+    ngli_image_unrefp(imagep);
+    *imagep = image;
+    image = NULL;
 
+end:
+    ngli_image_unrefp(&image);
     if (!(hwmap->hwmap_class->flags &  HWMAP_FLAG_FRAME_OWNER))
         nmd_frame_releasep(&frame);
     return ret;

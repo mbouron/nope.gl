@@ -27,6 +27,7 @@
 #include "blend_mode.h"
 #include "image.h"
 #include "internal.h"
+#include "log.h"
 #include "node2d.h"
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
@@ -52,15 +53,6 @@
 struct uniform_map {
     int32_t index;
     const void *data;
-};
-
-struct texture_map {
-    const struct ngli_image *image;
-};
-
-struct block_map {
-    int32_t index;
-    const struct block_info *info;
 };
 
 NGLI_DECLARE_DARRAY_WITH_NAME(effect2d_texture_darray, struct ngpu_pgcraft_texture);
@@ -120,8 +112,6 @@ struct effect2d_program {
     int32_t vert_block_index;
     int32_t frag_block_index;
     int32_t user_block_index;
-    NGLI_DARRAY(struct texture_map) textures_map;
-    NGLI_DARRAY(struct block_map) blocks_map;
     struct ngpu_pgcraft *crafter;
     struct ngli_pipeline *pipeline;
 };
@@ -129,7 +119,8 @@ struct effect2d_program {
 struct effect2d_priv {
     struct ngli_node2d_info node2d_info;
 
-    struct rtt_ctx *rtt_ctx;
+    struct rtt_ctx *rtt;
+    struct image_resource *input_image;
     struct ngpu_rendertarget_layout layout;
     float local_effect_margin;
     float rect[4];
@@ -266,7 +257,6 @@ static int register_texture(const char *name, struct ngl_node *res, struct effec
     struct ngpu_pgcraft_texture tex = {
         .type        = ngli_node_texture_get_pgcraft_texture_type(res),
         .stage       = NGPU_PROGRAM_STAGE_FRAG,
-        .image       = &texture_info->image,
         .format      = texture_info->params.format,
         .clamp_video = texture_info->clamp_video,
         .premult     = texture_info->premult,
@@ -295,13 +285,10 @@ static int register_block(const char *name, struct ngl_node *res, struct ngpu_ct
     else
         ngli_node_block_extend_usage(res, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-    const struct ngpu_buffer *buffer = block_info->buffer;
-    const size_t buffer_size = buffer ? ngpu_buffer_get_size(buffer) : 0;
     struct ngpu_pgcraft_block crafter_block = {
         .type   = btype,
         .stage  = NGPU_PROGRAM_STAGE_FRAG,
         .block  = block,
-        .buffer = {.buffer = buffer, .size = buffer_size},
     };
     snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", name);
     return ngli_darray_try_push(blocks, crafter_block) < 0 ? NGL_ERROR_MEMORY : 0;
@@ -341,8 +328,6 @@ static void reset_program(struct effect2d_program *program)
     ngli_darray_reset(&program->crafter_textures);
     ngli_darray_reset(&program->crafter_blocks);
     ngpu_block_desc_reset(&program->user_block_desc);
-    ngli_darray_reset(&program->textures_map);
-    ngli_darray_reset(&program->blocks_map);
 }
 
 static int add_program(struct ngl_node *node, const char *glsl_header, const char *glsl_color,
@@ -405,6 +390,10 @@ static int effect2d_init(struct ngl_node *node)
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct effect2d_priv *s = node->priv_data;
     int ret;
+
+    s->input_image = ngli_image_resource_create();
+    if (!s->input_image)
+        return NGL_ERROR_MEMORY;
 
     s->layout.nb_colors = 1;
     s->layout.colors[0].format = NGPU_FORMAT_R8G8B8A8_UNORM;
@@ -574,8 +563,6 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         },
         .program          = ngpu_pgcraft_get_program(program->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(program->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(program->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(program->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(program->crafter),
     };
 
@@ -583,15 +570,23 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     if (ret < 0)
         return ret;
 
-    /* Build texture map */
-    const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(program->crafter);
-    for (size_t i = 0; i < texture_infos.nb_infos; i++) {
-        const struct texture_map tm = {.image = texture_infos.infos[i].image};
-        if (ngli_darray_try_push(&program->textures_map, tm) < 0)
-            return NGL_ERROR_MEMORY;
+    ret = ngli_pipeline_set_image_source(program->pipeline, 0, s->input_image);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    for (size_t i = 0; i < program->crafter_textures.count; i++) {
+        const char *name = program->crafter_textures.data[i].name;
+        const struct ngl_node *res = program->resources ? ngli_hmap_get_str(program->resources, name) : NULL;
+        if (!res) {
+            LOG(ERROR, "no resource registered for texture '%s'", name);
+            return NGL_ERROR_BUG;
+        }
+        const struct texture_info *info = ngli_node_texture_get_texture_info(res);
+        ret = ngli_pipeline_set_image_source(program->pipeline, (int32_t)i + 1, info->resource);
+        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+            return ret;
     }
 
-    /* Build block map */
+    /* Register block sources */
     if (program->resources) {
         const struct hmap_entry *entry = NULL;
         while ((entry = ngli_hmap_next(program->resources, entry))) {
@@ -599,12 +594,10 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
             if (res->cls->category != NGLI_NODE_CATEGORY_BLOCK)
                 continue;
             const struct block_info *info = res->priv_data;
-            const struct block_map bm = {
-                .index      = ngpu_pgcraft_get_block_index(program->crafter, entry->key.str, NGPU_PROGRAM_STAGE_FRAG),
-                .info       = info,
-            };
-            if (ngli_darray_try_push(&program->blocks_map, bm) < 0)
-                return NGL_ERROR_MEMORY;
+            const int32_t index = ngpu_pgcraft_get_block_index(program->crafter, entry->key.str, NGPU_PROGRAM_STAGE_FRAG);
+            ret = ngli_pipeline_set_buffer_source(program->pipeline, index, info->resource, 0, NGPU_BUFFER_WHOLE_SIZE);
+            if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+                return ret;
         }
     }
 
@@ -625,15 +618,15 @@ static int effect2d_prepare(struct ngl_node *node,
 
 static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t width, uint32_t height)
 {
-    if (s->rtt_ctx) {
+    if (s->rtt) {
         uint32_t current_width, current_height;
-        ngli_rtt_get_dimensions(s->rtt_ctx, &current_width, &current_height);
+        ngli_rtt_get_dimensions(s->rtt, &current_width, &current_height);
         if (current_width == width && current_height == height)
             return 0;
     }
 
-    struct rtt_ctx *rtt_ctx = ngli_rtt_create(ctx);
-    if (!rtt_ctx)
+    struct rtt_ctx *rtt = ngli_rtt_create(ctx);
+    if (!rtt)
         return NGL_ERROR_MEMORY;
 
     const struct ngpu_texture_params tex_params = {
@@ -648,20 +641,21 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
         .wrap_s  = NGPU_WRAP_CLAMP_TO_EDGE,
         .wrap_t  = NGPU_WRAP_CLAMP_TO_EDGE,
     };
-    int ret = ngli_rtt_from_texture_params(rtt_ctx, &tex_params);
+    int ret = ngli_rtt_from_texture_params(rtt, &tex_params);
     if (ret < 0)
         goto fail;
 
-    ngli_rtt_freep(&s->rtt_ctx);
-    s->rtt_ctx = rtt_ctx;
-
-    struct ngli_image *image = ngli_rtt_get_image(s->rtt_ctx, 0);
-    ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, image->coordinates_matrix.m);
+    struct ngli_mat4 coordinates;
+    ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, coordinates.m);
+    ngli_image_set_coordinates_matrix(ngli_rtt_get_image(rtt, 0), &coordinates);
+    ngli_image_resource_set(s->input_image, NULL);
+    ngli_rtt_freep(&s->rtt);
+    s->rtt = rtt;
 
     return 0;
 
 fail:
-    ngli_rtt_freep(&rtt_ctx);
+    ngli_rtt_freep(&rtt);
     return ret;
 }
 
@@ -816,7 +810,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
 
-    ngli_rtt_begin(s->rtt_ctx);
+    ngli_rtt_begin(s->rtt);
 
     struct ngli_mat4 fbo_base_projection;
     ngpu_ctx_get_projection_matrix(gpu_ctx, fbo_base_projection.m);
@@ -827,7 +821,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
         ngli_node_draw(o->children[i]);
     }
 
-    ngli_rtt_end(s->rtt_ctx);
+    ngli_rtt_end(s->rtt);
 
     s->drawme = true;
 
@@ -860,6 +854,8 @@ static int effect2d_update(struct ngl_node *node, double t)
 
 static void effect2d_draw(struct ngl_node *node)
 {
+    const struct pipeline_execution execution = {.staging = node->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct effect2d_priv *s = node->priv_data;
@@ -877,12 +873,7 @@ static void effect2d_draw(struct ngl_node *node)
     struct effect2d_program *program = &s->programs.data[program_index];
     struct ngli_pipeline *pl = program->pipeline;
 
-    if (program->textures_map.count > 0 && s->rtt_ctx)
-        program->textures_map.data[0].image = ngli_rtt_get_image(s->rtt_ctx, 0);
-
-    /* Update textures */
-    for (size_t i = 0; i < program->textures_map.count; i++)
-        ngli_pipeline_update_image(pl, (int32_t)i, program->textures_map.data[i].image);
+    ngli_image_resource_set(s->input_image, s->rtt ? ngli_rtt_get_image(s->rtt, 0) : NULL);
 
     /* Fill and push vertex block to staging buffer */
     {
@@ -925,20 +916,13 @@ static void effect2d_draw(struct ngl_node *node)
         ngli_pipeline_update_buffer(pl, program->user_block_index, staging_buf, offset, program->user_block_size);
     }
 
-    /* Update blocks */
-    struct block_map *block_maps = program->blocks_map.data;
-    for (size_t i = 0; i < program->blocks_map.count; i++) {
-        const struct block_info *info = block_maps[i].info;
-        ngli_pipeline_update_buffer(pl, block_maps[i].index, info->buffer, 0, 0);
-    }
-
     if (!ngpu_ctx_is_render_pass_active(gpu_ctx))
         ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
 
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_draw(pl, ctx->current_staging_buffer, 4, 1, 0);
+    ngli_pipeline_draw(pl, &execution, 4, 1, 0);
 }
 
 static void effect2d_release(struct ngl_node *node)
@@ -947,7 +931,8 @@ static void effect2d_release(struct ngl_node *node)
     for (size_t i = 0; i < s->programs.count; i++)
         ngli_pipeline_discard_resources(s->programs.data[i].pipeline);
 
-    ngli_rtt_freep(&s->rtt_ctx);
+    ngli_image_resource_set(s->input_image, NULL);
+    ngli_rtt_freep(&s->rtt);
 }
 
 static void effect2d_uninit(struct ngl_node *node)
@@ -957,6 +942,7 @@ static void effect2d_uninit(struct ngl_node *node)
     for (size_t i = 0; i < s->programs.count; i++)
         reset_program(&s->programs.data[i]);
     ngli_darray_reset(&s->programs);
+    ngli_image_resource_freep(&s->input_image);
 
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);

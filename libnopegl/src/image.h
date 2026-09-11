@@ -22,6 +22,7 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
+#include <stdbool.h>
 #include <nopemd.h>
 
 #include <ngpu/ngpu.h>
@@ -68,25 +69,43 @@ struct ngli_image_params {
     uint32_t width;
     uint32_t height;
     uint32_t depth;
-    float color_scale;
     enum ngli_image_layout layout;
-    struct color_info color_info;
-};
-
-struct ngli_image {
-    struct ngli_image_params params;
     struct ngpu_texture *planes[4];
     void *samplers[4];
-    size_t nb_planes;
+    float color_scale;
+    struct color_info color_info;
     struct ngli_mat4 color_matrix;
     struct ngli_mat4 mapping_color_matrix;
-    /* mutable fields after initialization */
     struct ngli_mat4 coordinates_matrix;
     float ts;
-    size_t rev;
 };
 
-void ngli_image_init(struct ngli_image *s, const struct ngli_image_params *params, struct ngpu_texture **planes);
-void ngli_image_reset(struct ngli_image *s);
+struct ngli_image_color_cache {
+    bool initialized;
+    enum ngli_image_layout layout;
+    struct color_info color_info;
+    float color_scale;
+    struct ngli_mat4 color_matrix;
+    struct ngli_mat4 mapping_color_matrix;
+};
+
+bool ngli_image_color_cache_update(struct ngli_image_color_cache *s, enum ngli_image_layout layout,
+                                  const struct color_info *color_info, float color_scale);
+
+struct ngli_image;
+
+struct ngli_image *ngli_image_create(const struct ngli_image_params *params);
+struct ngli_image *ngli_image_ref(const struct ngli_image *s);
+void ngli_image_unrefp(struct ngli_image **sp);
+
+const struct ngli_image_params *ngli_image_get_params(const struct ngli_image *s);
+
+/*
+ * Images are otherwise immutable once published. RTT, offscreen canvas and blur
+ * producers still patch the coordinates matrix of an image their consumers
+ * already hold. This is safe because a pipeline re-uploads the image metadata
+ * block on every execution instead of caching it alongside the texture binding.
+ */
+void ngli_image_set_coordinates_matrix(struct ngli_image *s, const struct ngli_mat4 *matrix);
 
 #endif
