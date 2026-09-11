@@ -153,7 +153,6 @@ static const struct node_param drawcolor_params[] = {
 };
 #undef OFFSET
 
-
 static int drawcolor_init(struct ngl_node *node)
 {
     struct drawcolor_priv *s = node->priv_data;
@@ -490,7 +489,7 @@ const struct node_class ngli_drawcolor_class = {
     .get_renderpass_usage = drawcolor_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawcolor_draw,
-    .release    = drawcolor_release,
+    .release   = drawcolor_release,
     .uninit    = drawcolor_uninit,
     .opts_size = sizeof(struct drawcolor_opts),
     .priv_size = sizeof(struct drawcolor_priv),

@@ -199,8 +199,6 @@ static const struct node_param drawnoise_params[] = {
 };
 #undef OFFSET
 
-
-
 static int drawnoise_init(struct ngl_node *node)
 {
     struct drawnoise_priv *s = node->priv_data;
@@ -322,7 +320,6 @@ static int drawnoise_prepare(struct ngl_node *node,
     const struct drawnoise_opts *o = node->opts;
 
     struct pipeline_desc *desc = &s->pipeline_desc;
-
 
     const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
     const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
@@ -555,7 +552,7 @@ const struct node_class ngli_drawnoise_class = {
     .get_renderpass_usage = drawnoise_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawnoise_draw,
-    .release    = drawnoise_release,
+    .release   = drawnoise_release,
     .uninit    = drawnoise_uninit,
     .opts_size = sizeof(struct drawnoise_opts),
     .priv_size = sizeof(struct drawnoise_priv),

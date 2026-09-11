@@ -138,7 +138,6 @@ int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_param
         ngpu_buffer_ref((struct ngpu_buffer *)s->vertex_buffers[i]);
 
     s->texture_infos = params->texture_infos;
-
     if (s->texture_infos.nb_infos) {
         s->images = ngli_try_calloc(s->texture_infos.nb_infos, sizeof(*s->images));
         if (!s->images)

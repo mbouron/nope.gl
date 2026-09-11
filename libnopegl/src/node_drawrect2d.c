@@ -169,7 +169,6 @@ struct drawrect2d_priv {
     char *vert_shader;
 };
 
-
 static void compute_geometry(struct drawrect2d_priv *s, const float *rect, const float *corner_radius)
 {
     s->rect[0] = rect[0];
@@ -1157,7 +1156,6 @@ static void drawrect2d_draw(struct ngl_node *node)
         size_t offset = 0;
         uint8_t *data = ngpu_staging_buffer_reserve(ctx->current_staging_buffer, s->user_block_size, &offset);
 
-
         /* Fill prebuilt uniforms */
         const struct ngpu_block_field *fields = s->user_block_desc.fields;
         const struct prebuilt_uniform *pbu = s->prebuilt_uniforms.data;
@@ -1234,7 +1232,7 @@ const struct node_class ngli_drawrect2d_class = {
     .update    = drawrect2d_update,
     .pre_draw  = drawrect2d_pre_draw,
     .draw      = drawrect2d_draw,
-    .release    = drawrect2d_release,
+    .release   = drawrect2d_release,
     .uninit    = drawrect2d_uninit,
     .opts_size = sizeof(struct drawrect2d_opts),
     .priv_size = sizeof(struct drawrect2d_priv),

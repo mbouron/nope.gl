@@ -871,7 +871,6 @@ int ngli_hud_init(struct hud *s)
     if (!s->coords)
         return NGL_ERROR_MEMORY;
 
-
     ret = ngpu_buffer_init(s->coords, sizeof(coords), NGPU_BUFFER_USAGE_DYNAMIC_BIT |
                                                           NGPU_BUFFER_USAGE_TRANSFER_DST_BIT |
                                                           NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT);

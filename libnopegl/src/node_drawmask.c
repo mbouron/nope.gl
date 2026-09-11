@@ -154,7 +154,6 @@ static const struct node_param drawmask_params[] = {
 };
 #undef OFFSET
 
-
 static int drawmask_init(struct ngl_node *node)
 {
     struct drawmask_priv *s = node->priv_data;
@@ -519,7 +518,7 @@ const struct node_class ngli_drawmask_class = {
     .get_renderpass_usage = drawmask_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawmask_draw,
-    .release    = drawmask_release,
+    .release   = drawmask_release,
     .uninit    = drawmask_uninit,
     .opts_size = sizeof(struct drawmask_opts),
     .priv_size = sizeof(struct drawmask_priv),

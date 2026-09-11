@@ -117,7 +117,6 @@ struct drawhistogram_priv {
     int32_t frag_block_index;
 };
 
-
 static const float default_vertices[] = {
    -1.f,-1.f, 0.f,
     1.f,-1.f, 0.f,
@@ -493,7 +492,7 @@ const struct node_class ngli_drawhistogram_class = {
     .get_renderpass_usage = drawhistogram_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawhistogram_draw,
-    .release    = drawhistogram_release,
+    .release   = drawhistogram_release,
     .uninit    = drawhistogram_uninit,
     .opts_size = sizeof(struct drawhistogram_opts),
     .priv_size = sizeof(struct drawhistogram_priv),

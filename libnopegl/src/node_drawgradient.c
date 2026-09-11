@@ -237,7 +237,6 @@ static int drawgradient_init(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
-
     /* Setup geometry */
     if (!o->geometry) {
         s->own_geometry = 1;
@@ -578,7 +577,7 @@ const struct node_class ngli_drawgradient_class = {
     .get_renderpass_usage = drawgradient_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawgradient_draw,
-    .release    = drawgradient_release,
+    .release   = drawgradient_release,
     .uninit    = drawgradient_uninit,
     .opts_size = sizeof(struct drawgradient_opts),
     .priv_size = sizeof(struct drawgradient_priv),
@@ -679,7 +678,6 @@ static int drawgradient4_init(struct ngl_node *node)
     const struct drawgradient4_opts *o = node->opts;
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-
 
     if (!o->geometry) {
         s->own_geometry = 1;
@@ -1028,7 +1026,7 @@ const struct node_class ngli_drawgradient4_class = {
     .get_renderpass_usage = drawgradient4_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawgradient4_draw,
-    .release    = drawgradient4_release,
+    .release   = drawgradient4_release,
     .uninit    = drawgradient4_uninit,
     .opts_size = sizeof(struct drawgradient4_opts),
     .priv_size = sizeof(struct drawgradient4_priv),
