@@ -25,6 +25,7 @@
 #include <stdint.h>
 
 #include "image.h"
+#include "resource.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 #include "params.h"
@@ -41,8 +42,8 @@ struct texture_info {
     int premult;
     int rtt;
     struct ngpu_texture *texture;
-    struct ngli_image image;
-    size_t image_rev;
+    struct ngli_image *image;
+    struct image_resource *resource;
 };
 
 struct texture_info *ngli_node_texture_get_texture_info(const struct ngl_node *node);

@@ -284,21 +284,18 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
             .format = NGPU_FORMAT_R32G32_SFLOAT,
             .stride = sizeof(struct nk_ngpu_vertex),
             .offset = offsetof(struct nk_ngpu_vertex, position),
-            .buffer = s->vbo,
         }, {
             .name   = "texcoord",
             .type   = NGPU_TYPE_VEC2,
             .format = NGPU_FORMAT_R32G32_SFLOAT,
             .stride = sizeof(struct nk_ngpu_vertex),
             .offset = offsetof(struct nk_ngpu_vertex, uv),
-            .buffer = s->vbo,
         }, {
             .name   = "color",
             .type   = NGPU_TYPE_VEC4,
             .format = NGPU_FORMAT_R32G32B32A32_SFLOAT,
             .stride = sizeof(struct nk_ngpu_vertex),
             .offset = offsetof(struct nk_ngpu_vertex, col),
-            .buffer = s->vbo,
         },
     };
 
@@ -312,7 +309,6 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
             .name        = "tex",
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .texture     = s->font_tex,
             .no_metadata = true,
         },
     };
@@ -324,7 +320,6 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
             .type          = NGPU_TYPE_UNIFORM_BUFFER,
             .stage         = NGPU_PROGRAM_STAGE_VERT,
             .block         = &s->proj_block_desc,
-            .buffer        = {.buffer = s->proj_buffer, .size = proj_size},
         },
     };
 
@@ -363,15 +358,21 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
     if (ret < 0)
         return ret;
 
-    struct ngpu_bindgroup_resources bg_resources =
-        ngpu_pgcraft_get_bindgroup_resources(s->crafter);
+    const struct ngpu_pgcraft_texture_infos infos = ngpu_pgcraft_get_texture_infos(s->crafter);
+    const int32_t tex_info_index = ngpu_pgcraft_get_image_index(s->crafter, "tex");
+    if (tex_info_index < 0 || tex_info_index >= (int32_t)infos.nb_infos ||
+        infos.infos[tex_info_index].sampler_index != 0 || s->proj_block_index != 0 ||
+        bg_layout_desc.nb_textures != 1 || bg_layout_desc.nb_buffers != 1)
+        return NGPU_ERROR_BUG;
 
+    const struct ngpu_texture_binding texture_binding = {.texture = s->font_tex};
+    const struct ngpu_buffer_binding buffer_binding = {.buffer = s->proj_buffer, .size = proj_size};
     const struct ngpu_bindgroup_desc bg_desc = {
         .layout      = s->bg_layout,
-        .textures    = bg_resources.textures,
-        .nb_textures = bg_resources.nb_textures,
-        .buffers     = bg_resources.buffers,
-        .nb_buffers  = bg_resources.nb_buffers,
+        .textures    = &texture_binding,
+        .nb_textures = 1,
+        .buffers     = &buffer_binding,
+        .nb_buffers  = 1,
     };
     s->bindgroup = ngpu_bindgroup_create(s->gpu_ctx, &bg_desc);
     if (!s->bindgroup)

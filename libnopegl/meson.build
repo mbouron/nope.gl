@@ -267,6 +267,7 @@ lib_src = files(
   'src/pipeline.c',
   'src/precision.c',
   'src/renderpass.c',
+  'src/resource.c',
   'src/rtt.c',
   'src/scene.c',
   'src/scope.c',

@@ -37,6 +37,7 @@
 #include "nopegl/nopegl.h"
 
 struct hwmap_mc {
+    struct ngli_image_color_cache color_cache;
     struct android_image *android_image;
     struct ngpu_texture *texture;
 };
@@ -65,29 +66,23 @@ static bool support_direct_rendering(struct hwmap *hwmap)
 
 static int mc_init(struct hwmap *hwmap, struct nmd_frame *frame)
 {
-    struct hwmap_mc *mc = hwmap->hwmap_priv_data;
-
-    const struct ngli_image_params image_params = {
-        .width = (uint32_t)frame->width,
-        .height = (uint32_t)frame->height,
-        .layout = NGLI_IMAGE_LAYOUT_MEDIACODEC,
-        .color_scale = 1.f,
-        .color_info = ngli_color_info_from_nopemd_frame(frame),
-    };
-    ngli_image_init(&hwmap->mapped_image, &image_params, &mc->texture);
-
     hwmap->require_hwconv = !support_direct_rendering(hwmap);
 
     return 0;
 }
 
-static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
+static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image **imagep)
 {
     const struct hwmap_params *params = &hwmap->params;
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct android_ctx *android_ctx = &ctx->android_ctx;
+
+    const float ts = (float)frame->ts;
+    const uint32_t width = (uint32_t)frame->width;
+    const uint32_t height = (uint32_t)frame->height;
+    const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
 
     int ret = nmd_mc_frame_render_and_releasep(&frame);
     if (ret < 0)
@@ -115,9 +110,9 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     if (ret < 0)
         return ret;
 
-    float *matrix = hwmap->mapped_image.coordinates_matrix.m;
+    struct ngli_mat4 coordinates_matrix = {.m = NGLI_MAT4_IDENTITY};
     const int filtering = params->texture_min_filter || params->texture_mag_filter;
-    ngli_android_get_crop_matrix(matrix, &desc, &crop_rect, filtering);
+    ngli_android_get_crop_matrix(coordinates_matrix.m, &desc, &crop_rect, filtering);
 
     struct ngpu_texture_params texture_params = {
         .type       = NGPU_TEXTURE_TYPE_2D,
@@ -144,7 +139,23 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
     if (ret < 0)
         return ret;
 
-    hwmap->mapped_image.planes[0] = mc->texture;
+    ngli_image_color_cache_update(&mc->color_cache, NGLI_IMAGE_LAYOUT_MEDIACODEC, &color_info, 1.f);
+
+    const struct ngli_image_params image_params = {
+        .width                = width,
+        .height               = height,
+        .layout               = NGLI_IMAGE_LAYOUT_MEDIACODEC,
+        .planes               = {mc->texture},
+        .color_scale          = 1.f,
+        .color_info           = color_info,
+        .color_matrix         = mc->color_cache.color_matrix,
+        .mapping_color_matrix = mc->color_cache.mapping_color_matrix,
+        .coordinates_matrix   = coordinates_matrix,
+        .ts                   = ts,
+    };
+    *imagep = ngli_image_create(&image_params);
+    if (!*imagep)
+        return NGL_ERROR_MEMORY;
 
     return 0;
 }

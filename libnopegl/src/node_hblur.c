@@ -58,14 +58,13 @@ struct hblur_opts {
 struct hblur_priv {
     float diagonal;
 
-    struct ngli_image *image;
-    size_t image_rev;
+    struct image_resource *image;
+    struct image_resource *pass1_images[2];
 
     struct ngpu_texture *dummy_map;
-    struct ngli_image dummy_map_image;
+    struct ngli_image *dummy_map_image;
 
-    struct ngli_image *map_image;
-    size_t map_rev;
+    struct image_resource *map_image;
 
     struct ngpu_block_desc blur_block_desc;
     size_t blur_block_size;
@@ -164,18 +163,25 @@ static int setup_dummy_map(struct ngl_node *node)
         return ret;
 
     const struct ngli_image_params image_params = {
-        .width  = DUMMY_MAP_SIZE,
-        .height = DUMMY_MAP_SIZE,
-        .layout = NGLI_IMAGE_LAYOUT_DEFAULT,
-        .color_scale = 1.f,
-        .color_info = {
+        .width                = DUMMY_MAP_SIZE,
+        .height               = DUMMY_MAP_SIZE,
+        .layout               = NGLI_IMAGE_LAYOUT_DEFAULT,
+        .planes               = {s->dummy_map},
+        .color_scale          = 1.f,
+        .color_info           = {
             .space     = NMD_COL_SPC_BT709,
             .range     = NMD_COL_RNG_UNSPECIFIED,
             .primaries = NMD_COL_PRI_BT709,
             .transfer  = NMD_COL_TRC_IEC61966_2_1, // sRGB
         },
+        .color_matrix         = {.m = NGLI_MAT4_IDENTITY},
+        .mapping_color_matrix = {.m = NGLI_MAT4_IDENTITY},
+        .coordinates_matrix   = {.m = NGLI_MAT4_IDENTITY},
     };
-    ngli_image_init(&s->dummy_map_image, &image_params, &s->dummy_map);
+    s->dummy_map_image = ngli_image_create(&image_params);
+    if (!s->dummy_map_image)
+        return NGL_ERROR_MEMORY;
+    ngli_image_resource_set(s->map_image, s->dummy_map_image);
 
     return 0;
 }
@@ -203,18 +209,12 @@ static int setup_pass1_pipeline(struct ngl_node *node)
         }
     };
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_block blocks[] = {
         {
             .name          = "blur",
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->blur_block_desc,
-            .buffer        = {
-                .buffer    = staging_buf,
-                .size      = s->blur_block_size,
-            },
         }
     };
 
@@ -257,8 +257,6 @@ static int setup_pass1_pipeline(struct ngl_node *node)
         },
         .program          = ngpu_pgcraft_get_program(s->pass1.crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->pass1.crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->pass1.crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->pass1.crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->pass1.crafter),
     };
 
@@ -270,7 +268,12 @@ static int setup_pass1_pipeline(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    ngli_pipeline_update_texture(s->pass1.pl, 1, s->dummy_map);
+    ret = ngli_pipeline_set_image_source(s->pass1.pl, 0, s->image);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    ret = ngli_pipeline_set_image_source(s->pass1.pl, 1, s->map_image);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
 
     return 0;
 }
@@ -302,18 +305,12 @@ static int setup_pass2_pipeline(struct ngl_node *node)
         }
     };
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
             .name          = "blur",
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->blur_block_desc,
-            .buffer        = {
-                .buffer = staging_buf,
-                .size   = s->blur_block_size,
-            },
         },
     };
 
@@ -353,8 +350,6 @@ static int setup_pass2_pipeline(struct ngl_node *node)
         },
         .program          = ngpu_pgcraft_get_program(s->pass2.crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->pass2.crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->pass2.crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->pass2.crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->pass2.crafter),
     };
 
@@ -362,7 +357,15 @@ static int setup_pass2_pipeline(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    ngli_pipeline_update_texture(s->pass2.pl, 2, s->dummy_map);
+    ret = ngli_pipeline_set_image_source(s->pass2.pl, 0, s->pass1_images[0]);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    ret = ngli_pipeline_set_image_source(s->pass2.pl, 1, s->pass1_images[1]);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
+    ret = ngli_pipeline_set_image_source(s->pass2.pl, 2, s->map_image);
+    if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+        return ret;
 
     return 0;
 }
@@ -375,8 +378,13 @@ static int hblur_init(struct ngl_node *node)
     const struct hblur_opts *o = node->opts;
 
     struct texture_info *src_info = o->source->priv_data;
-    s->image = &src_info->image;
-    s->image_rev = SIZE_MAX;
+    s->image = ngli_image_resource_ref(src_info->resource);
+    s->pass1_images[0] = ngli_image_resource_create();
+    if (!s->pass1_images[0])
+        return NGL_ERROR_MEMORY;
+    s->pass1_images[1] = ngli_image_resource_create();
+    if (!s->pass1_images[1])
+        return NGL_ERROR_MEMORY;
 
     /* Disable direct rendering */
     src_info->supported_image_layouts = NGLI_IMAGE_LAYOUT_DEFAULT_BIT;
@@ -386,8 +394,6 @@ static int hblur_init(struct ngl_node *node)
     src_info->params.mag_filter = NGPU_FILTER_LINEAR;
     src_info->params.mipmap_filter = NGPU_MIPMAP_FILTER_LINEAR;
 
-    s->map_image = &s->dummy_map_image;
-    s->map_rev = SIZE_MAX;
     if (o->map) {
         struct texture_info *map_info = o->map->priv_data;
 
@@ -397,7 +403,11 @@ static int hblur_init(struct ngl_node *node)
         /* Override ngpu_texture params */
         map_info->params.min_filter = NGPU_FILTER_LINEAR;
         map_info->params.mag_filter = NGPU_FILTER_LINEAR;
-        s->map_image = &map_info->image;
+        s->map_image = ngli_image_resource_ref(map_info->resource);
+    } else {
+        s->map_image = ngli_image_resource_create();
+        if (!s->map_image)
+            return NGL_ERROR_MEMORY;
     }
 
     s->preferred_format = get_preferred_format(ctx->gpu_ctx);
@@ -417,8 +427,11 @@ static int hblur_init(struct ngl_node *node)
 
     int ret;
 
-    if ((ret = setup_dummy_map(node)) < 0 ||
-        (ret = setup_pass1_pipeline(node)) < 0 ||
+    /* The dummy map only stands in for an absent map node */
+    if (!o->map && (ret = setup_dummy_map(node)) < 0)
+        return ret;
+
+    if ((ret = setup_pass1_pipeline(node)) < 0 ||
         (ret = setup_pass2_pipeline(node)) < 0)
         return ret;
 
@@ -440,8 +453,8 @@ static int resize(struct ngl_node *node)
     }
 
     struct texture_info *src_info = o->source->priv_data;
-    const uint32_t width = src_info->image.params.width;
-    const uint32_t height = src_info->image.params.height;
+    const uint32_t width = ngli_image_get_params(src_info->image)->width;
+    const uint32_t height = ngli_image_get_params(src_info->image)->height;
     if (s->pass1.rtt_ctx) {
         uint32_t current_width, current_height;
         ngli_rtt_get_dimensions(s->pass1.rtt_ctx, &current_width, &current_height);
@@ -450,6 +463,7 @@ static int resize(struct ngl_node *node)
     }
 
     struct ngpu_texture *dst = NULL;
+    struct ngli_image *dst_image = NULL;
     struct ngpu_texture *tex0 = ngpu_texture_create(ctx->gpu_ctx);
     struct ngpu_texture *tex1 = ngpu_texture_create(ctx->gpu_ctx);
     struct rtt_ctx *pass1_rtt_ctx = ngli_rtt_create(ctx);
@@ -533,8 +547,24 @@ static int resize(struct ngl_node *node)
     if (ret < 0)
         goto fail;
 
+    if (s->dst_is_resizable) {
+        struct ngli_image_params image_params = *ngli_image_get_params(dst_info->image);
+        image_params.width = ngpu_texture_get_params(dst)->width;
+        image_params.height = ngpu_texture_get_params(dst)->height;
+        image_params.planes[0] = dst;
+        dst_image = ngli_image_create(&image_params);
+        if (!dst_image) {
+            ret = NGL_ERROR_MEMORY;
+            goto fail;
+        }
+    }
+
+    ngli_image_resource_set(s->pass1_images[0], NULL);
+    ngli_image_resource_set(s->pass1_images[1], NULL);
     ngli_rtt_freep(&s->pass1.rtt_ctx);
     s->pass1.rtt_ctx = pass1_rtt_ctx;
+    ngli_image_resource_set(s->pass1_images[0], ngli_rtt_get_image(s->pass1.rtt_ctx, 0));
+    ngli_image_resource_set(s->pass1_images[1], ngli_rtt_get_image(s->pass1.rtt_ctx, 1));
 
     ngpu_texture_freep(&s->tex0);
     s->tex0 = tex0;
@@ -546,12 +576,12 @@ static int resize(struct ngl_node *node)
     s->pass2.rtt_ctx = pass2_rtt_ctx;
 
     if (s->dst_is_resizable) {
-        ngpu_texture_freep(&dst_info->texture);
+        struct ngpu_texture *old_texture = dst_info->texture;
         dst_info->texture = dst;
-        dst_info->image.params.width = ngpu_texture_get_params(dst)->width;
-        dst_info->image.params.height = ngpu_texture_get_params(dst)->height;
-        dst_info->image.planes[0] = dst;
-        dst_info->image.rev = dst_info->image_rev++;
+        ngli_image_unrefp(&dst_info->image);
+        dst_info->image = dst_image;
+        ngli_image_resource_set(dst_info->resource, dst_info->image);
+        ngpu_texture_freep(&old_texture);
     }
 
     s->diagonal = hypotf((float)width, (float)height);
@@ -559,6 +589,7 @@ static int resize(struct ngl_node *node)
     return 0;
 
 fail:
+    ngli_image_unrefp(&dst_image);
     ngpu_texture_freep(&tex0);
     ngpu_texture_freep(&tex1);
     ngli_rtt_freep(&pass1_rtt_ctx);
@@ -575,6 +606,8 @@ fail:
 
 static void hblur_pre_draw(struct ngl_node *node)
 {
+    const struct pipeline_execution execution = {.staging = node->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = node->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct hblur_priv *s = node->priv_data;
@@ -602,17 +635,14 @@ static void hblur_pre_draw(struct ngl_node *node)
 
     ngli_rtt_begin(s->pass1.rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_update_image(s->pass1.pl, 0, s->image);
-    ngli_pipeline_update_image(s->pass1.pl, 1, s->map_image);
-    ngli_pipeline_draw(s->pass1.pl, ctx->current_staging_buffer, 3, 1, 0);
+    ret = ngli_pipeline_draw(s->pass1.pl, &execution, 3, 1, 0);
     ngli_rtt_end(s->pass1.rtt_ctx);
+    if (ret < 0)
+        return;
 
     ngli_rtt_begin(s->pass2.rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    ngli_pipeline_update_image(s->pass2.pl, 0, ngli_rtt_get_image(s->pass1.rtt_ctx, 0));
-    ngli_pipeline_update_image(s->pass2.pl, 1, ngli_rtt_get_image(s->pass1.rtt_ctx, 1));
-    ngli_pipeline_update_image(s->pass2.pl, 2, s->map_image);
-    ngli_pipeline_draw(s->pass2.pl, ctx->current_staging_buffer, 3, 1, 0);
+    ngli_pipeline_draw(s->pass2.pl, &execution, 3, 1, 0);
     ngli_rtt_end(s->pass2.rtt_ctx);
 
     /*
@@ -621,8 +651,8 @@ static void hblur_pre_draw(struct ngl_node *node)
      * destination.
      */
     struct texture_info *dst_info = o->destination->priv_data;
-    struct ngli_image *dst_image = &dst_info->image;
-    dst_image->coordinates_matrix = s->image->coordinates_matrix;
+    const struct ngli_mat4 *coordinates = &ngli_image_get_params(ngli_image_resource_get(s->image))->coordinates_matrix;
+    ngli_image_set_coordinates_matrix(dst_info->image, coordinates);
 }
 
 static void hblur_release(struct ngl_node *node)
@@ -633,6 +663,8 @@ static void hblur_release(struct ngl_node *node)
 
     ngpu_texture_freep(&s->tex0);
     ngpu_texture_freep(&s->tex1);
+    ngli_image_resource_set(s->pass1_images[0], NULL);
+    ngli_image_resource_set(s->pass1_images[1], NULL);
     ngli_rtt_freep(&s->pass1.rtt_ctx);
     ngli_rtt_freep(&s->pass2.rtt_ctx);
 }
@@ -642,11 +674,16 @@ static void hblur_uninit(struct ngl_node *node)
     struct hblur_priv *s = node->priv_data;
 
     ngpu_block_desc_reset(&s->blur_block_desc);
+    ngli_image_unrefp(&s->dummy_map_image);
     ngpu_texture_freep(&s->dummy_map);
     ngli_pipeline_freep(&s->pass2.pl);
     ngli_pipeline_freep(&s->pass1.pl);
     ngpu_pgcraft_freep(&s->pass1.crafter);
     ngpu_pgcraft_freep(&s->pass2.crafter);
+    ngli_image_resource_freep(&s->image);
+    ngli_image_resource_freep(&s->map_image);
+    ngli_image_resource_freep(&s->pass1_images[0]);
+    ngli_image_resource_freep(&s->pass1_images[1]);
 }
 
 const struct node_class ngli_hblur_class = {
