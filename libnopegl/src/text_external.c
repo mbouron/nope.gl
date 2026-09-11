@@ -171,6 +171,12 @@ static int text_external_prefetch(struct text *text)
     if (ret < 0)
         return ret;
 
+    if (ngli_slug_get_glyph_count(s->slug)) {
+        ret = ngli_slug_finalize(s->slug);
+        if (ret < 0)
+            return ret;
+    }
+
     text->curve_texture = ngli_slug_get_curve_texture(s->slug);
     text->band_texture = ngli_slug_get_band_texture(s->slug);
     return 0;

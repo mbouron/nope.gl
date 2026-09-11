@@ -915,6 +915,12 @@ static void text_draw(struct ngl_node *node)
     }
 }
 
+static int text_prefetch(struct ngl_node *node)
+{
+    struct text_priv *s = node->priv_data;
+    return ngli_text_prefetch(s->text_ctx);
+}
+
 static void text_release(struct ngl_node *node)
 {
     struct text_priv *s = node->priv_data;
@@ -946,6 +952,7 @@ const struct node_class ngli_text_class = {
     .category       = NGLI_NODE_CATEGORY_DRAW,
     .name           = "Text",
     .init           = text_init,
+    .prefetch       = text_prefetch,
     .prepare        = text_prepare,
     .update         = text_update,
     .draw           = text_draw,
