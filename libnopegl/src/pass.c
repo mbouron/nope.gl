@@ -46,16 +46,6 @@
 #include "utils/hmap.h"
 #include "utils/utils.h"
 
-struct resource_map {
-    int32_t index;
-    const struct block_info *info;
-};
-
-struct texture_map {
-    const struct ngli_image *image;
-    size_t image_rev;
-};
-
 static int register_uniform(struct pass *s, const char *name, struct ngl_node *uniform, enum ngpu_program_stage stage)
 {
     struct ngpu_block_desc *block;
@@ -167,7 +157,6 @@ static int register_texture(struct pass *s, const char *name, struct ngl_node *t
         .format      = texture_info->params.format,
         .clamp_video = texture_info->clamp_video,
         .premult     = texture_info->premult,
-        .image       = &texture_info->image,
     };
     snprintf(crafter_texture.name, sizeof(crafter_texture.name), "%s", name);
 
@@ -225,17 +214,11 @@ static int register_block(struct pass *s, const char *name, struct ngl_node *blo
     else
         ngli_assert(0);
 
-    const struct ngpu_buffer *buffer = block_info->buffer;
-    const size_t buffer_size = buffer ? ngpu_buffer_get_size(buffer) : 0;
     struct ngpu_pgcraft_block crafter_block = {
         .type     = type,
         .stage    = stage,
         .writable = writable,
         .block    = block,
-        .buffer   = {
-            .buffer = buffer,
-            .size   = buffer_size,
-        },
     };
     snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", name);
 
@@ -245,10 +228,10 @@ static int register_block(struct pass *s, const char *name, struct ngl_node *blo
     return 0;
 }
 
-static int register_attribute_from_buffer(struct pass *s, const char *name,
-                                          struct ngpu_buffer *buffer, const struct buffer_layout *layout)
+static int register_attribute_from_layout(struct pass *s, const char *name,
+                                          const struct buffer_layout *layout)
 {
-    if (!buffer)
+    if (!layout->count)
         return 0;
 
     struct ngpu_pgcraft_attribute crafter_attribute = {
@@ -256,7 +239,6 @@ static int register_attribute_from_buffer(struct pass *s, const char *name,
         .format = layout->format,
         .stride = layout->stride,
         .offset = layout->offset,
-        .buffer = buffer,
     };
     snprintf(crafter_attribute.name, sizeof(crafter_attribute.name), "%s", name);
 
@@ -289,7 +271,6 @@ static int register_attribute(struct pass *s, const char *name, struct ngl_node 
         .stride = attribute_priv->layout.stride,
         .offset = attribute_priv->layout.offset,
         .rate   = rate,
-        .buffer = attribute_priv->buffer,
     };
     snprintf(crafter_attribute.name, sizeof(crafter_attribute.name), "%s", name);
 
@@ -344,8 +325,7 @@ static int pass_graphics_init(struct pass *s)
     s->pipeline_type = NGPU_PIPELINE_TYPE_GRAPHICS;
     s->topology = geometry->topology;
 
-    if (geometry->indices_buffer) {
-        s->indices = geometry->indices_buffer;
+    if (geometry->indices) {
         s->indices_layout = &geometry->indices_layout;
     } else {
         s->nb_vertices = (uint32_t)geometry->vertices_layout.count;
@@ -358,9 +338,9 @@ static int pass_graphics_init(struct pass *s)
         (ret = register_resources(s, params->frag_resources, NGPU_PROGRAM_STAGE_FRAG)) < 0)
         return ret;
 
-    if ((ret = register_attribute_from_buffer(s, "ngl_position", geometry->vertices_buffer, &geometry->vertices_layout)) < 0 ||
-        (ret = register_attribute_from_buffer(s, "ngl_uvcoord",  geometry->uvcoords_buffer, &geometry->uvcoords_layout)) < 0 ||
-        (ret = register_attribute_from_buffer(s, "ngl_normal",   geometry->normals_buffer,  &geometry->normals_layout)) < 0)
+    if ((ret = register_attribute_from_layout(s, "ngl_position", &geometry->vertices_layout)) < 0 ||
+        (ret = register_attribute_from_layout(s, "ngl_uvcoord",  &geometry->uvcoords_layout)) < 0 ||
+        (ret = register_attribute_from_layout(s, "ngl_normal",   &geometry->normals_layout)) < 0)
         return ret;
 
     if (params->attributes) {
@@ -408,7 +388,7 @@ static enum ngpu_program_stage get_program_shader_stage(uint32_t stage_flags)
     ngli_assert(0);
 }
 
-static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
+static int register_block_sources(struct pass *s, struct pipeline_desc *desc)
 {
     struct ngpu_bindgroup_layout_desc layout_desc = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter);
 
@@ -439,9 +419,9 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
             continue;
 
         const struct block_info *info = node->priv_data;
-        const struct resource_map map = {.index = index, .info = info};
-        if (ngli_darray_try_push(&desc->blocks_map, map) < 0)
-            return NGL_ERROR_MEMORY;
+        int ret = ngli_pipeline_set_buffer_source(desc->pipeline, index, info->resource, 0, NGPU_BUFFER_WHOLE_SIZE);
+        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+            return ret;
     }
 
     return 0;
@@ -513,22 +493,67 @@ int ngli_pass_prepare(struct pass *s,
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = tex_infos,
     };
     ret = ngli_pipeline_init(desc->pipeline, &params);
     if (ret < 0)
         return ret;
 
-    ret = build_blocks_map(s, desc);
+    ret = register_block_sources(s, desc);
     if (ret < 0)
         return ret;
 
-    for (size_t i = 0; i < tex_infos.nb_infos; i++) {
-        const struct texture_map map = {.image = tex_infos.infos[i].image, .image_rev = SIZE_MAX};
-        if (ngli_darray_try_push(&desc->textures_map, map) < 0)
-            return NGL_ERROR_MEMORY;
+    for (size_t i = 0; i < s->crafter_textures.count; i++) {
+        const struct ngpu_pgcraft_texture *texture = &s->crafter_textures.data[i];
+        const struct hmap *resources = texture->stage == NGPU_PROGRAM_STAGE_VERT ? s->params.vert_resources
+                                    : texture->stage == NGPU_PROGRAM_STAGE_FRAG ? s->params.frag_resources
+                                                                               : s->params.compute_resources;
+        const struct ngl_node *node = resources ? ngli_hmap_get_str(resources, texture->name) : NULL;
+        if (!node) {
+            LOG(ERROR, "no resource registered for texture '%s'", texture->name);
+            return NGL_ERROR_BUG;
+        }
+        const struct texture_info *info = ngli_node_texture_get_texture_info(node);
+        ret = ngli_pipeline_set_image_source(desc->pipeline, (int32_t)i, info->resource);
+        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+            return ret;
+    }
+
+    if (s->params.geometry) {
+        const struct geometry *geometry = s->params.geometry;
+        if (geometry->indices) {
+            ret = ngli_pipeline_set_index_source(desc->pipeline, geometry->indices, geometry->indices_layout.format);
+            if (ret < 0)
+                return ret;
+        }
+        const struct {
+            const char *name;
+            const struct buffer_resource *resource;
+        } attributes[] = {
+            {"ngl_position", geometry->vertices},
+            {"ngl_uvcoord",  geometry->uvcoords},
+            {"ngl_normal",   geometry->normals},
+        };
+        for (size_t i = 0; i < NGLI_ARRAY_NB(attributes); i++) {
+            const int32_t index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, attributes[i].name);
+            ret = ngli_pipeline_set_vertex_source(desc->pipeline, index, attributes[i].resource);
+            if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+                return ret;
+        }
+        const struct hmap *maps[] = {s->params.attributes, s->params.instance_attributes};
+        for (size_t i = 0; i < NGLI_ARRAY_NB(maps); i++) {
+            if (!maps[i])
+                continue;
+            const struct hmap_entry *entry = NULL;
+            while ((entry = ngli_hmap_next(maps[i], entry))) {
+                const struct ngl_node *node = entry->data;
+                const struct buffer_info *info = node->priv_data;
+                const int32_t index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, entry->key.str);
+                ret = ngli_pipeline_set_vertex_source(desc->pipeline, index, info->resource);
+                if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+                    return ret;
+            }
+        }
     }
 
     return 0;
@@ -559,8 +584,6 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
         return ret;
 
     /* Register user uniform blocks (non-empty ones only) */
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     const struct {
         struct ngpu_block_desc *desc;
         const char *name;
@@ -580,7 +603,6 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = user_blocks[i].stage,
             .block         = user_blocks[i].desc,
-            .buffer        = {.buffer = staging_buf, .size = size},
         };
         snprintf(blk.name, sizeof(blk.name), "%s", user_blocks[i].name);
         if (ngli_darray_try_push(&s->crafter_blocks, blk) < 0)
@@ -590,7 +612,7 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
     return 0;
 }
 
-void ngli_pass_discard_resources(struct pass *s)
+void ngli_pass_release(struct pass *s)
 {
     ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
@@ -602,8 +624,6 @@ void ngli_pass_uninit(struct pass *s)
 
     struct pipeline_desc *desc = &s->pipeline_desc;
     ngli_pipeline_freep(&desc->pipeline);
-    ngli_darray_reset(&desc->blocks_map);
-    ngli_darray_reset(&desc->textures_map);
 
     ngpu_pgcraft_freep(&s->crafter);
     ngpu_block_desc_reset(&s->user_vert_block);
@@ -619,12 +639,12 @@ void ngli_pass_uninit(struct pass *s)
 
 int ngli_pass_exec(struct pass *s)
 {
+    const struct pipeline_execution execution = {.staging = s->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = s->ctx;
     const struct pass_params *params = &s->params;
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct ngli_pipeline *pipeline = desc->pipeline;
-    ngli_pipeline_update_vertex_resources(pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
-
 
     /* Fill and push user uniform blocks */
     const struct {
@@ -685,16 +705,6 @@ int ngli_pass_exec(struct pass *s)
         ngli_pipeline_update_buffer(pipeline, block_idx, buffer, offset, block_size);
     }
 
-    for (size_t i = 0; i < desc->textures_map.count; i++) {
-        ngli_pipeline_update_image(pipeline, (int32_t)i, desc->textures_map.data[i].image);
-    }
-
-    struct resource_map *resource_map = desc->blocks_map.data;
-    for (size_t i = 0; i < desc->blocks_map.count; i++) {
-        const struct block_info *info = resource_map[i].info;
-        ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
-    }
-
     if (s->pipeline_type == NGPU_PIPELINE_TYPE_GRAPHICS) {
         struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
@@ -705,11 +715,10 @@ int ngli_pass_exec(struct pass *s)
         ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
         ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-        if (s->indices)
-            ngli_pipeline_draw_indexed(pipeline, ctx->current_staging_buffer, s->indices, s->indices_layout->format,
-                                       (uint32_t)s->indices_layout->count, s->nb_instances);
+        if (params->geometry->indices)
+            return ngli_pipeline_draw_indexed(pipeline, &execution, (uint32_t)s->indices_layout->count, s->nb_instances);
         else
-            ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, s->nb_instances, 0);
+            return ngli_pipeline_draw(pipeline, &execution, s->nb_vertices, s->nb_instances, 0);
     } else {
         struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
@@ -717,7 +726,7 @@ int ngli_pass_exec(struct pass *s)
             ngpu_ctx_end_render_pass(gpu_ctx);
         }
 
-        ngli_pipeline_dispatch(pipeline, ctx->current_staging_buffer, NGLI_ARG_VEC3(params->workgroup_count));
+        return ngli_pipeline_dispatch(pipeline, &execution, NGLI_ARG_VEC3(params->workgroup_count));
     }
 
     return 0;

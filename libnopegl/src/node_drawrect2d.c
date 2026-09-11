@@ -57,21 +57,6 @@ static const char *const paint_texture_names[PAINT_SHADER_ROLE_NB] = {
     [PAINT_SHADER_ROLE_STROKE] = "ngli_stroke_tex",
 };
 
-struct resource_map {
-    int32_t index;
-    const struct block_info *info;
-};
-
-struct texture_map {
-    const struct ngli_image *image;
-    size_t image_rev;
-};
-
-struct block_map {
-    int32_t index;
-    const struct block_info *info;
-};
-
 struct drawrect2d_vert_block {
     struct ngli_mat4 projection_matrix;
     struct ngli_mat4 modelview_matrix;
@@ -142,8 +127,6 @@ struct drawrect2d_priv {
     float rect[4];
     float corner_radius[2];
     struct ngli_pipeline *pipeline;
-    NGLI_DARRAY(struct texture_map) textures_map;
-    NGLI_DARRAY(struct block_map) blocks_map;
     struct ngpu_pgcraft *crafter;
 
     /* Uniform blocks */
@@ -214,9 +197,9 @@ static void compute_texture_uv_scale(const struct paint_info *paint,
         return;
 
     const struct texture_info *texture_info = ngli_node_texture_get_texture_info(texture);
-    const struct ngli_image *image = &texture_info->image;
-    const float tex_w = orientation_is_transposed ? (float)image->params.height : (float)image->params.width;
-    const float tex_h = orientation_is_transposed ? (float)image->params.width  : (float)image->params.height;
+    const struct ngli_image_params *image_params = ngli_image_get_params(texture_info->image);
+    const float tex_w = orientation_is_transposed ? (float)image_params->height : (float)image_params->width;
+    const float tex_h = orientation_is_transposed ? (float)image_params->width  : (float)image_params->height;
     const float scaled_w = rect[2] * node_scale[0];
     const float scaled_h = rect[3] * node_scale[1];
     if (tex_w <= 0.f || tex_h <= 0.f || scaled_w <= 0.f || scaled_h <= 0.f)
@@ -411,13 +394,29 @@ static char *build_vertex_shader(bool has_fill_texture, bool has_stroke_texture)
     return shader;
 }
 
-static int build_texture_map(struct drawrect2d_priv *s)
+static int register_image_sources(struct drawrect2d_priv *s)
 {
-    const struct ngpu_pgcraft_texture_infos texture_infos = ngpu_pgcraft_get_texture_infos(s->crafter);
-    for (size_t i = 0; i < texture_infos.nb_infos; i++) {
-        const struct texture_map map = {.image = texture_infos.infos[i].image, .image_rev = SIZE_MAX};
-        if (ngli_darray_try_push(&s->textures_map, map) < 0)
-            return NGL_ERROR_MEMORY;
+    int32_t image_index = 0;
+    const struct paint_info *paints[] = {s->fill_paint, s->stroke_paint};
+    for (size_t i = 0; i < NGLI_ARRAY_NB(paints); i++) {
+        const struct paint_info *paint = paints[i];
+        if (!paint)
+            continue;
+        if (paint->texture) {
+            const struct texture_info *info = ngli_node_texture_get_texture_info(paint->texture);
+            const struct image_resource *source = info->resource;
+            int ret = ngli_pipeline_set_image_source(s->pipeline, image_index++, source);
+            if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+                return ret;
+        }
+        for (size_t j = 0; j < paint->custom_textures.count; j++) {
+            const struct ngl_node *node = paint->custom_textures.data[j].texture_node;
+            const struct texture_info *info = ngli_node_texture_get_texture_info(node);
+            const struct image_resource *source = info->resource;
+            int ret = ngli_pipeline_set_image_source(s->pipeline, image_index++, source);
+            if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+                return ret;
+        }
     }
     return 0;
 }
@@ -636,8 +635,6 @@ static int drawrect2d_init(struct ngl_node *node)
         s->user_block_size = ngpu_block_desc_get_size(&s->user_block_desc, 0);
     }
 
-    struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-
     NGLI_DARRAY(struct ngpu_pgcraft_texture) textures = {0};
 
     if (texture) {
@@ -645,7 +642,6 @@ static int drawrect2d_init(struct ngl_node *node)
         struct ngpu_pgcraft_texture tex = {
             .type        = ngli_node_texture_get_pgcraft_texture_type(texture),
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .image       = &texture_info->image,
             .format      = texture_info->params.format,
             .clamp_video = texture_info->clamp_video,
             .premult     = texture_info->premult,
@@ -664,7 +660,6 @@ static int drawrect2d_init(struct ngl_node *node)
         struct ngpu_pgcraft_texture tex = {
             .type        = ngli_node_texture_get_pgcraft_texture_type(ct->texture_node),
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .image       = &texture_info->image,
             .format      = texture_info->params.format,
             .clamp_video = texture_info->clamp_video,
             .premult     = texture_info->premult,
@@ -681,7 +676,6 @@ static int drawrect2d_init(struct ngl_node *node)
         struct ngpu_pgcraft_texture tex = {
             .type        = ngli_node_texture_get_pgcraft_texture_type(stroke_paint->texture),
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
-            .image       = &texture_info->image,
             .format      = texture_info->params.format,
             .clamp_video = texture_info->clamp_video,
             .premult     = texture_info->premult,
@@ -700,7 +694,6 @@ static int drawrect2d_init(struct ngl_node *node)
             struct ngpu_pgcraft_texture tex = {
                 .type        = ngli_node_texture_get_pgcraft_texture_type(ct->texture_node),
                 .stage       = NGPU_PROGRAM_STAGE_FRAG,
-                .image       = &texture_info->image,
                 .format      = texture_info->params.format,
                 .clamp_video = texture_info->clamp_video,
                 .premult     = texture_info->premult,
@@ -721,7 +714,6 @@ static int drawrect2d_init(struct ngl_node *node)
         .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .stage         = NGPU_PROGRAM_STAGE_VERT,
         .block         = &s->vert_block_desc,
-        .buffer        = {.buffer = staging_buf, .size = s->vert_block_size},
     };
     if (ngli_darray_try_push(&blocks, vert_crafter_block) < 0) {
         ngli_darray_reset(&blocks);
@@ -735,7 +727,6 @@ static int drawrect2d_init(struct ngl_node *node)
         .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .stage         = NGPU_PROGRAM_STAGE_FRAG,
         .block         = &s->frag_block_desc,
-        .buffer        = {.buffer = staging_buf, .size = frag_block_size},
     };
     if (ngli_darray_try_push(&blocks, frag_crafter_block) < 0) {
         ngli_darray_reset(&blocks);
@@ -750,7 +741,6 @@ static int drawrect2d_init(struct ngl_node *node)
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->user_block_desc,
-            .buffer        = {.buffer = staging_buf, .size = s->user_block_size},
         };
         if (ngli_darray_try_push(&blocks, user_crafter_block) < 0) {
             ngli_darray_reset(&blocks);
@@ -780,13 +770,10 @@ static int drawrect2d_init(struct ngl_node *node)
         else
             ngli_node_block_extend_usage(cb->node, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-        const struct ngpu_buffer *buffer = block_info->buffer;
-        const size_t buffer_size = buffer ? ngpu_buffer_get_size(buffer) : 0;
         struct ngpu_pgcraft_block crafter_block = {
             .type   = type,
             .stage  = NGPU_PROGRAM_STAGE_FRAG,
             .block  = block,
-            .buffer = {.buffer = buffer, .size = buffer_size},
         };
         ngli_paint_get_resource_name(crafter_block.name, sizeof(crafter_block.name),
                                      PAINT_SHADER_ROLE_FILL, cb->name);
@@ -819,13 +806,10 @@ static int drawrect2d_init(struct ngl_node *node)
             else
                 ngli_node_block_extend_usage(cb->node, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-            const struct ngpu_buffer *buffer = block_info->buffer;
-            const size_t buffer_size = buffer ? ngpu_buffer_get_size(buffer) : 0;
             struct ngpu_pgcraft_block crafter_block = {
                 .type   = type,
                 .stage  = NGPU_PROGRAM_STAGE_FRAG,
                 .block  = block,
-                .buffer = {.buffer = buffer, .size = buffer_size},
             };
             ngli_paint_get_resource_name(crafter_block.name, sizeof(crafter_block.name),
                                          PAINT_SHADER_ROLE_STROKE, cb->name);
@@ -906,8 +890,6 @@ static int drawrect2d_prepare(struct ngl_node *node,
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
@@ -915,7 +897,7 @@ static int drawrect2d_prepare(struct ngl_node *node,
     if (ret < 0)
         return ret;
 
-    ret = build_texture_map(s);
+    ret = register_image_sources(s);
     if (ret < 0)
         return ret;
 
@@ -926,12 +908,10 @@ static int drawrect2d_prepare(struct ngl_node *node,
         const struct block_info *info = cb->node->priv_data;
         char name[NGPU_ID_LEN];
         ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_FILL, cb->name);
-        const struct block_map bm = {
-            .index      = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG),
-            .info       = info,
-        };
-        if (ngli_darray_try_push(&s->blocks_map, bm) < 0)
-            return NGL_ERROR_MEMORY;
+        const int32_t index = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG);
+        ret = ngli_pipeline_set_buffer_source(s->pipeline, index, info->resource, 0, NGPU_BUFFER_WHOLE_SIZE);
+        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+            return ret;
     }
 
     const struct paint_info *stroke_paint = s->stroke_paint;
@@ -941,12 +921,10 @@ static int drawrect2d_prepare(struct ngl_node *node,
             const struct block_info *info = cb->node->priv_data;
             char name[NGPU_ID_LEN];
             ngli_paint_get_resource_name(name, sizeof(name), PAINT_SHADER_ROLE_STROKE, cb->name);
-            const struct block_map bm = {
-                .index      = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG),
-                .info       = info,
-            };
-            if (ngli_darray_try_push(&s->blocks_map, bm) < 0)
-                return NGL_ERROR_MEMORY;
+            const int32_t index = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG);
+            ret = ngli_pipeline_set_buffer_source(s->pipeline, index, info->resource, 0, NGPU_BUFFER_WHOLE_SIZE);
+            if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+                return ret;
         }
     }
 
@@ -1005,6 +983,8 @@ static void drawrect2d_pre_draw(struct ngl_node *node)
 
 static void drawrect2d_draw(struct ngl_node *node)
 {
+    const struct pipeline_execution execution = {.staging = node->ctx->current_staging_buffer};
+
     struct drawrect2d_priv *s = node->priv_data;
     const struct drawrect2d_opts *o = node->opts;
 
@@ -1024,8 +1004,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     struct ngli_mat4 modelview_matrix;
     ngli_mat4_mul(modelview_matrix.m, ctx->transform_2d_matrix.m, trs_matrix.m);
 
-    struct ngli_pipeline *pipeline = s->pipeline;
-    ngli_pipeline_update_vertex_resources(pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
+    struct ngli_pipeline *pl = s->pipeline;
 
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->transform_matrix = modelview_matrix;
@@ -1038,10 +1017,6 @@ static void drawrect2d_draw(struct ngl_node *node)
     const struct paint_base_opts *fill_opts = (const struct paint_base_opts *)fill_paint->opts;
     const struct paint_info *stroke_paint = s->stroke_paint;
     const struct paint_base_opts *stroke_opts = stroke_paint ? (const struct paint_base_opts *)stroke_paint->opts : NULL;
-
-    /* Update textures */
-    for (size_t i = 0; i < s->textures_map.count; i++)
-        ngli_pipeline_update_image(pipeline, (int32_t)i, s->textures_map.data[i].image);
 
     /* Compute texture scaling */
     const int orientation_quarter = ((int)o->content_orientation / 90) & 3;
@@ -1101,7 +1076,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         if (vert_offset == SIZE_MAX)
             return;
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_update_buffer(pipeline, s->vert_block_index,
+        ngli_pipeline_update_buffer(pl, s->vert_block_index,
                                     staging_buf, vert_offset, s->vert_block_size);
     }
 
@@ -1147,7 +1122,7 @@ static void drawrect2d_draw(struct ngl_node *node)
         if (frag_offset == SIZE_MAX)
             return;
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_update_buffer(pipeline, s->frag_block_index,
+        ngli_pipeline_update_buffer(pl, s->frag_block_index,
                                     staging_buf, frag_offset, sizeof(frag_data));
     }
 
@@ -1179,15 +1154,8 @@ static void drawrect2d_draw(struct ngl_node *node)
         }
 
         struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-        ngli_pipeline_update_buffer(pipeline, s->user_block_index,
+        ngli_pipeline_update_buffer(pl, s->user_block_index,
                                     buffer, offset, s->user_block_size);
-    }
-
-    /* CustomPaint block buffer updates */
-    struct block_map *blocks = s->blocks_map.data;
-    for (size_t i = 0; i < s->blocks_map.count; i++) {
-        const struct block_info *info = blocks[i].info;
-        ngli_pipeline_update_buffer(pipeline, blocks[i].index, info->buffer, 0, 0);
     }
 
     if (!ngpu_ctx_is_render_pass_active(gpu_ctx))
@@ -1196,7 +1164,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, 4, 1, 0);
+    ngli_pipeline_draw(pl, &execution, 4, 1, 0);
 }
 
 static void drawrect2d_release(struct ngl_node *node)
@@ -1213,8 +1181,6 @@ static void drawrect2d_uninit(struct ngl_node *node)
     ngli_darray_reset(&s->prebuilt_uniforms);
     ngli_darray_reset(&s->stroke_user_uniforms);
     ngli_darray_reset(&s->stroke_prebuilt_uniforms);
-    ngli_darray_reset(&s->textures_map);
-    ngli_darray_reset(&s->blocks_map);
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
     ngpu_block_desc_reset(&s->user_block_desc);

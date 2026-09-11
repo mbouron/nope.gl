@@ -620,6 +620,7 @@ struct ngpu_bindgroup_layout_entry {
     enum ngpu_access access;
     uint32_t stage_flags;
     void *immutable_sampler;
+    enum ngpu_format format;
 };
 
 struct ngpu_bindgroup_layout_desc {
@@ -646,13 +647,6 @@ struct ngpu_buffer_binding {
     const struct ngpu_buffer *buffer;
     size_t offset;
     size_t size;
-};
-
-struct ngpu_bindgroup_resources {
-    struct ngpu_texture_binding *textures;
-    size_t nb_textures;
-    struct ngpu_buffer_binding *buffers;
-    size_t nb_buffers;
 };
 
 struct ngpu_bindgroup_desc {
@@ -790,11 +784,6 @@ struct ngpu_vertex_buffer_layout {
 struct ngpu_vertex_state {
     struct ngpu_vertex_buffer_layout *buffers;
     size_t nb_buffers;
-};
-
-struct ngpu_vertex_resources {
-    struct ngpu_buffer **vertex_buffers;
-    size_t nb_vertex_buffers;
 };
 
 enum ngpu_primitive_topology {
@@ -1097,33 +1086,6 @@ struct ngpu_pgcraft_texture {
     int clamp_video;
     int premult;
     /*
-     * Just like the other types (uniforms, blocks, attributes), this field
-     * exists in order to be transmitted to the pipeline (through the
-     * pipeline_resources destination). That way, these resources can be
-     * associated with the pipeline straight after the pipeline initialization
-     * (using ngpu_pipeline_set_resources()). In the case of the texture
-     * though, there is one exception: if the specified type is
-     * NGPU_PGCRAFT_SHADER_TEX_TYPE_VIDEO, then this field must be NULL.
-     * Indeed, this type implies the potential use of multiple samplers (which
-     * can be hardware accelerated and platform/backend specific) depending on
-     * the image layout. This means that a single texture cannot be used as a
-     * default resource for all these samplers. Moreover, the image layout
-     * (which determines which samplers are used) is generally unknown at
-     * pipeline initialization and it is only known once a frame has been
-     * decoded/mapped. The image structure describes which layout to use and
-     * which textures to bind and ngpu_pgcraft_texture_info.sampler_*_index
-     * fields describe where to bind the textures.
-     */
-    struct ngpu_texture *texture;
-    /*
-     * The image field is a bit special, it is not transmitted directly to the
-     * pipeline but instead to the corresponding ngpu_pgcraft_texture_info
-     * entry. The user may optionally set it if they plan to have access to the
-     * image information directly through the ngpu_pgcraft_texture_info
-     * structure.
-     */
-    struct ngli_image *image;
-    /*
      * When set, pgcraft only generates the sampler/image binding and skips
      * metadata uniforms.
      */
@@ -1137,7 +1099,6 @@ struct ngpu_pgcraft_block {
     enum ngpu_program_stage stage;
     int writable;
     const struct ngpu_block_desc *block;
-    struct ngpu_buffer_binding buffer;
 };
 
 struct ngpu_pgcraft_attribute {
@@ -1148,7 +1109,6 @@ struct ngpu_pgcraft_attribute {
     size_t stride;
     size_t offset;
     uint32_t rate;
-    struct ngpu_buffer *buffer;
 };
 
 struct ngpu_pgcraft_iovar {
@@ -1192,8 +1152,6 @@ struct ngpu_pgcraft_texture_info {
     int32_t sampler_rect_1_index;   /* macOS IOSurface rectangle plane 1 */
     /* Index in the shared metadata array, -1 if no_metadata is set. */
     int32_t metadata_index;
-    /* Image reference provided by the user via ngpu_pgcraft_texture.image */
-    struct ngli_image *image;
 };
 
 struct ngpu_pgcraft_texture_infos {
@@ -1233,11 +1191,9 @@ NGPU_API int32_t ngpu_pgcraft_get_image_index(const struct ngpu_pgcraft *s, cons
 NGPU_API struct ngpu_pgcraft_texture_infos ngpu_pgcraft_get_texture_infos(const struct ngpu_pgcraft *s);
 NGPU_API const char *ngpu_pgcraft_get_symbol_name(const struct ngpu_pgcraft *s, size_t id);
 NGPU_API struct ngpu_vertex_state ngpu_pgcraft_get_vertex_state(const struct ngpu_pgcraft *s);
-NGPU_API struct ngpu_vertex_resources ngpu_pgcraft_get_vertex_resources(const struct ngpu_pgcraft *s);
 NGPU_API int32_t ngpu_pgcraft_get_vertex_buffer_index(const struct ngpu_pgcraft *s, const char *name);
 NGPU_API struct ngpu_program *ngpu_pgcraft_get_program(const struct ngpu_pgcraft *s);
 NGPU_API struct ngpu_bindgroup_layout_desc ngpu_pgcraft_get_bindgroup_layout_desc(const struct ngpu_pgcraft *s);
-NGPU_API struct ngpu_bindgroup_resources ngpu_pgcraft_get_bindgroup_resources(const struct ngpu_pgcraft *s);
 NGPU_API void ngpu_pgcraft_freep(struct ngpu_pgcraft **sp);
 
 /*

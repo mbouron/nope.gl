@@ -240,8 +240,9 @@ static int rtt_prefetch(struct ngl_node *node)
         }
         /* Transform the color textures coordinates so it matches how the
          * graphics context uv coordinate system works */
-        struct ngli_image *image = &texture_info->image;
-        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix.m);
+        struct ngli_mat4 coordinates;
+        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, coordinates.m);
+        ngli_image_set_coordinates_matrix(texture_info->image, &coordinates);
     }
 
     enum ngpu_format depth_format = NGPU_FORMAT_UNDEFINED;
@@ -257,8 +258,9 @@ static int rtt_prefetch(struct ngl_node *node)
         };
         /* Transform the depth texture coordinates so it matches how the
          * graphics context uv coordinate system works */
-        struct ngli_image *depth_image = &depth_texture_info->image;
-        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, depth_image->coordinates_matrix.m);
+        struct ngli_mat4 coordinates;
+        ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, coordinates.m);
+        ngli_image_set_coordinates_matrix(depth_texture_info->image, &coordinates);
     } else {
         if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_STENCIL)
             depth_format = ngpu_ctx_get_preferred_depth_stencil_format(gpu_ctx);
@@ -299,6 +301,8 @@ static int rtt_resize(struct ngl_node *node)
 
     struct ngpu_texture *textures[NGPU_MAX_COLOR_ATTACHMENTS] = {NULL};
     struct ngpu_texture *depth_texture = NULL;
+    struct ngli_image *images[NGPU_MAX_COLOR_ATTACHMENTS] = {NULL};
+    struct ngli_image *depth_image = NULL;
     struct rtt_ctx *rtt_ctx = NULL;
 
     for (size_t i = 0; i < o->nb_color_textures; i++) {
@@ -353,6 +357,31 @@ static int rtt_resize(struct ngl_node *node)
     if (ret < 0)
         goto fail;
 
+    for (size_t i = 0; i < o->nb_color_textures; i++) {
+        const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures[i]);
+        struct ngli_image_params image_params = *ngli_image_get_params(info.info->image);
+        image_params.width = width;
+        image_params.height = height;
+        image_params.planes[0] = textures[i];
+        images[i] = ngli_image_create(&image_params);
+        if (!images[i]) {
+            ret = NGL_ERROR_MEMORY;
+            goto fail;
+        }
+    }
+    if (o->depth_texture) {
+        const struct rtt_texture_info info = get_rtt_texture_info(o->depth_texture);
+        struct ngli_image_params image_params = *ngli_image_get_params(info.info->image);
+        image_params.width = width;
+        image_params.height = height;
+        image_params.planes[0] = depth_texture;
+        depth_image = ngli_image_create(&image_params);
+        if (!depth_image) {
+            ret = NGL_ERROR_MEMORY;
+            goto fail;
+        }
+    }
+
     ngli_rtt_freep(&s->rtt_ctx);
 
     s->width = width;
@@ -363,28 +392,31 @@ static int rtt_resize(struct ngl_node *node)
     for (size_t i = 0; i < o->nb_color_textures; i++) {
         const struct rtt_texture_info info = get_rtt_texture_info(o->color_textures[i]);
         struct texture_info *texture_info = info.info;
-        ngpu_texture_freep(&texture_info->texture);
+        struct ngpu_texture *old_texture = texture_info->texture;
         texture_info->texture = textures[i];
-        texture_info->image.params.width = width;
-        texture_info->image.params.height = height;
-        texture_info->image.planes[0] = textures[i];
-        texture_info->image.rev = texture_info->image_rev++;
+        ngli_image_unrefp(&texture_info->image);
+        texture_info->image = images[i];
+        ngli_image_resource_set(texture_info->resource, texture_info->image);
+        ngpu_texture_freep(&old_texture);
     }
 
     if (o->depth_texture) {
         const struct rtt_texture_info info = get_rtt_texture_info(o->depth_texture);
         struct texture_info *texture_info = info.info;
-        ngpu_texture_freep(&texture_info->texture);
+        struct ngpu_texture *old_texture = texture_info->texture;
         texture_info->texture = depth_texture;
-        texture_info->image.params.width = width;
-        texture_info->image.params.height = height;
-        texture_info->image.planes[0] = depth_texture;
-        texture_info->image.rev = texture_info->image_rev++;
+        ngli_image_unrefp(&texture_info->image);
+        texture_info->image = depth_image;
+        ngli_image_resource_set(texture_info->resource, texture_info->image);
+        ngpu_texture_freep(&old_texture);
     }
 
     return 0;
 
 fail:
+    for (size_t i = 0; i < NGLI_ARRAY_NB(images); i++)
+        ngli_image_unrefp(&images[i]);
+    ngli_image_unrefp(&depth_image);
     for (size_t i = 0; i < o->nb_color_textures; i++)
         ngpu_texture_freep(&textures[i]);
     ngpu_texture_freep(&depth_texture);

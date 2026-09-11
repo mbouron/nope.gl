@@ -33,6 +33,7 @@
 #include "nopegl/nopegl.h"
 
 struct hwmap_common {
+    struct ngli_image_color_cache color_cache;
     int32_t width;
     int32_t height;
     size_t nb_planes;
@@ -226,19 +227,6 @@ static int common_init(struct hwmap *hwmap, struct nmd_frame *frame)
             return ret;
     }
 
-    const int src_max = ((1 << desc->depth) - 1) << desc->shift;
-    const int dst_max = (1 << desc->format_depth) - 1;
-    const float color_scale = (float)dst_max / (float)src_max;
-
-    const struct ngli_image_params image_params = {
-        .width = (uint32_t)frame->width,
-        .height = (uint32_t)frame->height,
-        .layout = desc->layout,
-        .color_scale = color_scale,
-        .color_info = ngli_color_info_from_nopemd_frame(frame),
-    };
-    ngli_image_init(&hwmap->mapped_image, &image_params, common->planes);
-
     hwmap->require_hwconv = !support_direct_rendering(hwmap, desc);
 
     return 0;
@@ -252,7 +240,7 @@ static void common_uninit(struct hwmap *hwmap)
         ngpu_texture_freep(&common->planes[i]);
 }
 
-static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
+static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image **imagep)
 {
     struct hwmap_common *common = hwmap->hwmap_priv_data;
 
@@ -268,6 +256,30 @@ static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
         if (ret < 0)
             return ret;
     }
+
+    const struct format_desc *desc = common_get_format_desc(frame->pix_fmt);
+    const int src_max = ((1 << desc->depth) - 1) << desc->shift;
+    const int dst_max = (1 << desc->format_depth) - 1;
+    const float color_scale = (float)dst_max / (float)src_max;
+
+    const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
+    ngli_image_color_cache_update(&common->color_cache, desc->layout, &color_info, color_scale);
+
+    const struct ngli_image_params image_params = {
+        .width                = (uint32_t)frame->width,
+        .height               = (uint32_t)frame->height,
+        .layout               = desc->layout,
+        .planes               = {common->planes[0], common->planes[1], common->planes[2], common->planes[3]},
+        .color_scale          = color_scale,
+        .color_info           = color_info,
+        .color_matrix         = common->color_cache.color_matrix,
+        .mapping_color_matrix = common->color_cache.mapping_color_matrix,
+        .coordinates_matrix   = {.m = NGLI_MAT4_IDENTITY},
+        .ts                   = (float)frame->ts,
+    };
+    *imagep = ngli_image_create(&image_params);
+    if (!*imagep)
+        return NGL_ERROR_MEMORY;
 
     return 0;
 }
