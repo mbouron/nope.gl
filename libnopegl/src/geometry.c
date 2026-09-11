@@ -51,12 +51,16 @@ static int gen_buffer(struct geometry *s,
     const size_t size = layout->count * layout->stride;
 
     int ret = ngpu_buffer_init(buffer, size, NGPU_BUFFER_USAGE_TRANSFER_DST_BIT | usage);
-    if (ret < 0)
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
         return ret;
+    }
 
     ret = ngpu_buffer_upload(buffer, data, layout->offset, size);
-    if (ret < 0)
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
         return ret;
+    }
 
     *bufferp = buffer;
     return 0;
