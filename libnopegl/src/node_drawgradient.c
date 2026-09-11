@@ -72,7 +72,7 @@ struct resource_map {
 };
 
 struct texture_map {
-    const struct image *image;
+    const struct ngli_image *image;
     size_t image_rev;
 };
 

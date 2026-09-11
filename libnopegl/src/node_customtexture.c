@@ -202,9 +202,9 @@ int ngl_node_set_funcs(struct ngl_node *node, void *user_data, struct ngl_node_f
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #define GL_TEXTURE_2D 0x0DE1
-#define GL_TEXTURE_EXTERNAL_OES 0x8D65 
+#define GL_TEXTURE_EXTERNAL_OES 0x8D65
 
-static enum image_layout target_to_layout(uint32_t target)
+static enum ngli_image_layout target_to_layout(uint32_t target)
 {
     switch (target) {
         case GL_TEXTURE_2D:
@@ -257,8 +257,8 @@ static int import_texture_gl(struct ngl_node *node, const struct ngl_custom_text
     int ret = ngpu_texture_init(s->texture_info.texture, &texture_params);
     if (ret < 0)
         return ret;
-    
-    const struct image_params image_params = {
+
+    const struct ngli_image_params image_params = {
         .width       = info->width,
         .height      = info->height,
         .layout      = target_to_layout(info->target),
@@ -351,11 +351,11 @@ static int import_texture_ahb(struct ngl_node *node, const struct ngl_custom_tex
     if (ret < 0)
         return ret;
 
-    enum image_layout layout = NGLI_IMAGE_LAYOUT_DEFAULT;
+    enum ngli_image_layout layout = NGLI_IMAGE_LAYOUT_DEFAULT;
     if (backend == NGPU_BACKEND_OPENGL || backend == NGPU_BACKEND_OPENGLES)
         layout = NGLI_IMAGE_LAYOUT_MEDIACODEC;
 
-    const struct image_params image_params = {
+    const struct ngli_image_params image_params = {
         .width       = info->width,
         .height      = info->height,
         .layout      = layout,

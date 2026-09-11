@@ -1115,7 +1115,7 @@ struct ngpu_pgcraft_texture {
      * image information directly through the ngpu_pgcraft_texture_info
      * structure.
      */
-    struct image *image;
+    struct ngli_image *image;
     /*
      * When set, pgcraft only generates the sampler/image binding and skips
      * metadata uniforms.
@@ -1186,7 +1186,7 @@ struct ngpu_pgcraft_texture_info {
     /* Buffer binding index containing per-texture metadata, -1 if no_metadata is set. */
     int32_t block_index;
     /* Image reference provided by the user via ngpu_pgcraft_texture.image */
-    struct image *image;
+    struct ngli_image *image;
 };
 
 struct ngpu_pgcraft_texture_infos {

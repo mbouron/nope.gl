@@ -56,7 +56,7 @@ struct ngli_pipeline {
     int updated;
     int need_pipeline_recreation;
     struct ngpu_pgcraft_texture_infos texture_infos;
-    const struct image **images;
+    const struct ngli_image **images;
 };
 
 struct ngli_pipeline *ngli_pipeline_create(struct ngpu_ctx *gpu_ctx)
@@ -245,7 +245,7 @@ int ngli_pipeline_update_dynamic_offsets(struct ngli_pipeline *s, const uint32_t
 
 static void push_texture_info_block(struct ngli_pipeline *s,
                                     struct ngpu_staging_buffer *staging,
-                                    size_t tex_index, const struct image *image)
+                                    size_t tex_index, const struct ngli_image *image)
 {
     const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[tex_index];
     if (info->block_index < 0)
@@ -267,7 +267,7 @@ static void push_texture_info_block(struct ngli_pipeline *s,
     ngli_pipeline_update_buffer(s, info->block_index, buffer, offset, sizeof(texture_info));
 }
 
-void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index, const struct image *image)
+void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index, const struct ngli_image *image)
 {
     if (index == -1)
         return;
@@ -417,7 +417,7 @@ static int prepare_bindgroup(struct ngli_pipeline *s)
 static void prepare_images(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer)
 {
     for (size_t i = 0; i < s->texture_infos.nb_infos; i++) {
-        const struct image *image = s->images[i];
+        const struct ngli_image *image = s->images[i];
         if (!image)
             continue;
 

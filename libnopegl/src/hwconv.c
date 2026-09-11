@@ -42,8 +42,8 @@ static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
 };
 
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
-                     const struct image *dst_image,
-                     const struct image_params *src_params)
+                     const struct ngli_image *dst_image,
+                     const struct ngli_image_params *src_params)
 {
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     hwconv->ctx = ctx;
@@ -78,7 +78,7 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     if (ret < 0)
         return ret;
 
-    const enum image_layout src_layout = src_params->layout;
+    const enum ngli_image_layout src_layout = src_params->layout;
     if (src_layout != NGLI_IMAGE_LAYOUT_DEFAULT &&
         src_layout != NGLI_IMAGE_LAYOUT_NV12 &&
         src_layout != NGLI_IMAGE_LAYOUT_YUV &&
@@ -148,7 +148,7 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     return 0;
 }
 
-int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image)
+int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct ngli_image *image)
 {
     struct ngl_ctx *ctx = hwconv->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;

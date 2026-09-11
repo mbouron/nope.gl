@@ -68,7 +68,7 @@ struct texture_info *ngli_node_texture_get_texture_info(const struct ngl_node *n
     if (node->cls->id == NGL_NODE_TEXTUREVIEW) {
         const struct textureview_opts *o = node->opts;
         return o->texture->priv_data;
-    }   
+    }
     return node->priv_data;
 }
 
@@ -452,7 +452,7 @@ static int texture_prefetch(struct ngl_node *node)
             return ret;
     }
 
-    const struct image_params image_params = {
+    const struct ngli_image_params image_params = {
         .width = params->width,
         .height = params->height,
         .depth = params->depth,

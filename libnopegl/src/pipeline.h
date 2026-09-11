@@ -43,7 +43,7 @@ struct ngli_pipeline *ngli_pipeline_create(struct ngpu_ctx *gpu_ctx);
 int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_params *params);
 int ngli_pipeline_update_vertex_buffer(struct ngli_pipeline *s, int32_t index, const struct ngpu_buffer *buffer);
 int ngli_pipeline_update_texture(struct ngli_pipeline *s, int32_t index, const struct ngpu_texture *texture);
-void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index, const struct image *image);
+void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index, const struct ngli_image *image);
 int ngli_pipeline_update_buffer(struct ngli_pipeline *s, int32_t index, const struct ngpu_buffer *buffer, size_t offset, size_t size);
 int ngli_pipeline_update_dynamic_offsets(struct ngli_pipeline *s, const uint32_t *offsets, size_t nb_offsets);
 void ngli_pipeline_draw(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex);

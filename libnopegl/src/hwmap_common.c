@@ -40,7 +40,7 @@ struct hwmap_common {
 };
 
 static const struct format_desc {
-    enum image_layout layout;
+    enum ngli_image_layout layout;
     int depth;
     int shift;
     size_t nb_planes;
@@ -230,7 +230,7 @@ static int common_init(struct hwmap *hwmap, struct nmd_frame *frame)
     const int dst_max = (1 << desc->format_depth) - 1;
     const float color_scale = (float)dst_max / (float)src_max;
 
-    const struct image_params image_params = {
+    const struct ngli_image_params image_params = {
         .width = (uint32_t)frame->width,
         .height = (uint32_t)frame->height,
         .layout = desc->layout,
@@ -275,7 +275,7 @@ static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame)
 const struct hwmap_class ngli_hwmap_common_class = {
     .name      = "default",
     .hwformat  = -1, /* TODO: replace with NMD_PIXFMT_NONE */
-    .layouts   = (const enum image_layout[]){
+    .layouts   = (const enum ngli_image_layout[]){
         NGLI_IMAGE_LAYOUT_DEFAULT,
         NGLI_IMAGE_LAYOUT_NV12,
         NGLI_IMAGE_LAYOUT_YUV,

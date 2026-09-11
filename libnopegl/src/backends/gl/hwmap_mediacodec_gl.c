@@ -67,7 +67,7 @@ static int mc_init(struct hwmap *hwmap, struct nmd_frame *frame)
 {
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
 
-    const struct image_params image_params = {
+    const struct ngli_image_params image_params = {
         .width = (uint32_t)frame->width,
         .height = (uint32_t)frame->height,
         .layout = NGLI_IMAGE_LAYOUT_MEDIACODEC,
@@ -160,7 +160,7 @@ static void mc_uninit(struct hwmap *hwmap)
 const struct hwmap_class ngli_hwmap_mc_gl_class = {
     .name      = "mediacodec (oes zero-copy)",
     .hwformat  = NMD_PIXFMT_MEDIACODEC,
-    .layouts   = (const enum image_layout[]){
+    .layouts   = (const enum ngli_image_layout[]){
         NGLI_IMAGE_LAYOUT_MEDIACODEC,
         NGLI_IMAGE_LAYOUT_NONE
     },

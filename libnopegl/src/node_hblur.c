@@ -58,13 +58,13 @@ struct hblur_opts {
 struct hblur_priv {
     float diagonal;
 
-    struct image *image;
+    struct ngli_image *image;
     size_t image_rev;
 
     struct ngpu_texture *dummy_map;
-    struct image dummy_map_image;
+    struct ngli_image dummy_map_image;
 
-    struct image *map_image;
+    struct ngli_image *map_image;
     size_t map_rev;
 
     struct ngpu_block_desc blur_block_desc;
@@ -163,7 +163,7 @@ static int setup_dummy_map(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    const struct image_params image_params = {
+    const struct ngli_image_params image_params = {
         .width  = DUMMY_MAP_SIZE,
         .height = DUMMY_MAP_SIZE,
         .layout = NGLI_IMAGE_LAYOUT_DEFAULT,
@@ -621,7 +621,7 @@ static void hblur_pre_draw(struct ngl_node *node)
      * destination.
      */
     struct texture_info *dst_info = o->destination->priv_data;
-    struct image *dst_image = &dst_info->image;
+    struct ngli_image *dst_image = &dst_info->image;
     dst_image->coordinates_matrix = s->image->coordinates_matrix;
 }
 

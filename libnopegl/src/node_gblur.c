@@ -71,7 +71,7 @@ struct gblur_priv {
     float blurriness;
 
     /* Source image */
-    struct image *image;
+    struct ngli_image *image;
     size_t image_rev;
 
     /* Render the horizontal pass to a temporary destination */

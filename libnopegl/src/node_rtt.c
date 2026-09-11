@@ -240,7 +240,7 @@ static int rtt_prefetch(struct ngl_node *node)
         }
         /* Transform the color textures coordinates so it matches how the
          * graphics context uv coordinate system works */
-        struct image *image = &texture_info->image;
+        struct ngli_image *image = &texture_info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix.m);
     }
 
@@ -257,7 +257,7 @@ static int rtt_prefetch(struct ngl_node *node)
         };
         /* Transform the depth texture coordinates so it matches how the
          * graphics context uv coordinate system works */
-        struct image *depth_image = &depth_texture_info->image;
+        struct ngli_image *depth_image = &depth_texture_info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, depth_image->coordinates_matrix.m);
     } else {
         if (s->renderpass_reqs.usage & NGLI_RENDERPASS_USAGE_STENCIL)

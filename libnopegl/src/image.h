@@ -43,7 +43,7 @@ struct color_info {
 
 struct color_info ngli_color_info_from_nopemd_frame(const struct nmd_frame *frame);
 
-enum image_layout {
+enum ngli_image_layout {
     NGLI_IMAGE_LAYOUT_NONE           = NGPU_IMAGE_LAYOUT_NONE,
     NGLI_IMAGE_LAYOUT_DEFAULT        = NGPU_IMAGE_LAYOUT_DEFAULT,
     NGLI_IMAGE_LAYOUT_MEDIACODEC     = NGPU_IMAGE_LAYOUT_MEDIACODEC,
@@ -64,17 +64,17 @@ enum {
     NGLI_IMAGE_LAYOUT_ALL_BIT            = 0xFF,
 };
 
-struct image_params {
+struct ngli_image_params {
     uint32_t width;
     uint32_t height;
     uint32_t depth;
     float color_scale;
-    enum image_layout layout;
+    enum ngli_image_layout layout;
     struct color_info color_info;
 };
 
-struct image {
-    struct image_params params;
+struct ngli_image {
+    struct ngli_image_params params;
     struct ngpu_texture *planes[4];
     void *samplers[4];
     size_t nb_planes;
@@ -86,7 +86,7 @@ struct image {
     size_t rev;
 };
 
-void ngli_image_init(struct image *s, const struct image_params *params, struct ngpu_texture **planes);
-void ngli_image_reset(struct image *s);
+void ngli_image_init(struct ngli_image *s, const struct ngli_image_params *params, struct ngpu_texture **planes);
+void ngli_image_reset(struct ngli_image *s);
 
 #endif

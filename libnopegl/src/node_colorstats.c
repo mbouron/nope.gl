@@ -83,7 +83,7 @@ struct colorstats_priv {
         struct ngpu_pgcraft *crafter;
         struct ngli_pipeline *pipeline;
         uint32_t wg_count;
-        const struct image *image;
+        const struct ngli_image *image;
         size_t image_rev;
         int32_t stats_block_index;
     } waveform;

@@ -64,7 +64,7 @@ struct resource_map {
 };
 
 struct texture_map {
-    const struct image *image;
+    const struct ngli_image *image;
     size_t image_rev;
 };
 
@@ -217,7 +217,7 @@ static void compute_texture_uv_scale(const struct paint_info *paint,
         return;
 
     const struct texture_info *texture_info = ngli_node_texture_get_texture_info(texture);
-    const struct image *image = &texture_info->image;
+    const struct ngli_image *image = &texture_info->image;
     const float tex_w = orientation_is_transposed ? (float)image->params.height : (float)image->params.width;
     const float tex_h = orientation_is_transposed ? (float)image->params.width  : (float)image->params.height;
     const float scaled_w = rect[2] * node_scale[0];

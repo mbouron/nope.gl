@@ -56,8 +56,8 @@ static int init_hwconv(struct hwmap *hwmap)
     struct ngl_ctx *ctx = hwmap->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     const struct hwmap_params *params = &hwmap->params;
-    struct image *mapped_image = &hwmap->mapped_image;
-    struct image *hwconv_image = &hwmap->hwconv_image;
+    struct ngli_image *mapped_image = &hwmap->mapped_image;
+    struct ngli_image *hwconv_image = &hwmap->hwconv_image;
     struct hwconv *hwconv = &hwmap->hwconv;
 
     ngli_hwconv_reset(hwconv);
@@ -86,7 +86,7 @@ static int init_hwconv(struct hwmap *hwmap)
     if (ret < 0)
         goto end;
 
-    const struct image_params image_params = {
+    const struct ngli_image_params image_params = {
         .width = mapped_image->params.width,
         .height = mapped_image->params.height,
         .layout = NGLI_IMAGE_LAYOUT_DEFAULT,
@@ -119,7 +119,7 @@ static int exec_hwconv(struct hwmap *hwmap)
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct ngpu_texture *texture = hwmap->hwconv_texture;
     const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
-    struct image *mapped_image = &hwmap->mapped_image;
+    struct ngli_image *mapped_image = &hwmap->mapped_image;
     struct hwconv *hwconv = &hwmap->hwconv;
 
     int ret = ngli_hwconv_convert_image(hwconv, mapped_image);
@@ -145,12 +145,12 @@ static const struct hwmap_class **get_backend_hwmap_classes(enum ngpu_backend_ty
     return NULL;
 }
 
-static int is_image_layout_supported(const struct hwmap_class **classes, enum image_layout image_layout)
+static int is_image_layout_supported(const struct hwmap_class **classes, enum ngli_image_layout image_layout)
 {
     if (!classes)
         return 0;
     for (size_t i = 0; classes[i]; i++) {
-        const enum image_layout *layouts = classes[i]->layouts;
+        const enum ngli_image_layout *layouts = classes[i]->layouts;
         ngli_assert(layouts);
         for (size_t j = 0; layouts[j] != NGLI_IMAGE_LAYOUT_NONE; j++)
             if (layouts[j] == image_layout)
@@ -159,7 +159,7 @@ static int is_image_layout_supported(const struct hwmap_class **classes, enum im
     return 0;
 }
 
-int ngli_hwmap_is_image_layout_supported(enum ngpu_backend_type backend, enum image_layout image_layout)
+int ngli_hwmap_is_image_layout_supported(enum ngpu_backend_type backend, enum ngli_image_layout image_layout)
 {
     static const struct hwmap_class *default_hwmap_classes[] = {&ngli_hwmap_common_class, NULL};
     const struct hwmap_class **extra_hwmap_classes = get_backend_hwmap_classes(backend);
@@ -209,7 +209,7 @@ static int is_hdr(int trc)
     }
 }
 
-int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct image *image)
+int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image *image)
 {
     if (frame->width  != hwmap->width ||
         frame->height != hwmap->height ||

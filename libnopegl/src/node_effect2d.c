@@ -56,7 +56,7 @@ struct uniform_map {
 };
 
 struct texture_map {
-    const struct image *image;
+    const struct ngli_image *image;
 };
 
 struct block_map {
@@ -660,7 +660,7 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
     ngli_rtt_freep(&s->rtt_ctx);
     s->rtt_ctx = rtt_ctx;
 
-    struct image *image = ngli_rtt_get_image(s->rtt_ctx, 0);
+    struct ngli_image *image = ngli_rtt_get_image(s->rtt_ctx, 0);
     ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, image->coordinates_matrix.m);
 
     return 0;

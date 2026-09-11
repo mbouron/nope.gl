@@ -49,7 +49,7 @@ static const size_t nb_planes_map[] = {
 
 NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(nb_planes_map) == NGLI_NB_IMAGE_LAYOUTS, "nb planes map");
 
-void ngli_image_init(struct image *s, const struct image_params *params, struct ngpu_texture **planes)
+void ngli_image_init(struct ngli_image *s, const struct ngli_image_params *params, struct ngpu_texture **planes)
 {
     ngli_image_reset(s);
     ngli_assert(params->layout > NGLI_IMAGE_LAYOUT_NONE && params->layout < NGLI_NB_IMAGE_LAYOUTS);
@@ -65,7 +65,7 @@ void ngli_image_init(struct image *s, const struct image_params *params, struct 
     s->mapping_color_matrix = ngli_colorconv_get_mapping_color_matrix(&params->color_info, NMD_COL_PRI_BT709);
 }
 
-void ngli_image_reset(struct image *s)
+void ngli_image_reset(struct ngli_image *s)
 {
     memset(s, 0, sizeof(*s));
     ngli_mat4_identity(s->color_matrix.m);

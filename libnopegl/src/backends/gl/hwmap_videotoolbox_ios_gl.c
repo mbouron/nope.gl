@@ -36,7 +36,7 @@
 #include "utils/memory.h"
 
 struct format_desc {
-    enum image_layout layout;
+    enum ngli_image_layout layout;
     size_t nb_planes;
     struct {
         enum ngpu_format format;
@@ -181,7 +181,7 @@ static int vt_ios_init(struct hwmap *hwmap, struct nmd_frame *frame)
     if (ret < 0)
         return ret;
 
-    const struct image_params image_params = {
+    const struct ngli_image_params image_params = {
         .width = (uint32_t)frame->width,
         .height = (uint32_t)frame->height,
         .layout = vt->format_desc.layout,
@@ -198,7 +198,7 @@ static int vt_ios_init(struct hwmap *hwmap, struct nmd_frame *frame)
 const struct hwmap_class ngli_hwmap_vt_ios_gl_class = {
     .name      = "videotoolbox (zero-copy)",
     .hwformat  = NMD_PIXFMT_VT,
-    .layouts   = (const enum image_layout[]){
+    .layouts   = (const enum ngli_image_layout[]){
         NGLI_IMAGE_LAYOUT_DEFAULT,
         NGLI_IMAGE_LAYOUT_NV12,
         NGLI_IMAGE_LAYOUT_NONE

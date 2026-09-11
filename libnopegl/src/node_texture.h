@@ -41,7 +41,7 @@ struct texture_info {
     int premult;
     int rtt;
     struct ngpu_texture *texture;
-    struct image image;
+    struct ngli_image image;
     size_t image_rev;
 };
 

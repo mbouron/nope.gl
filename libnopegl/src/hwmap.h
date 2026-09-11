@@ -55,11 +55,11 @@ struct hwmap {
     int pix_fmt;
     int32_t width;
     int32_t height;
-    struct image mapped_image;
+    struct ngli_image mapped_image;
     bool require_hwconv;
     struct hwconv hwconv;
     struct ngpu_texture *hwconv_texture;
-    struct image hwconv_image;
+    struct ngli_image hwconv_image;
     bool hwconv_initialized;
 };
 
@@ -67,17 +67,17 @@ struct hwmap_class {
     const char *name;
     uint32_t flags;
     int hwformat;
-    const enum image_layout *layouts;
+    const enum ngli_image_layout *layouts;
     size_t priv_size;
     int (*init)(struct hwmap *hwmap, struct nmd_frame *frame);
     int (*map_frame)(struct hwmap *hwmap, struct nmd_frame *frame);
     void (*uninit)(struct hwmap *hwmap);
 };
 
-int ngli_hwmap_is_image_layout_supported(enum ngpu_backend_type backend, enum image_layout image_layout);
+int ngli_hwmap_is_image_layout_supported(enum ngpu_backend_type backend, enum ngli_image_layout image_layout);
 
 int ngli_hwmap_init(struct hwmap *hwmap, struct ngl_ctx *ctx, const struct hwmap_params *params);
-int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct image *image);
+int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image *image);
 void ngli_hwmap_uninit(struct hwmap *hwmap);
 
 #endif /* HWUPLOAD_H */

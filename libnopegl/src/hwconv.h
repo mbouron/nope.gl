@@ -31,7 +31,7 @@ struct ngl_ctx;
 
 struct hwconv {
     struct ngl_ctx *ctx;
-    struct image_params src_params;
+    struct ngli_image_params src_params;
 
     struct ngpu_rendertarget *rt;
     struct ngpu_pgcraft *crafter;
@@ -39,10 +39,10 @@ struct hwconv {
 };
 
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
-                     const struct image *dst_image,
-                     const struct image_params *src_params);
+                     const struct ngli_image *dst_image,
+                     const struct ngli_image_params *src_params);
 
-int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct image *image);
+int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct ngli_image *image);
 void ngli_hwconv_reset(struct hwconv *texconv);
 
 #endif

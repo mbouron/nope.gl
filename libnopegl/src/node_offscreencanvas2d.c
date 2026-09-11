@@ -243,7 +243,7 @@ static int offscreencanvas2d_prefetch(struct ngl_node *node)
                 .store_op         = NGPU_STORE_OP_STORE,
             };
         }
-        struct image *image = &rti.info->image;
+        struct ngli_image *image = &rti.info->image;
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image->coordinates_matrix.m);
     }
 

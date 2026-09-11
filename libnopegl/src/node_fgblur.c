@@ -506,7 +506,7 @@ fail:
 static void execute_down_up_pass(struct ngl_ctx *ctx,
                                  struct rtt_ctx *rtt_ctx,
                                  struct ngli_pipeline *pipeline,
-                                 const struct image *image)
+                                 const struct ngli_image *image)
 {
     ngli_rtt_begin(rtt_ctx);
     ngpu_ctx_begin_render_pass(ctx->gpu_ctx, ctx->current_rendertarget);
@@ -570,8 +570,8 @@ static void fgblur_pre_draw(struct ngl_node *node)
 
     /* Downsample source to mips[1] */
     struct texture_info *src_info = o->source->priv_data;
-    const struct image *src_image = &src_info->image;
-    const struct image *mip = src_image;
+    const struct ngli_image *src_image = &src_info->image;
+    const struct ngli_image *mip = src_image;
     execute_down_up_pass(ctx, s->mips[1], s->dws.pl, mip);
 
     /* Downsample successively until mips[lod_i+1] is generated */
@@ -619,7 +619,7 @@ static void fgblur_pre_draw(struct ngl_node *node)
      * coordinates matrix to the destination.
      */
     struct texture_info *dst_info = o->destination->priv_data;
-    struct image *dst_image = &dst_info->image;
+    struct ngli_image *dst_image = &dst_info->image;
     dst_image->coordinates_matrix = src_image->coordinates_matrix;
 }
 

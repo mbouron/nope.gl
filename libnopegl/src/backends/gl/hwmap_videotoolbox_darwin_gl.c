@@ -36,7 +36,7 @@
 #include "nopegl/nopegl.h"
 
 struct format_desc {
-    enum image_layout layout;
+    enum ngli_image_layout layout;
     size_t nb_planes;
     struct {
         enum ngpu_format format;
@@ -204,7 +204,7 @@ static int vt_darwin_init(struct hwmap *hwmap, struct nmd_frame * frame)
     if (ret < 0)
         return ret;
 
-    const struct image_params image_params = {
+    const struct ngli_image_params image_params = {
         .width = (uint32_t)frame->width,
         .height = (uint32_t)frame->height,
         .layout = vt->format_desc.layout,
@@ -231,7 +231,7 @@ static void vt_darwin_uninit(struct hwmap *hwmap)
 const struct hwmap_class ngli_hwmap_vt_darwin_gl_class = {
     .name      = "videotoolbox (iosurface)",
     .hwformat  = NMD_PIXFMT_VT,
-    .layouts   = (const enum image_layout[]){
+    .layouts   = (const enum ngli_image_layout[]){
         NGLI_IMAGE_LAYOUT_RECTANGLE,
         NGLI_IMAGE_LAYOUT_NV12_RECTANGLE,
         NGLI_IMAGE_LAYOUT_NONE
