@@ -56,8 +56,7 @@ struct hblur_opts {
 };
 
 struct hblur_priv {
-    uint32_t width;
-    uint32_t height;
+    float diagonal;
 
     struct image *image;
     size_t image_rev;
@@ -443,8 +442,12 @@ static int resize(struct ngl_node *node)
     struct texture_info *src_info = o->source->priv_data;
     const uint32_t width = src_info->image.params.width;
     const uint32_t height = src_info->image.params.height;
-    if (s->width == width && s->height == height)
-        return 0;
+    if (s->pass1.rtt_ctx) {
+        uint32_t current_width, current_height;
+        ngli_rtt_get_dimensions(s->pass1.rtt_ctx, &current_width, &current_height);
+        if (current_width == width && current_height == height)
+            return 0;
+    }
 
     struct ngpu_texture *dst = NULL;
     struct ngpu_texture *tex0 = ngpu_texture_create(ctx->gpu_ctx);
@@ -551,8 +554,7 @@ static int resize(struct ngl_node *node)
         dst_info->image.rev = dst_info->image_rev++;
     }
 
-    s->width = width;
-    s->height = height;
+    s->diagonal = hypotf((float)width, (float)height);
 
     return 0;
 
@@ -584,8 +586,7 @@ static void hblur_pre_draw(struct ngl_node *node)
 
     const float blurriness_raw = *(float *)ngli_node_get_data_ptr(o->blurriness_node, &o->blurriness);
     float blurriness = NGLI_CLAMP(blurriness_raw, 0.f, 1.f);
-    const float diagonal = hypotf((float)s->width, (float)s->height);
-    const int32_t radius = (int32_t)(blurriness * (float)(diagonal) * 0.05f);
+    const int32_t radius = (int32_t)(blurriness * s->diagonal * 0.05f);
     const int32_t nb_samples = NGLI_MIN(radius, MAX_SAMPLES);
 
     const struct blur_params_block blur_data = {

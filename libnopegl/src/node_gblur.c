@@ -68,8 +68,6 @@ struct gblur_opts {
 };
 
 struct gblur_priv {
-    uint32_t width;
-    uint32_t height;
     float blurriness;
 
     /* Source image */
@@ -372,8 +370,12 @@ static int resize(struct ngl_node *node)
     struct texture_info *src_info = o->source->priv_data;
     const uint32_t width = src_info->image.params.width;
     const uint32_t height = src_info->image.params.height;
-    if (s->width == width && s->height == height)
-        return 0;
+    if (s->tmp) {
+        uint32_t current_width, current_height;
+        ngli_rtt_get_dimensions(s->tmp, &current_width, &current_height);
+        if (current_width == width && current_height == height)
+            return 0;
+    }
 
     /* Assert that the source texture format does not change */
     ngli_assert(src_info->params.format == s->tmp_layout.colors[0].format);
@@ -461,9 +463,6 @@ static int resize(struct ngl_node *node)
 
     ngli_rtt_freep(&s->dst_rtt_ctx);
     s->dst_rtt_ctx = dst_rtt_ctx;
-
-    s->width = width;
-    s->height = height;
 
     /* Trigger a kernel update on resolution change */
     s->blurriness = -1.f;

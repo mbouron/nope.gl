@@ -69,8 +69,7 @@ struct fgblur_opts {
 };
 
 struct fgblur_priv {
-    uint32_t width;
-    uint32_t height;
+    float diagonal;
     uint32_t max_lod;
     float blurriness;
 
@@ -361,8 +360,12 @@ static int resize(struct ngl_node *node)
     struct texture_info *src_info = o->source->priv_data;
     const uint32_t width = src_info->image.params.width;
     const uint32_t height = src_info->image.params.height;
-    if (s->width == width && s->height == height)
-        return 0;
+    if (s->mip) {
+        uint32_t current_width, current_height;
+        ngli_rtt_get_dimensions(s->mip, &current_width, &current_height);
+        if (current_width == width && current_height == height)
+            return 0;
+    }
 
     /* Assert that the source texture format does not change */
     ngli_assert(src_info->params.format == s->mip_layout.colors[0].format);
@@ -474,10 +477,9 @@ static int resize(struct ngl_node *node)
     ngli_rtt_freep(&s->dst_rtt_ctx);
     s->dst_rtt_ctx = dst_rtt_ctx;
 
-    s->width = width;
-    s->height = height;
+    s->diagonal = hypotf((float)width, (float)height);
 
-    uint32_t nb_mips = ngli_log2(NGLI_MAX(s->width, s->height)) + 1;
+    uint32_t nb_mips = ngli_log2(NGLI_MAX(width, height)) + 1;
     uint32_t max_lod = nb_mips - 1;
 
     /*
@@ -552,8 +554,7 @@ static void fgblur_pre_draw(struct ngl_node *node)
 
     const float blurriness_raw = *(float *)ngli_node_get_data_ptr(o->blurriness_node, &o->blurriness);
     const float blurriness = NGLI_CLAMP(blurriness_raw, 0.f, 1.f);
-    const float diagonal = hypotf((float)s->width, (float)s->height);
-    const float radius = blurriness * (float)diagonal / 2.f;
+    const float radius = blurriness * s->diagonal / 2.f;
     const float lod = NGLI_MIN(compute_lod(radius), (float)s->max_lod);
     const int32_t lod_i = (int32_t)lod;
     const float lod_f = lod - (float)lod_i;

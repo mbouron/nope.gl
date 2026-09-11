@@ -133,8 +133,6 @@ struct effect2d_priv {
 
     struct rtt_ctx *rtt;
     struct ngpu_rendertarget_layout layout;
-    uint32_t width;
-    uint32_t height;
     float local_effect_margin;
     float rect[4];
 
@@ -632,8 +630,12 @@ static int effect2d_prepare(struct ngl_node *node,
 
 static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t width, uint32_t height)
 {
-    if (s->width == width && s->height == height && s->rtt)
-        return 0;
+    if (s->rtt) {
+        uint32_t current_width, current_height;
+        ngli_rtt_get_dimensions(s->rtt, &current_width, &current_height);
+        if (current_width == width && current_height == height)
+            return 0;
+    }
 
     struct rtt_ctx *rtt = ngli_rtt_create(ctx);
     if (!rtt)
@@ -660,9 +662,6 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
 
     struct image *image = ngli_rtt_get_image(s->rtt, 0);
     ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, image->coordinates_matrix.m);
-
-    s->width = width;
-    s->height = height;
 
     return 0;
 
@@ -955,8 +954,6 @@ static void effect2d_release(struct ngl_node *node)
     struct effect2d_priv *s = node->priv_data;
 
     ngli_rtt_freep(&s->rtt);
-    s->width = 0;
-    s->height = 0;
 }
 
 static void effect2d_uninit(struct ngl_node *node)
