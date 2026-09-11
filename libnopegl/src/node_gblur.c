@@ -426,18 +426,6 @@ static int resize(struct ngl_node *node)
             goto fail;
     }
 
-    ngli_rtt_freep(&s->tmp);
-    s->tmp = tmp;
-
-    if (s->dst_is_resizable) {
-        ngpu_texture_freep(&dst_info->texture);
-        dst_info->texture = dst;
-        dst_info->image.params.width = ngpu_texture_get_params(dst)->width;
-        dst_info->image.params.height = ngpu_texture_get_params(dst)->height;
-        dst_info->image.planes[0] = dst;
-        dst_info->image.rev = dst_info->image_rev++;
-    }
-
     dst_rtt_ctx = ngli_rtt_create(ctx);
     if (!dst_rtt_ctx) {
         ret = NGL_ERROR_MEMORY;
@@ -458,6 +446,18 @@ static int resize(struct ngl_node *node)
     ret = ngli_rtt_init(dst_rtt_ctx, &rtt_params);
     if (ret < 0)
         goto fail;
+
+    ngli_rtt_freep(&s->tmp);
+    s->tmp = tmp;
+
+    if (s->dst_is_resizable) {
+        ngpu_texture_freep(&dst_info->texture);
+        dst_info->texture = dst;
+        dst_info->image.params.width = ngpu_texture_get_params(dst)->width;
+        dst_info->image.params.height = ngpu_texture_get_params(dst)->height;
+        dst_info->image.planes[0] = dst;
+        dst_info->image.rev = dst_info->image_rev++;
+    }
 
     ngli_rtt_freep(&s->dst_rtt_ctx);
     s->dst_rtt_ctx = dst_rtt_ctx;
