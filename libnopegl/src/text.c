@@ -120,6 +120,12 @@ struct text *ngli_text_create(struct ngl_ctx *ctx)
     if (!s)
         return NULL;
     s->ctx = ctx;
+    s->curve_texture = ngli_texture_resource_create();
+    s->band_texture = ngli_texture_resource_create();
+    if (!s->curve_texture || !s->band_texture) {
+        ngli_text_freep(&s);
+        return NULL;
+    }
     return s;
 }
 
@@ -800,8 +806,12 @@ int ngli_text_set_time(struct text *s, double t)
 void ngli_text_freep(struct text **sp)
 {
     struct text *s = *sp;
-    if (s->cls->reset)
+    if (!s)
+        return;
+    if (s->cls && s->cls->reset)
         s->cls->reset(s);
+    ngli_texture_resource_releasep(&s->curve_texture);
+    ngli_texture_resource_releasep(&s->band_texture);
     ngli_freep(&s->priv_data);
     destroy_effects_data(s);
     ngli_freep(&s->effects);

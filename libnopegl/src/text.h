@@ -26,6 +26,7 @@
 #include "box.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
+#include "resource.h"
 #include "slug.h"
 #include "utils/darray.h"
 
@@ -158,8 +159,8 @@ struct text {
     int32_t height;
     struct ngli_char_info_darray chars;
     struct ngpu_texture *atlas_texture;
-    struct ngpu_texture *curve_texture;
-    struct ngpu_texture *band_texture;
+    struct texture_resource *curve_texture;
+    struct texture_resource *band_texture;
     struct text_data_pointers data_ptrs; // set of effect data pointers (in chars_data)
 
     /* effects specific */

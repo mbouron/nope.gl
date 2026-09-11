@@ -19,6 +19,7 @@
 # under the License.
 #
 
+import array
 import atexit
 import csv
 import hashlib
@@ -628,6 +629,40 @@ def api_backend_config(width=16, height=16):
     )
     assert ret != 0
     del ctx
+
+
+def api_buffer_init_fail():
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+    valid_scene = _get_scene()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cases = [
+            (ngl.BufferVec3(filename=str(Path(tmpdir) / "missing")), ngl.Error.IO),
+            (
+                ngl.AnimatedBufferVec3(
+                    keyframes=[
+                        ngl.AnimKeyFrameBuffer(0, array.array("f", [0, 0, 0])),
+                        ngl.AnimKeyFrameBuffer(1, array.array("f", [0, 0, 0, 1, 1, 1])),
+                    ]
+                ),
+                ngl.Error.INVALID_ARG,
+            ),
+            (
+                ngl.StreamedBufferVec3(
+                    count=0,
+                    timestamps=ngl.BufferInt64(data=array.array("q", [0])),
+                    buffer=ngl.BufferVec3(data=array.array("f", [0, 0, 0])),
+                ),
+                ngl.Error.INVALID_ARG,
+            ),
+        ]
+        for buffer, error in cases:
+            scene = ngl.Scene.from_params(buffer)
+            assert ctx.set_scene(scene) == error
+            assert ctx.set_scene(scene) == error  # Failed initialization must leave the node reusable.
+            assert ctx.set_scene(valid_scene) == 0
+            assert ctx.draw(0) == 0
 
 
 def api_shader_init_fail(width=320, height=240):

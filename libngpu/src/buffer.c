@@ -103,6 +103,11 @@ void ngpu_buffer_unmap(struct ngpu_buffer *s)
     s->gpu_ctx->cls->buffer_unmap(s);
 }
 
+struct ngpu_buffer *ngpu_buffer_ref(const struct ngpu_buffer *s)
+{
+    return s ? NGPU_RC_REF((struct ngpu_buffer *)s) : NULL;
+}
+
 void ngpu_buffer_freep(struct ngpu_buffer **sp)
 {
     NGPU_RC_UNREFP(sp);
@@ -116,9 +121,4 @@ size_t ngpu_buffer_get_size(const struct ngpu_buffer *s)
 uint32_t ngpu_buffer_get_usage(const struct ngpu_buffer *s)
 {
     return s->usage;
-}
-
-struct ngpu_buffer *ngpu_buffer_ref(struct ngpu_buffer *s)
-{
-    return s ? NGPU_RC_REF(s) : NULL;
 }

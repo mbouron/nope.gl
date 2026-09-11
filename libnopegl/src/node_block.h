@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include <ngpu/ngpu.h>
+#include "resource.h"
 
 struct ngl_node;
 
@@ -36,8 +37,7 @@ struct block_info {
     size_t data_size;
     uint32_t usage;
 
-    struct ngpu_buffer *buffer;
-    size_t buffer_rev;
+    struct buffer_resource *resource;
 };
 
 void ngli_node_block_extend_usage(struct ngl_node *node, uint32_t usage);

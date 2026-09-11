@@ -41,7 +41,7 @@ struct geometry *ngli_geometry_create(struct ngpu_ctx *gpu_ctx)
 }
 
 static int gen_buffer(struct geometry *s,
-                      struct ngpu_buffer **bufferp, const struct buffer_layout *layout,
+                      struct buffer_resource *resource, const struct buffer_layout *layout,
                       const void *data, uint32_t usage)
 {
     struct ngpu_buffer *buffer = ngpu_buffer_create(s->gpu_ctx);
@@ -51,19 +51,24 @@ static int gen_buffer(struct geometry *s,
     const size_t size = layout->count * layout->stride;
 
     int ret = ngpu_buffer_init(buffer, size, NGPU_BUFFER_USAGE_TRANSFER_DST_BIT | usage);
-    if (ret < 0)
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
         return ret;
+    }
 
     ret = ngpu_buffer_upload(buffer, data, layout->offset, size);
-    if (ret < 0)
+    if (ret < 0) {
+        ngpu_buffer_freep(&buffer);
         return ret;
+    }
 
-    *bufferp = buffer;
+    ngli_buffer_resource_set(resource, buffer);
+    ngpu_buffer_freep(&buffer);
     return 0;
 }
 
 static int gen_vec3(struct geometry *s,
-                    struct ngpu_buffer **bufferp, struct buffer_layout *layout,
+                    struct buffer_resource *resource, struct buffer_layout *layout,
                     size_t count, const float *data)
 {
     const enum ngpu_format format = NGPU_FORMAT_R32G32B32_SFLOAT;
@@ -75,25 +80,33 @@ static int gen_vec3(struct geometry *s,
         .count  = count,
         .offset = 0,
     };
-    return gen_buffer(s, bufferp, layout, data, NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    return gen_buffer(s, resource, layout, data, NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 }
 
 int ngli_geometry_set_vertices(struct geometry *s, size_t n, const float *vertices)
 {
     ngli_assert(!(s->buffer_ownership & OWN_VERTICES));
+    ngli_buffer_resource_freep(&s->vertices);
+    s->vertices = ngli_buffer_resource_create();
+    if (!s->vertices)
+        return NGL_ERROR_MEMORY;
     s->buffer_ownership |= OWN_VERTICES;
-    return gen_vec3(s, &s->vertices_buffer, &s->vertices_layout, n, vertices);
+    return gen_vec3(s, s->vertices, &s->vertices_layout, n, vertices);
 }
 
 int ngli_geometry_set_normals(struct geometry *s, size_t n, const float *normals)
 {
     ngli_assert(!(s->buffer_ownership & OWN_NORMALS));
+    ngli_buffer_resource_freep(&s->normals);
+    s->normals = ngli_buffer_resource_create();
+    if (!s->normals)
+        return NGL_ERROR_MEMORY;
     s->buffer_ownership |= OWN_NORMALS;
-    return gen_vec3(s, &s->normals_buffer, &s->normals_layout, n, normals);
+    return gen_vec3(s, s->normals, &s->normals_layout, n, normals);
 }
 
 static int gen_vec2(struct geometry *s,
-                    struct ngpu_buffer **bufferp, struct buffer_layout *layout,
+                    struct buffer_resource *resource, struct buffer_layout *layout,
                     size_t count, const float *data)
 {
     const enum ngpu_format format = NGPU_FORMAT_R32G32_SFLOAT;
@@ -105,19 +118,27 @@ static int gen_vec2(struct geometry *s,
         .count  = count,
         .offset = 0,
     };
-    return gen_buffer(s, bufferp, layout, data, NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    return gen_buffer(s, resource, layout, data, NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 }
 
 int ngli_geometry_set_uvcoords(struct geometry *s, size_t n, const float *uvcoords)
 {
     ngli_assert(!(s->buffer_ownership & OWN_UVCOORDS));
+    ngli_buffer_resource_freep(&s->uvcoords);
+    s->uvcoords = ngli_buffer_resource_create();
+    if (!s->uvcoords)
+        return NGL_ERROR_MEMORY;
     s->buffer_ownership |= OWN_UVCOORDS;
-    return gen_vec2(s, &s->uvcoords_buffer, &s->uvcoords_layout, n, uvcoords);
+    return gen_vec2(s, s->uvcoords, &s->uvcoords_layout, n, uvcoords);
 }
 
 int ngli_geometry_set_indices(struct geometry *s, size_t count, const uint16_t *indices)
 {
     ngli_assert(!(s->buffer_ownership & OWN_INDICES));
+    ngli_buffer_resource_freep(&s->indices);
+    s->indices = ngli_buffer_resource_create();
+    if (!s->indices)
+        return NGL_ERROR_MEMORY;
     s->buffer_ownership |= OWN_INDICES;
     const enum ngpu_format format = NGPU_FORMAT_R16_UNORM;
     s->indices_layout = (struct buffer_layout){
@@ -130,35 +151,43 @@ int ngli_geometry_set_indices(struct geometry *s, size_t count, const uint16_t *
     };
     for (size_t i = 0; i < count; i++)
         s->max_indices = NGLI_MAX(s->max_indices, indices[i]);
-    return gen_buffer(s, &s->indices_buffer, &s->indices_layout, indices, NGPU_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    return gen_buffer(s, s->indices, &s->indices_layout, indices, NGPU_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
-void ngli_geometry_set_vertices_buffer(struct geometry *s, struct ngpu_buffer *buffer, struct buffer_layout layout)
+void ngli_geometry_set_vertices_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout)
 {
     ngli_assert(!(s->buffer_ownership & OWN_VERTICES));
-    s->vertices_buffer = buffer;
+    struct buffer_resource *ref = ngli_buffer_resource_ref(resource);
+    ngli_buffer_resource_freep(&s->vertices);
+    s->vertices = ref;
     s->vertices_layout = layout;
 }
 
-void ngli_geometry_set_uvcoords_buffer(struct geometry *s, struct ngpu_buffer *buffer, struct buffer_layout layout)
+void ngli_geometry_set_uvcoords_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout)
 {
     ngli_assert(!(s->buffer_ownership & OWN_UVCOORDS));
-    s->uvcoords_buffer = buffer;
+    struct buffer_resource *ref = ngli_buffer_resource_ref(resource);
+    ngli_buffer_resource_freep(&s->uvcoords);
+    s->uvcoords = ref;
     s->uvcoords_layout = layout;
 }
 
-void ngli_geometry_set_normals_buffer(struct geometry *s, struct ngpu_buffer *buffer, struct buffer_layout layout)
+void ngli_geometry_set_normals_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout)
 {
     ngli_assert(!(s->buffer_ownership & OWN_NORMALS));
-    s->normals_buffer = buffer;
+    struct buffer_resource *ref = ngli_buffer_resource_ref(resource);
+    ngli_buffer_resource_freep(&s->normals);
+    s->normals = ref;
     s->normals_layout = layout;
 }
 
-void ngli_geometry_set_indices_buffer(struct geometry *s, struct ngpu_buffer *buffer,
+void ngli_geometry_set_indices_buffer(struct geometry *s, const struct buffer_resource *resource,
                                       struct buffer_layout layout, int64_t max_indices)
 {
     ngli_assert(!(s->buffer_ownership & OWN_INDICES));
-    s->indices_buffer = buffer;
+    struct buffer_resource *ref = ngli_buffer_resource_ref(resource);
+    ngli_buffer_resource_freep(&s->indices);
+    s->indices = ref;
     s->indices_layout = layout;
     s->max_indices = max_indices;
 }
@@ -185,13 +214,21 @@ void ngli_geometry_freep(struct geometry **sp)
     struct geometry *s = *sp;
     if (!s)
         return;
-    if (s->buffer_ownership & OWN_VERTICES)
-        ngpu_buffer_freep(&s->vertices_buffer);
-    if (s->buffer_ownership & OWN_UVCOORDS)
-        ngpu_buffer_freep(&s->uvcoords_buffer);
-    if (s->buffer_ownership & OWN_NORMALS)
-        ngpu_buffer_freep(&s->normals_buffer);
-    if (s->buffer_ownership & OWN_INDICES)
-        ngpu_buffer_freep(&s->indices_buffer);
-    ngli_freep(&s);
+    /* Holders supplied by another owner keep their publication; ours do not */
+    const struct {
+        uint32_t ownership;
+        struct buffer_resource **resource;
+    } buffers[] = {
+        {OWN_VERTICES, &s->vertices},
+        {OWN_UVCOORDS, &s->uvcoords},
+        {OWN_NORMALS,  &s->normals},
+        {OWN_INDICES,  &s->indices},
+    };
+    for (size_t i = 0; i < NGLI_ARRAY_NB(buffers); i++) {
+        if (s->buffer_ownership & buffers[i].ownership)
+            ngli_buffer_resource_releasep(buffers[i].resource);
+        else
+            ngli_buffer_resource_freep(buffers[i].resource);
+    }
+    ngli_freep(sp);
 }

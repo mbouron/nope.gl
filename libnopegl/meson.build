@@ -267,6 +267,7 @@ lib_src = files(
   'src/pipeline.c',
   'src/precision.c',
   'src/renderpass.c',
+  'src/resource.c',
   'src/rtt.c',
   'src/scene.c',
   'src/scope.c',
@@ -807,6 +808,25 @@ test_progs = {
   },
 }
 
+# The test takes an enum ngpu_backend_type value; it exits 77 (skip) when the
+# backend is unavailable.
+pipeline_test_backends = [
+  ['OpenGL',   'gl',   '0'],
+  ['OpenGLES', 'gles', '1'],
+  ['Vulkan',   'vk',   '2'],
+]
+foreach backend : pipeline_test_backends
+  test_progs += {
+    'Resource bindings ' + backend[0]: {
+      'exe': 'test_pipeline_' + backend[1],
+      'src': files('src/test_pipeline.c'),
+      'objects': libnopegl.extract_all_objects(recursive: true),
+      'c_args': lib_c_args,
+      'args': [backend[2]],
+    },
+  }
+endforeach
+
 if get_option('tests')
   foreach test_key, test_data : test_progs
     exe = executable(
@@ -825,7 +845,7 @@ endif
 
 if get_option('tests')
   pipeline_test = executable(
-    'test_pipeline', 'src/test_pipeline.c',
+    'test_pipeline_metadata', 'src/test_pipeline_metadata.c',
     objects: libnopegl.extract_all_objects(recursive: true),
     dependencies: lib_deps,
     c_args: lib_c_args,
@@ -833,6 +853,6 @@ if get_option('tests')
     include_directories: inc_dir,
   )
   foreach backend : ['opengl', 'opengles', 'vulkan']
-    test('Pipeline bindings ' + backend, pipeline_test, args: [backend])
+    test('Pipeline metadata ' + backend, pipeline_test, args: [backend])
   endforeach
 endif

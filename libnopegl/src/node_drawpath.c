@@ -241,13 +241,11 @@ static int drawpath_prepare(struct ngl_node *node,
     struct ngpu_ctx *gpu_ctx = node->ctx->gpu_ctx;
     struct drawpath_priv *s = node->priv_data;
 
-    struct ngpu_texture *texture = ngli_distmap_get_texture(s->distmap);
     const struct ngpu_pgcraft_texture textures[] = {
         {
             .name = "tex",
             .type = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage = NGPU_PROGRAM_STAGE_FRAG,
-            .texture = texture,
             .no_metadata = true,
         },
     };
@@ -322,8 +320,6 @@ static int drawpath_prepare(struct ngl_node *node,
         },
         .program          = ngpu_pgcraft_get_program(s->crafter),
         .layout_desc      = ngpu_pgcraft_get_bindgroup_layout_desc(s->crafter),
-        .resources        = ngpu_pgcraft_get_bindgroup_resources(s->crafter),
-        .vertex_resources = ngpu_pgcraft_get_vertex_resources(s->crafter),
         .texture_infos    = ngpu_pgcraft_get_texture_infos(s->crafter),
     };
 
@@ -336,11 +332,12 @@ static int drawpath_prepare(struct ngl_node *node,
 
 static void drawpath_draw(struct ngl_node *node)
 {
+    const struct pipeline_execution execution = {.staging = node->ctx->current_staging_buffer};
+
     struct ngl_ctx *ctx = node->ctx;
     struct drawpath_priv *s = node->priv_data;
     const struct drawpath_opts *o = node->opts;
     struct pipeline_desc *desc = &s->pipeline_desc;
-    ngli_pipeline_update_vertex_resources(desc->pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
 
     const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
@@ -395,7 +392,8 @@ static void drawpath_draw(struct ngl_node *node)
     ngpu_ctx_set_viewport(gpu_ctx, &ctx->viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    ngli_pipeline_draw(desc->pipeline, ctx->current_staging_buffer, 4, 1, 0);
+    ngli_pipeline_update_texture(desc->pipeline, 0, ngli_distmap_get_texture(s->distmap));
+    ngli_pipeline_draw(desc->pipeline, &execution, 4, 1, 0);
 }
 
 static void drawpath_release(struct ngl_node *node)
@@ -422,7 +420,7 @@ const struct node_class ngli_drawpath_class = {
     .prepare   = drawpath_prepare,
     .update    = ngli_node_update_children,
     .draw      = drawpath_draw,
-    .release    = drawpath_release,
+    .release   = drawpath_release,
     .uninit    = drawpath_uninit,
     .opts_size = sizeof(struct drawpath_opts),
     .priv_size = sizeof(struct drawpath_priv),
