@@ -808,6 +808,25 @@ test_progs = {
   },
 }
 
+# The test takes an enum ngpu_backend_type value; it exits 77 (skip) when the
+# backend is unavailable.
+pipeline_test_backends = [
+  ['OpenGL',   'gl',   '0'],
+  ['OpenGLES', 'gles', '1'],
+  ['Vulkan',   'vk',   '2'],
+]
+foreach backend : pipeline_test_backends
+  test_progs += {
+    'Resource bindings ' + backend[0]: {
+      'exe': 'test_pipeline_' + backend[1],
+      'src': files('src/test_pipeline.c'),
+      'objects': libnopegl.extract_all_objects(recursive: true),
+      'c_args': lib_c_args,
+      'args': [backend[2]],
+    },
+  }
+endforeach
+
 if get_option('tests')
   foreach test_key, test_data : test_progs
     exe = executable(
