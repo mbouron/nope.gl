@@ -650,6 +650,17 @@ if get_option('tests')
     )
     test(test_key, exe, args: test_data.get('args', []))
   endforeach
+  bindgroup_test = executable(
+    'test_bindgroup', 'src/test_bindgroup.c',
+    dependencies: lib_deps,
+    link_with: libngpu,
+    build_by_default: false,
+    include_directories: inc_dir,
+  )
+  foreach backend : ['opengl', 'opengles', 'vulkan']
+    test('Bindgroups ' + backend, bindgroup_test, args: [backend])
+  endforeach
+
 endif
 
 
