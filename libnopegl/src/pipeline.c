@@ -30,10 +30,6 @@
 #include "utils/memory.h"
 #include "utils/utils.h"
 
-#define NB_BINDGROUPS 16
-
-NGLI_DECLARE_DARRAY_WITH_NAME(bindgroup_darray, struct ngpu_bindgroup *);
-
 struct ngli_pipeline {
     struct ngpu_ctx *gpu_ctx;
     enum ngpu_pipeline_type type;
@@ -42,9 +38,7 @@ struct ngli_pipeline {
     struct ngpu_pipeline *pipeline;
     struct ngpu_bindgroup_layout_desc bindgroup_layout_desc;
     struct ngpu_bindgroup_layout *bindgroup_layout;
-    struct bindgroup_darray bindgroups;
     struct ngpu_bindgroup *cur_bindgroup;
-    size_t cur_bindgroup_index;
     const struct ngpu_buffer **vertex_buffers;
     size_t nb_vertex_buffers;
     struct ngpu_texture_binding *textures;
@@ -67,52 +61,6 @@ struct ngli_pipeline *ngli_pipeline_create(struct ngpu_ctx *gpu_ctx)
         return NULL;
     s->gpu_ctx = gpu_ctx;
     return s;
-}
-
-static void free_bindgroup(void *user_arg, void *data)
-{
-    struct ngpu_bindgroup **bindgroup = data;
-    ngpu_bindgroup_freep(bindgroup);
-}
-
-static int grow_bindgroup_array(struct ngli_pipeline *s)
-{
-    struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-
-    size_t count = s->bindgroups.count;
-    if (count == 0) {
-        ngli_darray_set_free_func(&s->bindgroups, free_bindgroup, NULL);
-        count = NB_BINDGROUPS;
-    }
-
-    for (size_t i = 0; i < count; i++) {
-        struct ngpu_bindgroup *bindgroup = ngpu_bindgroup_create(gpu_ctx);
-        if (!bindgroup)
-            return NGL_ERROR_MEMORY;
-
-        struct ngpu_bindgroup_params params = {
-            .layout    = s->bindgroup_layout,
-            .resources = {
-                .textures    = s->textures,
-                .nb_textures = s->nb_textures,
-                .buffers     = s->buffers,
-                .nb_buffers  = s->nb_buffers,
-            },
-        };
-
-        int ret = ngpu_bindgroup_init(bindgroup, &params);
-        if (ret < 0) {
-            ngpu_bindgroup_freep(&bindgroup);
-            return ret;
-        }
-
-        if (ngli_darray_try_push(&s->bindgroups, bindgroup) < 0) {
-            ngpu_bindgroup_freep(&bindgroup);
-            return NGL_ERROR_MEMORY;
-        }
-    }
-
-    return 0;
 }
 
 static int create_pipeline(struct ngli_pipeline *s)
@@ -144,13 +92,6 @@ static int create_pipeline(struct ngli_pipeline *s)
     if (ret < 0)
         return ret;
 
-    ret = grow_bindgroup_array(s);
-    if (ret < 0)
-        return ret;
-
-    s->cur_bindgroup = *ngli_darray_get(&s->bindgroups, 0);
-    s->cur_bindgroup_index = 0;
-
     /* Initialize bindgroup before first pipeline execution */
     s->updated = 1;
 
@@ -160,9 +101,7 @@ static int create_pipeline(struct ngli_pipeline *s)
 static void reset_pipeline(struct ngli_pipeline *s)
 {
     ngpu_pipeline_freep(&s->pipeline);
-    ngli_darray_clear(&s->bindgroups);
-    s->cur_bindgroup = NULL;
-    s->cur_bindgroup_index = 0;
+    ngpu_bindgroup_freep(&s->cur_bindgroup);
     ngpu_bindgroup_layout_freep(&s->bindgroup_layout);
 }
 
@@ -344,70 +283,33 @@ int ngli_pipeline_update_buffer(struct ngli_pipeline *s, int32_t index, const st
     return 0;
 }
 
-static int select_next_available_bindgroup(struct ngli_pipeline *s)
-{
-    /* If current bindgroup is not in use, select it */
-    if (ngpu_bindgroup_get_refcount(s->cur_bindgroup) == 1)
-        return 0;
-
-    /* Otherwhise, check if next bindgroup is available  */
-    size_t bindgroup_index = (s->cur_bindgroup_index + 1) % s->bindgroups.count;
-    struct ngpu_bindgroup *bindgroup = *ngli_darray_get(&s->bindgroups, bindgroup_index);
-    if (ngpu_bindgroup_get_refcount(bindgroup) == 1) {
-        s->cur_bindgroup = bindgroup;
-        s->cur_bindgroup_index = bindgroup_index;
-        return 0;
-    }
-
-    /*
-     * If it is not, save next newly-allocated bind group index and increase
-     * our bindgroup pool size
-     */
-    bindgroup_index = s->bindgroups.count;
-
-    int ret = grow_bindgroup_array(s);
-    if (ret < 0)
-        return ret;
-
-    /* Select bindgroup and assert that it is not in use */
-    s->cur_bindgroup = *ngli_darray_get(&s->bindgroups, bindgroup_index);
-    s->cur_bindgroup_index = bindgroup_index;
-    ngli_assert(ngpu_bindgroup_get_refcount(s->cur_bindgroup) == 1);
-
-    return 0;
-}
-
 static int prepare_bindgroup(struct ngli_pipeline *s)
 {
-    if (!s->updated)
-        return 0;
-
-    s->updated = 0;
-
-    if (s->need_pipeline_recreation) {
-        s->need_pipeline_recreation = 0;
+    if (s->need_pipeline_recreation || !s->pipeline) {
         reset_pipeline(s);
         int ret = create_pipeline(s);
-        if (ret < 0)
+        if (ret < 0) {
+            reset_pipeline(s);
             return ret;
+        }
+        s->need_pipeline_recreation = 0;
     }
+    if (!s->updated && s->cur_bindgroup)
+        return 0;
 
-    int ret = select_next_available_bindgroup(s);
-    if (ret < 0)
-        return ret;
-
-    for (size_t i = 0; i < s->nb_textures; i++) {
-        ret = ngpu_bindgroup_update_texture(s->cur_bindgroup, (int32_t) i, &s->textures[i]);
-        if (ret < 0)
-            return ret;
-    }
-
-    for (size_t i = 0; i < s->nb_buffers; i++) {
-        ret = ngpu_bindgroup_update_buffer(s->cur_bindgroup, (int32_t) i, &s->buffers[i]);
-        if (ret < 0)
-            return ret;
-    }
-
+    const struct ngpu_bindgroup_desc desc = {
+        .layout      = s->bindgroup_layout,
+        .textures    = s->textures,
+        .nb_textures = s->nb_textures,
+        .buffers     = s->buffers,
+        .nb_buffers  = s->nb_buffers,
+    };
+    struct ngpu_bindgroup *bindgroup = ngpu_bindgroup_create(s->gpu_ctx, &desc);
+    if (!bindgroup)
+        return NGL_ERROR_MEMORY;
+    ngpu_bindgroup_freep(&s->cur_bindgroup);
+    s->cur_bindgroup = bindgroup;
+    s->updated = 0;
     return 0;
 }
 
@@ -502,7 +404,6 @@ void ngli_pipeline_freep(struct ngli_pipeline **sp)
         return;
 
     reset_pipeline(s);
-    ngli_darray_reset(&s->bindgroups);
 
     ngpu_pipeline_graphics_reset(&s->graphics);
 

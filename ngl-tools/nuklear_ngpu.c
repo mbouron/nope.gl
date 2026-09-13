@@ -366,22 +366,16 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
     struct ngpu_bindgroup_resources bg_resources =
         ngpu_pgcraft_get_bindgroup_resources(s->crafter);
 
-    const struct ngpu_bindgroup_params bg_params = {
-        .layout    = s->bg_layout,
-        .resources = bg_resources,
+    const struct ngpu_bindgroup_desc bg_desc = {
+        .layout      = s->bg_layout,
+        .textures    = bg_resources.textures,
+        .nb_textures = bg_resources.nb_textures,
+        .buffers     = bg_resources.buffers,
+        .nb_buffers  = bg_resources.nb_buffers,
     };
-    s->bindgroup = ngpu_bindgroup_create(s->gpu_ctx);
+    s->bindgroup = ngpu_bindgroup_create(s->gpu_ctx, &bg_desc);
     if (!s->bindgroup)
         return NGPU_ERROR_MEMORY;
-    ret = ngpu_bindgroup_init(s->bindgroup, &bg_params);
-    if (ret < 0)
-        return ret;
-
-    /* Explicitly set all bindings (GL backend requires update calls after init). */
-    for (size_t i = 0; i < bg_resources.nb_textures; i++)
-        ngpu_bindgroup_update_texture(s->bindgroup, (int32_t)i, &bg_resources.textures[i]);
-    for (size_t i = 0; i < bg_resources.nb_buffers; i++)
-        ngpu_bindgroup_update_buffer(s->bindgroup, (int32_t)i, &bg_resources.buffers[i]);
 
     /* Pipeline. */
     const struct ngpu_graphics_state graphics_state = {
