@@ -229,7 +229,7 @@ int ngpu_bindgroup_gl_update_buffer(struct ngpu_bindgroup *s, uint32_t index, co
     struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
     struct buffer_binding_gl *binding_gl = &s_priv->buffer_bindings.data[index];
     NGPU_RC_UNREFP(&binding_gl->buffer);
-    binding_gl->buffer = NGPU_RC_REF(binding->buffer);
+    binding_gl->buffer = binding->buffer ? NGPU_RC_REF(binding->buffer) : NULL;
     binding_gl->offset = binding->offset;
     binding_gl->size = binding->size;
 
