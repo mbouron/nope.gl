@@ -49,7 +49,6 @@
 struct resource_map {
     int32_t index;
     const struct block_info *info;
-    size_t buffer_rev;
 };
 
 struct texture_map {
@@ -440,7 +439,7 @@ static int build_blocks_map(struct pass *s, struct pipeline_desc *desc)
             continue;
 
         const struct block_info *info = node->priv_data;
-        const struct resource_map map = {.index = index, .info = info, .buffer_rev = SIZE_MAX};
+        const struct resource_map map = {.index = index, .info = info};
         if (ngli_darray_try_push(&desc->blocks_map, map) < 0)
             return NGL_ERROR_MEMORY;
     }
@@ -578,7 +577,7 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
             continue;
         struct ngpu_pgcraft_block blk = {
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = user_blocks[i].stage,
             .block         = user_blocks[i].desc,
             .buffer        = {.buffer = staging_buf, .size = size},
@@ -589,6 +588,11 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
     }
 
     return 0;
+}
+
+void ngli_pass_discard_resources(struct pass *s)
+{
+    ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
 void ngli_pass_uninit(struct pass *s)
@@ -619,6 +623,7 @@ int ngli_pass_exec(struct pass *s)
     const struct pass_params *params = &s->params;
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct ngli_pipeline *pipeline = desc->pipeline;
+    ngli_pipeline_update_vertex_resources(pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
 
 
     /* Fill and push user uniform blocks */
@@ -687,10 +692,7 @@ int ngli_pass_exec(struct pass *s)
     struct resource_map *resource_map = desc->blocks_map.data;
     for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
-        if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
-            resource_map[i].buffer_rev = info->buffer_rev;
-        }
+        ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
     }
 
     if (s->pipeline_type == NGPU_PIPELINE_TYPE_GRAPHICS) {

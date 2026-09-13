@@ -1524,6 +1524,8 @@ static void vk_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *
 
 static void vk_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup, const uint32_t *offsets, size_t nb_offsets)
 {
+    struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
+    NGPU_CMD_BUFFER_VK_REF(s_priv->cur_cmd_buffer, bindgroup);
 }
 
 static void vk_set_pipeline(struct ngpu_ctx *s, struct ngpu_pipeline *pipeline)
@@ -1688,8 +1690,7 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
 
     .bindgroup_create                   = ngpu_bindgroup_vk_create,
     .bindgroup_init                     = ngpu_bindgroup_vk_init,
-    .bindgroup_update_texture           = ngpu_bindgroup_vk_update_texture,
-    .bindgroup_update_buffer            = ngpu_bindgroup_vk_update_buffer,
+    .bindgroup_reset                    = ngpu_bindgroup_vk_reset,
     .bindgroup_freep                    = ngpu_bindgroup_vk_freep,
 
     .pipeline_create                    = ngpu_pipeline_vk_create,

@@ -393,7 +393,7 @@ static int prepare_texture_infos(struct ngpu_pgcraft *s, const struct ngpu_pgcra
             .sampler_oes_index    = -1,
             .sampler_rect_0_index = -1,
             .sampler_rect_1_index = -1,
-            .block_index          = -1,
+            .metadata_index       = -1,
             .image                = texture->image,
         };
 
@@ -526,63 +526,66 @@ static int register_buffer_binding(struct ngpu_pgcraft *s, const char *name,
     if (ngpu_darray_try_push(&s->symbols, sym) < 0)
         return NGPU_ERROR_MEMORY;
 
-    const int32_t binding = (int32_t)request_next_binding(s, NGPU_TYPE_UNIFORM_BUFFER);
-
+    const int32_t binding = (int32_t)request_next_binding(s, NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC);
     const struct ngpu_bindgroup_layout_entry layout_entry = {
         .id          = s->symbols.count - 1,
-        .type        = NGPU_TYPE_UNIFORM_BUFFER,
+        .type        = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .binding     = (uint32_t)binding,
         .access      = NGPU_ACCESS_READ_BIT,
         .stage_flags = stage_flags,
     };
-    if (ngpu_darray_try_push(&s->pipeline_info.desc.buffers, layout_entry) < 0)
+    if (ngpu_darray_try_push(&s->pipeline_info.desc.buffers, layout_entry) < 0 ||
+        ngpu_darray_try_push(&s->pipeline_info.data.buffers, (struct ngpu_buffer_binding){0}) < 0)
         return NGPU_ERROR_MEMORY;
-
-    if (ngpu_darray_try_push(&s->pipeline_info.data.buffers, (struct ngpu_buffer_binding){0}) < 0)
-        return NGPU_ERROR_MEMORY;
-
     *bindingp = binding;
     return 0;
 }
 
 static int inject_texture_info_block(struct ngpu_pgcraft *s, enum ngpu_program_stage stage)
 {
+    size_t nb_metadata = 0;
+    ngpu_darray_foreach(texture, &s->textures)
+        nb_metadata += !texture->no_metadata;
+    if (!nb_metadata)
+        return 0;
+
+    struct bstr *b = s->shaders[stage];
+    const bool is_graphics = s->shaders[NGPU_PROGRAM_STAGE_VERT] != NULL;
+    const uint32_t stage_flags = is_graphics
+        ? NGPU_PROGRAM_STAGE_VERTEX_BIT | NGPU_PROGRAM_STAGE_FRAGMENT_BIT
+        : NGPU_PROGRAM_STAGE_COMPUTE_BIT;
+    int32_t binding = find_buffer_binding(s, "ngl_texinfo");
+    if (binding < 0) {
+        int ret = register_buffer_binding(s, "ngl_texinfo", stage_flags, &binding);
+        if (ret < 0)
+            return ret;
+    }
+
+    ngpu_bstr_print(b, "struct ngl_texinfo_data {\n"
+                       "    mat4 coord_matrix;\n"
+                       "    mat4 color_matrix;\n"
+                       "    mat4 mapping_color_matrix;\n"
+                       "    vec2 dimensions;\n"
+                       "    float ts;\n"
+                       "    int sampling_mode;\n"
+                       "};\n");
+    if (s->has_explicit_bindings)
+        ngpu_bstr_printf(b, "layout(std140,binding=%u)", (uint32_t)binding);
+    else
+        ngpu_bstr_print(b, "layout(std140)");
+    ngpu_bstr_printf(b, " uniform ngl_texinfo_block { ngl_texinfo_data ngl_texinfo[%zu]; };\n", nb_metadata);
+
+    size_t index = 0;
     ngpu_darray_foreach(texture, &s->textures) {
         if (texture->no_metadata)
             continue;
-
-        struct bstr *b = s->shaders[stage];
-        if (!b)
-            continue;
-
-        const bool is_graphics = (s->shaders[NGPU_PROGRAM_STAGE_VERT] != NULL);
-        const uint32_t stage_flags = is_graphics
-            ? (NGPU_PROGRAM_STAGE_VERTEX_BIT | NGPU_PROGRAM_STAGE_FRAGMENT_BIT)
-            : NGPU_PROGRAM_STAGE_COMPUTE_BIT;
-
-        char block_name[NGPU_ID_LEN];
-        snprintf(block_name, sizeof(block_name), "%s_info", texture->name);
-
-        int32_t binding = find_buffer_binding(s, block_name);
-        if (binding < 0) {
-            int ret = register_buffer_binding(s, block_name, stage_flags, &binding);
-            if (ret < 0)
-                return ret;
-        }
-
-        if (s->has_explicit_bindings)
-            ngpu_bstr_printf(b, "layout(std140,binding=%u)", (uint32_t)binding);
-        else
-            ngpu_bstr_print(b, "layout(std140)");
-
-        ngpu_bstr_printf(b, " uniform %s_block {\n", block_name);
-        ngpu_bstr_printf(b, "    mat4 %s_coord_matrix;\n", texture->name);
-        ngpu_bstr_printf(b, "    mat4 %s_color_matrix;\n", texture->name);
-        ngpu_bstr_printf(b, "    mat4 %s_mapping_color_matrix;\n", texture->name);
-        ngpu_bstr_printf(b, "    vec2 %s_dimensions;\n", texture->name);
-        ngpu_bstr_printf(b, "    float %s_ts;\n", texture->name);
-        ngpu_bstr_printf(b, "    int %s_sampling_mode;\n", texture->name);
-        ngpu_bstr_print(b, "} ;\n");
+        /* Preserve the shader-facing names, including names used by user shaders. */
+        static const char *fields[] = {
+            "coord_matrix", "color_matrix", "mapping_color_matrix", "dimensions", "ts", "sampling_mode",
+        };
+        for (size_t i = 0; i < NGPU_ARRAY_NB(fields); i++)
+            ngpu_bstr_printf(b, "#define %s_%s ngl_texinfo[%zu].%s\n", texture->name, fields[i], index, fields[i]);
+        index++;
     }
     return 0;
 }
@@ -1218,18 +1221,12 @@ static void probe_texture_infos(struct ngpu_pgcraft *s)
         struct ngpu_pgcraft_texture_info *info = &s->texture_infos.data[i];
         probe_texture_info_elems(s, texture, info);
 
-        /* Resolve per-texture block index (single shared block) */
-        info->block_index = -1;
+        info->metadata_index = -1;
         if (!texture->no_metadata) {
-            char block_name[NGPU_ID_LEN];
-            snprintf(block_name, sizeof(block_name), "%s_info", texture->name);
-            for (int32_t j = 0; j < (int32_t)s->pipeline_info.desc.buffers.count; j++) {
-                const char *entry_name = ngpu_pgcraft_get_symbol_name(s, s->pipeline_info.desc.buffers.data[j].id);
-                if (!strcmp(entry_name, block_name)) {
-                    info->block_index = j;
-                    break;
-                }
-            }
+            size_t index = 0;
+            for (size_t j = 0; j < i; j++)
+                index += !s->textures.data[j].no_metadata;
+            info->metadata_index = (int32_t)index;
         }
     }
 }
@@ -1442,9 +1439,21 @@ int32_t ngpu_pgcraft_get_image_index(const struct ngpu_pgcraft *s, const char *n
 
 struct ngpu_pgcraft_texture_infos ngpu_pgcraft_get_texture_infos(const struct ngpu_pgcraft *s)
 {
+    int32_t block_index = -1;
+    for (size_t i = 0; i < s->pipeline_info.desc.buffers.count; i++) {
+        if (!strcmp(ngpu_pgcraft_get_symbol_name(s, s->pipeline_info.desc.buffers.data[i].id), "ngl_texinfo")) {
+            block_index = (int32_t)i;
+            break;
+        }
+    }
+    size_t nb_metadata = 0;
+    ngpu_darray_foreach(texture, &s->textures)
+        nb_metadata += !texture->no_metadata;
     return (struct ngpu_pgcraft_texture_infos){
-        .infos    = s->texture_infos.data,
-        .nb_infos = s->texture_infos.count,
+        .infos       = s->texture_infos.data,
+        .nb_infos    = s->texture_infos.count,
+        .block_index = block_index,
+        .nb_metadata = nb_metadata,
     };
 }
 

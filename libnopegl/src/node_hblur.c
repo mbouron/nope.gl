@@ -208,7 +208,7 @@ static int setup_pass1_pipeline(struct ngl_node *node)
     const struct ngpu_pgcraft_block blocks[] = {
         {
             .name          = "blur",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->blur_block_desc,
             .buffer        = {
@@ -307,7 +307,7 @@ static int setup_pass2_pipeline(struct ngl_node *node)
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
             .name          = "blur",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->blur_block_desc,
             .buffer        = {
@@ -628,6 +628,8 @@ static void hblur_pre_draw(struct ngl_node *node)
 static void hblur_release(struct ngl_node *node)
 {
     struct hblur_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pass1.pl);
+    ngli_pipeline_discard_resources(s->pass2.pl);
 
     ngpu_texture_freep(&s->tex0);
     ngpu_texture_freep(&s->tex1);

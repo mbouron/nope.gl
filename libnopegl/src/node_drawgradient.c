@@ -68,7 +68,6 @@
 struct resource_map {
     int32_t index;
     const struct block_info *info;
-    size_t buffer_rev;
 };
 
 struct texture_map {
@@ -359,14 +358,14 @@ static int drawgradient_prepare(struct ngl_node *node,
         {
             .name          = "vert_params",
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_VERT,
             .block         = &s->vert_block_desc,
         },
         {
             .name          = "frag_params",
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->frag_block_desc,
         },
@@ -451,6 +450,7 @@ static void drawgradient_draw(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct ngli_pipeline *pipeline = desc->pipeline;
+    ngli_pipeline_update_vertex_resources(pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
 
     const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
@@ -512,10 +512,7 @@ static void drawgradient_draw(struct ngl_node *node)
     struct resource_map *resource_map = desc->blocks_map.data;
     for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
-        if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
-            resource_map[i].buffer_rev = info->buffer_rev;
-        }
+        ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
     }
 
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
@@ -534,6 +531,12 @@ static void drawgradient_draw(struct ngl_node *node)
     } else {
         ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, 1, 0);
     }
+}
+
+static void drawgradient_release(struct ngl_node *node)
+{
+    struct drawgradient_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
 static void drawgradient_uninit(struct ngl_node *node)
@@ -575,6 +578,7 @@ const struct node_class ngli_drawgradient_class = {
     .get_renderpass_usage = drawgradient_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawgradient_draw,
+    .release    = drawgradient_release,
     .uninit    = drawgradient_uninit,
     .opts_size = sizeof(struct drawgradient_opts),
     .priv_size = sizeof(struct drawgradient_priv),
@@ -799,7 +803,7 @@ static int drawgradient4_prepare(struct ngl_node *node,
         {
             .name          = "vert_params",
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_VERT,
             .block         = &s->vert_block_desc,
             .buffer        = {.buffer = staging_buf, .size = vert_size},
@@ -807,7 +811,7 @@ static int drawgradient4_prepare(struct ngl_node *node,
         {
             .name          = "frag_params",
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->frag_block_desc,
             .buffer        = {.buffer = staging_buf, .size = frag_size},
@@ -893,6 +897,7 @@ static void drawgradient4_draw(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct ngli_pipeline *pipeline = desc->pipeline;
+    ngli_pipeline_update_vertex_resources(pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
 
     const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
@@ -957,10 +962,7 @@ static void drawgradient4_draw(struct ngl_node *node)
     struct resource_map *resource_map = desc->blocks_map.data;
     for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
-        if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
-            resource_map[i].buffer_rev = info->buffer_rev;
-        }
+        ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
     }
 
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
@@ -979,6 +981,12 @@ static void drawgradient4_draw(struct ngl_node *node)
     } else {
         ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, 1, 0);
     }
+}
+
+static void drawgradient4_release(struct ngl_node *node)
+{
+    struct drawgradient4_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
 static void drawgradient4_uninit(struct ngl_node *node)
@@ -1020,6 +1028,7 @@ const struct node_class ngli_drawgradient4_class = {
     .get_renderpass_usage = drawgradient4_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawgradient4_draw,
+    .release    = drawgradient4_release,
     .uninit    = drawgradient4_uninit,
     .opts_size = sizeof(struct drawgradient4_opts),
     .priv_size = sizeof(struct drawgradient4_priv),

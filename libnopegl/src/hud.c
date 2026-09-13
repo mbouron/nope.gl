@@ -910,7 +910,7 @@ int ngli_hud_init(struct hud *s)
         {
             .name          = "transforms",
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_VERT,
             .block         = &transforms_block_desc,
             .buffer = {

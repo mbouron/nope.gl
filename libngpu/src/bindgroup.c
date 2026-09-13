@@ -31,7 +31,8 @@ static int layout_entry_is_compatible(const struct ngpu_bindgroup_layout_entry *
     return a->type        == b->type    &&
            a->binding     == b->binding &&
            a->access      == b->access  &&
-           a->stage_flags == b->stage_flags;
+           a->stage_flags == b->stage_flags &&
+           a->immutable_sampler == b->immutable_sampler;
 }
 
 static void bindgroup_layout_freep(void **layoutp)
@@ -41,6 +42,13 @@ static void bindgroup_layout_freep(void **layoutp)
         return;
 
     struct ngpu_bindgroup_layout *s = *sp;
+    while (s->free_bindgroups) {
+        struct ngpu_bindgroup *bindgroup = s->free_bindgroups;
+        s->free_bindgroups = bindgroup->next_free;
+        ngpu_freep(&bindgroup->textures);
+        ngpu_freep(&bindgroup->buffers);
+        s->gpu_ctx->cls->bindgroup_freep(&bindgroup);
+    }
     ngpu_freep(&s->buffers);
     ngpu_freep(&s->textures);
 
@@ -71,8 +79,12 @@ int ngpu_bindgroup_layout_init(struct ngpu_bindgroup_layout *s,
         else if (entry->type == NGPU_TYPE_STORAGE_BUFFER_DYNAMIC)
             nb_storage_buffers_dynamic++;
     }
-    ngpu_assert(nb_uniform_buffers_dynamic <= NGPU_MAX_UNIFORM_BUFFERS_DYNAMIC);
-    ngpu_assert(nb_storage_buffers_dynamic <= NGPU_MAX_STORAGE_BUFFERS_DYNAMIC);
+    if (nb_uniform_buffers_dynamic > NGPU_MAX_UNIFORM_BUFFERS_DYNAMIC ||
+        nb_storage_buffers_dynamic > NGPU_MAX_STORAGE_BUFFERS_DYNAMIC) {
+        LOG(ERROR, "too many dynamic buffers (%zu uniform, %zu storage)",
+            nb_uniform_buffers_dynamic, nb_storage_buffers_dynamic);
+        return NGPU_ERROR_GRAPHICS_LIMIT_EXCEEDED;
+    }
     s->nb_dynamic_offsets = nb_uniform_buffers_dynamic + nb_storage_buffers_dynamic;
 
     return s->gpu_ctx->cls->bindgroup_layout_init(s);
@@ -102,40 +114,15 @@ void ngpu_bindgroup_layout_freep(struct ngpu_bindgroup_layout **sp)
     NGPU_RC_UNREFP(sp);
 }
 
-static void bindgroup_freep(void **bindgroupp)
+static int validate_texture(const struct ngpu_bindgroup_layout *layout, size_t index, const struct ngpu_texture_binding *binding)
 {
-    struct ngpu_bindgroup **sp = (struct ngpu_bindgroup **)bindgroupp;
-    if (!*sp)
-        return;
-
-    (*sp)->gpu_ctx->cls->bindgroup_freep(sp);
-}
-
-struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx)
-{
-    struct ngpu_bindgroup *s = gpu_ctx->cls->bindgroup_create(gpu_ctx);
-    if (!s)
-        return NULL;
-    s->rc = NGPU_RC_CREATE(bindgroup_freep);
-    return s;
-}
-
-int ngpu_bindgroup_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params)
-{
-    return s->gpu_ctx->cls->bindgroup_init(s, params);
-}
-
-int ngpu_bindgroup_update_texture(struct ngpu_bindgroup *s, int32_t index, const struct ngpu_texture_binding *binding)
-{
-    if (index == -1)
-        return NGPU_ERROR_NOT_FOUND;
-
-    ngpu_assert(index >= 0 && index < s->layout->nb_textures);
+    if (binding->immutable_sampler != layout->textures[index].immutable_sampler)
+        return NGPU_ERROR_INVALID_ARG;
 
     if (binding->texture) {
         const struct ngpu_texture *texture = binding->texture;
         const struct ngpu_texture_params *texture_params = ngpu_texture_get_params(texture);
-        const struct ngpu_bindgroup_layout_entry *entry = &s->layout->textures[index];
+        const struct ngpu_bindgroup_layout_entry *entry = &layout->textures[index];
         switch (entry->type) {
         case NGPU_TYPE_SAMPLER_2D:
         case NGPU_TYPE_SAMPLER_2D_ARRAY:
@@ -157,23 +144,28 @@ int ngpu_bindgroup_update_texture(struct ngpu_bindgroup *s, int32_t index, const
         }
     }
 
-    return s->gpu_ctx->cls->bindgroup_update_texture(s, (uint32_t)index, binding);
+    return 0;
 }
 
-int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const struct ngpu_buffer_binding *binding)
+static int validate_buffer(const struct ngpu_bindgroup_layout *layout, size_t index, const struct ngpu_buffer_binding *binding)
 {
-    if (index == -1)
-        return NGPU_ERROR_NOT_FOUND;
-
-    ngpu_assert(index >= 0 && index < s->layout->nb_buffers);
+    if (!binding->buffer || !binding->size)
+        return NGPU_ERROR_INVALID_ARG;
+    if (binding->offset > ngpu_buffer_get_size(binding->buffer) ||
+        binding->size > ngpu_buffer_get_size(binding->buffer) - binding->offset)
+        return NGPU_ERROR_INVALID_ARG;
 
     if (binding->buffer) {
-        const struct ngpu_limits *limits = ngpu_ctx_get_limits(s->gpu_ctx);
+        const struct ngpu_limits *limits = ngpu_ctx_get_limits(layout->gpu_ctx);
         const struct ngpu_buffer *buffer = binding->buffer;
         const uint32_t buffer_usage = ngpu_buffer_get_usage(buffer);
         const size_t buffer_size = ngpu_buffer_get_size(buffer);
         const size_t binding_size = binding->size;
-        const struct ngpu_bindgroup_layout_entry *entry = &s->layout->buffers[index];
+        const struct ngpu_bindgroup_layout_entry *entry = &layout->buffers[index];
+        const size_t alignment = entry->type == NGPU_TYPE_UNIFORM_BUFFER || entry->type == NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC
+            ? limits->min_uniform_block_offset_alignment : limits->min_storage_block_offset_alignment;
+        if (alignment && binding->offset % alignment)
+            return NGPU_ERROR_INVALID_ARG;
         if (entry->type == NGPU_TYPE_UNIFORM_BUFFER ||
             entry->type == NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC) {
             ngpu_assert(buffer_usage & NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
@@ -195,7 +187,86 @@ int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const 
         }
     }
 
-    return s->gpu_ctx->cls->bindgroup_update_buffer(s, (uint32_t)index, binding);
+    return 0;
+}
+
+static void bindgroup_freep(void **bindgroupp)
+{
+    struct ngpu_bindgroup *s = *bindgroupp;
+    struct ngpu_bindgroup_layout *layout = s->layout;
+
+    /* Command buffers retain this object through completion, so recycling is safe. */
+    s->gpu_ctx->cls->bindgroup_reset(s);
+    for (size_t i = 0; i < layout->nb_textures; i++) {
+        NGPU_RC_UNREFP(&s->textures[i].texture);
+        s->textures[i] = (struct ngpu_texture_binding){0};
+    }
+    for (size_t i = 0; i < layout->nb_buffers; i++) {
+        NGPU_RC_UNREFP(&s->buffers[i].buffer);
+        s->buffers[i] = (struct ngpu_buffer_binding){0};
+    }
+    s->layout = NULL;
+    s->next_free = layout->free_bindgroups;
+    layout->free_bindgroups = s;
+    *bindgroupp = NULL;
+
+    /* Keep the allocator alive until the storage has been returned to it. */
+    ngpu_bindgroup_layout_freep(&layout);
+}
+
+struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx, const struct ngpu_bindgroup_desc *desc)
+{
+    if (!desc || !desc->layout || desc->layout->gpu_ctx != gpu_ctx ||
+        desc->nb_textures != desc->layout->nb_textures ||
+        desc->nb_buffers != desc->layout->nb_buffers ||
+        (desc->nb_textures && !desc->textures) ||
+        (desc->nb_buffers && !desc->buffers))
+        return NULL;
+
+    for (size_t i = 0; i < desc->nb_textures; i++) {
+        if (validate_texture(desc->layout, i, &desc->textures[i]) < 0)
+            return NULL;
+    }
+    for (size_t i = 0; i < desc->nb_buffers; i++) {
+        if (validate_buffer(desc->layout, i, &desc->buffers[i]) < 0)
+            return NULL;
+    }
+
+    struct ngpu_bindgroup_layout *layout = (struct ngpu_bindgroup_layout *)desc->layout;
+    struct ngpu_bindgroup *s = layout->free_bindgroups;
+    if (s) {
+        layout->free_bindgroups = s->next_free;
+        s->next_free = NULL;
+    } else {
+        s = gpu_ctx->cls->bindgroup_create(gpu_ctx);
+        if (!s)
+            return NULL;
+        s->textures = ngpu_try_calloc(layout->nb_textures, sizeof(*s->textures));
+        s->buffers = ngpu_try_calloc(layout->nb_buffers, sizeof(*s->buffers));
+        if ((layout->nb_textures && !s->textures) || (layout->nb_buffers && !s->buffers)) {
+            ngpu_freep(&s->textures);
+            ngpu_freep(&s->buffers);
+            gpu_ctx->cls->bindgroup_freep(&s);
+            return NULL;
+        }
+    }
+    s->rc = NGPU_RC_CREATE(bindgroup_freep);
+    s->layout = NGPU_RC_REF(layout);
+    for (size_t i = 0; i < desc->nb_textures; i++) {
+        s->textures[i] = desc->textures[i];
+        if (s->textures[i].texture)
+            NGPU_RC_REF(s->textures[i].texture);
+    }
+    for (size_t i = 0; i < desc->nb_buffers; i++) {
+        s->buffers[i] = desc->buffers[i];
+        NGPU_RC_REF(s->buffers[i].buffer);
+    }
+    const int ret = gpu_ctx->cls->bindgroup_init(s);
+    if (ret < 0) {
+        LOG(ERROR, "could not initialize bindgroup: %d", ret);
+        ngpu_bindgroup_freep(&s);
+    }
+    return s;
 }
 
 void ngpu_bindgroup_freep(struct ngpu_bindgroup **sp)
@@ -208,7 +279,20 @@ size_t ngpu_bindgroup_layout_get_nb_dynamic_offsets(const struct ngpu_bindgroup_
     return s->nb_dynamic_offsets;
 }
 
-size_t ngpu_bindgroup_get_refcount(const struct ngpu_bindgroup *s)
+
+int32_t ngpu_bindgroup_layout_get_dynamic_offset_index(const struct ngpu_bindgroup_layout *s, size_t buffer_index)
 {
-    return s->rc.count;
+    ngpu_assert(buffer_index < s->nb_buffers);
+    const struct ngpu_bindgroup_layout_entry *entry = &s->buffers[buffer_index];
+    if (entry->type != NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC && entry->type != NGPU_TYPE_STORAGE_BUFFER_DYNAMIC)
+        return -1;
+    int32_t index = 0;
+    for (size_t i = 0; i < s->nb_buffers; i++) {
+        const struct ngpu_bindgroup_layout_entry *other = &s->buffers[i];
+        if (other->type != NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC && other->type != NGPU_TYPE_STORAGE_BUFFER_DYNAMIC)
+            continue;
+        if (other->binding < entry->binding || (other->binding == entry->binding && i < buffer_index))
+            index++;
+    }
+    return index;
 }

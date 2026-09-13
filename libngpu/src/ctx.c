@@ -447,6 +447,20 @@ void ngpu_ctx_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup
     s->bindgroup = bindgroup;
 
     ngpu_assert(bindgroup->layout->nb_dynamic_offsets == nb_offsets);
+    ngpu_assert(!nb_offsets || offsets);
+    for (size_t i = 0; i < bindgroup->layout->nb_buffers; i++) {
+        const int32_t index = ngpu_bindgroup_layout_get_dynamic_offset_index(bindgroup->layout, i);
+        if (index < 0)
+            continue;
+        const struct ngpu_buffer_binding *binding = &bindgroup->buffers[i];
+        const size_t buffer_size = ngpu_buffer_get_size(binding->buffer);
+        const enum ngpu_type type = bindgroup->layout->buffers[i].type;
+        const size_t alignment = type == NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC
+            ? s->limits.min_uniform_block_offset_alignment : s->limits.min_storage_block_offset_alignment;
+        ngpu_assert(!alignment || offsets[index] % alignment == 0);
+        ngpu_assert(offsets[index] <= buffer_size - binding->offset);
+        ngpu_assert(binding->size <= buffer_size - binding->offset - offsets[index]);
+    }
     memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
     s->nb_dynamic_offsets = nb_offsets;
 

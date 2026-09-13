@@ -237,7 +237,7 @@ static int init_computes(struct ngl_node *node)
         {
             .name     = "params",
             .instance_name = "",
-            .type     = NGPU_TYPE_UNIFORM_BUFFER,
+            .type     = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage    = NGPU_PROGRAM_STAGE_COMP,
             .block    = &params_block_desc,
         }, {
@@ -427,6 +427,10 @@ static void colorstats_pre_draw(struct ngl_node *node)
     ngli_pipeline_update_buffer(s->sumscale.pipeline, s->params_block_index_sumscale,
                                 buffer, offset, sizeof(params));
 
+    ngli_pipeline_update_buffer(s->init.pipeline, s->init.stats_block_index, s->blk.buffer, 0, 0);
+    ngli_pipeline_update_buffer(s->sumscale.pipeline, s->sumscale.stats_block_index, s->blk.buffer, 0, 0);
+    ngli_pipeline_update_buffer(s->waveform.pipeline, s->waveform.stats_block_index, s->blk.buffer, 0, 0);
+
     /* Init */
     ngli_pipeline_dispatch(s->init.pipeline, ctx->current_staging_buffer, s->init.wg_count, 1, 1);
 
@@ -436,6 +440,14 @@ static void colorstats_pre_draw(struct ngl_node *node)
 
     /* Summary-scale */
     ngli_pipeline_dispatch(s->sumscale.pipeline, ctx->current_staging_buffer, s->sumscale.wg_count, 1, 1);
+}
+
+static void colorstats_release(struct ngl_node *node)
+{
+    struct colorstats_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->init.pipeline);
+    ngli_pipeline_discard_resources(s->sumscale.pipeline);
+    ngli_pipeline_discard_resources(s->waveform.pipeline);
 }
 
 static void colorstats_uninit(struct ngl_node *node)
@@ -459,6 +471,7 @@ const struct node_class ngli_colorstats_class = {
     .init       = colorstats_init,
     .update     = colorstats_update,
     .pre_draw   = colorstats_pre_draw,
+    .release    = colorstats_release,
     .uninit     = colorstats_uninit,
     .opts_size  = sizeof(struct colorstats_opts),
     .priv_size  = sizeof(struct colorstats_priv),

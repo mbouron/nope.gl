@@ -1619,3 +1619,28 @@ def api_global_transform_getters(width=256, height=256):
     assert _is_close(scl[0] * 10, 20), f"rect scale_x: {scl[0]} != 2.0"
 
     ctx.set_scene(None)
+
+
+def api_bindgroup_discard():
+    """Reactivation restores vertex, texture, and uniform bindings after discard."""
+    pixels = bytearray(64 * 64 * 4)
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=64, height=64, backend=_backend, capture_buffer=pixels)) == 0
+    source = ngl.Texture2D(data_src=ngl.DrawColor(color=(1, 0, 0)))
+    destination = ngl.Texture2D()
+    content = ngl.Group(
+        children=[
+            ngl.DrawColor(color=(0, 0, 1), geometry=ngl.Quad()),
+            ngl.GaussianBlur(source=source, destination=destination, blurriness=0.1),
+            ngl.DrawTexture(destination),
+            ngl.Text("Bindings", bg_opacity=0.5),
+        ]
+    )
+    scene = ngl.Scene.from_params(ngl.TimeRangeFilter(content, 0, 1, prefetch_time=0))
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(0.5) == 0
+    expected = bytes(pixels)
+    for _ in range(3):
+        assert ctx.draw(2) == 0
+        assert ctx.draw(0.5) == 0
+        assert bytes(pixels) == expected

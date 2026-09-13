@@ -449,6 +449,7 @@ NGPU_API int ngpu_buffer_wait(struct ngpu_buffer *s);
 NGPU_API int ngpu_buffer_upload(struct ngpu_buffer *s, const void *data, size_t offset, size_t size);
 NGPU_API int ngpu_buffer_map(struct ngpu_buffer *s, size_t offset, size_t size, void **datap);
 NGPU_API void ngpu_buffer_unmap(struct ngpu_buffer *s);
+NGPU_API struct ngpu_buffer *ngpu_buffer_ref(struct ngpu_buffer *s);
 NGPU_API void ngpu_buffer_freep(struct ngpu_buffer **sp);
 
 NGPU_API size_t ngpu_buffer_get_size(const struct ngpu_buffer *s);
@@ -634,6 +635,7 @@ NGPU_API struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_create(struct ngpu_
 NGPU_API int ngpu_bindgroup_layout_init(struct ngpu_bindgroup_layout *s, struct ngpu_bindgroup_layout_desc *desc);
 NGPU_API int ngpu_bindgroup_layout_is_compatible(const struct ngpu_bindgroup_layout *a, const struct ngpu_bindgroup_layout *b);
 NGPU_API size_t ngpu_bindgroup_layout_get_nb_dynamic_offsets(const struct ngpu_bindgroup_layout *s);
+NGPU_API int32_t ngpu_bindgroup_layout_get_dynamic_offset_index(const struct ngpu_bindgroup_layout *s, size_t buffer_index);
 NGPU_API void ngpu_bindgroup_layout_freep(struct ngpu_bindgroup_layout **sp);
 
 struct ngpu_texture_binding {
@@ -654,27 +656,25 @@ struct ngpu_bindgroup_resources {
     size_t nb_buffers;
 };
 
-struct ngpu_bindgroup_params {
-    struct ngpu_bindgroup_layout *layout;
-    struct ngpu_bindgroup_resources resources;
+/* A complete binding set. Dynamic offsets are supplied when recording a bind. */
+struct ngpu_bindgroup_desc {
+    const struct ngpu_bindgroup_layout *layout;
+    const struct ngpu_texture_binding *textures;
+    size_t nb_textures;
+    const struct ngpu_buffer_binding *buffers;
+    size_t nb_buffers;
 };
 
 struct ngpu_bindgroup;
 
-NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx);
-NGPU_API int ngpu_bindgroup_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params);
 /*
- * A bindgroup borrows the resources it is given: the caller must keep a binding
- * alive until the bindgroup is bound or the binding is replaced. Once bound,
- * the command buffer holds its own reference for as long as the submission
- * refers to the descriptors, so a resource released afterwards is destroyed
- * only when that submission retires.
+ * Copies the bindings and retains the layout and resources until the last
+ * consumer or command buffer releases the object. The context must outlive it.
+ * Bindings are immutable; resource contents may still be uploaded separately.
+ * Returns NULL if the descriptor is invalid or allocation fails.
  */
-NGPU_API int ngpu_bindgroup_update_texture(struct ngpu_bindgroup *s, int32_t index, const struct ngpu_texture_binding *binding);
-NGPU_API int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const struct ngpu_buffer_binding *binding);
+NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx, const struct ngpu_bindgroup_desc *desc);
 NGPU_API void ngpu_bindgroup_freep(struct ngpu_bindgroup **sp);
-
-NGPU_API size_t ngpu_bindgroup_get_refcount(const struct ngpu_bindgroup *s);
 
 /*
  * Rendertarget
@@ -1190,8 +1190,8 @@ struct ngpu_pgcraft_texture_info {
     int32_t sampler_oes_index;      /* Android MediaCodec external OES */
     int32_t sampler_rect_0_index;   /* macOS IOSurface rectangle plane 0 */
     int32_t sampler_rect_1_index;   /* macOS IOSurface rectangle plane 1 */
-    /* Buffer binding index containing per-texture metadata, -1 if no_metadata is set. */
-    int32_t block_index;
+    /* Index in the shared metadata array, -1 if no_metadata is set. */
+    int32_t metadata_index;
     /* Image reference provided by the user via ngpu_pgcraft_texture.image */
     struct ngli_image *image;
 };
@@ -1199,6 +1199,8 @@ struct ngpu_pgcraft_texture_info {
 struct ngpu_pgcraft_texture_infos {
     const struct ngpu_pgcraft_texture_info *infos;
     size_t nb_infos;
+    int32_t block_index;
+    size_t nb_metadata;
 };
 
 struct ngpu_pgcraft_params {

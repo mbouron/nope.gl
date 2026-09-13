@@ -322,167 +322,106 @@ struct ngpu_bindgroup *ngpu_bindgroup_vk_create(struct ngpu_ctx *gpu_ctx)
     return (struct ngpu_bindgroup *)s;
 }
 
-int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params)
-{
-    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
-
-    if (params->resources.nb_buffers > 0)
-        ngpu_assert(params->resources.nb_buffers == params->layout->nb_buffers);
-
-    if (params->resources.nb_textures > 0)
-        ngpu_assert(params->resources.nb_textures == params->layout->nb_textures);
-
-    s->layout = NGPU_RC_REF(params->layout);
-
-    VkResult res = ngpu_bindgroup_layout_vk_allocate_set(s->layout, &s_priv->desc_set);
-    if (res != VK_SUCCESS) {
-        return res;
-    }
-
-    const struct ngpu_bindgroup_layout *layout = s->layout;
-    for (size_t i = 0; i < layout->nb_buffers; i++) {
-        const struct ngpu_bindgroup_layout_entry *entry = &layout->buffers[i];
-        if (ngpu_darray_try_push(&s_priv->buffer_bindings, (struct buffer_binding_vk){.layout_entry = *entry}) < 0)
-            return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    for (size_t i = 0; i < layout->nb_textures; i++) {
-        const struct ngpu_bindgroup_layout_entry *entry = &layout->textures[i];
-        if (ngpu_darray_try_push(&s_priv->texture_bindings, (struct texture_binding_vk){.layout_entry = *entry}) < 0)
-            return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    for (size_t i = 0; i < params->resources.nb_buffers; i++) {
-        const struct ngpu_buffer_binding *binding = &params->resources.buffers[i];
-        int ret = ngpu_bindgroup_update_buffer(s, (int32_t)i, binding);
-        if (ret < 0)
-            return ret;
-    }
-
-    for (size_t i = 0; i < params->resources.nb_textures; i++) {
-        const struct ngpu_texture_binding *binding = &params->resources.textures[i];
-        int ret = ngpu_bindgroup_update_texture(s, (int32_t)i, binding);
-        if (ret < 0)
-            return ret;
-    }
-
-    return 0;
-}
-
-int ngpu_bindgroup_vk_update_texture(struct ngpu_bindgroup *s, uint32_t index, const struct ngpu_texture_binding *binding)
-{
-    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
-    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
-
-    struct texture_binding_vk *binding_vk = &s_priv->texture_bindings.data[index];
-
-    /* Borrowed, see ngpu_bindgroup_update_texture() */
-    const struct ngpu_texture *texture = binding->texture;
-    if (!texture)
-        texture = gpu_ctx_vk->dummy_texture;
-
-    binding_vk->texture = texture;
-    binding_vk->update_desc = 1;
-
-    return 0;
-}
-
-int ngpu_bindgroup_vk_update_buffer(struct ngpu_bindgroup *s, uint32_t index, const struct ngpu_buffer_binding *binding)
-{
-    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
-
-    struct buffer_binding_vk *binding_vk = &s_priv->buffer_bindings.data[index];
-
-    /* Borrowed, see ngpu_bindgroup_update_buffer() */
-    binding_vk->buffer = binding->buffer;
-    binding_vk->offset = binding->offset;
-    binding_vk->size   = binding->size;
-    binding_vk->update_desc = 1;
-
-    return 0;
-}
-
-int ngpu_bindgroup_vk_update_descriptor_set(struct ngpu_bindgroup *s)
+int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s)
 {
     struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    const struct ngpu_bindgroup_layout *layout = s->layout;
 
-    ngpu_darray_foreach(binding, &s_priv->texture_bindings) {
-        if (binding->update_desc) {
-            const struct ngpu_texture_vk *texture_vk = NGPU_PRIV_VK(binding->texture);
-            const VkDescriptorImageInfo image_info = {
-                .imageLayout = texture_vk->default_image_layout,
-                .imageView   = texture_vk->image_view,
-                .sampler     = texture_vk->sampler,
-            };
-            const struct ngpu_bindgroup_layout_entry *desc = &binding->layout_entry;
-            const VkWriteDescriptorSet write_descriptor_set = {
-                .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet           = s_priv->desc_set,
-                .dstBinding       = desc->binding,
-                .dstArrayElement  = 0,
-                .descriptorType   = get_vk_descriptor_type(desc->type),
-                .descriptorCount  = 1,
-                .pImageInfo       = &image_info,
-            };
-            vk->funcs.UpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
-            binding->update_desc = 0;
-        }
+    /* Reserve backing storage before any write points into it. */
+    if (ngpu_darray_try_reserve(&s_priv->texture_bindings, layout->nb_textures) < 0 ||
+        ngpu_darray_try_reserve(&s_priv->buffer_bindings, layout->nb_buffers) < 0 ||
+        ngpu_darray_try_reserve(&s_priv->image_infos, layout->nb_textures) < 0 ||
+        ngpu_darray_try_reserve(&s_priv->buffer_infos, layout->nb_buffers) < 0 ||
+        ngpu_darray_try_reserve(&s_priv->write_desc_sets, layout->nb_textures + layout->nb_buffers) < 0)
+        return NGPU_ERROR_MEMORY;
+
+    VkResult res = ngpu_bindgroup_layout_vk_allocate_set(s->layout, &s_priv->desc_set);
+    if (res != VK_SUCCESS)
+        return ngpu_vk_res2ret(res);
+
+    for (size_t i = 0; i < layout->nb_textures; i++) {
+        const struct ngpu_bindgroup_layout_entry *entry = &layout->textures[i];
+        const struct ngpu_texture *texture = s->textures[i].texture;
+        if (!texture)
+            texture = gpu_ctx_vk->dummy_texture;
+        const struct ngpu_texture_vk *texture_vk = NGPU_PRIV_VK(texture);
+        ngpu_darray_push(&s_priv->texture_bindings, (struct texture_binding_vk){
+            .layout_entry = *entry,
+            .texture = texture,
+        });
+        ngpu_darray_push(&s_priv->image_infos, (VkDescriptorImageInfo){
+            .imageLayout = texture_vk->default_image_layout,
+            .imageView   = texture_vk->image_view,
+            .sampler     = texture_vk->sampler,
+        });
+        ngpu_darray_push(&s_priv->write_desc_sets, (VkWriteDescriptorSet){
+            .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet          = s_priv->desc_set,
+            .dstBinding      = entry->binding,
+            .descriptorType  = get_vk_descriptor_type(entry->type),
+            .descriptorCount = 1,
+            .pImageInfo      = &s_priv->image_infos.data[i],
+        });
     }
 
-    ngpu_darray_foreach(binding, &s_priv->buffer_bindings) {
-        if (binding->update_desc) {
-            ngpu_assert(binding->buffer);
-            const struct ngpu_bindgroup_layout_entry *desc = &binding->layout_entry;
-            const struct ngpu_buffer_vk *buffer_vk = NGPU_PRIV_VK(binding->buffer);
-            const VkDescriptorBufferInfo descriptor_buffer_info = {
-                .buffer = buffer_vk->buffer,
-                .offset = binding->offset,
-                .range  = binding->size,
-            };
-            const VkWriteDescriptorSet write_descriptor_set = {
-                .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet           = s_priv->desc_set,
-                .dstBinding       = desc->binding,
-                .dstArrayElement  = 0,
-                .descriptorType   = get_vk_descriptor_type(desc->type),
-                .descriptorCount  = 1,
-                .pBufferInfo      = &descriptor_buffer_info,
-                .pImageInfo       = NULL,
-                .pTexelBufferView = NULL,
-            };
-            vk->funcs.UpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
-            binding->update_desc = 0;
-        }
+    for (size_t i = 0; i < layout->nb_buffers; i++) {
+        const struct ngpu_bindgroup_layout_entry *entry = &layout->buffers[i];
+        const struct ngpu_buffer_binding *binding = &s->buffers[i];
+        const struct ngpu_buffer_vk *buffer_vk = NGPU_PRIV_VK(binding->buffer);
+        ngpu_darray_push(&s_priv->buffer_bindings, (struct buffer_binding_vk){
+            .layout_entry = *entry,
+            .buffer = binding->buffer,
+            .offset = binding->offset,
+            .size = binding->size,
+        });
+        ngpu_darray_push(&s_priv->buffer_infos, (VkDescriptorBufferInfo){
+            .buffer = buffer_vk->buffer,
+            .offset = binding->offset,
+            .range  = binding->size,
+        });
+        ngpu_darray_push(&s_priv->write_desc_sets, (VkWriteDescriptorSet){
+            .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet          = s_priv->desc_set,
+            .dstBinding      = entry->binding,
+            .descriptorType  = get_vk_descriptor_type(entry->type),
+            .descriptorCount = 1,
+            .pBufferInfo     = &s_priv->buffer_infos.data[i],
+        });
     }
 
+    if (s_priv->write_desc_sets.count)
+        vk->funcs.UpdateDescriptorSets(vk->device, (uint32_t)s_priv->write_desc_sets.count,
+                                      s_priv->write_desc_sets.data, 0, NULL);
     return 0;
+}
+
+void ngpu_bindgroup_vk_reset(struct ngpu_bindgroup *s)
+{
+    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
+    if (s_priv->desc_set != VK_NULL_HANDLE) {
+        struct ngpu_bindgroup_layout_vk *layout_priv = NGPU_PRIV_VK(s->layout);
+        if (ngpu_darray_try_push(&layout_priv->free_desc_sets, s_priv->desc_set) < 0)
+            LOG(WARNING, "could not recycle descriptor set, its pool will keep it until the layout is destroyed");
+        s_priv->desc_set = VK_NULL_HANDLE;
+    }
+    ngpu_darray_clear(&s_priv->texture_bindings);
+    ngpu_darray_clear(&s_priv->buffer_bindings);
+    ngpu_darray_clear(&s_priv->write_desc_sets);
+    ngpu_darray_clear(&s_priv->image_infos);
+    ngpu_darray_clear(&s_priv->buffer_infos);
 }
 
 void ngpu_bindgroup_vk_freep(struct ngpu_bindgroup **sp)
 {
     if (!*sp)
         return;
-
-    struct ngpu_bindgroup *s = *sp;
-    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
-
-    /*
-     * Recycle the set before dropping the layout reference, which may be the
-     * last one. The command buffer references the bindgroup, so reaching this
-     * point means every submission using the set has retired.
-     */
-    if (s_priv->desc_set != VK_NULL_HANDLE && s->layout) {
-        struct ngpu_bindgroup_layout_vk *layout_priv = NGPU_PRIV_VK(s->layout);
-        if (ngpu_darray_try_push(&layout_priv->free_desc_sets, s_priv->desc_set) < 0)
-            LOG(WARNING, "could not recycle descriptor set, its pool will keep it until the layout is destroyed");
-        s_priv->desc_set = VK_NULL_HANDLE;
-    }
-
-    NGPU_RC_UNREFP(&s->layout);
+    struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(*sp);
     ngpu_darray_reset(&s_priv->texture_bindings);
     ngpu_darray_reset(&s_priv->buffer_bindings);
-
+    ngpu_darray_reset(&s_priv->write_desc_sets);
+    ngpu_darray_reset(&s_priv->image_infos);
+    ngpu_darray_reset(&s_priv->buffer_infos);
     ngpu_freep(sp);
 }
