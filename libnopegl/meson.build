@@ -823,3 +823,17 @@ if get_option('tests')
     test(test_key, exe, args: test_data.get('args', []))
   endforeach
 endif
+
+if get_option('tests')
+  pipeline_test = executable(
+    'test_pipeline_metadata', 'src/test_pipeline_metadata.c',
+    objects: libnopegl.extract_all_objects(recursive: true),
+    dependencies: lib_deps,
+    c_args: lib_c_args,
+    build_by_default: false,
+    include_directories: inc_dir,
+  )
+  foreach backend : ['opengl', 'opengles', 'vulkan']
+    test('Pipeline metadata ' + backend, pipeline_test, args: [backend])
+  endforeach
+endif
