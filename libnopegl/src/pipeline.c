@@ -243,28 +243,35 @@ int ngli_pipeline_update_dynamic_offsets(struct ngli_pipeline *s, const uint32_t
     return 0;
 }
 
-static void push_texture_info_block(struct ngli_pipeline *s,
-                                    struct ngpu_staging_buffer *staging,
-                                    size_t tex_index, const struct ngli_image *image)
+static void push_texture_info_block(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer)
 {
-    const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[tex_index];
-    if (info->block_index < 0)
+    if (!s->texture_infos.nb_metadata)
         return;
 
-    struct ngpu_pgcraft_texture_info_block texture_info = {0};
-    memcpy(texture_info.coord_matrix, image->coordinates_matrix.m, sizeof(texture_info.coord_matrix));
-    memcpy(texture_info.color_matrix, image->color_matrix.m, sizeof(texture_info.color_matrix));
-    memcpy(texture_info.mapping_color_matrix, image->mapping_color_matrix.m, sizeof(texture_info.mapping_color_matrix));
-    if (image->params.layout) {
-        texture_info.dimensions[0] = (float)image->params.width;
-        texture_info.dimensions[1] = (float)image->params.height;
+    const size_t size = s->texture_infos.nb_metadata * sizeof(struct ngpu_pgcraft_texture_info_block);
+    size_t offset = 0;
+    struct ngpu_pgcraft_texture_info_block *metadata = ngpu_staging_buffer_reserve(staging_buffer, size, &offset);
+    for (size_t i = 0; i < s->texture_infos.nb_infos; i++) {
+        const struct ngli_image *image = s->images[i];
+        const int32_t index = s->texture_infos.infos[i].metadata_index;
+        if (index < 0)
+            continue;
+        struct ngpu_pgcraft_texture_info_block info = {0};
+        if (image) {
+            memcpy(info.coord_matrix, image->coordinates_matrix.m, sizeof(info.coord_matrix));
+            memcpy(info.color_matrix, image->color_matrix.m, sizeof(info.color_matrix));
+            memcpy(info.mapping_color_matrix, image->mapping_color_matrix.m, sizeof(info.mapping_color_matrix));
+            if (image->params.layout) {
+                info.dimensions[0] = (float)image->params.width;
+                info.dimensions[1] = (float)image->params.height;
+            }
+            info.timestamp = image->ts;
+            info.sampling_mode = (int32_t)image->params.layout;
+        }
+        memcpy(&metadata[index], &info, sizeof(info));
     }
-    texture_info.timestamp = image->ts;
-    texture_info.sampling_mode = (int32_t)image->params.layout;
-
-    const size_t offset = ngpu_staging_buffer_push(staging, &texture_info, sizeof(texture_info));
-    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(staging);
-    ngli_pipeline_update_buffer(s, info->block_index, buffer, offset, sizeof(texture_info));
+    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(staging_buffer);
+    ngli_pipeline_update_buffer(s, s->texture_infos.block_index, buffer, offset, size);
 }
 
 void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index, const struct ngli_image *image)
@@ -414,20 +421,9 @@ static int prepare_bindgroup(struct ngli_pipeline *s)
     return 0;
 }
 
-static void prepare_images(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer)
-{
-    for (size_t i = 0; i < s->texture_infos.nb_infos; i++) {
-        const struct ngli_image *image = s->images[i];
-        if (!image)
-            continue;
-
-        push_texture_info_block(s, staging_buffer, i, image);
-    }
-}
-
 static int prepare_pipeline(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer)
 {
-    prepare_images(s, staging_buffer);
+    push_texture_info_block(s, staging_buffer);
 
     int ret = prepare_bindgroup(s);
     if (ret < 0)

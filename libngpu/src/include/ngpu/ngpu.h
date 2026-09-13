@@ -1183,8 +1183,8 @@ struct ngpu_pgcraft_texture_info {
     int32_t sampler_oes_index;      /* Android MediaCodec external OES */
     int32_t sampler_rect_0_index;   /* macOS IOSurface rectangle plane 0 */
     int32_t sampler_rect_1_index;   /* macOS IOSurface rectangle plane 1 */
-    /* Buffer binding index containing per-texture metadata, -1 if no_metadata is set. */
-    int32_t block_index;
+    /* Index in the shared metadata array, -1 if no_metadata is set. */
+    int32_t metadata_index;
     /* Image reference provided by the user via ngpu_pgcraft_texture.image */
     struct ngli_image *image;
 };
@@ -1192,6 +1192,8 @@ struct ngpu_pgcraft_texture_info {
 struct ngpu_pgcraft_texture_infos {
     const struct ngpu_pgcraft_texture_info *infos;
     size_t nb_infos;
+    int32_t block_index;
+    size_t nb_metadata;
 };
 
 struct ngpu_pgcraft_params {
