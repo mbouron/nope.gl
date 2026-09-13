@@ -443,9 +443,15 @@ static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuf
             if (binding->texture)
                 NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, binding->texture);
         struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-        vk->funcs.CmdBindDescriptorSets(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline_layout, 0,
-                                1, &bindgroup_vk->desc_set,
-                                (uint32_t)gpu_ctx->nb_dynamic_offsets, gpu_ctx->dynamic_offsets);
+        if (gpu_ctx->nb_dynamic_offsets ||
+            cmd_buffer_vk->applied_bindgroup != gpu_ctx->bindgroup ||
+            cmd_buffer_vk->applied_bindgroup_pipeline != s) {
+            vk->funcs.CmdBindDescriptorSets(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline_layout, 0,
+                                           1, &bindgroup_vk->desc_set,
+                                           (uint32_t)gpu_ctx->nb_dynamic_offsets, gpu_ctx->dynamic_offsets);
+            cmd_buffer_vk->applied_bindgroup = gpu_ctx->bindgroup;
+            cmd_buffer_vk->applied_bindgroup_pipeline = s;
+        }
     }
 
     return 0;
