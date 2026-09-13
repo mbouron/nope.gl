@@ -117,3 +117,8 @@ uint32_t ngpu_buffer_get_usage(const struct ngpu_buffer *s)
 {
     return s->usage;
 }
+
+struct ngpu_buffer *ngpu_buffer_ref(const struct ngpu_buffer *s)
+{
+    return s ? NGPU_RC_REF((struct ngpu_buffer *)s) : NULL;
+}

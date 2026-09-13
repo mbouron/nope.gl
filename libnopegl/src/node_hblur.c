@@ -628,6 +628,8 @@ static void hblur_pre_draw(struct ngl_node *node)
 static void hblur_release(struct ngl_node *node)
 {
     struct hblur_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pass1.pl);
+    ngli_pipeline_discard_resources(s->pass2.pl);
 
     ngpu_texture_freep(&s->tex0);
     ngpu_texture_freep(&s->tex1);
