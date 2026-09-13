@@ -6,4 +6,5 @@ draw-call.md
 techchoices.md
 colormatrix.md
 tests-categories.md
+bindgroups.md
 ```
