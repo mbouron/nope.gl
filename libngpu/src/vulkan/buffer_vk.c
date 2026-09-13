@@ -198,7 +198,7 @@ static VkResult buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t
         return res;
 
     const VkBufferCopy region = {
-        .srcOffset = 0,
+        .srcOffset = offset,
         .dstOffset = offset,
         .size      = size,
     };
