@@ -42,12 +42,15 @@ struct ngli_pipeline;
 struct ngli_pipeline *ngli_pipeline_create(struct ngpu_ctx *gpu_ctx);
 int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_params *params);
 int ngli_pipeline_update_vertex_buffer(struct ngli_pipeline *s, int32_t index, const struct ngpu_buffer *buffer);
+void ngli_pipeline_update_vertex_resources(struct ngli_pipeline *s, struct ngpu_vertex_resources resources);
 int ngli_pipeline_update_texture(struct ngli_pipeline *s, int32_t index, const struct ngpu_texture *texture);
 void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index, const struct ngli_image *image);
 int ngli_pipeline_update_buffer(struct ngli_pipeline *s, int32_t index, const struct ngpu_buffer *buffer, size_t offset, size_t size);
 void ngli_pipeline_draw(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer, uint32_t nb_vertices, uint32_t nb_instances, uint32_t first_vertex);
 void ngli_pipeline_draw_indexed(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer, const struct ngpu_buffer *indices, enum ngpu_format indices_format, uint32_t nb_indices, uint32_t nb_instances);
 void ngli_pipeline_dispatch(struct ngli_pipeline *s, struct ngpu_staging_buffer *staging_buffer, uint32_t nb_group_x, uint32_t nb_group_y, uint32_t nb_group_z);
+/* Forget resolved bindings while preserving the GPU pipeline and layout. */
+void ngli_pipeline_discard_resources(struct ngli_pipeline *s);
 void ngli_pipeline_freep(struct ngli_pipeline **sp);
 
 #endif

@@ -66,7 +66,6 @@
 struct resource_map {
     int32_t index;
     const struct block_info *info;
-    size_t buffer_rev;
 };
 
 struct texture_map {
@@ -364,7 +363,7 @@ static int drawhistogram_prepare(struct ngl_node *node,
 
     /* Build blocks map for stats */
     const int32_t stats_index = ngpu_pgcraft_get_block_index(s->crafter, "stats", NGPU_PROGRAM_STAGE_FRAG);
-    const struct resource_map map = {.index = stats_index, .info = block_info, .buffer_rev = SIZE_MAX};
+    const struct resource_map map = {.index = stats_index, .info = block_info};
     if (ngli_darray_try_push(&desc->blocks_map, map) < 0)
         return NGL_ERROR_MEMORY;
 
@@ -381,6 +380,7 @@ static void drawhistogram_draw(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct ngli_pipeline *pipeline = desc->pipeline;
+    ngli_pipeline_update_vertex_resources(pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
 
     const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
@@ -427,10 +427,7 @@ static void drawhistogram_draw(struct ngl_node *node)
     struct resource_map *resource_map = desc->blocks_map.data;
     for (size_t i = 0; i < desc->blocks_map.count; i++) {
         const struct block_info *info = resource_map[i].info;
-        if (resource_map[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
-            resource_map[i].buffer_rev = info->buffer_rev;
-        }
+        ngli_pipeline_update_buffer(pipeline, resource_map[i].index, info->buffer, 0, 0);
     }
 
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
@@ -449,6 +446,12 @@ static void drawhistogram_draw(struct ngl_node *node)
     } else {
         ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, s->nb_vertices, 1, 0);
     }
+}
+
+static void drawhistogram_release(struct ngl_node *node)
+{
+    struct drawhistogram_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
 }
 
 static void drawhistogram_uninit(struct ngl_node *node)
@@ -490,6 +493,7 @@ const struct node_class ngli_drawhistogram_class = {
     .get_renderpass_usage = drawhistogram_get_renderpass_usage,
     .update    = ngli_node_update_children,
     .draw      = drawhistogram_draw,
+    .release    = drawhistogram_release,
     .uninit    = drawhistogram_uninit,
     .opts_size = sizeof(struct drawhistogram_opts),
     .priv_size = sizeof(struct drawhistogram_priv),

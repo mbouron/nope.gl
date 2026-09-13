@@ -62,7 +62,6 @@ struct texture_map {
 struct block_map {
     int32_t index;
     const struct block_info *info;
-    size_t buffer_rev;
 };
 
 NGLI_DECLARE_DARRAY_WITH_NAME(effect2d_texture_darray, struct ngpu_pgcraft_texture);
@@ -606,7 +605,6 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
             const struct block_map bm = {
                 .index      = ngpu_pgcraft_get_block_index(program->crafter, entry->key.str, NGPU_PROGRAM_STAGE_FRAG),
                 .info       = info,
-                .buffer_rev = SIZE_MAX,
             };
             if (ngli_darray_try_push(&program->blocks_map, bm) < 0)
                 return NGL_ERROR_MEMORY;
@@ -934,10 +932,7 @@ static void effect2d_draw(struct ngl_node *node)
     struct block_map *block_maps = program->blocks_map.data;
     for (size_t i = 0; i < program->blocks_map.count; i++) {
         const struct block_info *info = block_maps[i].info;
-        if (block_maps[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_update_buffer(pl, block_maps[i].index, info->buffer, 0, 0);
-            block_maps[i].buffer_rev = info->buffer_rev;
-        }
+        ngli_pipeline_update_buffer(pl, block_maps[i].index, info->buffer, 0, 0);
     }
 
     if (!ngpu_ctx_is_render_pass_active(gpu_ctx))
@@ -952,6 +947,8 @@ static void effect2d_draw(struct ngl_node *node)
 static void effect2d_release(struct ngl_node *node)
 {
     struct effect2d_priv *s = node->priv_data;
+    for (size_t i = 0; i < s->programs.count; i++)
+        ngli_pipeline_discard_resources(s->programs.data[i].pipeline);
 
     ngli_rtt_freep(&s->rtt_ctx);
 }

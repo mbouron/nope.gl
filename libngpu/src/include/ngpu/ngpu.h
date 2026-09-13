@@ -449,6 +449,7 @@ NGPU_API int ngpu_buffer_wait(struct ngpu_buffer *s);
 NGPU_API int ngpu_buffer_upload(struct ngpu_buffer *s, const void *data, size_t offset, size_t size);
 NGPU_API int ngpu_buffer_map(struct ngpu_buffer *s, size_t offset, size_t size, void **datap);
 NGPU_API void ngpu_buffer_unmap(struct ngpu_buffer *s);
+NGPU_API struct ngpu_buffer *ngpu_buffer_ref(struct ngpu_buffer *s);
 NGPU_API void ngpu_buffer_freep(struct ngpu_buffer **sp);
 
 NGPU_API size_t ngpu_buffer_get_size(const struct ngpu_buffer *s);

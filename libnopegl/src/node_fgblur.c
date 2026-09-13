@@ -626,6 +626,9 @@ static void fgblur_pre_draw(struct ngl_node *node)
 static void fgblur_release(struct ngl_node *node)
 {
     struct fgblur_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->dws.pl);
+    ngli_pipeline_discard_resources(s->ups.pl);
+    ngli_pipeline_discard_resources(s->interpolate.pl);
 
     ngli_rtt_freep(&s->mip);
     for (size_t i = 0; i < MAX_MIP_LEVELS; i++)
