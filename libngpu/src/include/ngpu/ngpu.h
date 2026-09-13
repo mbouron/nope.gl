@@ -676,6 +676,27 @@ NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx, 
 NGPU_API void ngpu_bindgroup_freep(struct ngpu_bindgroup **sp);
 
 /*
+ * Optional consumer-owned cache of complete binding sets. Capacity must be
+ * positive. Entries retain their layouts and resources until LRU eviction or
+ * clearing; the context must outlive the cache and all returned bindgroups.
+ * Lookup is linear in capacity, so this utility is intended for small caches.
+ */
+struct ngpu_bindgroup_cache;
+NGPU_API struct ngpu_bindgroup_cache *ngpu_bindgroup_cache_create(struct ngpu_ctx *gpu_ctx, size_t capacity);
+
+/*
+ * Returns an owned reference to an exact match, including while it is in flight,
+ * or creates a new immutable bindgroup. Keys include layout identity and the
+ * complete ordered bindings; dynamic offsets are execution parameters.
+ * Returns NULL for an invalid descriptor or allocation failure.
+ */
+NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_cache_get(struct ngpu_bindgroup_cache *s, const struct ngpu_bindgroup_desc *desc);
+
+/* Clearing or destruction leaves returned and command-buffer references valid. */
+NGPU_API void ngpu_bindgroup_cache_clear(struct ngpu_bindgroup_cache *s);
+NGPU_API void ngpu_bindgroup_cache_freep(struct ngpu_bindgroup_cache **sp);
+
+/*
  * Rendertarget
  */
 
