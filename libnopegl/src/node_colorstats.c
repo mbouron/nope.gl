@@ -237,7 +237,7 @@ static int init_computes(struct ngl_node *node)
         {
             .name     = "params",
             .instance_name = "",
-            .type     = NGPU_TYPE_UNIFORM_BUFFER,
+            .type     = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage    = NGPU_PROGRAM_STAGE_COMP,
             .block    = &params_block_desc,
         }, {

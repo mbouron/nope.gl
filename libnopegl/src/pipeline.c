@@ -50,6 +50,7 @@ struct ngli_pipeline {
     struct ngpu_texture_binding *textures;
     size_t nb_textures;
     struct ngpu_buffer_binding *buffers;
+    int32_t *dynamic_offset_indices;
     size_t nb_buffers;
     uint32_t dynamic_offsets[NGPU_MAX_DYNAMIC_OFFSETS];
     size_t nb_dynamic_offsets;
@@ -197,6 +198,22 @@ int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_param
     if (ret < 0)
         return ret;
 
+    s->nb_dynamic_offsets = ngpu_bindgroup_layout_get_nb_dynamic_offsets(s->bindgroup_layout);
+    s->dynamic_offset_indices = ngli_try_calloc(s->nb_buffers, sizeof(*s->dynamic_offset_indices));
+    if (s->nb_buffers && !s->dynamic_offset_indices)
+        return NGL_ERROR_MEMORY;
+    size_t dynamic_index = 0;
+    for (size_t i = 0; i < s->nb_buffers; i++) {
+        const enum ngpu_type type = s->bindgroup_layout_desc.buffers[i].type;
+        s->dynamic_offset_indices[i] = -1;
+        if (type != NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC && type != NGPU_TYPE_STORAGE_BUFFER_DYNAMIC)
+            continue;
+        s->dynamic_offset_indices[i] = (int32_t)dynamic_index;
+        ngli_assert(s->buffers[i].offset <= UINT32_MAX);
+        s->dynamic_offsets[dynamic_index++] = (uint32_t)s->buffers[i].offset;
+        s->buffers[i].offset = 0;
+    }
+    ngli_assert(dynamic_index == s->nb_dynamic_offsets);
     return 0;
 }
 
@@ -233,14 +250,6 @@ int ngli_pipeline_update_texture(struct ngli_pipeline *s, int32_t index, const s
 {
     const struct ngpu_texture_binding binding = {.texture = texture};
     return update_texture(s, index, &binding);
-}
-
-int ngli_pipeline_update_dynamic_offsets(struct ngli_pipeline *s, const uint32_t *offsets, size_t nb_offsets)
-{
-    ngli_assert(ngpu_bindgroup_layout_get_nb_dynamic_offsets(s->bindgroup_layout) == nb_offsets);
-    memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
-    s->nb_dynamic_offsets = nb_offsets;
-    return 0;
 }
 
 void ngli_pipeline_update_image(struct ngli_pipeline *s, int32_t index, const struct ngli_image *image)
@@ -314,11 +323,23 @@ int ngli_pipeline_update_buffer(struct ngli_pipeline *s, int32_t index, const st
         return NGL_ERROR_NOT_FOUND;
 
     ngli_assert(index >= 0 && index < s->nb_buffers);
-    s->buffers[index] = (struct ngpu_buffer_binding) {
+    const int32_t dynamic_index = s->dynamic_offset_indices[index];
+    if (dynamic_index >= 0) {
+        if (offset > UINT32_MAX)
+            return NGL_ERROR_GRAPHICS_LIMIT_EXCEEDED;
+        s->dynamic_offsets[dynamic_index] = (uint32_t)offset;
+        offset = 0;
+    }
+    const struct ngpu_buffer_binding binding = {
         .buffer = buffer,
         .offset = offset,
-        .size   = size ? size : ngpu_buffer_get_size(buffer),
+        .size   = size ? size : buffer ? ngpu_buffer_get_size(buffer) - offset : 0,
     };
+    if (s->buffers[index].buffer == binding.buffer &&
+        s->buffers[index].offset == binding.offset &&
+        s->buffers[index].size == binding.size)
+        return 0;
+    s->buffers[index] = binding;
     s->updated = 1;
     return 0;
 }
@@ -491,6 +512,7 @@ void ngli_pipeline_freep(struct ngli_pipeline **sp)
     ngli_freep(&s->vertex_buffers);
     ngli_freep(&s->textures);
     ngli_freep(&s->buffers);
+    ngli_freep(&s->dynamic_offset_indices);
     ngli_freep(&s->images);
 
     ngli_freep(sp);

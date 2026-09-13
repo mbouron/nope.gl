@@ -474,7 +474,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     const struct ngpu_pgcraft_block vert_crafter_block = {
         .name          = "vert",
         .instance_name = "",
-        .type          = NGPU_TYPE_UNIFORM_BUFFER,
+        .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .stage         = NGPU_PROGRAM_STAGE_VERT,
         .block         = &s->vert_block_desc,
     };
@@ -484,7 +484,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     const struct ngpu_pgcraft_block frag_crafter_block = {
         .name          = "frag",
         .instance_name = "",
-        .type          = NGPU_TYPE_UNIFORM_BUFFER,
+        .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .stage         = NGPU_PROGRAM_STAGE_FRAG,
         .block         = &s->frag_block_desc,
     };
@@ -495,7 +495,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         const struct ngpu_pgcraft_block user_crafter_block = {
             .name          = "user_params",
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &program->user_block_desc,
         };

@@ -721,7 +721,7 @@ static int drawrect2d_init(struct ngl_node *node)
     const struct ngpu_pgcraft_block vert_crafter_block = {
         .name          = "vert",
         .instance_name = "",
-        .type          = NGPU_TYPE_UNIFORM_BUFFER,
+        .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .stage         = NGPU_PROGRAM_STAGE_VERT,
         .block         = &s->vert_block_desc,
         .buffer        = {.buffer = staging_buf, .size = s->vert_block_size},
@@ -735,7 +735,7 @@ static int drawrect2d_init(struct ngl_node *node)
     const struct ngpu_pgcraft_block frag_crafter_block = {
         .name          = "frag",
         .instance_name = "",
-        .type          = NGPU_TYPE_UNIFORM_BUFFER,
+        .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .stage         = NGPU_PROGRAM_STAGE_FRAG,
         .block         = &s->frag_block_desc,
         .buffer        = {.buffer = staging_buf, .size = frag_block_size},
@@ -750,7 +750,7 @@ static int drawrect2d_init(struct ngl_node *node)
         const struct ngpu_pgcraft_block user_crafter_block = {
             .name          = "user",
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->user_block_desc,
             .buffer        = {.buffer = staging_buf, .size = s->user_block_size},

@@ -359,9 +359,6 @@ static int draw_glyphs(struct distmap *s)
     if (ret < 0)
         return ret;
 
-    ngli_pipeline_update_buffer(s->pipeline, 0, s->vert_buffer, 0, s->vert_offset);
-    ngli_pipeline_update_buffer(s->pipeline, 1, s->frag_buffer, 0, s->frag_offset);
-
     const int32_t nb_shapes = (int32_t)s->shapes.count;
     int32_t shape_id = 0;
 
@@ -370,10 +367,10 @@ static int draw_glyphs(struct distmap *s)
             if (shape_id == nb_shapes)
                 return 0;
 
-            const uint32_t offsets[] = {(uint32_t)shape_id * (uint32_t)s->vert_offset, (uint32_t)shape_id * (uint32_t)s->frag_offset};
-            ret = ngli_pipeline_update_dynamic_offsets(s->pipeline, offsets, NGLI_ARRAY_NB(offsets));
-            if (ret < 0)
-                return ret;
+            ngli_pipeline_update_buffer(s->pipeline, 0, s->vert_buffer,
+                                        (size_t)shape_id * s->vert_offset, s->vert_offset);
+            ngli_pipeline_update_buffer(s->pipeline, 1, s->frag_buffer,
+                                        (size_t)shape_id * s->frag_offset, s->frag_offset);
             ngli_pipeline_draw(s->pipeline, s->ctx->current_staging_buffer, 3, 1, 0);
             shape_id++;
         }

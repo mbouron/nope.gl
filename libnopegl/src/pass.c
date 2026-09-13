@@ -578,7 +578,7 @@ int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params
             continue;
         struct ngpu_pgcraft_block blk = {
             .instance_name = "",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = user_blocks[i].stage,
             .block         = user_blocks[i].desc,
             .buffer        = {.buffer = staging_buf, .size = size},

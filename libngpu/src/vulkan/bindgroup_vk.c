@@ -281,6 +281,18 @@ static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layo
 
 int ngpu_bindgroup_layout_vk_init(struct ngpu_bindgroup_layout *s)
 {
+    const struct ngpu_bindgroup_layout_entry *previous = NULL;
+    for (size_t i = 0; i < s->nb_buffers; i++) {
+        const struct ngpu_bindgroup_layout_entry *entry = &s->buffers[i];
+        if (entry->type != NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC && entry->type != NGPU_TYPE_STORAGE_BUFFER_DYNAMIC)
+            continue;
+        if (previous && entry->binding <= previous->binding) {
+            LOG(ERROR, "dynamic buffers must be ordered by increasing binding number");
+            return NGPU_ERROR_INVALID_ARG;
+        }
+        previous = entry;
+    }
+
     VkResult res = create_desc_set_layout_bindings(s);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
