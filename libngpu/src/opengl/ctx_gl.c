@@ -937,7 +937,11 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
 
     struct ngpu_bindgroup_gl *bindgroup_gl = NGPU_PRIV_GL(bindgroup);
     ngpu_darray_foreach(binding, &bindgroup_gl->buffer_bindings)
-        ngpu_cmd_buffer_gl_ref_buffer(cmd_buffer, (struct ngpu_buffer *)binding->buffer);
+        if (binding->buffer)
+            ngpu_cmd_buffer_gl_ref_buffer(cmd_buffer, (struct ngpu_buffer *)binding->buffer);
+    ngpu_darray_foreach(binding, &bindgroup_gl->texture_bindings)
+        if (binding->texture)
+            NGPU_CMD_BUFFER_GL_REF(cmd_buffer, binding->texture);
 
     struct ngpu_cmd_gl cmd_gl = {
         .type = NGPU_CMD_TYPE_GL_SET_BINDGROUP,
