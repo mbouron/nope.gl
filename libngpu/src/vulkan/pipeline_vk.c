@@ -440,7 +440,11 @@ static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuf
     struct ngpu_bindgroup_vk *bindgroup_vk = NGPU_PRIV_VK(gpu_ctx->bindgroup);
     if (bindgroup_vk->desc_set) {
         ngpu_darray_foreach(binding, &bindgroup_vk->buffer_bindings)
-            ngpu_cmd_buffer_vk_ref_buffer(cmd_buffer_vk, (struct ngpu_buffer *)binding->buffer);
+            if (binding->buffer)
+                ngpu_cmd_buffer_vk_ref_buffer(cmd_buffer_vk, (struct ngpu_buffer *)binding->buffer);
+        ngpu_darray_foreach(binding, &bindgroup_vk->texture_bindings)
+            if (binding->texture)
+                NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, binding->texture);
         struct vkcontext *vk = gpu_ctx_vk->vkcontext;
         vk->funcs.CmdBindDescriptorSets(cmd_buf, s_priv->pipeline_bind_point, s_priv->pipeline_layout, 0,
                                 1, &bindgroup_vk->desc_set,
