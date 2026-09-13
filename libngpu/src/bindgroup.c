@@ -71,8 +71,12 @@ int ngpu_bindgroup_layout_init(struct ngpu_bindgroup_layout *s,
         else if (entry->type == NGPU_TYPE_STORAGE_BUFFER_DYNAMIC)
             nb_storage_buffers_dynamic++;
     }
-    ngpu_assert(nb_uniform_buffers_dynamic <= NGPU_MAX_UNIFORM_BUFFERS_DYNAMIC);
-    ngpu_assert(nb_storage_buffers_dynamic <= NGPU_MAX_STORAGE_BUFFERS_DYNAMIC);
+    if (nb_uniform_buffers_dynamic > NGPU_MAX_UNIFORM_BUFFERS_DYNAMIC ||
+        nb_storage_buffers_dynamic > NGPU_MAX_STORAGE_BUFFERS_DYNAMIC) {
+        LOG(ERROR, "too many dynamic buffers (%zu uniform, %zu storage)",
+            nb_uniform_buffers_dynamic, nb_storage_buffers_dynamic);
+        return NGPU_ERROR_GRAPHICS_LIMIT_EXCEEDED;
+    }
     s->nb_dynamic_offsets = nb_uniform_buffers_dynamic + nb_storage_buffers_dynamic;
 
     return s->gpu_ctx->cls->bindgroup_layout_init(s);

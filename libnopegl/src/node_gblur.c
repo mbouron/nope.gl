@@ -313,7 +313,7 @@ static int gblur_init(struct ngl_node *node)
             },
         }, {
             .name          = "kernel",
-            .type          = NGPU_TYPE_UNIFORM_BUFFER,
+            .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &s->kernel_block_desc,
             .buffer        = {
@@ -499,25 +499,22 @@ static void gblur_pre_draw(struct ngl_node *node)
     const struct direction_block dir_h = {.direction = {1.f, 0.f}};
     const struct direction_block dir_v = {.direction = {0.f, 1.f}};
     const size_t dir_h_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &dir_h, sizeof(dir_h));
+    struct ngpu_buffer *dir_h_buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     const size_t dir_v_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &dir_v, sizeof(dir_v));
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
     ngli_pipeline_update_buffer(s->pl_blur_h, s->direction_block_index,
-                                buffer, dir_h_offset, s->direction_block_size);
+                                dir_h_buffer, dir_h_offset, s->direction_block_size);
     ngli_pipeline_update_buffer(s->pl_blur_v, s->direction_block_index,
-                                buffer, dir_h_offset, s->direction_block_size);
+                                buffer, dir_v_offset, s->direction_block_size);
 
     ngli_rtt_begin(s->tmp);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    uint32_t offset = 0;
-    ngli_pipeline_update_dynamic_offsets(s->pl_blur_h, &offset, 1);
     ngli_pipeline_update_image(s->pl_blur_h, 0, s->image);
     ngli_pipeline_draw(s->pl_blur_h, ctx->current_staging_buffer, 3, 1, 0);
     ngli_rtt_end(s->tmp);
 
     ngli_rtt_begin(s->dst_rtt_ctx);
     ngpu_ctx_begin_render_pass(gpu_ctx, ctx->current_rendertarget);
-    offset = (uint32_t)(dir_v_offset - dir_h_offset);
-    ngli_pipeline_update_dynamic_offsets(s->pl_blur_v, &offset, 1);
     ngli_pipeline_update_image(s->pl_blur_v, 0, ngli_rtt_get_image(s->tmp, 0));
     ngli_pipeline_draw(s->pl_blur_v, ctx->current_staging_buffer, 3, 1, 0);
     ngli_rtt_end(s->dst_rtt_ctx);
