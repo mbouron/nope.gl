@@ -108,6 +108,7 @@ struct pass {
 int ngli_pass_init(struct pass *s, struct ngl_ctx *ctx, const struct pass_params *params);
 int ngli_pass_prepare(struct pass *s,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
+void ngli_pass_discard_resources(struct pass *s);
 void ngli_pass_uninit(struct pass *s);
 int ngli_pass_exec(struct pass *s);
 

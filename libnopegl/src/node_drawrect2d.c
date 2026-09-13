@@ -60,7 +60,6 @@ static const char *const paint_texture_names[PAINT_SHADER_ROLE_NB] = {
 struct resource_map {
     int32_t index;
     const struct block_info *info;
-    size_t buffer_rev;
 };
 
 struct texture_map {
@@ -71,7 +70,6 @@ struct texture_map {
 struct block_map {
     int32_t index;
     const struct block_info *info;
-    size_t buffer_rev;
 };
 
 struct drawrect2d_vert_block {
@@ -932,7 +930,6 @@ static int drawrect2d_prepare(struct ngl_node *node,
         const struct block_map bm = {
             .index      = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG),
             .info       = info,
-            .buffer_rev = SIZE_MAX,
         };
         if (ngli_darray_try_push(&s->blocks_map, bm) < 0)
             return NGL_ERROR_MEMORY;
@@ -948,7 +945,6 @@ static int drawrect2d_prepare(struct ngl_node *node,
             const struct block_map bm = {
                 .index      = ngpu_pgcraft_get_block_index(s->crafter, name, NGPU_PROGRAM_STAGE_FRAG),
                 .info       = info,
-                .buffer_rev = SIZE_MAX,
             };
             if (ngli_darray_try_push(&s->blocks_map, bm) < 0)
                 return NGL_ERROR_MEMORY;
@@ -1030,6 +1026,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     ngli_mat4_mul(modelview_matrix.m, ctx->transform_2d_matrix.m, trs_matrix.m);
 
     struct ngli_pipeline *pipeline = s->pipeline;
+    ngli_pipeline_update_vertex_resources(pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
 
     struct ngli_node2d_info *node2d_info = &s->node2d_info;
     node2d_info->transform_matrix = modelview_matrix;
@@ -1192,10 +1189,7 @@ static void drawrect2d_draw(struct ngl_node *node)
     struct block_map *blocks = s->blocks_map.data;
     for (size_t i = 0; i < s->blocks_map.count; i++) {
         const struct block_info *info = blocks[i].info;
-        if (blocks[i].buffer_rev != info->buffer_rev) {
-            ngli_pipeline_update_buffer(pipeline, blocks[i].index, info->buffer, 0, 0);
-            blocks[i].buffer_rev = info->buffer_rev;
-        }
+        ngli_pipeline_update_buffer(pipeline, blocks[i].index, info->buffer, 0, 0);
     }
 
     if (!ngpu_ctx_is_render_pass_active(gpu_ctx))
@@ -1205,6 +1199,12 @@ static void drawrect2d_draw(struct ngl_node *node)
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
     ngli_pipeline_draw(pipeline, ctx->current_staging_buffer, 4, 1, 0);
+}
+
+static void drawrect2d_release(struct ngl_node *node)
+{
+    struct drawrect2d_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pipeline);
 }
 
 static void drawrect2d_uninit(struct ngl_node *node)
@@ -1234,6 +1234,7 @@ const struct node_class ngli_drawrect2d_class = {
     .update    = drawrect2d_update,
     .pre_draw  = drawrect2d_pre_draw,
     .draw      = drawrect2d_draw,
+    .release   = drawrect2d_release,
     .uninit    = drawrect2d_uninit,
     .opts_size = sizeof(struct drawrect2d_opts),
     .priv_size = sizeof(struct drawrect2d_priv),

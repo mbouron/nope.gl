@@ -340,6 +340,7 @@ static void drawpath_draw(struct ngl_node *node)
     struct drawpath_priv *s = node->priv_data;
     const struct drawpath_opts *o = node->opts;
     struct pipeline_desc *desc = &s->pipeline_desc;
+    ngli_pipeline_update_vertex_resources(desc->pipeline, ngpu_pgcraft_get_vertex_resources(s->crafter));
 
     const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
     const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
@@ -397,6 +398,12 @@ static void drawpath_draw(struct ngl_node *node)
     ngli_pipeline_draw(desc->pipeline, ctx->current_staging_buffer, 4, 1, 0);
 }
 
+static void drawpath_release(struct ngl_node *node)
+{
+    struct drawpath_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pipeline_desc.pipeline);
+}
+
 static void drawpath_uninit(struct ngl_node *node)
 {
     struct drawpath_priv *s = node->priv_data;
@@ -415,6 +422,7 @@ const struct node_class ngli_drawpath_class = {
     .prepare   = drawpath_prepare,
     .update    = ngli_node_update_children,
     .draw      = drawpath_draw,
+    .release    = drawpath_release,
     .uninit    = drawpath_uninit,
     .opts_size = sizeof(struct drawpath_opts),
     .priv_size = sizeof(struct drawpath_priv),

@@ -523,6 +523,8 @@ static void gblur_pre_draw(struct ngl_node *node)
 static void gblur_release(struct ngl_node *node)
 {
     struct gblur_priv *s = node->priv_data;
+    ngli_pipeline_discard_resources(s->pl_blur_h);
+    ngli_pipeline_discard_resources(s->pl_blur_v);
 
     ngli_rtt_freep(&s->tmp);
     ngli_rtt_freep(&s->dst_rtt_ctx);

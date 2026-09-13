@@ -120,10 +120,17 @@ int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_param
 
     const struct ngpu_bindgroup_resources *bindgroup_resources = &params->resources;
     NGLI_ARRAY_MEMDUP(s, bindgroup_resources, buffers);
+    for (size_t i = 0; i < s->nb_buffers; i++)
+        ngpu_buffer_ref((struct ngpu_buffer *)s->buffers[i].buffer);
     NGLI_ARRAY_MEMDUP(s, bindgroup_resources, textures);
+    for (size_t i = 0; i < s->nb_textures; i++)
+        if (s->textures[i].texture)
+            ngpu_texture_ref((struct ngpu_texture *)s->textures[i].texture);
 
     const struct ngpu_vertex_resources *vertex_resources = &params->vertex_resources;
     NGLI_ARRAY_MEMDUP(s, vertex_resources, vertex_buffers);
+    for (size_t i = 0; i < s->nb_vertex_buffers; i++)
+        ngpu_buffer_ref((struct ngpu_buffer *)s->vertex_buffers[i]);
 
     s->texture_infos = params->texture_infos;
 
@@ -162,8 +169,19 @@ int ngli_pipeline_update_vertex_buffer(struct ngli_pipeline *s, int32_t index, c
         return NGL_ERROR_NOT_FOUND;
 
     ngli_assert(index >= 0 && index < s->nb_vertex_buffers);
+    if (s->vertex_buffers[index] == buffer)
+        return 0;
+    ngpu_buffer_ref((struct ngpu_buffer *)buffer);
+    ngpu_buffer_freep((struct ngpu_buffer **)&s->vertex_buffers[index]);
     s->vertex_buffers[index] = buffer;
     return 0;
+}
+
+void ngli_pipeline_update_vertex_resources(struct ngli_pipeline *s, struct ngpu_vertex_resources resources)
+{
+    ngli_assert(resources.nb_vertex_buffers == s->nb_vertex_buffers);
+    for (size_t i = 0; i < resources.nb_vertex_buffers; i++)
+        ngli_pipeline_update_vertex_buffer(s, (int32_t)i, resources.vertex_buffers[i]);
 }
 
 static int update_texture(struct ngli_pipeline *s, int32_t index, const struct ngpu_texture_binding *binding)
@@ -173,12 +191,20 @@ static int update_texture(struct ngli_pipeline *s, int32_t index, const struct n
 
     ngli_assert(index >= 0 && index < s->nb_textures);
 
-    if (s->textures[index].immutable_sampler != binding->immutable_sampler) {
+    if (s->textures[index].texture == binding->texture &&
+        s->textures[index].immutable_sampler == binding->immutable_sampler &&
+        s->bindgroup_layout_desc.textures[index].immutable_sampler == binding->immutable_sampler)
+        return 0;
+
+    if (s->bindgroup_layout_desc.textures[index].immutable_sampler != binding->immutable_sampler) {
         struct ngpu_bindgroup_layout_entry *entry = &s->bindgroup_layout_desc.textures[index];
         entry->immutable_sampler = binding->immutable_sampler;
         s->need_pipeline_recreation = 1;
     }
 
+    if (binding->texture)
+        ngpu_texture_ref((struct ngpu_texture *)binding->texture);
+    ngpu_texture_freep((struct ngpu_texture **)&s->textures[index].texture);
     s->textures[index] = *binding;
     s->updated = 1;
 
@@ -309,6 +335,8 @@ int ngli_pipeline_update_buffer(struct ngli_pipeline *s, int32_t index, const st
         s->buffers[index].offset == binding.offset &&
         s->buffers[index].size == binding.size)
         return 0;
+    ngpu_buffer_ref((struct ngpu_buffer *)buffer);
+    ngpu_buffer_freep((struct ngpu_buffer **)&s->buffers[index].buffer);
     s->buffers[index] = binding;
     s->updated = 1;
     return 0;
@@ -399,6 +427,27 @@ void ngli_pipeline_dispatch(struct ngli_pipeline *s, struct ngpu_staging_buffer 
     ngpu_ctx_dispatch(gpu_ctx, nb_group_x, nb_group_y, nb_group_z);
 }
 
+void ngli_pipeline_discard_resources(struct ngli_pipeline *s)
+{
+    if (!s)
+        return;
+    ngpu_bindgroup_freep(&s->cur_bindgroup);
+    for (size_t i = 0; i < s->nb_textures; i++) {
+        ngpu_texture_freep((struct ngpu_texture **)&s->textures[i].texture);
+        s->textures[i] = (struct ngpu_texture_binding){0};
+    }
+    for (size_t i = 0; i < s->nb_buffers; i++) {
+        ngpu_buffer_freep((struct ngpu_buffer **)&s->buffers[i].buffer);
+        s->buffers[i] = (struct ngpu_buffer_binding){0};
+    }
+    for (size_t i = 0; i < s->nb_vertex_buffers; i++)
+        ngpu_buffer_freep((struct ngpu_buffer **)&s->vertex_buffers[i]);
+    if (s->images)
+        memset(s->images, 0, s->texture_infos.nb_infos * sizeof(*s->images));
+    memset(s->dynamic_offsets, 0, sizeof(s->dynamic_offsets));
+    s->updated = 1;
+}
+
 void ngli_pipeline_freep(struct ngli_pipeline **sp)
 {
     struct ngli_pipeline *s = *sp;
@@ -406,6 +455,7 @@ void ngli_pipeline_freep(struct ngli_pipeline **sp)
         return;
 
     reset_pipeline(s);
+    ngli_pipeline_discard_resources(s);
 
     ngpu_pipeline_graphics_reset(&s->graphics);
 
