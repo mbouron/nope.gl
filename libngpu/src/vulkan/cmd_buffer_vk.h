@@ -41,6 +41,8 @@ struct ngpu_cmd_buffer_vk {
     VkCommandBuffer cmd_buf;
     uint64_t signal_value;
     VkBool32 submitted;
+    struct ngpu_bindgroup *applied_bindgroup;
+    struct ngpu_pipeline *applied_bindgroup_pipeline;
     NGPU_DARRAY(VkSemaphore) wait_sems;
     NGPU_DARRAY(VkPipelineStageFlags) wait_stages;
     NGPU_DARRAY(uint64_t) wait_values;
