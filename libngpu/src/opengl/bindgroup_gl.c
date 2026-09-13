@@ -72,8 +72,9 @@ static int build_texture_bindings(struct ngpu_bindgroup *s)
             nb_textures++;
         }
 
-        struct texture_binding_gl binding_gl = {
+        const struct texture_binding_gl binding_gl = {
             .layout_entry = *layout_entry,
+            .texture = s->textures[i].texture,
         };
         if (ngpu_darray_try_push(&s_priv->texture_bindings, binding_gl) < 0)
             return NGPU_ERROR_MEMORY;
@@ -126,8 +127,11 @@ static int build_buffer_bindings(struct ngpu_bindgroup *s)
             s_priv->use_barriers = 1;
         }
 
-        struct buffer_binding_gl binding = {
+        const struct buffer_binding_gl binding = {
             .layout_entry = *layout_entry,
+            .buffer = s->buffers[i].buffer,
+            .offset = s->buffers[i].offset,
+            .size = s->buffers[i].size,
         };
         if (ngpu_darray_try_push(&s_priv->buffer_bindings, binding) < 0)
             return NGPU_ERROR_MEMORY;
@@ -185,55 +189,21 @@ struct ngpu_bindgroup *ngpu_bindgroup_gl_create(struct ngpu_ctx *gpu_ctx)
     return (struct ngpu_bindgroup *)s;
 }
 
-static void unref_texture_binding(void *user_arg, void *data)
+int ngpu_bindgroup_gl_init(struct ngpu_bindgroup *s)
 {
-    struct texture_binding_gl *binding = data;
-    NGPU_RC_UNREFP(&binding->texture);
-}
-
-static void unref_buffer_binding(void *user_arg, void *data)
-{
-    struct buffer_binding_gl *binding = data;
-    NGPU_RC_UNREFP(&binding->buffer);
-}
-
-int ngpu_bindgroup_gl_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params)
-{
-    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
-
-    s->layout = params->layout;
-
-    ngpu_darray_set_free_func(&s_priv->texture_bindings, unref_texture_binding, NULL);
-    ngpu_darray_set_free_func(&s_priv->buffer_bindings, unref_buffer_binding, NULL);
-
     int ret;
-    if((ret = build_texture_bindings(s)) < 0 ||
-       (ret = build_buffer_bindings(s)) < 0)
+    if ((ret = build_texture_bindings(s)) < 0 ||
+        (ret = build_buffer_bindings(s)) < 0)
         return ret;
-
     return 0;
 }
 
-int ngpu_bindgroup_gl_update_texture(struct ngpu_bindgroup *s, uint32_t index, const struct ngpu_texture_binding *binding)
+void ngpu_bindgroup_gl_reset(struct ngpu_bindgroup *s)
 {
     struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
-    struct texture_binding_gl *binding_gl = &s_priv->texture_bindings.data[index];
-    NGPU_RC_UNREFP(&binding_gl->texture);
-    binding_gl->texture = binding->texture ? NGPU_RC_REF(binding->texture) : NULL;
-
-    return 0;
-}
-
-int ngpu_bindgroup_gl_update_buffer(struct ngpu_bindgroup *s, uint32_t index, const struct ngpu_buffer_binding *binding)
-{
-    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
-    struct buffer_binding_gl *binding_gl = &s_priv->buffer_bindings.data[index];
-    NGPU_RC_UNREFP(&binding_gl->buffer);
-    binding_gl->buffer = binding->buffer ? NGPU_RC_REF(binding->buffer) : NULL;
-    binding_gl->offset = binding->offset;
-    binding_gl->size = binding->size;
-
-    return 0;
+    ngpu_darray_clear(&s_priv->texture_bindings);
+    ngpu_darray_clear(&s_priv->buffer_bindings);
+    s_priv->use_barriers = 0;
 }
 
 static const GLenum gl_access_map[NGPU_ACCESS_NB] = {

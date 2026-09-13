@@ -1099,8 +1099,7 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
                                                                                  \
     .bindgroup_create                   = ngpu_bindgroup_gl_create,              \
     .bindgroup_init                     = ngpu_bindgroup_gl_init,                \
-    .bindgroup_update_texture           = ngpu_bindgroup_gl_update_texture,      \
-    .bindgroup_update_buffer            = ngpu_bindgroup_gl_update_buffer,       \
+    .bindgroup_reset                    = ngpu_bindgroup_gl_reset,      \
     .bindgroup_freep                    = ngpu_bindgroup_gl_freep,               \
                                                                                  \
     .pipeline_create                    = ngpu_pipeline_gl_create,               \

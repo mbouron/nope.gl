@@ -99,18 +99,6 @@ struct blit_ctx *viewer_blit_create(struct ngpu_ctx *gpu_ctx)
     if (ngpu_bindgroup_layout_init(s->bindgroup_layout, &bg_layout_desc) < 0)
         goto fail;
 
-    struct ngpu_bindgroup_resources bg_resources = ngpu_pgcraft_get_bindgroup_resources(s->crafter);
-
-    const struct ngpu_bindgroup_params bg_params = {
-        .layout    = s->bindgroup_layout,
-        .resources = bg_resources,
-    };
-    s->bindgroup = ngpu_bindgroup_create(gpu_ctx);
-    if (!s->bindgroup)
-        goto fail;
-    if (ngpu_bindgroup_init(s->bindgroup, &bg_params) < 0)
-        goto fail;
-
     const struct ngpu_graphics_state state = {
         .blend            = 0,
         .color_write_mask = NGPU_COLOR_COMPONENT_R_BIT
@@ -160,7 +148,16 @@ void viewer_blit_draw(struct blit_ctx *s, struct ngpu_texture *tex,
         const struct ngpu_texture_binding binding = {
             .texture = tex,
         };
-        ngpu_bindgroup_update_texture(s->bindgroup, 0, &binding);
+        const struct ngpu_bindgroup_desc desc = {
+            .layout = s->bindgroup_layout,
+            .textures = &binding,
+            .nb_textures = 1,
+        };
+        struct ngpu_bindgroup *bindgroup = ngpu_bindgroup_create(s->gpu_ctx, &desc);
+        if (!bindgroup)
+            return;
+        ngpu_bindgroup_freep(&s->bindgroup);
+        s->bindgroup = bindgroup;
         s->current_tex = tex;
     }
 

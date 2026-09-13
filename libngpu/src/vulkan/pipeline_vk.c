@@ -434,9 +434,6 @@ static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuf
     if (!gpu_ctx->bindgroup)
         return 0;
 
-    ngpu_bindgroup_vk_update_descriptor_set(gpu_ctx->bindgroup);
-
-    NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, gpu_ctx->bindgroup);
     struct ngpu_bindgroup_vk *bindgroup_vk = NGPU_PRIV_VK(gpu_ctx->bindgroup);
     if (bindgroup_vk->desc_set) {
         ngpu_darray_foreach(binding, &bindgroup_vk->buffer_bindings)
