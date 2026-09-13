@@ -239,6 +239,11 @@ static VkResult ngpu_bindgroup_layout_vk_allocate_set(struct ngpu_bindgroup_layo
 
     *desc_set = VK_NULL_HANDLE;
 
+    if (!ngpu_darray_is_empty(&s_priv->free_desc_sets)) {
+        *desc_set = *ngpu_darray_pop(&s_priv->free_desc_sets);
+        return VK_SUCCESS;
+    }
+
     for (size_t i = 0; i < s_priv->desc_pools.count; i++) {
         const size_t pool_index = (i + s_priv->desc_pool_index) % s_priv->desc_pools.count;
 
@@ -312,6 +317,7 @@ void ngpu_bindgroup_layout_vk_freep(struct ngpu_bindgroup_layout **sp)
 
     ngpu_darray_reset(&s_priv->desc_set_layout_bindings);
     ngpu_darray_reset(&s_priv->immutable_samplers);
+    ngpu_darray_reset(&s_priv->free_desc_sets);
     ngpu_darray_reset(&s_priv->desc_pools);
 
     vk->funcs.DestroyDescriptorSetLayout(vk->device, s_priv->desc_set_layout, NULL);
@@ -406,7 +412,12 @@ int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s)
 void ngpu_bindgroup_vk_reset(struct ngpu_bindgroup *s)
 {
     struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
-    s_priv->desc_set = VK_NULL_HANDLE;
+    if (s_priv->desc_set != VK_NULL_HANDLE) {
+        struct ngpu_bindgroup_layout_vk *layout_priv = NGPU_PRIV_VK(s->layout);
+        if (ngpu_darray_try_push(&layout_priv->free_desc_sets, s_priv->desc_set) < 0)
+            LOG(WARNING, "could not recycle descriptor set, its pool will keep it until the layout is destroyed");
+        s_priv->desc_set = VK_NULL_HANDLE;
+    }
     ngpu_darray_clear(&s_priv->texture_bindings);
     ngpu_darray_clear(&s_priv->buffer_bindings);
     ngpu_darray_clear(&s_priv->write_desc_sets);
