@@ -42,6 +42,13 @@ static void bindgroup_layout_freep(void **layoutp)
         return;
 
     struct ngpu_bindgroup_layout *s = *sp;
+    while (s->free_bindgroups) {
+        struct ngpu_bindgroup *bindgroup = s->free_bindgroups;
+        s->free_bindgroups = bindgroup->next_free;
+        ngpu_freep(&bindgroup->textures);
+        ngpu_freep(&bindgroup->buffers);
+        s->gpu_ctx->cls->bindgroup_freep(&bindgroup);
+    }
     ngpu_freep(&s->buffers);
     ngpu_freep(&s->textures);
 
@@ -187,6 +194,7 @@ static void bindgroup_freep(void **bindgroupp)
     struct ngpu_bindgroup *s = *bindgroupp;
     struct ngpu_bindgroup_layout *layout = s->layout;
 
+    /* Command buffers retain this object through completion, so recycling is safe. */
     s->gpu_ctx->cls->bindgroup_reset(s);
     for (size_t i = 0; i < layout->nb_textures; i++) {
         NGPU_RC_UNREFP(&s->textures[i].texture);
@@ -196,9 +204,12 @@ static void bindgroup_freep(void **bindgroupp)
         NGPU_RC_UNREFP(&s->buffers[i].buffer);
         s->buffers[i] = (struct ngpu_buffer_binding){0};
     }
-    ngpu_freep(&s->textures);
-    ngpu_freep(&s->buffers);
-    s->gpu_ctx->cls->bindgroup_freep((struct ngpu_bindgroup **)bindgroupp);
+    s->layout = NULL;
+    s->next_free = layout->free_bindgroups;
+    layout->free_bindgroups = s;
+    *bindgroupp = NULL;
+
+    /* Keep the allocator alive until the storage has been returned to it. */
     ngpu_bindgroup_layout_freep(&layout);
 }
 
@@ -221,16 +232,22 @@ struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx, const str
     }
 
     struct ngpu_bindgroup_layout *layout = (struct ngpu_bindgroup_layout *)desc->layout;
-    struct ngpu_bindgroup *s = gpu_ctx->cls->bindgroup_create(gpu_ctx);
-    if (!s)
-        return NULL;
-    s->textures = ngpu_try_calloc(layout->nb_textures, sizeof(*s->textures));
-    s->buffers = ngpu_try_calloc(layout->nb_buffers, sizeof(*s->buffers));
-    if ((layout->nb_textures && !s->textures) || (layout->nb_buffers && !s->buffers)) {
-        ngpu_freep(&s->textures);
-        ngpu_freep(&s->buffers);
-        gpu_ctx->cls->bindgroup_freep(&s);
-        return NULL;
+    struct ngpu_bindgroup *s = layout->free_bindgroups;
+    if (s) {
+        layout->free_bindgroups = s->next_free;
+        s->next_free = NULL;
+    } else {
+        s = gpu_ctx->cls->bindgroup_create(gpu_ctx);
+        if (!s)
+            return NULL;
+        s->textures = ngpu_try_calloc(layout->nb_textures, sizeof(*s->textures));
+        s->buffers = ngpu_try_calloc(layout->nb_buffers, sizeof(*s->buffers));
+        if ((layout->nb_textures && !s->textures) || (layout->nb_buffers && !s->buffers)) {
+            ngpu_freep(&s->textures);
+            ngpu_freep(&s->buffers);
+            gpu_ctx->cls->bindgroup_freep(&s);
+            return NULL;
+        }
     }
     s->rc = NGPU_RC_CREATE(bindgroup_freep);
     s->layout = NGPU_RC_REF(layout);

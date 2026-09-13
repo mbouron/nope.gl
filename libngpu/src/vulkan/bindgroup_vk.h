@@ -55,6 +55,15 @@ struct ngpu_bindgroup_layout_vk {
     uint32_t max_desc_sets;
     NGPU_DARRAY(VkDescriptorPool) desc_pools;
     size_t desc_pool_index;
+    /*
+     * Sets of destroyed bindgroups, handed back out by allocate_set(). The
+     * pools are created without VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+     * so a set can never be returned to its pool individually; recycling the
+     * handle is what keeps the pools from growing with every bindgroup cycle.
+     * A recycled set keeps the descriptors written by its previous owner, so
+     * every binding must be written before it is used again.
+     */
+    NGPU_DARRAY(VkDescriptorSet) free_desc_sets;
 };
 
 struct ngpu_bindgroup_vk {

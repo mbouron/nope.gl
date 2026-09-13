@@ -40,6 +40,8 @@ struct ngpu_bindgroup_layout {
     struct ngpu_bindgroup_layout_entry *buffers;
     size_t nb_buffers;
     size_t nb_dynamic_offsets;
+    /* Free storage owns no resource or layout references. */
+    struct ngpu_bindgroup *free_bindgroups;
 };
 
 NGPU_RC_CHECK_STRUCT(ngpu_bindgroup_layout);
@@ -50,6 +52,7 @@ struct ngpu_bindgroup {
     struct ngpu_bindgroup_layout *layout;
     struct ngpu_texture_binding *textures;
     struct ngpu_buffer_binding *buffers;
+    struct ngpu_bindgroup *next_free;
 };
 
 NGPU_RC_CHECK_STRUCT(ngpu_bindgroup);
