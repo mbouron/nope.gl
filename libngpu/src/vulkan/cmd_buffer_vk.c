@@ -172,6 +172,8 @@ VkResult ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu
 
 VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
 {
+    s->applied_bindgroup = NULL;
+    s->applied_bindgroup_pipeline = NULL;
     ngpu_darray_clear(&s->refs);
     ngpu_darray_clear(&s->buffer_refs);
 
