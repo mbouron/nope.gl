@@ -654,20 +654,18 @@ struct ngpu_bindgroup_resources {
     size_t nb_buffers;
 };
 
-struct ngpu_bindgroup_params {
-    struct ngpu_bindgroup_layout *layout;
-    struct ngpu_bindgroup_resources resources;
+struct ngpu_bindgroup_desc {
+    const struct ngpu_bindgroup_layout *layout;
+    const struct ngpu_texture_binding *textures;
+    size_t nb_textures;
+    const struct ngpu_buffer_binding *buffers;
+    size_t nb_buffers;
 };
 
 struct ngpu_bindgroup;
 
-NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx);
-NGPU_API int ngpu_bindgroup_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params);
-NGPU_API int ngpu_bindgroup_update_texture(struct ngpu_bindgroup *s, int32_t index, const struct ngpu_texture_binding *binding);
-NGPU_API int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const struct ngpu_buffer_binding *binding);
+NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx, const struct ngpu_bindgroup_desc *desc);
 NGPU_API void ngpu_bindgroup_freep(struct ngpu_bindgroup **sp);
-
-NGPU_API size_t ngpu_bindgroup_get_refcount(const struct ngpu_bindgroup *s);
 
 /*
  * Rendertarget
