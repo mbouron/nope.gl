@@ -170,6 +170,8 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
 
     struct ngpu_rendertarget *cur_rendertarget = NULL;
     struct ngpu_pipeline *cur_pipeline = NULL;
+    const struct ngpu_cmd_gl *bindgroup_cmd = NULL;
+    bool bindgroup_dirty = true;
 
     ngpu_darray_foreach(cmd, &s->cmds) {
         switch (cmd->type) {
@@ -192,32 +194,45 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
             break;
         }
         case NGPU_CMD_TYPE_GL_BEGIN_RENDER_PASS: {
+            bindgroup_dirty = true;
             cur_rendertarget = cmd->begin_render_pass.rendertarget;
             ngpu_rendertarget_gl_begin_pass(cmd->begin_render_pass.rendertarget);
             break;
         }
         case NGPU_CMD_TYPE_GL_END_RENDER_PASS: {
+            bindgroup_dirty = true;
             ngpu_assert(cur_rendertarget != NULL);
             ngpu_rendertarget_gl_end_pass(cur_rendertarget);
             cur_rendertarget = NULL;
             break;
         }
         case NGPU_CMD_TYPE_GL_GENERATE_TEXTURE_MIPMAP: {
+            bindgroup_dirty = true;
             ngpu_texture_generate_mipmap(cmd->generate_texture_mipmap.texture);
             break;
         }
         case NGPU_CMD_TYPE_GL_SET_PIPELINE: {
+            if (cur_pipeline != cmd->set_pipeline.pipeline)
+                bindgroup_dirty = true;
             cur_pipeline = cmd->set_pipeline.pipeline;
             break;
         }
         case NGPU_CMD_TYPE_GL_SET_BINDGROUP: {
+            if (!bindgroup_cmd ||
+                bindgroup_cmd->set_bindgroup.bindgroup != cmd->set_bindgroup.bindgroup ||
+                cmd->set_bindgroup.nb_offsets)
+                bindgroup_dirty = true;
+            bindgroup_cmd = cmd;
             gpu_ctx->bindgroup = cmd->set_bindgroup.bindgroup;
-            ngpu_bindgroup_gl_bind(cmd->set_bindgroup.bindgroup,
-                                   cmd->set_bindgroup.offsets,
-                                   cmd->set_bindgroup.nb_offsets);
             break;
         }
         case NGPU_CMD_TYPE_GL_DRAW: {
+            if (bindgroup_cmd && bindgroup_dirty) {
+                ngpu_bindgroup_gl_bind(bindgroup_cmd->set_bindgroup.bindgroup,
+                                       bindgroup_cmd->set_bindgroup.offsets,
+                                       bindgroup_cmd->set_bindgroup.nb_offsets);
+                bindgroup_dirty = false;
+            }
             ngpu_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_draw(cur_pipeline,
                                   cmd->draw.nb_vertices,
@@ -226,6 +241,12 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
             break;
         }
         case NGPU_CMD_TYPE_GL_DRAW_INDEXED: {
+            if (bindgroup_cmd && bindgroup_dirty) {
+                ngpu_bindgroup_gl_bind(bindgroup_cmd->set_bindgroup.bindgroup,
+                                       bindgroup_cmd->set_bindgroup.offsets,
+                                       bindgroup_cmd->set_bindgroup.nb_offsets);
+                bindgroup_dirty = false;
+            }
             ngpu_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_draw_indexed(cur_pipeline,
                                           cmd->draw_indexed.nb_indices,
@@ -234,6 +255,12 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
             break;
         }
         case NGPU_CMD_TYPE_GL_DISPATCH: {
+            if (bindgroup_cmd && bindgroup_dirty) {
+                ngpu_bindgroup_gl_bind(bindgroup_cmd->set_bindgroup.bindgroup,
+                                       bindgroup_cmd->set_bindgroup.offsets,
+                                       bindgroup_cmd->set_bindgroup.nb_offsets);
+                bindgroup_dirty = false;
+            }
             ngpu_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_dispatch(cur_pipeline,
                                       cmd->dispatch.nb_group_x,
