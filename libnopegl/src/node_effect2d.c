@@ -131,7 +131,7 @@ struct effect2d_program {
 struct effect2d_priv {
     struct ngli_node2d_info node2d_info;
 
-    struct rtt_ctx *rtt;
+    struct rtt_ctx *rtt_ctx;
     struct ngpu_rendertarget_layout layout;
     float local_effect_margin;
     float rect[4];
@@ -630,15 +630,15 @@ static int effect2d_prepare(struct ngl_node *node,
 
 static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t width, uint32_t height)
 {
-    if (s->rtt) {
+    if (s->rtt_ctx) {
         uint32_t current_width, current_height;
-        ngli_rtt_get_dimensions(s->rtt, &current_width, &current_height);
+        ngli_rtt_get_dimensions(s->rtt_ctx, &current_width, &current_height);
         if (current_width == width && current_height == height)
             return 0;
     }
 
-    struct rtt_ctx *rtt = ngli_rtt_create(ctx);
-    if (!rtt)
+    struct rtt_ctx *rtt_ctx = ngli_rtt_create(ctx);
+    if (!rtt_ctx)
         return NGL_ERROR_MEMORY;
 
     const struct ngpu_texture_params tex_params = {
@@ -653,20 +653,20 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
         .wrap_s  = NGPU_WRAP_CLAMP_TO_EDGE,
         .wrap_t  = NGPU_WRAP_CLAMP_TO_EDGE,
     };
-    int ret = ngli_rtt_from_texture_params(rtt, &tex_params);
+    int ret = ngli_rtt_from_texture_params(rtt_ctx, &tex_params);
     if (ret < 0)
         goto fail;
 
-    ngli_rtt_freep(&s->rtt);
-    s->rtt = rtt;
+    ngli_rtt_freep(&s->rtt_ctx);
+    s->rtt_ctx = rtt_ctx;
 
-    struct image *image = ngli_rtt_get_image(s->rtt, 0);
+    struct image *image = ngli_rtt_get_image(s->rtt_ctx, 0);
     ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, image->coordinates_matrix.m);
 
     return 0;
 
 fail:
-    ngli_rtt_freep(&rtt);
+    ngli_rtt_freep(&rtt_ctx);
     return ret;
 }
 
@@ -821,7 +821,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     const struct ngli_mat4 prev_projection_2d = ctx->projection_2d_matrix;
 
-    ngli_rtt_begin(s->rtt);
+    ngli_rtt_begin(s->rtt_ctx);
 
     struct ngli_mat4 fbo_base_projection;
     ngpu_ctx_get_projection_matrix(gpu_ctx, fbo_base_projection.m);
@@ -832,7 +832,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
         ngli_node_draw(o->children[i]);
     }
 
-    ngli_rtt_end(s->rtt);
+    ngli_rtt_end(s->rtt_ctx);
 
     s->drawme = true;
 
@@ -882,8 +882,8 @@ static void effect2d_draw(struct ngl_node *node)
     struct effect2d_program *program = &s->programs.data[program_index];
     struct ngli_pipeline *pl = program->pipeline;
 
-    if (program->textures_map.count > 0 && s->rtt)
-        program->textures_map.data[0].image = ngli_rtt_get_image(s->rtt, 0);
+    if (program->textures_map.count > 0 && s->rtt_ctx)
+        program->textures_map.data[0].image = ngli_rtt_get_image(s->rtt_ctx, 0);
 
     /* Update textures */
     for (size_t i = 0; i < program->textures_map.count; i++)
@@ -953,7 +953,7 @@ static void effect2d_release(struct ngl_node *node)
 {
     struct effect2d_priv *s = node->priv_data;
 
-    ngli_rtt_freep(&s->rtt);
+    ngli_rtt_freep(&s->rtt_ctx);
 }
 
 static void effect2d_uninit(struct ngl_node *node)
