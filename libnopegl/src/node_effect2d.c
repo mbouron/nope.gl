@@ -635,10 +635,8 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
     if (s->width == width && s->height == height && s->rtt)
         return 0;
 
-    ngli_rtt_freep(&s->rtt);
-
-    s->rtt = ngli_rtt_create(ctx);
-    if (!s->rtt)
+    struct rtt_ctx *rtt = ngli_rtt_create(ctx);
+    if (!rtt)
         return NGL_ERROR_MEMORY;
 
     const struct ngpu_texture_params tex_params = {
@@ -653,9 +651,12 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
         .wrap_s  = NGPU_WRAP_CLAMP_TO_EDGE,
         .wrap_t  = NGPU_WRAP_CLAMP_TO_EDGE,
     };
-    int ret = ngli_rtt_from_texture_params(s->rtt, &tex_params);
+    int ret = ngli_rtt_from_texture_params(rtt, &tex_params);
     if (ret < 0)
-        return ret;
+        goto fail;
+
+    ngli_rtt_freep(&s->rtt);
+    s->rtt = rtt;
 
     struct image *image = ngli_rtt_get_image(s->rtt, 0);
     ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, image->coordinates_matrix.m);
@@ -664,6 +665,10 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
     s->height = height;
 
     return 0;
+
+fail:
+    ngli_rtt_freep(&rtt);
+    return ret;
 }
 
 static void compute_bounds(struct ngl_node *node)
