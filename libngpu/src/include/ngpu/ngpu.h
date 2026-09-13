@@ -663,6 +663,13 @@ struct ngpu_bindgroup;
 
 NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx);
 NGPU_API int ngpu_bindgroup_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params);
+/*
+ * A bindgroup borrows the resources it is given: the caller must keep a binding
+ * alive until the bindgroup is bound or the binding is replaced. Once bound,
+ * the command buffer holds its own reference for as long as the submission
+ * refers to the descriptors, so a resource released afterwards is destroyed
+ * only when that submission retires.
+ */
 NGPU_API int ngpu_bindgroup_update_texture(struct ngpu_bindgroup *s, int32_t index, const struct ngpu_texture_binding *binding);
 NGPU_API int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const struct ngpu_buffer_binding *binding);
 NGPU_API void ngpu_bindgroup_freep(struct ngpu_bindgroup **sp);

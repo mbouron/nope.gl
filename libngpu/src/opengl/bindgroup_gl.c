@@ -185,26 +185,9 @@ struct ngpu_bindgroup *ngpu_bindgroup_gl_create(struct ngpu_ctx *gpu_ctx)
     return (struct ngpu_bindgroup *)s;
 }
 
-static void unref_texture_binding(void *user_arg, void *data)
-{
-    struct texture_binding_gl *binding = data;
-    NGPU_RC_UNREFP(&binding->texture);
-}
-
-static void unref_buffer_binding(void *user_arg, void *data)
-{
-    struct buffer_binding_gl *binding = data;
-    NGPU_RC_UNREFP(&binding->buffer);
-}
-
 int ngpu_bindgroup_gl_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params)
 {
-    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
-
     s->layout = params->layout;
-
-    ngpu_darray_set_free_func(&s_priv->texture_bindings, unref_texture_binding, NULL);
-    ngpu_darray_set_free_func(&s_priv->buffer_bindings, unref_buffer_binding, NULL);
 
     int ret;
     if((ret = build_texture_bindings(s)) < 0 ||
@@ -218,8 +201,8 @@ int ngpu_bindgroup_gl_update_texture(struct ngpu_bindgroup *s, uint32_t index, c
 {
     struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
     struct texture_binding_gl *binding_gl = &s_priv->texture_bindings.data[index];
-    NGPU_RC_UNREFP(&binding_gl->texture);
-    binding_gl->texture = binding->texture ? NGPU_RC_REF(binding->texture) : NULL;
+    /* Borrowed, see ngpu_bindgroup_update_texture() */
+    binding_gl->texture = binding->texture;
 
     return 0;
 }
@@ -228,8 +211,8 @@ int ngpu_bindgroup_gl_update_buffer(struct ngpu_bindgroup *s, uint32_t index, co
 {
     struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
     struct buffer_binding_gl *binding_gl = &s_priv->buffer_bindings.data[index];
-    NGPU_RC_UNREFP(&binding_gl->buffer);
-    binding_gl->buffer = binding->buffer ? NGPU_RC_REF(binding->buffer) : NULL;
+    /* Borrowed, see ngpu_bindgroup_update_buffer() */
+    binding_gl->buffer = binding->buffer;
     binding_gl->offset = binding->offset;
     binding_gl->size = binding->size;
 

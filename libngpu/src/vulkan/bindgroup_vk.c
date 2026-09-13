@@ -322,18 +322,6 @@ struct ngpu_bindgroup *ngpu_bindgroup_vk_create(struct ngpu_ctx *gpu_ctx)
     return (struct ngpu_bindgroup *)s;
 }
 
-static void unref_texture_binding(void *user_arg, void *data)
-{
-    struct texture_binding_vk *binding = data;
-    NGPU_RC_UNREFP(&binding->texture);
-}
-
-static void unref_buffer_binding(void *user_arg, void *data)
-{
-    struct buffer_binding_vk *binding = data;
-    NGPU_RC_UNREFP(&binding->buffer);
-}
-
 int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup_params *params)
 {
     struct ngpu_bindgroup_vk *s_priv = NGPU_PRIV_VK(s);
@@ -345,9 +333,6 @@ int ngpu_bindgroup_vk_init(struct ngpu_bindgroup *s, const struct ngpu_bindgroup
         ngpu_assert(params->resources.nb_textures == params->layout->nb_textures);
 
     s->layout = NGPU_RC_REF(params->layout);
-
-    ngpu_darray_set_free_func(&s_priv->texture_bindings, unref_texture_binding, NULL);
-    ngpu_darray_set_free_func(&s_priv->buffer_bindings, unref_buffer_binding, NULL);
 
     VkResult res = ngpu_bindgroup_layout_vk_allocate_set(s->layout, &s_priv->desc_set);
     if (res != VK_SUCCESS) {
@@ -391,13 +376,12 @@ int ngpu_bindgroup_vk_update_texture(struct ngpu_bindgroup *s, uint32_t index, c
 
     struct texture_binding_vk *binding_vk = &s_priv->texture_bindings.data[index];
 
-    NGPU_RC_UNREFP(&binding_vk->texture);
-
+    /* Borrowed, see ngpu_bindgroup_update_texture() */
     const struct ngpu_texture *texture = binding->texture;
     if (!texture)
         texture = gpu_ctx_vk->dummy_texture;
 
-    binding_vk->texture = NGPU_RC_REF(texture);
+    binding_vk->texture = texture;
     binding_vk->update_desc = 1;
 
     return 0;
@@ -409,13 +393,8 @@ int ngpu_bindgroup_vk_update_buffer(struct ngpu_bindgroup *s, uint32_t index, co
 
     struct buffer_binding_vk *binding_vk = &s_priv->buffer_bindings.data[index];
 
-    NGPU_RC_UNREFP(&binding_vk->buffer);
-
-    const struct ngpu_buffer *buffer = binding->buffer;
-    if (buffer)
-        buffer = NGPU_RC_REF(binding->buffer);
-
-    binding_vk->buffer = buffer;
+    /* Borrowed, see ngpu_bindgroup_update_buffer() */
+    binding_vk->buffer = binding->buffer;
     binding_vk->offset = binding->offset;
     binding_vk->size   = binding->size;
     binding_vk->update_desc = 1;
