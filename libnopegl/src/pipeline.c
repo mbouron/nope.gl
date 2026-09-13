@@ -30,6 +30,9 @@
 #include "utils/memory.h"
 #include "utils/utils.h"
 
+/* Two entries cover the observed recurring staging-buffer binding sets. */
+#define BINDGROUP_CACHE_CAPACITY 2
+
 struct ngli_pipeline {
     struct ngpu_ctx *gpu_ctx;
     enum ngpu_pipeline_type type;
@@ -39,6 +42,7 @@ struct ngli_pipeline {
     struct ngpu_bindgroup_layout_desc bindgroup_layout_desc;
     struct ngpu_bindgroup_layout *bindgroup_layout;
     struct ngpu_bindgroup *cur_bindgroup;
+    struct ngpu_bindgroup_cache *bindgroup_cache;
     const struct ngpu_buffer **vertex_buffers;
     size_t nb_vertex_buffers;
     struct ngpu_texture_binding *textures;
@@ -101,6 +105,7 @@ static int create_pipeline(struct ngli_pipeline *s)
 static void reset_pipeline(struct ngli_pipeline *s)
 {
     ngpu_pipeline_freep(&s->pipeline);
+    ngpu_bindgroup_cache_clear(s->bindgroup_cache);
     ngpu_bindgroup_freep(&s->cur_bindgroup);
     ngpu_bindgroup_layout_freep(&s->bindgroup_layout);
 }
@@ -363,7 +368,12 @@ static int prepare_bindgroup(struct ngli_pipeline *s)
         .buffers     = s->buffers,
         .nb_buffers  = s->nb_buffers,
     };
-    struct ngpu_bindgroup *bindgroup = ngpu_bindgroup_create(s->gpu_ctx, &desc);
+    if (!s->bindgroup_cache) {
+        s->bindgroup_cache = ngpu_bindgroup_cache_create(s->gpu_ctx, BINDGROUP_CACHE_CAPACITY);
+        if (!s->bindgroup_cache)
+            return NGL_ERROR_MEMORY;
+    }
+    struct ngpu_bindgroup *bindgroup = ngpu_bindgroup_cache_get(s->bindgroup_cache, &desc);
     if (!bindgroup)
         return NGL_ERROR_MEMORY;
     ngpu_bindgroup_freep(&s->cur_bindgroup);
@@ -431,6 +441,7 @@ void ngli_pipeline_discard_resources(struct ngli_pipeline *s)
 {
     if (!s)
         return;
+    ngpu_bindgroup_cache_clear(s->bindgroup_cache);
     ngpu_bindgroup_freep(&s->cur_bindgroup);
     for (size_t i = 0; i < s->nb_textures; i++) {
         ngpu_texture_freep((struct ngpu_texture **)&s->textures[i].texture);
@@ -468,5 +479,6 @@ void ngli_pipeline_freep(struct ngli_pipeline **sp)
     ngli_freep(&s->dynamic_offset_indices);
     ngli_freep(&s->images);
 
+    ngpu_bindgroup_cache_freep(&s->bindgroup_cache);
     ngli_freep(sp);
 }
