@@ -525,10 +525,10 @@ static int inject_texture_info_block(struct ngpu_pgcraft *s)
     if (ngpu_darray_try_push(&s->symbols, sym) < 0)
         return NGPU_ERROR_MEMORY;
 
-    const int32_t binding = (int32_t)request_next_binding(s, NGPU_TYPE_UNIFORM_BUFFER);
+    const int32_t binding = (int32_t)request_next_binding(s, NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC);
     const struct ngpu_bindgroup_layout_entry layout_entry = {
         .id          = s->symbols.count - 1,
-        .type        = NGPU_TYPE_UNIFORM_BUFFER,
+        .type        = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .binding     = (uint32_t)binding,
         .access      = NGPU_ACCESS_READ_BIT,
         .stage_flags = stage_flags,
