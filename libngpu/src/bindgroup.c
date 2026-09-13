@@ -31,7 +31,8 @@ static int layout_entry_is_compatible(const struct ngpu_bindgroup_layout_entry *
     return a->type        == b->type    &&
            a->binding     == b->binding &&
            a->access      == b->access  &&
-           a->stage_flags == b->stage_flags;
+           a->stage_flags == b->stage_flags &&
+           a->immutable_sampler == b->immutable_sampler;
 }
 
 static void bindgroup_layout_freep(void **layoutp)
@@ -135,6 +136,7 @@ int ngpu_bindgroup_update_texture(struct ngpu_bindgroup *s, int32_t index, const
         return NGPU_ERROR_NOT_FOUND;
 
     ngpu_assert(index >= 0 && index < s->layout->nb_textures);
+    ngpu_assert(binding->immutable_sampler == s->layout->textures[index].immutable_sampler);
 
     if (binding->texture) {
         const struct ngpu_texture *texture = binding->texture;
@@ -177,10 +179,15 @@ int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const 
         const uint32_t buffer_usage = ngpu_buffer_get_usage(buffer);
         const size_t buffer_size = ngpu_buffer_get_size(buffer);
         const size_t binding_size = binding->size;
+        ngpu_assert(binding_size);
+        ngpu_assert(binding->offset <= buffer_size);
+        ngpu_assert(binding_size <= buffer_size - binding->offset);
         const struct ngpu_bindgroup_layout_entry *entry = &s->layout->buffers[index];
         if (entry->type == NGPU_TYPE_UNIFORM_BUFFER ||
             entry->type == NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC) {
             ngpu_assert(buffer_usage & NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+            const size_t alignment = limits->min_uniform_block_offset_alignment;
+            ngpu_assert(!alignment || binding->offset % alignment == 0);
             if (binding_size > limits->max_uniform_block_size) {
                 LOG(ERROR, "buffer (binding=%u) size (%zu) exceeds max uniform block size (%u)",
                     entry->binding, buffer_size, limits->max_uniform_block_size);
@@ -189,6 +196,8 @@ int ngpu_bindgroup_update_buffer(struct ngpu_bindgroup *s, int32_t index, const 
         } else if (entry->type == NGPU_TYPE_STORAGE_BUFFER ||
                    entry->type == NGPU_TYPE_STORAGE_BUFFER_DYNAMIC) {
             ngpu_assert(buffer_usage & NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+            const size_t alignment = limits->min_storage_block_offset_alignment;
+            ngpu_assert(!alignment || binding->offset % alignment == 0);
             if (binding_size > limits->max_storage_block_size) {
                 LOG(ERROR, "buffer (binding=%u) size (%zu) exceeds max storage block size (%u)",
                     entry->binding, buffer_size, limits->max_storage_block_size);
