@@ -668,6 +668,14 @@ struct ngpu_bindgroup;
 NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_create(struct ngpu_ctx *gpu_ctx, const struct ngpu_bindgroup_desc *desc);
 NGPU_API void ngpu_bindgroup_freep(struct ngpu_bindgroup **sp);
 
+struct ngpu_bindgroup_cache;
+
+NGPU_API struct ngpu_bindgroup_cache *ngpu_bindgroup_cache_create(struct ngpu_ctx *gpu_ctx, size_t capacity);
+NGPU_API struct ngpu_bindgroup *ngpu_bindgroup_cache_get(struct ngpu_bindgroup_cache *s, const struct ngpu_bindgroup_desc *desc);
+
+NGPU_API void ngpu_bindgroup_cache_clear(struct ngpu_bindgroup_cache *s);
+NGPU_API void ngpu_bindgroup_cache_freep(struct ngpu_bindgroup_cache **sp);
+
 /*
  * Rendertarget
  */
