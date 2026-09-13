@@ -203,8 +203,125 @@ static void retire_submissions(struct ngpu_ctx *ctx)
     }
 }
 
-static void test_bindgroups(struct ngpu_ctx *ctx, uint8_t *capture, bool dynamic)
+static void test_cache(struct ngpu_ctx *ctx)
 {
+    const struct ngpu_memory_stats initial_memory = *ngpu_ctx_get_memory_stats(ctx);
+    ngpu_assert(!ngpu_bindgroup_cache_create(ctx, 0));
+    ngpu_assert(!ngpu_bindgroup_cache_create(ctx, SIZE_MAX));
+    ngpu_assert(!ngpu_bindgroup_cache_create(NULL, 2));
+    struct ngpu_bindgroup_cache *cache = ngpu_bindgroup_cache_create(ctx, 2);
+    ngpu_assert(cache);
+
+    struct ngpu_bindgroup_layout_entry buffer_entries[] = {
+        {.type=NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC, .binding=0, .stage_flags=NGPU_PROGRAM_STAGE_FRAGMENT_BIT},
+        {.type=NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC, .binding=1, .stage_flags=NGPU_PROGRAM_STAGE_FRAGMENT_BIT},
+    };
+    struct ngpu_bindgroup_layout_entry texture_entries[] = {
+        {.type=NGPU_TYPE_SAMPLER_2D, .binding=2, .stage_flags=NGPU_PROGRAM_STAGE_FRAGMENT_BIT},
+        {.type=NGPU_TYPE_SAMPLER_2D, .binding=3, .stage_flags=NGPU_PROGRAM_STAGE_FRAGMENT_BIT},
+    };
+    struct ngpu_bindgroup_layout_desc layout_desc = {
+        .textures=texture_entries, .nb_textures=2, .buffers=buffer_entries, .nb_buffers=2,
+    };
+    struct ngpu_bindgroup_layout *layouts[2];
+    for (size_t i = 0; i < 2; i++) {
+        layouts[i] = ngpu_bindgroup_layout_create(ctx);
+        ngpu_assert(layouts[i] && ngpu_bindgroup_layout_init(layouts[i], &layout_desc) == 0);
+    }
+    ngpu_assert(ngpu_ctx_begin_update(ctx) == 0);
+    struct ngpu_texture *red = create_texture(ctx, (const uint8_t[]){255, 0, 0, 255});
+    struct ngpu_texture *green = create_texture(ctx, (const uint8_t[]){0, 255, 0, 255});
+    const size_t stride = NGPU_MAX(16U, ngpu_ctx_get_limits(ctx)->min_uniform_block_offset_alignment);
+    struct ngpu_buffer *buffers[2];
+    for (size_t i = 0; i < 2; i++) {
+        buffers[i] = ngpu_buffer_create(ctx);
+        ngpu_assert(buffers[i] && ngpu_buffer_init(buffers[i], 2 * stride + 32, NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT) == 0);
+    }
+    struct ngpu_texture_binding textures[] = {{.texture=red}, {.texture=green}};
+    struct ngpu_buffer_binding bindings[] = {{.buffer=buffers[0], .size=16}, {.buffer=buffers[1], .size=16}};
+    const struct ngpu_bindgroup_desc desc = {
+        .layout=layouts[0], .textures=textures, .nb_textures=2, .buffers=bindings, .nb_buffers=2,
+    };
+    struct ngpu_bindgroup *a = ngpu_bindgroup_cache_get(cache, &desc);
+    ngpu_assert(a);
+
+    for (size_t i = 0; i < 7; i++) {
+        struct ngpu_texture_binding varied_textures[2];
+        struct ngpu_buffer_binding varied_buffers[2];
+        memcpy(varied_textures, textures, sizeof(textures));
+        memcpy(varied_buffers, bindings, sizeof(bindings));
+        struct ngpu_bindgroup_desc varied = desc;
+        varied.textures = varied_textures;
+        varied.buffers = varied_buffers;
+        switch (i) {
+        case 0: varied_buffers[0].buffer = buffers[1]; break;
+        case 1: varied_buffers[0].offset = stride; break;
+        case 2: varied_buffers[0].size = 32; break;
+        case 3: varied_buffers[0].buffer = buffers[1]; varied_buffers[1].buffer = buffers[0]; break;
+        case 4: varied_textures[0].texture = green; break;
+        case 5: varied_textures[0].texture = green; varied_textures[1].texture = red; break;
+        case 6: varied.layout = layouts[1]; break;
+        }
+        struct ngpu_bindgroup *different = ngpu_bindgroup_cache_get(cache, &varied);
+        ngpu_assert(different && different != a);
+        ngpu_bindgroup_freep(&different);
+        struct ngpu_bindgroup *hit = ngpu_bindgroup_cache_get(cache, &desc);
+        ngpu_assert(hit == a); /* Touching A keeps it while the other entry is evicted. */
+        ngpu_bindgroup_freep(&hit);
+    }
+
+    struct ngpu_bindgroup_desc invalid = desc;
+    invalid.nb_buffers = 1;
+    ngpu_assert(!ngpu_bindgroup_cache_get(cache, &invalid));
+    invalid.nb_buffers = 2;
+    invalid.buffers = NULL;
+    ngpu_assert(!ngpu_bindgroup_cache_get(cache, &invalid));
+    textures[0].immutable_sampler = layouts[0];
+    ngpu_assert(!ngpu_bindgroup_cache_get(cache, &desc));
+    textures[0].immutable_sampler = NULL;
+    ngpu_assert(!ngpu_bindgroup_cache_get(cache, NULL));
+    ngpu_assert(!ngpu_bindgroup_cache_get(NULL, &desc));
+    struct ngpu_bindgroup *hit = ngpu_bindgroup_cache_get(cache, &desc);
+    ngpu_assert(hit == a); /* Invalid lookups must leave valid entries intact. */
+    ngpu_bindgroup_freep(&hit);
+
+    /* Eviction and clear must preserve previously returned references. */
+    bindings[0].size = 32;
+    struct ngpu_bindgroup *b = ngpu_bindgroup_cache_get(cache, &desc);
+    bindings[0].size = 48;
+    struct ngpu_bindgroup *c = ngpu_bindgroup_cache_get(cache, &desc);
+    ngpu_assert(b && c && a->buffers[0].size == 16);
+    bindings[0].size = 16;
+    struct ngpu_bindgroup *a_miss = ngpu_bindgroup_cache_get(cache, &desc);
+    ngpu_assert(a_miss && a_miss != a);
+    ngpu_bindgroup_cache_clear(cache);
+    ngpu_bindgroup_cache_clear(cache);
+    ngpu_bindgroup_cache_freep(&cache);
+    ngpu_bindgroup_cache_freep(&cache);
+    ngpu_bindgroup_cache_clear(NULL);
+    for (size_t i = 0; i < 2; i++) {
+        ngpu_buffer_freep(&buffers[i]);
+        ngpu_bindgroup_layout_freep(&layouts[i]);
+    }
+    ngpu_texture_freep(&red);
+    ngpu_texture_freep(&green);
+    ngpu_assert(ngpu_buffer_get_size(a->buffers[0].buffer) == 2 * stride + 32);
+    ngpu_assert(ngpu_texture_get_params(b->textures[0].texture)->width == 1);
+    ngpu_bindgroup_freep(&a);
+    ngpu_bindgroup_freep(&b);
+    ngpu_bindgroup_freep(&c);
+    ngpu_bindgroup_freep(&a_miss);
+    ngpu_assert(ngpu_ctx_end_update(ctx, NULL) == 0);
+    retire_submissions(ctx);
+    const struct ngpu_memory_stats *memory = ngpu_ctx_get_memory_stats(ctx);
+    ngpu_assert(memory->buffer_bytes == initial_memory.buffer_bytes);
+    ngpu_assert(memory->texture_bytes == initial_memory.texture_bytes);
+}
+
+static void test_bindgroups(struct ngpu_ctx *ctx, uint8_t *capture, bool dynamic, bool cached)
+{
+    struct ngpu_bindgroup_cache *cache = cached ? ngpu_bindgroup_cache_create(ctx, 2) : NULL;
+    ngpu_assert(!cached || cache);
     const struct ngpu_memory_stats initial_memory = *ngpu_ctx_get_memory_stats(ctx);
     ngpu_assert(ngpu_ctx_begin_update(ctx) == 0);
     struct ngpu_texture *red = create_texture(ctx, (const uint8_t[]){255, 0, 0, 255});
@@ -278,8 +395,13 @@ static void test_bindgroups(struct ngpu_ctx *ctx, uint8_t *capture, bool dynamic
     ngpu_assert(red->rc.count == red_refs && buffer->rc.count == buffer_refs);
     a = ngpu_bindgroup_create(ctx, &desc);
     ngpu_assert(a == storage);
+    if (cached) {
+        ngpu_bindgroup_freep(&a);
+        a = ngpu_bindgroup_cache_get(cache, &desc);
+        ngpu_assert(a);
+    }
     texture_binding.texture = green;
-    struct ngpu_bindgroup *b = ngpu_bindgroup_create(ctx, &desc);
+    struct ngpu_bindgroup *b = cached ? ngpu_bindgroup_cache_get(cache, &desc) : ngpu_bindgroup_create(ctx, &desc);
     ngpu_assert(b && b != a);
     ngpu_assert(a->textures[0].texture == red && b->textures[0].texture == green);
     texture_binding.texture = NULL;
@@ -310,6 +432,14 @@ static void test_bindgroups(struct ngpu_ctx *ctx, uint8_t *capture, bool dynamic
         uint32_t offset = 0;
         ngpu_ctx_set_bindgroup(ctx, a, &offset, dynamic);
         ngpu_ctx_draw(ctx, 3, 1, 0);
+        if (cached) {
+            const struct ngpu_bindgroup_desc hit_desc = {
+                .layout=a->layout, .textures=a->textures, .nb_textures=1, .buffers=a->buffers, .nb_buffers=1,
+            };
+            struct ngpu_bindgroup *hit = ngpu_bindgroup_cache_get(cache, &hit_desc);
+            ngpu_assert(hit == a); /* Exact matches can be reused while referenced by recorded work. */
+            ngpu_bindgroup_freep(&hit);
+        }
         ngpu_ctx_set_bindgroup(ctx, a, &offset, dynamic);
         ngpu_ctx_draw(ctx, 3, 1, 0);
         ngpu_ctx_set_viewport(ctx, &(struct ngpu_viewport){.x=1, .width=1, .height=1});
@@ -323,6 +453,7 @@ static void test_bindgroups(struct ngpu_ctx *ctx, uint8_t *capture, bool dynamic
         ngpu_ctx_end_render_pass(ctx);
         if (frame) {
             /* Recorded commands keep the objects and their resources alive. */
+            ngpu_bindgroup_cache_freep(&cache);
             ngpu_assert(a->rc.count > 1);
             ngpu_bindgroup_freep(&a);
             ngpu_bindgroup_freep(&b);
@@ -334,6 +465,12 @@ static void test_bindgroups(struct ngpu_ctx *ctx, uint8_t *capture, bool dynamic
         ngpu_ctx_wait_idle(ctx);
         const uint8_t expected[] = {frame ? 128 : 255, 0, 0, 255,
                                    0, frame && !dynamic ? 128 : 255, 0, 255};
+        if (memcmp(capture, expected, sizeof(expected))) {
+            fprintf(stderr, "capture mismatch (cached=%d, dynamic=%d, frame=%u):", cached, dynamic, frame);
+            for (size_t i = 0; i < sizeof(expected); i++)
+                fprintf(stderr, " %u/%u", (unsigned)capture[i], (unsigned)expected[i]);
+            fprintf(stderr, "\n");
+        }
         ngpu_assert(!memcmp(capture, expected, sizeof(expected)));
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
         if (ngpu_ctx_get_backend_type(ctx) != NGPU_BACKEND_VULKAN)
@@ -410,13 +547,16 @@ int main(int argc, char **argv)
     retire_submissions(ctx); /* Warm the default targets and readback buffers. */
     test_dynamic_layouts(ctx);
     test_metadata(ctx);
-    test_bindgroups(ctx, capture, false);
-    test_bindgroups(ctx, capture, true);
+    test_bindgroups(ctx, capture, false, false);
+    test_bindgroups(ctx, capture, true, false);
 #if defined(BACKEND_VK)
     if (backend == NGPU_BACKEND_VULKAN) {
         ngpu_assert(write_calls == 6 && descriptor_writes == 12);
     }
 #endif
+    test_cache(ctx);
+    test_bindgroups(ctx, capture, false, true);
+    test_bindgroups(ctx, capture, true, true);
     ngpu_ctx_freep(&ctx);
     return 0;
 }
