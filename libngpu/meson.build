@@ -165,6 +165,7 @@ inc_dir = include_directories(
 lib_version = '0.0.0'
 lib_src = files(
   'src/bindgroup.c',
+  'src/bindgroup_cache.c',
   'src/block_desc.c',
   'src/buffer.c',
   'src/ctx.c',

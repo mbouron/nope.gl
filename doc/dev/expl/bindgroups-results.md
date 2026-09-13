@@ -26,9 +26,10 @@ with equality checks in the pipeline. Activity-release callbacks discard the
 bindings; reactivation restores the vertex, buffer and texture inputs, including
 text background and foreground resources.
 
-The optional cache of complete binding sets remains deferred in the production
-implementation. A subsequent [cache experiment](bindgroups-cache-results.md)
-compares capacities of two, four and eight in temporary builds.
+The baseline described here precedes the optional cache of complete binding
+sets. A subsequent [cache experiment](bindgroups-cache-results.md) compares
+capacities of two, four and eight. The cache is introduced separately, with
+two entries per pipeline and clearing on discard or pipeline rebuild.
 
 ## Validation
 
