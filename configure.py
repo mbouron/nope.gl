@@ -215,10 +215,10 @@ _EXTERNAL_DEPS = dict(
         sha256="aae608dfe8213dfd05d909a57718ef82f30722c392344583d3f39050c7f29a80",
     ),
     glslang=dict(
-        version="16.5.0",
+        version="16.6.0",
         dst_file="glslang-@VERSION@.tar.gz",
         url="https://github.com/KhronosGroup/glslang/archive/refs/tags/@VERSION@.tar.gz",
-        sha256="01af17195fbeb59e39e31e9506de35bb39dfd35807ea0c9a1a99d7d1183ddd45",
+        sha256="9c09b901149c729df745057dafa815278aaa101b84d2b6e14f16a42de52f97f2",
     ),
     pkgconf=dict(
         version="1.9.5",
