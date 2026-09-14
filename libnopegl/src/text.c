@@ -800,7 +800,9 @@ int ngli_text_set_time(struct text *s, double t)
 void ngli_text_freep(struct text **sp)
 {
     struct text *s = *sp;
-    if (s->cls->reset)
+    if (!s)
+        return;
+    if (s->cls && s->cls->reset)
         s->cls->reset(s);
     ngli_freep(&s->priv_data);
     destroy_effects_data(s);
