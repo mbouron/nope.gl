@@ -660,6 +660,16 @@ if get_option('tests')
   foreach backend : ['opengl', 'opengles', 'vulkan']
     test('Bindgroups ' + backend, bindgroup_test, args: [backend])
   endforeach
+  buffer_test = executable(
+    'test_buffer', 'src/test_buffer.c',
+    dependencies: lib_deps,
+    link_with: libngpu,
+    build_by_default: false,
+    include_directories: inc_dir,
+  )
+  foreach backend : ['opengl', 'opengles', 'vulkan']
+    test('Buffers ' + backend, buffer_test, args: [backend])
+  endforeach
 
 endif
 
