@@ -33,6 +33,7 @@ struct ngpu_buffer_vk {
     struct ngpu_buffer parent;
     VkBuffer buffer;
     VkDeviceMemory memory;
+    uint8_t *mapped_data;
     VkBuffer staging_buffer;
     VkDeviceMemory staging_memory;
     NGPU_DARRAY(struct ngpu_cmd_buffer_vk *) cmd_buffers;
