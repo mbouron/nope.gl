@@ -197,5 +197,5 @@ void ngli_geometry_freep(struct geometry **sp)
         ngpu_buffer_freep(&s->normals_buffer);
     if (s->buffer_ownership & OWN_INDICES)
         ngpu_buffer_freep(&s->indices_buffer);
-    ngli_freep(&s);
+    ngli_freep(sp);
 }
