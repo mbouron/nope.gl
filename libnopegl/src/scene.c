@@ -78,7 +78,6 @@ static int reset_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node 
     ngli_assert(ret == 0);
 
     ngli_darray_reset(&node->children);
-    ngli_darray_reset(&node->draw_children);
     ngli_darray_reset(&node->parents);
 
     node->scene = NULL;
@@ -150,14 +149,7 @@ static void add_runtime_edge(struct ngl_node *parent, struct ngl_node *child, si
 {
     ngli_assert(index <= parent->children.count);
 
-    /* Map the children insertion index to the drawable-only array. */
-    size_t draw_index = 0;
-    for (size_t i = 0; i < index; i++)
-        draw_index += !!parent->children.data[i]->cls->draw;
-
     ngli_darray_insert(&parent->children, index, child);
-    if (child->cls->draw)
-        ngli_darray_insert(&parent->draw_children, draw_index, child);
     ngli_darray_push(&child->parents, parent);
 }
 
@@ -166,16 +158,7 @@ static struct ngl_node *remove_runtime_edge_at(struct ngl_node *parent, size_t i
     ngli_assert(index < parent->children.count);
     struct ngl_node *child = parent->children.data[index];
 
-    size_t draw_index = 0;
-    for (size_t i = 0; i < index; i++)
-        draw_index += !!parent->children.data[i]->cls->draw;
-
     ngli_darray_remove(&parent->children, index);
-
-    if (child->cls->draw) {
-        ngli_assert(parent->draw_children.data[draw_index] == child);
-        ngli_darray_remove(&parent->draw_children, draw_index);
-    }
 
     const size_t parent_index = ngli_node_darray_find(&child->parents, parent);
     ngli_assert(parent_index != SIZE_MAX);

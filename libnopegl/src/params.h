@@ -166,7 +166,6 @@ struct node_param {
     const char *desc;
     const struct param_choices *choices;
     int (*update_func)(struct ngl_node *node);
-    int (*swap_func)(struct ngl_node *node, size_t from, size_t to);
 };
 
 const struct param_specs *ngli_params_get_type_specs(enum param_type type);

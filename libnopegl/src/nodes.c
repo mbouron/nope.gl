@@ -751,8 +751,6 @@ const struct node_param *ngli_node_param_find(const struct ngl_node *node, const
 struct node_param_update_arg {
     struct ngl_node *node;
     const struct node_param *par;
-    size_t from;
-    size_t to;
 };
 
 static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
@@ -762,11 +760,6 @@ static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
         return 0;
     if (a->par->update_func) {
         int ret = a->par->update_func(a->node);
-        if (ret < 0)
-            return ret;
-    }
-    if (a->par->swap_func && a->from != a->to) {
-        int ret = a->par->swap_func(a->node, a->from, a->to);
         if (ret < 0)
             return ret;
     }
@@ -879,7 +872,7 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
     if (from == to)
         return 0;
 
-    struct node_param_update_arg arg = { .node = node, .par = par, .from = from, .to = to };
+    struct node_param_update_arg arg = { .node = node, .par = par };
     return node_param_update_cb(node->ctx, &arg);
 }
 
@@ -1623,13 +1616,9 @@ void ngl_node_unrefp(struct ngl_node **nodep)
         LOG(VERBOSE, "DELETE %s @ %p", node->label, node);
         ngli_assert(!node->ctx);
         ngli_darray_reset(&node->children);
-        ngli_darray_reset(&node->draw_children);
         ngli_darray_reset(&node->parents);
         if (node->cls->free)
             node->cls->free(node);
-        ngli_darray_reset(&node->children);
-        ngli_darray_reset(&node->draw_children);
-        ngli_darray_reset(&node->parents);
         ngli_params_free((uint8_t *)node, ngli_base_node_params);
         ngli_params_free(node->opts, node->cls->params);
         ngli_free_aligned(node);

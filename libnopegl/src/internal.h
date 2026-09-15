@@ -238,12 +238,10 @@ struct ngl_node {
     uint64_t traversal_id;
 
     int refcount;
-    int ctx_refcount;
 
     struct ngpu_rendertarget_layout prepared_rendertarget_layout;
 
     struct ngli_node_darray children;
-    struct ngli_node_darray draw_children; // children with a draw callback
     struct ngli_node_darray parents;
     size_t scene_index; // position in ngl_scene.nodes, while associated with a scene
     size_t resource_index; // position in ngl_ctx.resource_nodes, while holding resources
