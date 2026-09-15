@@ -1247,7 +1247,7 @@ int ngli_params_add(uint8_t *base_ptr, const struct node_param *par,
     return ret;
 }
 
-static int ngli_params_move_node(uint8_t *dstp, const struct node_param *par,
+static int ngli_params_swap_node(uint8_t *dstp, const struct node_param *par,
                                  size_t from, size_t to)
 {
     struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
@@ -1260,7 +1260,7 @@ static int ngli_params_move_node(uint8_t *dstp, const struct node_param *par,
     return 0;
 }
 
-static int ngli_params_move_f64(uint8_t *dstp, const struct node_param *par,
+static int ngli_params_swap_f64(uint8_t *dstp, const struct node_param *par,
                                 size_t from, size_t to)
 {
     struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
@@ -1281,8 +1281,8 @@ int ngli_params_swap_elem(uint8_t *base_ptr, const struct node_param *par,
     int ret = 0;
     uint8_t *dstp = base_ptr + par->offset;
     switch (par->type) {
-    case NGLI_PARAM_TYPE_NODELIST: ret = ngli_params_move_node(dstp, par, from, to); break;
-    case NGLI_PARAM_TYPE_F64LIST:  ret = ngli_params_move_f64(dstp, par, from, to);  break;
+    case NGLI_PARAM_TYPE_NODELIST: ret = ngli_params_swap_node(dstp, par, from, to); break;
+    case NGLI_PARAM_TYPE_F64LIST:  ret = ngli_params_swap_f64(dstp, par, from, to);  break;
     default:
         LOG(ERROR, "parameter %s is not a list", par->key);
         return NGL_ERROR_INVALID_USAGE;
