@@ -20,6 +20,9 @@
  */
 
 #include "internal.h"
+#include "node_texture.h"
+#include "resource.h"
+#include "utils/memory.h"
 
 static struct ngl_scene *create_scene(struct ngl_node *root)
 {
@@ -99,6 +102,7 @@ static void test_scene_sharing(void)
 }
 
 struct customtexture_lifecycle {
+    struct ngl_node *node;
     int step;
 };
 
@@ -112,6 +116,7 @@ static int customtexture_init(void *reserved, void *user_data)
 static int customtexture_prepare(void *reserved, void *user_data)
 {
     struct customtexture_lifecycle *s = user_data;
+    ngli_assert(!s->node->prepared);
     ngli_assert(s->step++ == 1);
     return 0;
 }
@@ -119,6 +124,7 @@ static int customtexture_prepare(void *reserved, void *user_data)
 static void customtexture_unprepare(void *reserved, void *user_data)
 {
     struct customtexture_lifecycle *s = user_data;
+    ngli_assert(!s->node->prepared);
     ngli_assert(s->step++ == 2);
 }
 
@@ -139,17 +145,145 @@ static void test_customtexture_lifecycle(void)
     };
     struct ngl_node *node = ngl_node_create(NGL_NODE_CUSTOMTEXTURE);
     ngli_assert(node);
+    lifecycle.node = node;
     ngli_assert(ngl_node_set_funcs(node, &lifecycle, &funcs) == 0);
 
     struct ngl_ctx ctx = {0};
     ngli_assert(ngli_node_attach_ctx(node, &ctx) == 0);
     ngli_assert(lifecycle.step == 2);
+    ngli_assert(node->prepared);
 
     ngli_ctx_release_resources(&ctx);
     ngli_assert(lifecycle.step == 4);
 
     ngli_darray_reset(&ctx.resource_nodes);
     ngl_node_unrefp(&node);
+}
+
+struct resource_retry {
+    int init_count;
+    int prepare_count;
+    int unprepare_count;
+    int uninit_count;
+    void *allocation;
+    bool fail;
+};
+
+static int retry_init(void *reserved, void *user_data)
+{
+    struct resource_retry *s = user_data;
+    ngli_assert(!s->allocation);
+    s->init_count++;
+    return 0;
+}
+
+static int retry_prepare(void *reserved, void *user_data)
+{
+    struct resource_retry *s = user_data;
+    ngli_assert(!s->allocation);
+    s->allocation = ngli_malloc(1);
+    s->prepare_count++;
+    return s->fail ? NGL_ERROR_MEMORY : 0;
+}
+
+static void retry_unprepare(void *reserved, void *user_data)
+{
+    struct resource_retry *s = user_data;
+    ngli_freep(&s->allocation);
+    s->unprepare_count++;
+}
+
+static void retry_uninit(void *reserved, void *user_data)
+{
+    struct resource_retry *s = user_data;
+    ngli_assert(!s->allocation);
+    s->uninit_count++;
+}
+
+static int consumer_init(struct ngl_node *node)
+{
+    struct image_resource **resource = node->priv_data;
+    const struct texture_info *info = node->children.data[0]->priv_data;
+    *resource = ngli_image_resource_ref(info->resource);
+    return 0;
+}
+
+static int consumer_prepare(struct ngl_node *node, const struct ngpu_rendertarget_layout *layout)
+{
+    ngli_assert(!node->prepared && node->children.data[0]->prepared);
+    struct image_resource **resource = node->priv_data;
+    const struct texture_info *info = node->children.data[0]->priv_data;
+    ngli_assert(*resource == info->resource);
+    return 0;
+}
+
+static void consumer_uninit(struct ngl_node *node)
+{
+    ngli_image_resource_unrefp(node->priv_data);
+}
+
+static void test_resources_retry(void)
+{
+    struct resource_retry retry = {.fail = true};
+    struct ngl_node_funcs funcs = {
+        .init = retry_init,
+        .prepare = retry_prepare,
+        .unprepare = retry_unprepare,
+        .uninit = retry_uninit,
+    };
+    struct ngl_node *texture = ngl_node_create(NGL_NODE_CUSTOMTEXTURE);
+    ngli_assert(texture);
+    ngli_assert(ngl_node_set_funcs(texture, &retry, &funcs) == 0);
+
+    /* Both consumers borrow the holder during init, before allocation fails.
+     * The second has initialized but is not reached before preparation fails. */
+    const struct node_class consumer_class = {
+        .init = consumer_init,
+        .prepare = consumer_prepare,
+        .uninit = consumer_uninit,
+        .priv_size = sizeof(struct image_resource *),
+    };
+    struct image_resource *resources[2] = {0};
+    struct ngl_node consumers[2] = {0};
+    for (size_t i = 0; i < 2; i++) {
+        consumers[i].cls = &consumer_class;
+        consumers[i].label = "consumer";
+        consumers[i].priv_data = &resources[i];
+        consumers[i].refcount = 1;
+        ngli_darray_push(&consumers[i].children, texture);
+    }
+
+    struct ngl_ctx ctx = {0};
+    struct ngl_node *roots[] = {&consumers[0], &consumers[1]};
+    for (size_t attempt = 0; attempt < 2; attempt++) {
+        for (size_t i = 0; i < 2; i++)
+            ngli_assert(ngli_node_set_ctx(&consumers[i], &ctx) == 0);
+        ngli_assert(ngli_node_prepare_nodes(&ctx, NGLI_ARRAY_NB(roots), roots,
+                                            &ctx.default_rendertarget_layout) == NGL_ERROR_MEMORY);
+        ngli_assert(retry.allocation == NULL && retry.unprepare_count == attempt + 1);
+        ngli_assert(retry.init_count == 1 && retry.uninit_count == 0);
+        ngli_assert(texture->ctx == &ctx && ctx.resource_nodes.count == 3);
+        for (size_t i = 0; i < NGLI_ARRAY_NB(resources); i++) {
+            const struct texture_info *info = (struct texture_info *)texture->priv_data;
+            ngli_assert(consumers[i].ctx == &ctx);
+            ngli_assert(resources[i] == info->resource);
+        }
+    }
+
+    retry.fail = false;
+    for (size_t i = 0; i < 2; i++)
+        ngli_assert(ngli_node_set_ctx(&consumers[i], &ctx) == 0);
+    ngli_assert(ngli_node_prepare_nodes(&ctx, NGLI_ARRAY_NB(roots), roots,
+                                        &ctx.default_rendertarget_layout) == 0);
+    ngli_ctx_release_resources(&ctx);
+    ngli_assert(retry.allocation == NULL);
+    ngli_assert(retry.init_count == 1 && retry.prepare_count == 3);
+    ngli_assert(retry.unprepare_count == 3 && retry.uninit_count == 1);
+
+    for (size_t i = 0; i < 2; i++)
+        ngli_darray_reset(&consumers[i].children);
+    ngli_darray_reset(&ctx.resource_nodes);
+    ngl_node_unrefp(&texture);
 }
 
 static void test_add_edges_rollback(void)
@@ -275,6 +409,7 @@ int main(void)
     test_swap_bounds();
     test_duplicate_release();
     test_customtexture_lifecycle();
+    test_resources_retry();
     test_add_edges_rollback();
     return 0;
 }

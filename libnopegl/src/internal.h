@@ -357,7 +357,8 @@ struct node_class {
     int (*init)(struct ngl_node *node);
 
     /*
-     * Prepare the node rendering resources.
+     * Prepare the node rendering resources after all nodes have been
+     * initialized.
      *
      * Resources created here may depend on the render state inherited from
      * parent nodes, particularly the rendertarget layout used to create
@@ -368,7 +369,7 @@ struct node_class {
      * reentrant: no (a second prepare must be preceded by an unprepare)
      * execution-order: leaf first
      * dispatch: managed
-     * when: called during set_scene() / internal node_set_ctx() (after init)
+     * when: after init, during scene attachment or live graph preparation
      */
     int (*prepare)(struct ngl_node *node,
                    const struct ngpu_rendertarget_layout *rendertarget_layout);
@@ -380,12 +381,12 @@ struct node_class {
      * subtree to be prepared again for a different render state without
      * returning to the uninitialized state.
      *
-     * Called before uninit, but only if the node was prepared. A node that was
-     * initialized but never prepared goes directly to uninit. This callback
-     * must therefore release only resources created by prepare; resources
-     * created by init must be released by uninit.
+     * Called before uninit for a prepared node, and after a failed prepare to
+     * clean up partial state. A node that was initialized but never prepared
+     * goes directly to uninit. Release only resources created by prepare;
+     * resources created by init must be released by uninit.
      *
-     * reentrant: no (guarded by node->prepared)
+     * reentrant: no (guarded by node->prepared, except after a failed prepare)
      * execution-order: root first
      * dispatch: managed
      * when: before a re-prepare, and during uninit
@@ -574,8 +575,8 @@ float ngli_node_compute_children_effect_margin(struct ngl_node *const *children,
 
 int ngli_node_prepare(struct ngl_node *node,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
-bool ngli_node_prepared_against(const struct ngl_node *node,
-                                const struct ngpu_rendertarget_layout *rendertarget_layout);
+int ngli_node_prepare_nodes(struct ngl_ctx *ctx, size_t nb_nodes, struct ngl_node *const *nodes,
+                            const struct ngpu_rendertarget_layout *rendertarget_layout);
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t);
 int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t);
 int ngli_node_update(struct ngl_node *node, double t);
