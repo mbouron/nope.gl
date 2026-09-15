@@ -344,4 +344,3 @@ const struct glcontext_class ngpu_glcontext_wgl_class = {
     .get_handle = wgl_get_handle,
     .priv_size = sizeof(struct wgl_priv),
 };
-

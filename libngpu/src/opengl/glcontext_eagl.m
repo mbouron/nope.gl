@@ -305,4 +305,3 @@ const struct glcontext_class ngpu_glcontext_eagl_class = {
     .get_default_framebuffer = eagl_get_default_framebuffer,
     .priv_size = sizeof(struct eagl_priv),
 };
-

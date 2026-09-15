@@ -212,4 +212,3 @@ const struct glcontext_class ngpu_glcontext_nsgl_class = {
     .get_handle = nsgl_get_handle,
     .priv_size = sizeof(struct nsgl_priv),
 };
-
