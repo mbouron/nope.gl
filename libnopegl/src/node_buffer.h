@@ -48,6 +48,6 @@ struct buffer_info {
     struct buffer_resource *resource;
 };
 
-void ngli_node_buffer_extend_usage(struct ngl_node *node, uint32_t usage);
+int ngli_node_buffer_extend_usage(struct ngl_node *node, uint32_t usage);
 
 #endif

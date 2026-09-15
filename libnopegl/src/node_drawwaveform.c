@@ -232,9 +232,7 @@ static int drawwaveform_init(struct ngl_node *node)
     for (size_t i = 0; i < comb_uniforms_array->count; i++)
         ngpu_block_desc_add_field(&s->frag_block_desc, comb_uniforms[i].name, comb_uniforms[i].type, 0);
 
-    ngli_node_block_extend_usage(o->stats, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-    return 0;
+    return ngli_node_block_extend_usage(o->stats, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
 static int drawwaveform_prepare(struct ngl_node *node,
