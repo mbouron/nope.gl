@@ -319,6 +319,15 @@ int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     return node_set_ctx(node, ctx, ngli_node_new_traversal_id());
 }
 
+void ngli_node_get_rendertarget_layout(const struct ngl_node *node,
+                                       struct ngpu_rendertarget_layout *rendertarget_layout)
+{
+    ngli_assert(node->prepared);
+    *rendertarget_layout = node->prepared_rendertarget_layout;
+    if (node->cls->get_rendertarget_layout)
+        node->cls->get_rendertarget_layout(node, rendertarget_layout);
+}
+
 /*
  * Uninitialize the nodes with resources held by the context.
  *
