@@ -271,6 +271,8 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
 
 VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
 {
+    if (!s->submitted)
+        return VK_SUCCESS;
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 

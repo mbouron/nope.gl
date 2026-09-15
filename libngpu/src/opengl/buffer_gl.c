@@ -122,9 +122,14 @@ int ngpu_buffer_gl_wait(struct ngpu_buffer *s)
 {
     struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
-    ngpu_darray_foreach(it, &s_priv->cmd_buffers)
-        ngpu_cmd_buffer_gl_wait(*it);
-    ngpu_darray_clear(&s_priv->cmd_buffers);
+    while (s_priv->cmd_buffers.count) {
+        struct ngpu_cmd_buffer_gl *cmd = *ngpu_darray_tail(&s_priv->cmd_buffers);
+        if (!ngpu_cmd_buffer_gl_is_submitted(cmd))
+            return NGPU_ERROR_INVALID_USAGE;
+        const int ret = ngpu_cmd_buffer_gl_wait(cmd);
+        if (ret < 0)
+            return ret;
+    }
 
     return 0;
 }
