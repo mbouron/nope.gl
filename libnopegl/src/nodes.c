@@ -328,6 +328,23 @@ void ngli_node_get_rendertarget_layout(const struct ngl_node *node,
         node->cls->get_rendertarget_layout(node, rendertarget_layout);
 }
 
+enum release_nodes {
+    RELEASE_NODES_ALL,
+    RELEASE_NODES_DETACHED,
+};
+
+static bool should_uninit_node(const struct ngl_node *node, enum release_nodes scope)
+{
+    switch (scope) {
+    case RELEASE_NODES_ALL:
+        return true;
+    case RELEASE_NODES_DETACHED:
+        return !node->scene;
+    default:
+        ngli_assert(0);
+    }
+}
+
 /*
  * Uninitialize the nodes with resources held by the context.
  *
@@ -343,12 +360,12 @@ void ngli_node_get_rendertarget_layout(const struct ngl_node *node,
  * the last entry into its slot. That entry has already been visited, so no
  * unvisited entries are skipped.
  */
-static void ctx_uninit_nodes(struct ngl_ctx *s, bool detached_only)
+static void ctx_uninit_nodes(struct ngl_ctx *s, enum release_nodes scope)
 {
     bool releasing = false;
     for (size_t i = 0; i < s->resource_nodes.count; i++) {
         struct ngl_node *node = s->resource_nodes.data[i];
-        if (detached_only && node->scene)
+        if (!should_uninit_node(node, scope))
             continue;
         if (!releasing) {
             ngli_darray_clear(&s->bounding_box_nodes);
@@ -361,7 +378,7 @@ static void ctx_uninit_nodes(struct ngl_ctx *s, bool detached_only)
 
     for (size_t i = s->resource_nodes.count; i > 0; i--) {
         struct ngl_node *node = s->resource_nodes.data[i - 1];
-        if (detached_only && node->scene)
+        if (!should_uninit_node(node, scope))
             continue;
         /* The registry reference is about to be dropped by the uninit */
         ngl_node_ref(node);
@@ -372,7 +389,7 @@ static void ctx_uninit_nodes(struct ngl_ctx *s, bool detached_only)
 
 void ngli_ctx_release_detached_resources(struct ngl_ctx *s)
 {
-    ctx_uninit_nodes(s, true);
+    ctx_uninit_nodes(s, RELEASE_NODES_DETACHED);
 }
 
 int ngl_node_holds_resources(const struct ngl_node *node)
@@ -384,7 +401,7 @@ int ngl_node_holds_resources(const struct ngl_node *node)
 
 void ngli_ctx_release_resources(struct ngl_ctx *s)
 {
-    ctx_uninit_nodes(s, false);
+    ctx_uninit_nodes(s, RELEASE_NODES_ALL);
     ngli_assert(ngli_darray_is_empty(&s->resource_nodes));
 }
 
