@@ -55,6 +55,8 @@ foreach backend : backends
   ]
 
   tests_api = [
+    'animation_evaluate_edits',
+    'animation_live_timestamps',
     'backend',
     'debug',
     'reconfigure',
