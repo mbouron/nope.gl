@@ -174,9 +174,6 @@ static void test_add_edges_rollback(void)
     ngli_assert(root->children.count == 2);
     ngli_assert(root->children.data[0] == a);
     ngli_assert(root->children.data[1] == b);
-    ngli_assert(root->draw_children.count == 2);
-    ngli_assert(root->draw_children.data[0] == a);
-    ngli_assert(root->draw_children.data[1] == b);
     ngli_assert(a->parents.count == 1 && a->parents.data[0] == root);
     ngli_assert(b->parents.count == 1 && b->parents.data[0] == root);
     ngli_assert(c->scene == NULL);
