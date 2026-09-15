@@ -317,7 +317,8 @@ int ngl_custom_texture_set_texture_info_gl(struct ngl_node *node, const struct n
     ngli_image_unrefp(&s->texture_info.image);
     ngpu_texture_freep(&s->texture_info.texture);
     if (!info) {
-        return ngli_node_invalidate_branch(node);
+        ngli_node_invalidate_branch(node);
+        return 0;
     }
 
     struct ngl_ctx *ctx = node->ctx;
@@ -333,7 +334,8 @@ int ngl_custom_texture_set_texture_info_gl(struct ngl_node *node, const struct n
     if (ret < 0)
         return ret;
 
-    return ngli_node_invalidate_branch(node);
+    ngli_node_invalidate_branch(node);
+    return 0;
 }
 
 #if defined(TARGET_ANDROID)
@@ -414,14 +416,17 @@ int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct 
     ngli_image_resource_set(s->texture_info.resource, NULL);
     ngli_image_unrefp(&s->texture_info.image);
     ngpu_texture_freep(&s->texture_info.texture);
-    if (!info || !info->hardware_buffer)
-        return ngli_node_invalidate_branch(node);
+    if (!info || !info->hardware_buffer) {
+        ngli_node_invalidate_branch(node);
+        return 0;
+    }
 
     int ret = import_texture_ahb(node, info);
     if (ret < 0)
         return ret;
 
-    return ngli_node_invalidate_branch(node);
+    ngli_node_invalidate_branch(node);
+    return 0;
 }
 #endif
 

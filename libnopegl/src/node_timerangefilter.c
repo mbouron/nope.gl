@@ -117,7 +117,8 @@ int ngl_timerangefilter_set_range(struct ngl_node *node, double start, double en
     if (ret < 0)
         return ret;
 
-    return ngli_node_invalidate_branch(node);
+    ngli_node_invalidate_branch(node);
+    return 0;
 }
 
 static int timerangefilter_init(struct ngl_node *node)

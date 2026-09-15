@@ -71,7 +71,8 @@ int ngl_effect2dshader_set_range(struct ngl_node *node, double start, double end
     if (ret < 0)
         return ret;
 
-    return ngli_node_invalidate_branch(node);
+    ngli_node_invalidate_branch(node);
+    return 0;
 }
 
 static int effect2d_shader_init(struct ngl_node *node)
