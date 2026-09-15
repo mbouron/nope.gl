@@ -227,14 +227,13 @@ static void remove_runtime_edge(struct ngl_node *parent, struct ngl_node *child)
     remove_runtime_edge_at(parent, index);
 }
 
-static void remove_scene_edge(struct ngl_node *parent, struct ngl_node *child);
 static void remove_scene_edge_at(struct ngl_node *parent, size_t index);
 static int add_scene_edge(void *user_arg, struct ngl_node *parent, struct ngl_node *child);
 
 static void remove_scene_children(struct ngl_node *parent)
 {
     while (!ngli_darray_is_empty(&parent->children))
-        remove_scene_edge(parent, *ngli_darray_tail(&parent->children));
+        remove_scene_edge_at(parent, parent->children.count - 1);
 }
 
 static int add_scene_edge_at(struct ngl_scene *s, struct ngl_node *parent,
