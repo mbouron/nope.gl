@@ -951,13 +951,13 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
         return ret;
 
     if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
-        LOG(ERROR, "%s.%s can not be live extended", node->label, key);
+        LOG(ERROR, "%s.%s can not be reordered after resource initialization", node->label, key);
         return NGL_ERROR_INVALID_USAGE;
     }
 
     ret = ngli_params_swap_elem(base_ptr, par, from, to);
     if (ret < 0) {
-        LOG(ERROR, "unable to add elements to %s.%s", node->label, key);
+        LOG(ERROR, "unable to swap elements in %s.%s", node->label, key);
         return ret;
     }
 
