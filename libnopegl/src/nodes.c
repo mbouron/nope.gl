@@ -211,22 +211,12 @@ static void ctx_unregister_node(struct ngl_ctx *ctx, struct ngl_node *node)
     ngl_node_unrefp(&node);
 }
 
-/*
- * Drop the activity-scoped and prepare-scoped tiers of a single node, without
- * descending into its children.
- *
- * Split out of node_uninit() so a whole set of nodes can be brought down to
- * "initialized only" before any of them is uninitialized, see
- * ctx_uninit_nodes().
- */
 static void node_unprepare_self(struct ngl_node *node)
 {
-    if (node->state == NGLI_NODE_STATE_UNINITIALIZED)
+    if (!node->prepared)
         return;
 
-    node_release(node);
-
-    if (node->prepared && node->cls->unprepare)
+    if (node->cls->unprepare)
         node->cls->unprepare(node);
     node->prepared = false;
 }
@@ -237,6 +227,7 @@ static void node_uninit(struct ngl_node *node)
         return;
 
     ngli_assert(node->ctx);
+    node_release(node);
     node_unprepare_self(node);
 
     if (node->cls->uninit) {
@@ -365,6 +356,7 @@ static void ctx_uninit_nodes(struct ngl_ctx *s, bool detached_only)
             ngli_darray_clear(&s->intersecting_nodes);
             releasing = true;
         }
+        node_release(node);
         node_unprepare_self(node);
     }
 
@@ -420,6 +412,25 @@ bool ngli_node_prepared_against(const struct ngl_node *node,
     return rendertarget_layout_is_compatible(&node->prepared_rendertarget_layout, rendertarget_layout);
 }
 
+static int node_prepare_self(struct ngl_node *node,
+                             const struct ngpu_rendertarget_layout *rendertarget_layout,
+                             struct ngli_node_darray *prepared_nodes)
+{
+    if (node->cls->prepare) {
+        TRACE("PREPARE %s @ %p", node->label, node);
+        const int ret = node->cls->prepare(node, rendertarget_layout);
+        if (ret < 0) {
+            LOG(ERROR, "preparing node %s failed: %s", node->label, NGLI_RET_STR(ret));
+            if (node->cls->unprepare)
+                node->cls->unprepare(node);
+            return ret;
+        }
+    }
+
+    ngli_darray_push(prepared_nodes, node);
+    return 0;
+}
+
 static int node_prepare(struct ngl_node *node,
                         const struct ngpu_rendertarget_layout *rendertarget_layout,
                         struct ngli_node_darray *prepared_nodes)
@@ -444,19 +455,9 @@ static int node_prepare(struct ngl_node *node,
             goto fail;
     }
 
-    /* Prepare this node */
-    if (node->cls->prepare) {
-        TRACE("PREPARE %s @ %p", node->label, node);
-        ret = node->cls->prepare(node, rendertarget_layout);
-        if (ret < 0) {
-            LOG(ERROR, "preparing node %s failed: %s", node->label, NGLI_RET_STR(ret));
-            if (node->cls->unprepare)
-                node->cls->unprepare(node);
-            goto fail;
-        }
-    }
-
-    ngli_darray_push(prepared_nodes, node);
+    ret = node_prepare_self(node, rendertarget_layout, prepared_nodes);
+    if (ret < 0)
+        goto fail;
     return 0;
 
 fail:
