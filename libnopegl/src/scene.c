@@ -436,7 +436,7 @@ void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_par
 
 int ngl_scene_update_filepath(struct ngl_scene *s, size_t index, const char *filepath)
 {
-    if (s->params.root->ctx) {
+    if (s->ctx) {
         LOG(ERROR, "the file paths cannot be updated when a rendering context is associated with the scene");
         return NGL_ERROR_INVALID_USAGE;
     }
