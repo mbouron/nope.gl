@@ -434,7 +434,7 @@ cdef class _Node:
         cdef float[16] mat = value
         return ngl_node_param_set_mat4(self.ctx, key, mat)
 
-    def _param_set_node(self, const char *key, _Node value):
+    def _param_set_node(self, const char *key, _Node value not None):
         return ngl_node_param_set_node(self.ctx, key, value.ctx)
 
     def _param_set_rational(self, const char *key, int num, int den):
