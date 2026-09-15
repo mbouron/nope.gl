@@ -592,6 +592,9 @@ uint64_t ngli_node_new_traversal_id(void);
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 
+void ngli_node_get_rendertarget_layout(const struct ngl_node *node,
+                                       struct ngpu_rendertarget_layout *rendertarget_layout);
+
 typedef int (*ngli_node_children_func)(void *user_arg, struct ngl_node *parent, struct ngl_node *node);
 int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struct ngl_node *node);
 
