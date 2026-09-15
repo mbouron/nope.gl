@@ -68,10 +68,16 @@ struct velocity_priv {
     struct variable_info var;
     float vector[4];
     struct animation anim;
-    struct animation anim_eval;
 };
 
 NGLI_STATIC_ASSERT(offsetof(struct velocity_priv, var) == 0, "variable_info is first");
+
+static int velocity_invalidate(struct ngl_node *node)
+{
+    struct velocity_priv *s = node->priv_data;
+    s->anim.kfs = NULL;
+    return 0;
+}
 
 static void mix_velocity_float(void *user_arg, void *dst,
                                const struct animkeyframe_opts *kf0,
@@ -133,10 +139,8 @@ static ngli_animation_cpy_func_type get_cpy_func(uint32_t node_class)
     return NULL;
 }
 
-/* Used for standalone evaluation (outside a context) */
-int ngli_velocity_evaluate(struct ngl_node *node, void *dst, double t)
+static int init_animation(struct ngl_node *node, struct animation *animation)
 {
-    struct velocity_priv *s = node->priv_data;
     const struct velocity_opts *o = node->opts;
 
     /*
@@ -148,46 +152,51 @@ int ngli_velocity_evaluate(struct ngl_node *node, void *dst, double t)
         return NGL_ERROR_INVALID_USAGE;
 
     const struct variable_opts *anim = o->anim_node->opts;
-    if (!anim->animkf.count)
-        return NGL_ERROR_INVALID_ARG;
+    return ngli_animation_init(animation, NULL,
+                               anim->animkf.data, anim->animkf.count,
+                               get_mix_func(node->cls->id),
+                               get_cpy_func(node->cls->id));
+}
 
-    if (!s->anim_eval.kfs) {
-        int ret = ngli_animation_init(&s->anim_eval, NULL,
-                                      anim->animkf.data, anim->animkf.count,
-                                      get_mix_func(node->cls->id),
-                                      get_cpy_func(node->cls->id));
-        if (ret < 0)
-            return ret;
-    }
+/* Used for standalone evaluation (outside a context) */
+int ngli_velocity_evaluate(struct ngl_node *node, void *dst, double t)
+{
+    const struct velocity_opts *o = node->opts;
+    struct animation anim_eval = {0};
+    int ret = init_animation(node, &anim_eval);
+    if (ret < 0)
+        return ret;
 
-    struct animkeyframe_priv *kf0 = anim->animkf.data[0]->priv_data;
-    if (!kf0->derivative) {
-        for (size_t i = 0; i < anim->animkf.count; i++) {
-            int ret = anim->animkf.data[i]->cls->init(anim->animkf.data[i]);
+    const struct variable_opts *anim = o->anim_node->opts;
+    for (size_t i = 0; i < anim->animkf.count; i++) {
+        struct ngl_node *kf = anim->animkf.data[i];
+        const struct animkeyframe_priv *kf_priv = kf->priv_data;
+        if (!kf_priv->derivative) {
+            ret = kf->cls->init(kf);
             if (ret < 0)
                 return ret;
         }
     }
 
-    return ngli_animation_derivate(&s->anim_eval, dst, t - anim->time_offset);
+    return ngli_animation_derivate(&anim_eval, dst, t - anim->time_offset);
 }
 
 static int velocity_init(struct ngl_node *node)
 {
     struct velocity_priv *s = node->priv_data;
-    const struct velocity_opts *o = node->opts;
-    const struct variable_opts *anim = o->anim_node->opts;
     s->var.dynamic = 1;
-    return ngli_animation_init(&s->anim, NULL,
-                               anim->animkf.data, anim->animkf.count,
-                               get_mix_func(node->cls->id),
-                               get_cpy_func(node->cls->id));
+    return init_animation(node, &s->anim);
 }
 
 static int velocity_update(struct ngl_node *node, double t)
 {
     struct velocity_priv *s = node->priv_data;
     const struct velocity_opts *o = node->opts;
+    if (!s->anim.kfs) {
+        int ret = init_animation(node, &s->anim);
+        if (ret < 0)
+            return ret;
+    }
     const struct variable_opts *anim = o->anim_node->opts;
     return ngli_animation_derivate(&s->anim, s->var.data, t - anim->time_offset);
 }
@@ -207,6 +216,7 @@ const struct node_class ngli_velocity##type##_class = {                         
     .category  = NGLI_NODE_CATEGORY_VARIABLE,                                   \
     .name      = class_name,                                                    \
     .init      = velocity##type##_init,                                         \
+    .invalidate = velocity_invalidate,                                          \
     .update    = velocity_update,                                               \
     .opts_size = sizeof(struct velocity_opts),                                  \
     .priv_size = sizeof(struct velocity_priv),                                  \

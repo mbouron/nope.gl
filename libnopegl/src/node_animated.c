@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2017-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -123,7 +124,6 @@ struct animated_priv {
     float matrix[4*4];
     double dval;
     struct animation anim;
-    struct animation anim_eval;
 };
 
 NGLI_STATIC_ASSERT(offsetof(struct animated_priv, var) == 0, "variable_info is first");
@@ -320,25 +320,26 @@ int ngl_anim_evaluate(struct ngl_node *node, void *dst, double t)
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    if (!s->anim_eval.kfs) {
-        int ret = ngli_animation_init(&s->anim_eval, s,
-                                      o->animkf.data, o->animkf.count,
-                                      get_mix_func(o, node->cls->id),
-                                      get_cpy_func(o, node->cls->id));
-        if (ret < 0)
-            return ret;
-    }
+    // Keyframes can change between calls to ngl_anim_evaluate()
+    struct animation anim_eval = {0};
+    int ret = ngli_animation_init(&anim_eval, s,
+                                  o->animkf.data, o->animkf.count,
+                                  get_mix_func(o, node->cls->id),
+                                  get_cpy_func(o, node->cls->id));
+    if (ret < 0)
+        return ret;
 
-    struct animkeyframe_priv *kf0 = o->animkf.data[0]->priv_data;
-    if (!kf0->function) {
-        for (size_t i = 0; i < o->animkf.count; i++) {
-            int ret = o->animkf.data[i]->cls->init(o->animkf.data[i]);
+    for (size_t i = 0; i < o->animkf.count; i++) {
+        struct ngl_node *kf = o->animkf.data[i];
+        const struct animkeyframe_priv *kf_priv = kf->priv_data;
+        if (!kf_priv->function) {
+            ret = kf->cls->init(kf);
             if (ret < 0)
                 return ret;
         }
     }
 
-    return ngli_animation_evaluate(&s->anim_eval, dst, t - o->time_offset);
+    return ngli_animation_evaluate(&anim_eval, dst, t - o->time_offset);
 }
 
 static int animation_init(struct ngl_node *node)
@@ -425,6 +426,11 @@ static int animation_update(struct ngl_node *node, double t)
 {
     struct animated_priv *s = node->priv_data;
     const struct variable_opts *o = node->opts;
+    if (!s->anim.kfs) {
+        int ret = animation_init(node);
+        if (ret < 0)
+            return ret;
+    }
     return ngli_animation_evaluate(&s->anim, s->var.data, t - o->time_offset);
 }
 
@@ -436,13 +442,14 @@ static int animation_update(struct ngl_node *node, double t)
 #define animatedpath_update  animation_update
 #define animatedcolor_update animation_update
 
-static int animatedtime_invalidate(struct ngl_node *node)
+static int animation_invalidate(struct ngl_node *node)
 {
+    struct animated_priv *s = node->priv_data;
     const struct variable_opts *o = node->opts;
 
-    // Sanitize updated keyframes
+    // Sanitize updated keyframe timestamps
     double prev_time = -DBL_MAX;
-    for (size_t i = 1; i < o->animkf.count; i++) {
+    for (size_t i = 0; i < o->animkf.count; i++) {
         struct animkeyframe_opts *kf = o->animkf.data[i]->opts;
 
         if (kf->time < prev_time) {
@@ -453,8 +460,16 @@ static int animatedtime_invalidate(struct ngl_node *node)
         prev_time = kf->time;
     }
 
-    // Sanitize updated keyframes times
-    prev_time = 0.0;
+    s->anim.kfs = NULL;
+    return 0;
+}
+
+static int animatedtime_invalidate(struct ngl_node *node)
+{
+    const struct variable_opts *o = node->opts;
+
+    // Sanitize updated time values
+    double prev_time = 0.0;
     for (size_t i = 0; i < o->animkf.count; i++) {
         struct animkeyframe_opts *kf = o->animkf.data[i]->opts;
         if (kf->scalar < prev_time) {
@@ -464,22 +479,27 @@ static int animatedtime_invalidate(struct ngl_node *node)
         }
         prev_time = kf->scalar;
     }
-    return 0;
+    return animation_invalidate(node);
 }
 
 #define animatedtime_invalidate  animatedtime_invalidate
-#define animatedfloat_invalidate NULL
-#define animatedvec2_invalidate  NULL
-#define animatedvec3_invalidate  NULL
-#define animatedvec4_invalidate  NULL
-#define animatedpath_invalidate  NULL
-#define animatedcolor_invalidate NULL
-#define animatedquat_invalidate  NULL
+#define animatedfloat_invalidate animation_invalidate
+#define animatedvec2_invalidate  animation_invalidate
+#define animatedvec3_invalidate  animation_invalidate
+#define animatedvec4_invalidate  animation_invalidate
+#define animatedpath_invalidate  animation_invalidate
+#define animatedcolor_invalidate animation_invalidate
+#define animatedquat_invalidate  animation_invalidate
 
 static int animatedquat_update(struct ngl_node *node, double t)
 {
     struct animated_priv *s = node->priv_data;
     const struct variable_opts *o = node->opts;
+    if (!s->anim.kfs) {
+        int ret = animation_init(node);
+        if (ret < 0)
+            return ret;
+    }
     int ret = ngli_animation_evaluate(&s->anim, s->vector, t - o->time_offset);
     if (ret < 0)
         return ret;

@@ -115,11 +115,7 @@ int ngli_animation_init(struct animation *s, void *user_arg,
         return NGL_ERROR_INVALID_ARG;
     }
 
-    s->user_arg = user_arg;
-
     ngli_assert(mix_func && cpy_func);
-    s->mix_func = mix_func;
-    s->cpy_func = cpy_func;
 
     double prev_time = -DBL_MAX;
     for (size_t i = 0; i < nb_kfs; i++) {
@@ -133,8 +129,14 @@ int ngli_animation_init(struct animation *s, void *user_arg,
         prev_time = kf->time;
     }
 
-    s->kfs = kfs;
-    s->nb_kfs = nb_kfs;
+    /* Publish the new cache only after validation succeeds. */
+    *s = (struct animation){
+        .kfs = kfs,
+        .nb_kfs = nb_kfs,
+        .user_arg = user_arg,
+        .mix_func = mix_func,
+        .cpy_func = cpy_func,
+    };
 
     return 0;
 }
