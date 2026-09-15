@@ -801,12 +801,14 @@ const struct node_param *ngli_node_param_find(const struct ngl_node *node, const
                                               uint8_t **base_ptrp)
 {
     const struct node_param *par = ngli_params_find(ngli_base_node_params, key);
-    *base_ptrp = (uint8_t *)node;
+    const uint8_t *base_ptr = (const uint8_t *)node;
 
     if (!par) {
         par = ngli_params_find(node->cls->params, key);
-        *base_ptrp = (uint8_t *)node->opts;
+        base_ptr = node->opts;
     }
+    if (base_ptrp)
+        *base_ptrp = (uint8_t *)base_ptr;
     if (!par)
         LOG(ERROR, "parameter %s not found in %s", key, node->cls->name);
     return par;
@@ -880,8 +882,7 @@ static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, vo
 int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
                              size_t nb_nodes, struct ngl_node **nodes)
 {
-    uint8_t *base_ptr;
-    const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
+    const struct node_param *par = ngli_node_param_find(node, key, NULL);
     if (!par)
         return NGL_ERROR_NOT_FOUND;
 
