@@ -164,9 +164,14 @@ int ngpu_buffer_vk_wait(struct ngpu_buffer *s)
 {
     struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
-    ngpu_darray_foreach(it, &s_priv->cmd_buffers)
-        ngpu_cmd_buffer_vk_wait(*it);
-    ngpu_darray_clear(&s_priv->cmd_buffers);
+    while (s_priv->cmd_buffers.count) {
+        struct ngpu_cmd_buffer_vk *cmd = *ngpu_darray_tail(&s_priv->cmd_buffers);
+        if (!cmd->submitted)
+            return NGPU_ERROR_INVALID_USAGE;
+        const VkResult res = ngpu_cmd_buffer_vk_wait(cmd);
+        if (res != VK_SUCCESS)
+            return ngpu_vk_res2ret(res);
+    }
 
     return 0;
 }

@@ -119,5 +119,6 @@ int ngpu_cmd_buffer_gl_begin(struct ngpu_cmd_buffer_gl *s);
 int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_gl *cmd);
 int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence);
 int ngpu_cmd_buffer_gl_wait(struct ngpu_cmd_buffer_gl *s);
+bool ngpu_cmd_buffer_gl_is_submitted(const struct ngpu_cmd_buffer_gl *s);
 
 #endif

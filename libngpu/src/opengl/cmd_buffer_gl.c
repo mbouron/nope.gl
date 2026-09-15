@@ -41,6 +41,7 @@ struct ngpu_cmd_buffer_gl {
     struct ngpu_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_fence *fence;
+    bool submitted;
     NGPU_DARRAY(struct ngpu_cmd_gl) cmds;
     NGPU_DARRAY(struct ngpu_rc *) refs;
     NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
@@ -250,6 +251,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
         ngpu_fence_reset(s->fence);
         ngpu_fence_gl_insert(s->fence);
     }
+    s->submitted = true;
 
     if (signal_fence) {
         int ret = ngpu_fence_gl_insert(signal_fence);
@@ -264,13 +266,21 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
 
 int ngpu_cmd_buffer_gl_wait(struct ngpu_cmd_buffer_gl *s)
 {
-    if (!s->fence)
+    if (!s->submitted)
         return 0;
 
     int ret = ngpu_fence_wait(s->fence);
+    if (ret < 0)
+        return ret;
+    s->submitted = false;
 
     ngpu_darray_clear(&s->refs);
     ngpu_darray_clear(&s->buffer_refs);
 
     return ret;
+}
+
+bool ngpu_cmd_buffer_gl_is_submitted(const struct ngpu_cmd_buffer_gl *s)
+{
+    return s->submitted;
 }
