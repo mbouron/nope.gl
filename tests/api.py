@@ -47,6 +47,62 @@ def _get_scene():
     return ngl.Scene.from_params(ngl.DrawColor(geometry=ngl.Quad()))
 
 
+def api_animation_evaluate_edits():
+    """Standalone animation and velocity evaluation follow edited keyframe lists."""
+    for size, animated_cls, keyframe_cls, velocity_cls in (
+        (1, ngl.AnimatedFloat, ngl.AnimKeyFrameFloat, ngl.VelocityFloat),
+        (2, ngl.AnimatedVec2, ngl.AnimKeyFrameVec2, ngl.VelocityVec2),
+        (3, ngl.AnimatedVec3, ngl.AnimKeyFrameVec3, ngl.VelocityVec3),
+        (4, ngl.AnimatedVec4, ngl.AnimKeyFrameVec4, ngl.VelocityVec4),
+    ):
+
+        def value(v):
+            return v if size == 1 else (v,) * size
+
+        first = keyframe_cls(0, value(0))
+        middle = keyframe_cls(1, value(1))
+        anim = animated_cls([first, middle])
+        velocity = velocity_cls(anim)
+
+        def check_velocity(t, keyframes):
+            actual = velocity.evaluate(t)
+            fresh = velocity_cls(animated_cls(keyframes))
+            assert actual == fresh.evaluate(t)
+
+        assert anim.evaluate(0.5) == value(0.5)
+        check_velocity(0.5, [first, middle])
+
+        last = keyframe_cls(2, value(3))
+        assert anim.add_keyframes(last) == 0
+        check_velocity(1.5, [first, middle, last])
+        assert anim.evaluate(1.5) == value(2)
+
+
+def api_animation_live_timestamps():
+    """Live timestamp edits sanitize the first interval and invalidate consumers."""
+    for animated_cls in (ngl.AnimatedFloat, ngl.AnimatedTime):
+        keyframes = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(1, 0.5), ngl.AnimKeyFrameFloat(2, 1)]
+        anim = animated_cls(keyframes)
+        children = [anim]
+        if animated_cls is ngl.AnimatedFloat:
+            children.append(ngl.DrawColor(opacity=ngl.VelocityFloat(anim)))
+        scene = ngl.Scene.from_params(ngl.Group(children=children))
+        ctx = ngl.Context()
+        assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+        try:
+            assert ctx.set_scene(scene) == 0
+            assert ctx.draw(1.5) == 0
+            assert keyframes[0].set_time(1.25) == 0
+            assert [kf.get_time() for kf in keyframes] == [1.25, 1.25, 2]
+            # Exercise cache rebuilding at the same time as the preceding draw.
+            assert ctx.draw(1.5) == 0
+            assert keyframes[1].set_time(3) == 0
+            assert [kf.get_time() for kf in keyframes] == [1.25, 3, 3]
+            assert ctx.draw(1.5) == 0
+        finally:
+            assert ctx.set_scene(None) == 0
+
+
 def api_backend():
     ctx = ngl.Context()
     fake_backend_cls = namedtuple("FakeBackend", "value")
