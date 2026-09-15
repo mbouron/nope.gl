@@ -725,4 +725,3 @@ const struct glcontext_class ngpu_glcontext_egl_class = {
     .get_display = get_display,
     .priv_size = sizeof(struct egl_priv),
 };
-
