@@ -42,6 +42,7 @@ cdef extern from "nopegl/nopegl.h":
     cdef int NGL_ERROR_GENERIC
     cdef int NGL_ERROR_ACCESS
     cdef int NGL_ERROR_BUG
+    cdef int NGL_ERROR_BUSY
     cdef int NGL_ERROR_EXTERNAL
     cdef int NGL_ERROR_INVALID_ARG
     cdef int NGL_ERROR_INVALID_DATA
@@ -337,6 +338,7 @@ log_set_min_level = ngl_log_set_min_level
 
 ERROR_GENERIC                 = NGL_ERROR_GENERIC
 ERROR_ACCESS                  = NGL_ERROR_ACCESS
+ERROR_BUSY                    = NGL_ERROR_BUSY
 ERROR_BUG                     = NGL_ERROR_BUG
 ERROR_EXTERNAL                = NGL_ERROR_EXTERNAL
 ERROR_INVALID_ARG             = NGL_ERROR_INVALID_ARG
