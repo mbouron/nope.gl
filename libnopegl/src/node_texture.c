@@ -516,15 +516,13 @@ static int texture_prefetch(struct ngl_node *node)
     return 0;
 }
 
-static int texture_invalidate(struct ngl_node *node)
+static void texture_invalidate(struct ngl_node *node)
 {
     const struct texture_opts *o = node->opts;
 
     if (o->data_src && o->data_src->force_release_prefetch) {
         node->force_release_prefetch = true;
     }
-
-    return 0;
 }
 
 static int handle_media_frame(struct ngl_node *node)

@@ -763,7 +763,8 @@ static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
         if (ret < 0)
             return ret;
     }
-    return ngli_node_invalidate_branch(a->node);
+    ngli_node_invalidate_branch(a->node);
+    return 0;
 }
 
 static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, void *elems)
@@ -876,30 +877,23 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
     return node_param_update_cb(node->ctx, &arg);
 }
 
-static int invalidate_branch(struct ngl_node *node, uint64_t traversal_id)
+static void invalidate_branch(struct ngl_node *node, uint64_t traversal_id)
 {
     if (node->traversal_id == traversal_id)
-        return 0;
+        return;
     node->traversal_id = traversal_id;
 
     node->visit_time = -1.;
     node->last_update_time = -1;
-    if (node->cls->invalidate) {
-        int ret = node->cls->invalidate(node);
-        if (ret < 0)
-            return ret;
-    }
-    for (size_t i = 0; i < node->parents.count; i++) {
-        int ret = invalidate_branch(node->parents.data[i], traversal_id);
-        if (ret < 0)
-            return ret;
-    }
-    return 0;
+    if (node->cls->invalidate)
+        node->cls->invalidate(node);
+    for (size_t i = 0; i < node->parents.count; i++)
+        invalidate_branch(node->parents.data[i], traversal_id);
 }
 
-int ngli_node_invalidate_branch(struct ngl_node *node)
+void ngli_node_invalidate_branch(struct ngl_node *node)
 {
-    return invalidate_branch(node, ngli_node_new_traversal_id());
+    invalidate_branch(node, ngli_node_new_traversal_id());
 }
 
 static int node_param_is_value_allowed(struct ngl_node *node, const char *key,

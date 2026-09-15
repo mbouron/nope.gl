@@ -337,13 +337,11 @@ static int block_prepare(struct ngl_node *node,
     return 0;
 }
 
-static int block_invalidate(struct ngl_node *node)
+static void block_invalidate(struct ngl_node *node)
 {
     struct block_priv *s = node->priv_data;
 
     s->force_update = 1;
-
-    return 0;
 }
 
 static int block_update(struct ngl_node *node, double t)
