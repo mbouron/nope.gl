@@ -70,15 +70,24 @@ static const struct node_param buffer_params[] = {
     {NULL}
 };
 
-void ngli_node_buffer_extend_usage(struct ngl_node *node, uint32_t usage)
+int ngli_node_buffer_extend_usage(struct ngl_node *node, uint32_t usage)
 {
     struct buffer_info *s = node->priv_data;
 
-    if (s->block) {
-        ngli_node_block_extend_usage(s->block, usage);
-        return;
+    if (s->block)
+        return ngli_node_block_extend_usage(s->block, usage);
+
+    if (node->prepared && !(s->flags & NGLI_BUFFER_INFO_FLAG_GPU_UPLOAD)) {
+        LOG(ERROR, "buffer (%s) usage cannot be extended", node->label);
+        return NGL_ERROR_UNSUPPORTED;
+    }
+
+    if ((usage & ~s->usage) && ngli_buffer_resource_get(s->resource)) {
+        LOG(ERROR, "buffer (%s) usage cannot be extended", node->label);
+        return NGL_ERROR_UNSUPPORTED;
     }
     s->usage |= usage;
+    return 0;
 }
 
 static int buffer_init_from_data(struct ngl_node *node)

@@ -207,12 +207,9 @@ static int register_block(struct pass *s, const char *name, struct ngl_node *blo
         }
     }
 
-    if (type == NGPU_TYPE_UNIFORM_BUFFER)
-        ngli_node_block_extend_usage(block_node, NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    else if (type == NGPU_TYPE_STORAGE_BUFFER)
-        ngli_node_block_extend_usage(block_node, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    else
-        ngli_assert(0);
+    int ret = ngli_node_block_extend_usage_from_type(block_node, type);
+    if (ret < 0)
+        return ret;
 
     struct ngpu_pgcraft_block crafter_block = {
         .type     = type,
@@ -262,7 +259,9 @@ static int register_attribute(struct pass *s, const char *name, struct ngl_node 
     if (!attribute)
         return 0;
 
-    ngli_node_buffer_extend_usage(attribute, NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    int ret = ngli_node_buffer_extend_usage(attribute, NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    if (ret < 0)
+        return ret;
 
     struct buffer_info *attribute_priv = attribute->priv_data;
     struct ngpu_pgcraft_attribute crafter_attribute = {

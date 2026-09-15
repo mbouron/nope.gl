@@ -278,10 +278,9 @@ static int register_block(const char *name, struct ngl_node *res, struct ngpu_ct
             btype = NGPU_TYPE_STORAGE_BUFFER;
     }
 
-    if (btype == NGPU_TYPE_UNIFORM_BUFFER)
-        ngli_node_block_extend_usage(res, NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    else
-        ngli_node_block_extend_usage(res, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    int ret = ngli_node_block_extend_usage_from_type(res, btype);
+    if (ret < 0)
+        return ret;
 
     struct ngpu_pgcraft_block crafter_block = {
         .type   = btype,
