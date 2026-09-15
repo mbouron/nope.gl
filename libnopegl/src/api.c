@@ -342,6 +342,8 @@ static void reset_scene(struct ngl_ctx *s, int action)
     ngli_darray_clear(&s->bounding_box_nodes);
     ngli_darray_clear(&s->intersecting_nodes);
     ngli_ctx_release_resources(s);
+    if (s->scene && s->scene->ctx == s)
+        s->scene->ctx = NULL;
     if (s->scene && action == NGLI_ACTION_UNREF_SCENE)
         ngl_scene_unrefp(&s->scene);
 
@@ -415,13 +417,14 @@ int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
             goto fail;
         }
 
-        if (scene->params.root->ctx) {
+        if (scene->ctx || scene->params.root->ctx) {
             LOG(ERROR, "the specified scene is already associated with a rendering context");
             ret = NGL_ERROR_INVALID_USAGE;
             goto fail;
         }
 
         s->scene = ngl_scene_ref(scene);
+        scene->ctx = s;
 
         ret = ngli_node_attach_ctx(scene->params.root, s);
         if (ret < 0) {

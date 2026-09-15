@@ -60,6 +60,10 @@ int ngl_effect2dshader_set_range(struct ngl_node *node, double start, double end
     if (node->cls->id != NGL_NODE_EFFECT2DSHADER)
         return NGL_ERROR_UNSUPPORTED;
 
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
     struct effect2d_shader_opts *o = node->opts;
     o->start = start;
     o->end = end;
@@ -67,7 +71,7 @@ int ngl_effect2dshader_set_range(struct ngl_node *node, double start, double end
     if (!node->ctx)
         return 0;
 
-    int ret = update_range(node);
+    ret = update_range(node);
     if (ret < 0)
         return ret;
 
