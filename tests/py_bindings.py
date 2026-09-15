@@ -19,7 +19,34 @@
 # under the License.
 #
 
+import textwrap
+
 import pynopegl as ngl
+
+
+def py_bindings_duplicate_release():
+    import subprocess
+    import sys
+
+    # Native deletion logs expose ownership hidden by the Python wrapper. Run
+    # separately so changing the global log level does not affect other tests.
+    output = subprocess.check_output(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent("""
+                import pynopegl as ngl
+                ngl.log_set_min_level(ngl.Log.VERBOSE)
+                root = ngl.Group(children=[ngl.Identity()])
+                dup = root.duplicate(duplicate_resources=True)
+                del dup
+                del root
+            """),
+        ],
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    assert output.count("DELETE ") == 4, output
 
 
 def py_bindings_allow_node():
