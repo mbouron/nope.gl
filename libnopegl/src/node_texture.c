@@ -54,6 +54,7 @@ struct texture_opts {
 struct texture_priv {
     struct texture_info texture_info;
     struct hwmap hwmap;
+    bool is_rtt;
     int rtt_resizable;
     struct renderpass_reqs renderpass_reqs;
     struct ngpu_rendertarget_layout rendertarget_layout;
@@ -119,6 +120,14 @@ int ngli_node_texture_has_media_data_src(const struct ngl_node *node)
             return 1;
     }
     return 0;
+}
+
+bool ngli_node_texture_is_rtt(const struct ngl_node *node)
+{
+    const struct texture_opts *o = node->opts;
+    const struct ngl_node *data_src = o->data_src;
+    return data_src && data_src->cls->id != NGL_NODE_MEDIA &&
+           data_src->cls->category != NGLI_NODE_CATEGORY_BUFFER;
 }
 
 const struct param_choices ngli_mipmap_filter_choices = {
@@ -462,7 +471,7 @@ static int texture_prefetch(struct ngl_node *node)
     };
     image_params.planes[0] = i->texture;
 
-    if (s->texture_info.rtt) {
+    if (s->is_rtt) {
         /* Transform the color textures coordinates so it matches how the
          * graphics context uv coordinate system works regarding render targets */
         ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, image_params.coordinates_matrix.m);
@@ -684,7 +693,7 @@ static void texture_pre_draw(struct ngl_node *node)
     struct texture_priv *s = node->priv_data;
     const struct texture_opts *o = node->opts;
 
-    if (!s->texture_info.rtt)
+    if (!s->is_rtt)
         return;
 
     if (s->rtt_resizable) {
@@ -773,12 +782,11 @@ static int texture2d_init(struct ngl_node *node)
     i->clamp_video = o->clamp_video;
     i->premult = o->premult;
 
-    struct ngl_node *data_src = o->data_src;
-    if (data_src && data_src->cls->id != NGL_NODE_MEDIA &&
-        data_src->cls->category != NGLI_NODE_CATEGORY_BUFFER) {
-        s->texture_info.rtt = 1;
+    s->is_rtt = ngli_node_texture_is_rtt(node);
+    if (s->is_rtt) {
         s->rtt_resizable = (i->params.width == 0 && i->params.height == 0);
 
+        struct ngl_node *data_src = o->data_src;
         ngli_node_get_renderpass_reqs(&data_src, 1, &s->renderpass_reqs);
 
         i->params.usage |= NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -800,7 +808,7 @@ static void texture2d_get_rendertarget_layout(const struct ngl_node *node,
                                               struct ngpu_rendertarget_layout *layout)
 {
     const struct texture_priv *s = node->priv_data;
-    if (s->texture_info.rtt)
+    if (s->is_rtt)
         *layout = s->rendertarget_layout;
 }
 
