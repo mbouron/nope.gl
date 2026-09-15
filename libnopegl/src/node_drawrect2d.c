@@ -765,10 +765,12 @@ static int drawrect2d_init(struct ngl_node *node)
                 type = NGPU_TYPE_STORAGE_BUFFER;
         }
 
-        if (type == NGPU_TYPE_UNIFORM_BUFFER)
-            ngli_node_block_extend_usage(cb->node, NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-        else
-            ngli_node_block_extend_usage(cb->node, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        ret = ngli_node_block_extend_usage_from_type(cb->node, type);
+        if (ret < 0) {
+            ngli_darray_reset(&blocks);
+            ngli_darray_reset(&textures);
+            return ret;
+        }
 
         struct ngpu_pgcraft_block crafter_block = {
             .type   = type,
@@ -801,10 +803,12 @@ static int drawrect2d_init(struct ngl_node *node)
                     type = NGPU_TYPE_STORAGE_BUFFER;
             }
 
-            if (type == NGPU_TYPE_UNIFORM_BUFFER)
-                ngli_node_block_extend_usage(cb->node, NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-            else
-                ngli_node_block_extend_usage(cb->node, NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+            ret = ngli_node_block_extend_usage_from_type(cb->node, type);
+            if (ret < 0) {
+                ngli_darray_reset(&blocks);
+                ngli_darray_reset(&textures);
+                return ret;
+            }
 
             struct ngpu_pgcraft_block crafter_block = {
                 .type   = type,

@@ -40,6 +40,7 @@ struct block_info {
     struct buffer_resource *resource;
 };
 
-void ngli_node_block_extend_usage(struct ngl_node *node, uint32_t usage);
+int ngli_node_block_extend_usage(struct ngl_node *node, uint32_t usage);
+int ngli_node_block_extend_usage_from_type(struct ngl_node *node, enum ngpu_type type);
 
 #endif

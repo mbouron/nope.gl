@@ -130,10 +130,27 @@ static const struct node_param block_params[] = {
 
 NGLI_STATIC_ASSERT(offsetof(struct block_priv, blk) == 0, "block_info is first");
 
-void ngli_node_block_extend_usage(struct ngl_node *node, uint32_t usage)
+int ngli_node_block_extend_usage(struct ngl_node *node, uint32_t usage)
 {
     struct block_info *s = node->priv_data;
+    if ((usage & ~s->usage) && ngli_buffer_resource_get(s->resource)) {
+        LOG(ERROR, "block (%s) usage cannot be extended", node->label);
+        return NGL_ERROR_UNSUPPORTED;
+    }
     s->usage |= usage;
+    return 0;
+}
+
+int ngli_node_block_extend_usage_from_type(struct ngl_node *node, enum ngpu_type type)
+{
+    uint32_t usage;
+    if (type == NGPU_TYPE_UNIFORM_BUFFER)
+        usage = NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    else if (type == NGPU_TYPE_STORAGE_BUFFER)
+        usage = NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    else
+        ngli_assert(0);
+    return ngli_node_block_extend_usage(node, usage);
 }
 
 static enum ngpu_type get_node_data_type(const struct ngl_node *node)
