@@ -470,7 +470,7 @@ struct node_class {
      * dispatch: managed
      * when: any time a parameter is live-changed
      */
-    int (*invalidate)(struct ngl_node *node);
+    void (*invalidate)(struct ngl_node *node);
 
     /*
      * Update CPU/GPU resources according to the time.
@@ -600,7 +600,7 @@ void ngli_node_pre_draw_children(struct ngl_node *node);
 int ngli_prepare_draw(struct ngl_ctx *s, double t);
 void ngli_node_draw(struct ngl_node *node);
 void ngli_node_draw_children(struct ngl_node *node);
-int ngli_node_invalidate_branch(struct ngl_node *node);
+void ngli_node_invalidate_branch(struct ngl_node *node);
 uint64_t ngli_node_new_traversal_id(void);
 
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);

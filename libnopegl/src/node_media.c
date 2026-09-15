@@ -461,7 +461,7 @@ static int filename_changed(struct ngl_node *node)
     return 0;
 }
 
-static int media_invalidate(struct ngl_node *node)
+static void media_invalidate(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
 
@@ -470,14 +470,12 @@ static int media_invalidate(struct ngl_node *node)
     get_start_end_time(node, &start_time, &end_time);
 
     if (start_time == -DBL_MAX && end_time == -DBL_MAX)
-        return 0;
+        return;
 
     if (start_time == s->start_time && end_time == s->end_time)
-        return 0;
+        return;
 
     node->force_release_prefetch = true;
-
-    return 0;
 }
 
 const struct node_class ngli_media_class = {

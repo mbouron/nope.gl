@@ -442,7 +442,7 @@ static int animation_update(struct ngl_node *node, double t)
 #define animatedpath_update  animation_update
 #define animatedcolor_update animation_update
 
-static int animation_invalidate(struct ngl_node *node)
+static void animation_invalidate(struct ngl_node *node)
 {
     struct animated_priv *s = node->priv_data;
     const struct variable_opts *o = node->opts;
@@ -461,10 +461,9 @@ static int animation_invalidate(struct ngl_node *node)
     }
 
     s->anim.kfs = NULL;
-    return 0;
 }
 
-static int animatedtime_invalidate(struct ngl_node *node)
+static void animatedtime_invalidate(struct ngl_node *node)
 {
     const struct variable_opts *o = node->opts;
 
@@ -479,7 +478,7 @@ static int animatedtime_invalidate(struct ngl_node *node)
         }
         prev_time = kf->scalar;
     }
-    return animation_invalidate(node);
+    animation_invalidate(node);
 }
 
 #define animatedtime_invalidate  animatedtime_invalidate

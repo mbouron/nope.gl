@@ -72,11 +72,10 @@ struct velocity_priv {
 
 NGLI_STATIC_ASSERT(offsetof(struct velocity_priv, var) == 0, "variable_info is first");
 
-static int velocity_invalidate(struct ngl_node *node)
+static void velocity_invalidate(struct ngl_node *node)
 {
     struct velocity_priv *s = node->priv_data;
     s->anim.kfs = NULL;
-    return 0;
 }
 
 static void mix_velocity_float(void *user_arg, void *dst,
