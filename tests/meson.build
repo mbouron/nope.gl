@@ -317,6 +317,7 @@ foreach backend : backends
   ]
 
   tests_py_bindings = [
+    'duplicate_release',
     'allow_node',
     'dict',
     'f64s',

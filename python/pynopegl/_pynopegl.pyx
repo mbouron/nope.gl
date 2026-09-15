@@ -383,7 +383,10 @@ cdef class _Node:
         cdef ngl_node *dup = ngl_node_duplicate(self.ctx, flags)
         if dup is NULL:
             raise MemoryError()
-        return _Node(ctx=<uintptr_t>dup)
+        try:
+            return _Node(ctx=<uintptr_t>dup)
+        finally:
+            ngl_node_unrefp(&dup)
 
     def _param_set_bool(self, const char *key, bint value):
         return ngl_node_param_set_bool(self.ctx, key, value)
