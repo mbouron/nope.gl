@@ -36,12 +36,11 @@ static uint32_t get_renderpass_usage(const struct ngl_node *node)
 
 static bool is_renderpass_boundary(const struct ngl_node *node)
 {
-    if (node->cls->id == NGL_NODE_TEXTURE2D) {
-        const struct texture_info *texture_info = node->priv_data;
-        return texture_info->rtt;
-    } else if (node->cls->id == NGL_NODE_COMPUTE) {
+    if (node->cls->id == NGL_NODE_TEXTURE2D)
+        return ngli_node_texture_is_rtt(node);
+
+    if (node->cls->id == NGL_NODE_COMPUTE)
         return true;
-    }
 
     return node->cls->get_rendertarget_layout != NULL;
 }

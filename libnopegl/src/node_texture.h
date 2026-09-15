@@ -22,6 +22,7 @@
 #ifndef NODE_TEXTURE_H
 #define NODE_TEXTURE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "image.h"
@@ -40,7 +41,6 @@ struct texture_info {
     uint32_t supported_image_layouts;
     int clamp_video;
     int premult;
-    int rtt;
     struct ngpu_texture *texture;
     struct ngli_image *image;
     struct image_resource *resource;
@@ -50,5 +50,6 @@ struct texture_info *ngli_node_texture_get_texture_info(const struct ngl_node *n
 enum ngpu_pgcraft_texture_type ngli_node_texture_get_pgcraft_texture_type(const struct ngl_node *node);
 enum ngpu_pgcraft_texture_type ngli_node_texture_get_pgcraft_image_type(const struct ngl_node *node);
 int ngli_node_texture_has_media_data_src(const struct ngl_node *node);
+bool ngli_node_texture_is_rtt(const struct ngl_node *node);
 
 #endif
