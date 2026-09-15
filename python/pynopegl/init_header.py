@@ -104,6 +104,7 @@ def log_set_min_level(level: Log):
 class Error(IntEnum):
     GENERIC = _ngl.ERROR_GENERIC
     ACCESS = _ngl.ERROR_ACCESS
+    BUSY = _ngl.ERROR_BUSY
     BUG = _ngl.ERROR_BUG
     EXTERNAL = _ngl.ERROR_EXTERNAL
     INVALID_ARG = _ngl.ERROR_INVALID_ARG
