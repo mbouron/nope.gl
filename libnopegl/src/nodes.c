@@ -221,7 +221,7 @@ static void node_unprepare_self(struct ngl_node *node)
         node->cls->unprepare(node);
 }
 
-static void node_uninit(struct ngl_node *node)
+static void node_uninit_state(struct ngl_node *node)
 {
     if (node->state == NGLI_NODE_STATE_UNINITIALIZED)
         return;
@@ -238,7 +238,13 @@ static void node_uninit(struct ngl_node *node)
     node->state = NGLI_NODE_STATE_UNINITIALIZED;
     node->prepared = false;
     node->visit_time = -1.;
+}
 
+static void node_uninit(struct ngl_node *node)
+{
+    if (node->state == NGLI_NODE_STATE_UNINITIALIZED)
+        return;
+    node_uninit_state(node);
     ctx_unregister_node(node->ctx, node);
     node->ctx = NULL;
 }
@@ -355,10 +361,14 @@ static bool should_uninit_node(const struct ngl_node *node, enum release_nodes s
  * guarantee this: a child added live is registered after its parent.
  *
  * Second pass:
- * Uninitialize the selected nodes to free their remaining resources. Walk
- * backwards because node_uninit() removes a node from the registry by moving
- * the last entry into its slot. That entry has already been visited, so no
- * unvisited entries are skipped.
+ * Uninitialize the selected nodes to free their remaining resources. Keep every
+ * node bound to the context until all callbacks have returned, including
+ * detached ancestors whose children may still call back during uninit.
+ *
+ * Third pass:
+ * Unregister the uninitialized nodes and clear their context binding. Walk
+ * backwards because unregistering moves the last entry into the removed slot.
+ * That entry has already been visited, so no unvisited entries are skipped.
  */
 static void ctx_uninit_nodes(struct ngl_ctx *s, enum release_nodes scope)
 {
@@ -378,11 +388,18 @@ static void ctx_uninit_nodes(struct ngl_ctx *s, enum release_nodes scope)
 
     for (size_t i = s->resource_nodes.count; i > 0; i--) {
         struct ngl_node *node = s->resource_nodes.data[i - 1];
-        if (!should_uninit_node(node, scope))
+        if (should_uninit_node(node, scope))
+            node_uninit_state(node);
+    }
+
+    for (size_t i = s->resource_nodes.count; i > 0; i--) {
+        struct ngl_node *node = s->resource_nodes.data[i - 1];
+        if (node->state != NGLI_NODE_STATE_UNINITIALIZED)
             continue;
-        /* The registry reference is about to be dropped by the uninit */
+        /* The registry reference is about to be dropped */
         ngl_node_ref(node);
-        node_uninit(node);
+        ctx_unregister_node(s, node);
+        node->ctx = NULL;
         ngl_node_unrefp(&node);
     }
 }
@@ -814,6 +831,21 @@ static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
     return 0;
 }
 
+int ngli_node_check_not_traversing(const struct ngl_node *node)
+{
+    /* Ancestors and unvisited siblings are scene-associated before they are
+     * initialized. They must already be protected from initialization callbacks. */
+    const struct ngl_ctx *ctx = node->ctx;
+    if (!ctx && node->scene)
+        ctx = node->scene->ctx;
+    if (ctx && ctx->in_node_callbacks) {
+        LOG(ERROR, "%s can not be changed from a node callback, "
+            "nor while the graph is being updated or drawn", node->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    return 0;
+}
+
 static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, void *elems)
 {
     int ret = 0;
@@ -822,6 +854,10 @@ static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, vo
     const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
     if (!par)
         return NGL_ERROR_NOT_FOUND;
+
+    ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
 
     if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
         LOG(ERROR, "%s.%s can not be live extended", node->label, key);
@@ -870,6 +906,10 @@ int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
         return NGL_ERROR_INVALID_USAGE;
     }
 
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
     if (node->scene) {
         LOG(ERROR, "the nodes graph cannot be shrunk after being associated with a scene");
         return NGL_ERROR_INVALID_USAGE;
@@ -884,7 +924,7 @@ int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
     if (!nb_nodes)
         return 0;
 
-    int ret = ngli_params_remove_nodes(base_ptr + par->offset, par, nb_nodes, nodes);
+    ret = ngli_params_remove_nodes(base_ptr + par->offset, par, nb_nodes, nodes);
     if (ret < 0)
         return ret;
 
@@ -906,12 +946,16 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
     if (!par)
         return NGL_ERROR_NOT_FOUND;
 
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
     if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
         LOG(ERROR, "%s.%s can not be live extended", node->label, key);
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    int ret = ngli_params_swap_elem(base_ptr, par, from, to);
+    ret = ngli_params_swap_elem(base_ptr, par, from, to);
     if (ret < 0) {
         LOG(ERROR, "unable to add elements to %s.%s", node->label, key);
         return ret;
@@ -946,14 +990,12 @@ void ngli_node_invalidate_branch(struct ngl_node *node)
 static int node_param_is_value_allowed(struct ngl_node *node, const char *key,
                                        const uint8_t *ptr, const struct node_param *par)
 {
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
     if (!node->ctx)
         return 0;
-
-    if (node->ctx->in_node_callbacks) {
-        LOG(ERROR, "%s.%s can not be changed from a node callback, "
-            "nor while the graph is being updated or drawn", node->label, key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
 
     if (!(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
         LOG(ERROR, "%s.%s can not be live changed", node->label, key);

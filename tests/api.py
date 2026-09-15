@@ -19,6 +19,7 @@
 # under the License.
 #
 
+import array
 import atexit
 import csv
 import hashlib
@@ -330,6 +331,50 @@ def api_ctx_reentry_during_traversal(width=64, height=64):
     del scene
 
 
+def api_range_edits_during_callbacks():
+    """Atomic range updates obey the same guard as individual parameter setters."""
+    events = []
+    trf = ngl.TimeRangeFilter(ngl.DrawColor(), start=0, end=1)
+    trf2d = ngl.TimeRangeFilter2D(ngl.Group2D(), start=0, end=1)
+    shader = ngl.Effect2DShader(glsl_color="return ngl_texvideo(tex, tex_coord);", start=0, end=1)
+    ranges = [trf, trf2d, shader]
+
+    class EditingTexture(ngl.CustomTexture):
+        def edit(self):
+            events.append([node.set_range(4, 5) for node in ranges])
+
+        def _init(self):
+            self.edit()
+
+        def _draw(self):
+            self.edit()
+
+        def _uninit(self):
+            self.edit()
+
+    custom = EditingTexture()
+    canvas = ngl.Canvas2D(children=[trf2d, ngl.Effect2D(shaders=[shader])], width=16, height=16)
+    root = ngl.Group(children=[custom, trf, canvas])
+    scene = ngl.Scene.from_params(root)
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+    try:
+        assert ctx.set_scene(scene) == 0
+        assert ctx.draw(0) == 0
+        for node in ranges:
+            assert (node.get_start(), node.get_end()) == (0, 1)
+            assert node.set_range(10, 15) == 0
+            assert (node.get_start(), node.get_end()) == (10, 15)
+        assert ctx.draw(11) == 0
+        assert ctx.set_scene(None) == 0
+        assert events == [[ngl.Error.INVALID_USAGE] * 3] * 4, events
+        for node in ranges:
+            assert (node.get_start(), node.get_end()) == (10, 15)
+            assert node.set_range(0, 1) == 0
+    finally:
+        assert ctx.set_scene(None) == 0
+
+
 def api_capture_buffer_rejected_lifetime():
     """Rejected buffer replacements keep the native capture pointer alive."""
 
@@ -476,6 +521,53 @@ def api_scene_resilience():
     assert ctx.draw(0) == 0
     del scene0
     del ctx
+
+
+def api_scene_files_during_callbacks():
+    """Scene filepaths stay fixed from the first init through the last uninit."""
+    with tempfile.TemporaryDirectory(prefix="ngl-scene-files-") as tmp:
+        old_path = Path(tmp) / "old.bin"
+        new_path = Path(tmp) / "new.bin"
+        old_path.write_bytes(array.array("f", [1.0]).tobytes())
+        new_path.write_bytes(array.array("f", [2.0]).tobytes())
+        buffer = ngl.BufferFloat(filename=str(old_path))
+        events = []
+
+        class EditingTexture(ngl.CustomTexture):
+            def edit(self, phase):
+                try:
+                    scene.update_filepath(0, str(new_path))
+                except Exception:
+                    rejected = True
+                else:
+                    rejected = False
+                events.append((phase, rejected, buffer.get_filename()))
+
+            def _init(self):
+                self.edit("init")
+
+            def _draw(self):
+                self.edit("draw")
+
+            def _uninit(self):
+                self.edit("uninit")
+
+        custom = EditingTexture()
+        # The buffer is initialized before its parent and the editing callback.
+        scene = ngl.Scene.from_params(ngl.Group(children=[buffer, custom]))
+        ctx = ngl.Context()
+        assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+        try:
+            assert ctx.set_scene(scene) == 0
+            assert ctx.draw(0) == 0
+            assert ctx.set_scene(None) == 0
+            assert events == [(phase, True, str(old_path)) for phase in ("init", "draw", "uninit")], events
+            assert scene.files == [str(old_path)]
+            scene.update_filepath(0, str(new_path))
+            assert buffer.get_filename() == str(new_path)
+            assert scene.files == [str(new_path)]
+        finally:
+            assert ctx.set_scene(None) == 0
 
 
 def api_scene_files():

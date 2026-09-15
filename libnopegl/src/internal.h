@@ -271,6 +271,7 @@ NGLI_DECLARE_DARRAY_WITH_NAME(ngli_ptr_darray, uint8_t *);
 
 struct ngl_scene {
     struct ngli_rc rc;
+    struct ngl_ctx *ctx;
     struct ngl_scene_params params;
     struct ngli_node_darray nodes; // set of all the nodes in the graph
     struct ngli_str_darray files; // files path strings (array of char *)
@@ -588,6 +589,7 @@ void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
 struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children);
 float ngli_node_compute_children_effect_margin(struct ngl_node *const *children, size_t nb_children);
 
+int ngli_node_check_not_traversing(const struct ngl_node *node);
 int ngli_node_prepare(struct ngl_node *node,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
 int ngli_node_prepare_nodes(struct ngl_ctx *ctx, size_t nb_nodes, struct ngl_node *const *nodes,

@@ -105,6 +105,10 @@ int ngl_timerangefilter_set_range(struct ngl_node *node, double start, double en
     if (node->cls->id != NGL_NODE_TIMERANGEFILTER)
         return NGL_ERROR_UNSUPPORTED;
 
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
     struct timerangefilter_opts *o = node->opts;
 
     o->start_time = start;
@@ -113,7 +117,7 @@ int ngl_timerangefilter_set_range(struct ngl_node *node, double start, double en
     if (!node->ctx)
         return 0;
 
-    int ret = update_params(node);
+    ret = update_params(node);
     if (ret < 0)
         return ret;
 
