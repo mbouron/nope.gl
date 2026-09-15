@@ -204,14 +204,14 @@ static VkResult buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t
     uint8_t *mapped_data;
     res = vk->funcs.MapMemory(vk->device, s_priv->staging_memory, 0, s->size, 0, (void *)&mapped_data);
     if (res != VK_SUCCESS)
-        return res;
+        goto end;
     memcpy(mapped_data + offset, data, size);
     vk->funcs.UnmapMemory(vk->device, s_priv->staging_memory);
 
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk;
     res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &cmd_buffer_vk);
     if (res != VK_SUCCESS)
-        return res;
+        goto end;
 
     const VkBufferCopy region = {
         .srcOffset = offset,
@@ -221,15 +221,14 @@ static VkResult buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t
     vk->funcs.CmdCopyBuffer(cmd_buffer_vk->cmd_buf, s_priv->staging_buffer, s_priv->buffer, 1, &region);
 
     res = ngpu_cmd_buffer_vk_execute_transient(&cmd_buffer_vk);
-    if (res != VK_SUCCESS)
-        return res;
 
+end:
     vk->funcs.DestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
     s_priv->staging_buffer = VK_NULL_HANDLE;
     vk->funcs.FreeMemory(vk->device, s_priv->staging_memory, NULL);
     s_priv->staging_memory = VK_NULL_HANDLE;
 
-    return VK_SUCCESS;
+    return res;
 }
 
 int ngpu_buffer_vk_upload(struct ngpu_buffer *s, const void *data, size_t offset, size_t size)
