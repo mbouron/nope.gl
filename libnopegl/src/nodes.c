@@ -215,10 +215,10 @@ static void node_unprepare_self(struct ngl_node *node)
 {
     if (!node->prepared)
         return;
+    node->prepared = false;
 
     if (node->cls->unprepare)
         node->cls->unprepare(node);
-    node->prepared = false;
 }
 
 static void node_uninit(struct ngl_node *node)
@@ -319,16 +319,6 @@ int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
     return node_set_ctx(node, ctx, ngli_node_new_traversal_id());
 }
 
-static int ngli_node_attach_ctx_with_layout(struct ngl_node *node, struct ngl_ctx *ctx,
-                                            const struct ngpu_rendertarget_layout *rendertarget_layout)
-{
-    const int ret = ngli_node_set_ctx(node, ctx);
-    if (ret < 0)
-        return ret;
-
-    return ngli_node_prepare(node, rendertarget_layout);
-}
-
 /*
  * Uninitialize the nodes with resources held by the context.
  *
@@ -391,7 +381,10 @@ void ngli_ctx_release_resources(struct ngl_ctx *s)
 
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 {
-    return ngli_node_attach_ctx_with_layout(node, ctx, &ctx->default_rendertarget_layout);
+    const int ret = ngli_node_set_ctx(node, ctx);
+    if (ret < 0)
+        return ret;
+    return ngli_node_prepare(node, &ctx->default_rendertarget_layout);
 }
 
 static bool rendertarget_layout_is_compatible(const struct ngpu_rendertarget_layout *a,
@@ -406,19 +399,29 @@ static bool rendertarget_layout_is_compatible(const struct ngpu_rendertarget_lay
     return memcmp(&a->depth_stencil, &b->depth_stencil, sizeof(a->depth_stencil)) == 0;
 }
 
-bool ngli_node_prepared_against(const struct ngl_node *node,
-                                const struct ngpu_rendertarget_layout *rendertarget_layout)
-{
-    return rendertarget_layout_is_compatible(&node->prepared_rendertarget_layout, rendertarget_layout);
-}
+/*
+ * State shared by all roots passed to ngli_node_prepare_nodes().
+ * Nodes are visited once and prepared after their children. On failure,
+ * successfully prepared nodes are unprepared in reverse order; resources
+ * created by init are retained.
+ */
+struct prepare_ctx {
+    struct ngl_ctx *ctx;
+    uint64_t traversal_id;
+    bool gpu_waited;
+    struct ngli_node_darray prepared_nodes;
+};
 
 static int node_prepare_self(struct ngl_node *node,
-                             const struct ngpu_rendertarget_layout *rendertarget_layout,
-                             struct ngli_node_darray *prepared_nodes)
+                             struct prepare_ctx *prepare_ctx,
+                             const struct ngpu_rendertarget_layout *layout)
 {
+    if (node->prepared)
+        return 0;
+
     if (node->cls->prepare) {
         TRACE("PREPARE %s @ %p", node->label, node);
-        const int ret = node->cls->prepare(node, rendertarget_layout);
+        const int ret = node->cls->prepare(node, layout);
         if (ret < 0) {
             LOG(ERROR, "preparing node %s failed: %s", node->label, NGLI_RET_STR(ret));
             if (node->cls->unprepare)
@@ -427,59 +430,76 @@ static int node_prepare_self(struct ngl_node *node,
         }
     }
 
-    ngli_darray_push(prepared_nodes, node);
+    node->prepared_rendertarget_layout = *layout;
+    node->prepared = true;
+    node->last_update_time = -1.;
+    ngli_darray_push(&prepare_ctx->prepared_nodes, node);
     return 0;
 }
 
 static int node_prepare(struct ngl_node *node,
-                        const struct ngpu_rendertarget_layout *rendertarget_layout,
-                        struct ngli_node_darray *prepared_nodes)
+                        struct prepare_ctx *prepare_ctx,
+                        const struct ngpu_rendertarget_layout *layout)
 {
-    int ret;
-
-    if (node->prepared)
+    if (node->traversal_id == prepare_ctx->traversal_id)
         return 0;
-    node->prepared = true;
-    node->prepared_rendertarget_layout = *rendertarget_layout;
+    node->traversal_id = prepare_ctx->traversal_id;
+    ngli_assert(node->ctx == prepare_ctx->ctx);
+    ngli_assert(node->state != NGLI_NODE_STATE_UNINITIALIZED);
 
-    /* Compute the rendertarget layout for children (may be overridden by this node) */
-    struct ngpu_rendertarget_layout child_rendertarget_layout = *rendertarget_layout;
-    if (node->cls->get_rendertarget_layout)
-        node->cls->get_rendertarget_layout(node, &child_rendertarget_layout);
-
-    /* Leaf-first: prepare all children before this node */
-    for (size_t i = 0; i < node->children.count; i++) {
-        struct ngl_node *child = node->children.data[i];
-        ret = node_prepare(child, &child_rendertarget_layout, prepared_nodes);
-        if (ret < 0)
-            goto fail;
+    if (node->prepared && !rendertarget_layout_is_compatible(&node->prepared_rendertarget_layout, layout)) {
+        if (node->cls->prepare && !(node->cls->flags & NGLI_NODE_FLAG_SHAREABLE)) {
+            if (!prepare_ctx->gpu_waited) {
+                ngpu_ctx_wait_idle(prepare_ctx->ctx->gpu_ctx);
+                prepare_ctx->gpu_waited = true;
+            }
+            node_unprepare_self(node);
+        } else {
+            node->prepared_rendertarget_layout = *layout;
+        }
     }
 
-    ret = node_prepare_self(node, rendertarget_layout, prepared_nodes);
-    if (ret < 0)
-        goto fail;
-    return 0;
+    struct ngpu_rendertarget_layout child_layout = *layout;
+    if (node->cls->get_rendertarget_layout)
+        node->cls->get_rendertarget_layout(node, &child_layout);
 
-fail:
-    node->prepared = false;
+    /* Even a prepared container may have fresh children added while detached. */
+    for (size_t i = 0; i < node->children.count; i++) {
+        const int ret = node_prepare(node->children.data[i], prepare_ctx, &child_layout);
+        if (ret < 0)
+            return ret;
+    }
+
+    return node_prepare_self(node, prepare_ctx, layout);
+}
+
+int ngli_node_prepare_nodes(struct ngl_ctx *ctx, size_t nb_nodes, struct ngl_node *const *nodes,
+                            const struct ngpu_rendertarget_layout *layout)
+{
+    struct prepare_ctx prepare_ctx = {
+        .ctx = ctx,
+        .traversal_id = ngli_node_new_traversal_id(),
+    };
+    int ret = 0;
+    for (size_t i = 0; i < nb_nodes; i++) {
+        ret = node_prepare(nodes[i], &prepare_ctx, layout);
+        if (ret < 0)
+            break;
+    }
+    if (ret < 0) {
+        while (!ngli_darray_is_empty(&prepare_ctx.prepared_nodes)) {
+            struct ngl_node *node = *ngli_darray_pop(&prepare_ctx.prepared_nodes);
+            node_unprepare_self(node);
+        }
+    }
+    ngli_darray_reset(&prepare_ctx.prepared_nodes);
     return ret;
 }
 
 int ngli_node_prepare(struct ngl_node *node,
-                      const struct ngpu_rendertarget_layout *rendertarget_layout)
+                      const struct ngpu_rendertarget_layout *layout)
 {
-    struct ngli_node_darray prepared_nodes = {0};
-    const int ret = node_prepare(node, rendertarget_layout, &prepared_nodes);
-    if (ret < 0) {
-        while (!ngli_darray_is_empty(&prepared_nodes)) {
-            struct ngl_node *prepared_node = *ngli_darray_pop(&prepared_nodes);
-            prepared_node->prepared = false;
-            if (prepared_node->cls->unprepare)
-                prepared_node->cls->unprepare(prepared_node);
-        }
-    }
-    ngli_darray_reset(&prepared_nodes);
-    return ret;
+    return ngli_node_prepare_nodes(node->ctx, 1, &node, layout);
 }
 
 int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
