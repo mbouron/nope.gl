@@ -136,9 +136,9 @@ int ngpu_texture_generate_mipmap(struct ngpu_texture *s)
     return s->gpu_ctx->cls->texture_generate_mipmap(s);
 }
 
-struct ngpu_texture *ngpu_texture_ref(struct ngpu_texture *s)
+struct ngpu_texture *ngpu_texture_ref(const struct ngpu_texture *s)
 {
-    return NGPU_RC_REF(s);
+    return s ? NGPU_RC_REF((struct ngpu_texture *)s) : NULL;
 }
 
 void ngpu_texture_unrefp(struct ngpu_texture **sp)
