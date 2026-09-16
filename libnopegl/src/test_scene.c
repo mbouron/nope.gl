@@ -100,8 +100,7 @@ static void test_add_edges_rollback(void)
     struct ngl_scene *foreign_scene = create_scene(foreign);
 
     struct ngl_node *added_children[] = {c, foreign};
-    const int ret = ngli_scene_add_edges(scene, root, root->children.count,
-                                         2, added_children);
+    const int ret = ngli_scene_add_edges(root, root->children.count, 2, added_children);
     ngli_assert(ret == NGL_ERROR_INVALID_USAGE);
 
     ngli_assert(root->children.count == 2);
