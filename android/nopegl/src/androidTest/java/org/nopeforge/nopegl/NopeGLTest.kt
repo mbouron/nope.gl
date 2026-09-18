@@ -177,11 +177,7 @@ class NopeGLTest {
             minFilter = NGLFilter.Nearest,
             magFilter = NGLFilter.Nearest
         )
-        val transform = NGLTransform(
-            child = texture2DNode,
-            matrix = NGLNodeOrValue.node(NGLUniformMat4(liveId = "reframing_matrix"))
-        )
-        val draw = NGLDrawTexture(transform)
+        val draw = NGLDrawTexture(texture2DNode)
         val transform2 = NGLTransform(
             child = draw,
             matrix = NGLNodeOrValue.node(NGLUniformMat4(liveId = "geometry_matrix"))
