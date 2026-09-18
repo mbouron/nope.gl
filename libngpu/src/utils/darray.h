@@ -137,6 +137,29 @@ static inline size_t name##_find(                                               
 
 #define ngpu_darray_remove(a, idx) ngpu_darray_remove_range((a), (idx), 1)
 
+#define ngpu_darray_move(a, from, to) do {                                       \
+    __typeof__(a) _ngpu_darray_move_a = (a);                                     \
+    const size_t _ngpu_darray_move_from = (from);                                \
+    const size_t _ngpu_darray_move_to = (to);                                    \
+    ngpu_assert(_ngpu_darray_move_from < _ngpu_darray_move_a->count);            \
+    ngpu_assert(_ngpu_darray_move_to < _ngpu_darray_move_a->count);              \
+    __typeof__(*_ngpu_darray_move_a->data) _ngpu_darray_move_elem =              \
+        _ngpu_darray_move_a->data[_ngpu_darray_move_from];                       \
+    const size_t _ngpu_darray_move_count =                                       \
+        _ngpu_darray_move_from < _ngpu_darray_move_to                            \
+        ? _ngpu_darray_move_to - _ngpu_darray_move_from                          \
+        : _ngpu_darray_move_from - _ngpu_darray_move_to;                         \
+    if (_ngpu_darray_move_from < _ngpu_darray_move_to)                           \
+        memmove(&_ngpu_darray_move_a->data[_ngpu_darray_move_from],              \
+                &_ngpu_darray_move_a->data[_ngpu_darray_move_from + 1],          \
+                _ngpu_darray_move_count * sizeof(*_ngpu_darray_move_a->data));   \
+    else if (_ngpu_darray_move_from > _ngpu_darray_move_to)                      \
+        memmove(&_ngpu_darray_move_a->data[_ngpu_darray_move_to + 1],            \
+                &_ngpu_darray_move_a->data[_ngpu_darray_move_to],                \
+                _ngpu_darray_move_count * sizeof(*_ngpu_darray_move_a->data));   \
+    _ngpu_darray_move_a->data[_ngpu_darray_move_to] = _ngpu_darray_move_elem;    \
+} while (0)
+
 #define ngpu_darray_remove_if(a, predicate, arg) do {                            \
     __typeof__(a) _ngpu_darray_remove_if_array = (a);                            \
     __typeof__(*(predicate)) *_ngpu_darray_remove_if_predicate = (predicate);    \
