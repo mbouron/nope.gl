@@ -119,7 +119,7 @@ class NopeGLTest {
 
         val scene = NGLScene(
             """
-            # Nope.GL v0.11.0
+            # Nope.GL v0.15.0
             # duration=403Z9000000000000
             # canvas=320x240
             # framerate=60/1
@@ -289,7 +289,7 @@ class NopeGLTest {
 
         val scene = NGLScene(
             """
-            # Nope.GL v0.11.0
+            # Nope.GL v0.15.0
             # duration=402Z4000000000000
             # canvas=1280x720
             # framerate=60/1
