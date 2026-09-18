@@ -217,6 +217,66 @@ static void test_insert(void)
     ngpu_darray_reset(&a);
 }
 
+static void test_move(void)
+{
+    const struct {
+        size_t from;
+        size_t to;
+        int expected[5];
+    } cases[] = {
+        {0, 4, {1, 2, 3, 4, 0}},
+        {4, 0, {4, 0, 1, 2, 3}},
+        {1, 3, {0, 2, 3, 1, 4}},
+        {3, 1, {0, 3, 1, 2, 4}},
+        {1, 2, {0, 2, 1, 3, 4}},
+        {2, 1, {0, 2, 1, 3, 4}},
+        {0, 0, {0, 1, 2, 3, 4}},
+        {2, 2, {0, 1, 2, 3, 4}},
+        {4, 4, {0, 1, 2, 3, 4}},
+    };
+    int values[5] = {0};
+    NGPU_DARRAY(struct my_item) a = {0};
+    ngpu_darray_set_free_func(&a, count_free, NULL);
+    for (int i = 0; i < 5; i++)
+        ngpu_darray_push(&a, (struct my_item){0});
+
+    struct my_item *const data = a.data;
+    const size_t capacity = a.capacity;
+    g_free_calls = 0;
+    for (size_t i = 0; i < NGPU_ARRAY_NB(cases); i++) {
+        for (int j = 0; j < 5; j++)
+            a.data[j] = (struct my_item){.id = j, .ptr = &values[j]};
+
+        ngpu_darray_move(&a, cases[i].from, cases[i].to);
+        ngpu_assert(a.count == 5 && a.capacity == capacity && a.data == data);
+        ngpu_assert(g_free_calls == 0);
+        for (size_t j = 0; j < a.count; j++) {
+            ngpu_assert(a.data[j].id == cases[i].expected[j]);
+            ngpu_assert(a.data[j].ptr == &values[cases[i].expected[j]]);
+        }
+    }
+
+    ngpu_darray_reset(&a);
+    ngpu_assert(g_free_calls == 5);
+}
+
+static void test_move_arguments(void)
+{
+    struct int_darray a = {0};
+    ngpu_darray_push(&a, 0);
+    ngpu_darray_move(&a, 0, 0);
+    ngpu_assert(a.count == 1 && a.data[0] == 0);
+
+    ngpu_darray_push(&a, 1);
+    ngpu_darray_push(&a, 2);
+    struct int_darray *arrays[] = {&a};
+    size_t index = 0, from = 0, to = 2;
+    ngpu_darray_move(arrays[index++], from++, to--);
+    ngpu_assert(index == 1 && from == 1 && to == 1);
+    ngpu_assert(a.data[0] == 1 && a.data[1] == 2 && a.data[2] == 0);
+    ngpu_darray_reset(&a);
+}
+
 static void test_clear_vs_reset(void)
 {
     NGPU_DARRAY(int) a = {0};
@@ -308,6 +368,8 @@ int main(void)
     test_remove_range();
     test_remove_if();
     test_insert();
+    test_move();
+    test_move_arguments();
     test_clear_vs_reset();
     test_user_free_func();
     test_free_func_call_count();
