@@ -137,6 +137,29 @@ static inline size_t name##_find(                                               
 
 #define ngli_darray_remove(a, idx) ngli_darray_remove_range((a), (idx), 1)
 
+#define ngli_darray_move(a, from, to) do {                                       \
+    __typeof__(a) _ngli_darray_move_a = (a);                                     \
+    const size_t _ngli_darray_move_from = (from);                                \
+    const size_t _ngli_darray_move_to = (to);                                    \
+    ngli_assert(_ngli_darray_move_from < _ngli_darray_move_a->count);            \
+    ngli_assert(_ngli_darray_move_to < _ngli_darray_move_a->count);              \
+    __typeof__(*_ngli_darray_move_a->data) _ngli_darray_move_elem =              \
+        _ngli_darray_move_a->data[_ngli_darray_move_from];                       \
+    const size_t _ngli_darray_move_count =                                       \
+        _ngli_darray_move_from < _ngli_darray_move_to                            \
+        ? _ngli_darray_move_to - _ngli_darray_move_from                          \
+        : _ngli_darray_move_from - _ngli_darray_move_to;                         \
+    if (_ngli_darray_move_from < _ngli_darray_move_to)                           \
+        memmove(&_ngli_darray_move_a->data[_ngli_darray_move_from],              \
+                &_ngli_darray_move_a->data[_ngli_darray_move_from + 1],          \
+                _ngli_darray_move_count * sizeof(*_ngli_darray_move_a->data));   \
+    else if (_ngli_darray_move_from > _ngli_darray_move_to)                      \
+        memmove(&_ngli_darray_move_a->data[_ngli_darray_move_to + 1],            \
+                &_ngli_darray_move_a->data[_ngli_darray_move_to],                \
+                _ngli_darray_move_count * sizeof(*_ngli_darray_move_a->data));   \
+    _ngli_darray_move_a->data[_ngli_darray_move_to] = _ngli_darray_move_elem;    \
+} while (0)
+
 #define ngli_darray_remove_if(a, predicate, arg) do {                            \
     __typeof__(a) _ngli_darray_remove_if_array = (a);                            \
     __typeof__(*(predicate)) *_ngli_darray_remove_if_predicate = (predicate);    \
