@@ -570,6 +570,7 @@ void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_edge_range ran
                              size_t nb_nodes, struct ngl_node * const *nodes);
 void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
                               struct ngl_node *child, size_t index);
+void ngli_scene_swap_edges(struct ngl_node *parent, size_t from, size_t to);
 
 struct aabb ngli_node_compute_children_bounding_box(struct ngl_node *const *children, size_t nb_children);
 float ngli_node_compute_children_effect_margin(struct ngl_node *const *children, size_t nb_children);
