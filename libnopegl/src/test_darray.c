@@ -27,7 +27,7 @@
 #include "utils/darray.h"
 #include "utils/utils.h"
 
-struct my_item {
+struct elem {
     int id;
     void *ptr;
 };
@@ -41,17 +41,17 @@ NGLI_DEFINE_DARRAY_FIND(int_darray)
 
 static void free_elem(void *user_arg, void *data)
 {
-    struct my_item *item = data;
+    struct elem *elem = data;
     ngli_assert(!strcmp(user_arg, "test"));
-    free(item->ptr);
+    free(elem->ptr);
 }
 
-static int g_free_calls;
-static void count_free(void *user_arg, void *data)
+static int g_free_call_count;
+static void count_free_call(void *user_arg, void *data)
 {
     (void)user_arg;
     (void)data;
-    g_free_calls++;
+    g_free_call_count++;
 }
 
 static int divisible_by(const int *divisor, const int *data)
@@ -113,21 +113,21 @@ static void test_basic(void)
 
 static void test_compound_literal_push(void)
 {
-    NGLI_DARRAY(struct my_item) a = {0};
+    NGLI_DARRAY(struct elem) a = {0};
 
-    /* libplacebo-style compound literal: commas inside __VA_ARGS__ */
-    ngli_assert(ngli_darray_try_push(&a, (struct my_item){.id = 7, .ptr = (void *)0xbeef}) == 0);
-    struct my_item *p = ngli_darray_tail(&a);
+    /* compound literal: commas inside __VA_ARGS__ */
+    ngli_assert(ngli_darray_try_push(&a, (struct elem){.id = 7, .ptr = (void *)0xbeef}) == 0);
+    struct elem *p = ngli_darray_tail(&a);
     ngli_assert(p->id == 7 && p->ptr == (void *)0xbeef);
 
     /* zero-fill via compound literal */
-    ngli_assert(ngli_darray_try_push(&a, (struct my_item){0}) == 0);
+    ngli_assert(ngli_darray_try_push(&a, (struct elem){0}) == 0);
     p = ngli_darray_tail(&a);
     ngli_assert(p->id == 0 && p->ptr == NULL);
     ngli_assert(a.count == 2);
 
     /* copy from an existing struct */
-    const struct my_item src = {.id = 42, .ptr = (void *)0xdead};
+    const struct elem src = {.id = 42, .ptr = (void *)0xdead};
     ngli_assert(ngli_darray_try_push(&a, src) == 0);
     p = ngli_darray_tail(&a);
     ngli_assert(p->id == 42 && p->ptr == (void *)0xdead);
@@ -172,25 +172,25 @@ static void test_remove_range(void)
 static void test_remove_if(void)
 {
     NGLI_DARRAY(int) a = {0};
-    ngli_darray_set_free_func(&a, count_free, NULL);
+    ngli_darray_set_free_func(&a, count_free_call, NULL);
 
     for (int i = 0; i < 6; i++)
         ngli_darray_push(&a, i);
 
     const int divisor = 2;
-    g_free_calls = 0;
+    g_free_call_count = 0;
     ngli_darray_remove_if(&a, divisible_by, &divisor);
-    ngli_assert(g_free_calls == 3);
+    ngli_assert(g_free_call_count == 3);
     ngli_assert(a.count == 3);
     ngli_assert(a.data[0] == 1);
     ngli_assert(a.data[1] == 3);
     ngli_assert(a.data[2] == 5);
 
     ngli_darray_remove_if(&a, divisible_by, &divisor);
-    ngli_assert(g_free_calls == 3);
+    ngli_assert(g_free_call_count == 3);
 
     ngli_darray_reset(&a);
-    ngli_assert(g_free_calls == 6);
+    ngli_assert(g_free_call_count == 6);
 }
 
 static void test_insert(void)
@@ -235,21 +235,21 @@ static void test_move(void)
         {4, 4, {0, 1, 2, 3, 4}},
     };
     int values[5] = {0};
-    NGLI_DARRAY(struct my_item) a = {0};
-    ngli_darray_set_free_func(&a, count_free, NULL);
+    NGLI_DARRAY(struct elem) a = {0};
+    ngli_darray_set_free_func(&a, count_free_call, NULL);
     for (int i = 0; i < 5; i++)
-        ngli_darray_push(&a, (struct my_item){0});
+        ngli_darray_push(&a, (struct elem){0});
 
-    struct my_item *const data = a.data;
+    struct elem *const data = a.data;
     const size_t capacity = a.capacity;
-    g_free_calls = 0;
+    g_free_call_count = 0;
     for (size_t i = 0; i < NGLI_ARRAY_NB(cases); i++) {
         for (int j = 0; j < 5; j++)
-            a.data[j] = (struct my_item){.id = j, .ptr = &values[j]};
+            a.data[j] = (struct elem){.id = j, .ptr = &values[j]};
 
         ngli_darray_move(&a, cases[i].from, cases[i].to);
         ngli_assert(a.count == 5 && a.capacity == capacity && a.data == data);
-        ngli_assert(g_free_calls == 0);
+        ngli_assert(g_free_call_count == 0);
         for (size_t j = 0; j < a.count; j++) {
             ngli_assert(a.data[j].id == cases[i].expected[j]);
             ngli_assert(a.data[j].ptr == &values[cases[i].expected[j]]);
@@ -257,7 +257,7 @@ static void test_move(void)
     }
 
     ngli_darray_reset(&a);
-    ngli_assert(g_free_calls == 5);
+    ngli_assert(g_free_call_count == 5);
 }
 
 static void test_move_arguments(void)
@@ -296,13 +296,13 @@ static void test_clear_vs_reset(void)
 
 static void test_user_free_func(void)
 {
-    NGLI_DARRAY(struct my_item) a = {0};
+    NGLI_DARRAY(struct elem) a = {0};
     ngli_darray_set_free_func(&a, free_elem, (void *)"test");
 
     for (int i = 0; i < 6; i++) {
         void *p = malloc(10u + (size_t)i);
         ngli_assert(p);
-        ngli_darray_try_push(&a, (struct my_item){.id = i, .ptr = p});
+        ngli_darray_try_push(&a, (struct elem){.id = i, .ptr = p});
     }
 
     ngli_darray_remove_range(&a, 1, 3);
@@ -313,29 +313,29 @@ static void test_user_free_func(void)
 
     void *again_ptr = malloc(8);
     ngli_assert(again_ptr);
-    ngli_darray_try_push(&a, (struct my_item){.id = 99, .ptr = again_ptr});
+    ngli_darray_try_push(&a, (struct elem){.id = 99, .ptr = again_ptr});
     ngli_darray_reset(&a);
 }
 
 static void test_free_func_call_count(void)
 {
-    NGLI_DARRAY(struct my_item) a = {0};
-    ngli_darray_set_free_func(&a, count_free, NULL);
+    NGLI_DARRAY(struct elem) a = {0};
+    ngli_darray_set_free_func(&a, count_free_call, NULL);
 
     for (int i = 0; i < 10; i++)
-        ngli_darray_try_push(&a, (struct my_item){.id = i, .ptr = NULL});
+        ngli_darray_try_push(&a, (struct elem){.id = i, .ptr = NULL});
 
-    g_free_calls = 0;
+    g_free_call_count = 0;
     ngli_darray_remove_range(&a, 2, 4);
-    ngli_assert(g_free_calls == 4);
+    ngli_assert(g_free_call_count == 4);
 
-    g_free_calls = 0;
+    g_free_call_count = 0;
     ngli_darray_clear(&a);
-    ngli_assert(g_free_calls == 6);
+    ngli_assert(g_free_call_count == 6);
 
-    g_free_calls = 0;
+    g_free_call_count = 0;
     ngli_darray_reset(&a);
-    ngli_assert(g_free_calls == 0);
+    ngli_assert(g_free_call_count == 0);
 }
 
 static void test_aligned(void)
