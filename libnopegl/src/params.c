@@ -1290,6 +1290,31 @@ int ngli_params_swap_elem(uint8_t *base_ptr, const struct node_param *par,
     return ret;
 }
 
+int ngli_params_move_elem(uint8_t *base_ptr, const struct node_param *par,
+                          size_t from, size_t to)
+{
+    LOG(VERBOSE, "move item from %zu to %zu within %s", from, to, par->key);
+
+    uint8_t *dstp = base_ptr + par->offset;
+    if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+        struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
+        if (from >= array->count || to >= array->count)
+            return NGL_ERROR_INVALID_ARG;
+        ngli_darray_move(array, from, to);
+        return 0;
+    }
+    if (par->type == NGLI_PARAM_TYPE_F64LIST) {
+        struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
+        if (from >= array->count || to >= array->count)
+            return NGL_ERROR_INVALID_ARG;
+        ngli_darray_move(array, from, to);
+        return 0;
+    }
+
+    LOG(ERROR, "parameter %s is not a list", par->key);
+    return NGL_ERROR_INVALID_USAGE;
+}
+
 void ngli_params_free(uint8_t *base_ptr, const struct node_param *params)
 {
     if (!params)
