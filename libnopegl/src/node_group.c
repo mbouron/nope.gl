@@ -21,6 +21,7 @@
  */
 
 #include <stddef.h>
+
 #include "nopegl/nopegl.h"
 #include "internal.h"
 
