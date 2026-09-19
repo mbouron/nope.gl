@@ -293,6 +293,14 @@ void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
     add_runtime_edge(to, child, index);
 }
 
+void ngli_scene_swap_edges(struct ngl_node *parent, size_t from, size_t to)
+{
+    ngli_assert(parent->scene);
+    ngli_assert(from < parent->children.count && to < parent->children.count);
+
+    NGLI_SWAP(parent->children.data[from], parent->children.data[to]);
+}
+
 struct subtree_check_arg {
     const struct ngl_scene *scene;
     const struct ngli_scene_subtree_check_ctx *check_ctx;
