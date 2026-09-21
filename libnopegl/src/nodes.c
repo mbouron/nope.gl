@@ -814,23 +814,28 @@ const struct node_param *ngli_node_param_find(const struct ngl_node *node, const
     return par;
 }
 
+int ngli_node_param_notify(struct ngl_node *node, const struct node_param *par)
+{
+    if (!node->ctx)
+        return 0;
+    if (par->update_func) {
+        int ret = par->update_func(node);
+        if (ret < 0)
+            return ret;
+    }
+    ngli_node_invalidate_branch(node);
+    return 0;
+}
+
 struct node_param_update_arg {
     struct ngl_node *node;
     const struct node_param *par;
 };
 
-static int node_param_update_cb(struct ngl_ctx *ctx, void *arg)
+static int node_param_update_cb(struct ngl_ctx *ctx ngli_unused, void *arg)
 {
     const struct node_param_update_arg *a = arg;
-    if (!ctx)
-        return 0;
-    if (a->par->update_func) {
-        int ret = a->par->update_func(a->node);
-        if (ret < 0)
-            return ret;
-    }
-    ngli_node_invalidate_branch(a->node);
-    return 0;
+    return ngli_node_param_notify(a->node, a->par);
 }
 
 int ngli_node_check_not_traversing(const struct ngl_node *node)
