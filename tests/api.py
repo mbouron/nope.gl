@@ -636,8 +636,9 @@ def api_scene_live_edits(width=64, height=64):
 
     rect1 = ngl.DrawRect2D(rect=(16, 16, 32, 32), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
     group = ngl.Group2D(children=[rect1])
+    group2 = ngl.Group2D(children=[])
     rect2 = ngl.DrawRect2D(rect=(0, 0, 8, 8), fill=ngl.ColorPaint(color=(0.0, 1.0, 0.0, 1.0)))
-    root = ngl.Canvas2D(children=[group, rect2], width=width, height=height)
+    root = ngl.Canvas2D(children=[group, group2, rect2], width=width, height=height)
     scene = ngl.Scene.from_params(root, width=width, height=height)
 
     capture_buffer = bytearray(width * height * 4)
@@ -701,6 +702,14 @@ def api_scene_live_edits(width=64, height=64):
     assert group.holds_resources()
     assert output_color() == initial_color
     assert ctx.get_nodes_at_point((width // 2, height // 2)) == [rect1.cptr]
+
+    assert group.reparent_child(group, rect1) == 0
+    assert group.reparent_child(group2, rect1) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert group2.reparent_child(group, rect1) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert group2.reparent_child(group, rect1) != 0
+    assert ctx.draw(next(clock)) == 0
 
     assert ctx.release_detached_resources() == 0
     assert group.holds_resources()

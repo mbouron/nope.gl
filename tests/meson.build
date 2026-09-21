@@ -276,6 +276,8 @@ foreach backend : backends
   tests_live = [
     'group_reorder',
     'group_add_remove',
+    'group_reparent',
+    'effect2d_reparent',
     'media_change',
     'timerangefilter_update',
   ]

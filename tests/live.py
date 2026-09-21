@@ -119,6 +119,108 @@ def _get_group_add_remove_function():
 live_group_add_remove = _get_group_add_remove_function()
 
 
+def _get_group_reparent_function(width=128, height=128):
+    content = ngl.Group2D(
+        children=[
+            ngl.DrawRect2D(rect=(16, 16, 96, 96), fill=ngl.ColorPaint(color=COLORS.orange + (1.0,))),
+        ]
+    )
+    root = ngl.Canvas2D(children=[content], width=width, height=height)
+
+    texture = ngl.Texture2D(width=width, height=height)
+    offscreen = ngl.OffscreenCanvas2D(color_textures=[texture], width=width, height=height)
+    fx = ngl.DrawRect2D(
+        rect=(0, 0, width, height),
+        fill=ngl.CustomPaint(
+            glsl_color="""
+                vec4 c = ngl_texvideo($src, uv);
+                return vec4(1.0 - c.rgb, c.a);
+            """,
+            resources={"src": texture},
+        ),
+    )
+
+    def _toggle(t_id: int):
+        if t_id == 1:
+            # Wrap: the offscreen chain joins the graph, then content moves into it
+            root.add_children(offscreen, fx)
+            root.reparent_child(offscreen, content)
+        elif t_id == 2:
+            # Unwrap: content comes back out before the chain leaves
+            offscreen.reparent_child(root, content)
+            root.remove_children(offscreen, fx)
+        elif t_id == 3:
+            # Wrap again, to catch state that only degrades on repetition
+            root.add_children(offscreen, fx)
+            root.reparent_child(offscreen, content)
+
+    @test_render(
+        width=width,
+        height=height,
+        tolerance=1,
+        exercise_serialization=False,
+        keyframes_callback=_toggle,
+        keyframes=[0.0, 1.0, 2.0, 3.0],
+    )
+    @ngl.scene(width=width, height=height)
+    def live_group_reparent_func(cfg: ngl.SceneCfg):
+        return root
+
+    return live_group_reparent_func
+
+
+live_group_reparent = _get_group_reparent_function()
+
+
+def _get_effect2d_reparent_function(width=128, height=128):
+    content = ngl.Group2D(
+        children=[ngl.DrawRect2D(rect=(16, 16, 96, 96), fill=ngl.ColorPaint(color=COLORS.orange + (1.0,)))]
+    )
+    root = ngl.Canvas2D(children=[content], width=width, height=height)
+
+    fx = ngl.Effect2D(
+        shaders=[
+            ngl.Effect2DShader(
+                glsl_color=textwrap.dedent("""
+                    vec4 c = ngl_texvideo(tex, tex_coord);
+                    return vec4(1.0 - c.rgb, c.a);
+                    """),
+            )
+        ],
+    )
+
+    def _toggle(t_id: int):
+        if t_id == 1:
+            # Wrap: the effect joins the graph, then content moves into it
+            root.add_children(fx)
+            root.reparent_child(fx, content)
+        elif t_id == 2:
+            # Unwrap: content comes back out before the effect leaves
+            fx.reparent_child(root, content)
+            root.remove_children(fx)
+        elif t_id == 3:
+            # Wrap again, to catch state that only degrades on repetition
+            root.add_children(fx)
+            root.reparent_child(fx, content)
+
+    @test_render(
+        width=width,
+        height=height,
+        tolerance=1,
+        exercise_serialization=False,
+        keyframes_callback=_toggle,
+        keyframes=[0.0, 1.0, 2.0, 3.0],
+    )
+    @ngl.scene(width=width, height=height)
+    def live_effect2d_reparent_func(cfg: ngl.SceneCfg):
+        return root
+
+    return live_effect2d_reparent_func
+
+
+live_effect2d_reparent = _get_effect2d_reparent_function()
+
+
 def _get_live_shared_uniform_scene(cfg: ngl.SceneCfg, color, debug_positions):
     group = ngl.Group()
     for i in range(2):
