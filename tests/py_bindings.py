@@ -137,10 +137,19 @@ def py_bindings_nodes():
     group = ngl.Group(children=[first, second])
     added = [ngl.Group(), ngl.Identity()]
     assert group.add_children(*added) == 0
+    inserted = [ngl.Group(), ngl.Identity()]
+    assert group.insert_children(1, *inserted) == 0
+    assert group.move_children(0, 3) == 0
+    assert group.remove_children(*inserted) == 0
     assert ngl.UniformFloat().is_shareable()
     assert ngl.CustomTexture().is_shareable()
     assert not group.is_shareable()
     assert group.reparent_child(emptygroup, first) == 0
+
+    assert group.insert_children(-1, first) == ngl.Error.INVALID_ARG
+    for from_, to in ((-1, 0), (0, -1)):
+        assert group.move_children(from_, to) == ngl.Error.INVALID_ARG
+        assert group.swap_children(from_, to) == ngl.Error.INVALID_ARG
 
 
 def py_bindings_rational():

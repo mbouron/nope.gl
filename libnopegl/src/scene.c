@@ -298,6 +298,12 @@ void ngli_scene_swap_edges(struct ngl_node *parent, size_t from, size_t to)
     NGLI_SWAP(parent->children.data[from], parent->children.data[to]);
 }
 
+void ngli_scene_move_edge(struct ngl_node *parent, size_t from, size_t to)
+{
+    ngli_assert(parent->scene);
+    ngli_darray_move(&parent->children, from, to);
+}
+
 struct subtree_check_arg {
     const struct ngl_scene *scene;
     const struct ngli_scene_subtree_check_ctx *check_ctx;

@@ -666,14 +666,30 @@ def api_scene_live_edits(width=64, height=64):
     assert ctx.draw(next(clock)) == 0
     assert output_color() == initial_color
 
+    # Insert, move and swap while the scene is paused
+    t = next(clock)
+    rect3 = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint(color=(0.0, 0.0, 1.0, 1.0)))
+    assert root.insert_children(0, rect3) == 0
+    assert ctx.draw(t) == 0
+    assert output_color() == initial_color
+    assert root.move_children(0, 3) == 0
+    assert ctx.draw(t) == 0
+    assert output_color() == (0, 0, 255)
+    assert root.swap_children(2, 3) == 0
+    assert ctx.draw(t) == 0
+    assert output_color() == initial_color
+    assert root.remove_children(rect3) == 0
+    assert ctx.draw(t) == 0
+    assert output_color() == initial_color
+
     # Dropping every user reference to a node holding resources must not free it prematurely
-    rect3 = ngl.DrawRect2D(rect=(0, 0, 8, 8), fill=ngl.ColorPaint(color=(0.0, 0.0, 1.0, 1.0)))
-    assert group.add_children(rect3) == 0
+    rect4 = ngl.DrawRect2D(rect=(0, 0, 8, 8), fill=ngl.ColorPaint(color=(0.0, 0.0, 1.0, 1.0)))
+    assert group.add_children(rect4) == 0
     assert ctx.draw(next(clock)) == 0
-    assert group.remove_children(rect3) == 0
+    assert group.remove_children(rect4) == 0
     assert ctx.draw(next(clock)) == 0
-    assert rect3.holds_resources()
-    del rect3
+    assert rect4.holds_resources()
+    del rect4
 
     # Drop scene and add it back
     assert ctx.set_scene(None) == 0

@@ -200,7 +200,16 @@ class _WrapperGenerator:
                 def swap_{param_name}(self, from_, to):
                     return self._param_swap_elem("{param_name}", from_, to)
                 """)
-            # code = textwrap.indent(code, " " * 4)
+            methods.append(code)
+            code = textwrap.dedent(f"""
+                def move_{param_name}(self, from_, to):
+                    return self._param_move_elem("{param_name}", from_, to)
+                """)
+            methods.append(code)
+            code = textwrap.dedent(f"""
+                def insert_{param_name}(self, index, *{param_name}):
+                    return self._insert_nodes("{param_name}", index, *{param_name})
+                """)
             methods.append(code)
             code = textwrap.dedent(f"""
                 def remove_{param_name}(self, *{param_name}):

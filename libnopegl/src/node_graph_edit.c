@@ -243,6 +243,17 @@ static void apply_swap_children(struct ngl_node *node, const struct node_param *
     NGLI_SWAP(list->data[from], list->data[to]);
 }
 
+static void apply_move_child(struct ngl_node *node, const struct node_param *par,
+                             size_t from, size_t to)
+{
+    struct ngli_node_darray *list = get_node_list(node, par);
+    if (node->scene) {
+        const struct ngli_node_graph_range range = ngli_node_graph_get_param_range(node, par);
+        ngli_scene_move_edge(node, range.index + from, range.index + to);
+    }
+    ngli_darray_move(list, from, to);
+}
+
 static int apply_reparent_child(struct ngl_node *from, const struct node_param *from_par,
                                 struct ngl_node *to, const struct node_param *to_par,
                                 struct ngl_node *child, size_t from_index)
@@ -301,6 +312,13 @@ static int swap_children_cb(struct ngl_ctx *ctx, void *user_arg)
 {
     const struct node_edit_arg *arg = user_arg;
     apply_swap_children(arg->node, arg->par, arg->from_index, arg->to_index);
+    return ngli_node_param_notify(arg->node, arg->par);
+}
+
+static int move_child_cb(struct ngl_ctx *ctx, void *user_arg)
+{
+    const struct node_edit_arg *arg = user_arg;
+    apply_move_child(arg->node, arg->par, arg->from_index, arg->to_index);
     return ngli_node_param_notify(arg->node, arg->par);
 }
 
@@ -378,6 +396,25 @@ int ngli_node_graph_edit_swap_children(struct ngl_node *node, const struct node_
         .to_index   = to,
     };
     return run_node_edit(node, swap_children_cb, &arg);
+}
+
+int ngli_node_graph_edit_move_child(struct ngl_node *node, const struct node_param *par,
+                                    size_t from, size_t to)
+{
+    const struct ngli_node_darray *list = get_node_list(node, par);
+    if (from >= list->count || to >= list->count)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (from == to)
+        return 0;
+
+    struct node_edit_arg arg = {
+        .node       = node,
+        .par        = par,
+        .from_index = from,
+        .to_index   = to,
+    };
+    return run_node_edit(node, move_child_cb, &arg);
 }
 
 static const struct node_param *find_live_children_param(const struct ngl_node *node)

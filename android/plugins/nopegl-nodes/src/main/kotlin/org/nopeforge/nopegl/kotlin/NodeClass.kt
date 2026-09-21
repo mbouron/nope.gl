@@ -273,11 +273,21 @@ private fun nodeListFunctions(
         .addParameter("from", Int::class.asTypeName())
         .addParameter("to", Int::class.asTypeName())
         .addCode(CodeBlock.of("${NGLNode::swapElement.name}(%S, from, to)\n", param.parameterName))
+        .build(),
+    FunSpec.builder("move${param.parameterName.toCamelCase(true)}")
+        .addParameter("from", Int::class.asTypeName())
+        .addParameter("to", Int::class.asTypeName())
+        .addCode(CodeBlock.of("${NGLNode::moveElement.name}(%S, from, to)\n", param.parameterName))
         .build()
 ) + if (param.parameterName == "children") emptyList() else listOf(
     FunSpec.builder("add${param.parameterName.toCamelCase(true)}")
         .addParameter(parameter.name, parameter.type.copy(nullable = false))
         .addCode(CodeBlock.of("${NGLNode::addNodes.name}(%S, ${parameter.name})\n", param.parameterName))
+        .build(),
+    FunSpec.builder("insert${param.parameterName.toCamelCase(true)}")
+        .addParameter("index", Int::class.asTypeName())
+        .addParameter(parameter.name, parameter.type.copy(nullable = false))
+        .addCode(CodeBlock.of("${NGLNode::insertNodes.name}(%S, index, ${parameter.name})\n", param.parameterName))
         .build(),
     FunSpec.builder("remove${param.parameterName.toCamelCase(true)}")
         .addParameter(parameter.name, parameter.type.copy(nullable = false))
