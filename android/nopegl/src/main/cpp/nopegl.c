@@ -429,6 +429,16 @@ JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeUnref(
     ngl_node_unrefp(&node);
 }
 
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeReparentChild(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jlong to_ptr, jlong child_ptr)
+{
+    struct ngl_node *from = (struct ngl_node *)(uintptr_t)native_ptr;
+    struct ngl_node *to = (struct ngl_node *)(uintptr_t)to_ptr;
+    struct ngl_node *child = (struct ngl_node *)(uintptr_t)child_ptr;
+
+    return ngl_node_reparent_child(from, to, child);
+}
+
 JNIEXPORT jboolean JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeHoldsResources(
     JNIEnv *env, jobject thiz, jlong native_ptr)
 {

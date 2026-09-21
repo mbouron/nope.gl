@@ -21,6 +21,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_node_release_detached_resources()` to release resources held by a
   specific detached subtree
 - Live editing of node-list based parameters
+- `ngl_node_reparent_child()` to reparent a node from one container to another
 
 ### Removed
 - CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and
