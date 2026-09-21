@@ -68,6 +68,10 @@ open class NGLNode(
         return nativeHoldsResources(nativePtr)
     }
 
+    fun releaseDetachedResources(): Int {
+        return nativeReleaseDetachedResources(nativePtr)
+    }
+
     fun isShareable(): Boolean {
         return nativeIsShareable(nativePtr)
     }
@@ -432,6 +436,7 @@ open class NGLNode(
     ): Int
 
     private external fun nativeHoldsResources(nativePtr: Long): Boolean
+    private external fun nativeReleaseDetachedResources(nativePtr: Long): Int
     private external fun nativeIsShareable(nativePtr: Long): Boolean
 
     companion object {

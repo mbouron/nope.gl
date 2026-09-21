@@ -86,6 +86,39 @@ def _get_group_reorder_function():
 live_group_reorder = _get_group_reorder_function()
 
 
+def _get_group_add_remove_function():
+    group = ngl.Group()
+    red_draw = ngl.DrawColor(COLORS.red, geometry=ngl.Quad())
+    green_draw = ngl.DrawColor(COLORS.green, geometry=ngl.Quad())
+
+    def _add_remove_children(t_id: int):
+        if t_id == 0:
+            pass
+        elif t_id == 1:
+            group.add_children(red_draw)
+        elif t_id == 2:
+            group.add_children(green_draw)
+        elif t_id == 3:
+            group.remove_children(green_draw)
+
+    @test_render(
+        width=128,
+        height=128,
+        tolerance=1,
+        exercise_serialization=False,
+        keyframes_callback=_add_remove_children,
+        keyframes=[0.0, 1.0, 2.0, 3.0],
+    )
+    @ngl.scene()
+    def live_group_add_remove_func(cfg: ngl.SceneCfg):
+        return group
+
+    return live_group_add_remove_func
+
+
+live_group_add_remove = _get_group_add_remove_function()
+
+
 def _get_live_shared_uniform_scene(cfg: ngl.SceneCfg, color, debug_positions):
     group = ngl.Group()
     for i in range(2):

@@ -30,6 +30,7 @@
 #include "aabb.h"
 #include "internal.h"
 #include "node_graph.h"
+#include "node_graph_edit.h"
 #include "node2d.h"
 #include "math_utils.h"
 #include "log.h"
@@ -328,13 +329,14 @@ enum release_nodes {
     RELEASE_NODES_DETACHED,
 };
 
-static bool should_uninit_node(const struct ngl_node *node, enum release_nodes scope)
+static bool should_uninit_node(const struct ngl_node *node, enum release_nodes scope,
+                               const bool *selected)
 {
     switch (scope) {
     case RELEASE_NODES_ALL:
         return true;
     case RELEASE_NODES_DETACHED:
-        return !node->scene;
+        return !node->scene && (!selected || selected[node->resource_index]);
     default:
         ngli_assert(0);
     }
@@ -359,12 +361,12 @@ static bool should_uninit_node(const struct ngl_node *node, enum release_nodes s
  * backwards because unregistering moves the last entry into the removed slot.
  * That entry has already been visited, so no unvisited entries are skipped.
  */
-static void ctx_uninit_nodes(struct ngl_ctx *s, enum release_nodes scope)
+static void ctx_uninit_nodes(struct ngl_ctx *s, enum release_nodes scope, const bool *selected)
 {
     bool releasing = false;
     for (size_t i = 0; i < s->resource_nodes.count; i++) {
         struct ngl_node *node = s->resource_nodes.data[i];
-        if (!should_uninit_node(node, scope))
+        if (!should_uninit_node(node, scope, selected))
             continue;
         if (!releasing) {
             ngli_darray_clear(&s->bounding_box_nodes);
@@ -377,7 +379,7 @@ static void ctx_uninit_nodes(struct ngl_ctx *s, enum release_nodes scope)
 
     for (size_t i = s->resource_nodes.count; i > 0; i--) {
         struct ngl_node *node = s->resource_nodes.data[i - 1];
-        if (should_uninit_node(node, scope))
+        if (should_uninit_node(node, scope, selected))
             node_uninit_state(node);
     }
 
@@ -395,7 +397,78 @@ static void ctx_uninit_nodes(struct ngl_ctx *s, enum release_nodes scope)
 
 void ngli_ctx_release_detached_resources(struct ngl_ctx *s)
 {
-    ctx_uninit_nodes(s, RELEASE_NODES_DETACHED);
+    ctx_uninit_nodes(s, RELEASE_NODES_DETACHED, NULL);
+}
+
+struct select_detached_nodes_arg {
+    uint64_t traversal_id;
+    struct ngl_ctx *ctx;
+    bool select;
+    bool *selected;
+};
+
+static int select_detached_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node *node)
+{
+    struct select_detached_nodes_arg *arg = user_arg;
+    if (node->traversal_id == arg->traversal_id)
+        return 0;
+    node->traversal_id = arg->traversal_id;
+
+    if (node->ctx == arg->ctx && !node->scene)
+        arg->selected[node->resource_index] = arg->select;
+
+    return ngli_node_graph_foreach_child(select_detached_nodes, arg, node);
+}
+
+static int select_detached_nodes_cb(struct ngl_ctx *ctx, void *user_arg)
+{
+    struct select_detached_nodes_arg arg = {
+        .traversal_id = ngli_node_graph_new_traversal_id(),
+        .ctx = ctx,
+        .select = true,
+        .selected = ngli_try_calloc(ctx->resource_nodes.count, sizeof(*arg.selected)),
+    };
+    if (!arg.selected)
+        return NGL_ERROR_MEMORY;
+
+    int ret = select_detached_nodes(&arg, NULL, user_arg);
+    ngli_assert(ret == 0);
+
+    /* Preserve dependencies of every initialized node outside the selection,
+     * including other detached subgraphs. Each dependency is visited once. */
+    arg.traversal_id = ngli_node_graph_new_traversal_id();
+    arg.select = false;
+    for (size_t i = 0; i < ctx->resource_nodes.count; i++) {
+        if (arg.selected[i])
+            continue;
+        ret = select_detached_nodes(&arg, NULL, ctx->resource_nodes.data[i]);
+        ngli_assert(ret == 0);
+    }
+
+    /* Keep the selection separate from traversal IDs: callbacks may traverse
+     * nodes during cleanup. Registry indices stay fixed until unregistering. */
+    ngpu_ctx_wait_idle(ctx->gpu_ctx);
+    ctx_uninit_nodes(ctx, RELEASE_NODES_DETACHED, arg.selected);
+    ngli_free(arg.selected);
+    return 0;
+}
+
+int ngl_node_release_detached_resources(struct ngl_node *node)
+{
+    if (!node)
+        return NGL_ERROR_INVALID_ARG;
+    if (node->scene) {
+        LOG(ERROR, "node (%s) is still associated with a scene", node->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    struct ngl_ctx *ctx;
+    const int ret = ngli_node_graph_resolve_ctx(node, &ctx);
+    if (ret < 0)
+        return ret;
+    if (!ctx)
+        return 0;
+    return ngli_ctx_dispatch(ctx, select_detached_nodes_cb, node);
 }
 
 int ngl_node_holds_resources(const struct ngl_node *node)
@@ -414,7 +487,7 @@ int ngl_node_is_shareable(const struct ngl_node *node)
 
 void ngli_ctx_release_resources(struct ngl_ctx *s)
 {
-    ctx_uninit_nodes(s, RELEASE_NODES_ALL);
+    ctx_uninit_nodes(s, RELEASE_NODES_ALL, NULL);
     ngli_assert(ngli_darray_is_empty(&s->resource_nodes));
 }
 
@@ -548,15 +621,18 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
      * to check for resources below as we can assume they were already released
      * as well (unless they're shared with another branch) by
      * honor_release_prefetch().
+     * An invalidated path must be visited even if it was inactive: a live
+     * edit may have moved an active descendant under it since the last visit.
      *
      * On the other hand, we cannot do the same if the node is active, because
      * we have to mark every node below for activity to prevent an early
      * release from another branch.
      */
-    if (!is_active && !node->is_active)
+    if (!is_active && !node->is_active && node->visit_time != -1.)
         return 0;
 
-    const int queue_node = node->visit_time != t;
+    /* A live switch can reactivate a released node at the same timestamp. */
+    const int queue_node = node->visit_time != t || (is_active && !node->is_active);
 
     if (queue_node) {
         /*
@@ -886,15 +962,9 @@ static int node_param_is_node_list_update_allowed(const struct ngl_node *node, c
     if (ret < 0)
         return ret;
 
-    if (node->scene) {
-        LOG(ERROR, "%s.%s can not be edited once the graph is associated with a scene",
-            node->label, par->key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
-        LOG(ERROR, "%s.%s can not be edited once the graph is associated with a rendering context",
-            node->label, par->key);
+    if ((node->scene || node->ctx) && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
+        LOG(ERROR, "%s.%s can not be edited once the graph is associated with a scene "
+            "or a rendering context", node->label, par->key);
         return NGL_ERROR_INVALID_USAGE;
     }
 
@@ -904,8 +974,7 @@ static int node_param_is_node_list_update_allowed(const struct ngl_node *node, c
 int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
                              size_t nb_nodes, struct ngl_node **nodes)
 {
-    uint8_t *base_ptr;
-    const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
+    const struct node_param *par = ngli_node_param_find(node, key, NULL);
     if (!par)
         return NGL_ERROR_NOT_FOUND;
 
@@ -913,25 +982,13 @@ int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
     if (ret < 0)
         return ret;
 
-    uint8_t *dstp = base_ptr + par->offset;
-    ret = ngli_params_add_nodes(dstp, par, nb_nodes, nodes);
-    if (ret < 0) {
-        LOG(ERROR, "unable to add elements to %s.%s", node->label, key);
-        return ret;
-    }
-
-    if (!nb_nodes)
-        return 0;
-
-    struct node_param_update_arg arg = { .node = node, .par = par };
-    return node_param_update_cb(node->ctx, &arg);
+    return ngli_node_graph_edit_add_children(node, par, nb_nodes, nodes);
 }
 
 int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
                                 size_t nb_nodes, struct ngl_node **nodes)
 {
-    uint8_t *base_ptr;
-    const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
+    const struct node_param *par = ngli_node_param_find(node, key, NULL);
     if (!par)
         return NGL_ERROR_NOT_FOUND;
 
@@ -939,15 +996,7 @@ int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
     if (ret < 0)
         return ret;
 
-    ret = ngli_params_remove_nodes(base_ptr + par->offset, par, nb_nodes, nodes);
-    if (ret < 0)
-        return ret;
-
-    if (!nb_nodes)
-        return 0;
-
-    struct node_param_update_arg arg = { .node = node, .par = par };
-    return node_param_update_cb(node->ctx, &arg);
+    return ngli_node_graph_edit_remove_children(node, par, nb_nodes, nodes);
 }
 
 int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
@@ -989,26 +1038,29 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
     if (!par)
         return NGL_ERROR_NOT_FOUND;
 
-    int ret = ngli_node_check_not_traversing(node);
-    if (ret < 0)
-        return ret;
-
-    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
-        LOG(ERROR, "%s.%s can not be reordered after resource initialization", node->label, key);
-        return NGL_ERROR_INVALID_USAGE;
+    if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+        int ret = node_param_is_node_list_update_allowed(node, par);
+        if (ret < 0)
+            return ret;
+        return ngli_node_graph_edit_swap_children(node, par, from, to);
+    }
+    if (par->type == NGLI_PARAM_TYPE_F64LIST) {
+        int ret = node_param_is_update_allowed(node, par);
+        if (ret < 0)
+            return ret;
+        ret = ngli_params_swap_elem(base_ptr, par, from, to);
+        if (ret < 0) {
+            LOG(ERROR, "unable to swap elements in %s.%s", node->label, key);
+            return ret;
+        }
+        if (from == to)
+            return 0;
+        struct node_param_update_arg arg = { .node = node, .par = par };
+        return node_param_update_cb(node->ctx, &arg);
     }
 
-    ret = ngli_params_swap_elem(base_ptr, par, from, to);
-    if (ret < 0) {
-        LOG(ERROR, "unable to swap elements in %s.%s", node->label, key);
-        return ret;
-    }
-
-    if (from == to)
-        return 0;
-
-    struct node_param_update_arg arg = { .node = node, .par = par };
-    return node_param_update_cb(node->ctx, &arg);
+    LOG(ERROR, "%s.%s is not a list", node->label, key);
+    return NGL_ERROR_INVALID_ARG;
 }
 
 static void invalidate_branch(struct ngl_node *node, uint64_t traversal_id)
