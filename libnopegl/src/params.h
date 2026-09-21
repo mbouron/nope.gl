@@ -222,6 +222,8 @@ void ngli_params_init(uint8_t *base_ptr, const struct node_param *params);
 int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params);
 int ngli_params_check_nodes(const struct node_param *par, size_t nb_nodes, struct ngl_node * const *nodes);
 int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par, size_t nb_nodes, struct ngl_node **nodes);
+int ngli_params_insert_nodes(uint8_t *dstp, const struct node_param *par, size_t index,
+                             size_t nb_nodes, struct ngl_node **nodes);
 int ngli_params_remove_nodes(uint8_t *dstp, const struct node_param *par, size_t nb_nodes, struct ngl_node **nodes);
 int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par, size_t nb_f64s, const double *f64s);
 int ngli_params_add(uint8_t *base_ptr, const struct node_param *par, size_t nb_elems, void *elems);
