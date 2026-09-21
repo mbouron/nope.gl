@@ -66,6 +66,7 @@ cdef extern from "nopegl/nopegl.h":
     void ngl_node_unrefp(ngl_node **nodep)
     int NGL_NODE_DUPLICATE_RESOURCES
     ngl_node *ngl_node_duplicate(ngl_node *node, uint32_t flags)
+    int ngl_node_reparent_child(ngl_node *from_, ngl_node *to, ngl_node *child)
     int ngl_node_holds_resources(const ngl_node *node)
     int ngl_node_release_detached_resources(ngl_node *node)
     int ngl_node_is_shareable(const ngl_node *node)
@@ -392,6 +393,10 @@ cdef class _Node:
             return _Node(ctx=<uintptr_t>dup)
         finally:
             ngl_node_unrefp(&dup)
+
+    def _reparent_child(self, _Node to not None, _Node child not None):
+        ret = ngl_node_reparent_child(self.ctx, to.ctx, child.ctx)
+        return ret
 
     def _holds_resources(self):
         return ngl_node_holds_resources(self.ctx)

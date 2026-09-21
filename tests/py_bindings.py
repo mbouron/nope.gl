@@ -140,6 +140,7 @@ def py_bindings_nodes():
     assert ngl.UniformFloat().is_shareable()
     assert ngl.CustomTexture().is_shareable()
     assert not group.is_shareable()
+    assert group.reparent_child(emptygroup, first) == 0
 
 
 def py_bindings_rational():
