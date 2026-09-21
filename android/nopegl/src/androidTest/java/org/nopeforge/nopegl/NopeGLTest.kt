@@ -906,6 +906,9 @@ class NopeGLTest {
         val spare = NGLGroup2D(children = listOf())
         assertThrowsNGLError { root.addChildren(listOf(spare, spare)) }
 
+        // parent already holds child, so moving parent below child would cycle
+        assertThrowsNGLError { root.reparentChild(child, parent) }
+
         // The same cycle check covers a detached sub-tree, whose runtime parent
         // links are not populated yet
         val detached = NGLGroup2D(children = listOf(root))
@@ -913,6 +916,9 @@ class NopeGLTest {
 
         // Removing a node from the wrong parent leaves it untouched
         assertThrowsNGLError { other.removeChildren(listOf(child)) }
+
+        // Reparenting a child to its current parent is a no-op
+        parent.reparentChild(parent, child)
 
         // The scene must outlive the checks above
         assertNotNull(scene)
@@ -982,6 +988,102 @@ class NopeGLTest {
     @Test
     fun childrenLiveEditsVK() {
         childrenLiveEdits(NGLConfig.BACKEND_VULKAN)
+    }
+
+    private fun childrenReparent(backend: Int) {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val redDraw = drawColor(1.0f, 0.0f, 0.0f)
+        val left = NGLGroup(listOf(redDraw))
+        val right = NGLGroup(listOf())
+        val root = NGLGroup(listOf(left, right))
+        val scene = NGLScene(rootNode = root, duration = 1.0)
+
+        val captureBuffer = ByteBuffer.allocateDirect(256 * 256 * 4)
+        val ctx = createContext(backend).apply {
+            assertEquals(0, setCaptureBuffer(captureBuffer))
+            assertEquals(0, setScene(scene))
+        }
+        val buffer = captureBuffer.asIntBuffer()
+        assertEquals(0, ctx.draw(0.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        // Reparenting a child to its current parent is a no-op
+        left.reparentChild(left, redDraw)
+
+        // Move it across and back
+        left.reparentChild(right, redDraw)
+        assertEquals(0, ctx.draw(1.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+        right.reparentChild(left, redDraw)
+        assertEquals(0, ctx.draw(2.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        // The child must belong to the source group; the error is synchronous
+        // and leaves the scene drawable
+        assertThrowsNGLError { right.reparentChild(left, redDraw) }
+        assertEquals(0, ctx.draw(3.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        ctx.release()
+    }
+
+    @Test
+    fun childrenReparentGL() {
+        childrenReparent(NGLConfig.BACKEND_OPENGLES)
+    }
+
+    @Test
+    fun childrenReparentVK() {
+        childrenReparent(NGLConfig.BACKEND_VULKAN)
+    }
+
+    private fun childrenWrapReparent(backend: Int) {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 256.0f, 256.0f)), fill = fill)
+        val root = NGLCanvas2D(children = listOf(rect), width = width, height = height)
+        val scene = NGLScene(rootNode = root, width = width, height = height)
+
+        val captureBuffer = ByteBuffer.allocateDirect(width * height * 4)
+        val ctx = createContext(backend).apply {
+            assertEquals(0, setCaptureBuffer(captureBuffer))
+            assertEquals(0, setScene(scene))
+        }
+        val buffer = captureBuffer.asIntBuffer()
+        assertEquals(0, ctx.draw(0.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        // Wrap the live rect into a fresh wrapper: add the (childless) wrapper
+        // first, then move the rect into it, so it never leaves the graph
+        val wrapper = NGLGroup2D(children = listOf())
+        root.addChildren(listOf(wrapper))
+        root.reparentChild(wrapper, rect)
+        assertEquals(0, ctx.draw(1.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        // And unwrap it, in the reverse order
+        wrapper.reparentChild(root, rect)
+        root.removeChildren(listOf(wrapper))
+        assertEquals(0, ctx.draw(2.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        ctx.release()
+    }
+
+    @Test
+    fun childrenWrapReparentGL() {
+        childrenWrapReparent(NGLConfig.BACKEND_OPENGLES)
+    }
+
+    @Test
+    fun childrenWrapReparentVK() {
+        childrenWrapReparent(NGLConfig.BACKEND_VULKAN)
     }
 
     private fun childrenKeepResources(backend: Int) {

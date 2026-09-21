@@ -121,6 +121,7 @@ foreach backend : backends
 
   tests_graph_edit = [
     'group_children_sync_apply',
+    'group_reparent',
     'group_children_keep_resources',
     'release_detached_resources',
   ]
@@ -281,6 +282,8 @@ foreach backend : backends
   tests_live = [
     'group_reorder',
     'group_add_remove',
+    'group_reparent',
+    'effect2d_reparent',
     'media_change',
     'timerangefilter_update',
   ]

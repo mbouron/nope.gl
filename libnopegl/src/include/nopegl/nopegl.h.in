@@ -686,6 +686,31 @@ NGL_API int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
                                      size_t from, size_t to);
 
 /**
+ * Reparent a node without releasing its resources.
+ *
+ * The source and destination must have a live-changeable children parameter,
+ * be part of the same scene or both outside of any scene, and be associated
+ * with the same rendering context if both are associated with one.
+ *
+ * The moved node must appear exactly once in the children of the source, be of
+ * a type accepted by the destination, not already be a child of the
+ * destination, and not be the destination or one of its ancestors. If the
+ * source and destination are the same node, the function does nothing.
+ *
+ * If the nodes are associated with a rendering context, this function must be
+ * called on the context's rendering thread.
+ *
+ * This function must not be called from a node callback.
+ *
+ * @param from   current parent of child
+ * @param to     new parent of child
+ * @param child  node to reparent
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_reparent_child(struct ngl_node *from, struct ngl_node *to, struct ngl_node *child);
+
+/**
  * All ngl_node_param_set_* functions set a parameter value of an allocated
  * node.
  *

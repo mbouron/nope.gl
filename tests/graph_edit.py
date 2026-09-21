@@ -66,6 +66,12 @@ def graph_edit_sync_operation(width=32, height=32):
     del scene
 
 
+def _expect_topology_error(call, *args):
+    ret = call(*args)
+    assert ret < 0, "topology edit unexpectedly succeeded"
+    return ngl.Error(ret)
+
+
 @dataclass
 class _Clock:
     t: int = -1
@@ -73,6 +79,33 @@ class _Clock:
     def tick(self) -> int:
         self.t += 1
         return self.t
+
+
+def graph_edit_group_reparent():
+    """Test moving a child between groups, including invalid usage"""
+    child = ngl.DrawColor((1.0, 0.0, 0.0), geometry=ngl.Quad())
+    left = ngl.Group(children=[child])
+    right = ngl.Group()
+    root = ngl.Group(children=[left, right])
+    scene = ngl.Scene.from_params(root)
+
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(0) == 0
+
+    assert left.reparent_child(left, child) == 0
+
+    assert left.reparent_child(right, child) == 0
+    assert ctx.draw(1) == 0
+    assert right.reparent_child(left, child) == 0
+    assert ctx.draw(2) == 0
+
+    _expect_topology_error(right.reparent_child, left, child)
+    assert ctx.draw(3) == 0
+
+    del ctx
+    del scene
 
 
 def graph_edit_group_children_keep_resources(width=64, height=64):

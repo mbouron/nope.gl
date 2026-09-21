@@ -64,6 +64,13 @@ open class NGLNode(
         removeNodes("children", nodes)
     }
 
+    fun reparentChild(to: NGLNode, child: NGLNode) {
+        val returnCode = nativeReparentChild(nativePtr, to.nativePtr, child.nativePtr)
+        if (returnCode != 0) {
+            throw NGLError(returnCode)
+        }
+    }
+
     fun holdsResources(): Boolean {
         return nativeHoldsResources(nativePtr)
     }
@@ -435,6 +442,7 @@ open class NGLNode(
         end: Double,
     ): Int
 
+    private external fun nativeReparentChild(nativePtr: Long, toNativePtr: Long, childNativePtr: Long): Int
     private external fun nativeHoldsResources(nativePtr: Long): Boolean
     private external fun nativeReleaseDetachedResources(nativePtr: Long): Int
     private external fun nativeIsShareable(nativePtr: Long): Boolean

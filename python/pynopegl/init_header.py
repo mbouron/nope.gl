@@ -281,6 +281,9 @@ class Node(_Node):
     def release_detached_resources(self) -> int:
         return super()._release_detached_resources()
 
+    def reparent_child(self, to: "Node", child: "Node") -> int:
+        return super()._reparent_child(to, child)
+
     def get_type(self):
         return self._get_type()
 

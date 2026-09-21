@@ -243,6 +243,26 @@ static void apply_swap_children(struct ngl_node *node, const struct node_param *
     NGLI_SWAP(list->data[from], list->data[to]);
 }
 
+static int apply_reparent_child(struct ngl_node *from, const struct node_param *from_par,
+                                struct ngl_node *to, const struct node_param *to_par,
+                                struct ngl_node *child, size_t from_index)
+{
+    int ret = apply_remove_children(from, from_par, 1, &child);
+    if (ret < 0)
+        return ret;
+
+    ret = apply_insert_children(to, to_par, get_node_list(to, to_par)->count, 1, &child);
+    if (ret < 0) {
+        apply_insert_children(from, from_par, from_index, 1, &child);
+        ngli_node_param_notify(from, from_par);
+        return ret;
+    }
+
+    int from_ret = ngli_node_param_notify(from, from_par);
+    int to_ret = ngli_node_param_notify(to, to_par);
+    return from_ret < 0 ? from_ret : to_ret;
+}
+
 struct node_edit_arg {
     struct ngl_node *node;
     const struct node_param *par;
@@ -282,6 +302,23 @@ static int swap_children_cb(struct ngl_ctx *ctx, void *user_arg)
     const struct node_edit_arg *arg = user_arg;
     apply_swap_children(arg->node, arg->par, arg->from_index, arg->to_index);
     return ngli_node_param_notify(arg->node, arg->par);
+}
+
+struct reparent_child_arg {
+    struct ngl_node *from;
+    const struct node_param *from_par;
+    struct ngl_node *to;
+    const struct node_param *to_par;
+    struct ngl_node *child;
+    size_t from_index;
+};
+
+static int reparent_child_cb(struct ngl_ctx *ctx ngli_unused, void *user_arg)
+{
+    const struct reparent_child_arg *arg = user_arg;
+    return apply_reparent_child(arg->from, arg->from_par,
+                                arg->to, arg->to_par,
+                                arg->child, arg->from_index);
 }
 
 int ngli_node_graph_edit_add_children(struct ngl_node *node, const struct node_param *par,
@@ -341,4 +378,120 @@ int ngli_node_graph_edit_swap_children(struct ngl_node *node, const struct node_
         .to_index   = to,
     };
     return run_node_edit(node, swap_children_cb, &arg);
+}
+
+static const struct node_param *find_live_children_param(const struct ngl_node *node)
+{
+    if (!node->cls->params)
+        return NULL;
+
+    const struct node_param *par = ngli_params_find(node->cls->params, "children");
+    if (!par)
+        return NULL;
+
+    if (par->type == NGLI_PARAM_TYPE_NODELIST && (par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE))
+        return par;
+
+    return NULL;
+}
+
+static size_t node_darray_count_occurrences(const struct ngli_node_darray *array, const struct ngl_node *node)
+{
+    size_t count = 0;
+    for (size_t i = 0; i < array->count; i++)
+        count += array->data[i] == node;
+    return count;
+}
+
+int ngl_node_reparent_child(struct ngl_node *from, struct ngl_node *to, struct ngl_node *child)
+{
+    if (!from || !to || !child)
+        return NGL_ERROR_INVALID_ARG;
+
+    const struct node_param *from_par = find_live_children_param(from);
+    if (!from_par) {
+        LOG(ERROR, "%s has no live-changeable children list", from->label);
+        return NGL_ERROR_INVALID_ARG;
+    }
+
+    const struct node_param *to_par = find_live_children_param(to);
+    if (!to_par) {
+        LOG(ERROR, "%s has no live-changeable children list", to->label);
+        return NGL_ERROR_INVALID_ARG;
+    }
+
+    if (from == to) {
+        LOG(WARNING, "%s is already the parent of %s", to->label, child->label);
+        return 0;
+    }
+
+    if (to->scene != from->scene) {
+        LOG(ERROR, "%s and %s are not part of the same scene", from->label, to->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (to->ctx && from->ctx && to->ctx != from->ctx) {
+        LOG(ERROR, "%s and %s are bound to different rendering contexts",
+            from->label, to->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    int ret = ngli_node_check_not_traversing(from);
+    if (ret < 0)
+        return ret;
+
+    ret = ngli_node_check_not_traversing(to);
+    if (ret < 0)
+        return ret;
+
+    const struct ngli_node_darray *from_list = get_node_list(from, from_par);
+    const struct ngli_node_darray *to_list = get_node_list(to, to_par);
+
+    const size_t from_index = ngli_node_darray_find(from_list, child);
+    if (from_index == SIZE_MAX) {
+        LOG(ERROR, "%s is not a child of %s", child->label, from->label);
+        return NGL_ERROR_INVALID_ARG;
+    }
+
+    if (node_darray_count_occurrences(from_list, child) > 1) {
+        LOG(ERROR, "%s is listed several times in %s; operation is not supported",
+            child->label, from->label);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (ngli_node_darray_find(to_list, child) != SIZE_MAX) {
+        LOG(ERROR, "%s is already a child of %s", child->label, to->label);
+        return NGL_ERROR_INVALID_ARG;
+    }
+
+    ret = ngli_params_check_nodes(to_par, 1, &child);
+    if (ret < 0)
+        return ret;
+
+    if (ngli_node_graph_find_node(child, to)) {
+        LOG(ERROR, "cannot reparent %s to %s: it would form a graph cycle",
+            child->label, to->label);
+        return NGL_ERROR_INVALID_ARG;
+    }
+
+    /*
+     * The `child` pointer may be borrowed and the node-list parameter (from)
+     * may hold the last references; take a reference on `child` so it remains
+     * valid until the reparent operation is done.
+     */
+    ngl_node_ref(child);
+
+    struct reparent_child_arg arg = {
+        .from       = from,
+        .from_par   = from_par,
+        .to         = to,
+        .to_par     = to_par,
+        .child      = child,
+        .from_index = from_index,
+    };
+    ret = run_node_edit(from->ctx ? from : to, reparent_child_cb, &arg);
+
+    ngl_node_unrefp(&child);
+
+    return ret;
 }

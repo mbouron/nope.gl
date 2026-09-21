@@ -24,6 +24,7 @@
 #include "node_graph_edit.h"
 #include "node_texture.h"
 #include "params.h"
+#include "renderpass.h"
 #include "utils/hmap.h"
 #include "resource.h"
 #include "utils/memory.h"
@@ -690,6 +691,142 @@ static void check_list_wrong_type(struct ngl_node *node)
     ngli_assert(ngl_node_param_swap_elem(node, "label", 0, 0) == NGL_ERROR_INVALID_ARG);
 }
 
+static void test_reparent_notifications(int state, int failures, uint32_t child_type)
+{
+    const struct api_impl api = {.dispatch = test_dispatch};
+    struct ngl_ctx ctx = {.api_impl = &api};
+    struct multi_list_opts from_opts, to_opts;
+    struct ngl_node from, to;
+    init_multi_list(&from, &from_opts);
+    init_multi_list(&to, &to_opts);
+    struct node_param params[NGLI_ARRAY_NB(multi_list_params)];
+    memcpy(params, multi_list_params, sizeof(params));
+    params[4].key = "children";
+    params[4].update_func = list_update;
+    const struct node_class cls = {
+        .name = "ReparentNotifications",
+        .params = params,
+        .invalidate = list_invalidate,
+    };
+    from.cls = to.cls = &cls;
+    struct ngl_node *child = ngl_node_create(child_type);
+    struct ngl_node *before = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *after = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *kept = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *holder = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(child && before && after && kept && holder);
+    struct ngl_node *children[] = {before, child, after};
+    struct ngl_node *containers[] = {&from, &to};
+    ngli_assert(ngl_node_param_add_nodes(&from, "children", 3, children) == 0);
+    ngli_assert(ngl_node_param_add_nodes(&to, "children", 1, &kept) == 0);
+    ngli_assert(ngl_node_param_add_nodes(holder, "children", 2, containers) == 0);
+    struct ngl_scene *scene = state ? create_scene(holder) : NULL;
+    if (state >= 2)
+        ngli_assert(ngli_node_attach_ctx(holder, &ctx) == 0);
+    if (state == 3)
+        ngli_assert(ngl_node_param_remove_nodes(holder, "children", 2, containers) == 0);
+    from_opts.update_count = to_opts.update_count = 0;
+    from_opts.invalidate_count = to_opts.invalidate_count = 0;
+    from_opts.update_ret = failures & 1 ? NGL_ERROR_MEMORY : 0;
+    to_opts.update_ret = failures & 2 ? NGL_ERROR_EXTERNAL : 0;
+    const int child_refs = child->refcount;
+
+    /* Both notifications run after the move, even if one of them fails. */
+    const int expected_ret = state < 2 ? 0 : from_opts.update_ret ? from_opts.update_ret : to_opts.update_ret;
+    ngli_assert(ngl_node_reparent_child(&from, &to, child) == expected_ret);
+    ngli_assert(from_opts.second.count == 2);
+    ngli_assert(from_opts.second.data[0] == before && from_opts.second.data[1] == after);
+    ngli_assert(to_opts.second.count == 2);
+    ngli_assert(to_opts.second.data[0] == kept && to_opts.second.data[1] == child);
+    ngli_assert(child->refcount == child_refs);
+    ngli_assert(from_opts.update_count == (state >= 2));
+    ngli_assert(to_opts.update_count == (state >= 2));
+    ngli_assert(from_opts.invalidate_count == (state >= 2 && !from_opts.update_ret));
+    ngli_assert(to_opts.invalidate_count == (state >= 2 && !to_opts.update_ret));
+    if (from.scene) {
+        check_multi_list_edges(&from);
+        check_multi_list_edges(&to);
+        ngli_assert(child->parents.count == 1 && child->parents.data[0] == &to);
+    } else {
+        ngli_assert(!from.children.count && !to.children.count && !child->parents.count);
+        ngli_assert(!child->scene);
+    }
+
+    ngli_ctx_release_resources(&ctx);
+    ngli_darray_reset(&ctx.resource_nodes);
+    ngl_scene_unrefp(&scene);
+    ngl_node_unrefp(&holder);
+    ngli_params_free(from.opts, from.cls->params);
+    ngli_params_free(to.opts, to.cls->params);
+    ngl_node_unrefp(&child);
+    ngl_node_unrefp(&before);
+    ngl_node_unrefp(&after);
+    ngl_node_unrefp(&kept);
+}
+
+static uint32_t reparent_depth_usage(const struct ngl_node *node ngli_unused)
+{
+    return NGLI_RENDERPASS_USAGE_DEPTH;
+}
+
+static void reparent_depth_layout(const struct ngl_node *node ngli_unused,
+                                  struct ngpu_rendertarget_layout *layout)
+{
+    layout->depth_stencil.format = NGPU_FORMAT_D32_SFLOAT;
+}
+
+static void test_reparent_rollback(void)
+{
+    const struct api_impl api = {.dispatch = test_dispatch};
+    struct ngl_ctx ctx = {.api_impl = &api};
+    struct ngl_node *from = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *to = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *child = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *before = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *after = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *holder = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(from && to && child && before && after && holder);
+    struct node_class from_cls = *from->cls;
+    struct node_class child_cls = *child->cls;
+    from_cls.get_rendertarget_layout = reparent_depth_layout;
+    child_cls.get_renderpass_usage = reparent_depth_usage;
+    from->cls = &from_cls;
+    child->cls = &child_cls;
+    struct ngl_node *children[] = {before, child, after};
+    ngli_assert(ngl_node_param_add_nodes(from, "children", 3, children) == 0);
+    ngli_assert(ngl_node_param_add_nodes(holder, "children", 2, (struct ngl_node *[]){from, to}) == 0);
+    struct ngl_scene *scene = create_scene(holder);
+    ngli_assert(ngli_node_attach_ctx(holder, &ctx) == 0);
+    const int child_refs = child->refcount;
+    /* As if a frame had been drawn at t=1 */
+    from->last_update_time = to->last_update_time = holder->last_update_time = 1.;
+
+    /* The destination has no depth attachment. Restore the original order
+     * after its insertion fails, retaining the child's initialized resources. */
+    ngli_assert(ngl_node_reparent_child(from, to, child) == NGL_ERROR_INVALID_USAGE);
+    check_multi_list_edges(from);
+    check_multi_list_edges(to);
+    ngli_assert(from->children.count == 3 && !to->children.count);
+    for (size_t i = 0; i < NGLI_ARRAY_NB(children); i++)
+        ngli_assert(from->children.data[i] == children[i]);
+    ngli_assert(child->refcount == child_refs && child->ctx == &ctx && child->prepared);
+    ngli_assert(child->parents.count == 1 && child->parents.data[0] == from);
+    /* The source branch is notified of the round trip; the destination, which
+     * reverted itself, is not */
+    ngli_assert(from->last_update_time == -1. && holder->last_update_time == -1.);
+    ngli_assert(to->last_update_time == 1.);
+
+    ngli_ctx_release_resources(&ctx);
+    ngli_darray_reset(&ctx.resource_nodes);
+    ngl_scene_unrefp(&scene);
+    ngl_node_unrefp(&holder);
+    ngl_node_unrefp(&from);
+    ngl_node_unrefp(&to);
+    ngl_node_unrefp(&child);
+    ngl_node_unrefp(&before);
+    ngl_node_unrefp(&after);
+}
+
 static void test_list_edit_states(void)
 {
     /* Construction, scene only, attached, and detached with retained resources. */
@@ -932,6 +1069,13 @@ static void test_live_multiple_lists_rollback(size_t index)
 
 int main(void)
 {
+    for (int state = 0; state < 4; state++) {
+        for (int failures = 0; failures < 4; failures++) {
+            test_reparent_notifications(state, failures, NGL_NODE_GROUP);
+            test_reparent_notifications(state, failures, NGL_NODE_UNIFORMFLOAT);
+        }
+    }
+    test_reparent_rollback();
     test_list_edit_states();
     test_list_edit_permissions();
     test_option_insert();
