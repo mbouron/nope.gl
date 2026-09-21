@@ -120,6 +120,7 @@ foreach backend : backends
   endif
 
   tests_graph_edit = [
+    'group_children_live',
     'group_children_sync_apply',
     'group_reparent',
     'group_children_keep_resources',

@@ -71,9 +71,11 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_node_release_detached_resources(ngl_node *node)
     int ngl_node_is_shareable(const ngl_node *node)
     int ngl_node_param_add_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
+    int ngl_node_param_insert_nodes(ngl_node *node, const char *key, size_t index, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_remove_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_add_f64s(ngl_node *node, const char *key, size_t nb_f64s, double *f64s)
     int ngl_node_param_swap_elem(ngl_node *node, const char *key, size_t from_, size_t to)
+    int ngl_node_param_move_elem(ngl_node *node, const char *key, size_t from_, size_t to)
     int ngl_node_param_set_bool(ngl_node *node, const char *key, int value)
     int ngl_node_param_set_data(ngl_node *node, const char *key, size_t size, const void *data)
     int ngl_node_param_set_dict(ngl_node *node, const char *key, const char *name, ngl_node *value)
@@ -594,6 +596,19 @@ cdef class _Node:
         free(nodes_c)
         return ret
 
+    def _param_insert_nodes(self, const char *key, index, size_t nb_nodes, nodes):
+        if index < 0:
+            return NGL_ERROR_INVALID_ARG
+        nodes_c = <ngl_node **>calloc(nb_nodes, sizeof(ngl_node *))
+        if nodes_c is NULL:
+            raise MemoryError()
+        cdef size_t i
+        for i, node in enumerate(nodes):
+            nodes_c[i] = (<_Node>node).ctx
+        ret = ngl_node_param_insert_nodes(self.ctx, key, index, nb_nodes, nodes_c)
+        free(nodes_c)
+        return ret
+
     def _eval_f32(self, double t):
         cdef float f32
         ngl_anim_evaluate(self.ctx, &f32, t)
@@ -629,6 +644,12 @@ cdef class _Node:
         if from_ < 0 or to < 0:
             return NGL_ERROR_INVALID_ARG
         return ngl_node_param_swap_elem(self.ctx, key, from_, to)
+
+    def _param_move_elem(self, const char *key, from_, to):
+        if from_ < 0 or to < 0:
+            return NGL_ERROR_INVALID_ARG
+        ret = ngl_node_param_move_elem(self.ctx, key, from_, to)
+        return ret
 
     def _get_type(self):
         cdef uint32_t type = 0

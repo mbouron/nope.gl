@@ -60,8 +60,16 @@ open class NGLNode(
         addNodes("children", nodes)
     }
 
+    fun insertChildren(index: Int, nodes: List<NGLNode>) {
+        insertNodes("children", index, nodes)
+    }
+
     fun removeChildren(nodes: List<NGLNode>) {
         removeNodes("children", nodes)
+    }
+
+    fun moveChild(from: Int, to: Int) {
+        moveElement("children", from, to)
     }
 
     fun reparentChild(to: NGLNode, child: NGLNode) {
@@ -230,8 +238,23 @@ open class NGLNode(
         }
     }
 
+    internal fun insertNodes(key: String, index: Int, nodes: List<NGLNode>) {
+        val nodePointers = nodes.map { it.nativePtr }.toLongArray()
+        val returnCode = nativeInsertNodes(nativePtr, key, index, nodes.size, nodePointers)
+        if (returnCode != 0) {
+            throw NGLError(returnCode)
+        }
+    }
+
     internal fun swapElement(key: String, from: Int, to: Int) {
         val returnCode = nativeSwapElement(nativePtr, key, from, to)
+        if (returnCode != 0) {
+            throw NGLError(returnCode)
+        }
+    }
+
+    internal fun moveElement(key: String, from: Int, to: Int) {
+        val returnCode = nativeMoveElement(nativePtr, key, from, to)
         if (returnCode != 0) {
             throw NGLError(returnCode)
         }
@@ -393,6 +416,7 @@ open class NGLNode(
     ): Int
 
     private external fun nativeSwapElement(nativePtr: Long, key: String, from: Int, to: Int): Int
+    private external fun nativeMoveElement(nativePtr: Long, key: String, from: Int, to: Int): Int
     private external fun nativeSetFlags(nativePtr: Long, key: String, value: String): Int
     private external fun nativeSetInt(nativePtr: Long, key: String, value: Int): Int
     private external fun nativeSetIVec2(nativePtr: Long, key: String, value: IntArray): Int
@@ -413,6 +437,14 @@ open class NGLNode(
     private external fun nativeAddNodes(
         nativePtr: Long,
         key: String,
+        count: Int,
+        nodePointers: LongArray,
+    ): Int
+
+    private external fun nativeInsertNodes(
+        nativePtr: Long,
+        key: String,
+        index: Int,
         count: Int,
         nodePointers: LongArray,
     ): Int

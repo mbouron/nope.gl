@@ -642,6 +642,22 @@ NGL_API int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
                                      size_t nb_nodes, struct ngl_node **nodes);
 
 /**
+ * Insert nodes into a node-list parameter of an allocated node at the specified
+ * index.
+ *
+ * @param node      pointer to the target node
+ * @param key       string identifying the parameter
+ * @param index     index to insert the nodes at
+ * @param nb_nodes  number of nodes to insert
+ * @param nodes     pointer to an array of nodes
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_param_insert_nodes(struct ngl_node *node, const char *key,
+                                        size_t index, size_t nb_nodes,
+                                        struct ngl_node **nodes);
+
+/**
  * Remove nodes from a node-list parameter.
  *
  * This is the counterpart to ngl_node_param_add_nodes() and follows the same
@@ -683,6 +699,21 @@ NGL_API int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
  * @return 0 on success, NGL_ERROR_* (< 0) on error
  */
 NGL_API int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
+                                     size_t from, size_t to);
+
+/**
+ * Move one element within a list-based parameter of an allocated node.
+ *
+ * This function preserves the relative order of the other elements of the list.
+ *
+ * @param node  pointer to the target node
+ * @param key   string identifying the parameter
+ * @param from  current index of the element
+ * @param to    new index of the element
+ *
+ * @return 0 on success, NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_param_move_elem(struct ngl_node *node, const char *key,
                                      size_t from, size_t to);
 
 /**

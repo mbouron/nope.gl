@@ -439,6 +439,47 @@ static void test_live_swap_runtime_edges(void)
     ngl_node_unrefp(&root);
 }
 
+static void test_live_insert_move_runtime_edges(void)
+{
+    struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *a = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *c = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *d = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *e = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(root && a && b && c && d && e);
+
+    struct ngl_node *outer[] = {a, d};
+    struct ngl_node *middle[] = {b, c};
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 2, outer) == 0);
+    ngli_assert(ngl_node_param_insert_nodes(root, "children", 1, 2, middle) == 0);
+    ngli_assert(ngl_node_param_insert_nodes(root, "children", 5, 1, &e) == NGL_ERROR_INVALID_ARG);
+
+    struct ngl_scene *scene = create_scene(root);
+    ngli_assert(ngl_node_param_insert_nodes(root, "children", 2, 1, &e) == 0);
+    ngli_assert(root->children.count == 5);
+    ngli_assert(root->children.data[0] == a);
+    ngli_assert(root->children.data[1] == b);
+    ngli_assert(root->children.data[2] == e);
+    ngli_assert(root->children.data[3] == c);
+    ngli_assert(root->children.data[4] == d);
+
+    ngli_assert(ngl_node_param_move_elem(root, "children", 0, 4) == 0);
+    ngli_assert(root->children.data[0] == b);
+    ngli_assert(root->children.data[1] == e);
+    ngli_assert(root->children.data[2] == c);
+    ngli_assert(root->children.data[3] == d);
+    ngli_assert(root->children.data[4] == a);
+
+    ngl_scene_unrefp(&scene);
+    ngl_node_unrefp(&e);
+    ngl_node_unrefp(&d);
+    ngl_node_unrefp(&c);
+    ngl_node_unrefp(&b);
+    ngl_node_unrefp(&a);
+    ngl_node_unrefp(&root);
+}
+
 static void test_live_children_duplicates(void)
 {
     struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
@@ -635,14 +676,17 @@ static void test_live_multiple_lists(void)
     ngli_assert(ngl_node_param_add_nodes(&root, "second", 2, second) == 0);
     ngli_assert(ngl_node_param_add_nodes(&root, "first", 2, first) == 0);
     check_multi_list_edges(&root);
-    ngli_assert(ngl_node_param_add_nodes(&root, "second", 1, &c) == 0);
+    ngli_assert(ngl_node_param_insert_nodes(&root, "second", 1, 1, &c) == 0);
     ngli_assert(ngl_node_param_swap_elem(&root, "second", 0, 2) == 0);
+    ngli_assert(ngl_node_param_move_elem(&root, "second", 2, 0) == 0);
     check_multi_list_edges(&root);
-    ngli_assert(opts.second.data[0] == c && opts.second.data[1] == b && opts.second.data[2] == shared);
+    ngli_assert(opts.second.data[0] == shared && opts.second.data[1] == b && opts.second.data[2] == c);
 
     ngli_assert(ngl_node_param_add_nodes(&root, "second", 1, &a) == NGL_ERROR_INVALID_USAGE);
     ngli_assert(ngl_node_param_remove_nodes(&root, "second", 1, &a) == NGL_ERROR_INVALID_ARG);
     ngli_assert(ngl_node_param_swap_elem(&root, "second", 0, 3) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_move_elem(&root, "second", 3, 0) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_insert_nodes(&root, "second", 4, 1, &a) == NGL_ERROR_INVALID_ARG);
     ngli_assert(ngl_node_param_add_nodes(&root, "second", 1, &shared) == 0);
     ngli_assert(opts.second.count == 4 && opts.second.data[3] == shared);
     check_multi_list_edges(&root);
@@ -686,9 +730,11 @@ static void list_invalidate(struct ngl_node *node)
 static void check_list_wrong_type(struct ngl_node *node)
 {
     ngli_assert(ngl_node_param_add_nodes(node, "label", 0, NULL) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_insert_nodes(node, "label", 0, 0, NULL) == NGL_ERROR_INVALID_ARG);
     ngli_assert(ngl_node_param_remove_nodes(node, "label", 0, NULL) == NGL_ERROR_INVALID_ARG);
     ngli_assert(ngl_node_param_add_f64s(node, "label", 0, NULL) == NGL_ERROR_INVALID_ARG);
     ngli_assert(ngl_node_param_swap_elem(node, "label", 0, 0) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_move_elem(node, "label", 0, 0) == NGL_ERROR_INVALID_ARG);
 }
 
 static void test_reparent_notifications(int state, int failures, uint32_t child_type)
@@ -886,16 +932,33 @@ static void test_list_edit_states(void)
         ngli_assert(opts.update_count == (state >= 2 ? 3 : 0));
         ngli_assert(opts.invalidate_count == (state >= 2 ? 3 : 0));
 
+        ngli_assert(ngl_node_param_insert_nodes(&root, "second", 0, 2, (struct ngl_node *[]){a, a}) == 0);
+        ngli_assert(ngl_node_param_move_elem(&root, "second", 2, 1) == 0);
+        ngli_assert(opts.second.count == 3);
+        ngli_assert(opts.second.data[0] == a && opts.second.data[1] == b && opts.second.data[2] == a);
+        ngli_assert(ngl_node_param_insert_nodes(&root, "second", 4, 0, NULL) == NGL_ERROR_INVALID_ARG);
+        ngli_assert(ngl_node_param_insert_nodes(&root, "second", 3, 0, NULL) == 0);
+        ngli_assert(ngl_node_param_move_elem(&root, "second", 3, 3) == NGL_ERROR_INVALID_ARG);
+        ngli_assert(ngl_node_param_move_elem(&root, "second", 0, 0) == 0);
+        ngli_assert(opts.update_count == (state >= 2 ? 5 : 0));
+        ngli_assert(opts.invalidate_count == (state >= 2 ? 5 : 0));
+        if (root.scene)
+            check_multi_list_edges(&root);
+
         if (state >= 2) {
             /* Notification failures keep the edit, without invalidation. */
             opts.update_ret = NGL_ERROR_MEMORY;
             ngli_assert(ngl_node_param_add_nodes(&root, "second", 1, &a) == NGL_ERROR_MEMORY);
-            ngli_assert(opts.second.count == 2 && opts.second.data[1] == a);
+            ngli_assert(opts.second.count == 4 && opts.second.data[3] == a);
             ngli_assert(ngl_node_param_swap_elem(&root, "second", 0, 1) == NGL_ERROR_MEMORY);
-            ngli_assert(opts.second.data[0] == a && opts.second.data[1] == b);
+            ngli_assert(opts.second.data[0] == b && opts.second.data[1] == a);
             ngli_assert(ngl_node_param_remove_nodes(&root, "second", 1, &a) == NGL_ERROR_MEMORY);
             ngli_assert(opts.second.count == 1 && opts.second.data[0] == b);
-            ngli_assert(opts.update_count == 6 && opts.invalidate_count == 3);
+            ngli_assert(ngl_node_param_insert_nodes(&root, "second", 0, 1, &a) == NGL_ERROR_MEMORY);
+            ngli_assert(opts.second.count == 2 && opts.second.data[0] == a);
+            ngli_assert(ngl_node_param_move_elem(&root, "second", 0, 1) == NGL_ERROR_MEMORY);
+            ngli_assert(opts.second.data[0] == b && opts.second.data[1] == a);
+            ngli_assert(opts.update_count == 10 && opts.invalidate_count == 5);
             if (root.scene)
                 check_multi_list_edges(&root);
         }
@@ -935,9 +998,12 @@ static void test_list_edit_permissions(void)
     /* A frozen list is refused before its arguments are looked at */
     ngli_assert(ngl_node_param_add_nodes(&root, "first", 0, NULL) == NGL_ERROR_INVALID_USAGE);
     ngli_assert(ngl_node_param_remove_nodes(&root, "first", 0, NULL) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_insert_nodes(&root, "first", 2, 0, NULL) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_insert_nodes(&root, "first", 3, 0, NULL) == NGL_ERROR_INVALID_USAGE);
 
     /* Reordering is frozen along with the rest of the graph */
     ngli_assert(ngl_node_param_swap_elem(&root, "first", 0, 1) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_move_elem(&root, "first", 0, 1) == NGL_ERROR_INVALID_USAGE);
     ngli_assert(opts.first.data[0] == a && opts.first.data[1] == b);
     check_multi_list_edges(&root);
 
@@ -949,6 +1015,8 @@ static void test_list_edit_permissions(void)
     ngli_assert(ngl_node_param_add_nodes(&root, "second", 0, NULL) == NGL_ERROR_INVALID_USAGE);
     ngli_assert(ngl_node_param_remove_nodes(&root, "second", 0, NULL) == NGL_ERROR_INVALID_USAGE);
     ngli_assert(ngl_node_param_swap_elem(&root, "first", 0, 0) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_insert_nodes(&root, "second", 0, 0, NULL) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_move_elem(&root, "first", 0, 0) == NGL_ERROR_INVALID_USAGE);
     scene->ctx = NULL;
     ngl_scene_unrefp(&scene);
 
@@ -1093,6 +1161,7 @@ int main(void)
     test_add_edges_rollback();
     test_swap_bounds();
     test_live_swap_runtime_edges();
+    test_live_insert_move_runtime_edges();
     test_live_children_duplicates();
     test_release_detached_without_resources();
     return 0;

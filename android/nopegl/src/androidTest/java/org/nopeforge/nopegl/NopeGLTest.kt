@@ -947,6 +947,7 @@ class NopeGLTest {
         assertEquals(0, ctx.draw(1.0 / 60.0))
         assertEquals(green, buffer[0].toUInt())
 
+        root.moveChildren(0, 0)
         root.removeChildren(emptyList())
         root.removeChildren(listOf(greenDraw))
         assertEquals(0, ctx.draw(2.0 / 60.0))
@@ -978,8 +979,10 @@ class NopeGLTest {
         val animation = NGLAnimatedFloat(listOf(first))
         animation.removeKeyframes(emptyList())
         animation.addKeyframes(listOf(second))
+        animation.moveKeyframes(0, 1)
         animation.swapKeyframes(0, 1)
         animation.removeKeyframes(listOf(first))
+        animation.insertKeyframes(0, listOf(first))
         animation.release()
         first.release()
         second.release()

@@ -29,6 +29,57 @@ _backend_str = os.environ.get("BACKEND")
 _backend = get_backend(_backend_str) if _backend_str else ngl.Backend.AUTO
 
 
+def graph_edit_group_children_live():
+    """Test live group mutations on a configured context"""
+    inner = ngl.Group(children=[ngl.DrawColor((1.0, 0.0, 0.0), geometry=ngl.Quad())])
+    root = ngl.Group(children=[inner])
+    scene = ngl.Scene.from_params(root)
+
+    capture_buffer = bytearray(16 * 16 * 4)
+    ctx = ngl.Context()
+    assert (
+        ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend, capture_buffer=capture_buffer))
+        == 0
+    )
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(0) == 0
+    center = (8 * 16 + 8) * 4
+    assert tuple(capture_buffer[center : center + 3]) == (255, 0, 0)
+
+    # Insert and stable move update both the option list and the runtime edge
+    # order. Reusing the same timestamp also checks topology invalidation.
+    green = ngl.DrawColor((0.0, 1.0, 0.0), geometry=ngl.Quad())
+    assert root.insert_children(0, green) == 0
+    assert ctx.draw(0) == 0
+    assert tuple(capture_buffer[center : center + 3]) == (255, 0, 0)
+    assert root.move_children(0, 1) == 0
+    assert ctx.draw(0) == 0
+    assert tuple(capture_buffer[center : center + 3]) == (0, 255, 0)
+    assert root.remove_children(green) == 0
+
+    # Several mutations between two frames are applied in order
+    assert root.add_children(green) == 0
+    assert root.remove_children(green) == 0
+    assert ctx.draw(1) == 0
+
+    # An edit applies on the spot: once inner is removed, editing it is a
+    # construction-time edit on a detached sub-tree, which takes effect when it
+    # rejoins the graph
+    assert root.remove_children(inner) == 0
+    assert inner.add_children(ngl.DrawColor((0.0, 0.0, 1.0), geometry=ngl.Quad())) == 0
+    assert ctx.draw(2) == 0
+    assert root.add_children(inner) == 0
+    assert ctx.draw(3) == 0
+
+    # Removing it a second time is an error, reported synchronously
+    assert root.remove_children(inner) == 0
+    _expect_topology_error(root.remove_children, inner)
+    assert ctx.draw(4) == 0
+
+    del ctx
+    del scene
+
+
 def graph_edit_sync_operation(width=32, height=32):
     """An edit is a synchronous operation and fully applied when the call returns"""
     rect1 = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint())
