@@ -132,8 +132,14 @@ def py_bindings_no_param():
 def py_bindings_nodes():
     emptygroup = ngl.Group(children=[])
     assert emptygroup.add_children() == 0
-    group = ngl.Group(children=[ngl.Identity(), ngl.Group()])
-    assert group.add_children(ngl.Group(), ngl.Identity()) == 0
+    first = ngl.Identity()
+    second = ngl.Group()
+    group = ngl.Group(children=[first, second])
+    added = [ngl.Group(), ngl.Identity()]
+    assert group.add_children(*added) == 0
+    assert ngl.UniformFloat().is_shareable()
+    assert ngl.CustomTexture().is_shareable()
+    assert not group.is_shareable()
 
 
 def py_bindings_rational():

@@ -23,6 +23,7 @@ import array
 import atexit
 import csv
 import hashlib
+import itertools
 import locale
 import math
 import os
@@ -39,6 +40,12 @@ from pynopegl_utils.toolbox.grid import autogrid_simple
 
 _backend_str = os.environ.get("BACKEND")
 _backend = get_backend(_backend_str) if _backend_str else ngl.Backend.AUTO
+
+
+def _expect_topology_error(call, *args):
+    ret = call(*args)
+    assert ret < 0, "expected topoligy error"
+    return ngl.Error(ret)
 
 
 def _is_close(a, b, tol=1):
@@ -453,16 +460,20 @@ def api_scene_lifetime():
 
 
 def api_scene_mutate():
-    """Test if the scene association is prevent graph structure changes"""
+    """Test if the scene association prevents graph structure changes"""
     hook = ngl.Group()
+    grid = ngl.GridLayout()
     eval = ngl.EvalVec3()
     draw = ngl.DrawColor(color=eval)
-    root = ngl.Group(children=[hook])
+    root = ngl.Group(children=[hook, grid])
     assert hook.add_children(draw) == 0
     scene = ngl.Scene.from_params(root)
-    assert hook.add_children(ngl.DrawColor()) != 0
-    assert draw.set_opacity(0.5) == 0  # we can change a direct value...
-    assert draw.set_opacity(ngl.UniformFloat()) != 0  # ...but we can't change the structure
+    extra = ngl.DrawColor()
+    assert hook.add_children(extra) == 0
+    assert hook.remove_children(extra) == 0
+    _expect_topology_error(grid.add_children, ngl.DrawColor())
+    assert draw.set_opacity(0.5) == 0
+    assert draw.set_opacity(ngl.UniformFloat()) != 0
     assert eval.update_resources(t=ngl.Time()) != 0
     del scene
 
@@ -576,7 +587,7 @@ def api_scene_files():
     root = ngl.Group(
         children=[
             ngl.Texture2D(data_src=media),
-            ngl.Texture2D(data_src=ngl.BufferByte(filename="hamster")),
+            ngl.Texture2D(data_src=ngl.Media(filename="hamster")),
         ]
     )
     scene = ngl.Scene.from_params(root)
@@ -587,12 +598,11 @@ def api_scene_files():
     assert scene.files == ["cat", "hamster"]
 
     # Replace the simple filename strings with their corresponding actual file paths
-    for i, filepath in enumerate(scene.files):
-        new_filepath = load_media(filepath).filename
-        scene.update_filepath(i, new_filepath)
-
-    # Query again the files and check if they've been updated
-    assert all(Path(filepath).exists() for filepath in scene.files)
+    cat = load_media("cat").filename
+    hamster = load_media("hamster").filename
+    scene.update_filepath(0, cat)
+    scene.update_filepath(1, hamster)
+    assert scene.files == [cat, hamster]
 
     # Associate with the context
     ctx = ngl.Context()
@@ -602,16 +612,103 @@ def api_scene_files():
     assert ctx.draw(0) == 0
 
     # Change one path using live controls
-    new_ref = "cat was here"
+    new_ref = load_media("panda").filename
     media.set_filename(new_ref)
+    assert scene.files == [new_ref, hamster]
 
-    # Check if the change is effective back in the scene
-    assert any(filepath == new_ref for filepath in scene.files)
+    # Add/remove one path using live graph edits
+    rooster = load_media("rooster").filename
+    texture = ngl.Texture2D(data_src=ngl.Media(filename=rooster))
+    assert root.add_children(texture) == 0
+    assert scene.files == [new_ref, hamster, rooster]
+    assert root.remove_children(texture) == 0
+    assert scene.files == [new_ref, hamster]
 
     # Detach the context and check if the change is still persistent like other live controls
     ctx.set_scene(None)
     del ctx
-    assert any(filepath == new_ref for filepath in scene.files)
+    assert scene.files == [new_ref, hamster]
+
+
+def api_scene_live_edits(width=64, height=64):
+    """Nodes detached from the graph keep their resources until explicitly released"""
+    clock = itertools.count()
+
+    rect1 = ngl.DrawRect2D(rect=(16, 16, 32, 32), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
+    group = ngl.Group2D(children=[rect1])
+    rect2 = ngl.DrawRect2D(rect=(0, 0, 8, 8), fill=ngl.ColorPaint(color=(0.0, 1.0, 0.0, 1.0)))
+    root = ngl.Canvas2D(children=[group, rect2], width=width, height=height)
+    scene = ngl.Scene.from_params(root, width=width, height=height)
+
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(offscreen=True, width=width, height=height, backend=_backend, capture_buffer=capture_buffer)
+    )
+    assert ret == 0
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(next(clock)) == 0
+
+    def output_color():
+        o = (height // 2 * width + width // 2) * 4
+        return tuple(capture_buffer[o : o + 3])
+
+    initial_color = output_color()
+    assert initial_color != (0, 0, 0)
+    assert group.holds_resources()
+    assert rect2.holds_resources()
+
+    assert root.remove_children(group) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert output_color() == (0, 0, 0)
+    assert root.add_children(group) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert output_color() == initial_color
+
+    # Dropping every user reference to a node holding resources must not free it prematurely
+    rect3 = ngl.DrawRect2D(rect=(0, 0, 8, 8), fill=ngl.ColorPaint(color=(0.0, 0.0, 1.0, 1.0)))
+    assert group.add_children(rect3) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert group.remove_children(rect3) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert rect3.holds_resources()
+    del rect3
+
+    # Drop scene and add it back
+    assert ctx.set_scene(None) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert output_color() == (0, 0, 0)
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert output_color() == initial_color
+
+    # Explicitely release resources retained by nodes detached from the scene
+    assert root.remove_children(group) == 0
+    assert group.holds_resources()
+    assert rect1.holds_resources()
+    assert ctx.release_detached_resources() == 0
+    assert not group.holds_resources()
+    assert not rect1.holds_resources()
+    assert rect2.holds_resources()
+    assert ctx.get_nodes_at_point((width // 2, height // 2)) == []
+
+    assert ctx.draw(next(clock)) == 0
+    assert output_color() == (0, 0, 0)
+    assert ctx.draw(next(clock)) == 0
+
+    assert root.add_children(group) == 0
+    assert ctx.draw(next(clock)) == 0
+    assert group.holds_resources()
+    assert output_color() == initial_color
+    assert ctx.get_nodes_at_point((width // 2, height // 2)) == [rect1.cptr]
+
+    assert ctx.release_detached_resources() == 0
+    assert group.holds_resources()
+    assert ctx.draw(next(clock)) == 0
+    assert output_color() == initial_color
+
+    del ctx
+    del scene
 
 
 def api_capture_buffer_lifetime(width=1024, height=1024):

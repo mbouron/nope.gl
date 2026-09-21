@@ -19,35 +19,21 @@
  * under the License.
  */
 
-#ifndef NODE_GRAPH_H
-#define NODE_GRAPH_H
+#ifndef NODE_GRAPH_EDIT_H
+#define NODE_GRAPH_EDIT_H
 
-#include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
-struct ngl_ctx;
 struct ngl_node;
 struct node_param;
 
-uint64_t ngli_node_graph_new_traversal_id(void);
-
-typedef int (*ngli_node_graph_edge_func)(void *user_arg, struct ngl_node *parent,
-                                         struct ngl_node *child);
-
-int ngli_node_graph_foreach_child(ngli_node_graph_edge_func func, void *user_arg,
-                                  struct ngl_node *node);
-
-struct ngli_node_graph_range {
-    size_t index;
-    size_t count;
-};
-
-struct ngli_node_graph_range ngli_node_graph_get_param_range(const struct ngl_node *node,
-                                                             const struct node_param *par);
-
-bool ngli_node_graph_find_node(struct ngl_node *root, const struct ngl_node *target);
-
-int ngli_node_graph_resolve_ctx(struct ngl_node *root, struct ngl_ctx **ctxp);
+int ngli_node_graph_edit_add_children(struct ngl_node *node, const struct node_param *par,
+                                      size_t nb_nodes, struct ngl_node **nodes);
+int ngli_node_graph_edit_insert_children(struct ngl_node *node, const struct node_param *par,
+                                         size_t index, size_t nb_nodes, struct ngl_node **nodes);
+int ngli_node_graph_edit_remove_children(struct ngl_node *node, const struct node_param *par,
+                                         size_t nb_nodes, struct ngl_node **nodes);
+int ngli_node_graph_edit_swap_children(struct ngl_node *node, const struct node_param *par,
+                                       size_t from, size_t to);
 
 #endif
