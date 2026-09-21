@@ -608,5 +608,6 @@ int ngli_node_check_params_sanity(const struct ngl_node *node);
 
 const struct node_param *ngli_node_param_find(const struct ngl_node *node, const char *key,
                                               uint8_t **base_ptrp);
+int ngli_node_param_notify(struct ngl_node *node, const struct node_param *par);
 
 #endif
