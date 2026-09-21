@@ -985,6 +985,20 @@ int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
     return ngli_node_graph_edit_add_children(node, par, nb_nodes, nodes);
 }
 
+int ngl_node_param_insert_nodes(struct ngl_node *node, const char *key,
+                                size_t index, size_t nb_nodes, struct ngl_node **nodes)
+{
+    const struct node_param *par = ngli_node_param_find(node, key, NULL);
+    if (!par)
+        return NGL_ERROR_NOT_FOUND;
+
+    int ret = node_param_is_node_list_update_allowed(node, par);
+    if (ret < 0)
+        return ret;
+
+    return ngli_node_graph_edit_insert_children(node, par, index, nb_nodes, nodes);
+}
+
 int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
                                 size_t nb_nodes, struct ngl_node **nodes)
 {
@@ -1051,6 +1065,39 @@ int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
         ret = ngli_params_swap_elem(base_ptr, par, from, to);
         if (ret < 0) {
             LOG(ERROR, "unable to swap elements in %s.%s", node->label, key);
+            return ret;
+        }
+        if (from == to)
+            return 0;
+        struct node_param_update_arg arg = { .node = node, .par = par };
+        return node_param_update_cb(node->ctx, &arg);
+    }
+
+    LOG(ERROR, "%s.%s is not a list", node->label, key);
+    return NGL_ERROR_INVALID_ARG;
+}
+
+int ngl_node_param_move_elem(struct ngl_node *node, const char *key,
+                             size_t from, size_t to)
+{
+    uint8_t *base_ptr;
+    const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
+    if (!par)
+        return NGL_ERROR_NOT_FOUND;
+
+    if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+        int ret = node_param_is_node_list_update_allowed(node, par);
+        if (ret < 0)
+            return ret;
+        return ngli_node_graph_edit_move_child(node, par, from, to);
+    }
+    if (par->type == NGLI_PARAM_TYPE_F64LIST) {
+        int ret = node_param_is_update_allowed(node, par);
+        if (ret < 0)
+            return ret;
+        ret = ngli_params_move_elem(base_ptr, par, from, to);
+        if (ret < 0) {
+            LOG(ERROR, "unable to move an element in %s.%s", node->label, key);
             return ret;
         }
         if (from == to)

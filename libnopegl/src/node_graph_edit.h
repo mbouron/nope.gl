@@ -35,5 +35,7 @@ int ngli_node_graph_edit_remove_children(struct ngl_node *node, const struct nod
                                          size_t nb_nodes, struct ngl_node **nodes);
 int ngli_node_graph_edit_swap_children(struct ngl_node *node, const struct node_param *par,
                                        size_t from, size_t to);
+int ngli_node_graph_edit_move_child(struct ngl_node *node, const struct node_param *par,
+                                    size_t from, size_t to);
 
 #endif

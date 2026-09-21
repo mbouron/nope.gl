@@ -837,6 +837,22 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSwapElement(
     return ret;
 }
 
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeMoveElement(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jint from,
+    jint to)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+
+    const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
+    assert(key_str);
+
+    int ret = ngl_node_param_move_elem(node, key_str, (size_t)from, (size_t)to);
+
+    (*env)->ReleaseStringUTFChars(env, key, key_str);
+
+    return ret;
+}
+
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeSetFlags(
     JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jstring value)
 {
@@ -914,6 +930,48 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAddNodes(
     (*env)->ReleaseStringUTFChars(env, key, key_str);
     (*env)->ReleaseLongArrayElements(env, node_pointers, ptrs, JNI_ABORT);
 
+    return ret;
+}
+
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeInsertNodes(
+    JNIEnv *env, jobject thiz, jlong native_ptr, jstring key, jint index,
+    jsize count, jlongArray node_pointers)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+    const char *key_str = (*env)->GetStringUTFChars(env, key, 0);
+    CHECK(key_str);
+    jsize length = (*env)->GetArrayLength(env, node_pointers);
+    CHECK(length == count);
+
+    if (!count) {
+        int ret = ngl_node_param_insert_nodes(node, key_str, (size_t)index, 0, NULL);
+        (*env)->ReleaseStringUTFChars(env, key, key_str);
+        return ret;
+    }
+
+    jlong *ptrs = (*env)->GetLongArrayElements(env, node_pointers, NULL);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        (*env)->ReleaseStringUTFChars(env, key, key_str);
+        return -1;
+    }
+
+    struct ngl_node **nodes = calloc((size_t)count, sizeof(*nodes));
+    if (!nodes) {
+        (*env)->ReleaseStringUTFChars(env, key, key_str);
+        (*env)->ReleaseLongArrayElements(env, node_pointers, ptrs, JNI_ABORT);
+        return -1;
+    }
+
+    for (jsize i = 0; i < count; i++)
+        nodes[i] = (struct ngl_node *)(uintptr_t)ptrs[i];
+
+    int ret = ngl_node_param_insert_nodes(node, key_str, (size_t)index,
+                                          (size_t)count, nodes);
+
+    free(nodes);
+    (*env)->ReleaseStringUTFChars(env, key, key_str);
+    (*env)->ReleaseLongArrayElements(env, node_pointers, ptrs, JNI_ABORT);
     return ret;
 }
 
