@@ -1163,26 +1163,48 @@ int ngli_params_check_nodes(const struct node_param *par, size_t nb_nodes, struc
     return 0;
 }
 
-int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
-                          size_t nb_nodes, struct ngl_node **nodes)
+int ngli_params_insert_nodes(uint8_t *dstp, const struct node_param *par, size_t index,
+                             size_t nb_nodes, struct ngl_node **nodes)
 {
-    int ret = ngli_params_check_nodes(par, nb_nodes, nodes);
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_NODELIST);
     if (ret < 0)
         return ret;
 
     struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
-    if (nb_nodes > SIZE_MAX - array->count)
-        return NGL_ERROR_MEMORY;
-    const size_t new_count = array->count + nb_nodes;
-    ret = ngli_darray_try_reserve(array, new_count);
+    if (index > array->count)
+        return NGL_ERROR_INVALID_ARG;
+
+    if (!nb_nodes)
+        return 0;
+
+    LOG(VERBOSE, "insert %zu nodes into %s at %zu", nb_nodes, par->key, index);
+    ret = ngli_params_check_nodes(par, nb_nodes, nodes);
     if (ret < 0)
         return ret;
 
-    for (size_t i = 0; i < nb_nodes; i++) {
-        struct ngl_node *e = nodes[i];
-        array->data[array->count++] = ngl_node_ref(e);
-    }
+    if (nb_nodes > SIZE_MAX - array->count)
+        return NGL_ERROR_MEMORY;
+    ret = ngli_darray_try_reserve(array, array->count + nb_nodes);
+    if (ret < 0)
+        return ret;
+
+    memmove(&array->data[index + nb_nodes], &array->data[index],
+            (array->count - index) * sizeof(*array->data));
+    for (size_t i = 0; i < nb_nodes; i++)
+        array->data[index + i] = ngl_node_ref(nodes[i]);
+    array->count += nb_nodes;
     return 0;
+}
+
+int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
+                          size_t nb_nodes, struct ngl_node **nodes)
+{
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_NODELIST);
+    if (ret < 0)
+        return ret;
+
+    const struct ngli_node_darray *array = (const struct ngli_node_darray *)dstp;
+    return ngli_params_insert_nodes(dstp, par, array->count, nb_nodes, nodes);
 }
 
 int ngli_params_remove_nodes(uint8_t *dstp, const struct node_param *par,
