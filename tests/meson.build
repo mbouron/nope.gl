@@ -77,6 +77,7 @@ foreach backend : backends
     'scene_resilience',
     'scene_files',
     'scene_files_during_callbacks',
+    'scene_live_edits',
     'capture_buffer_lifetime',
     'hud',
     'hud_csv',
@@ -274,6 +275,7 @@ foreach backend : backends
 
   tests_live = [
     'group_reorder',
+    'group_add_remove',
     'media_change',
     'timerangefilter_update',
   ]

@@ -18,7 +18,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `ngpu_fence_gl_create_from_sync()` to synchronize access from application
   OpenGL code
 - `ngl_node_is_shareable()` to query is a node can be shared within a graph
-
+- `ngl_node_release_detached_resources()` to release resources held by a
+  specific detached subtree
+- Live editing of node-list based parameters
 
 ### Removed
 - CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and

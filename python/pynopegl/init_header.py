@@ -278,6 +278,9 @@ class Node(_Node):
     def is_shareable(self) -> bool:
         return bool(super()._is_shareable())
 
+    def release_detached_resources(self) -> int:
+        return super()._release_detached_resources()
+
     def get_type(self):
         return self._get_type()
 

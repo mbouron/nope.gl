@@ -372,6 +372,13 @@ int ngli_ctx_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), vo
     return ret;
 }
 
+void ngli_ctx_drop_scene(struct ngl_ctx *s)
+{
+    LOG(ERROR, "the scene topology could not be restored, dropping the scene");
+    ngpu_ctx_wait_idle(s->gpu_ctx);
+    reset_scene(s, NGLI_ACTION_UNREF_SCENE);
+}
+
 static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene, uint32_t w, uint32_t h)
 {
     const float width = (float)w;
