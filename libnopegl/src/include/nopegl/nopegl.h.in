@@ -139,6 +139,13 @@ NGL_API struct ngl_scene *ngl_scene_create(void);
 /**
  * Initialize the scene from parameters.
  *
+ * The graph must be acyclic, must hold no node owned by another scene or by a
+ * rendering context, and must set every parameter marked "nonull" in the node
+ * specifications. Only a resource node may be referenced from several places:
+ * every other node has a single parent, which is what its rendering resources
+ * are built against. Reference a resource, or give each place a node of its
+ * own.
+ *
  * The reference counter of the root node will be incremented for the scene
  * lifetime, or until another scene replaces it.
  *
@@ -564,6 +571,28 @@ NGL_API void ngl_node_unrefp(struct ngl_node **nodep);
 NGL_API int ngl_node_holds_resources(const struct ngl_node *node);
 
 /**
+ * Release resources held by a detached node and its descendants.
+ *
+ * The node must not belong to a scene. Resources still used by the scene or
+ * by initialized nodes outside this subgraph are retained, even when those
+ * nodes are also detached. Retained resources remain bound to their context.
+ * Use ngl_release_detached_resources() to release all detached resources.
+ *
+ * Descendants are checked even if the node itself holds no resources, as can
+ * happen after a failed initialization. All resources in the subgraph must
+ * belong to the same context. Nodes can be initialized again when reattached.
+ *
+ * This function must be called from the owning context's rendering thread,
+ * outside node callbacks and ngl_update()/ngl_draw().
+ *
+ * @param node  root of the detached subgraph
+ *
+ * @return 0 on success (including when no resources can be released),
+ *         NGL_ERROR_* (< 0) on error
+ */
+NGL_API int ngl_node_release_detached_resources(struct ngl_node *node);
+
+/**
  * Check whether a node may be referenced from several places in one graph.
  *
  * @param node  node to query
@@ -593,9 +622,14 @@ NGL_API int ngl_node_is_shareable(const struct ngl_node *node);
 NGL_API struct ngl_node *ngl_node_duplicate(struct ngl_node *node, uint32_t flags);
 
 /**
- * Add nodes to a list-based parameter of an allocated node.
+ * Add nodes to a node-list parameter of an allocated node.
  *
  * The reference counter of the passed nodes will be incremented.
+ *
+ * If the node is associated with a rendering context, this function must be
+ * called on the context's rendering thread.
+ *
+ * This function must not be called from a node callback.
  *
  * @param node      pointer to the target node
  * @param key       string identifying the parameter
@@ -657,6 +691,10 @@ NGL_API int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
  *
  * If the type of the parameter is node based, the reference counter of the
  * passed node will be incremented.
+ *
+ * If the node is associated with a rendering context, these functions must
+ * be called from the context's rendering thread and they must not called
+ * from a node callback.
  *
  * @param node      pointer to the target node
  * @param key       string identifying the parameter
@@ -1269,10 +1307,11 @@ NGL_API int ngl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene);
  * context is destroyed. Use this function to reclaim resources from detached
  * sub-trees that will not be used again. The nodes remain usable and recreate
  * their resources if they are added to a graph again.
- * Until then, a detached node remains owned by this context and cannot be
- * added to a graph attached to a different context.
  *
  * Nodes still reachable from the scene are left untouched.
+ *
+ * Use ngl_node_release_detached_resources() to limit cleanup to one detached
+ * sub-tree while preserving resources needed by other initialized nodes.
  *
  * This function must be called from the context's rendering thread.
  *

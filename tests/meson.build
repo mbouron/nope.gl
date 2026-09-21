@@ -119,6 +119,12 @@ foreach backend : backends
     tests_api += 'text_live_change_with_font'
   endif
 
+  tests_graph_edit = [
+    'group_children_sync_apply',
+    'group_children_keep_resources',
+    'release_detached_resources',
+  ]
+
   tests_blending = [
     'all_diamond',
     'all_timed_diamond',
@@ -274,6 +280,7 @@ foreach backend : backends
 
   tests_live = [
     'group_reorder',
+    'group_add_remove',
     'media_change',
     'timerangefilter_update',
   ]
@@ -655,6 +662,7 @@ foreach backend : backends
     'drawrect2d':    {'tests': tests_drawrect2d},
     'effect2d':      {'tests': tests_effect2d},
     'filter':        {'tests': tests_filter},
+    'graph_edit':    {'tests': tests_graph_edit, 'has_refs': false},
     'live':          {'tests': tests_live},
     'media':         {'tests': tests_media},
     'noise':         {'tests': tests_noise},

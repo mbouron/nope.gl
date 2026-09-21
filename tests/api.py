@@ -41,6 +41,12 @@ _backend_str = os.environ.get("BACKEND")
 _backend = get_backend(_backend_str) if _backend_str else ngl.Backend.AUTO
 
 
+def _expect_topology_error(call, *args):
+    ret = call(*args)
+    assert ret < 0, "expected topoligy error"
+    return ngl.Error(ret)
+
+
 def _is_close(a, b, tol=1):
     return abs(a - b) <= tol
 
@@ -453,16 +459,20 @@ def api_scene_lifetime():
 
 
 def api_scene_mutate():
-    """Test if the scene association is prevent graph structure changes"""
+    """Test if the scene association prevents graph structure changes"""
     hook = ngl.Group()
+    grid = ngl.GridLayout()
     eval = ngl.EvalVec3()
     draw = ngl.DrawColor(color=eval)
-    root = ngl.Group(children=[hook])
+    root = ngl.Group(children=[hook, grid])
     assert hook.add_children(draw) == 0
     scene = ngl.Scene.from_params(root)
-    assert hook.add_children(ngl.DrawColor()) != 0
-    assert draw.set_opacity(0.5) == 0  # we can change a direct value...
-    assert draw.set_opacity(ngl.UniformFloat()) != 0  # ...but we can't change the structure
+    extra = ngl.DrawColor()
+    assert hook.add_children(extra) == 0
+    assert hook.remove_children(extra) == 0
+    _expect_topology_error(grid.add_children, ngl.DrawColor())
+    assert draw.set_opacity(0.5) == 0
+    assert draw.set_opacity(ngl.UniformFloat()) != 0
     assert eval.update_resources(t=ngl.Time()) != 0
     del scene
 

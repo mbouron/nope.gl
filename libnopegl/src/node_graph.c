@@ -107,3 +107,80 @@ struct ngli_node_graph_range ngli_node_graph_get_param_range(const struct ngl_no
     }
     ngli_assert(0);
 }
+
+struct find_node_arg {
+    const uint64_t traversal_id;
+    const struct ngl_node *target;
+    bool found;
+};
+
+static int find_node(void *user_arg, struct ngl_node *parent, struct ngl_node *node)
+{
+    struct find_node_arg *s = user_arg;
+
+    if (node == s->target) {
+        s->found = true;
+        return NGL_ERROR_GENERIC;
+    }
+
+    if (node->traversal_id == s->traversal_id)
+        return 0;
+    node->traversal_id = s->traversal_id;
+
+    return ngli_node_graph_foreach_child(find_node, s, node);
+}
+
+bool ngli_node_graph_find_node(struct ngl_node *root, const struct ngl_node *target)
+{
+    ngli_assert(root && target);
+
+    struct find_node_arg arg = {
+        .traversal_id = ngli_node_graph_new_traversal_id(),
+        .target = target,
+    };
+    find_node(&arg, NULL, root);
+    return arg.found;
+}
+
+struct resolve_ctx_arg {
+    const uint64_t traversal_id;
+    struct ngl_ctx *ctx;
+};
+
+static int resolve_ctx(void *user_arg, struct ngl_node *parent, struct ngl_node *node)
+{
+    struct resolve_ctx_arg *arg = user_arg;
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
+    if (node->traversal_id == arg->traversal_id)
+        return 0;
+    node->traversal_id = arg->traversal_id;
+
+    if (node->ctx) {
+        if (arg->ctx && arg->ctx != node->ctx) {
+            LOG(ERROR, "subgraph resources belong to multiple contexts");
+            return NGL_ERROR_INVALID_USAGE;
+        }
+        arg->ctx = node->ctx;
+    }
+    return ngli_node_graph_foreach_child(resolve_ctx, arg, node);
+}
+
+int ngli_node_graph_resolve_ctx(struct ngl_node *root, struct ngl_ctx **ctxp)
+{
+    ngli_assert(root && ctxp);
+
+    *ctxp = NULL;
+
+    struct resolve_ctx_arg arg = {
+        .traversal_id = ngli_node_graph_new_traversal_id(),
+    };
+    const int ret = resolve_ctx(&arg, NULL, root);
+    if (ret < 0)
+        return ret;
+
+    *ctxp = arg.ctx;
+    return 0;
+}

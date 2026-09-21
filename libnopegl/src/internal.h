@@ -205,6 +205,8 @@ int ngli_ctx_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), vo
 void ngli_ctx_release_resources(struct ngl_ctx *s);
 void ngli_ctx_release_detached_resources(struct ngl_ctx *s);
 
+void ngli_ctx_drop_scene(struct ngl_ctx *s);
+
 struct livectl {
     union ngl_livectl_data val;
     char *id;

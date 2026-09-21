@@ -220,6 +220,7 @@ lib_src = files(
   'src/node_gblur.c',
   'src/node_geometry.c',
   'src/node_graph.c',
+  'src/node_graph_edit.c',
   'src/node_gridlayout.c',
   'src/node_group.c',
   'src/node_group2d.c',

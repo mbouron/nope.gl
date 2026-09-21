@@ -21,7 +21,10 @@
 
 #include "internal.h"
 #include "node_graph.h"
+#include "node_graph_edit.h"
 #include "node_texture.h"
+#include "params.h"
+#include "utils/hmap.h"
 #include "resource.h"
 #include "utils/memory.h"
 
@@ -293,33 +296,37 @@ static void test_add_edges_rollback(void)
     struct ngl_node *a = ngl_node_create(NGL_NODE_GROUP);
     struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
     struct ngl_node *c = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *shared = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
     struct ngl_node *foreign = ngl_node_create(NGL_NODE_GROUP);
-    ngli_assert(root && a && b && c && foreign);
+    ngli_assert(root && a && b && c && shared && foreign);
 
-    struct ngl_node *children[] = {a, b};
-    ngli_assert(ngl_node_param_add_nodes(root, "children", 2, children) == 0);
+    struct ngl_node *children[] = {a, shared, b, shared};
+    ngli_assert(ngl_node_param_add_nodes(root, "children", NGLI_ARRAY_NB(children), children) == 0);
 
     struct ngl_scene *scene = create_scene(root);
     struct ngl_scene *foreign_scene = create_scene(foreign);
 
-    struct ngl_node *added_children[] = {c, foreign};
-    const int ret = ngli_scene_add_edges(root, root->children.count, 2, added_children);
+    struct ngl_node *added_children[] = {shared, c, shared, foreign};
+    const int ret = ngli_scene_add_edges(root, 1, NGLI_ARRAY_NB(added_children), added_children);
     ngli_assert(ret == NGL_ERROR_INVALID_USAGE);
 
-    ngli_assert(root->children.count == 2);
-    ngli_assert(root->children.data[0] == a);
-    ngli_assert(root->children.data[1] == b);
+    ngli_assert(root->children.count == NGLI_ARRAY_NB(children));
+    for (size_t i = 0; i < NGLI_ARRAY_NB(children); i++)
+        ngli_assert(root->children.data[i] == children[i]);
     ngli_assert(a->parents.count == 1 && a->parents.data[0] == root);
     ngli_assert(b->parents.count == 1 && b->parents.data[0] == root);
+    ngli_assert(shared->parents.count == 2);
+    ngli_assert(shared->parents.data[0] == root && shared->parents.data[1] == root);
     ngli_assert(c->scene == NULL);
     ngli_assert(c->parents.count == 0);
-    ngli_assert(scene->nodes.count == 3);
+    ngli_assert(scene->nodes.count == 4);
     ngli_assert(ngli_node_darray_find(&scene->nodes, c) == SIZE_MAX);
     ngli_assert(foreign->scene == foreign_scene);
 
     ngl_scene_unrefp(&foreign_scene);
     ngl_scene_unrefp(&scene);
     ngl_node_unrefp(&foreign);
+    ngl_node_unrefp(&shared);
     ngl_node_unrefp(&c);
     ngl_node_unrefp(&b);
     ngl_node_unrefp(&a);
@@ -403,14 +410,546 @@ static void test_swap_bounds(void)
     ngl_node_unrefp(&group);
 }
 
+static void test_live_swap_runtime_edges(void)
+{
+    struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *a = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *resource = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
+    struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(root && a && resource && b);
+
+    struct ngl_node *children[] = {a, resource, b};
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 3, children) == 0);
+    struct ngl_scene *scene = create_scene(root);
+
+    ngli_assert(root->children.data[0] == a);
+    ngli_assert(root->children.data[1] == resource);
+    ngli_assert(root->children.data[2] == b);
+
+    ngli_assert(ngl_node_param_swap_elem(root, "children", 0, 2) == 0);
+    ngli_assert(root->children.data[0] == b);
+    ngli_assert(root->children.data[1] == resource);
+    ngli_assert(root->children.data[2] == a);
+
+    ngl_scene_unrefp(&scene);
+    ngl_node_unrefp(&b);
+    ngl_node_unrefp(&resource);
+    ngl_node_unrefp(&a);
+    ngl_node_unrefp(&root);
+}
+
+static void test_live_children_duplicates(void)
+{
+    struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *resource = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
+    struct ngl_scene *scene = ngl_scene_create();
+    ngli_assert(root && resource && scene);
+    ngli_assert(ngl_node_is_shareable(resource));
+    ngli_assert(!ngl_node_is_shareable(root));
+
+    struct ngl_node *children[] = {resource, resource};
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 2, children) == 0);
+    const struct ngl_scene_params params = ngl_scene_default_params(root);
+    ngli_assert(ngl_scene_init(scene, &params) == 0);
+    ngli_assert(root->children.count == 2 && resource->parents.count == 2);
+
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 2, children) == 0);
+    ngli_assert(root->children.count == 4 && resource->parents.count == 4);
+    ngli_assert(resource->refcount == 5);
+    ngli_assert(ngl_node_param_remove_nodes(root, "children", 1, &resource) == 0);
+    ngli_assert(root->children.count == 0 && resource->parents.count == 0);
+    ngli_assert(resource->refcount == 1 && !resource->scene);
+
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 2, children) == 0);
+    ngli_assert(root->children.count == 2 && resource->parents.count == 2);
+
+    struct ngl_node *branch = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(branch);
+    struct ngl_node *repeated[] = {branch, branch};
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 2, repeated) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(!branch->scene && root->children.count == 2);
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 1, &branch) == 0);
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 1, &branch) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(root->children.count == 3 && branch->parents.count == 1);
+
+    ngl_scene_unrefp(&scene);
+    ngl_node_unrefp(&branch);
+    ngl_node_unrefp(&resource);
+    ngl_node_unrefp(&root);
+}
+
+static void test_release_detached_without_resources(void)
+{
+    ngli_assert(ngl_node_release_detached_resources(NULL) == NGL_ERROR_INVALID_ARG);
+    struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(root);
+    ngli_assert(ngl_node_release_detached_resources(root) == 0);
+    struct ngl_scene *scene = create_scene(root);
+    ngli_assert(ngl_node_release_detached_resources(root) == NGL_ERROR_INVALID_USAGE);
+    ngl_scene_unrefp(&scene);
+
+    /* Detached graphs may contain cycles while being constructed. */
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 1, &root) == 0);
+    ngli_assert(ngl_node_release_detached_resources(root) == 0);
+    ngli_assert(ngl_node_param_remove_nodes(root, "children", 1, &root) == 0);
+    ngl_node_unrefp(&root);
+}
+
+struct multi_list_opts {
+    struct ngl_node *prefix;
+    struct ngl_node *value_node;
+    float value;
+    struct ngli_node_darray first;
+    struct hmap *resources;
+    struct ngli_node_darray second;
+    int update_count;
+    int invalidate_count;
+    int update_ret;
+};
+
+#define OFFSET(x) offsetof(struct multi_list_opts, x)
+static const struct node_param multi_list_params[] = {
+    {"prefix",    NGLI_PARAM_TYPE_NODE,     OFFSET(prefix)},
+    {"value",     NGLI_PARAM_TYPE_F32,      OFFSET(value_node), .flags=NGLI_PARAM_FLAG_ALLOW_NODE},
+    {"first",     NGLI_PARAM_TYPE_NODELIST, OFFSET(first),      .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE},
+    {"resources", NGLI_PARAM_TYPE_NODEDICT, OFFSET(resources)},
+    {"second",    NGLI_PARAM_TYPE_NODELIST, OFFSET(second),     .flags=NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE},
+    {NULL},
+};
+#undef OFFSET
+
+static const struct node_class multi_list_class = {
+    .name = "MultiList",
+    .params = multi_list_params,
+};
+
+static void test_graph_find(void)
+{
+    struct ngl_node *root = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *mid = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *leaf = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *other = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(root && mid && leaf && other);
+    ngli_assert(ngl_node_param_add_nodes(root, "children", 1, &mid) == 0);
+    ngli_assert(ngl_node_param_add_nodes(mid, "children", 1, &leaf) == 0);
+
+    ngli_assert(ngli_node_graph_find_node(root, root));
+    ngli_assert(ngli_node_graph_find_node(root, leaf));
+    ngli_assert(!ngli_node_graph_find_node(leaf, root));
+    ngli_assert(!ngli_node_graph_find_node(root, other));
+
+    /* The search terminates on a graph that already contains a cycle */
+    ngli_assert(ngl_node_param_add_nodes(leaf, "children", 1, &root) == 0);
+    ngli_assert(ngli_node_graph_find_node(leaf, mid));
+    ngli_assert(!ngli_node_graph_find_node(mid, other));
+    ngli_assert(ngl_node_param_remove_nodes(leaf, "children", 1, &root) == 0);
+
+    ngl_node_unrefp(&other);
+    ngl_node_unrefp(&leaf);
+    ngl_node_unrefp(&mid);
+    ngl_node_unrefp(&root);
+}
+
+static void test_children_range(void)
+{
+    struct ngl_node child = {0};
+    struct ngl_node *first[] = {&child, &child};
+    struct multi_list_opts opts = {
+        .prefix = &child,
+        .first = {.data = first, .count = NGLI_ARRAY_NB(first)},
+    };
+    struct ngl_node node = {.cls = &multi_list_class, .opts = &opts};
+    struct ngli_node_graph_range range = ngli_node_graph_get_param_range(&node, &multi_list_params[2]);
+    ngli_assert(range.index == 1 && range.count == 2);
+    range = ngli_node_graph_get_param_range(&node, &multi_list_params[4]);
+    ngli_assert(range.index == 3 && range.count == 0);
+
+    opts.value_node = &child;
+    opts.resources = ngli_hmap_create(NGLI_HMAP_TYPE_STR);
+    ngli_hmap_set_str(opts.resources, "a", &child);
+    ngli_hmap_set_str(opts.resources, "b", &child);
+    range = ngli_node_graph_get_param_range(&node, &multi_list_params[2]);
+    ngli_assert(range.index == 2 && range.count == 2);
+    range = ngli_node_graph_get_param_range(&node, &multi_list_params[3]);
+    ngli_assert(range.index == 4 && range.count == 2);
+    range = ngli_node_graph_get_param_range(&node, &multi_list_params[4]);
+    ngli_assert(range.index == 6 && range.count == 0);
+    opts.first.count = 0;
+    range = ngli_node_graph_get_param_range(&node, &multi_list_params[4]);
+    ngli_assert(range.index == 4 && range.count == 0);
+    ngli_hmap_freep(&opts.resources);
+}
+
+static void init_multi_list(struct ngl_node *node, struct multi_list_opts *opts)
+{
+    *opts = (struct multi_list_opts){0};
+    *node = (struct ngl_node){
+        .cls = &multi_list_class,
+        .opts = opts,
+        .label = "multi-list",
+        .refcount = 1,
+        .visit_time = -1.,
+        .last_update_time = -1.,
+    };
+    ngli_params_init(node->opts, node->cls->params);
+}
+
+static void check_multi_list_edges(struct ngl_node *node)
+{
+    struct ngl_node **expected = NULL;
+    size_t count = 0;
+    ngli_assert(ngl_node_get_children(node, &expected, &count) == 0);
+    ngli_assert(node->children.count == count);
+    for (size_t i = 0; i < count; i++) {
+        struct ngl_node *child = expected[i];
+        ngli_assert(node->children.data[i] == child && child->scene == node->scene);
+        size_t refs = 0, edges = 0;
+        for (size_t j = 0; j < count; j++)
+            edges += expected[j] == child;
+        for (size_t j = 0; j < child->parents.count; j++)
+            refs += child->parents.data[j] == node;
+        ngli_assert(refs == edges);
+    }
+    ngl_node_children_freep(&expected);
+}
+
+static void test_live_multiple_lists(void)
+{
+    struct multi_list_opts opts;
+    struct ngl_node root;
+    init_multi_list(&root, &opts);
+    struct ngl_node *shared = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
+    struct ngl_node *a = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *c = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(shared && a && b && c);
+    ngli_assert(ngl_node_param_set_node(&root, "prefix", shared) == 0);
+    ngli_assert(ngl_node_param_set_node(&root, "value", shared) == 0);
+    ngli_assert(ngl_node_param_set_dict(&root, "resources", "shared", shared) == 0);
+    struct ngl_scene *scene = create_scene(&root);
+    check_multi_list_edges(&root);
+
+    struct ngl_node *first[] = {a, shared};
+    struct ngl_node *second[] = {shared, b};
+    ngli_assert(ngl_node_param_add_nodes(&root, "second", 2, second) == 0);
+    ngli_assert(ngl_node_param_add_nodes(&root, "first", 2, first) == 0);
+    check_multi_list_edges(&root);
+    ngli_assert(ngl_node_param_add_nodes(&root, "second", 1, &c) == 0);
+    ngli_assert(ngl_node_param_swap_elem(&root, "second", 0, 2) == 0);
+    check_multi_list_edges(&root);
+    ngli_assert(opts.second.data[0] == c && opts.second.data[1] == b && opts.second.data[2] == shared);
+
+    ngli_assert(ngl_node_param_add_nodes(&root, "second", 1, &a) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_remove_nodes(&root, "second", 1, &a) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_swap_elem(&root, "second", 0, 3) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_add_nodes(&root, "second", 1, &shared) == 0);
+    ngli_assert(opts.second.count == 4 && opts.second.data[3] == shared);
+    check_multi_list_edges(&root);
+
+    ngli_assert(ngl_node_param_remove_nodes(&root, "second", 1, &shared) == 0);
+    ngli_assert(opts.first.data[1] == shared && shared->parents.count == 4);
+    check_multi_list_edges(&root);
+    ngli_assert(ngl_node_param_remove_nodes(&root, "first", 2, first) == 0);
+    check_multi_list_edges(&root);
+    ngli_assert(!a->scene && shared->scene == scene);
+    ngli_assert(ngl_node_param_remove_nodes(&root, "second", 1, &b) == 0);
+    ngli_assert(ngl_node_param_remove_nodes(&root, "second", 1, &c) == 0);
+    check_multi_list_edges(&root);
+
+    ngl_scene_unrefp(&scene);
+    ngli_params_free(root.opts, root.cls->params);
+    ngl_node_unrefp(&shared);
+    ngl_node_unrefp(&a);
+    ngl_node_unrefp(&b);
+    ngl_node_unrefp(&c);
+}
+
+static int test_dispatch(struct ngl_ctx *ctx, int (*fn)(struct ngl_ctx *, void *), void *arg)
+{
+    return fn(ctx, arg);
+}
+
+static int list_update(struct ngl_node *node)
+{
+    struct multi_list_opts *opts = node->opts;
+    opts->update_count++;
+    return opts->update_ret;
+}
+
+static void list_invalidate(struct ngl_node *node)
+{
+    struct multi_list_opts *opts = node->opts;
+    opts->invalidate_count++;
+}
+
+static void check_list_wrong_type(struct ngl_node *node)
+{
+    ngli_assert(ngl_node_param_add_nodes(node, "label", 0, NULL) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_remove_nodes(node, "label", 0, NULL) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_add_f64s(node, "label", 0, NULL) == NGL_ERROR_INVALID_ARG);
+    ngli_assert(ngl_node_param_swap_elem(node, "label", 0, 0) == NGL_ERROR_INVALID_ARG);
+}
+
+static void test_list_edit_states(void)
+{
+    /* Construction, scene only, attached, and detached with retained resources. */
+    for (int state = 0; state < 4; state++) {
+        const struct api_impl api = {.dispatch = test_dispatch};
+        struct ngl_ctx ctx = {.api_impl = &api};
+        struct multi_list_opts opts;
+        struct ngl_node root;
+        init_multi_list(&root, &opts);
+        struct node_param params[NGLI_ARRAY_NB(multi_list_params)];
+        memcpy(params, multi_list_params, sizeof(params));
+        params[4].update_func = list_update;
+        const struct node_class cls = {
+            .name = "ListNotifications",
+            .params = params,
+            .invalidate = list_invalidate,
+        };
+        root.cls = &cls;
+        struct ngl_node *a = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
+        struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+        struct ngl_node *holder = ngl_node_create(NGL_NODE_GROUP);
+        struct ngl_node *rootp = &root;
+        ngli_assert(a && b && holder);
+        ngli_assert(ngl_node_param_add_nodes(&root, "first", 1, &a) == 0);
+        ngli_assert(ngl_node_param_add_nodes(holder, "children", 1, &rootp) == 0);
+        struct ngl_scene *scene = state ? create_scene(holder) : NULL;
+        if (state >= 2)
+            ngli_assert(ngli_node_attach_ctx(holder, &ctx) == 0);
+        if (state == 3)
+            ngli_assert(ngl_node_param_remove_nodes(holder, "children", 1, &rootp) == 0);
+        opts.update_count = opts.invalidate_count = 0;
+        check_list_wrong_type(&root);
+
+        struct ngl_node *added[] = {a, b, a};
+        ngli_assert(ngl_node_param_add_nodes(&root, "second", 3, added) == 0);
+        ngli_assert(opts.second.count == 3);
+        ngli_assert(ngl_node_param_swap_elem(&root, "second", 0, 1) == 0);
+        ngli_assert(opts.second.data[0] == b && opts.second.data[1] == a);
+        ngli_assert(ngl_node_param_remove_nodes(&root, "second", 2, (struct ngl_node *[]){a, a}) == NGL_ERROR_INVALID_ARG);
+        ngli_assert(opts.second.count == 3);
+        ngli_assert(ngl_node_param_remove_nodes(&root, "second", 1, &a) == 0);
+        ngli_assert(opts.second.count == 1 && opts.second.data[0] == b);
+        ngli_assert(opts.update_count == (state >= 2 ? 3 : 0));
+        ngli_assert(opts.invalidate_count == (state >= 2 ? 3 : 0));
+        if (root.scene) {
+            check_multi_list_edges(&root);
+        } else {
+            ngli_assert(root.children.count == 0 && b->parents.count == 0);
+            ngli_assert(!b->ctx && !b->scene);
+        }
+
+        /* Empty edits and same-index swaps do not notify; bounds still apply. */
+        ngli_assert(ngl_node_param_add_nodes(&root, "second", 0, NULL) == 0);
+        ngli_assert(ngl_node_param_remove_nodes(&root, "second", 0, NULL) == 0);
+        ngli_assert(ngl_node_param_swap_elem(&root, "second", 0, 0) == 0);
+        ngli_assert(ngl_node_param_swap_elem(&root, "second", 1, 1) == NGL_ERROR_INVALID_ARG);
+        ngli_assert(opts.update_count == (state >= 2 ? 3 : 0));
+        ngli_assert(opts.invalidate_count == (state >= 2 ? 3 : 0));
+
+        if (state >= 2) {
+            /* Notification failures keep the edit, without invalidation. */
+            opts.update_ret = NGL_ERROR_MEMORY;
+            ngli_assert(ngl_node_param_add_nodes(&root, "second", 1, &a) == NGL_ERROR_MEMORY);
+            ngli_assert(opts.second.count == 2 && opts.second.data[1] == a);
+            ngli_assert(ngl_node_param_swap_elem(&root, "second", 0, 1) == NGL_ERROR_MEMORY);
+            ngli_assert(opts.second.data[0] == a && opts.second.data[1] == b);
+            ngli_assert(ngl_node_param_remove_nodes(&root, "second", 1, &a) == NGL_ERROR_MEMORY);
+            ngli_assert(opts.second.count == 1 && opts.second.data[0] == b);
+            ngli_assert(opts.update_count == 6 && opts.invalidate_count == 3);
+            if (root.scene)
+                check_multi_list_edges(&root);
+        }
+
+        ngli_ctx_release_resources(&ctx);
+        ngli_darray_reset(&ctx.resource_nodes);
+        ngl_scene_unrefp(&scene);
+        ngl_node_unrefp(&holder);
+        ngli_params_free(root.opts, root.cls->params);
+        ngl_node_unrefp(&a);
+        ngl_node_unrefp(&b);
+    }
+}
+
+static void test_list_edit_permissions(void)
+{
+    struct multi_list_opts opts;
+    struct ngl_node root;
+    init_multi_list(&root, &opts);
+    struct node_param params[NGLI_ARRAY_NB(multi_list_params)];
+    memcpy(params, multi_list_params, sizeof(params));
+    params[2].flags = 0;
+    const struct node_class cls = {.name = "NonLiveList", .params = params};
+    root.cls = &cls;
+    struct ngl_node *a = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+    ngli_assert(a && b);
+    /* A parameter of the wrong type is an argument error in any state */
+    ngli_assert(ngl_node_param_add_nodes(&root, "missing", 0, NULL) == NGL_ERROR_NOT_FOUND);
+    check_list_wrong_type(&root);
+    ngli_assert(ngl_node_param_add_nodes(&root, "first", 2, (struct ngl_node *[]){a, b}) == 0);
+    ngli_assert(ngl_node_param_remove_nodes(&root, "first", 1, &a) == 0);
+    ngli_assert(ngl_node_param_add_nodes(&root, "first", 1, &a) == 0);
+    ngli_assert(ngl_node_param_swap_elem(&root, "first", 0, 1) == 0);
+    struct ngl_scene *scene = create_scene(&root);
+    check_list_wrong_type(&root);
+    /* A frozen list is refused before its arguments are looked at */
+    ngli_assert(ngl_node_param_add_nodes(&root, "first", 0, NULL) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_remove_nodes(&root, "first", 0, NULL) == NGL_ERROR_INVALID_USAGE);
+
+    /* Reordering is frozen along with the rest of the graph */
+    ngli_assert(ngl_node_param_swap_elem(&root, "first", 0, 1) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(opts.first.data[0] == a && opts.first.data[1] == b);
+    check_multi_list_edges(&root);
+
+    /* Protect not-yet-initialized nodes through scene->ctx, including empty edits. */
+    struct ngl_ctx ctx = {.in_node_callbacks = true};
+    scene->ctx = &ctx;
+    ngli_assert(!root.ctx);
+    check_list_wrong_type(&root);
+    ngli_assert(ngl_node_param_add_nodes(&root, "second", 0, NULL) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_remove_nodes(&root, "second", 0, NULL) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_swap_elem(&root, "first", 0, 0) == NGL_ERROR_INVALID_USAGE);
+    scene->ctx = NULL;
+    ngl_scene_unrefp(&scene);
+
+    root.ctx = &ctx;
+    ctx.in_node_callbacks = false;
+    check_list_wrong_type(&root);
+    ngli_assert(ngl_node_param_add_nodes(&root, "first", 0, NULL) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_remove_nodes(&root, "first", 0, NULL) == NGL_ERROR_INVALID_USAGE);
+    ngli_assert(ngl_node_param_swap_elem(&root, "first", 0, 0) == NGL_ERROR_INVALID_USAGE);
+    root.ctx = NULL;
+    ngli_params_free(root.opts, root.cls->params);
+    ngl_node_unrefp(&a);
+    ngl_node_unrefp(&b);
+}
+
+static void test_option_insert(void)
+{
+    for (int retained = 0; retained < 2; retained++) {
+        struct multi_list_opts opts;
+        struct ngl_node root;
+        init_multi_list(&root, &opts);
+        struct node_param params[NGLI_ARRAY_NB(multi_list_params)];
+        memcpy(params, multi_list_params, sizeof(params));
+        params[4].flags = retained ? NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE : 0;
+        params[4].update_func = list_update;
+        const struct node_class cls = {.name = "OptionInsert", .params = params};
+        root.cls = &cls;
+        const struct api_impl api = {.dispatch = test_dispatch};
+        struct ngl_ctx ctx = {.api_impl = &api};
+        struct ngl_node *a = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
+        struct ngl_node *b = ngl_node_create(NGL_NODE_GROUP);
+        struct ngl_node *c = ngl_node_create(NGL_NODE_GROUP);
+        ngli_assert(a && b && c);
+        ngli_assert(ngl_node_param_add_nodes(&root, "second", 3, (struct ngl_node *[]){a, b, a}) == 0);
+        /* A detached container dispatches its edits like any live change, but
+         * has no prepared layout to synchronize the added nodes against. */
+        root.ctx = retained ? &ctx : NULL;
+        ngli_assert(ngli_node_check_not_traversing(&root) == 0);
+        ngli_assert(ngli_node_graph_edit_insert_children(&root, &params[4], 4, 0, NULL) == NGL_ERROR_INVALID_ARG);
+        ngli_assert(ngli_node_graph_edit_insert_children(&root, &params[4], 1, 0, NULL) == 0);
+        ngli_assert(ngli_node_graph_edit_insert_children(&root, &params[4], 1, 2, (struct ngl_node *[]){a, c}) == 0);
+        struct ngl_node *expected[] = {a, a, c, b, a};
+        ngli_assert(opts.second.count == NGLI_ARRAY_NB(expected));
+        for (size_t i = 0; i < opts.second.count; i++)
+            ngli_assert(opts.second.data[i] == expected[i]);
+        ngli_assert(a->refcount == 4 && b->refcount == 2 && c->refcount == 2);
+        ngli_assert(!root.children.count && !b->ctx && !c->ctx);
+        ngli_assert(opts.update_count == retained);
+        root.ctx = NULL;
+        ngli_params_free(root.opts, root.cls->params);
+        ngl_node_unrefp(&a);
+        ngl_node_unrefp(&b);
+        ngl_node_unrefp(&c);
+    }
+}
+
+static void test_live_multiple_lists_rollback(size_t index)
+{
+    const struct api_impl api = {.dispatch = test_dispatch};
+    struct ngl_ctx ctx = {.api_impl = &api};
+    struct multi_list_opts opts;
+    struct ngl_node root;
+    init_multi_list(&root, &opts);
+    struct ngl_node *kept = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *shared = ngl_node_create(NGL_NODE_UNIFORMFLOAT);
+    struct ngl_node *good = ngl_node_create(NGL_NODE_GROUP);
+    struct ngl_node *bad = ngl_node_create(NGL_NODE_CUSTOMTEXTURE);
+    ngli_assert(kept && shared && good && bad);
+    struct resource_retry retry = {.fail = true};
+    struct ngl_node_funcs funcs = {
+        .init = retry_init,
+        .prepare = retry_prepare,
+        .unprepare = retry_unprepare,
+        .uninit = retry_uninit,
+    };
+    ngli_assert(ngl_node_set_funcs(bad, &retry, &funcs) == 0);
+    ngli_assert(ngl_node_param_set_node(&root, "prefix", shared) == 0);
+    ngli_assert(ngl_node_param_add_nodes(&root, "first", 1, &kept) == 0);
+    struct ngl_node *original[] = {shared, shared};
+    ngli_assert(ngl_node_param_add_nodes(&root, "second", NGLI_ARRAY_NB(original), original) == 0);
+    struct ngl_scene *scene = create_scene(&root);
+    ngli_assert(ngli_node_attach_ctx(&root, &ctx) == 0);
+    const int shared_refs = shared->refcount;
+    struct ngl_node *added[] = {shared, good, shared, bad};
+    const size_t nb_added = NGLI_ARRAY_NB(added);
+    ngli_assert(ngli_node_check_not_traversing(&root) == 0);
+    ngli_assert(ngli_node_graph_edit_insert_children(&root, &multi_list_params[4], index, nb_added, added) == NGL_ERROR_MEMORY);
+    ngli_assert(opts.first.count == 1 && opts.first.data[0] == kept);
+    ngli_assert(opts.second.count == NGLI_ARRAY_NB(original));
+    for (size_t i = 0; i < NGLI_ARRAY_NB(original); i++)
+        ngli_assert(opts.second.data[i] == original[i]);
+    ngli_assert(shared->refcount == shared_refs && shared->scene == scene);
+    ngli_assert(!good->scene && !bad->scene && kept->scene == scene);
+    ngli_assert(retry.allocation == NULL && retry.unprepare_count == 1);
+    check_multi_list_edges(&root);
+    retry.fail = false;
+    ngli_assert(ngli_node_check_not_traversing(&root) == 0);
+    ngli_assert(ngli_node_graph_edit_insert_children(&root, &multi_list_params[4], index, nb_added, added) == 0);
+    ngli_assert(opts.second.count == NGLI_ARRAY_NB(original) + nb_added);
+    for (size_t i = 0; i < index; i++)
+        ngli_assert(opts.second.data[i] == original[i]);
+    for (size_t i = 0; i < nb_added; i++)
+        ngli_assert(opts.second.data[index + i] == added[i]);
+    for (size_t i = index; i < NGLI_ARRAY_NB(original); i++)
+        ngli_assert(opts.second.data[nb_added + i] == original[i]);
+    ngli_assert(shared->refcount == shared_refs + 2);
+    ngli_assert(retry.init_count == 1 && retry.prepare_count == 2);
+    check_multi_list_edges(&root);
+    ngli_ctx_release_resources(&ctx);
+    ngli_darray_reset(&ctx.resource_nodes);
+    ngl_scene_unrefp(&scene);
+    ngli_params_free(root.opts, root.cls->params);
+    ngl_node_unrefp(&kept);
+    ngl_node_unrefp(&shared);
+    ngl_node_unrefp(&good);
+    ngl_node_unrefp(&bad);
+}
+
 int main(void)
 {
+    test_list_edit_states();
+    test_list_edit_permissions();
+    test_option_insert();
+    test_graph_find();
+    test_children_range();
+    test_live_multiple_lists();
+    test_live_multiple_lists_rollback(0);
+    test_live_multiple_lists_rollback(1);
+    test_live_multiple_lists_rollback(2);
     test_scene_cycle();
     test_scene_sharing();
-    test_swap_bounds();
     test_duplicate_release();
     test_customtexture_lifecycle();
     test_resources_retry();
     test_add_edges_rollback();
+    test_swap_bounds();
+    test_live_swap_runtime_edges();
+    test_live_children_duplicates();
+    test_release_detached_without_resources();
     return 0;
 }

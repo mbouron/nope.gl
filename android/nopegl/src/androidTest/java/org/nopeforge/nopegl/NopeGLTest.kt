@@ -841,6 +841,129 @@ class NopeGLTest {
     fun canvasWith2DNodesVK() {
         canvasWith2DNodes(NGLConfig.BACKEND_VULKAN)
     }
+
+    private inline fun assertThrowsNGLError(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: NGLError) {
+            return
+        }
+        org.junit.Assert.fail("expected NGLError")
+    }
+
+    private fun drawColor(r: Float, g: Float, b: Float): NGLDrawColor {
+        return NGLDrawColor(color = NGLNodeOrValue.value(NGLVec3(r, g, b)))
+    }
+
+    private val clearColor = (0xFFFF00FF).toUInt() // from createContext()
+    private val red = (0xFF0000FF).toUInt()
+    private val green = (0x00FF00FF).toUInt()
+
+    @Test
+    fun childrenConstructionEdits() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        // A group not yet part of a scene accepts plain construction edits,
+        // removal included
+        val redDraw = drawColor(1.0f, 0.0f, 0.0f)
+        val group = NGLGroup(listOf())
+        group.addChildren(listOf(redDraw))
+        group.removeChildren(listOf(redDraw))
+        // Removing a node that is not in the list is rejected
+        assertThrowsNGLError { group.removeChildren(listOf(redDraw)) }
+        group.addChildren(listOf(redDraw))
+
+        // The edited graph renders as if built directly
+        val scene = NGLScene(rootNode = group, duration = 1.0)
+        val captureBuffer = ByteBuffer.allocateDirect(256 * 256 * 4)
+        val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
+            assertEquals(0, setCaptureBuffer(captureBuffer))
+            assertEquals(0, setScene(scene))
+        }
+        assertEquals(0, ctx.draw(0.0))
+        assertEquals(red, captureBuffer.asIntBuffer()[0].toUInt())
+
+        ctx.release()
+    }
+
+    @Test
+    fun childrenTreeChecks() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val child = NGLGroup2D(children = listOf())
+        val parent = NGLGroup2D(children = listOf(child))
+        val root = NGLCanvas2D(children = listOf(parent), width = 256, height = 256)
+        val scene = NGLScene(rootNode = root, width = 256, height = 256)
+
+        // A non-shareable node can only have one parent; moving it requires a reparent
+        val other = NGLGroup2D(children = listOf())
+        root.addChildren(listOf(other))
+        assertThrowsNGLError { other.addChildren(listOf(child)) }
+
+        // Duplicates are another form of multiple parenting
+        val spare = NGLGroup2D(children = listOf())
+        assertThrowsNGLError { root.addChildren(listOf(spare, spare)) }
+
+        // The same cycle check covers a detached sub-tree, whose runtime parent
+        // links are not populated yet
+        val detached = NGLGroup2D(children = listOf(root))
+        assertThrowsNGLError { root.addChildren(listOf(detached)) }
+
+        // Removing a node from the wrong parent leaves it untouched
+        assertThrowsNGLError { other.removeChildren(listOf(child)) }
+
+        // The scene must outlive the checks above
+        assertNotNull(scene)
+    }
+
+    private fun childrenLiveEdits(backend: Int) {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val redDraw = drawColor(1.0f, 0.0f, 0.0f)
+        val root = NGLGroup(listOf(redDraw))
+        val scene = NGLScene(rootNode = root, duration = 1.0)
+
+        val captureBuffer = ByteBuffer.allocateDirect(256 * 256 * 4)
+        val ctx = createContext(backend).apply {
+            assertEquals(0, setCaptureBuffer(captureBuffer))
+            assertEquals(0, setScene(scene))
+        }
+        val buffer = captureBuffer.asIntBuffer()
+        assertEquals(0, ctx.draw(0.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        // Mutations are validated and applied on the spot; the next draw shows them
+        val greenDraw = drawColor(0.0f, 1.0f, 0.0f)
+        root.addChildren(listOf(greenDraw))
+        assertEquals(0, ctx.draw(1.0 / 60.0))
+        assertEquals(green, buffer[0].toUInt())
+
+        root.removeChildren(emptyList())
+        root.removeChildren(listOf(greenDraw))
+        assertEquals(0, ctx.draw(2.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        // Emptying the children list entirely is not a special case
+        root.removeChildren(listOf(redDraw))
+        assertEquals(0, ctx.draw(3.0 / 60.0))
+        assertEquals(clearColor, buffer[0].toUInt())
+
+        // A removed child can be put back
+        root.addChildren(listOf(redDraw))
+        assertEquals(0, ctx.draw(4.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        ctx.release()
+    }
+
+    @Test
+    fun childrenLiveEditsGL() {
+        childrenLiveEdits(NGLConfig.BACKEND_OPENGLES)
+    }
+
     @Test
     fun generatedKeyframeListEdits() {
         NGLContext.init(InstrumentationRegistry.getInstrumentation().targetContext)
@@ -856,4 +979,77 @@ class NopeGLTest {
         second.release()
     }
 
+    @Test
+    fun childrenLiveEditsVK() {
+        childrenLiveEdits(NGLConfig.BACKEND_VULKAN)
+    }
+
+    private fun childrenKeepResources(backend: Int) {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
+        val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 256.0f, 256.0f)), fill = fill)
+        val holder = NGLGroup2D(children = listOf(rect))
+        val root = NGLCanvas2D(children = listOf(holder), width = width, height = height)
+        val scene = NGLScene(rootNode = root, width = width, height = height)
+
+        val captureBuffer = ByteBuffer.allocateDirect(width * height * 4)
+        val ctx = createContext(backend).apply {
+            assertEquals(0, setCaptureBuffer(captureBuffer))
+            assertEquals(0, setScene(scene))
+        }
+        val buffer = captureBuffer.asIntBuffer()
+        assertEquals(0, ctx.draw(0.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        // A sub-tree taken out of the graph keeps its resources so that
+        // putting it back is cheap
+        root.removeChildren(listOf(holder))
+        assertEquals(0, ctx.draw(1.0 / 60.0))
+        assertEquals(clearColor, buffer[0].toUInt())
+        assertTrue(holder.holdsResources())
+        assertTrue(rect.holdsResources())
+
+        root.addChildren(listOf(holder))
+        assertEquals(0, ctx.draw(2.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        // Detached resources can be reclaimed explicitly
+        root.removeChildren(listOf(holder))
+        assertEquals(0, ctx.draw(3.0 / 60.0))
+        assertTrue(holder.holdsResources())
+        assertEquals(0, ctx.releaseDetachedResources())
+        assertTrue(!holder.holdsResources())
+        assertTrue(!rect.holdsResources())
+
+        // A reclaimed sub-tree can still be put back, it is simply rebuilt
+        root.addChildren(listOf(holder))
+        assertEquals(0, ctx.draw(4.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        assertTrue(holder.releaseDetachedResources() < 0)
+        root.removeChildren(listOf(holder))
+        assertEquals(0, holder.releaseDetachedResources())
+        assertTrue(!holder.holdsResources())
+        assertTrue(!rect.holdsResources())
+        assertTrue(root.holdsResources())
+        root.addChildren(listOf(holder))
+        assertEquals(0, ctx.draw(5.0 / 60.0))
+        assertEquals(red, buffer[0].toUInt())
+
+        ctx.release()
+    }
+
+    @Test
+    fun childrenKeepResourcesGL() {
+        childrenKeepResources(NGLConfig.BACKEND_OPENGLES)
+    }
+
+    @Test
+    fun childrenKeepResourcesVK() {
+        childrenKeepResources(NGLConfig.BACKEND_VULKAN)
+    }
 }

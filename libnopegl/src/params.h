@@ -116,7 +116,8 @@ struct ngl_node;
  *
  * See also NGLI_PARAM_FLAG_ALLOW_NODE.
  *
- * Only applicable for non-node-based parameters.
+ * Only applicable for non-node-based parameters or node-list parameters.
+ *
  */
 #define NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE (1U<<3)
 
