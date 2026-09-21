@@ -254,6 +254,15 @@ static void remove_scene_edge_at(struct ngl_node *parent, size_t index)
     remove_scene_node(s, child);
 }
 
+void ngli_scene_remove_edges_at(struct ngl_node *parent, size_t index, size_t nb_nodes)
+{
+    ngli_assert(index <= parent->children.count);
+    ngli_assert(nb_nodes <= parent->children.count - index);
+
+    for (size_t i = nb_nodes; i > 0; i--)
+        remove_scene_edge_at(parent, index + i - 1);
+}
+
 int ngli_scene_add_edges(struct ngl_node *parent, size_t index,
                          size_t nb_nodes, struct ngl_node **nodes)
 {
@@ -263,8 +272,7 @@ int ngli_scene_add_edges(struct ngl_node *parent, size_t index,
     for (size_t i = 0; i < nb_nodes; i++) {
         const int ret = add_scene_edge_at(s, parent, nodes[i], index + i);
         if (ret < 0) {
-            while (i--)
-                remove_scene_edge_at(parent, index + i);
+            ngli_scene_remove_edges_at(parent, index, i);
             return ret;
         }
     }

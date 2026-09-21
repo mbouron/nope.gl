@@ -566,6 +566,7 @@ struct ngli_edge_range {
 
 int ngli_scene_add_edges(struct ngl_node *parent, size_t index,
                          size_t nb_nodes, struct ngl_node **nodes);
+void ngli_scene_remove_edges_at(struct ngl_node *parent, size_t index, size_t nb_nodes);
 void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_edge_range range,
                              size_t nb_nodes, struct ngl_node * const *nodes);
 void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
