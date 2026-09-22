@@ -853,6 +853,32 @@ int ngli_node_check_not_traversing(const struct ngl_node *node)
     return 0;
 }
 
+static int node_param_is_update_allowed(const struct ngl_node *node, const struct node_param *par)
+{
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
+    if (!node->ctx)
+        return 0;
+
+    if (!(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
+        LOG(ERROR, "%s.%s can not be live changed", node->label, par->key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE) {
+        const uint8_t *base_ptr = (const uint8_t *)node->opts + par->offset;
+        const struct ngl_node *child = *(const struct ngl_node *const *)base_ptr;
+        if (child) {
+            LOG(ERROR, "%s.%s can not be live changed because it is associated with a node", child->label, par->key);
+            return NGL_ERROR_INVALID_USAGE;
+        }
+    }
+
+    return 0;
+}
+
 int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
                              size_t nb_nodes, struct ngl_node **nodes)
 {
@@ -1016,32 +1042,6 @@ static void invalidate_branch(struct ngl_node *node, uint64_t traversal_id)
 void ngli_node_invalidate_branch(struct ngl_node *node)
 {
     invalidate_branch(node, ngli_node_new_traversal_id());
-}
-
-static int node_param_is_update_allowed(const struct ngl_node *node, const struct node_param *par)
-{
-    int ret = ngli_node_check_not_traversing(node);
-    if (ret < 0)
-        return ret;
-
-    if (!node->ctx)
-        return 0;
-
-    if (!(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
-        LOG(ERROR, "%s.%s can not be live changed", node->label, par->key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE) {
-        const uint8_t *base_ptr = (const uint8_t *)node->opts + par->offset;
-        const struct ngl_node *child = *(const struct ngl_node *const *)base_ptr;
-        if (child) {
-            LOG(ERROR, "%s.%s can not be live changed because it is associated with a node", child->label, par->key);
-            return NGL_ERROR_INVALID_USAGE;
-        }
-    }
-
-    return 0;
 }
 
 static int node_param_update(struct ngl_node *node, const struct node_param *par)
