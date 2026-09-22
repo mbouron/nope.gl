@@ -1210,6 +1210,9 @@ int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
 int ngli_params_remove_nodes(uint8_t *dstp, const struct node_param *par,
                              size_t nb_nodes, struct ngl_node **nodes)
 {
+    if (!nb_nodes)
+        return 0;
+
     struct ngli_node_darray *dst_nodes = (struct ngli_node_darray *)dstp;
     const struct ngli_node_darray nodes_to_remove = {
         .data = nodes,
