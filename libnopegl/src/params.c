@@ -1210,6 +1210,10 @@ int ngli_params_add_nodes(uint8_t *dstp, const struct node_param *par,
 int ngli_params_remove_nodes(uint8_t *dstp, const struct node_param *par,
                              size_t nb_nodes, struct ngl_node **nodes)
 {
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_NODELIST);
+    if (ret < 0)
+        return ret;
+
     if (!nb_nodes)
         return 0;
 
@@ -1240,6 +1244,10 @@ int ngli_params_remove_nodes(uint8_t *dstp, const struct node_param *par,
 int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par,
                          size_t nb_f64s, const double *f64s)
 {
+    int ret = check_param_type(par, NGLI_PARAM_TYPE_F64LIST);
+    if (ret < 0)
+        return ret;
+
     if (!nb_f64s)
         return 0;
 
@@ -1247,7 +1255,7 @@ int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par,
     if (nb_f64s > SIZE_MAX - array->count)
         return NGL_ERROR_MEMORY;
     const size_t new_count = array->count + nb_f64s;
-    int ret = ngli_darray_try_reserve(array, new_count);
+    ret = ngli_darray_try_reserve(array, new_count);
     if (ret < 0)
         return ret;
 
