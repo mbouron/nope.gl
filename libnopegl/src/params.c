@@ -1252,23 +1252,6 @@ int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par,
     return 0;
 }
 
-int ngli_params_add(uint8_t *base_ptr, const struct node_param *par,
-                    size_t nb_elems, void *elems)
-{
-    LOG(VERBOSE, "add %zu elems to %s", nb_elems, par->key);
-
-    int ret = 0;
-    uint8_t *dstp = base_ptr + par->offset;
-    switch (par->type) {
-    case NGLI_PARAM_TYPE_NODELIST: ret = ngli_params_add_nodes(dstp, par, nb_elems, elems); break;
-    case NGLI_PARAM_TYPE_F64LIST:  ret = ngli_params_add_f64s(dstp, par, nb_elems, elems);  break;
-    default:
-        LOG(ERROR, "parameter %s is not a list", par->key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-    return ret;
-}
-
 static int ngli_params_swap_node(uint8_t *dstp, const struct node_param *par,
                                  size_t from, size_t to)
 {
