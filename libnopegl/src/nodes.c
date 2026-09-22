@@ -853,16 +853,25 @@ int ngli_node_check_not_traversing(const struct ngl_node *node)
     return 0;
 }
 
-static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, void *elems)
+int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
+                             size_t nb_nodes, struct ngl_node **nodes)
 {
-    int ret = 0;
-
     uint8_t *base_ptr;
     const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
     if (!par)
         return NGL_ERROR_NOT_FOUND;
 
-    ret = ngli_node_check_not_traversing(node);
+    if (par->type != NGLI_PARAM_TYPE_NODELIST) {
+        LOG(ERROR, "parameter %s.%s is not a node list", node->label, key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (node->scene) {
+        LOG(ERROR, "the nodes graph cannot be extended after being associated with a scene");
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    int ret = ngli_node_check_not_traversing(node);
     if (ret < 0)
         return ret;
 
@@ -871,33 +880,18 @@ static int param_add(struct ngl_node *node, const char *key, size_t nb_elems, vo
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    ret = ngli_params_add(base_ptr, par, nb_elems, elems);
+    uint8_t *dstp = base_ptr + par->offset;
+    ret = ngli_params_add_nodes(dstp, par, nb_nodes, nodes);
     if (ret < 0) {
         LOG(ERROR, "unable to add elements to %s.%s", node->label, key);
         return ret;
     }
 
-    if (!nb_elems)
+    if (!nb_nodes)
         return 0;
 
     struct node_param_update_arg arg = { .node = node, .par = par };
     return node_param_update_cb(node->ctx, &arg);
-}
-
-int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
-                             size_t nb_nodes, struct ngl_node **nodes)
-{
-    const struct node_param *par = ngli_node_param_find(node, key, NULL);
-    if (!par)
-        return NGL_ERROR_NOT_FOUND;
-
-    if (node->scene) {
-        LOG(ERROR, "the nodes graph cannot be extended after being associated with a scene");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    /* param_add() rejects any other list of a node holding context resources */
-    return param_add(node, key, nb_nodes, nodes);
 }
 
 int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
@@ -907,6 +901,7 @@ int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
     const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
     if (!par)
         return NGL_ERROR_NOT_FOUND;
+
     if (par->type != NGLI_PARAM_TYPE_NODELIST) {
         LOG(ERROR, "parameter %s.%s is not a node list", node->label, key);
         return NGL_ERROR_INVALID_USAGE;
@@ -941,7 +936,37 @@ int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
 int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
                             size_t nb_f64s, double *f64s)
 {
-    return param_add(node, key, nb_f64s, f64s);
+    uint8_t *base_ptr;
+    const struct node_param *par = ngli_node_param_find(node, key, &base_ptr);
+    if (!par)
+        return NGL_ERROR_NOT_FOUND;
+
+    if (par->type != NGLI_PARAM_TYPE_F64LIST) {
+        LOG(ERROR, "parameter %s.%s is not a f64 list", node->label, key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
+    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
+        LOG(ERROR, "%s.%s can not be live extended", node->label, key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    uint8_t *dstp = base_ptr + par->offset;
+    ret = ngli_params_add_f64s(dstp, par, nb_f64s, f64s);
+    if (ret < 0) {
+        LOG(ERROR, "unable to add elements to %s.%s", node->label, key);
+        return ret;
+    }
+
+    if (!nb_f64s)
+        return 0;
+
+    struct node_param_update_arg arg = { .node = node, .par = par };
+    return node_param_update_cb(node->ctx, &arg);
 }
 
 int ngl_node_param_swap_elem(struct ngl_node *node, const char *key,
