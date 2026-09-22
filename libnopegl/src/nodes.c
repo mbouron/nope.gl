@@ -879,6 +879,32 @@ static int node_param_is_update_allowed(const struct ngl_node *node, const struc
     return 0;
 }
 
+static int node_param_is_node_list_update_allowed(const struct ngl_node *node, const struct node_param *par)
+{
+    if (par->type != NGLI_PARAM_TYPE_NODELIST) {
+        LOG(ERROR, "%s.%s is not a node list", node->label, par->key);
+        return NGL_ERROR_INVALID_ARG;
+    }
+
+    int ret = ngli_node_check_not_traversing(node);
+    if (ret < 0)
+        return ret;
+
+    if (node->scene) {
+        LOG(ERROR, "%s.%s can not be edited once the graph is associated with a scene",
+            node->label, par->key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
+        LOG(ERROR, "%s.%s can not be edited once the graph is associated with a rendering context",
+            node->label, par->key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
+    return 0;
+}
+
 int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
                              size_t nb_nodes, struct ngl_node **nodes)
 {
@@ -887,24 +913,9 @@ int ngl_node_param_add_nodes(struct ngl_node *node, const char *key,
     if (!par)
         return NGL_ERROR_NOT_FOUND;
 
-    if (par->type != NGLI_PARAM_TYPE_NODELIST) {
-        LOG(ERROR, "parameter %s.%s is not a node list", node->label, key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    if (node->scene) {
-        LOG(ERROR, "the nodes graph cannot be extended after being associated with a scene");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    int ret = ngli_node_check_not_traversing(node);
+    int ret = node_param_is_node_list_update_allowed(node, par);
     if (ret < 0)
         return ret;
-
-    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
-        LOG(ERROR, "%s.%s can not be live extended", node->label, key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
 
     uint8_t *dstp = base_ptr + par->offset;
     ret = ngli_params_add_nodes(dstp, par, nb_nodes, nodes);
@@ -928,32 +939,16 @@ int ngl_node_param_remove_nodes(struct ngl_node *node, const char *key,
     if (!par)
         return NGL_ERROR_NOT_FOUND;
 
-    if (par->type != NGLI_PARAM_TYPE_NODELIST) {
-        LOG(ERROR, "parameter %s.%s is not a node list", node->label, key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    int ret = ngli_node_check_not_traversing(node);
+    int ret = node_param_is_node_list_update_allowed(node, par);
     if (ret < 0)
         return ret;
-
-    if (node->scene) {
-        LOG(ERROR, "the nodes graph cannot be shrunk after being associated with a scene");
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    /* Counterpart of the same guard in param_add() */
-    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
-        LOG(ERROR, "%s.%s can not be live shrunk", node->label, key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-
-    if (!nb_nodes)
-        return 0;
 
     ret = ngli_params_remove_nodes(base_ptr + par->offset, par, nb_nodes, nodes);
     if (ret < 0)
         return ret;
+
+    if (!nb_nodes)
+        return 0;
 
     struct node_param_update_arg arg = { .node = node, .par = par };
     return node_param_update_cb(node->ctx, &arg);
@@ -968,18 +963,13 @@ int ngl_node_param_add_f64s(struct ngl_node *node, const char *key,
         return NGL_ERROR_NOT_FOUND;
 
     if (par->type != NGLI_PARAM_TYPE_F64LIST) {
-        LOG(ERROR, "parameter %s.%s is not a f64 list", node->label, key);
-        return NGL_ERROR_INVALID_USAGE;
+        LOG(ERROR, "%s.%s is not a double list", node->label, key);
+        return NGL_ERROR_INVALID_ARG;
     }
 
-    int ret = ngli_node_check_not_traversing(node);
+    int ret = node_param_is_update_allowed(node, par);
     if (ret < 0)
         return ret;
-
-    if (node->ctx && !(par->flags & NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE)) {
-        LOG(ERROR, "%s.%s can not be live extended", node->label, key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
 
     uint8_t *dstp = base_ptr + par->offset;
     ret = ngli_params_add_f64s(dstp, par, nb_f64s, f64s);
