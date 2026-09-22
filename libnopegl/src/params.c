@@ -1264,47 +1264,29 @@ int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par,
     return 0;
 }
 
-static int ngli_params_swap_node(uint8_t *dstp, const struct node_param *par,
-                                 size_t from, size_t to)
-{
-    struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
-
-    if (from >= array->count || to >= array->count)
-        return NGL_ERROR_INVALID_ARG;
-
-    NGLI_SWAP(array->data[from], array->data[to]);
-
-    return 0;
-}
-
-static int ngli_params_swap_f64(uint8_t *dstp, const struct node_param *par,
-                                size_t from, size_t to)
-{
-    struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
-
-    if (from >= array->count || to >= array->count)
-        return NGL_ERROR_INVALID_ARG;
-
-    NGLI_SWAP(array->data[from], array->data[to]);
-
-    return 0;
-}
-
 int ngli_params_swap_elem(uint8_t *base_ptr, const struct node_param *par,
                           size_t from, size_t to)
 {
     LOG(VERBOSE, "move item from %zu to %zu within %s", from, to, par->key);
 
-    int ret = 0;
     uint8_t *dstp = base_ptr + par->offset;
-    switch (par->type) {
-    case NGLI_PARAM_TYPE_NODELIST: ret = ngli_params_swap_node(dstp, par, from, to); break;
-    case NGLI_PARAM_TYPE_F64LIST:  ret = ngli_params_swap_f64(dstp, par, from, to);  break;
-    default:
-        LOG(ERROR, "parameter %s is not a list", par->key);
-        return NGL_ERROR_INVALID_USAGE;
+    if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+        struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
+        if (from >= array->count || to >= array->count)
+            return NGL_ERROR_INVALID_ARG;
+        NGLI_SWAP(array->data[from], array->data[to]);
+        return 0;
     }
-    return ret;
+    if (par->type == NGLI_PARAM_TYPE_F64LIST) {
+        struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
+        if (from >= array->count || to >= array->count)
+            return NGL_ERROR_INVALID_ARG;
+        NGLI_SWAP(array->data[from], array->data[to]);
+        return 0;
+    }
+
+    LOG(ERROR, "parameter %s is not a list", par->key);
+    return NGL_ERROR_INVALID_USAGE;
 }
 
 int ngli_params_move_elem(uint8_t *base_ptr, const struct node_param *par,
