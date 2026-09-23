@@ -23,13 +23,13 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aabb.h"
 #include "internal.h"
+#include "node_graph.h"
 #include "node2d.h"
 #include "math_utils.h"
 #include "log.h"
@@ -279,17 +279,6 @@ static int node_init(struct ngl_node *node)
     return 0;
 }
 
-static atomic_uint_fast64_t traversal_id_counter;
-
-uint64_t ngli_node_new_traversal_id(void)
-{
-    /* Zero is reserved for nodes that have not been visited. */
-    uint64_t traversal_id = atomic_fetch_add_explicit(&traversal_id_counter, 1, memory_order_relaxed);
-    if (traversal_id == 0)
-        traversal_id = atomic_fetch_add_explicit(&traversal_id_counter, 1, memory_order_relaxed);
-    return traversal_id;
-}
-
 static int node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx, uint64_t traversal_id)
 {
     if (node->traversal_id == traversal_id)
@@ -322,7 +311,7 @@ static int node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx, uint64_t tra
 
 int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx)
 {
-    return node_set_ctx(node, ctx, ngli_node_new_traversal_id());
+    return node_set_ctx(node, ctx, ngli_node_graph_new_traversal_id());
 }
 
 void ngli_node_get_rendertarget_layout(const struct ngl_node *node,
@@ -521,7 +510,7 @@ int ngli_node_prepare_nodes(struct ngl_ctx *ctx, size_t nb_nodes, struct ngl_nod
 {
     struct prepare_ctx prepare_ctx = {
         .ctx = ctx,
-        .traversal_id = ngli_node_new_traversal_id(),
+        .traversal_id = ngli_node_graph_new_traversal_id(),
     };
     int ret = 0;
     for (size_t i = 0; i < nb_nodes; i++) {
@@ -1031,7 +1020,7 @@ static void invalidate_branch(struct ngl_node *node, uint64_t traversal_id)
 
 void ngli_node_invalidate_branch(struct ngl_node *node)
 {
-    invalidate_branch(node, ngli_node_new_traversal_id());
+    invalidate_branch(node, ngli_node_graph_new_traversal_id());
 }
 
 static int node_param_update(struct ngl_node *node, const struct node_param *par)
@@ -1210,45 +1199,6 @@ int ngl_node_get_label(struct ngl_node *node, const char **label)
     return 0;
 }
 
-int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struct ngl_node *node)
-{
-    uint8_t *base_ptr = node->opts;
-    const struct node_param *par = node->cls->params;
-
-    if (!par)
-        return 0;
-
-    for (; par->key; par++) {
-        uint8_t *parp = base_ptr + par->offset;
-
-        if (par->type == NGLI_PARAM_TYPE_NODE || (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)) {
-            struct ngl_node *child = *(struct ngl_node **)parp;
-            if (child) {
-                const int ret = func(user_arg, node, child);
-                if (ret < 0)
-                    return ret;
-            }
-        } else if (par->type == NGLI_PARAM_TYPE_NODELIST) {
-            const struct ngli_node_darray *array = (const struct ngli_node_darray *)parp;
-            for (size_t i = 0; i < array->count; i++) {
-                const int ret = func(user_arg, node, array->data[i]);
-                if (ret < 0)
-                    return ret;
-            }
-        } else if (par->type == NGLI_PARAM_TYPE_NODEDICT) {
-            const struct hmap *hmap = *(struct hmap **)parp;
-            const struct hmap_entry *entry = NULL;
-            while (hmap && (entry = ngli_hmap_next(hmap, entry))) {
-                const int ret = func(user_arg, node, entry->data);
-                if (ret < 0)
-                    return ret;
-            }
-        }
-    }
-
-    return 0;
-}
-
 static int collect_child(void *user_arg, struct ngl_node *parent, struct ngl_node *child)
 {
     struct ngli_node_darray *children = user_arg;
@@ -1265,7 +1215,7 @@ int ngl_node_get_children(const struct ngl_node *node,
         return 0;
 
     struct ngli_node_darray children = {0};
-    const int ret = ngli_node_children_apply(collect_child, &children, (struct ngl_node *)node);
+    const int ret = ngli_node_graph_foreach_child(collect_child, &children, (struct ngl_node *)node);
     if (ret < 0) {
         ngli_darray_reset(&children);
         return ret;

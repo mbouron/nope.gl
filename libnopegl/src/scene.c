@@ -23,6 +23,7 @@
 
 #include "internal.h"
 #include "log.h"
+#include "node_graph.h"
 #include "params.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
@@ -48,12 +49,12 @@ static int check_node_unowned(void *user_arg, struct ngl_node *parent ngli_unuse
         return NGL_ERROR_INVALID_USAGE;
     }
 
-    return ngli_node_children_apply(check_node_unowned, user_arg, node);
+    return ngli_node_graph_foreach_child(check_node_unowned, user_arg, node);
 }
 
 static int validate_graph_unowned(struct ngl_node *root)
 {
-    const uint64_t traversal_id = ngli_node_new_traversal_id();
+    const uint64_t traversal_id = ngli_node_graph_new_traversal_id();
     return check_node_unowned((void *)&traversal_id, NULL, root);
 }
 
@@ -74,7 +75,7 @@ static int reset_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node 
 
     ngli_assert(!node->ctx);
 
-    int ret = ngli_node_children_apply(reset_nodes, s, node);
+    int ret = ngli_node_graph_foreach_child(reset_nodes, s, node);
     ngli_assert(ret == 0);
 
     ngli_darray_reset(&node->children);
@@ -211,7 +212,7 @@ static int add_scene_edge_at(struct ngl_scene *s, struct ngl_node *parent,
     add_runtime_edge(parent, child, index);
     add_scene_node(s, child);
 
-    const int ret = ngli_node_children_apply(add_scene_edge, s, child);
+    const int ret = ngli_node_graph_foreach_child(add_scene_edge, s, child);
     if (ret < 0) {
         remove_scene_children(child);
         remove_scene_node(s, child);
@@ -225,7 +226,7 @@ static int add_scene_edge(void *user_arg, struct ngl_node *parent, struct ngl_no
     return add_scene_edge_at(user_arg, parent, child, parent->children.count);
 }
 
-static void remove_scene_edge(struct ngl_node *parent, struct ngli_edge_range *range, struct ngl_node *node)
+static void remove_scene_edge(struct ngl_node *parent, struct ngli_node_graph_range *range, struct ngl_node *node)
 {
     /*
      * Iterate backwards so removing an entry does not change the indices
@@ -279,7 +280,7 @@ int ngli_scene_add_edges(struct ngl_node *parent, size_t index,
     return 0;
 }
 
-void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_edge_range range,
+void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_node_graph_range range,
                              size_t nb_nodes, struct ngl_node * const *nodes)
 {
     ngli_assert(range.index <= parent->children.count);
@@ -380,7 +381,7 @@ int ngli_scene_check_subtree(const struct ngl_scene *s,
         .scene = s,
         .check_ctx = check_ctx,
     };
-    ret = ngli_node_children_apply(check_subtree, &arg, node);
+    ret = ngli_node_graph_foreach_child(check_subtree, &arg, node);
     if (ret < 0)
         return ret;
 
@@ -391,8 +392,8 @@ int ngli_scene_check_subtree(const struct ngl_scene *s,
 static int attach_root(struct ngl_scene *s, struct ngl_node *node)
 {
     const struct ngli_scene_subtree_check_ctx check_ctx = {
-        .visiting_id = ngli_node_new_traversal_id(),
-        .visited_id = ngli_node_new_traversal_id(),
+        .visiting_id = ngli_node_graph_new_traversal_id(),
+        .visited_id = ngli_node_graph_new_traversal_id(),
     };
     int ret = ngli_scene_check_subtree(s, &check_ctx, node);
     if (ret < 0)
@@ -402,7 +403,7 @@ static int attach_root(struct ngl_scene *s, struct ngl_node *node)
 
     add_scene_node(s, s->params.root);
 
-    ret = ngli_node_children_apply(add_scene_edge, s, s->params.root);
+    ret = ngli_node_graph_foreach_child(add_scene_edge, s, s->params.root);
     if (ret < 0)
         goto fail;
 

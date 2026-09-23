@@ -20,6 +20,7 @@
  */
 
 #include "internal.h"
+#include "node_graph.h"
 #include "node_texture.h"
 #include "resource.h"
 #include "utils/memory.h"
@@ -77,8 +78,8 @@ static void test_scene_sharing(void)
 
         /* Sharing is checked across separate sub-trees of one operation too. */
         const struct ngli_scene_subtree_check_ctx check_ctx = {
-            .visiting_id = ngli_node_new_traversal_id(),
-            .visited_id = ngli_node_new_traversal_id(),
+            .visiting_id = ngli_node_graph_new_traversal_id(),
+            .visited_id = ngli_node_graph_new_traversal_id(),
         };
         ngli_assert(ngli_scene_check_subtree(NULL, &check_ctx, a) == 0);
         ngli_assert(ngli_scene_check_subtree(NULL, &check_ctx, b) == expected_results[i]);
