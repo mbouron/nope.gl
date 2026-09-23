@@ -45,6 +45,7 @@
 #include "hud.h"
 #include "math_utils.h"
 #include "node2d.h"
+#include "node_graph.h"
 #include <ngpu/ngpu.h>
 #include "slug.h"
 #include "nopegl/nopegl.h"
@@ -559,15 +560,10 @@ int ngli_scene_check_subtree(const struct ngl_scene *s,
                              const struct ngli_scene_subtree_check_ctx *check_ctx,
                              struct ngl_node *node);
 
-struct ngli_edge_range {
-    size_t index;
-    size_t count;
-};
-
 int ngli_scene_add_edges(struct ngl_node *parent, size_t index,
                          size_t nb_nodes, struct ngl_node **nodes);
 void ngli_scene_remove_edges_at(struct ngl_node *parent, size_t index, size_t nb_nodes);
-void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_edge_range range,
+void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_node_graph_range range,
                              size_t nb_nodes, struct ngl_node * const *nodes);
 void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
                               struct ngl_node *child, size_t index);
@@ -591,16 +587,12 @@ int ngli_prepare_draw(struct ngl_ctx *s, double t);
 void ngli_node_draw(struct ngl_node *node);
 void ngli_node_draw_children(struct ngl_node *node);
 void ngli_node_invalidate_branch(struct ngl_node *node);
-uint64_t ngli_node_new_traversal_id(void);
 
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 int ngli_node_set_ctx(struct ngl_node *node, struct ngl_ctx *ctx);
 
 void ngli_node_get_rendertarget_layout(const struct ngl_node *node,
                                        struct ngpu_rendertarget_layout *rendertarget_layout);
-
-typedef int (*ngli_node_children_func)(void *user_arg, struct ngl_node *parent, struct ngl_node *node);
-int ngli_node_children_apply(ngli_node_children_func func, void *user_arg, struct ngl_node *node);
 
 int ngli_is_default_label(const char *class_name, const char *str);
 
