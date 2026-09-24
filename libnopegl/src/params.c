@@ -1213,6 +1213,7 @@ int ngli_params_remove_nodes(uint8_t *dstp, const struct node_param *par,
     if (!nb_nodes)
         return 0;
 
+    LOG(VERBOSE, "remove %zu nodes from %s", nb_nodes, par->key);
     struct ngli_node_darray *dst_nodes = (struct ngli_node_darray *)dstp;
     const struct ngli_node_darray nodes_to_remove = {
         .data = nodes,
