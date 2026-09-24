@@ -290,18 +290,6 @@ void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_node_graph_ran
         remove_scene_edge(parent, &range, nodes[i]);
 }
 
-void ngli_scene_reparent_edge(struct ngl_node *from, struct ngl_node *to,
-                              struct ngl_node *child, size_t index)
-{
-    ngli_assert(from->scene && from->scene == to->scene && child->scene == from->scene);
-    ngli_assert(index <= to->children.count);
-
-    remove_runtime_edge(from, child);
-    if (from == to)
-        index = NGLI_MIN(index, to->children.count);
-    add_runtime_edge(to, child, index);
-}
-
 void ngli_scene_swap_edges(struct ngl_node *parent, size_t from, size_t to)
 {
     ngli_assert(parent->scene);
