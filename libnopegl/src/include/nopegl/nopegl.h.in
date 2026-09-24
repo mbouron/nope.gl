@@ -886,17 +886,15 @@ NGL_API int ngl_effect2dshader_set_range(struct ngl_node *node, double start, do
 /**
  * User-defined CustomTexture callbacks.
  *
- * init(), prepare(), prefetch(), update(), draw(), release(), and uninit() run
- * while the context is executing node work. They must not configure, resize,
- * update, draw, or otherwise invoke backend work on that context; change a
- * live parameter on a bound node; release detached resources; or destroy the
- * context. Calls that can report an error return NGL_ERROR_INVALID_USAGE. The
- * CustomTexture texture-import functions are the intended way to publish a
- * texture from these callbacks.
+ * init(), prepare(), prefetch(), update(), draw(), unprepare(), release(), and
+ * uninit() run in the rendering context thread while `ngl_ctx` is processing
+ * the graph.
  *
- * prepare() is called once for each resource initialization; uninit() is
- * called when those resources are released. free() belongs to node object
- * destruction and does not run as context work.
+ * It is not allowed to call the `ngl_ctx` API or to modify the graph associated
+ * with the context from these callbacks.
+ *
+ * The CustomTexture texture-import functions are the intended way to publish a
+ * texture from these callbacks.
  */
 
 struct ngl_node_funcs {
