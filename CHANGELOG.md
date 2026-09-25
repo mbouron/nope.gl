@@ -17,6 +17,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   OpenGL textures, and `ngpu_fence_gl_get_sync()` and
   `ngpu_fence_gl_create_from_sync()` to synchronize access from application
   OpenGL code
+- `ngl_node_is_shareable()` to query is a node can be shared within a graph
+
 
 ### Removed
 - CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and
