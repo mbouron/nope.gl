@@ -1233,6 +1233,9 @@ cdef class CustomTexture(_Node):
         if ret < 0:
             raise Exception("Could not update texture")
 
+    def holds_resources(self) -> bool:
+        return bool(super()._holds_resources())
+
     def _init(self):
         pass
 
