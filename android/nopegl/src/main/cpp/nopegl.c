@@ -437,6 +437,14 @@ JNIEXPORT jboolean JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeHoldsResource
     return ngl_node_holds_resources(node) ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeIsShareable(
+    JNIEnv *env, jobject thiz, jlong native_ptr)
+{
+    const struct ngl_node *node = (const struct ngl_node *)(uintptr_t)native_ptr;
+
+    return ngl_node_is_shareable(node) ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT jstring JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetLabel(
     JNIEnv *env, jobject thiz, jlong native_ptr)
 {

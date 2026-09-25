@@ -564,6 +564,15 @@ NGL_API void ngl_node_unrefp(struct ngl_node **nodep);
 NGL_API int ngl_node_holds_resources(const struct ngl_node *node);
 
 /**
+ * Check whether a node may be referenced from several places in one graph.
+ *
+ * @param node  node to query
+ *
+ * @return 1 when the node is shareable, 0 otherwise
+ */
+NGL_API int ngl_node_is_shareable(const struct ngl_node *node);
+
+/**
  * Flags for ngl_node_duplicate().
  */
 #define NGL_NODE_DUPLICATE_RESOURCES (1 << 0) /* Duplicate shareable nodes (buffers, textures, etc.) */

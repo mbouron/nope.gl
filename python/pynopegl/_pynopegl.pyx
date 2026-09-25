@@ -67,6 +67,7 @@ cdef extern from "nopegl/nopegl.h":
     int NGL_NODE_DUPLICATE_RESOURCES
     ngl_node *ngl_node_duplicate(ngl_node *node, uint32_t flags)
     int ngl_node_holds_resources(const ngl_node *node)
+    int ngl_node_is_shareable(const ngl_node *node)
     int ngl_node_param_add_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_remove_nodes(ngl_node *node, const char *key, size_t nb_nodes, ngl_node **nodes)
     int ngl_node_param_add_f64s(ngl_node *node, const char *key, size_t nb_f64s, double *f64s)
@@ -393,6 +394,9 @@ cdef class _Node:
 
     def _holds_resources(self):
         return ngl_node_holds_resources(self.ctx)
+
+    def _is_shareable(self):
+        return ngl_node_is_shareable(self.ctx)
 
     def _param_set_bool(self, const char *key, bint value):
         return ngl_node_param_set_bool(self.ctx, key, value)
@@ -1235,6 +1239,9 @@ cdef class CustomTexture(_Node):
 
     def holds_resources(self) -> bool:
         return bool(super()._holds_resources())
+
+    def is_shareable(self) -> bool:
+        return bool(super()._is_shareable())
 
     def _init(self):
         pass

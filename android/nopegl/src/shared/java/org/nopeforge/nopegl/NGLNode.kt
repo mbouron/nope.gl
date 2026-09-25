@@ -68,6 +68,10 @@ open class NGLNode(
         return nativeHoldsResources(nativePtr)
     }
 
+    fun isShareable(): Boolean {
+        return nativeIsShareable(nativePtr)
+    }
+
     fun release() {
         cleanable?.clean()
         cleanable = null
@@ -428,6 +432,7 @@ open class NGLNode(
     ): Int
 
     private external fun nativeHoldsResources(nativePtr: Long): Boolean
+    private external fun nativeIsShareable(nativePtr: Long): Boolean
 
     companion object {
         @JvmStatic

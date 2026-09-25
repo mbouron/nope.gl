@@ -275,6 +275,9 @@ class Node(_Node):
     def holds_resources(self) -> bool:
         return bool(super()._holds_resources())
 
+    def is_shareable(self) -> bool:
+        return bool(super()._is_shareable())
+
     def get_type(self):
         return self._get_type()
 
