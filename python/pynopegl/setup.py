@@ -198,10 +198,7 @@ class _WrapperGenerator:
         if param_type == "node_list":
             code = textwrap.dedent(f"""
                 def swap_{param_name}(self, from_, to):
-                    ret = self._param_swap_elem("{param_name}", from_, to)
-                    if ret < 0:
-                        raise Exception("Failed to move child")
-                    return ret
+                    return self._param_swap_elem("{param_name}", from_, to)
                 """)
             # code = textwrap.indent(code, " " * 4)
             methods.append(code)

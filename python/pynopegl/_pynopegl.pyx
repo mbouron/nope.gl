@@ -612,7 +612,9 @@ cdef class _Node:
         free(f64s_c)
         return ret
 
-    def _param_swap_elem(self, const char *key, size_t from_, size_t to):
+    def _param_swap_elem(self, const char *key, from_, to):
+        if from_ < 0 or to < 0:
+            return NGL_ERROR_INVALID_ARG
         return ngl_node_param_swap_elem(self.ctx, key, from_, to)
 
     def _get_type(self):
