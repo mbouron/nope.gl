@@ -405,6 +405,13 @@ int ngl_node_holds_resources(const struct ngl_node *node)
     return node->ctx != NULL;
 }
 
+int ngl_node_is_shareable(const struct ngl_node *node)
+{
+    if (!node)
+        return 0;
+    return NGLI_HAS_ALL_FLAGS(node->cls->flags, NGLI_NODE_FLAG_SHAREABLE);
+}
+
 void ngli_ctx_release_resources(struct ngl_ctx *s)
 {
     ctx_uninit_nodes(s, RELEASE_NODES_ALL);
