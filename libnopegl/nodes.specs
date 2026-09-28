@@ -562,6 +562,28 @@
         "desc": "box specified by `rect`"
       }
     ],
+    "mask_texture_channel": [
+      {
+        "name": "alpha",
+        "desc": "alpha channel"
+      },
+      {
+        "name": "luminance",
+        "desc": "luminance (weighted RGB)"
+      },
+      {
+        "name": "red",
+        "desc": "red channel"
+      },
+      {
+        "name": "green",
+        "desc": "green channel"
+      },
+      {
+        "name": "blue",
+        "desc": "blue channel"
+      }
+    ],
     "paint_gradient_mode": [
       {
         "name": "ramp",
@@ -1707,7 +1729,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["live"],
           "desc": "2D scenes to draw"
         },
@@ -3181,13 +3203,81 @@
         }
       ]
     },
+    "Clip2D": {
+      "file": "src/node_group2d.c",
+      "params": [
+        {
+          "name": "children",
+          "type": "node_list",
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "flags": ["live"],
+          "desc": "2D scenes to draw"
+        },
+        {
+          "name": "translate",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "translation in pixels"
+        },
+        {
+          "name": "rotation",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live", "node"],
+          "desc": "rotation angle in degrees"
+        },
+        {
+          "name": "scale",
+          "type": "vec2",
+          "default": [1.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "scale factors"
+        },
+        {
+          "name": "anchor",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "anchor/pivot point in pixels"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live", "node"],
+          "desc": "opacity applied to all children"
+        },
+        {
+          "name": "visible",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "whether the group and its children are visible"
+        },
+        {
+          "name": "clip_rect",
+          "type": "vec4",
+          "default": [0.000000,0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "clipping rectangle (x, y, width, height) in the group's local pixel coordinates that cascades to all children; it is transformed by the group (so it follows the group's rotation, scale and translation) and intersected with any clip inherited from ancestor groups. When width or height is 0 clipping is disabled. The clip edge is anti-aliased and stays correct under rotation"
+        },
+        {
+          "name": "clip_corner_radius",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "corner radii (x, y) of clip_rect in local pixels, for rounded clipping; (0, 0) gives sharp corners. Each radius is clamped to half the corresponding clip_rect side"
+        }
+      ]
+    },
     "Effect2D": {
       "file": "src/node_effect2d.c",
       "params": [
         {
           "name": "children",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["live"],
           "desc": "2D scenes to render offscreen"
         },
@@ -3276,6 +3366,159 @@
           "node_types": ["Effect2DShader"],
           "flags": [],
           "desc": "timed shaders in priority order; the first active shader is used, or passthrough if none is active"
+        }
+      ]
+    },
+    "Layer2D": {
+      "file": "src/node_effect2d.c",
+      "params": [
+        {
+          "name": "children",
+          "type": "node_list",
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "flags": ["live"],
+          "desc": "2D scenes to render as one isolated layer"
+        },
+        {
+          "name": "translate",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "translation in pixels"
+        },
+        {
+          "name": "rotation",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live", "node"],
+          "desc": "rotation angle in degrees"
+        },
+        {
+          "name": "scale",
+          "type": "vec2",
+          "default": [1.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "scale factors"
+        },
+        {
+          "name": "anchor",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "anchor/pivot point in pixels"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live", "node"],
+          "desc": "opacity of the composited layer"
+        },
+        {
+          "name": "visible",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "whether the layer and its children are visible"
+        },
+        {
+          "name": "blend_mode",
+          "type": "select",
+          "default": "src_over",
+          "choices": "blend_mode",
+          "flags": [],
+          "desc": "define how the composited layer is blended with the current framebuffer"
+        }
+      ]
+    },
+    "Mask2D": {
+      "file": "src/node_effect2d.c",
+      "params": [
+        {
+          "name": "children",
+          "type": "node_list",
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "flags": ["live"],
+          "desc": "2D scenes to render before applying the mask"
+        },
+        {
+          "name": "mask_rect",
+          "type": "vec4",
+          "default": [0.000000,0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "rectangle (x, y, width, height) in local 2D space the mask image covers, the children being cut outside of it; when width or height is 0, the mask covers the composited children bounds"
+        },
+        {
+          "name": "mask",
+          "type": "node",
+          "node_types": ["Texture2D", "CustomTexture"],
+          "flags": [],
+          "desc": "Texture2D or CustomTexture sampled as the mask; the image covers `mask_rect`, or the composited children bounds, their anti-aliased edges included; when unset, the mask is `mask_children`"
+        },
+        {
+          "name": "channel",
+          "type": "select",
+          "default": "alpha",
+          "choices": "mask_texture_channel",
+          "flags": [],
+          "desc": "channel of mask used as coverage"
+        },
+        {
+          "name": "mask_children",
+          "type": "node_list",
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "flags": ["live"],
+          "desc": "2D scenes drawn as the mask when `mask` is unset: they are rendered in the same local space and at the same resolution as the children, so a mask shape lines up with the content it masks; they do not extend the bounds"
+        },
+        {
+          "name": "translate",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "translation in pixels"
+        },
+        {
+          "name": "rotation",
+          "type": "f32",
+          "default": 0.000000,
+          "flags": ["live", "node"],
+          "desc": "rotation angle in degrees"
+        },
+        {
+          "name": "scale",
+          "type": "vec2",
+          "default": [1.000000,1.000000],
+          "flags": ["live", "node"],
+          "desc": "scale factors"
+        },
+        {
+          "name": "anchor",
+          "type": "vec2",
+          "default": [0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "anchor/pivot point in pixels"
+        },
+        {
+          "name": "opacity",
+          "type": "f32",
+          "default": 1.000000,
+          "flags": ["live", "node"],
+          "desc": "opacity of the masked result"
+        },
+        {
+          "name": "visible",
+          "type": "bool",
+          "default": 1,
+          "flags": ["live"],
+          "desc": "whether the masked result and its children are visible"
+        },
+        {
+          "name": "blend_mode",
+          "type": "select",
+          "default": "src_over",
+          "choices": "blend_mode",
+          "flags": [],
+          "desc": "define how the masked result is blended with the current framebuffer"
         }
       ]
     },
@@ -3767,7 +4010,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["live"],
           "desc": "2D scenes to draw"
         },
@@ -4173,7 +4416,7 @@
         {
           "name": "children",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["live"],
           "desc": "2D scenes to render offscreen"
         },
@@ -5344,7 +5587,7 @@
         {
           "name": "child",
           "type": "node",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["nonull"],
           "desc": "time filtered scene"
         },
@@ -6960,7 +7203,7 @@
         {
           "name": "branches",
           "type": "node_list",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": [],
           "desc": "a set of branches to pick from"
         },
@@ -7023,7 +7266,7 @@
         {
           "name": "child",
           "type": "node",
-          "node_types": ["Canvas2D", "DrawRect2D", "Effect2D", "Group2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
+          "node_types": ["Canvas2D", "Clip2D", "DrawRect2D", "Effect2D", "Group2D", "Layer2D", "Mask2D", "OffscreenCanvas2D", "TimeRangeFilter2D", "UserSelect2D", "UserSwitch2D"],
           "flags": ["nonull"],
           "desc": "scene to be rendered or not"
         },

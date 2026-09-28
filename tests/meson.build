@@ -55,6 +55,8 @@ foreach backend : backends
   ]
 
   tests_api = [
+    '2d_clip_layer_mask',
+    '2d_mask_children',
     'animation_keyframes_unordered',
     'animation_keyframes_editing_order',
     'timerange_inverted',
@@ -565,6 +567,12 @@ foreach backend : backends
     'paint_sampling',
     'effect_inputs',
     'effect_sampling',
+    'layers_sampling',
+  ]
+
+  tests_layers2d = [
+    'mask',
+    'layer_clip',
   ]
 
   tests_drawrect2d = [
@@ -675,6 +683,7 @@ foreach backend : backends
     'drawrect2d':    {'tests': tests_drawrect2d},
     'effect2d':      {'tests': tests_effect2d},
     'filter':        {'tests': tests_filter},
+    'layers2d':      {'tests': tests_layers2d},
     'live':          {'tests': tests_live},
     'media':         {'tests': tests_media},
     'noise':         {'tests': tests_noise},

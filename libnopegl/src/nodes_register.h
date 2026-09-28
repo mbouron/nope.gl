@@ -107,7 +107,10 @@
     action(NGL_NODE_COLORPAINT,             ngli_colorpaint_class)              \
     action(NGL_NODE_CUSTOMPAINT,            ngli_custompaint_class)             \
     action(NGL_NODE_DRAWRECT2D,             ngli_drawrect2d_class)              \
+    action(NGL_NODE_CLIP2D,                 ngli_clip2d_class)                  \
     action(NGL_NODE_EFFECT2D,               ngli_effect2d_class)                \
+    action(NGL_NODE_LAYER2D,                ngli_layer2d_class)                 \
+    action(NGL_NODE_MASK2D,                 ngli_mask2d_class)                  \
     action(NGL_NODE_EFFECT2DSHADER,         ngli_effect2dshader_class)          \
     action(NGL_NODE_FASTGAUSSIANBLUR,       ngli_fgblur_class)                  \
     action(NGL_NODE_FONTFACE,               ngli_fontface_class)                \

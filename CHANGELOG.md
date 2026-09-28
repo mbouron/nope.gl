@@ -26,6 +26,13 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   insert/move nodes by index
 - `ngl_FragmentInput`, `ngl_content_uv()` and named 2D texture mapping and sampling
   helpers for custom paints and effects
+- `Clip2D` node for transformed, nested rounded-rectangle clipping in a 2D
+  hierarchy
+- `Layer2D` node to composite a 2D subgraph as an isolated layer
+- `Mask2D` node to mask a 2D subgraph with a `Texture2D` or `CustomTexture`,
+  using its alpha, luminance, red, green, or blue channel, over the children
+  bounds or a given `mask_rect`, or with a 2D subgraph drawn in the same space
+  as the children (`mask_children`)
 
 ### Removed
 - CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and

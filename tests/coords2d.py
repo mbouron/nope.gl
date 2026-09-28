@@ -269,3 +269,30 @@ def coords2d_effect_sampling(cfg: ngl.SceneCfg):
             _passthrough_effect([_pattern_rect(3, 0)], _SAMPLE_INPUT_AT_RECT_UV, bounds="canvas"),
         ],
     )
+
+
+@test_render()
+@ngl.scene(width=4 * T, height=T)
+def coords2d_layers_sampling(cfg: ngl.SceneCfg):
+    """Texel-for-pixel input sampling through Layer2D and Mask2D.
+
+    The opaque masks are mask children covering the tile exactly, or a texture over
+    the children bounds or over a mask rect, and must leave the tiles unchanged.
+    """
+    cfg.duration = 1.0
+
+    opaque = ngl.Texture2D(width=1, height=1, data_src=ngl.BufferUBVec4(data=array.array("B", [255] * 4)))
+
+    return ngl.Canvas2D(
+        width=4 * T,
+        height=T,
+        children=[
+            ngl.Layer2D(children=[_pattern_rect(0, 0)]),
+            ngl.Mask2D(
+                children=[_pattern_rect(1, 0)],
+                mask_children=[ngl.DrawRect2D(rect=_tile(1, 0), fill=ngl.ColorPaint(color=(1.0, 1.0, 1.0, 1.0)))],
+            ),
+            ngl.Mask2D(children=[_pattern_rect(2, 0)], mask=opaque),
+            ngl.Mask2D(children=[_pattern_rect(3, 0)], mask=opaque, mask_rect=_tile(3, 0)),
+        ],
+    )

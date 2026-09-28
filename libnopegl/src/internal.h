@@ -279,9 +279,12 @@ enum node_category {
 
 #define NGLI_NODE2D_TYPES_LIST (const uint32_t[]){ \
     NGL_NODE_CANVAS2D,                             \
+    NGL_NODE_CLIP2D,                               \
     NGL_NODE_DRAWRECT2D,                           \
     NGL_NODE_EFFECT2D,                             \
     NGL_NODE_GROUP2D,                              \
+    NGL_NODE_LAYER2D,                              \
+    NGL_NODE_MASK2D,                               \
     NGL_NODE_OFFSCREENCANVAS2D,                    \
     NGL_NODE_TIMERANGEFILTER2D,                    \
     NGL_NODE_USERSELECT2D,                         \
