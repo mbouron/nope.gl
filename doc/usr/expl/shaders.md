@@ -143,6 +143,11 @@ To sample a `Texture2D` from within the shader, multiple options are available:
   various video decoding fall-back mechanisms. On the other hand, it is the
   only way to benefit from video decoding accelerations (external samplers on
   Android, VAAPI on Linux, etc).
+- `ngl_teximage(name, coords)`: same as `ngl_texvideo()`, but `coords` are
+  image coordinates, with `(0, 0)` the top-left corner of the image as it is
+  meant to be seen: the texture coordinates matrix (`%s_coord_matrix`, see
+  below) is applied to map them to the texture memory, whatever its layout
+  (render targets stored upside down, rotated video frames, etc).
 - `texture(name, coords)`: this picking method should be used if and only if
   the `data_src` is *not* a `Media`. While it may work sometimes with a
   `Media`, it definitely won't if the video gets accelerated. The only safe way

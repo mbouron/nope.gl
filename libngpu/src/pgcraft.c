@@ -849,12 +849,96 @@ struct token {
 
 #define ARG_FMT(x) (int)x##_len, x##_start
 
-static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params,
-                        const struct token *token, const char *p, struct bstr *dst)
+/*
+ * Write the sampling of the texture named arg0 at the texture memory
+ * coordinates coords, followed by the rest of the shader (p).
+ */
+static int write_texvideo(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params,
+                          const char *arg0_start, size_t arg0_len,
+                          const char *coords_start, ptrdiff_t coords_len,
+                          const char *p, struct bstr *dst)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     const struct ngpu_ctx_params *gpu_ctx_params = &gpu_ctx->params;
 
+    const int premultiply = texture_needs_premultiply(params, arg0_start, arg0_len);
+
+    const enum ngpu_pgcraft_texture_type texture_type = get_texture_type(params, arg0_start, arg0_len);
+    if (texture_type != NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO) {
+        if (premultiply)
+            ngpu_bstr_print(dst, "ngli_premultiply(");
+
+        ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
+        if (premultiply)
+            ngpu_bstr_print(dst, ")");
+
+        ngpu_bstr_print(dst, p);
+        return 0;
+    }
+
+    if (premultiply)
+        ngpu_bstr_print(dst, "ngli_premultiply(");
+
+    const int clamp = texture_needs_clamping(params, arg0_start, arg0_len);
+    if (clamp)
+        ngpu_bstr_print(dst, "clamp(");
+
+    ngpu_bstr_print(dst, "(");
+    ngpu_bstr_print(dst, "(");
+
+    if (gpu_ctx_params->backend == NGPU_BACKEND_OPENGLES &&
+        NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
+        ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_MEDIACODEC);
+        ngpu_bstr_printf(dst, "texture(%.*s_oes, %.*s) : ", ARG_FMT(arg0), ARG_FMT(coords));
+    }
+
+    if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT)) {
+        ngpu_bstr_printf(dst, " %.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_NV12_RECTANGLE);
+        ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)).r, "
+                                                       "texture(%.*s_rect_1, (%.*s) * textureSize(%.*s_rect_1)).rg, 1.0) : ",
+                         ARG_FMT(arg0),
+                         ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0),
+                         ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
+    }
+
+    if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT)) {
+        ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_RECTANGLE);
+        ngpu_bstr_printf(dst, "texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)) : ",
+                         ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
+    }
+
+        ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_NV12);
+        ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
+                                                       "texture(%.*s_1, %.*s).rg, 1.0) : ",
+                         ARG_FMT(arg0),
+                         ARG_FMT(arg0), ARG_FMT(coords),
+                         ARG_FMT(arg0), ARG_FMT(coords));
+
+        ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_YUV);
+        ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
+                                                       "texture(%.*s_1, %.*s).r, "
+                                                       "texture(%.*s_2, %.*s).r, 1.0) : ",
+                         ARG_FMT(arg0),
+                         ARG_FMT(arg0), ARG_FMT(coords),
+                         ARG_FMT(arg0), ARG_FMT(coords),
+                         ARG_FMT(arg0), ARG_FMT(coords));
+
+    ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
+
+    ngpu_bstr_printf(dst, ") * %.*s_mapping_color_matrix", ARG_FMT(arg0));
+
+    ngpu_bstr_print(dst, ")");
+    if (clamp)
+        ngpu_bstr_print(dst, ", 0.0, 1.0)");
+    if (premultiply)
+        ngpu_bstr_print(dst, ")");
+    ngpu_bstr_print(dst, p);
+    return 0;
+}
+
+static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params,
+                        const struct token *token, const char *p, struct bstr *dst)
+{
     /* Skip "ngl_XXX(" and the whitespaces */
     p += strlen(token->id);
     p += strspn(p, WHITESPACES);
@@ -868,95 +952,48 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
     p = skip_arg(p);
     size_t arg0_len = (size_t)(p - arg0_start);
 
-    if (!strcmp(token->id, "ngl_texvideo")) {
-        if (*p != ',')
-            return NGPU_ERROR_INVALID_ARG;
-        p++;
-        p += strspn(p, WHITESPACES);
+    if (*p != ',')
+        return NGPU_ERROR_INVALID_ARG;
+    p++;
+    p += strspn(p, WHITESPACES);
 
-        const char *coords_start = p;
-        p = skip_arg(p);
-        ptrdiff_t coords_len = p - coords_start;
-        if (*p != ')')
-            return NGPU_ERROR_INVALID_ARG;
-        p++;
+    const char *coords_start = p;
+    p = skip_arg(p);
+    ptrdiff_t coords_len = p - coords_start;
+    if (*p != ')')
+        return NGPU_ERROR_INVALID_ARG;
+    p++;
 
-        const int premultiply = texture_needs_premultiply(params, arg0_start, arg0_len);
+    if (!strcmp(token->id, "ngl_texvideo"))
+        return write_texvideo(s, params, arg0_start, arg0_len, coords_start, coords_len, p, dst);
 
-        const enum ngpu_pgcraft_texture_type texture_type = get_texture_type(params, arg0_start, arg0_len);
-        if (texture_type != NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO) {
-            if (premultiply)
-                ngpu_bstr_print(dst, "ngli_premultiply(");
+    ngpu_assert(!strcmp(token->id, "ngl_teximage"));
 
-            ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
-            if (premultiply)
-                ngpu_bstr_print(dst, ")");
-
-            ngpu_bstr_print(dst, p);
-            return 0;
-        }
-
-        if (premultiply)
-            ngpu_bstr_print(dst, "ngli_premultiply(");
-
-        const int clamp = texture_needs_clamping(params, arg0_start, arg0_len);
-        if (clamp)
-            ngpu_bstr_print(dst, "clamp(");
-
-        ngpu_bstr_print(dst, "(");
-        ngpu_bstr_print(dst, "(");
-
-        if (gpu_ctx_params->backend == NGPU_BACKEND_OPENGLES &&
-            NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
-            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_MEDIACODEC);
-            ngpu_bstr_printf(dst, "texture(%.*s_oes, %.*s) : ", ARG_FMT(arg0), ARG_FMT(coords));
-        }
-
-        if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT)) {
-            ngpu_bstr_printf(dst, " %.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_NV12_RECTANGLE);
-            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)).r, "
-                                                           "texture(%.*s_rect_1, (%.*s) * textureSize(%.*s_rect_1)).rg, 1.0) : ",
-                             ARG_FMT(arg0),
-                             ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0),
-                             ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
-        }
-
-        if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT)) {
-            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_RECTANGLE);
-            ngpu_bstr_printf(dst, "texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)) : ",
-                             ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
-        }
-
-            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_NV12);
-            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
-                                                           "texture(%.*s_1, %.*s).rg, 1.0) : ",
-                             ARG_FMT(arg0),
-                             ARG_FMT(arg0), ARG_FMT(coords),
-                             ARG_FMT(arg0), ARG_FMT(coords));
-
-            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_YUV);
-            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
-                                                           "texture(%.*s_1, %.*s).r, "
-                                                           "texture(%.*s_2, %.*s).r, 1.0) : ",
-                             ARG_FMT(arg0),
-                             ARG_FMT(arg0), ARG_FMT(coords),
-                             ARG_FMT(arg0), ARG_FMT(coords),
-                             ARG_FMT(arg0), ARG_FMT(coords));
-
-        ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
-
-        ngpu_bstr_printf(dst, ") * %.*s_mapping_color_matrix", ARG_FMT(arg0));
-
-        ngpu_bstr_print(dst, ")");
-        if (clamp)
-            ngpu_bstr_print(dst, ", 0.0, 1.0)");
-        if (premultiply)
-            ngpu_bstr_print(dst, ")");
-        ngpu_bstr_print(dst, p);
-    } else {
-        ngpu_assert(0);
+    /*
+     * ngl_teximage() samples at image coordinates: the origin is the top-left
+     * corner of the image as it is meant to be seen, whatever the memory
+     * layout of the texture (flipped render targets, rotated or cropped video
+     * frames...). The texture coordinates matrix maps these to the texture
+     * memory coordinates ngl_texvideo() expects.
+     */
+    const struct ngpu_pgcraft_texture *texture = get_texture(params, arg0_start, arg0_len);
+    if (!texture || texture->no_metadata) {
+        LOG(ERROR, "ngl_teximage(): %.*s has no coordinates matrix", ARG_FMT(arg0));
+        return NGPU_ERROR_INVALID_ARG;
     }
-    return 0;
+
+    struct bstr *coords = ngpu_bstr_create();
+    if (!coords)
+        return NGPU_ERROR_MEMORY;
+    ngpu_bstr_printf(coords, "(%.*s_coord_matrix * vec4(%.*s, 0.0, 1.0)).xy", ARG_FMT(arg0), ARG_FMT(coords));
+    int ret = ngpu_bstr_check(coords);
+    if (ret >= 0) {
+        const char *image_coords = ngpu_bstr_strptr(coords);
+        ret = write_texvideo(s, params, arg0_start, arg0_len,
+                             image_coords, (ptrdiff_t)strlen(image_coords), p, dst);
+    }
+    ngpu_bstr_freep(&coords);
+    return ret;
 }
 
 /*
@@ -990,7 +1027,7 @@ static int samplers_preproc(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_pa
     while ((p = strstr(p, "ngl"))) {
         struct token token = {.pos = (size_t)(p - base_str)};
         p = read_token_id(p, token.id, sizeof(token.id));
-        if (strcmp(token.id, "ngl_texvideo"))
+        if (strcmp(token.id, "ngl_texvideo") && strcmp(token.id, "ngl_teximage"))
             continue;
         ngpu_darray_try_push(&token_stack, token);
     }

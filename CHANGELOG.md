@@ -9,6 +9,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
 ### Added
+- `ngl_teximage()` GLSL helper to sample a texture at image coordinates, the
+  texture coordinates matrix applied
 - `ngl_config_gl.shared_context`, specified through `ngl_config.backend_config`,
   to share OpenGL objects with an application context
 - `ngpu_ctx_params_gl.shared_context` to share OpenGL objects between libngpu
