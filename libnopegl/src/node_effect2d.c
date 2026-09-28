@@ -35,6 +35,7 @@
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
+#include "node_paint.h"
 #include "rtt.h"
 #include "node_block.h"
 #include "node_texture.h"
@@ -62,11 +63,15 @@ struct effect2d_vert_block {
     struct ngli_mat4 projection_matrix;
     struct ngli_mat4 modelview_matrix;
     float rect[4];
+    float effect_rect[4];
 };
 
 struct effect2d_frag_block {
     float opacity;
-    float _pad[3];
+    float _pad0;
+    float input_scale[2];
+    float input_offset[2];
+    float _pad1[2];
 };
 
 struct effect2d_opts {
@@ -122,6 +127,7 @@ struct effect2d_priv {
     struct ngpu_rendertarget_layout layout;
     float local_effect_margin;
     float rect[4];
+    float effect_rect[4];
 
     /* Built-in uniform blocks shared by every shader program */
     struct ngpu_block_desc vert_block_desc;
@@ -347,11 +353,15 @@ static int add_program(struct ngl_node *node, const char *glsl_header, const cha
             return NGL_ERROR_MEMORY;
         }
 
+        /* The input image coordinates at any rect_uv, cropped quad or not */
+        ngli_bstr_print(bstr, "vec2 " PAINT_TEX_COORD_FUNC "(vec2 uv) { return uv * ngli_input_scale + ngli_input_offset; }\n");
         if (!ngli_str_is_empty(glsl_header))
             ngli_bstr_printf(bstr, "%s\n", glsl_header);
-        ngli_bstr_printf(bstr, "vec4 ngl_effect(vec2 uv, vec2 tex_coord) {\n%s\n}\n", glsl_color);
+        ngli_bstr_printf(bstr, "vec4 ngl_effect(" PAINT_GLSL_ARGS ") {\n%s\n}\n", glsl_color);
         ngli_bstr_printf(bstr, "void main() {\n");
-        ngli_bstr_printf(bstr, "    vec4 color = ngl_effect(uv, tex_coord);\n");
+        /* An effect has no content transform: its content uv is its rect uv */
+        ngli_bstr_printf(bstr, "    vec4 color = ngl_effect(ngli_rect_uv, ngli_rect_px, ngli_rect_uv,\n"
+                               "                            ngli_tex_coord, ngli_canvas_px);\n");
         if (premult)
             ngli_bstr_printf(bstr, "    color.rgb *= color.a;\n");
         ngli_bstr_printf(bstr, "    ngl_out_color = color * opacity;\n");
@@ -403,6 +413,7 @@ static int effect2d_init(struct ngl_node *node)
         {.name = "projection_matrix", .type = NGPU_TYPE_MAT4},
         {.name = "modelview_matrix",  .type = NGPU_TYPE_MAT4},
         {.name = "rect",              .type = NGPU_TYPE_VEC4},
+        {.name = "effect_rect",       .type = NGPU_TYPE_VEC4},
     };
     ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
     if (ret < 0)
@@ -414,6 +425,8 @@ static int effect2d_init(struct ngl_node *node)
     ngpu_block_desc_init(gpu_ctx, &s->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     static const struct ngpu_block_field frag_fields[] = {
         {.name = "opacity", .type = NGPU_TYPE_F32},
+        {.name = "ngli_input_scale",  .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_input_offset", .type = NGPU_TYPE_VEC2},
     };
     ret = ngpu_block_desc_add_fields(&s->frag_block_desc, frag_fields, NGLI_ARRAY_NB(frag_fields));
     if (ret < 0)
@@ -507,7 +520,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
 
     /* Merge built-in texture with user textures */
     struct ngpu_pgcraft_texture src_tex = {
-        .name  = "tex",
+        .name  = "ngl_input",
         .type  = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
         .stage = NGPU_PROGRAM_STAGE_FRAG,
     };
@@ -526,8 +539,10 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     }
 
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {.name = "uv",        .type = NGPU_TYPE_VEC2},
-        {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_rect_uv",   .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_rect_px",   .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_tex_coord", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_canvas_px", .type = NGPU_TYPE_VEC2},
     };
 
     const char *frag_base = program->frag_glsl ? program->frag_glsl : effect2d_composite_frag;
@@ -780,6 +795,10 @@ static void effect2d_pre_draw(struct ngl_node *node)
     float qw = bbox_max[0] - bbox_min[0] + 2.f * d;
     float qh = bbox_max[1] - bbox_min[1] + 2.f * d;
 
+    /* The shaders' rect coordinates span the whole effect, cropped or not */
+    const float effect_rect[] = {qx, qy, qw, qh};
+    memcpy(s->effect_rect, effect_rect, sizeof(s->effect_rect));
+
     /*
      * Crop the composite quad to the visible canvas, extended by the effect
      * margin, instead of downscaling the render target when the bounding box
@@ -925,6 +944,7 @@ static void effect2d_draw(struct ngl_node *node)
         vert_data.projection_matrix = ctx->projection_2d_matrix;
         vert_data.modelview_matrix = s->node2d_info.transform_matrix;
         memcpy(vert_data.rect, s->rect, sizeof(vert_data.rect));
+        memcpy(vert_data.effect_rect, s->effect_rect, sizeof(vert_data.effect_rect));
 
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
@@ -938,6 +958,13 @@ static void effect2d_draw(struct ngl_node *node)
 
         struct effect2d_frag_block frag_data = {0};
         frag_data.opacity = local_opacity * group_opacity;
+        /* Map the effect rect uv to the uv of the (cropped) composite quad */
+        const float *er = s->effect_rect;
+        const float *qr = s->rect;
+        frag_data.input_scale[0] = qr[2] > 0.f ? er[2] / qr[2] : 1.f;
+        frag_data.input_scale[1] = qr[3] > 0.f ? er[3] / qr[3] : 1.f;
+        frag_data.input_offset[0] = qr[2] > 0.f ? (er[0] - qr[0]) / qr[2] : 0.f;
+        frag_data.input_offset[1] = qr[3] > 0.f ? (er[1] - qr[1]) / qr[3] : 0.f;
 
         const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);

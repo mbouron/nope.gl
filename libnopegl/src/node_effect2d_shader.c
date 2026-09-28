@@ -105,9 +105,11 @@ static const struct node_param effect2d_shader_params[] = {
         .type      = NGLI_PARAM_TYPE_STR,
         .offset    = OFFSET(glsl_color),
         .flags     = NGLI_PARAM_FLAG_NON_NULL,
-        .desc      = NGLI_DOCSTRING("fragment shader body; receives UV coordinates (`uv` and `tex_coord` as "
-                                    "`vec2`), must return the resulting color as a `vec4`; an empty body "
-                                    "renders the offscreen children unchanged"),
+        .desc      = NGLI_DOCSTRING("fragment shader body; receives `rect_uv`, `rect_px`, `content_uv`, "
+                                    "`tex_coord` and `canvas_px` as `vec2` (see the 2D coordinate conventions), "
+                                    "samples the rendered children with `ngl_teximage(ngl_input, tex_coord)` and "
+                                    "must return the resulting color as a `vec4`; an empty body renders the "
+                                    "offscreen children unchanged"),
     }, {
         .key        = "resources",
         .type       = NGLI_PARAM_TYPE_NODEDICT,

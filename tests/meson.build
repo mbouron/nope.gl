@@ -55,6 +55,8 @@ foreach backend : backends
   ]
 
   tests_api = [
+    'paint_fill_and_stroke_same_node',
+    'paint_fill_and_stroke_resource_clash',
     'animation_evaluate_edits',
     'animation_live_timestamps',
     'backend',
@@ -554,6 +556,24 @@ foreach backend : backends
     'switch',
   ]
 
+  tests_coords2d = [
+    'rect_uv',
+    'rect_px',
+    'canvas_px',
+    'content_uv',
+    'tex_coord_fill',
+    'stroke_content_uv',
+    'texture_passthrough',
+    'offscreen_passthrough',
+    'effect_passthrough',
+    'texture_content_translate',
+    'offscreen_content_translate',
+    'effect_rect_uv',
+    'effect_canvas_px',
+    'tex_coord_func',
+    'effect_cropped_passthrough',
+  ]
+
   tests_drawrect2d = [
     'animated_trs',
     'animated_content',
@@ -655,6 +675,7 @@ foreach backend : backends
     'color':         {'tests': tests_color},
     'compositing':   {'tests': tests_compositing},
     'compute':       {'tests': tests_compute},
+    'coords2d':      {'tests': tests_coords2d},
     'data':          {'tests': tests_data},
     'depth_stencil': {'tests': tests_depth_stencil},
     'drawrect2d':    {'tests': tests_drawrect2d},

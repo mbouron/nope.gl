@@ -556,10 +556,10 @@ def drawrect2d_custom_checkerboard(cfg: ngl.SceneCfg):
     """Checkerboard pattern driven by a tile_count uniform."""
     fill = ngl.CustomPaint(
         glsl_color="""
-            float tx = floor(uv.x * $tile_count);
-            float ty = floor(uv.y * $tile_count);
+            float tx = floor(content_uv.x * tile_count);
+            float ty = floor(content_uv.y * tile_count);
             float checker = mod(tx + ty, 2.0);
-            return mix($color0, $color1, checker);
+            return mix(color0, color1, checker);
         """,
         resources={
             "tile_count": ngl.UniformFloat(value=8.0),
@@ -576,8 +576,8 @@ def drawrect2d_custom_radial_gradient(cfg: ngl.SceneCfg):
     """Radial gradient driven by center, radius, and two color uniforms."""
     fill = ngl.CustomPaint(
         glsl_color="""
-            float d = length(uv - $center) / $radius;
-            return mix($inner_color, $outer_color, clamp(d, 0.0, 1.0));
+            float d = length(content_uv - center) / radius;
+            return mix(inner_color, outer_color, clamp(d, 0.0, 1.0));
         """,
         resources={
             "center": ngl.UniformVec2(value=(0.5, 0.5)),
@@ -595,9 +595,9 @@ def drawrect2d_custom_wave(cfg: ngl.SceneCfg):
     """Horizontal wave stripe pattern driven by frequency, amplitude, and colors."""
     fill = ngl.CustomPaint(
         glsl_color="""
-            float wave = sin(uv.x * $frequency) * $amplitude;
-            float t = clamp((uv.y - 0.5 + wave) * $sharpness + 0.5, 0.0, 1.0);
-            return mix($color0, $color1, t);
+            float wave = sin(content_uv.x * frequency) * amplitude;
+            float t = clamp((content_uv.y - 0.5 + wave) * sharpness + 0.5, 0.0, 1.0);
+            return mix(color0, color1, t);
         """,
         resources={
             "frequency": ngl.UniformFloat(value=20.0),
@@ -616,9 +616,9 @@ def drawrect2d_custom_vignette(cfg: ngl.SceneCfg):
     """Vignette: uniform base color darkened towards edges by a strength uniform."""
     fill = ngl.CustomPaint(
         glsl_color="""
-            vec2 d = uv - vec2(0.5);
-            float v = 1.0 - clamp(dot(d, d) * $strength, 0.0, 1.0);
-            return vec4($base_color.rgb * v, $base_color.a);
+            vec2 d = content_uv - vec2(0.5);
+            float v = 1.0 - clamp(dot(d, d) * strength, 0.0, 1.0);
+            return vec4(base_color.rgb * v, base_color.a);
         """,
         resources={
             "base_color": ngl.UniformVec4(value=(0.6, 0.8, 1.0, 1.0)),
@@ -633,7 +633,7 @@ def drawrect2d_custom_vignette(cfg: ngl.SceneCfg):
 def drawrect2d_custom_texture(cfg: ngl.SceneCfg):
     """CustomPaint sampling a texture resource."""
     fill = ngl.CustomPaint(
-        glsl_color="return ngl_texvideo($tex, tex_coord);",
+        glsl_color="return ngl_teximage(tex, tex_coord);",
         resources={
             "tex": ngl.Texture2D(data_src=ngl.Media(filename=_CITY), min_filter="linear", mag_filter="linear"),
         },
@@ -655,8 +655,8 @@ def drawrect2d_custom_block(cfg: ngl.SceneCfg):
     )
     fill = ngl.CustomPaint(
         glsl_color="""
-            float t = smoothstep(0.0, 1.0, uv.x);
-            return mix($palette.color_a, $palette.color_b, t);
+            float t = smoothstep(0.0, 1.0, content_uv.x);
+            return mix(palette.color_a, palette.color_b, t);
         """,
         resources={"palette": block},
     )
@@ -666,22 +666,22 @@ def drawrect2d_custom_block(cfg: ngl.SceneCfg):
 @test_render()
 @ngl.scene(width=W, height=H)
 def drawrect2d_custom_fill_and_stroke(cfg: ngl.SceneCfg):
-    """Two distinct CustomPaint nodes declaring the same resource and helper names."""
-    header = "vec4 $shade(vec4 c) { return vec4(c.rgb * $main_color, c.a); }"
+    """Two distinct CustomPaint nodes sharing a helper header, each binding its own resources."""
+    header = "vec4 shade(vec4 c, float k) { return vec4(c.rgb * k, c.a); }"
     fill = ngl.CustomPaint(
         glsl_header=header,
-        glsl_color="return $shade($color);",
+        glsl_color="return shade(fill_color, fill_shade);",
         resources={
-            "color": ngl.UniformVec4(value=(0.9, 0.2, 0.1, 1.0)),
-            "main_color": ngl.UniformFloat(value=1.0),
+            "fill_color": ngl.UniformVec4(value=(0.9, 0.2, 0.1, 1.0)),
+            "fill_shade": ngl.UniformFloat(value=1.0),
         },
     )
     stroke_paint = ngl.CustomPaint(
         glsl_header=header,
-        glsl_color="return $shade($color);",
+        glsl_color="return shade(stroke_color, stroke_shade);",
         resources={
-            "color": ngl.UniformVec4(value=(0.1, 0.3, 0.9, 1.0)),
-            "main_color": ngl.UniformFloat(value=0.5),
+            "stroke_color": ngl.UniformVec4(value=(0.1, 0.3, 0.9, 1.0)),
+            "stroke_shade": ngl.UniformFloat(value=0.5),
         },
     )
     rect = ngl.DrawRect2D(
@@ -698,8 +698,8 @@ def drawrect2d_custom_mrt(cfg: ngl.SceneCfg):
     """CustomPaint with multiple render targets writing to 2 color attachments."""
     fill = ngl.CustomPaint(
         glsl_color="""
-            ngl_out_color[0] = vec4(uv.x, 0.0, 0.0, 1.0);
-            ngl_out_color[1] = vec4(0.0, 0.0, uv.y, 1.0);
+            ngl_out_color[0] = vec4(content_uv.x, 0.0, 0.0, 1.0);
+            ngl_out_color[1] = vec4(0.0, 0.0, content_uv.y, 1.0);
         """,
         color_output_count=2,
     )

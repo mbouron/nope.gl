@@ -147,7 +147,8 @@ To sample a `Texture2D` from within the shader, multiple options are available:
   image coordinates, with `(0, 0)` the top-left corner of the image as it is
   meant to be seen: the texture coordinates matrix (`%s_coord_matrix`, see
   below) is applied to map them to the texture memory, whatever its layout
-  (render targets stored upside down, rotated video frames, etc).
+  (render targets stored upside down, rotated video frames, etc). It is how the
+  [2D nodes](coords2d.md) sample textures.
 - `texture(name, coords)`: this picking method should be used if and only if
   the `data_src` is *not* a `Media`. While it may work sometimes with a
   `Media`, it definitely won't if the video gets accelerated. The only safe way

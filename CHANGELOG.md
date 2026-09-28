@@ -11,6 +11,11 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 ### Added
 - `ngl_teximage()` GLSL helper to sample a texture at image coordinates, the
   texture coordinates matrix applied
+- `rect_uv`, `rect_px`, `content_uv`, `tex_coord` and `canvas_px` inputs to the
+  `CustomPaint` and `Effect2DShader` GLSL, the same in every paint role and in
+  the effects, see the new 2D coordinates documentation
+- `ngl_tex_coord()` GLSL function giving the `tex_coord` of any `rect_uv` in
+  the `CustomPaint` and `Effect2DShader` GLSL
 - `ngl_config_gl.shared_context`, specified through `ngl_config.backend_config`,
   to share OpenGL objects with an application context
 - `ngpu_ctx_params_gl.shared_context` to share OpenGL objects between libngpu
@@ -44,12 +49,24 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_configure()` now fails with `NGL_ERROR_BUSY` if a frame obtained from
   `ngl_draw` is still held by the user
 - `OffscreenCanvas2D.width` and `OffscreenCanvas2D.height` are now live-changeable
+- `CustomPaint` resources are referenced by their key instead of `$key`, and its
+  GLSL is no longer rewritten; the fill and stroke paints of a `DrawRect2D`
+  must be different nodes binding different resource keys
+- The paint and effect GLSL inputs `uv` and `tex_coord` are replaced by the new
+  inputs; `tex_coord` is now in image coordinates, sampled with
+  `ngl_teximage()`
+- The input of an `Effect2DShader` is named `ngl_input` instead of `tex`
 - Android bindings: parameters accepting a value or a node now take the plain
   value (`rect = NGLVec4(...)`) or the node through a separate `<name>Node`
   constructor parameter (`rectNode = ...`), and their setters are overloaded
   for both; `NGLNodeOrValue` is removed
 
 ### Fixed
+- `DrawRect2D.content_translate` and `content_orientation` moving the content
+  the wrong way for textures stored upside down in memory, such as render
+  targets with OpenGL
+- `Effect2DShader` UV coordinates rescaled when the effect is partially
+  outside the canvas
 - Non-shareable nodes incorrectly allowed to be shared within a graph after the
   introduction of 2D nodes
 - Garbled HUD text when the scene is letter boxed, caused by the overlay being

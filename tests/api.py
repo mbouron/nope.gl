@@ -343,7 +343,7 @@ def api_range_edits_during_callbacks():
     events = []
     trf = ngl.TimeRangeFilter(ngl.DrawColor(), start=0, end=1)
     trf2d = ngl.TimeRangeFilter2D(ngl.Group2D(), start=0, end=1)
-    shader = ngl.Effect2DShader(glsl_color="return ngl_texvideo(tex, tex_coord);", start=0, end=1)
+    shader = ngl.Effect2DShader(glsl_color="return ngl_teximage(ngl_input, tex_coord);", start=0, end=1)
     ranges = [trf, trf2d, shader]
 
     class EditingTexture(ngl.CustomTexture):
@@ -1055,6 +1055,31 @@ def api_shader_init_fail(width=320, height=240):
     assert ctx.set_scene(scene) != 0
     assert ctx.set_scene(scene) != 0  # another try to make sure the state stays consistent
     assert ctx.draw(0) == 0
+
+
+def _set_paints(fill, stroke_paint, width=256, height=256):
+    ctx = ngl.Context()
+    ret = ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend))
+    assert ret == 0
+    rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=fill, stroke=ngl.Stroke2D(paint=stroke_paint, width=8.0))
+    scene = ngl.Scene.from_params(ngl.Canvas2D(width=width, height=height, children=[rect]))
+    return ctx.set_scene(scene)
+
+
+def api_paint_fill_and_stroke_same_node():
+    """A paint cannot be both the fill and the stroke of a draw."""
+    paint = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
+    assert _set_paints(paint, paint) != 0
+
+
+def api_paint_fill_and_stroke_resource_clash():
+    """The fill and stroke CustomPaint of a draw cannot bind the same resource name."""
+    fill = ngl.CustomPaint(glsl_color="return color;", resources={"color": ngl.UniformVec4()})
+    stroke_paint = ngl.CustomPaint(glsl_color="return color;", resources={"color": ngl.UniformVec4()})
+    assert _set_paints(fill, stroke_paint) != 0
+
+    stroke_paint = ngl.CustomPaint(glsl_color="return stroke_color;", resources={"stroke_color": ngl.UniformVec4()})
+    assert _set_paints(fill, stroke_paint) == 0
 
 
 def _create_trf(scene, start, end, prefetch_time=None):

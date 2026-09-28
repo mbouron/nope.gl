@@ -123,22 +123,13 @@ void main()
     float outer_alpha  = 1.0 - smoothstep(-aa, aa, d_outer);
     float ol_mask      = clamp(outer_alpha - inner_alpha, 0.0, 1.0);
 
-    vec4 stroke_col = ngli_stroke(ngli_uv, ngli_stroke_tex_coord);
-    float ol_alpha  = ol_mask * stroke_col.a * ngli_stroke_opacity;
-
     /*
-     * Content transform: orientation, zoom and translate applied to the fill
-     * content (gradient, texture…) independently of the shape.
-     *
-     * ngli_content_orientation is vec2(cos(angle), sin(angle)) for discrete
-     * 90° rotations applied around UV center (0.5, 0.5).
-     * ngli_content_zoom > 1 zooms in; ngli_content_translate pans in UV space.
+     * Paint coordinates, see the 2D coordinate conventions: the stroke content
+     * is not transformed by the content zoom, translate and orientation.
      */
-    float co = ngli_content_orientation.x;
-    float so = ngli_content_orientation.y;
-    mat2 rot = mat2(co, so, -so, co);
-    vec2 content_uv        = rot * ((ngli_uv        - 0.5) / ngli_content_zoom + ngli_content_translate) + 0.5;
-    vec2 content_tex_coord = rot * ((ngli_tex_coord - 0.5) / ngli_content_zoom + ngli_content_translate) + 0.5;
+    vec2 rect_px = ngli_uv * ngli_rect_size;
+    vec4 stroke_col = ngli_stroke(ngli_uv, rect_px, ngli_uv, ngli_stroke_coord(ngli_uv), ngli_clip_pos);
+    float ol_alpha  = ol_mask * stroke_col.a * ngli_stroke_opacity;
 
     /*
      * Only sample the fill for fragments inside the original rect (ngli_uv in
@@ -147,7 +138,10 @@ void main()
      */
     vec4 tex_color = vec4(0.0);
     if (all(greaterThanEqual(ngli_uv, vec2(0.0))) && all(lessThanEqual(ngli_uv, vec2(1.0)))) {
-        tex_color = ngli_color(content_uv, content_tex_coord);
+        tex_color = ngli_color(ngli_uv, rect_px,
+                               ngli_content_coord(ngli_uv, vec2(1.0)),
+                               ngli_content_coord(ngli_uv, ngli_fill_uv_scale),
+                               ngli_clip_pos);
     }
 
     /*

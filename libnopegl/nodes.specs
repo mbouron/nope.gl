@@ -3053,20 +3053,20 @@
           "name": "glsl_header",
           "type": "str",
           "flags": [],
-          "desc": "GLSL code prepended before the color function (helper functions, etc.); symbols declared here must be written $name so that they are namespaced per shader role"
+          "desc": "GLSL code prepended before the color function (helper functions, etc.); it shares the fragment shader with the other paint of the draw, so the fill and stroke paints of a draw must not declare the same symbols, unless they use the same header"
         },
         {
           "name": "glsl_color",
           "type": "str",
           "flags": [],
-          "desc": "GLSL body of the color function"
+          "desc": "GLSL body of the color function; receives `rect_uv`, `rect_px`, `content_uv`, `tex_coord` and `canvas_px` (see the 2D coordinate conventions) and returns the color as a `vec4`"
         },
         {
           "name": "resources",
           "type": "node_dict",
           "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "CustomTexture", "Block"],
           "flags": [],
-          "desc": "uniform, texture and block nodes available to glsl_color; each node is referenced in the GLSL as $name, where name is the key it is bound to"
+          "desc": "uniform, texture and block nodes available to glsl_color; each node is referenced in the GLSL by the key it is bound to, so the fill and stroke paints of a draw cannot bind the same key"
         },
         {
           "name": "color_output_count",
@@ -3092,7 +3092,7 @@
           "type": "node",
           "node_types": ["ColorPaint", "TexturePaint", "GradientPaint", "Gradient4Paint", "NoisePaint", "CustomPaint"],
           "flags": ["nonull"],
-          "desc": "fill paint applied inside the rect"
+          "desc": "fill paint applied inside the rect; it cannot also be the stroke paint"
         },
         {
           "name": "stroke",
@@ -3306,7 +3306,7 @@
           "name": "glsl_color",
           "type": "str",
           "flags": ["nonull"],
-          "desc": "fragment shader body; receives UV coordinates (`uv` and `tex_coord` as `vec2`), must return the resulting color as a `vec4`; an empty body renders the offscreen children unchanged"
+          "desc": "fragment shader body; receives `rect_uv`, `rect_px`, `content_uv`, `tex_coord` and `canvas_px` as `vec2` (see the 2D coordinate conventions), samples the rendered children with `ngl_teximage(ngl_input, tex_coord)` and must return the resulting color as a `vec4`; an empty body renders the offscreen children unchanged"
         },
         {
           "name": "resources",

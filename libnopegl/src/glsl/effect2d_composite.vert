@@ -34,7 +34,15 @@ void main()
      * the RTT texel-exactly without any offset.
      */
     vec2 position = rect.xy + quad_coord * rect.zw;
-    ngl_out_pos = projection_matrix * modelview_matrix * vec4(position, 0.0, 1.0);
-    uv = quad_coord;
-    tex_coord = (tex_coord_matrix * vec4(quad_coord, 0.0, 1.0)).xy;
+    vec4 canvas_pos = modelview_matrix * vec4(position, 0.0, 1.0);
+    ngl_out_pos = projection_matrix * canvas_pos;
+
+    /*
+     * The quad may be cropped to the visible canvas: the rect coordinates
+     * span the whole effect, while the input covers the quad only.
+     */
+    ngli_rect_px = position - effect_rect.xy;
+    ngli_rect_uv = ngli_rect_px / effect_rect.zw;
+    ngli_tex_coord = quad_coord;
+    ngli_canvas_px = canvas_pos.xy;
 }

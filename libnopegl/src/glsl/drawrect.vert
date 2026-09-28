@@ -37,10 +37,9 @@ void main()
      *   (0,0) → (-1,-1),  (1,0) → (1,-1),  (0,1) → (-1,1),  (1,1) → (1,1)
      *
      * ngli_uv is shifted by ngli_margin_uv = ngli_margin_px / ngli_rect_size so that
-     * the fragment shader keeps evaluating the SDF in canvas-pixel space.
-     *
-     * The texture coordinates derive from the same dilated uv: deriving them from
-     * the undilated uvcoord would stretch the paint across the dilated quad.
+     * the fragment shader keeps evaluating the SDF in canvas-pixel space, and
+     * every paint coordinate derived from it stays affine with the canvas
+     * position across the dilated quad.
      */
     vec2 uvcoord = uvcoords[ngl_vertex_index];
     vec2 position = ngli_rect.xy + uvcoord * ngli_rect.zw;
@@ -49,17 +48,4 @@ void main()
     ngl_out_pos = projection_matrix * canvas_pos;
     ngli_clip_pos = canvas_pos.xy;
     ngli_uv = uvcoord + dir * ngli_margin_uv;
-    vec2 fill_uvcoord = (ngli_uv - 0.5) * ngli_uv_scale + 0.5;
-#ifdef NGLI_DRAWRECT_FILL_TEXTURE
-    ngli_tex_coord = (ngli_fill_tex_coord_matrix * vec4(fill_uvcoord, 0.0, 1.0)).xy;
-#else
-    ngli_tex_coord = fill_uvcoord;
-#endif
-
-    vec2 stroke_uvcoord = (ngli_uv - 0.5) * ngli_stroke_uv_scale + 0.5;
-#ifdef NGLI_DRAWRECT_STROKE_TEXTURE
-    ngli_stroke_tex_coord = (ngli_stroke_tex_coord_matrix * vec4(stroke_uvcoord, 0.0, 1.0)).xy;
-#else
-    ngli_stroke_tex_coord = stroke_uvcoord;
-#endif
 }
