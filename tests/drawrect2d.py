@@ -1002,7 +1002,8 @@ def drawrect2d_content_orientation_fill(cfg: ngl.SceneCfg):
     return _canvas(cfg, ngl.Group2D(children=[rect_exif, rect]), duration=4.0)
 
 
-@test_render(keyframes=4, tolerance=3, diff_threshold=0.003)
+# The 1.5 scale keyframe puts edges on pixel centers, where backends rasterize ties differently
+@test_render(keyframes=4, tolerance=3, diff_threshold=0.004)
 @ngl.scene(width=W, height=H)
 def drawrect2d_content_orientation_fit(cfg: ngl.SceneCfg):
     """Image with content_orientation=90 with animated scale and content_translate in fit scaling mode."""

@@ -775,10 +775,44 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const float d = NGLI_MAX(o->dilation, 0.f);
 
     s->local_effect_margin = children_effect_margin + d;
-    const float qx = bbox_min[0] - d;
-    const float qy = bbox_min[1] - d;
-    const float qw = bbox_max[0] - bbox_min[0] + 2.f * d;
-    const float qh = bbox_max[1] - bbox_min[1] + 2.f * d;
+    float qx = bbox_min[0] - d;
+    float qy = bbox_min[1] - d;
+    float qw = bbox_max[0] - bbox_min[0] + 2.f * d;
+    float qh = bbox_max[1] - bbox_min[1] + 2.f * d;
+
+    /*
+     * Crop the composite quad to the visible canvas, extended by the effect
+     * margin, instead of downscaling the render target when the bounding box
+     * exceeds the canvas: like a layer clipped to the device clip, the effect
+     * keeps a 1:1 texel mapping (children bounds commonly overflow the canvas
+     * by their anti-aliasing margin).
+     */
+    if (ctx->canvas_2d_width > 0.f && ctx->canvas_2d_height > 0.f) {
+        const float m = s->local_effect_margin;
+        const struct aabb canvas_aabb = {
+            .center = {ctx->canvas_2d_width / 2.f, ctx->canvas_2d_height / 2.f, 0.f, 1.f},
+            .extent = {ctx->canvas_2d_width / 2.f, ctx->canvas_2d_height / 2.f},
+        };
+        struct ngli_mat4 canvas_to_local;
+        ngli_mat4_inverse(canvas_to_local.m, prev_transform_2d.m);
+        const struct aabb visible = ngli_aabb_apply_transform(&canvas_aabb, canvas_to_local.m);
+        NGLI_ALIGNED_VEC(visible_min);
+        NGLI_ALIGNED_VEC(visible_max);
+        ngli_aabb_get_min_max(&visible, visible_min, visible_max);
+        if (isfinite(visible_min[0]) && isfinite(visible_min[1]) &&
+            isfinite(visible_max[0]) && isfinite(visible_max[1])) {
+            const float x0 = NGLI_MAX(qx, visible_min[0] - m);
+            const float y0 = NGLI_MAX(qy, visible_min[1] - m);
+            const float x1 = NGLI_MIN(qx + qw, visible_max[0] + m);
+            const float y1 = NGLI_MIN(qy + qh, visible_max[1] + m);
+            if (x1 <= x0 || y1 <= y0)
+                return;
+            qx = x0;
+            qy = y0;
+            qw = x1 - x0;
+            qh = y1 - y0;
+        }
+    }
 
     const float rect[] = {qx, qy, qw, qh};
     memcpy(s->rect, rect, sizeof(s->rect));
@@ -796,19 +830,9 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const float scale_x = canvas_w > 0.f ? rt_w / canvas_w : 1.f;
     const float scale_y = canvas_h > 0.f ? rt_h / canvas_h : 1.f;
 
-    /*
-     * Cap the RTT size to the visible canvas region extended by the dilation
-     * margin plus the children effect margin. The ortho projection and quad
-     * geometry still use the full bbox so children keep their correct
-     * positions; only the texture resolution shrinks when the bbox exceeds the
-     * canvas.
-     */
-    float rtt_qw = qw;
-    float rtt_qh = qh;
-    if (canvas_w > 0.f && canvas_h > 0.f) {
-        rtt_qw = NGLI_MIN(qw, canvas_w + 2.f * s->local_effect_margin);
-        rtt_qh = NGLI_MIN(qh, canvas_h + 2.f * s->local_effect_margin);
-    }
+    /* The quad is already cropped to the visible canvas region (see above) */
+    const float rtt_qw = qw;
+    const float rtt_qh = qh;
 
     /* Compute and clamp final dimension to the device's max 2D texture dimension. */
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
@@ -834,7 +858,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     struct ngli_mat4 fbo_base_projection;
     ngpu_ctx_get_projection_matrix(gpu_ctx, fbo_base_projection.m);
-    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, qx - 0.5f, qx + qw - 0.5f, qy + qh - 0.5f, qy - 0.5f, -1.f, 1.f);
+    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, qx, qx + qw, qy + qh, qy, -1.f, 1.f);
     ngli_mat4_mul(ctx->projection_2d_matrix.m, fbo_base_projection.m, ctx->projection_2d_matrix.m);
 
     for (size_t i = 0; i < o->children.count; i++) {
