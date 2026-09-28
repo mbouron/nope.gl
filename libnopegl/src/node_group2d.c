@@ -244,3 +244,24 @@ const struct node_class ngli_group2d_class = {
     .node2d_offset = offsetof(struct group2d_opts, node2d),
     .file      = __FILE__,
 };
+
+/*
+ * Clip2D clips its children to a transformed, rounded rectangle, which cascades
+ * to nested clips: the rectangle clipping of a Group2D, as a container of its
+ * own.
+ */
+const struct node_class ngli_clip2d_class = {
+    .id        = NGL_NODE_CLIP2D,
+    .name      = "Clip2D",
+    .priv_size = sizeof(struct group2d_priv),
+    .init      = group2d_init,
+    .update    = ngli_node_update_children,
+    .pre_draw  = group2d_pre_draw,
+    .draw      = group2d_draw,
+    .uninit    = group2d_uninit,
+    .opts_size = sizeof(struct group2d_opts),
+    .params    = group2d_params,
+    .flags     = NGLI_NODE_FLAG_2D,
+    .node2d_offset = offsetof(struct group2d_opts, node2d),
+    .file      = __FILE__,
+};

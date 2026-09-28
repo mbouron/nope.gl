@@ -38,9 +38,11 @@
 #include "node_paint.h"
 #include "rtt.h"
 #include "node_block.h"
+#include "node_mask.h"
 #include "node_texture.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
+#include "utils/hmap.h"
 #include "utils/memory.h"
 #include "utils/string.h"
 #include "utils/utils.h"
@@ -80,6 +82,8 @@ struct effect2d_opts {
     struct ngl_node *rect_node;
     float rect[4];
     float dilation;
+    struct ngl_node *mask_node;     /* Mask2D */
+    int mask_channel;               /* Mask2D */
     struct ngli_node2d_opts node2d;
     struct ngl_node *enabled_node;
     int enabled;
@@ -121,6 +125,8 @@ struct effect2d_program {
 
 struct effect2d_priv {
     struct ngli_node2d_info node2d_info;
+
+    struct hmap *mask_resources;    /* Mask2D: the mask, bound as ngl_mask */
 
     struct rtt_ctx *rtt;
     struct image_resource *input_image;
@@ -231,6 +237,156 @@ static const struct node_param effect2d_params[] = {
                                      "passthrough if none is active"),
     },
     {NULL}
+};
+
+/*
+ * Layer2D and Mask2D are Effect2D without shaders: their children are rendered
+ * into the effect input, which is then composited as is (Layer2D) or through
+ * a mask (Mask2D).
+ */
+static const struct node_param layer2d_params[] = {
+    {
+        .key        = "children",
+        .type       = NGLI_PARAM_TYPE_NODELIST,
+        .offset     = OFFSET(children),
+        .flags      = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .node_types = NGLI_NODE2D_TYPES_LIST,
+        .desc       = NGLI_DOCSTRING("2D scenes to render as one isolated layer"),
+    },
+    {
+        .key       = "translate",
+        .type      = NGLI_PARAM_TYPE_VEC2,
+        .offset    = OFFSET(node2d.translate_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("translation in pixels"),
+    }, {
+        .key       = "rotation",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(node2d.rotation_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("rotation angle in degrees"),
+    }, {
+        .key       = "scale",
+        .type      = NGLI_PARAM_TYPE_VEC2,
+        .offset    = OFFSET(node2d.scale_node),
+        .def_value = {.vec={1.f, 1.f}},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("scale factors"),
+    }, {
+        .key       = "anchor",
+        .type      = NGLI_PARAM_TYPE_VEC2,
+        .offset    = OFFSET(node2d.anchor_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("anchor/pivot point in pixels"),
+    }, {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(node2d.opacity_node),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("opacity of the composited layer"),
+    }, {
+        .key       = "visible",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(node2d.visible),
+        .def_value = {.i32=1},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("whether the layer and its children are visible"),
+    }, {
+        .key       = "blend_mode",
+        .type      = NGLI_PARAM_TYPE_SELECT,
+        .offset    = OFFSET(node2d.blend_mode),
+        .def_value = {.i32=NGLI_BLEND_MODE_SRC_OVER},
+        .choices   = &ngli_blend_mode_choices,
+        .desc      = NGLI_DOCSTRING("define how the composited layer is blended with the current framebuffer"),
+    },
+    {NULL}
+};
+
+static const struct node_param mask2d_params[] = {
+    {
+        .key        = "children",
+        .type       = NGLI_PARAM_TYPE_NODELIST,
+        .offset     = OFFSET(children),
+        .flags      = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .node_types = NGLI_NODE2D_TYPES_LIST,
+        .desc       = NGLI_DOCSTRING("2D scenes to render before applying the mask"),
+    }, {
+        .key        = "mask",
+        .type       = NGLI_PARAM_TYPE_NODE,
+        .offset     = OFFSET(mask_node),
+        .flags      = NGLI_PARAM_FLAG_NON_NULL,
+        .node_types = (const uint32_t[]){NGL_NODE_TEXTURE2D, NGL_NODE_CUSTOMTEXTURE, NGLI_NODE_NONE},
+        .desc       = NGLI_DOCSTRING("Texture2D or CustomTexture sampled as the mask; the image covers the "
+                                     "composited children bounds, their anti-aliased edges included"),
+    }, {
+        .key       = "channel",
+        .type      = NGLI_PARAM_TYPE_SELECT,
+        .offset    = OFFSET(mask_channel),
+        .choices   = &ngli_masktexture_channel_choices,
+        .desc      = NGLI_DOCSTRING("channel of mask used as coverage"),
+    },
+    {
+        .key       = "translate",
+        .type      = NGLI_PARAM_TYPE_VEC2,
+        .offset    = OFFSET(node2d.translate_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("translation in pixels"),
+    }, {
+        .key       = "rotation",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(node2d.rotation_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("rotation angle in degrees"),
+    }, {
+        .key       = "scale",
+        .type      = NGLI_PARAM_TYPE_VEC2,
+        .offset    = OFFSET(node2d.scale_node),
+        .def_value = {.vec={1.f, 1.f}},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("scale factors"),
+    }, {
+        .key       = "anchor",
+        .type      = NGLI_PARAM_TYPE_VEC2,
+        .offset    = OFFSET(node2d.anchor_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("anchor/pivot point in pixels"),
+    }, {
+        .key       = "opacity",
+        .type      = NGLI_PARAM_TYPE_F32,
+        .offset    = OFFSET(node2d.opacity_node),
+        .def_value = {.f32=1.f},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("opacity of the masked result"),
+    }, {
+        .key       = "visible",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(node2d.visible),
+        .def_value = {.i32=1},
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .desc      = NGLI_DOCSTRING("whether the masked result and its children are visible"),
+    }, {
+        .key       = "blend_mode",
+        .type      = NGLI_PARAM_TYPE_SELECT,
+        .offset    = OFFSET(node2d.blend_mode),
+        .def_value = {.i32=NGLI_BLEND_MODE_SRC_OVER},
+        .choices   = &ngli_blend_mode_choices,
+        .desc      = NGLI_DOCSTRING("define how the masked result is blended with the current framebuffer"),
+    },
+    {NULL}
+};
+
+/*
+ * Mask2D composites its input weighted by the mask channel, the mask image
+ * spanning the whole effect rect (rect_uv) whether or not the composite quad
+ * is cropped to the canvas.
+ */
+static const char * const mask2d_coverage_glsl[] = {
+    [MASK_CHANNEL_ALPHA]     = "ngl_teximage(ngl_mask, rect_uv).a",
+    [MASK_CHANNEL_LUMINANCE] = "dot(ngl_teximage(ngl_mask, rect_uv).rgb, vec3(0.299, 0.587, 0.114))",
+    [MASK_CHANNEL_RED]       = "ngl_teximage(ngl_mask, rect_uv).r",
+    [MASK_CHANNEL_GREEN]     = "ngl_teximage(ngl_mask, rect_uv).g",
+    [MASK_CHANNEL_BLUE]      = "ngl_teximage(ngl_mask, rect_uv).b",
 };
 
 static int node_is_texture(const struct ngl_node *node)
@@ -434,8 +590,24 @@ static int effect2d_init(struct ngl_node *node)
     s->frag_block_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
     ngli_assert(s->frag_block_size == sizeof(struct effect2d_frag_block));
 
-    /* Program 0 is always the passthrough used for gaps and the master bypass. */
-    ret = add_program(node, NULL, NULL, NULL, false);
+    /*
+     * Program 0 is always the passthrough used for gaps and the master bypass;
+     * for a Mask2D, it is the masking composite.
+     */
+    if (node->cls->id == NGL_NODE_MASK2D) {
+        s->mask_resources = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+        if (!s->mask_resources)
+            return NGL_ERROR_MEMORY;
+        ret = ngli_hmap_try_set_str(s->mask_resources, "ngl_mask", o->mask_node);
+        if (ret < 0)
+            return ret;
+        char glsl_color[256];
+        snprintf(glsl_color, sizeof(glsl_color),
+                 "return ngl_teximage(ngl_input, tex_coord) * %s;", mask2d_coverage_glsl[o->mask_channel]);
+        ret = add_program(node, NULL, glsl_color, s->mask_resources, false);
+    } else {
+        ret = add_program(node, NULL, NULL, NULL, false);
+    }
     if (ret < 0)
         return ret;
 
@@ -1028,6 +1200,7 @@ static void effect2d_uninit(struct ngl_node *node)
 
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
+    ngli_hmap_freep(&s->mask_resources);
 }
 
 const struct node_class ngli_effect2d_class = {
@@ -1046,6 +1219,46 @@ const struct node_class ngli_effect2d_class = {
     .opts_size = sizeof(struct effect2d_opts),
     .node2d_offset = offsetof(struct effect2d_opts, node2d),
     .params    = effect2d_params,
+    .flags     = NGLI_NODE_FLAG_2D,
+    .file      = __FILE__,
+};
+
+const struct node_class ngli_layer2d_class = {
+    .id        = NGL_NODE_LAYER2D,
+    .name      = "Layer2D",
+    .priv_size = sizeof(struct effect2d_priv),
+    .init      = effect2d_init,
+    .get_rendertarget_layout = effect2d_get_rendertarget_layout,
+    .prepare   = effect2d_prepare,
+    .unprepare = effect2d_unprepare,
+    .update    = effect2d_update,
+    .pre_draw  = effect2d_pre_draw,
+    .draw      = effect2d_draw,
+    .release   = effect2d_release,
+    .uninit    = effect2d_uninit,
+    .opts_size = sizeof(struct effect2d_opts),
+    .node2d_offset = offsetof(struct effect2d_opts, node2d),
+    .params    = layer2d_params,
+    .flags     = NGLI_NODE_FLAG_2D,
+    .file      = __FILE__,
+};
+
+const struct node_class ngli_mask2d_class = {
+    .id        = NGL_NODE_MASK2D,
+    .name      = "Mask2D",
+    .priv_size = sizeof(struct effect2d_priv),
+    .init      = effect2d_init,
+    .get_rendertarget_layout = effect2d_get_rendertarget_layout,
+    .prepare   = effect2d_prepare,
+    .unprepare = effect2d_unprepare,
+    .update    = effect2d_update,
+    .pre_draw  = effect2d_pre_draw,
+    .draw      = effect2d_draw,
+    .release   = effect2d_release,
+    .uninit    = effect2d_uninit,
+    .opts_size = sizeof(struct effect2d_opts),
+    .node2d_offset = offsetof(struct effect2d_opts, node2d),
+    .params    = mask2d_params,
     .flags     = NGLI_NODE_FLAG_2D,
     .file      = __FILE__,
 };

@@ -55,6 +55,7 @@ foreach backend : backends
   ]
 
   tests_api = [
+    '2d_clip_layer_mask',
     'animation_unordered_keyframes',
     'animation_keyframes_edit_order',
     'time_range_inverted',
@@ -578,6 +579,15 @@ foreach backend : backends
     'effect_cropped_passthrough',
   ]
 
+  tests_layers2d = [
+    'layer_passthrough',
+    'layer_opacity',
+    'mask_alpha',
+    'mask_luminance',
+    'mask_cropped',
+    'clip_rect',
+  ]
+
   tests_drawrect2d = [
     'animated_trs',
     'animated_content',
@@ -685,6 +695,7 @@ foreach backend : backends
     'drawrect2d':    {'tests': tests_drawrect2d},
     'effect2d':      {'tests': tests_effect2d},
     'filter':        {'tests': tests_filter},
+    'layers2d':      {'tests': tests_layers2d},
     'live':          {'tests': tests_live},
     'media':         {'tests': tests_media},
     'noise':         {'tests': tests_noise},

@@ -47,6 +47,11 @@ Name         | `DrawRect2D` fill                                   | `DrawRect2D
   the visible canvas, while `ngl_input` only holds the visible part: sample it
   at `tex_coord`.
 
+A `Layer2D` and a `Mask2D` are effects without shaders: their children are
+rendered into the effect input and composited as is, or weighted by a mask
+channel. The mask image spans the effect rect, which is the children bounds,
+anti-aliased edges included, like `rect_uv`.
+
 ## Sampling elsewhere than at the fragment
 
 `tex_coord` is the texture coordinate of the fragment being drawn. A shader

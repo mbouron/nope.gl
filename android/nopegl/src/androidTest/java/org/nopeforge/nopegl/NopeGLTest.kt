@@ -520,6 +520,33 @@ class NopeGLTest {
     }
 
     @Test
+    fun twoDContainerNodes() {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val rect = NGLDrawRect2D(
+            rect = NGLVec4(0.0f, 0.0f, 32.0f, 32.0f),
+            fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f)),
+        )
+        val clip = NGLClip2D(
+            children = listOf(rect),
+            clipRect = NGLVec4(4.0f, 4.0f, 24.0f, 24.0f),
+        )
+        assertEquals(NGLNodeType.CLIP2D, clip.getType())
+
+        val layer = NGLLayer2D(children = listOf(rect))
+        assertEquals(NGLNodeType.LAYER2D, layer.getType())
+
+        val mask = NGLTexture2D(width = 1U, height = 1U)
+        val masked = NGLMask2D(
+            children = listOf(rect),
+            mask = mask,
+            channel = NGLMaskTextureChannel.Alpha,
+        )
+        assertEquals(NGLNodeType.MASK2D, masked.getType())
+    }
+
+    @Test
     fun boundingBox() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         NGLContext.init(appContext)

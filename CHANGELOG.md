@@ -9,6 +9,12 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
 ### Added
+- `Clip2D` node for transformed, nested rounded-rectangle clipping in a 2D
+  hierarchy
+- `Layer2D` node to composite a 2D subgraph as an isolated layer
+- `Mask2D` node to mask a 2D subgraph with a `Texture2D` or `CustomTexture`,
+  using its alpha, luminance, red, green, or blue channel
+- Android bindings for `Clip2D`, `Layer2D` and `Mask2D`
 - `ngl_teximage()` GLSL helper to sample a texture at image coordinates, the
   texture coordinates matrix applied
 - `rect_uv`, `rect_px`, `content_uv`, `tex_coord` and `canvas_px` inputs to the
