@@ -841,6 +841,7 @@ class NopeGLTest {
     fun canvasWith2DNodesVK() {
         canvasWith2DNodes(NGLConfig.BACKEND_VULKAN)
     }
+
     @Test
     fun generatedKeyframeListEdits() {
         NGLContext.init(InstrumentationRegistry.getInstrumentation().targetContext)
