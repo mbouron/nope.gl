@@ -56,12 +56,19 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   inputs; `tex_coord` is now in image coordinates, sampled with
   `ngl_teximage()`
 - The input of an `Effect2DShader` is named `ngl_input` instead of `tex`
+- Time ranges (`TimeRangeFilter`, `TimeRangeFilter2D`, `Effect2DShader`) and
+  animation key frames out of order are accepted at init as on a live change,
+  and keep the values they are set to: a range ending before it starts is
+  evaluated as empty, a negative start as 0, and key frame times (and
+  `AnimatedTime` values) as non-decreasing
 - Android bindings: parameters accepting a value or a node now take the plain
   value (`rect = NGLVec4(...)`) or the node through a separate `<name>Node`
   constructor parameter (`rectNode = ...`), and their setters are overloaded
   for both; `NGLNodeOrValue` is removed
 
 ### Fixed
+- Moving animation key frames one at a time could leave them clamped to an
+  intermediate state, depending on the order they were moved in
 - `DrawRect2D.content_translate` and `content_orientation` moving the content
   the wrong way for textures stored upside down in memory, such as render
   targets with OpenGL

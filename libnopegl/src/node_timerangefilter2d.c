@@ -27,6 +27,7 @@
 #include "node2d.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
+#include "time_range.h"
 
 struct timerangefilter2d_opts {
     struct ngl_node *child;
@@ -40,7 +41,11 @@ struct timerangefilter2d_priv {
     struct ngli_node2d_info node2d_info;
     int updated;
     int drawme;
+    double start_time; /* effective range, see ngli_time_range_get_effective() */
+    double end_time;
 };
+
+NGLI_STATIC_ASSERT(offsetof(struct timerangefilter2d_priv, node2d_info) == 0, "node2d_info must be first");
 
 static int update_params(struct ngl_node *node);
 
@@ -60,7 +65,7 @@ static const struct node_param timerangefilter2d_params[] = {
         .offset      = OFFSET(start_time),
         .flags       = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .update_func = update_params,
-        .desc        = NGLI_DOCSTRING("start time (included) for the scene to be drawn")
+        .desc        = NGLI_DOCSTRING("start time (included) for the scene to be drawn, a negative value is evaluated as 0")
     },
     {
         .key         = "end",
@@ -69,7 +74,7 @@ static const struct node_param timerangefilter2d_params[] = {
         .def_value   = {.f64=-1.0},
         .flags       = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .update_func = update_params,
-        .desc        = NGLI_DOCSTRING("end time (excluded) for the scene to be drawn, a negative value implies forever")
+        .desc        = NGLI_DOCSTRING("end time (excluded) for the scene to be drawn, a negative value implies forever and a time before the start an empty range")
     },
     {
         .key         = "render_time",
@@ -102,17 +107,10 @@ static void reset_children_timings(struct ngl_node *node)
 
 static int update_params(struct ngl_node *node)
 {
-    struct timerangefilter2d_opts *o = node->opts;
+    struct timerangefilter2d_priv *s = node->priv_data;
+    const struct timerangefilter2d_opts *o = node->opts;
 
-    if (o->start_time < 0.0) {
-        LOG(WARNING, "start time cannot be negative, clamping");
-        o->start_time = 0;
-    }
-
-    if (o->end_time >= 0.0 && o->end_time < o->start_time) {
-        LOG(ERROR, "end time must be after start time, clamping");
-        o->end_time = o->start_time;
-    }
+    ngli_time_range_get_effective(o->start_time, o->end_time, &s->start_time, &s->end_time);
 
     /*
      * Ensure children are prefetched/released during the next draw if the
@@ -153,17 +151,10 @@ int ngl_timerangefilter2d_set_range(struct ngl_node *node, double start, double 
 
 static int timerangefilter2d_init(struct ngl_node *node)
 {
+    struct timerangefilter2d_priv *s = node->priv_data;
     const struct timerangefilter2d_opts *o = node->opts;
 
-    if (o->end_time >= 0.0 && o->end_time < o->start_time) {
-        LOG(ERROR, "end time must be after start time");
-        return NGL_ERROR_INVALID_ARG;
-    }
-
-    if (o->start_time < 0.0) {
-        LOG(ERROR, "start time cannot be negative");
-        return NGL_ERROR_INVALID_ARG;
-    }
+    ngli_time_range_get_effective(o->start_time, o->end_time, &s->start_time, &s->end_time);
 
     if (o->prefetch_time < 0) {
         LOG(ERROR, "prefetch time must be positive");
@@ -185,7 +176,7 @@ static int timerangefilter2d_visit(struct ngl_node *node, bool is_active, double
      * children from a dead parent can be revealed by another living branch.
      */
     if (is_active) {
-        if (t < o->start_time - o->prefetch_time || (o->end_time >= 0.0 && t >= o->end_time))
+        if (t < s->start_time - o->prefetch_time || (s->end_time >= 0.0 && t >= s->end_time))
             is_active = false;
 
         // If the child of the current once range is inactive, meaning
@@ -205,7 +196,7 @@ static int timerangefilter2d_update(struct ngl_node *node, double t)
 
     s->drawme = 0;
 
-    if (t < o->start_time || (o->end_time >= 0.0 && t >= o->end_time))
+    if (t < s->start_time || (s->end_time >= 0.0 && t >= s->end_time))
         return 0;
 
     if (o->render_time >= 0.0) {

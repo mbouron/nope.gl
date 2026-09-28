@@ -94,7 +94,7 @@ def api_animation_evaluate_edits():
 
 
 def api_animation_live_timestamps():
-    """Live timestamp edits sanitize the first interval and invalidate consumers."""
+    """Live timestamp edits keep the times as set, evaluate them as non-decreasing and invalidate consumers."""
     for animated_cls in (ngl.AnimatedFloat, ngl.AnimatedTime):
         keyframes = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(1, 0.5), ngl.AnimKeyFrameFloat(2, 1)]
         anim = animated_cls(keyframes)
@@ -108,14 +108,95 @@ def api_animation_live_timestamps():
             assert ctx.set_scene(scene) == 0
             assert ctx.draw(1.5) == 0
             assert keyframes[0].set_time(1.25) == 0
-            assert [kf.get_time() for kf in keyframes] == [1.25, 1.25, 2]
+            assert [kf.get_time() for kf in keyframes] == [1.25, 1, 2]
             # Exercise cache rebuilding at the same time as the preceding draw.
             assert ctx.draw(1.5) == 0
             assert keyframes[1].set_time(3) == 0
-            assert [kf.get_time() for kf in keyframes] == [1.25, 3, 3]
+            assert [kf.get_time() for kf in keyframes] == [1.25, 3, 2]
             assert ctx.draw(1.5) == 0
         finally:
             assert ctx.set_scene(None) == 0
+
+
+def api_animation_unordered_keyframes():
+    """Key frames out of order are evaluated with their times clamped to be non-decreasing."""
+    unordered = ngl.AnimatedFloat(
+        [ngl.AnimKeyFrameFloat(2, 0), ngl.AnimKeyFrameFloat(1, 1), ngl.AnimKeyFrameFloat(3, 2)]
+    )
+    clamped = ngl.AnimatedFloat(
+        [ngl.AnimKeyFrameFloat(2, 0), ngl.AnimKeyFrameFloat(2, 1), ngl.AnimKeyFrameFloat(3, 2)]
+    )
+    for t in (0.0, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0):
+        assert unordered.evaluate(t) == clamped.evaluate(t), t
+
+    # And they are accepted in a scene, as they would be edited live.
+    scene = ngl.Scene.from_params(ngl.DrawColor(opacity=unordered))
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(2.5) == 0
+    assert ctx.set_scene(None) == 0
+
+
+def api_animation_keyframes_edit_order():
+    """Moving a range of key frames gives the same animation whichever key frame is moved first."""
+    for move_first in (0, 1):
+        # Moving [5, 6] back to [0, 1] second key frame first goes through
+        # [5, 1]: an intermediate state that must not stick.
+        keyframes = [ngl.AnimKeyFrameFloat(5, 0), ngl.AnimKeyFrameFloat(6, 1)]
+        anim = ngl.AnimatedFloat(keyframes)
+        scene = ngl.Scene.from_params(ngl.DrawColor(opacity=anim))
+        ctx = ngl.Context()
+        assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+        assert ctx.set_scene(scene) == 0
+        assert ctx.draw(0.5) == 0
+        for i in (move_first, 1 - move_first):
+            assert keyframes[i].set_time((0.0, 1.0)[i]) == 0
+            assert ctx.draw(0.5) == 0
+        assert [kf.get_time() for kf in keyframes] == [0.0, 1.0], move_first
+        assert anim.evaluate(0.5) == 0.5
+        assert ctx.set_scene(None) == 0
+
+
+def _render_center(scene, t, width=16, height=16):
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    assert (
+        ctx.configure(
+            ngl.Config(offscreen=True, width=width, height=height, backend=_backend, capture_buffer=capture_buffer)
+        )
+        == 0
+    )
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(t) == 0
+    offset = ((height // 2) * width + width // 2) * 4
+    pixel = tuple(capture_buffer[offset : offset + 4])
+    assert ctx.set_scene(None) == 0
+    return pixel
+
+
+def api_time_range_inverted():
+    """A range ending before it starts is empty, at init as on a live change."""
+    red = (255, 0, 0, 255)
+
+    def draw():
+        return ngl.DrawColor(color=(1.0, 0.0, 0.0))
+
+    trf = ngl.TimeRangeFilter(draw(), start=2.0, end=1.0)
+    assert _render_center(ngl.Scene.from_params(trf, duration=3), 1.5) == (0, 0, 0, 255)
+    trf = ngl.TimeRangeFilter(draw(), start=-1.0, end=2.0)
+    assert _render_center(ngl.Scene.from_params(trf, duration=3), 0.5) == red
+
+    rect = ngl.DrawRect2D(rect=(0, 0, 16, 16), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
+    trf2d = ngl.TimeRangeFilter2D(rect, start=2.0, end=1.0)
+    canvas = ngl.Canvas2D(width=16, height=16, children=[trf2d])
+    assert _render_center(ngl.Scene.from_params(canvas, duration=3), 1.5) == (0, 0, 0, 255)
+
+    rect = ngl.DrawRect2D(rect=(0, 0, 16, 16), fill=ngl.ColorPaint(color=(1.0, 1.0, 1.0, 1.0)))
+    shader = ngl.Effect2DShader(glsl_color="return vec4(1.0, 0.0, 0.0, 1.0);", start=2.0, end=1.0)
+    effect = ngl.Effect2D(children=[rect], shaders=[shader])
+    canvas = ngl.Canvas2D(width=16, height=16, children=[effect])
+    assert _render_center(ngl.Scene.from_params(canvas, duration=3), 1.5) == (255, 255, 255, 255)
 
 
 def api_backend():
@@ -1505,6 +1586,23 @@ def api_bounding_box(width=256, height=256):
     check_bbox(canvas, (100, 70), (50, 40))
 
     ctx.set_scene(None)
+
+
+def api_bounding_box_timerangefilter2d(width=256, height=256):
+    """A TimeRangeFilter2D reports the bounding box of its child while active"""
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend)) == 0
+
+    rect = ngl.DrawRect2D(rect=(10, 20, 100, 80), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
+    trf = ngl.TimeRangeFilter2D(rect, start=0.0, end=2.0)
+    canvas = ngl.Canvas2D(children=[trf], width=width, height=height)
+    assert ctx.set_scene(ngl.Scene.from_params(canvas, width=width, height=height, duration=3)) == 0
+    assert ctx.draw(1.0) == 0
+
+    box = trf.get_bounding_box()
+    assert box == rect.get_bounding_box(), f"{box} != {rect.get_bounding_box()}"
+    assert _is_close(box["center"][0], 60) and _is_close(box["center"][1], 60), box
+    assert _is_close(box["extent"][0], 50) and _is_close(box["extent"][1], 40), box
 
 
 def api_bounding_box_drawrect2d(width=256, height=256):

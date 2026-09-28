@@ -3327,14 +3327,14 @@
           "type": "f64",
           "default": 0.000000,
           "flags": ["live"],
-          "desc": "active range start time (inclusive, non-negative)"
+          "desc": "active range start time (inclusive); a negative value is evaluated as 0"
         },
         {
           "name": "end",
           "type": "f64",
           "default": -1.000000,
           "flags": ["live"],
-          "desc": "active range end time (exclusive); negative values mean no end"
+          "desc": "active range end time (exclusive); negative values mean no end, and an end before the start an empty range"
         }
       ]
     },
@@ -5333,14 +5333,14 @@
           "type": "f64",
           "default": 0.000000,
           "flags": ["live"],
-          "desc": "start time (included) for the scene to be drawn"
+          "desc": "start time (included) for the scene to be drawn, a negative value is evaluated as 0"
         },
         {
           "name": "end",
           "type": "f64",
           "default": -1.000000,
           "flags": ["live"],
-          "desc": "end time (excluded) for the scene to be drawn, a negative value implies forever"
+          "desc": "end time (excluded) for the scene to be drawn, a negative value implies forever and a time before the start an empty range"
         },
         {
           "name": "render_time",
@@ -5373,14 +5373,14 @@
           "type": "f64",
           "default": 0.000000,
           "flags": ["live"],
-          "desc": "start time (included) for the scene to be drawn"
+          "desc": "start time (included) for the scene to be drawn, a negative value is evaluated as 0"
         },
         {
           "name": "end",
           "type": "f64",
           "default": -1.000000,
           "flags": ["live"],
-          "desc": "end time (excluded) for the scene to be drawn, a negative value implies forever"
+          "desc": "end time (excluded) for the scene to be drawn, a negative value implies forever and a time before the start an empty range"
         },
         {
           "name": "render_time",

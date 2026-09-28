@@ -25,6 +25,7 @@
 #include "log.h"
 #include "node_effect2d_shader.h"
 #include "nopegl/nopegl.h"
+#include "time_range.h"
 
 struct effect2d_shader_opts {
     const char *glsl_header;
@@ -35,22 +36,6 @@ struct effect2d_shader_opts {
     double end;
 };
 
-static int update_range(struct ngl_node *node)
-{
-    struct effect2d_shader_opts *o = node->opts;
-
-    if (o->start < 0.0) {
-        LOG(WARNING, "Effect2DShader.start cannot be negative, clamping");
-        o->start = 0.0;
-    }
-
-    if (o->end >= 0.0 && o->end < o->start) {
-        LOG(WARNING, "Effect2DShader.end cannot be before start, clamping");
-        o->end = o->start;
-    }
-
-    return 0;
-}
 
 int ngl_effect2dshader_set_range(struct ngl_node *node, double start, double end)
 {
@@ -71,27 +56,10 @@ int ngl_effect2dshader_set_range(struct ngl_node *node, double start, double end
     if (!node->ctx)
         return 0;
 
-    ret = update_range(node);
-    if (ret < 0)
-        return ret;
-
     ngli_node_invalidate_branch(node);
     return 0;
 }
 
-static int effect2d_shader_init(struct ngl_node *node)
-{
-    const struct effect2d_shader_opts *o = node->opts;
-    if (o->end >= 0.0 && o->end < o->start) {
-        LOG(ERROR, "Effect2DShader.end must be after start");
-        return NGL_ERROR_INVALID_ARG;
-    }
-    if (o->start < 0.0) {
-        LOG(ERROR, "Effect2DShader.start cannot be negative");
-        return NGL_ERROR_INVALID_ARG;
-    }
-    return 0;
-}
 
 #define OFFSET(x) offsetof(struct effect2d_shader_opts, x)
 static const struct node_param effect2d_shader_params[] = {
@@ -165,16 +133,15 @@ static const struct node_param effect2d_shader_params[] = {
         .type        = NGLI_PARAM_TYPE_F64,
         .offset      = OFFSET(start),
         .flags       = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .update_func = update_range,
-        .desc        = NGLI_DOCSTRING("active range start time (inclusive, non-negative)"),
+        .desc        = NGLI_DOCSTRING("active range start time (inclusive); a negative value is evaluated as 0"),
     }, {
         .key         = "end",
         .type        = NGLI_PARAM_TYPE_F64,
         .offset      = OFFSET(end),
         .def_value   = {.f64=-1.0},
         .flags       = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .update_func = update_range,
-        .desc        = NGLI_DOCSTRING("active range end time (exclusive); negative values mean no end"),
+        .desc        = NGLI_DOCSTRING("active range end time (exclusive); negative values mean no end, and an "
+                                      "end before the start an empty range"),
     },
     {NULL}
 };
@@ -184,20 +151,19 @@ struct effect2d_shader_info ngli_effect2d_shader_get_info(const struct ngl_node 
 {
     ngli_assert(node->cls->id == NGL_NODE_EFFECT2DSHADER);
     const struct effect2d_shader_opts *o = node->opts;
-    return (struct effect2d_shader_info) {
+    struct effect2d_shader_info info = {
         .glsl_header = o->glsl_header,
         .glsl_color  = o->glsl_color,
         .resources   = o->resources,
         .premult     = o->premult,
-        .start       = o->start,
-        .end         = o->end,
     };
+    ngli_time_range_get_effective(o->start, o->end, &info.start, &info.end);
+    return info;
 }
 
 const struct node_class ngli_effect2dshader_class = {
     .id        = NGL_NODE_EFFECT2DSHADER,
     .name      = "Effect2DShader",
-    .init      = effect2d_shader_init,
     .update    = ngli_node_update_children,
     .opts_size = sizeof(struct effect2d_shader_opts),
     .params    = effect2d_shader_params,
