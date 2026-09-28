@@ -42,6 +42,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_configure()` now fails with `NGL_ERROR_BUSY` if a frame obtained from
   `ngl_draw` is still held by the user
 - `OffscreenCanvas2D.width` and `OffscreenCanvas2D.height` are now live-changeable
+- Android bindings: parameters accepting a value or a node now take the plain
+  value (`rect = NGLVec4(...)`) or the node through a separate `<name>Node`
+  constructor parameter (`rectNode = ...`), and their setters are overloaded
+  for both; `NGLNodeOrValue` is removed
 
 ### Fixed
 - Non-shareable nodes incorrectly allowed to be shared within a graph after the
