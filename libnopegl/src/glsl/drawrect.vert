@@ -48,4 +48,25 @@ void main()
     ngl_out_pos = projection_matrix * canvas_pos;
     ngli_clip_pos = canvas_pos.xy;
     ngli_uv = uvcoord + dir * ngli_margin_uv;
+
+    /* The paint coordinates are affine in the rect uv: interpolate them */
+    ngli_v_content_uv = (ngli_vert_content_matrix * vec4(ngli_uv, 0.0, 1.0)).xy;
+    ngli_v_fill_tex_coord = (ngli_vert_fill_matrix * vec4(ngli_uv, 0.0, 1.0)).xy;
+    ngli_v_stroke_tex_coord = (ngli_vert_stroke_matrix * vec4(ngli_uv, 0.0, 1.0)).xy;
+
+    /*
+     * The built-in texture paints sample their texture in memory straight
+     * from these, which spares the fragment stage the texture coordinates
+     * matrix and lets the texture be fetched without a dependent read
+     */
+#ifdef NGLI_DRAWRECT_FILL_TEXTURE
+    ngli_fill_mem_coord = (ngli_fill_tex_coord_matrix * vec4(ngli_v_fill_tex_coord, 0.0, 1.0)).xy;
+#else
+    ngli_fill_mem_coord = ngli_v_fill_tex_coord;
+#endif
+#ifdef NGLI_DRAWRECT_STROKE_TEXTURE
+    ngli_stroke_mem_coord = (ngli_stroke_tex_coord_matrix * vec4(ngli_v_stroke_tex_coord, 0.0, 1.0)).xy;
+#else
+    ngli_stroke_mem_coord = ngli_v_stroke_tex_coord;
+#endif
 }

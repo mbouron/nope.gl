@@ -53,25 +53,16 @@ static const char no_stroke_glsl[] =
     "vec4 ngli_stroke(" PAINT_GLSL_ARGS ") { return vec4(0.0); }\n";
 
 /*
- * The coordinates handed to the paints, derived from the rect uv (Y-down,
- * origin at the rect top-left corner):
- * - the fill content: orientation, zoom and translate around the center,
- *   then the texture scaling (fit/fill) for its texture coordinates
- * - the stroke content: its own texture scaling only
+ * The coordinates handed to the paints are affine in the rect uv (Y-down,
+ * origin at the rect top-left corner), so they are computed per vertex from
+ * matrices (see set_coord_matrix()) and interpolated; the fragment stage only
+ * applies them for ngl_tex_coord(), at positions of the paint's choosing.
  */
 static const char coords_glsl[] =
-    "vec2 ngli_content_coord(vec2 uv, vec2 scale)\n"
-    "{\n"
-    "    float co = ngli_content_orientation.x;\n"
-    "    float so = ngli_content_orientation.y;\n"
-    "    mat2 rot = mat2(co, so, -so, co);\n"
-    "    return rot * ((uv - 0.5) * scale / ngli_content_zoom + ngli_content_translate) + 0.5;\n"
-    "}\n"
-    "vec2 ngli_stroke_coord(vec2 uv) { return (uv - 0.5) * ngli_stroke_uv_scale + 0.5; }\n"
     /* ngl_tex_coord() of each paint role, see ngli_paint_glsl_write() */
-    "vec2 ngli_color_tex_coord(vec2 uv) { return ngli_content_coord(uv, ngli_fill_uv_scale); }\n"
-    "vec2 ngli_colors_tex_coord(vec2 uv) { return ngli_content_coord(uv, ngli_fill_uv_scale); }\n"
-    "vec2 ngli_stroke_tex_coord(vec2 uv) { return ngli_stroke_coord(uv); }\n";
+    "vec2 ngli_color_tex_coord(vec2 uv) { return (ngli_fill_matrix * vec4(uv, 0.0, 1.0)).xy; }\n"
+    "vec2 ngli_colors_tex_coord(vec2 uv) { return (ngli_fill_matrix * vec4(uv, 0.0, 1.0)).xy; }\n"
+    "vec2 ngli_stroke_tex_coord(vec2 uv) { return (ngli_stroke_matrix * vec4(uv, 0.0, 1.0)).xy; }\n";
 
 static const char *const paint_texture_names[PAINT_SHADER_ROLE_NB] = {
     [PAINT_SHADER_ROLE_FILL]   = "ngli_fill_tex",
@@ -85,6 +76,9 @@ struct drawrect2d_vert_block {
     float margin_uv[2];
     float margin_px;
     float _pad0;
+    struct ngli_mat4 content_matrix;
+    struct ngli_mat4 fill_matrix;
+    struct ngli_mat4 stroke_matrix;
 };
 
 struct drawrect2d_frag_block {
@@ -97,14 +91,11 @@ struct drawrect2d_frag_block {
     float stroke_opacity;
     int32_t fill_content_wrap;
     int32_t stroke_content_wrap;
-    float content_zoom;
-    float content_translate[2];
-    float content_orientation[2];
-    float fill_uv_scale[2];
-    float stroke_uv_scale[2];
     int32_t fill_premult;
     int32_t stroke_premult;
-    float _pad0[2];
+    float _pad0[3];
+    struct ngli_mat4 fill_matrix;
+    struct ngli_mat4 stroke_matrix;
     struct ngli_vec4 clip_inv[NGLI_MAX_CLIPS_2D];
     struct ngli_vec4 clip_rect[NGLI_MAX_CLIPS_2D];
     struct ngli_vec4 clip_radius[NGLI_MAX_CLIPS_2D];
@@ -166,6 +157,7 @@ struct drawrect2d_priv {
     NGLI_DARRAY(struct prebuilt_uniform) prebuilt_uniforms;
     NGLI_DARRAY(struct user_uniform) stroke_user_uniforms;
     NGLI_DARRAY(struct prebuilt_uniform) stroke_prebuilt_uniforms;
+    char *vert_shader;
     const struct paint_info *fill_paint;
     const struct paint_info *stroke_paint;
     const struct stroke2d_info *stroke;
@@ -233,6 +225,29 @@ static void compute_texture_uv_scale(const struct paint_info *paint,
         uv_scale[0] = ratio < 1.f ? ratio : 1.f;
         uv_scale[1] = ratio > 1.f ? 1.f / ratio : 1.f;
     }
+}
+
+/*
+ * Set dst to the affine map of the rect uv to rot * ((uv - 0.5) * scale / zoom
+ * + translate) + 0.5, the coordinates of the paint content (see coords_glsl).
+ */
+static void set_coord_matrix(struct ngli_mat4 *dst, const float *cos_sin,
+                             const float *scale, float zoom, const float *translate)
+{
+    const float co = cos_sin[0], so = cos_sin[1];
+    const float dx = scale[0] / zoom, dy = scale[1] / zoom;
+    const float ox = translate[0] - 0.5f * dx;
+    const float oy = translate[1] - 0.5f * dy;
+    float *m = dst->m;
+    memset(m, 0, sizeof(dst->m));
+    m[0]  = co * dx;                          /* column 0 */
+    m[1]  = so * dx;
+    m[4]  = -so * dy;                         /* column 1 */
+    m[5]  = co * dy;
+    m[10] = 1.f;
+    m[12] = co * ox - so * oy + 0.5f;         /* column 3: translation */
+    m[13] = so * ox + co * oy + 0.5f;
+    m[15] = 1.f;
 }
 
 static int is_valid_orientation(float angle)
@@ -390,6 +405,21 @@ static const struct node_param drawrect2d_params[] = {
 };
 #undef OFFSET
 
+static char *build_vertex_shader(bool has_fill_texture, bool has_stroke_texture)
+{
+    struct bstr *bstr = ngli_bstr_create();
+    if (!bstr)
+        return NULL;
+    if (has_fill_texture)
+        ngli_bstr_print(bstr, "#define NGLI_DRAWRECT_FILL_TEXTURE\n");
+    if (has_stroke_texture)
+        ngli_bstr_print(bstr, "#define NGLI_DRAWRECT_STROKE_TEXTURE\n");
+    ngli_bstr_print(bstr, drawrect_vert);
+    char *shader = ngli_bstr_check(bstr) < 0 ? NULL : ngli_bstr_strdup(bstr);
+    ngli_bstr_freep(&bstr);
+    return shader;
+}
+
 static int register_image_sources(struct drawrect2d_priv *s)
 {
     int32_t image_index = 0;
@@ -454,6 +484,11 @@ static int drawrect2d_init(struct ngl_node *node)
     s->stroke = stroke;
     s->stroke_paint = stroke_paint;
 
+    s->vert_shader = build_vertex_shader(fill_paint->texture != NULL,
+                                         stroke_paint && stroke_paint->texture);
+    if (!s->vert_shader)
+        return NGL_ERROR_MEMORY;
+
     const struct ngl_node *texture = fill_paint->texture;
 
     s->pipeline = NULL;
@@ -491,9 +526,8 @@ static int drawrect2d_init(struct ngl_node *node)
                           fill_paint->color_output_count ? "ngli_colors" : "ngli_color");
     if (fill_paint->color_output_count) {
         ngli_bstr_print(bstr, "void main() {\n"
-                              "    ngli_colors(ngli_uv, ngli_uv * ngli_rect_size,\n"
-                              "                ngli_content_coord(ngli_uv, vec2(1.0)),\n"
-                              "                ngli_content_coord(ngli_uv, ngli_fill_uv_scale), ngli_clip_pos);\n"
+                              "    ngli_colors(ngli_uv, ngli_uv * ngli_rect_size, ngli_v_content_uv,\n"
+                              "                ngli_v_fill_tex_coord, ngli_clip_pos);\n"
                               "}\n");
     } else {
         if (stroke_paint)
@@ -519,6 +553,13 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_rect",          .type = NGPU_TYPE_VEC4},
         {.name = "ngli_margin_uv",     .type = NGPU_TYPE_VEC2},
         {.name = "ngli_margin_px",     .type = NGPU_TYPE_F32},
+        /*
+         * The fragment block holds the fill and stroke matrices too: the
+         * members of unnamed blocks share one namespace in a GLES program
+         */
+        {.name = "ngli_vert_content_matrix", .type = NGPU_TYPE_MAT4},
+        {.name = "ngli_vert_fill_matrix",    .type = NGPU_TYPE_MAT4},
+        {.name = "ngli_vert_stroke_matrix",  .type = NGPU_TYPE_MAT4},
     };
     ngpu_block_desc_init(gpu_ctx, &s->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
@@ -538,13 +579,10 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_stroke_opacity",       .type = NGPU_TYPE_F32},
         {.name = "ngli_fill_content_wrap",    .type = NGPU_TYPE_I32},
         {.name = "ngli_stroke_content_wrap",  .type = NGPU_TYPE_I32},
-        {.name = "ngli_content_zoom",         .type = NGPU_TYPE_F32},
-        {.name = "ngli_content_translate",    .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_content_orientation",  .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_fill_uv_scale",        .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_stroke_uv_scale",      .type = NGPU_TYPE_VEC2},
         {.name = "ngli_fill_premult",         .type = NGPU_TYPE_I32},
         {.name = "ngli_stroke_premult",       .type = NGPU_TYPE_I32},
+        {.name = "ngli_fill_matrix",          .type = NGPU_TYPE_MAT4},
+        {.name = "ngli_stroke_matrix",        .type = NGPU_TYPE_MAT4},
         {.name = "ngli_clip_inv",             .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
         {.name = "ngli_clip_rect",            .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
         {.name = "ngli_clip_radius",          .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
@@ -833,11 +871,17 @@ static int drawrect2d_init(struct ngl_node *node)
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
         {.name = "ngli_uv",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_clip_pos",  .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_content_uv", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_fill_tex_coord", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_stroke_tex_coord", .type = NGPU_TYPE_VEC2},
+        /* Texture memory coordinates of the built-in texture paints */
+        {.name = "ngli_fill_mem_coord", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_stroke_mem_coord", .type = NGPU_TYPE_VEC2},
     };
 
     const struct ngpu_pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawrect",
-        .vert_base        = drawrect_vert,
+        .vert_base        = s->vert_shader,
         .frag_base        = s->frag_shader,
         .textures         = textures.data,
         .nb_textures      = textures.count,
@@ -1053,6 +1097,19 @@ static void drawrect2d_draw(struct ngl_node *node)
         [3] = { 0.f, -1.f}, /* 270° */
     };
 
+    /*
+     * The content transform applies to the fill only: the stroke content is
+     * only scaled to its texture
+     */
+    static const float no_rotation[2] = {1.f, 0.f};
+    static const float no_scale[2] = {1.f, 1.f};
+    static const float no_translate[2] = {0.f, 0.f};
+    const float *cos_sin = orientation_cos_sin[orientation_quarter];
+    struct ngli_mat4 content_matrix, fill_matrix, stroke_matrix;
+    set_coord_matrix(&content_matrix, cos_sin, no_scale, content_zoom, content_translate);
+    set_coord_matrix(&fill_matrix, cos_sin, uv_scale, content_zoom, content_translate);
+    set_coord_matrix(&stroke_matrix, no_rotation, stroke_uv_scale, 1.f, no_translate);
+
     /* Compute Geometry dilation: expand quad to cover outside stroke + AA border */
     const float outer_edge = ngli_stroke2d_get_outer_edge(stroke);
     const float margin_px = outer_edge + 2.f;
@@ -1078,6 +1135,9 @@ static void drawrect2d_draw(struct ngl_node *node)
         vert_data.modelview_matrix = modelview_matrix;
         memcpy(vert_data.rect, s->rect, sizeof(vert_data.rect));
         vert_data.margin_px = margin_px;
+        vert_data.content_matrix = content_matrix;
+        vert_data.fill_matrix = fill_matrix;
+        vert_data.stroke_matrix = stroke_matrix;
         memcpy(vert_data.margin_uv, margin_uv, sizeof(vert_data.margin_uv));
 
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
@@ -1101,11 +1161,8 @@ static void drawrect2d_draw(struct ngl_node *node)
         frag_data.stroke_opacity = stroke_opts ? stroke_opts->opacity : 1.f;
         frag_data.fill_content_wrap = fill_opts->wrap;
         frag_data.stroke_content_wrap = stroke_opts ? stroke_opts->wrap : PAINT_WRAP_DEFAULT;
-        frag_data.content_zoom  = content_zoom;
-        memcpy(frag_data.content_translate, content_translate, sizeof(frag_data.content_translate));
-        memcpy(frag_data.content_orientation, orientation_cos_sin[orientation_quarter], sizeof(frag_data.content_orientation));
-        memcpy(frag_data.fill_uv_scale, uv_scale, sizeof(frag_data.fill_uv_scale));
-        memcpy(frag_data.stroke_uv_scale, stroke_uv_scale, sizeof(frag_data.stroke_uv_scale));
+        frag_data.fill_matrix = fill_matrix;
+        frag_data.stroke_matrix = stroke_matrix;
         frag_data.fill_premult = fill_opts->premult;
         frag_data.stroke_premult = stroke_opts ? stroke_opts->premult : 1;
         size_t nb_clips = ctx->nb_clips_2d;
@@ -1200,6 +1257,7 @@ static void drawrect2d_uninit(struct ngl_node *node)
     ngpu_block_desc_reset(&s->user_block_desc);
     ngpu_pgcraft_freep(&s->crafter);
     ngli_freep(&s->frag_shader);
+    ngli_freep(&s->vert_shader);
 }
 
 const struct node_class ngli_drawrect2d_class = {

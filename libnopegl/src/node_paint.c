@@ -304,7 +304,8 @@ static const char texturepaint_glsl[] =
     "vec4 main(" PAINT_GLSL_ARGS ") {\n"
     "    if ($content_wrap == 1 && (any(lessThan(tex_coord, vec2(0.0))) || any(greaterThan(tex_coord, vec2(1.0)))))\n"
     "        return vec4(0.0);\n"
-    "    return ngl_teximage($tex, tex_coord);\n"
+    /* Same as ngl_teximage($tex, tex_coord), with the matrix applied per vertex */
+    "    return ngl_texvideo($tex, $mem_coord);\n"
     "}\n";
 
 static int texturepaint_init(struct ngl_node *node)

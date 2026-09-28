@@ -128,7 +128,7 @@ void main()
      * is not transformed by the content zoom, translate and orientation.
      */
     vec2 rect_px = ngli_uv * ngli_rect_size;
-    vec4 stroke_col = ngli_stroke(ngli_uv, rect_px, ngli_uv, ngli_stroke_coord(ngli_uv), ngli_clip_pos);
+    vec4 stroke_col = ngli_stroke(ngli_uv, rect_px, ngli_uv, ngli_v_stroke_tex_coord, ngli_clip_pos);
     float ol_alpha  = ol_mask * stroke_col.a * ngli_stroke_opacity;
 
     /*
@@ -138,10 +138,7 @@ void main()
      */
     vec4 tex_color = vec4(0.0);
     if (all(greaterThanEqual(ngli_uv, vec2(0.0))) && all(lessThanEqual(ngli_uv, vec2(1.0)))) {
-        tex_color = ngli_color(ngli_uv, rect_px,
-                               ngli_content_coord(ngli_uv, vec2(1.0)),
-                               ngli_content_coord(ngli_uv, ngli_fill_uv_scale),
-                               ngli_clip_pos);
+        tex_color = ngli_color(ngli_uv, rect_px, ngli_v_content_uv, ngli_v_fill_tex_coord, ngli_clip_pos);
     }
 
     /*
