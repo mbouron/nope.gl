@@ -1634,6 +1634,118 @@ def api_bounding_box(width=256, height=256):
     ctx.set_scene(None)
 
 
+def api_2d_clip_layer_mask(width=64, height=64):
+    """Exercise the Clip2D, Layer2D and texture-backed Mask2D render paths."""
+
+    def render(root):
+        capture_buffer = bytearray(width * height * 4)
+        ctx = ngl.Context()
+        ret = ctx.configure(
+            ngl.Config(
+                offscreen=True,
+                width=width,
+                height=height,
+                backend=_backend,
+                clear_color=(0.0, 0.0, 0.0, 1.0),
+                capture_buffer=capture_buffer,
+            )
+        )
+        assert ret == 0
+        scene = ngl.Scene.from_params(root, width=width, height=height)
+        assert ctx.set_scene(scene) == 0
+        assert ctx.draw(0.0) == 0
+        assert ctx.set_scene(None) == 0
+        return capture_buffer
+
+    def pixel(buffer, x, y):
+        offset = (y * width + x) * 4
+        return buffer[offset : offset + 4]
+
+    red = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
+    clip = ngl.Clip2D(
+        children=[ngl.DrawRect2D(rect=(0, 0, width, height), fill=red)],
+        clip_rect=(16, 16, 32, 32),
+        clip_corner_radius=(4, 4),
+    )
+    clip_buffer = render(ngl.Canvas2D(width=width, height=height, children=[clip]))
+    assert pixel(clip_buffer, 32, 32)[0] > 250
+    assert pixel(clip_buffer, 2, 2)[0] < 5
+
+    layer = ngl.Layer2D(
+        children=[ngl.DrawRect2D(rect=(0, 0, width, height), fill=red)],
+        opacity=0.5,
+    )
+    layer_buffer = render(ngl.Canvas2D(width=width, height=height, children=[layer]))
+    assert 100 < pixel(layer_buffer, 32, 32)[0] < 155
+
+    mask_data = array.array("B")
+    for _y in range(height):
+        for x in range(width):
+            mask_data.append(255 if x >= width // 2 else 0)
+    mask = ngl.Texture2D(width=width, height=height, format="r8_unorm", data_src=ngl.BufferUByte(data=mask_data))
+    masked = ngl.Mask2D(
+        children=[ngl.DrawRect2D(rect=(0, 0, width, height), fill=red)],
+        mask=mask,
+        channel="red",
+    )
+    mask_buffer = render(ngl.Canvas2D(width=width, height=height, children=[masked]))
+    assert pixel(mask_buffer, width // 4, height // 2)[0] < 5
+    assert pixel(mask_buffer, 3 * width // 4, height // 2)[0] > 250
+
+
+def api_2d_mask_children(width=64, height=64):
+    """A Mask2D masks with its mask children, edited live, or with a mask texture, not both."""
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            clear_color=(0.0, 0.0, 0.0, 1.0),
+            capture_buffer=capture_buffer,
+        )
+    )
+    assert ret == 0
+
+    def red_at(x, y):
+        return capture_buffer[(y * width + x) * 4]
+
+    red = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
+    white = ngl.ColorPaint(color=(1.0, 1.0, 1.0, 1.0))
+    masked = ngl.Mask2D(children=[ngl.DrawRect2D(rect=(0, 0, width, height), fill=red)], channel="alpha")
+    canvas = ngl.Canvas2D(width=width, height=height, children=[masked])
+    assert ctx.set_scene(ngl.Scene.from_params(canvas, width=width, height=height)) == 0
+
+    # No mask children: nothing shows
+    assert ctx.draw(0.0) == 0
+    assert red_at(width // 2, height // 2) < 5
+
+    # A mask child added live shows the children where it is drawn
+    left_half = ngl.DrawRect2D(rect=(0, 0, width // 2, height), fill=white)
+    assert masked.add_mask_children(left_half) == 0
+    assert ctx.draw(0.0) == 0
+    assert red_at(width // 4, height // 2) > 250
+    assert red_at(3 * width // 4, height // 2) < 5
+
+    # ... and removed live
+    assert masked.remove_mask_children(left_half) == 0
+    assert ctx.draw(0.0) == 0
+    assert red_at(width // 4, height // 2) < 5
+
+    assert ctx.set_scene(None) == 0
+
+    mask = ngl.Texture2D(width=1, height=1, data_src=ngl.BufferUBVec4(data=array.array("B", [255] * 4)))
+    both = ngl.Mask2D(
+        children=[ngl.DrawRect2D(rect=(0, 0, width, height), fill=red)],
+        mask=mask,
+        mask_children=[ngl.DrawRect2D(rect=(0, 0, width, height), fill=white)],
+    )
+    canvas = ngl.Canvas2D(width=width, height=height, children=[both])
+    assert ctx.set_scene(ngl.Scene.from_params(canvas, width=width, height=height)) != 0
+
+
 def api_bounding_box_timerangefilter2d(width=256, height=256):
     """A TimeRangeFilter2D reports the bounding box of its child while active"""
     ctx = ngl.Context()

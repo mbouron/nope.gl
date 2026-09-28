@@ -77,6 +77,7 @@ fun nodeType(name: String): NGLNodeType? {
         "BufferMat4" -> NGLNodeType.BUFFERMAT4
         "Camera" -> NGLNodeType.CAMERA
         "Canvas2D" -> NGLNodeType.CANVAS2D
+        "Clip2D" -> NGLNodeType.CLIP2D
         "Circle" -> NGLNodeType.CIRCLE
         "ColorKey" -> NGLNodeType.COLORKEY
         "ColorStats" -> NGLNodeType.COLORSTATS
@@ -140,6 +141,8 @@ fun nodeType(name: String): NGLNodeType? {
         "EvalVec2" -> NGLNodeType.EVALVEC2
         "EvalVec3" -> NGLNodeType.EVALVEC3
         "EvalVec4" -> NGLNodeType.EVALVEC4
+        "Layer2D" -> NGLNodeType.LAYER2D
+        "Mask2D" -> NGLNodeType.MASK2D
         "Media" -> NGLNodeType.MEDIA
         "NoisePaint" -> NGLNodeType.NOISEPAINT
         "NoiseFloat" -> NGLNodeType.NOISEFLOAT
