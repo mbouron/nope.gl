@@ -4201,14 +4201,14 @@
           "name": "width",
           "type": "i32",
           "default": 0,
-          "flags": [],
+          "flags": ["live"],
           "desc": "canvas width in pixels (0 inherits the parent canvas width, or falls back to the render target width)"
         },
         {
           "name": "height",
           "type": "i32",
           "default": 0,
-          "flags": [],
+          "flags": ["live"],
           "desc": "canvas height in pixels (0 inherits the parent canvas height, or falls back to the render target height)"
         },
         {

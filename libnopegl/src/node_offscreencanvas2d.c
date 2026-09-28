@@ -68,12 +68,14 @@ static const struct node_param offscreencanvas2d_params[] = {
         .key        = "width",
         .type       = NGLI_PARAM_TYPE_I32,
         .offset     = OFFSET(width),
+        .flags      = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc       = NGLI_DOCSTRING("canvas width in pixels (0 inherits the parent canvas width, "
                                      "or falls back to the render target width)"),
     }, {
         .key        = "height",
         .type       = NGLI_PARAM_TYPE_I32,
         .offset     = OFFSET(height),
+        .flags      = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
         .desc       = NGLI_DOCSTRING("canvas height in pixels (0 inherits the parent canvas height, "
                                      "or falls back to the render target height)"),
     }, {
