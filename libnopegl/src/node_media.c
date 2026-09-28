@@ -33,9 +33,9 @@
 #include "android_imagereader.h"
 #endif
 
+#include "animation.h"
 #include "internal.h"
 #include "log.h"
-#include "node_animkeyframe.h"
 #include "node_media.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
@@ -213,12 +213,12 @@ static void get_start_end_time(struct ngl_node *node, double *start, double *end
     if (anim_node) {
         const struct variable_opts *anim = anim_node->opts;
         if (anim->animkf.count) {
-            const struct animkeyframe_opts *kf0 = anim->animkf.data[0]->opts;
-            *start = kf0->scalar;
-            if (anim->animkf.count > 1) {
-                const struct animkeyframe_opts *kfn = anim->animkf.data[anim->animkf.count - 1]->opts;
-                *end = kfn->scalar;
-            }
+            double times[2], values[2];
+            ngli_animation_get_bounds(anim->animkf.data, anim->animkf.count,
+                                      NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
+            *start = values[0];
+            if (anim->animkf.count > 1)
+                *end = values[1];
         }
     }
 }
@@ -354,15 +354,16 @@ static int media_update(struct ngl_node *node, double t)
     if (anim_node) {
         struct variable_info *anim = anim_node->priv_data;
         const struct variable_opts *anim_o = anim_node->opts;
-        const struct animkeyframe_opts *kf0 = anim_o->animkf.data[0]->opts;
-        const struct animkeyframe_opts *kfn = anim_o->animkf.data[anim_o->animkf.count - 1]->opts;
-        initial_seek    = kf0->scalar;
-        time_origin     = kf0->time;
-        has_kf_interval = kfn->time > kf0->time;
+        double times[2], values[2];
+        ngli_animation_get_bounds(anim_o->animkf.data, anim_o->animkf.count,
+                                  NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
+        initial_seek    = s->start_time;
+        time_origin     = times[0];
+        has_kf_interval = times[1] > times[0];
 
         double anim_t = t;
         if (o->loop && has_kf_interval)
-            anim_t = kf0->time + fmod(NGLI_MAX(0.0, t - kf0->time), kfn->time - kf0->time);
+            anim_t = times[0] + fmod(NGLI_MAX(0.0, t - times[0]), times[1] - times[0]);
 
         int ret = ngli_node_update(anim_node, anim_t);
         if (ret < 0)

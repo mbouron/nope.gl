@@ -55,6 +55,9 @@ foreach backend : backends
   ]
 
   tests_api = [
+    'animation_keyframes_unordered',
+    'animation_keyframes_editing_order',
+    'timerange_inverted',
     'animation_evaluate_edits',
     'animation_live_timestamps',
     'backend',
@@ -104,6 +107,7 @@ foreach backend : backends
     'bounding_box_before_draw',
     'bounding_box',
     'bounding_box_drawrect2d',
+    'bounding_box_timerangefilter2d',
     'bounding_box_offscreen_canvas',
     'bounding_box_multiple_children',
     'bounding_box_intersection',

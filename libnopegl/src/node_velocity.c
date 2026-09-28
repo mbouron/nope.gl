@@ -154,7 +154,7 @@ static int init_animation(struct ngl_node *node, struct animation *animation)
     return ngli_animation_init(animation, NULL,
                                anim->animkf.data, anim->animkf.count,
                                get_mix_func(node->cls->id),
-                               get_cpy_func(node->cls->id));
+                               get_cpy_func(node->cls->id), 0);
 }
 
 /* Used for standalone evaluation (outside a context) */
@@ -172,12 +172,22 @@ int ngli_velocity_evaluate(struct ngl_node *node, void *dst, double t)
         const struct animkeyframe_priv *kf_priv = kf->priv_data;
         if (!kf_priv->derivative) {
             ret = kf->cls->init(kf);
-            if (ret < 0)
+            if (ret < 0) {
+                ngli_animation_reset(&anim_eval);
                 return ret;
+            }
         }
     }
 
-    return ngli_animation_derivate(&anim_eval, dst, t - anim->time_offset);
+    ret = ngli_animation_derivate(&anim_eval, dst, t - anim->time_offset);
+    ngli_animation_reset(&anim_eval);
+    return ret;
+}
+
+static void velocity_uninit(struct ngl_node *node)
+{
+    struct velocity_priv *s = node->priv_data;
+    ngli_animation_reset(&s->anim);
 }
 
 static int velocity_init(struct ngl_node *node)
@@ -216,6 +226,7 @@ const struct node_class ngli_velocity##type##_class = {                         
     .name      = class_name,                                                    \
     .init      = velocity##type##_init,                                         \
     .invalidate = velocity_invalidate,                                          \
+    .uninit    = velocity_uninit,                                               \
     .update    = velocity_update,                                               \
     .opts_size = sizeof(struct velocity_opts),                                  \
     .priv_size = sizeof(struct velocity_priv),                                  \
