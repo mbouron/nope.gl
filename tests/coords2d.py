@@ -213,7 +213,8 @@ def _effect(rect, expr: str) -> ngl.Effect2D:
 def coords2d_effect_inputs(cfg: ngl.SceneCfg):
     """Coordinates exposed to effect shaders: rect_uv and canvas_px.
 
-    The rect_uv case uses a rectangle partially outside the canvas.
+    The rect_uv case uses a rectangle partially outside the canvas: rect_uv must
+    remain relative to the full rectangle when the effect is clipped to the canvas.
     """
     cfg.duration = 1.0
 
@@ -248,15 +249,22 @@ def _passthrough_effect(children, glsl: str, **kwargs) -> ngl.Effect2D:
 @test_render()
 @ngl.scene(width=4 * T, height=T)
 def coords2d_effect_sampling(cfg: ngl.SceneCfg):
-    """Texel-for-pixel input sampling through pass-through effects, with rect and canvas bounds."""
+    """Texel-for-pixel input sampling through pass-through effects in each bounds mode.
+
+    The automatically computed and explicit rectangle bounds extend beyond the
+    canvas. Cropping the input to the canvas must leave the tiles unchanged.
+    """
     cfg.duration = 1.0
+
+    # Extends beyond the canvas on all four sides
+    oversized_rect = (-T, -T / 2, 6 * T, 2 * T)
 
     return ngl.Canvas2D(
         width=4 * T,
         height=T,
         children=[
-            _passthrough_effect([_pattern_rect(0, 0)], _SAMPLE_INPUT, bounds="rect", rect=_tile(0, 0)),
-            _passthrough_effect([_pattern_rect(1, 0)], _SAMPLE_INPUT_AT_RECT_UV, bounds="rect", rect=_tile(1, 0)),
+            _passthrough_effect([_pattern_rect(0, 0)], _SAMPLE_INPUT),
+            _passthrough_effect([_pattern_rect(1, 0)], _SAMPLE_INPUT_AT_RECT_UV, bounds="rect", rect=oversized_rect),
             _passthrough_effect([_pattern_rect(2, 0)], _SAMPLE_INPUT, bounds="canvas"),
             _passthrough_effect([_pattern_rect(3, 0)], _SAMPLE_INPUT_AT_RECT_UV, bounds="canvas"),
         ],

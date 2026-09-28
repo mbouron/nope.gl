@@ -29,16 +29,11 @@ const vec2 quad_coords[] = vec2[](
 void ngli_vertex()
 {
     vec2 quad_coord = quad_coords[ngl_vertex_index];
-    /* Pixel centers are at half-integer canvas coordinates. */
     vec2 position = rect.xy + quad_coord * rect.zw;
     vec4 canvas_pos = modelview_matrix * vec4(position, 0.0, 1.0);
     ngl_out_pos = projection_matrix * canvas_pos;
-
-    /* The rect coordinates follow the quad geometry, like the canvas ones */
-    ngli_rect_px = position - rect.xy;
-    ngli_rect_uv = ngli_rect_px / rect.zw;
-    ngli_canvas_px = canvas_pos.xy;
-
-    /* Sample the RTT without a half-pixel offset, as does ngl_tex_coord(). */
+    ngli_rect_px = position - effect_rect.xy;
+    ngli_rect_uv = ngli_rect_px / effect_rect.zw;
     ngli_tex_coord = ngli_rect_uv * ngli_quad_tex_scale + ngli_quad_tex_offset;
+    ngli_canvas_px = canvas_pos.xy;
 }

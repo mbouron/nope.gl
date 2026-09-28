@@ -62,6 +62,7 @@ struct effect2d_vert_block {
     struct ngli_mat4 projection_matrix;
     struct ngli_mat4 modelview_matrix;
     float rect[4];
+    float effect_rect[4];
     float quad_tex_scale[2];
     float quad_tex_offset[2];
 };
@@ -129,6 +130,7 @@ struct effect2d_priv {
     struct ngpu_rendertarget_layout layout;
     float local_effect_margin;
     float rect[4];
+    float effect_rect[4];
 
     /* Built-in uniform blocks shared by every shader program */
     struct ngpu_block_desc vert_block_desc;
@@ -465,6 +467,7 @@ static int effect2d_init(struct ngl_node *node)
         {.name = "projection_matrix", .type = NGPU_TYPE_MAT4},
         {.name = "modelview_matrix",  .type = NGPU_TYPE_MAT4},
         {.name = "rect",              .type = NGPU_TYPE_VEC4},
+        {.name = "effect_rect",       .type = NGPU_TYPE_VEC4},
         {.name = "ngli_quad_tex_scale",  .type = NGPU_TYPE_VEC2},
         {.name = "ngli_quad_tex_offset", .type = NGPU_TYPE_VEC2},
     };
@@ -863,12 +866,44 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const float d = NGLI_MAX(o->dilation, 0.f);
 
     s->local_effect_margin = children_effect_margin + d;
-    const float qx = bbox_min[0] - d;
-    const float qy = bbox_min[1] - d;
-    const float qw = bbox_max[0] - bbox_min[0] + 2.f * d;
-    const float qh = bbox_max[1] - bbox_min[1] + 2.f * d;
+    float x0 = bbox_min[0] - d;
+    float y0 = bbox_min[1] - d;
+    float x1 = bbox_max[0] + d;
+    float y1 = bbox_max[1] + d;
 
-    const float rect[] = {qx, qy, qw, qh};
+    /* Shader rect coordinates cover the full effect, even when cropped. */
+    const float effect_rect[] = {x0, y0, x1 - x0, y1 - y0};
+    memcpy(s->effect_rect, effect_rect, sizeof(s->effect_rect));
+
+    /*
+     * Crop the composite quad to the canvas plus the effect margin,
+     * preserving a 1:1 texel mapping.
+     */
+    if (ctx->canvas_2d_width > 0.f && ctx->canvas_2d_height > 0.f) {
+        const struct aabb canvas_aabb = {
+            .center = {ctx->canvas_2d_width / 2.f, ctx->canvas_2d_height / 2.f, 0.f, 1.f},
+            .extent = {ctx->canvas_2d_width / 2.f, ctx->canvas_2d_height / 2.f},
+        };
+        struct ngli_mat4 canvas_to_local;
+        ngli_mat4_inverse(canvas_to_local.m, prev_transform_2d.m);
+        struct aabb visible = ngli_aabb_apply_transform(&canvas_aabb, canvas_to_local.m);
+        visible.extent[0] += s->local_effect_margin;
+        visible.extent[1] += s->local_effect_margin;
+        NGLI_ALIGNED_VEC(visible_min);
+        NGLI_ALIGNED_VEC(visible_max);
+        ngli_aabb_get_min_max(&visible, visible_min, visible_max);
+        x0 = fmaxf(x0, visible_min[0]);
+        y0 = fmaxf(y0, visible_min[1]);
+        x1 = fminf(x1, visible_max[0]);
+        y1 = fminf(y1, visible_max[1]);
+    }
+
+    if (x1 <= x0 || y1 <= y0)
+        return;
+
+    const float qw = x1 - x0;
+    const float qh = y1 - y0;
+    const float rect[] = {x0, y0, qw, qh};
     memcpy(s->rect, rect, sizeof(s->rect));
 
     /* The public bounds describe the complete composite quad. */
@@ -884,25 +919,11 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const float scale_x = canvas_w > 0.f ? rt_w / canvas_w : 1.f;
     const float scale_y = canvas_h > 0.f ? rt_h / canvas_h : 1.f;
 
-    /*
-     * Cap the RTT size to the visible canvas region extended by the dilation
-     * margin plus the children effect margin. The ortho projection and quad
-     * geometry still use the full bbox so children keep their correct
-     * positions; only the texture resolution shrinks when the bbox exceeds the
-     * canvas.
-     */
-    float rtt_qw = qw;
-    float rtt_qh = qh;
-    if (canvas_w > 0.f && canvas_h > 0.f) {
-        rtt_qw = NGLI_MIN(qw, canvas_w + 2.f * s->local_effect_margin);
-        rtt_qh = NGLI_MIN(qh, canvas_h + 2.f * s->local_effect_margin);
-    }
-
     /* Compute and clamp final dimension to the device's max 2D texture dimension. */
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
     const uint32_t max_dim = limits->max_texture_dimension_2d;
-    const double scaled_w = ceil((double)rtt_qw * (double)scale_x);
-    const double scaled_h = ceil((double)rtt_qh * (double)scale_y);
+    const double scaled_w = ceil((double)qw * (double)scale_x);
+    const double scaled_h = ceil((double)qh * (double)scale_y);
     if (!isfinite(scaled_w) || !isfinite(scaled_h) || scaled_w <= 0.0 || scaled_h <= 0.0)
         return;
 
@@ -922,7 +943,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     struct ngli_mat4 fbo_base_projection;
     ngpu_ctx_get_projection_matrix(gpu_ctx, fbo_base_projection.m);
-    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, qx, qx + qw, qy + qh, qy, -1.f, 1.f);
+    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, x0, x1, y1, y0, -1.f, 1.f);
     ngli_mat4_mul(ctx->projection_2d_matrix.m, fbo_base_projection.m, ctx->projection_2d_matrix.m);
 
     for (size_t i = 0; i < o->children.count; i++) {
@@ -987,12 +1008,22 @@ static void effect2d_draw(struct ngl_node *node)
     const struct ngli_image *input = s->rtt ? ngli_rtt_get_image(s->rtt, 0) : NULL;
     ngli_image_get_coordinates_scale_offset(input, tex_scale, tex_offset);
 
+    /* Compose full-effect UV -> cropped-input UV -> memory once for both stages. */
+    for (size_t i = 0; i < 2; i++) {
+        const float size = s->rect[2 + i];
+        const float scale = size > 0.f ? s->effect_rect[2 + i] / size : 1.f;
+        const float offset = size > 0.f ? (s->effect_rect[i] - s->rect[i]) / size : 0.f;
+        tex_offset[i] += offset * tex_scale[i];
+        tex_scale[i] *= scale;
+    }
+
     /* Fill and push vertex block to staging buffer */
     {
         struct effect2d_vert_block vert_data = {0};
         vert_data.projection_matrix = ctx->projection_2d_matrix;
         vert_data.modelview_matrix = s->node2d_info.transform_matrix;
         memcpy(vert_data.rect, s->rect, sizeof(vert_data.rect));
+        memcpy(vert_data.effect_rect, s->effect_rect, sizeof(vert_data.effect_rect));
         memcpy(vert_data.quad_tex_scale, tex_scale, sizeof(vert_data.quad_tex_scale));
         memcpy(vert_data.quad_tex_offset, tex_offset, sizeof(vert_data.quad_tex_offset));
 
@@ -1008,7 +1039,7 @@ static void effect2d_draw(struct ngl_node *node)
 
         struct effect2d_frag_block frag_data = {0};
         frag_data.opacity = local_opacity * group_opacity;
-        memcpy(frag_data.rect_size, s->rect + 2, sizeof(frag_data.rect_size));
+        memcpy(frag_data.rect_size, s->effect_rect + 2, sizeof(frag_data.rect_size));
         memcpy(frag_data.input_scale, tex_scale, sizeof(tex_scale));
         memcpy(frag_data.input_offset, tex_offset, sizeof(tex_offset));
 
