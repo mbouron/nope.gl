@@ -48,6 +48,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   the graph, only the count of active nodes remains
 - `ngl_configure()` now fails with `NGL_ERROR_BUSY` if a frame obtained from
   `ngl_draw` is still held by the user
+- The Android binding is simplified; nodes accepting a value or a node now take
+  the plain value (`<name> = NGLFloat(...)`) or the node through a separate
+  `<name>Node = NGLUniformFloat(...)`; `NGLNodeOrValue` is removed
 
 ### Fixed
 - Non-shareable nodes incorrectly allowed to be shared within a graph after the

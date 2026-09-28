@@ -180,7 +180,7 @@ class NopeGLTest {
         val draw = NGLDrawTexture(texture2DNode)
         val transform2 = NGLTransform(
             child = draw,
-            matrix = NGLNodeOrValue.node(NGLUniformMat4(liveId = "geometry_matrix"))
+            matrixNode = NGLUniformMat4(liveId = "geometry_matrix")
         )
         val timeRangeFilter = NGLTimeRangeFilter(
             child = transform2,
@@ -235,7 +235,7 @@ class NopeGLTest {
         val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply {
             setScene(scene)
         }
-        draw.setOpacity(NGLNodeOrValue.value(0.5f))
+        draw.setOpacity(0.5f)
 
         ctx.release()
     }
@@ -414,13 +414,13 @@ class NopeGLTest {
         val width = 256
         val height = 256
         val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
-        val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 100.0f, 80.0f)), fill = fill, label = "rect")
+        val rect = NGLDrawRect2D(rect = NGLVec4(0.0f, 0.0f, 100.0f, 80.0f), fill = fill, label = "rect")
         val group = NGLGroup2D(
             children = listOf(rect),
-            translate = NGLNodeOrValue.value(NGLVec2(50.0f, 30.0f)),
-            rotation = NGLNodeOrValue.value(45.0f),
-            scale = NGLNodeOrValue.value(NGLVec2(2.0f, 0.5f)),
-            anchor = NGLNodeOrValue.value(NGLVec2(0.0f, 0.0f)),
+            translate = NGLVec2(50.0f, 30.0f),
+            rotation = 45.0f,
+            scale = NGLVec2(2.0f, 0.5f),
+            anchor = NGLVec2(0.0f, 0.0f),
             label = "group",
         )
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
@@ -461,15 +461,15 @@ class NopeGLTest {
         val width = 256
         val height = 256
         val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
-        val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 100.0f, 80.0f)), fill = fill)
-        val group = NGLGroup2D(children = listOf(rect), anchor = NGLNodeOrValue.value(NGLVec2(0.0f, 0.0f)))
+        val rect = NGLDrawRect2D(rect = NGLVec4(0.0f, 0.0f, 100.0f, 80.0f), fill = fill)
+        val group = NGLGroup2D(children = listOf(rect), anchor = NGLVec2(0.0f, 0.0f))
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
 
         val scene = NGLScene(rootNode = canvas, width = width, height = height)
         val ctx = createContext(NGLConfig.BACKEND_OPENGLES).apply { setScene(scene) }
 
         for (angle in -180..180 step 15) {
-            group.setRotation(NGLNodeOrValue.value(angle.toFloat()))
+            group.setRotation(angle.toFloat())
             ctx.draw(0.0)
 
             val rotation = group.getGlobalRotation()
@@ -490,7 +490,7 @@ class NopeGLTest {
         NGLContext.init(appContext)
 
         val fill = NGLColorPaint(color = NGLVec4(0.8f, 0.2f, 0.1f, 1.0f))
-        val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(10.0f, 20.0f, 100.0f, 80.0f)), fill = fill)
+        val rect = NGLDrawRect2D(rect = NGLVec4(10.0f, 20.0f, 100.0f, 80.0f), fill = fill)
 
         val v = rect.getRect()
         assertNotNull(v)
@@ -501,11 +501,11 @@ class NopeGLTest {
 
         assertTrue("rotation", isClose(rect.getRotation(), 0.0f))
 
-        val group = NGLGroup2D(children = listOf(rect), rotation = NGLNodeOrValue.value(45.0f), opacity = NGLNodeOrValue.value(0.5f))
+        val group = NGLGroup2D(children = listOf(rect), rotation = 45.0f, opacity = 0.5f)
         assertTrue("group rotation", isClose(group.getRotation(), 45.0f))
         assertTrue("group opacity", isClose(group.getOpacity(), 0.5f))
 
-        val group2 = NGLGroup2D(children = listOf(rect), translate = NGLNodeOrValue.value(NGLVec2(100.0f, 200.0f)))
+        val group2 = NGLGroup2D(children = listOf(rect), translate = NGLVec2(100.0f, 200.0f))
         val t = group2.getTranslate()
         assertNotNull(t)
         assertTrue("translate x", isClose(t!![0], 100.0f))
@@ -515,7 +515,7 @@ class NopeGLTest {
         assertEquals(320, canvas.getWidth())
         assertEquals(240, canvas.getHeight())
 
-        group.setRotation(NGLNodeOrValue.value(90.0f))
+        group.setRotation(90.0f)
         assertTrue("after set", isClose(group.getRotation(), 90.0f))
     }
 
@@ -527,8 +527,8 @@ class NopeGLTest {
         val width = 256
         val height = 256
         val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
-        val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 100.0f, 80.0f)), fill = fill, label = "rect")
-        val group = NGLGroup2D(children = listOf(rect), translate = NGLNodeOrValue.value(NGLVec2(50.0f, 30.0f)), label = "group")
+        val rect = NGLDrawRect2D(rect = NGLVec4(0.0f, 0.0f, 100.0f, 80.0f), fill = fill, label = "rect")
+        val group = NGLGroup2D(children = listOf(rect), translate = NGLVec2(50.0f, 30.0f), label = "group")
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
 
         val scene = NGLScene(rootNode = canvas, width = width, height = height)
@@ -560,8 +560,8 @@ class NopeGLTest {
         val width = 256
         val height = 256
         val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
-        val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 100.0f, 80.0f)), fill = fill)
-        val group = NGLGroup2D(children = listOf(rect), translate = NGLNodeOrValue.value(NGLVec2(50.0f, 30.0f)))
+        val rect = NGLDrawRect2D(rect = NGLVec4(0.0f, 0.0f, 100.0f, 80.0f), fill = fill)
+        val group = NGLGroup2D(children = listOf(rect), translate = NGLVec2(50.0f, 30.0f))
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
 
         // Before set_scene: should return zeros without crashing
@@ -613,8 +613,8 @@ class NopeGLTest {
         val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
         // r0 at (10,20,40,30) → center=(30,35), extent=(20,15), spans x=[10,50], y=[20,50]
         // r1 at (100,80,60,40) → center=(130,100), extent=(30,20), spans x=[100,160], y=[80,120]
-        val r0 = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(10.0f, 20.0f, 40.0f, 30.0f)), fill = fill)
-        val r1 = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(100.0f, 80.0f, 60.0f, 40.0f)), fill = fill)
+        val r0 = NGLDrawRect2D(rect = NGLVec4(10.0f, 20.0f, 40.0f, 30.0f), fill = fill)
+        val r1 = NGLDrawRect2D(rect = NGLVec4(100.0f, 80.0f, 60.0f, 40.0f), fill = fill)
         val group = NGLGroup2D(children = listOf(r0, r1))
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
 
@@ -663,8 +663,8 @@ class NopeGLTest {
         val height = 256
         val fill = NGLColorPaint(color = NGLVec4(1.0f, 0.0f, 0.0f, 1.0f))
         // 200x100 rect rotated 90° around its center (100, 50)
-        val rect = NGLDrawRect2D(rect = NGLNodeOrValue.value(NGLVec4(0.0f, 0.0f, 200.0f, 100.0f)), fill = fill)
-        val group = NGLGroup2D(children = listOf(rect), rotation = NGLNodeOrValue.value(90.0f), anchor = NGLNodeOrValue.value(NGLVec2(100.0f, 50.0f)))
+        val rect = NGLDrawRect2D(rect = NGLVec4(0.0f, 0.0f, 200.0f, 100.0f), fill = fill)
+        val group = NGLGroup2D(children = listOf(rect), rotation = 90.0f, anchor = NGLVec2(100.0f, 50.0f))
         val canvas = NGLCanvas2D(children = listOf(group), width = width, height = height)
 
         val scene = NGLScene(rootNode = canvas, width = width, height = height)
@@ -806,7 +806,7 @@ class NopeGLTest {
             height = height,
             children = listOf(
                 NGLDrawRect2D(
-                    rect = NGLNodeOrValue.value(NGLVec4(0f, 0f, 256f, 256f)),
+                    rect = NGLVec4(0f, 0f, 256f, 256f),
                     fill = NGLTexturePaint(
                         texture = canvas.node,
                     ),
