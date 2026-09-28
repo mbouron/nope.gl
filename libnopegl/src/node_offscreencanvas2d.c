@@ -472,7 +472,8 @@ static void offscreencanvas2d_pre_draw(struct ngl_node *node)
 
     struct ngli_mat4 base_projection;
     ngpu_ctx_get_projection_matrix(gpu_ctx, base_projection.m);
-    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, -0.5f, w - 0.5f, h - 0.5f, -0.5f, -1.f, 1.f);
+    /* Pixel i covers [i, i + 1], as in Skia or ThorVG: a (0, 0, w, h) rect covers the canvas exactly */
+    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, 0.f, w, h, 0.f, -1.f, 1.f);
     ngli_mat4_mul(ctx->projection_2d_matrix.m, base_projection.m, ctx->projection_2d_matrix.m);
 
     /* Draw children */

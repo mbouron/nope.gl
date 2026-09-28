@@ -560,6 +560,13 @@ foreach backend : backends
     'switch',
   ]
 
+  tests_coords2d = [
+    'paint_inputs',
+    'paint_sampling',
+    'effect_inputs',
+    'effect_sampling',
+  ]
+
   tests_drawrect2d = [
     'animated_trs',
     'animated_content',
@@ -662,6 +669,7 @@ foreach backend : backends
     'color':         {'tests': tests_color},
     'compositing':   {'tests': tests_compositing},
     'compute':       {'tests': tests_compute},
+    'coords2d':      {'tests': tests_coords2d},
     'data':          {'tests': tests_data},
     'depth_stencil': {'tests': tests_depth_stencil},
     'drawrect2d':    {'tests': tests_drawrect2d},

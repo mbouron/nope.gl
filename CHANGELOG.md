@@ -65,6 +65,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - The input of an `Effect2DShader` is now named `ngl_input` instead of `tex`
 - Custom paint and effect shader entries receive an `ngl_FragmentInput`
   structure instead of separate coordinate parameters
+- 2D canvases use pixel-edge coordinates: pixel centers lie at half-integer
+  positions, so a 1:1 texture can be sampled without a half-texel offset
 
 
 ### Fixed

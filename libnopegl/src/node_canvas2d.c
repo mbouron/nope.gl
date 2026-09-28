@@ -126,7 +126,8 @@ static void canvas2d_draw(struct ngl_node *node)
     /* Build the 2D orthographic projection and store it in ctx */
     struct ngli_mat4 base_projection_matrix;
     ngpu_ctx_get_projection_matrix(gpu_ctx, base_projection_matrix.m);
-    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, -0.5f, w - 0.5f, h - 0.5f, -0.5f, -1.f, 1.f);
+    /* Pixel i covers [i, i + 1], as in Skia or ThorVG: a (0, 0, w, h) rect covers the canvas exactly */
+    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, 0.f, w, h, 0.f, -1.f, 1.f);
     ngli_mat4_mul(ctx->projection_2d_matrix.m, base_projection_matrix.m, ctx->projection_2d_matrix.m);
 
     const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
