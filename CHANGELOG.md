@@ -89,6 +89,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `DrawRect2D.content_translate` and `content_orientation` moving the content
   the wrong way for textures stored upside down in memory, such as render
   targets with OpenGL
+- `Effect2D` resampling the entire input instead of cropping it when children
+  extend beyond the canvas
 
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added
