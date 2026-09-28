@@ -106,7 +106,7 @@ static int animatedbuffer_init(struct ngl_node *node)
 
     int ret = ngli_animation_init(&s->anim, s,
                                   o->animkf.data, o->animkf.count,
-                                  mix_buffer, cpy_buffer);
+                                  mix_buffer, cpy_buffer, 0);
     if (ret < 0)
         return ret;
 
@@ -181,6 +181,7 @@ static void animatedbuffer_uninit(struct ngl_node *node)
 
     ngli_buffer_resource_unrefp(&info->resource);
     ngli_freep(&info->data);
+    ngli_animation_reset(&s->anim);
 }
 
 #define DEFINE_ABUFFER_CLASS(class_id, class_name, type_name, class_data_type, class_data_format)  \

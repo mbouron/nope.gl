@@ -295,6 +295,11 @@ static ngli_animation_cpy_func_type get_cpy_func(const struct variable_opts *o, 
     return NULL;
 }
 
+static uint32_t get_animation_flags(uint32_t node_class)
+{
+    return node_class == NGL_NODE_ANIMATEDTIME ? NGLI_ANIMATION_FLAG_TIME_VALUES : 0;
+}
+
 int ngl_anim_evaluate(struct ngl_node *node, void *dst, double t)
 {
     if (node->cls->id == NGL_NODE_VELOCITYFLOAT ||
@@ -325,7 +330,8 @@ int ngl_anim_evaluate(struct ngl_node *node, void *dst, double t)
     int ret = ngli_animation_init(&anim_eval, s,
                                   o->animkf.data, o->animkf.count,
                                   get_mix_func(o, node->cls->id),
-                                  get_cpy_func(o, node->cls->id));
+                                  get_cpy_func(o, node->cls->id),
+                                  get_animation_flags(node->cls->id));
     if (ret < 0)
         return ret;
 
@@ -334,12 +340,16 @@ int ngl_anim_evaluate(struct ngl_node *node, void *dst, double t)
         const struct animkeyframe_priv *kf_priv = kf->priv_data;
         if (!kf_priv->function) {
             ret = kf->cls->init(kf);
-            if (ret < 0)
+            if (ret < 0) {
+                ngli_animation_reset(&anim_eval);
                 return ret;
+            }
         }
     }
 
-    return ngli_animation_evaluate(&anim_eval, dst, t - o->time_offset);
+    ret = ngli_animation_evaluate(&anim_eval, dst, t - o->time_offset);
+    ngli_animation_reset(&anim_eval);
+    return ret;
 }
 
 static int animation_init(struct ngl_node *node)
@@ -350,7 +360,8 @@ static int animation_init(struct ngl_node *node)
     return ngli_animation_init(&s->anim, node->opts,
                                o->animkf.data, o->animkf.count,
                                get_mix_func(o, node->cls->id),
-                               get_cpy_func(o, node->cls->id));
+                               get_cpy_func(o, node->cls->id),
+                               get_animation_flags(node->cls->id));
 }
 
 #define DECLARE_INIT_FUNC(suffix, class_data, class_data_size, class_data_type) \
@@ -378,20 +389,14 @@ static int animatedtime_init(struct ngl_node *node)
     s->var.data_size = sizeof(s->dval);
     s->var.data_type = NGPU_TYPE_NONE;
 
-    // Sanity checks for time animation keyframe
-    double prev_time = 0;
+    // Sanity checks for time animation keyframe; the times themselves are
+    // evaluated as non-negative and non-decreasing (see animation.h)
     for (size_t i = 0; i < o->animkf.count; i++) {
         const struct animkeyframe_opts *kf = o->animkf.data[i]->opts;
         if (kf->easing != EASING_LINEAR) {
             LOG(ERROR, "only linear interpolation is allowed for time animation");
             return NGL_ERROR_INVALID_ARG;
         }
-        if (kf->scalar < prev_time) {
-            LOG(ERROR, "times must be positive and monotonically increasing: %g < %g",
-                kf->scalar, prev_time);
-            return NGL_ERROR_INVALID_ARG;
-        }
-        prev_time = kf->scalar;
     }
 
     return animation_init(node);
@@ -445,43 +450,18 @@ static int animation_update(struct ngl_node *node, double t)
 static void animation_invalidate(struct ngl_node *node)
 {
     struct animated_priv *s = node->priv_data;
-    const struct variable_opts *o = node->opts;
 
-    // Sanitize updated keyframe timestamps
-    double prev_time = -DBL_MAX;
-    for (size_t i = 0; i < o->animkf.count; i++) {
-        struct animkeyframe_opts *kf = o->animkf.data[i]->opts;
-
-        if (kf->time < prev_time) {
-            LOG(WARNING, "key frames must be monotonically increasing: %g < %g, clamping",
-                kf->time, prev_time);
-            kf->time = prev_time;
-        }
-        prev_time = kf->time;
-    }
-
+    // Re-evaluate the key frames, as they are now, at the next update
     s->anim.kfs = NULL;
 }
 
-static void animatedtime_invalidate(struct ngl_node *node)
+static void animation_uninit(struct ngl_node *node)
 {
-    const struct variable_opts *o = node->opts;
-
-    // Sanitize updated time values
-    double prev_time = 0.0;
-    for (size_t i = 0; i < o->animkf.count; i++) {
-        struct animkeyframe_opts *kf = o->animkf.data[i]->opts;
-        if (kf->scalar < prev_time) {
-            LOG(WARNING, "times must be positive and monotonically increasing: %g < %g, clamping",
-                kf->scalar, prev_time);
-            kf->scalar = prev_time;
-        }
-        prev_time = kf->scalar;
-    }
-    animation_invalidate(node);
+    struct animated_priv *s = node->priv_data;
+    ngli_animation_reset(&s->anim);
 }
 
-#define animatedtime_invalidate  animatedtime_invalidate
+#define animatedtime_invalidate  animation_invalidate
 #define animatedfloat_invalidate animation_invalidate
 #define animatedvec2_invalidate  animation_invalidate
 #define animatedvec3_invalidate  animation_invalidate
@@ -515,6 +495,7 @@ const struct node_class ngli_animated##type##_class = {         \
     .init      = animated##type##_init,                         \
     .update    = animated##type##_update,                       \
     .invalidate = animated##type##_invalidate,                  \
+    .uninit    = animation_uninit,                              \
     .opts_size = sizeof(struct variable_opts),                  \
     .priv_size = sizeof(struct animated_priv),                  \
     .params    = animated##type##_params,                       \

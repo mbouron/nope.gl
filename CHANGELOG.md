@@ -52,6 +52,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   the plain value (`<name> = NGLFloat(...)`) or the node through a separate
   `<name>Node = NGLUniformFloat(...)`; `NGLNodeOrValue` is removed
 - `OffscreenCanvas2D.width` and `OffscreenCanvas2D.height` are now live-changeable
+- Timeranges (`TimeRangeFilter`, `TimeRangeFilter2D`, `Effect2DShader`) and
+  animation keyframes are now kept as-is and sanitized during evaluation
 
 ### Fixed
 - Non-shareable nodes incorrectly allowed to be shared within a graph after the
@@ -59,6 +61,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - Garbled HUD text when the scene is letter boxed, caused by the overlay being
   sampled off the pixel grid
 - HUD overlay clipped by the viewport when `hud_scale` is too large
+- Moving animation key frames one at a time could leave them clamped to an
+  intermediate state, depending on the order they were moved in
 
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added

@@ -94,7 +94,7 @@ def api_animation_evaluate_edits():
 
 
 def api_animation_live_timestamps():
-    """Live timestamp edits sanitize the first interval and invalidate consumers."""
+    """Live timestamp edits keep the times as set, evaluate them as non-decreasing and invalidate consumers."""
     for animated_cls in (ngl.AnimatedFloat, ngl.AnimatedTime):
         keyframes = [ngl.AnimKeyFrameFloat(0, 0), ngl.AnimKeyFrameFloat(1, 0.5), ngl.AnimKeyFrameFloat(2, 1)]
         anim = animated_cls(keyframes)
@@ -108,14 +108,102 @@ def api_animation_live_timestamps():
             assert ctx.set_scene(scene) == 0
             assert ctx.draw(1.5) == 0
             assert keyframes[0].set_time(1.25) == 0
-            assert [kf.get_time() for kf in keyframes] == [1.25, 1.25, 2]
+            assert [kf.get_time() for kf in keyframes] == [1.25, 1, 2]
             # Exercise cache rebuilding at the same time as the preceding draw.
             assert ctx.draw(1.5) == 0
             assert keyframes[1].set_time(3) == 0
-            assert [kf.get_time() for kf in keyframes] == [1.25, 3, 3]
+            assert [kf.get_time() for kf in keyframes] == [1.25, 3, 2]
             assert ctx.draw(1.5) == 0
         finally:
             assert ctx.set_scene(None) == 0
+
+
+def api_animation_keyframes_unordered():
+    """Unordered keyframes are evaluated with their times clamped to be non-decreasing."""
+    unordered = ngl.AnimatedFloat(
+        [ngl.AnimKeyFrameFloat(2, 0), ngl.AnimKeyFrameFloat(1, 1), ngl.AnimKeyFrameFloat(3, 2)]
+    )
+    clamped = ngl.AnimatedFloat([ngl.AnimKeyFrameFloat(2, 0), ngl.AnimKeyFrameFloat(2, 1), ngl.AnimKeyFrameFloat(3, 2)])
+    for t in (0.0, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0):
+        assert unordered.evaluate(t) == clamped.evaluate(t), t
+    scene = ngl.Scene.from_params(ngl.DrawColor(opacity=unordered))
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+    assert ctx.set_scene(scene) == 0
+    assert ctx.draw(2.5) == 0
+    assert ctx.set_scene(None) == 0
+
+
+def api_animation_keyframes_editing_order():
+    """Keyframes editing is order-independent."""
+    times = [0.0, 1.0]
+    for move_first in (0, 1):
+        kfs = [ngl.AnimKeyFrameFloat(5, 0), ngl.AnimKeyFrameFloat(6, 1)]
+        opacity = ngl.AnimatedFloat(kfs)
+        scene = ngl.Scene.from_params(ngl.DrawColor(opacity=opacity))
+        ctx = ngl.Context()
+        assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+        assert ctx.set_scene(scene) == 0
+        assert ctx.draw(0.5) == 0
+        move_second = 1 - move_first
+        assert kfs[move_first].set_time(times[move_first]) == 0
+        assert ctx.draw(0.5) == 0
+        assert kfs[move_second].set_time(times[move_second]) == 0
+        assert ctx.draw(0.5) == 0
+        assert [kf.get_time() for kf in kfs] == times, move_first
+        assert opacity.evaluate(0.5) == 0.5
+        assert ctx.set_scene(None) == 0
+
+
+def api_timerange_inverted(width=16, height=16):
+    """A timerange with start > end is empty."""
+    black = (0, 0, 0, 255)
+    red = (255, 0, 0, 255)
+    white = (255, 255, 255, 255)
+
+    root = ngl.Group(children=[])
+    scene = ngl.Scene.from_params(root, duration=3)
+
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            capture_buffer=capture_buffer,
+        ),
+    )
+    assert ret == 0
+    assert ctx.set_scene(scene) == 0
+
+    def output_color(t: float):
+        assert ctx.draw(t) == 0
+        offset = ((height // 2) * width + width // 2) * 4
+        return tuple(capture_buffer[offset : offset + 4])
+
+    def test_timerange(node: ngl.Node, timerange: ngl.Node, inactive_color: tuple[int, ...]):
+        assert root.add_children(node) == 0
+        assert output_color(1.5) == inactive_color
+        assert timerange.set_start(0.0) == 0
+        assert timerange.set_end(2.0) == 0
+        assert output_color(0.5) == red
+        assert root.remove_children(node) == 0
+
+    trf = ngl.TimeRangeFilter(ngl.DrawColor(color=(1.0, 0.0, 0.0)), start=2.0, end=1.0)
+    test_timerange(trf, trf, black)
+
+    rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
+    trf2d = ngl.TimeRangeFilter2D(rect, start=2.0, end=1.0)
+    canvas = ngl.Canvas2D(width=width, height=height, children=[trf2d])
+    test_timerange(canvas, trf2d, black)
+
+    rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint(color=(1.0, 1.0, 1.0, 1.0)))
+    shader = ngl.Effect2DShader(glsl_color="return vec4(1.0, 0.0, 0.0, 1.0);", start=2.0, end=1.0)
+    effect = ngl.Effect2D(children=[rect], shaders=[shader])
+    canvas = ngl.Canvas2D(width=width, height=height, children=[effect])
+    test_timerange(canvas, shader, white)
 
 
 def api_backend():
@@ -1480,6 +1568,23 @@ def api_bounding_box(width=256, height=256):
     check_bbox(canvas, (100, 70), (50, 40))
 
     ctx.set_scene(None)
+
+
+def api_bounding_box_timerangefilter2d(width=256, height=256):
+    """A TimeRangeFilter2D reports the bounding box of its child while active"""
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend)) == 0
+
+    rect = ngl.DrawRect2D(rect=(10, 20, 100, 80), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
+    trf = ngl.TimeRangeFilter2D(rect, start=0.0, end=2.0)
+    canvas = ngl.Canvas2D(children=[trf], width=width, height=height)
+    assert ctx.set_scene(ngl.Scene.from_params(canvas, width=width, height=height, duration=3)) == 0
+    assert ctx.draw(1.0) == 0
+
+    box = trf.get_bounding_box()
+    assert box == rect.get_bounding_box(), f"{box} != {rect.get_bounding_box()}"
+    assert _is_close(box["center"][0], 60) and _is_close(box["center"][1], 60), box
+    assert _is_close(box["extent"][0], 50) and _is_close(box["extent"][1], 40), box
 
 
 def api_bounding_box_drawrect2d(width=256, height=256):
