@@ -29,7 +29,6 @@ import org.nopeforge.nopegl.NGLIVec3
 import org.nopeforge.nopegl.NGLIVec4
 import org.nopeforge.nopegl.NGLMat4
 import org.nopeforge.nopegl.NGLNode
-import org.nopeforge.nopegl.NGLNodeOrValue
 import org.nopeforge.nopegl.NGLNodeType
 import org.nopeforge.nopegl.NGLRational
 import org.nopeforge.nopegl.NGLUVec2
@@ -113,6 +112,9 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
     val parameterSpecs = parameters.associateWith { param ->
         param.toKotlinParameter(choices)
     }
+    val nodeParameterSpecs = parameters.filter { it.canBeNode }.associateWith { param ->
+        param.toKotlinNodeParameter()
+    }
     return TypeSpec.classBuilder(className)
         .superclass(NGLNode::class.asClassName())
         .addKdoc(
@@ -128,22 +130,37 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
         .addSuperclassConstructorParameter("%T.${type.name}", type::class.asClassName())
         .primaryConstructor(
             FunSpec.constructorBuilder()
-                .apply { parameterSpecs.values.forEach(::addParameter) }
+                .apply {
+                    parameterSpecs.forEach { (param, parameter) ->
+                        addParameter(parameter)
+                        nodeParameterSpecs[param]?.let(::addParameter)
+                    }
+                }
                 .build()
         )
         .addInitializerBlock(
             CodeBlock.builder()
                 .apply {
                     parameterSpecs.forEach { (param, parameter) ->
-                        add(
-                            kotlinSetCall(
-                                typeName = param.type,
-                                name = param.name,
-                                kotlinName = parameter.name,
-                                nullable = param.nullable,
-                                canBeNode = param.canBeNode,
+                        val nodeParameter = nodeParameterSpecs[param]
+                        if (nodeParameter == null) {
+                            add(
+                                kotlinSetCall(
+                                    typeName = param.type,
+                                    name = param.name,
+                                    kotlinName = parameter.name,
+                                    nullable = param.nullable,
+                                )
                             )
-                        )
+                        } else {
+                            add(
+                                kotlinValueOrNodeInitCall(
+                                    param = param,
+                                    kotlinName = parameter.name,
+                                    kotlinNodeName = nodeParameter.name,
+                                )
+                            )
+                        }
                     }
                 }
                 .build()
@@ -191,7 +208,6 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                     name = param.name,
                     kotlinName = parameter.name,
                     nullable = false,
-                    canBeNode = param.canBeNode
                 )
                 val defaultFunction = block.let { setCall ->
                     FunSpec.builder("set${param.parameterName.toCamelCase(true)}")
@@ -221,7 +237,14 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                         parameter = parameter
                     )
 
-                    else -> listOf(defaultFunction)
+                    else -> if (param.canBeNode) {
+                        nodeOrValueFunctions(
+                            defaultFunction = defaultFunction,
+                            param = param,
+                        )
+                    } else {
+                        listOf(defaultFunction)
+                    }
                 }
             })
         .addFunctions(parameterSpecs.filter { it.key.addSetter }
@@ -320,18 +343,47 @@ private fun nodeDictFunctions(
         .build()
 )
 
+private fun kotlinSetNodeCall(name: String, kotlinName: String): CodeBlock =
+    CodeBlock.of("${NGLNode::setNode.name}(%S, $kotlinName.${NGLNode::nativePtr.name})\n", name)
+
+private fun kotlinValueOrNodeInitCall(
+    param: NodeClass.Parameter,
+    kotlinName: String,
+    kotlinNodeName: String,
+): CodeBlock = CodeBlock.builder()
+    .addStatement(
+        "require($kotlinName == null || $kotlinNodeName == null) { %S }",
+        "$kotlinName and $kotlinNodeName are mutually exclusive",
+    )
+    .beginControlFlow("if ($kotlinNodeName != null)")
+    .add(kotlinSetNodeCall(param.name, kotlinNodeName))
+    .nextControlFlow("else if ($kotlinName != null)")
+    .add(kotlinSetCall(param.type, param.name, kotlinName, nullable = false))
+    .endControlFlow()
+    .build()
+
+private fun nodeOrValueFunctions(
+    defaultFunction: FunSpec,
+    param: NodeClass.Parameter,
+): List<FunSpec> {
+    val setterName = "set${param.parameterName.toCamelCase(true)}"
+    return listOf(
+        defaultFunction,
+        FunSpec.builder(setterName)
+            .addKdoc(param)
+            .addParameter("node", NGLNode::class.asTypeName())
+            .addCode(kotlinSetNodeCall(param.name, "node"))
+            .build(),
+    )
+}
+
 private fun kotlinSetCall(
     typeName: TypeName,
     name: String,
     kotlinName: String,
     nullable: Boolean,
-    canBeNode: Boolean,
 ): CodeBlock {
-    val propertyAccessor = if (canBeNode) {
-        "$kotlinName.${NGLNodeOrValue.Value<*>::value.name}"
-    } else {
-        kotlinName
-    }
+    val propertyAccessor = kotlinName
     val setBlock = CodeBlock.builder()
         .apply {
             when (typeName) {
@@ -445,24 +497,6 @@ private fun kotlinSetCall(
             }
         }.build()
     return setBlock.let { block ->
-        if (canBeNode) {
-            CodeBlock.builder()
-                .beginControlFlow("when ($kotlinName)")
-                .beginControlFlow("is %T ->", NGLNodeOrValue.NGLNode::class.asTypeName())
-                .addStatement(
-                    "${NGLNode::setNode.name}(%S, $propertyAccessor.${NGLNode::nativePtr.name})",
-                    name
-                )
-                .endControlFlow()
-                .beginControlFlow("is %T ->", NGLNodeOrValue.Value::class.asTypeName())
-                .add(block)
-                .endControlFlow()
-                .endControlFlow()
-                .build()
-        } else {
-            block
-        }
-    }.let { block ->
         if (nullable) {
             CodeBlock.builder()
                 .beginControlFlow("if ($kotlinName != null)")
@@ -523,17 +557,17 @@ private fun NodeClass.Parameter.toKotlinParameter(choiceEnums: Map<String, Choic
         TypeName.Rational -> NGLRational::class.asTypeName()
     }
 
-    val type = if (canBeNode) {
-        NGLNodeOrValue::class.asTypeName().parameterizedBy(typeName)
-    } else {
-        typeName
-    }
-    return ParameterSpec.builder(parameterName, type.copy(nullable = nullable)).apply {
+    return ParameterSpec.builder(parameterName, typeName.copy(nullable = nullable)).apply {
         if (nullable) {
             defaultValue("null")
         }
     }.build()
 }
+
+private fun NodeClass.Parameter.toKotlinNodeParameter(): ParameterSpec =
+    ParameterSpec.builder("${name.toCamelCase()}Node", NGLNode::class.asTypeName().copy(nullable = true))
+        .defaultValue("null")
+        .build()
 
 private fun kotlinGetCall(typeName: TypeName, name: String): CodeBlock? {
     return when (typeName) {

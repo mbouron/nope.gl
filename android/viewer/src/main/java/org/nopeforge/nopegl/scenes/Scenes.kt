@@ -7,7 +7,6 @@ import org.nopeforge.nopegl.NGLEvalVec3
 import org.nopeforge.nopegl.NGLGroup
 import org.nopeforge.nopegl.NGLMedia
 import org.nopeforge.nopegl.NGLNode
-import org.nopeforge.nopegl.NGLNodeOrValue
 import org.nopeforge.nopegl.NGLQuad
 
 import org.nopeforge.nopegl.NGLRotate
@@ -32,11 +31,11 @@ fun defaultScene(): NGLScene {
     val drawTexture = NGLDrawTexture(texture)
 
     val gradient = NGLDrawGradient4(
-        colorTl = NGLNodeOrValue.node(NGLUniformColor(_value = NGLVec3(1f, 0.5f, 0f))) ,
-        colorTr = NGLNodeOrValue.node(NGLUniformColor(_value = NGLVec3(0f, 1f, 0f))) ,
-        colorBr = NGLNodeOrValue.node(NGLUniformColor(_value = NGLVec3(0f, 0.5f, 1f))) ,
-        colorBl = NGLNodeOrValue.node(NGLUniformColor(_value = NGLVec3(1f, 0f, 1f))) ,
-        linear = NGLNodeOrValue.value(true),
+        colorTlNode = NGLUniformColor(_value = NGLVec3(1f, 0.5f, 0f)),
+        colorTrNode = NGLUniformColor(_value = NGLVec3(0f, 1f, 0f)),
+        colorBrNode = NGLUniformColor(_value = NGLVec3(0f, 0.5f, 1f)),
+        colorBlNode = NGLUniformColor(_value = NGLVec3(1f, 0f, 1f)),
+        linear = true,
         geometry = NGLQuad(),
     )
 
@@ -56,8 +55,8 @@ fun defaultScene(): NGLScene {
         NGLAnimKeyFrameVec3(duration, NGLVec3(0.2f, 0.2f, 0.2f), NGLEasing.ExpIn),
     )
 
-    scene = NGLScale(scene, factors = NGLNodeOrValue.node(NGLAnimatedVec3(scaleAnimkf)))
-    scene = NGLTranslate(scene, vector = NGLNodeOrValue.value(NGLVec3(0.6f, 0.6f, 0.6f)))
+    scene = NGLScale(scene, factorsNode = NGLAnimatedVec3(scaleAnimkf))
+    scene = NGLTranslate(scene, vector = NGLVec3(0.6f, 0.6f, 0.6f))
 
     val translate = NGLUniformVec2(
         liveId = "translate",
@@ -66,7 +65,7 @@ fun defaultScene(): NGLScene {
     )
     val translate3 = NGLEvalVec3("t.x", "t.y", "0", resources = mapOf("t" to translate))
 
-    scene = NGLTranslate(scene, vector = NGLNodeOrValue.node(translate3))
+    scene = NGLTranslate(scene, vectorNode = translate3)
 
     scene = NGLGroup(children = listOf(drawTexture, scene))
 
