@@ -1053,11 +1053,15 @@ static void drawrect2d_draw(struct ngl_node *node)
 
     /* Compute Geometry dilation: expand quad to cover outside stroke + AA border */
     const float outer_edge = ngli_stroke2d_get_outer_edge(stroke);
-    const float margin_uv_px = outer_edge + 1.f;
-    const float margin_px = margin_uv_px + 1.f;
+    const float margin_px = outer_edge + 2.f;
+    /*
+     * The uv shift must match the geometry dilation exactly: any other value
+     * makes uv non-affine with the canvas position, stretching the SDF and
+     * every paint sampled from it across the dilated quad.
+     */
     const float margin_uv[2] = {
-        s->rect[2] > 0.f ? margin_uv_px / s->rect[2] : 0.f,
-        s->rect[3] > 0.f ? margin_uv_px / s->rect[3] : 0.f,
+        s->rect[2] > 0.f ? margin_px / s->rect[2] : 0.f,
+        s->rect[3] > 0.f ? margin_px / s->rect[3] : 0.f,
     };
 
     /* Compute opacity: multiply local opacity by cascaded group opacity */
