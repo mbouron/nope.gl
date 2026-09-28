@@ -922,7 +922,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     struct ngli_mat4 fbo_base_projection;
     ngpu_ctx_get_projection_matrix(gpu_ctx, fbo_base_projection.m);
-    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, qx - 0.5f, qx + qw - 0.5f, qy + qh - 0.5f, qy - 0.5f, -1.f, 1.f);
+    ngli_mat4_orthographic(ctx->projection_2d_matrix.m, qx, qx + qw, qy + qh, qy, -1.f, 1.f);
     ngli_mat4_mul(ctx->projection_2d_matrix.m, fbo_base_projection.m, ctx->projection_2d_matrix.m);
 
     for (size_t i = 0; i < o->children.count; i++) {
@@ -986,12 +986,6 @@ static void effect2d_draw(struct ngl_node *node)
     float tex_scale[2], tex_offset[2];
     const struct ngli_image *input = s->rtt ? ngli_rtt_get_image(s->rtt, 0) : NULL;
     ngli_image_get_coordinates_scale_offset(input, tex_scale, tex_offset);
-
-    /* Sampling is half a canvas pixel beyond the geometric rect coordinate. */
-    for (size_t i = 0; i < 2; i++) {
-        const float half_px = s->rect[2 + i] > 0.f ? 0.5f / s->rect[2 + i] : 0.f;
-        tex_offset[i] += half_px * tex_scale[i];
-    }
 
     /* Fill and push vertex block to staging buffer */
     {
