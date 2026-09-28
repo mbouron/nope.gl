@@ -278,6 +278,7 @@ foreach backend : backends
     'group_add_remove',
     'group_reparent',
     'effect2d_reparent',
+    'offscreencanvas2d_resize',
     'media_change',
     'timerangefilter_update',
   ]

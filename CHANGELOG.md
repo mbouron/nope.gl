@@ -51,6 +51,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - The Android binding is simplified; nodes accepting a value or a node now take
   the plain value (`<name> = NGLFloat(...)`) or the node through a separate
   `<name>Node = NGLUniformFloat(...)`; `NGLNodeOrValue` is removed
+- `OffscreenCanvas2D.width` and `OffscreenCanvas2D.height` are now live-changeable
 
 ### Fixed
 - Non-shareable nodes incorrectly allowed to be shared within a graph after the
