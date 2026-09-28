@@ -41,6 +41,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   the graph, only the count of active nodes remains
 - `ngl_configure()` now fails with `NGL_ERROR_BUSY` if a frame obtained from
   `ngl_draw` is still held by the user
+- `OffscreenCanvas2D.width` and `OffscreenCanvas2D.height` are now live-changeable
 
 ### Fixed
 - Non-shareable nodes incorrectly allowed to be shared within a graph after the

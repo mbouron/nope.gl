@@ -172,6 +172,51 @@ def _get_group_reparent_function(width=128, height=128):
 live_group_reparent = _get_group_reparent_function()
 
 
+def _get_offscreencanvas2d_resize_function(width=128, height=128):
+    texture = ngl.Texture2D(width=width, height=height)
+    offscreen = ngl.OffscreenCanvas2D(
+        children=[
+            ngl.DrawRect2D(rect=(16, 16, 96, 96), fill=ngl.ColorPaint(color=COLORS.orange + (1.0,))),
+        ],
+        color_textures=[texture],
+        width=width,
+        height=height,
+    )
+    display = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.TexturePaint(texture=texture))
+    root = ngl.Canvas2D(children=[offscreen, display], width=width, height=height)
+
+    def _resize(t_id: int):
+        if t_id == 1:
+            # A larger canvas maps onto the same texture: the rect shrinks
+            offscreen.set_width(width * 2)
+            offscreen.set_height(height * 2)
+        elif t_id == 2:
+            # A smaller canvas zooms in, cropping the rect
+            offscreen.set_width(width // 2)
+            offscreen.set_height(height // 2)
+        elif t_id == 3:
+            # 0 inherits the parent canvas size again
+            offscreen.set_width(0)
+            offscreen.set_height(0)
+
+    @test_render(
+        width=width,
+        height=height,
+        tolerance=1,
+        exercise_serialization=False,
+        keyframes_callback=_resize,
+        keyframes=[0.0, 1.0, 2.0, 3.0],
+    )
+    @ngl.scene(width=width, height=height)
+    def live_offscreencanvas2d_resize_func(cfg: ngl.SceneCfg):
+        return root
+
+    return live_offscreencanvas2d_resize_func
+
+
+live_offscreencanvas2d_resize = _get_offscreencanvas2d_resize_function()
+
+
 def _get_effect2d_reparent_function(width=128, height=128):
     content = ngl.Group2D(
         children=[ngl.DrawRect2D(rect=(16, 16, 96, 96), fill=ngl.ColorPaint(color=COLORS.orange + (1.0,)))]
