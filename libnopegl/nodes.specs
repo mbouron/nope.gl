@@ -3456,11 +3456,18 @@
           "desc": "2D scenes to render before applying the mask"
         },
         {
+          "name": "mask_rect",
+          "type": "vec4",
+          "default": [0.000000,0.000000,0.000000,0.000000],
+          "flags": ["live", "node"],
+          "desc": "rectangle (x, y, width, height) in local 2D space the mask image covers, the children being cut outside of it; when width or height is 0, the mask covers the composited children bounds"
+        },
+        {
           "name": "mask",
           "type": "node",
           "node_types": ["Texture2D", "CustomTexture"],
           "flags": ["nonull"],
-          "desc": "Texture2D or CustomTexture sampled as the mask; the image covers the composited children bounds, their anti-aliased edges included"
+          "desc": "Texture2D or CustomTexture sampled as the mask; the image covers `mask_rect`, or the composited children bounds, their anti-aliased edges included"
         },
         {
           "name": "channel",

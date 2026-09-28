@@ -312,13 +312,22 @@ static const struct node_param mask2d_params[] = {
         .node_types = NGLI_NODE2D_TYPES_LIST,
         .desc       = NGLI_DOCSTRING("2D scenes to render before applying the mask"),
     }, {
+        .key       = "mask_rect",
+        .type      = NGLI_PARAM_TYPE_VEC4,
+        .offset    = OFFSET(rect_node),
+        .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
+        .desc      = NGLI_DOCSTRING("rectangle (x, y, width, height) in local 2D space the mask image covers, "
+                                    "the children being cut outside of it; when width or height is 0, the mask "
+                                    "covers the composited children bounds"),
+    }, {
         .key        = "mask",
         .type       = NGLI_PARAM_TYPE_NODE,
         .offset     = OFFSET(mask_node),
         .flags      = NGLI_PARAM_FLAG_NON_NULL,
         .node_types = (const uint32_t[]){NGL_NODE_TEXTURE2D, NGL_NODE_CUSTOMTEXTURE, NGLI_NODE_NONE},
-        .desc       = NGLI_DOCSTRING("Texture2D or CustomTexture sampled as the mask; the image covers the "
-                                     "composited children bounds, their anti-aliased edges included"),
+        .desc       = NGLI_DOCSTRING("Texture2D or CustomTexture sampled as the mask; the image covers "
+                                     "`mask_rect`, or the composited children bounds, their anti-aliased edges "
+                                     "included"),
     }, {
         .key       = "channel",
         .type      = NGLI_PARAM_TYPE_SELECT,
@@ -916,16 +925,25 @@ static void effect2d_pre_draw(struct ngl_node *node)
     for (size_t i = 0; i < o->children.count; i++)
         ngli_node_pre_draw(o->children.data[i]);
 
-    /* Compute or apply the bounding box and position of the composite quad */
+    /*
+     * Compute or apply the bounding box and position of the composite quad. A
+     * Mask2D with a mask rect is bounded by it: the mask spans it, and nothing
+     * of the children outside of it shows.
+     */
+    int bounds = o->bounds;
+    if (node->cls->id == NGL_NODE_MASK2D) {
+        const float *mask_rect = ngli_node_get_data_ptr(o->rect_node, o->rect);
+        bounds = mask_rect[2] > 0.f && mask_rect[3] > 0.f ? EFFECT2D_BOUNDS_RECT : EFFECT2D_BOUNDS_CHILDREN;
+    }
     struct aabb children_bbox;
-    if (o->bounds == EFFECT2D_BOUNDS_CANVAS) {
+    if (bounds == EFFECT2D_BOUNDS_CANVAS) {
         const float width = NGLI_MAX(ctx->canvas_2d_width, 0.f);
         const float height = NGLI_MAX(ctx->canvas_2d_height, 0.f);
         children_bbox = (struct aabb) {
             .center = {width / 2.f, height / 2.f, 0.f, 1.f},
             .extent = {width / 2.f, height / 2.f},
         };
-    } else if (o->bounds == EFFECT2D_BOUNDS_RECT) {
+    } else if (bounds == EFFECT2D_BOUNDS_RECT) {
         const float *rect = ngli_node_get_data_ptr(o->rect_node, o->rect);
         const float half_w = NGLI_MAX(rect[2], 0.f) / 2.f;
         const float half_h = NGLI_MAX(rect[3], 0.f) / 2.f;

@@ -179,3 +179,28 @@ def layers2d_clip_rect(cfg: ngl.SceneCfg):
     """A clip only lets its children through inside its rectangle."""
     clip = ngl.Clip2D(children=[_white_rect((0, 0, W, H))], clip_rect=_CLIP)
     return _canvas(cfg, clip)
+
+
+def _expected_mask_rect(frame, x, y):
+    if _inside(x, y, _MASKED):
+        u = (x + 0.5 - _MASKED[0]) / _MASKED[2]
+        v = round(_ramp_at(u))
+        return (v, v, v, 255)
+    cx, cy = x + 0.5, y + 0.5
+    rx, ry, rw, rh = _MASKED
+    if cx < rx - 1 or cx > rx + rw + 1 or cy < ry - 1 or cy > ry + rh + 1:
+        return (0, 0, 0, 255)
+    return None
+
+
+@test_expected(expected=_expected_mask_rect)
+@ngl.scene(width=W, height=H)
+def layers2d_mask_rect(cfg: ngl.SceneCfg):
+    """With a mask rect, the mask spans exactly that rect and the children are cut outside of it."""
+    masked = ngl.Mask2D(
+        children=[_white_rect((0, 0, W, H))],
+        mask_rect=_MASKED,
+        mask=_ramp_mask("alpha"),
+        channel="alpha",
+    )
+    return _canvas(cfg, masked)

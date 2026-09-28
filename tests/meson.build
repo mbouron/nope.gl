@@ -585,6 +585,7 @@ foreach backend : backends
     'mask_alpha',
     'mask_luminance',
     'mask_cropped',
+    'mask_rect',
     'clip_rect',
   ]
 
