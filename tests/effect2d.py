@@ -75,8 +75,10 @@ def _animated_scene():
 
 
 _SIMPLE_INVERT_SHADER = textwrap.dedent("""
-    vec4 color = ngl_texvideo(tex, tex_coord);
-    return vec4(1.0 - color.rgb, color.a);
+    vec4 main(const ngl_FragmentInput frag) {
+        vec4 color = ngl_sample_input(frag);
+        return vec4(1.0 - color.rgb, color.a);
+    }
 """)
 
 
@@ -114,9 +116,13 @@ def effect2d_grayscale(cfg: ngl.SceneCfg):
         children=_animated_scene(),
         shaders=[
             ngl.Effect2DShader(
-                glsl_color="vec4 color = ngl_texvideo(tex, tex_coord);\n"
-                "float lum = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));\n"
-                "return vec4(lum, lum, lum, color.a);",
+                glsl=textwrap.dedent("""
+                    vec4 main(const ngl_FragmentInput frag) {
+                        vec4 color = ngl_sample_input(frag);
+                        float lum = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+                        return vec4(lum, lum, lum, color.a);
+                    }
+                """),
             )
         ],
     )
@@ -129,7 +135,7 @@ def effect2d_invert(cfg: ngl.SceneCfg):
     """Effect2D with a color inversion fragment shader."""
     effect = ngl.Effect2D(
         children=_animated_scene(),
-        shaders=[ngl.Effect2DShader(glsl_color=_SIMPLE_INVERT_SHADER)],
+        shaders=[ngl.Effect2DShader(glsl=_SIMPLE_INVERT_SHADER)],
     )
     return _canvas(cfg, effect, duration=4.0)
 
@@ -138,12 +144,12 @@ def _get_effect2d_enabled_func():
     enabled = ngl.UniformBool(value=False)
     node_effect = ngl.Effect2D(
         children=[_colored_rect(16, 48, 96, 160, (0.8, 0.2, 0.1, 1.0))],
-        shaders=[ngl.Effect2DShader(glsl_color=_SIMPLE_INVERT_SHADER)],
+        shaders=[ngl.Effect2DShader(glsl=_SIMPLE_INVERT_SHADER)],
         enabled=enabled,
     )
     live_effect = ngl.Effect2D(
         children=[_colored_rect(144, 48, 96, 160, (0.8, 0.2, 0.1, 1.0))],
-        shaders=[ngl.Effect2DShader(glsl_color=_SIMPLE_INVERT_SHADER)],
+        shaders=[ngl.Effect2DShader(glsl=_SIMPLE_INVERT_SHADER)],
         enabled=False,
     )
 
@@ -170,30 +176,34 @@ effect2d_enabled = _get_effect2d_enabled_func()
 
 
 _INVERT_SHADER = textwrap.dedent("""\
-    vec4 color = ngl_texvideo(tex, tex_coord);
-    if (color.a > 0.0)
-        color.rgb /= color.a;
-    return vec4(1.0 - color.rgb, color.a);
+    vec4 main(const ngl_FragmentInput frag) {
+        vec4 color = ngl_sample_input(frag);
+        if (color.a > 0.0)
+            color.rgb /= color.a;
+        return vec4(1.0 - color.rgb, color.a);
+    }
 """)
 
 _GRAYSCALE_SHADER = textwrap.dedent("""\
-    vec4 color = ngl_texvideo(tex, tex_coord);
-    if (color.a > 0.0)
-        color.rgb /= color.a;
-    float lum = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
-    return vec4(lum, lum, lum, color.a);
+    vec4 main(const ngl_FragmentInput frag) {
+        vec4 color = ngl_sample_input(frag);
+        if (color.a > 0.0)
+            color.rgb /= color.a;
+        float lum = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+        return vec4(lum, lum, lum, color.a);
+    }
 """)
 
 
 def _get_effect2d_timed_shaders_func():
     invert = ngl.Effect2DShader(
-        glsl_color=_INVERT_SHADER,
+        glsl=_INVERT_SHADER,
         premult=True,
         start=1.0,
         end=2.0,
     )
     grayscale = ngl.Effect2DShader(
-        glsl_color=_GRAYSCALE_SHADER,
+        glsl=_GRAYSCALE_SHADER,
         premult=True,
         start=3.0,
         end=4.0,
@@ -235,7 +245,7 @@ def effect2d_bounds_rect(cfg: ngl.SceneCfg):
         children=[_colored_rect(16, 16, 224, 224, (0.8, 0.2, 0.1, 1.0))],
         bounds="rect",
         rect=(64, 32, 96, 160),
-        shaders=[ngl.Effect2DShader(glsl_color=_INVERT_SHADER, premult=True)],
+        shaders=[ngl.Effect2DShader(glsl=_INVERT_SHADER, premult=True)],
     )
     return _canvas(cfg, bg, effect)
 
@@ -248,17 +258,22 @@ def effect2d_bounds_rect_zero(cfg: ngl.SceneCfg):
     effect = ngl.Effect2D(
         children=[_colored_rect(16, 16, 224, 224, (0.8, 0.2, 0.1, 1.0))],
         bounds="rect",
-        shaders=[ngl.Effect2DShader(glsl_color=_INVERT_SHADER, premult=True)],
+        shaders=[ngl.Effect2DShader(glsl=_INVERT_SHADER, premult=True)],
     )
     return _canvas(cfg, bg, effect)
 
 
 def _get_effect2d_bounds_live_func():
-    uv_shader = "vec4 color = ngl_texvideo(tex, tex_coord); return vec4(uv, 0.0, 1.0) * color.a;"
+    uv_shader = textwrap.dedent("""
+        vec4 main(const ngl_FragmentInput frag) {
+            vec4 color = ngl_sample_input(frag);
+            return vec4(frag.rect_uv, 0.0, 1.0) * color.a;
+        }
+    """)
     effect = ngl.Effect2D(
         children=[_colored_rect(48, 48, 160, 160, (0.8, 0.2, 0.1, 1.0))],
         rect=(0, 0, 128, H),
-        shaders=[ngl.Effect2DShader(glsl_color=uv_shader)],
+        shaders=[ngl.Effect2DShader(glsl=uv_shader)],
     )
 
     modes = ("children", "canvas", "rect")
@@ -291,7 +306,7 @@ def _get_effect2d_enabled_shaders_func():
         children=[_colored_rect(48, 48, 160, 160, (0.8, 0.2, 0.1, 1.0))],
         bounds="canvas",
         enabled=enabled,
-        shaders=[ngl.Effect2DShader(glsl_color=_INVERT_SHADER, premult=True)],
+        shaders=[ngl.Effect2DShader(glsl=_INVERT_SHADER, premult=True)],
     )
 
     def keyframes_callback(t_id):
@@ -322,8 +337,8 @@ def effect2d_shader_passthrough_entry(cfg: ngl.SceneCfg):
     effect = ngl.Effect2D(
         children=[_colored_rect(48, 48, 160, 160, (0.8, 0.2, 0.1, 1.0))],
         shaders=[
-            ngl.Effect2DShader(glsl_color="", start=1.0, end=2.0),
-            ngl.Effect2DShader(glsl_color=_INVERT_SHADER, premult=True, start=0.0, end=3.0),
+            ngl.Effect2DShader(glsl="", start=1.0, end=2.0),
+            ngl.Effect2DShader(glsl=_INVERT_SHADER, premult=True, start=0.0, end=3.0),
         ],
     )
     return _canvas(cfg, effect, duration=3.0)
@@ -337,7 +352,7 @@ def effect2d_shader_premultiplied_passthrough(cfg: ngl.SceneCfg):
     baseline = ngl.Effect2D(children=[_colored_rect(16, 48, 96, 160, color)])
     identity = ngl.Effect2D(
         children=[_colored_rect(144, 48, 96, 160, color)],
-        shaders=[ngl.Effect2DShader(glsl_color="return ngl_texvideo(tex, tex_coord);")],
+        shaders=[ngl.Effect2DShader(glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_sample_input(frag); }")],
     )
     bg = _colored_rect(0, 0, W, H, (0.1, 0.1, 0.25, 1.0))
     return _canvas(cfg, bg, baseline, identity)
@@ -349,7 +364,7 @@ def effect2d_nested_in_group2d(cfg: ngl.SceneCfg):
     """Effect2D nested inside a transformed Group2D."""
     effect = ngl.Effect2D(
         children=_animated_scene(),
-        shaders=[ngl.Effect2DShader(glsl_color=_SIMPLE_INVERT_SHADER)],
+        shaders=[ngl.Effect2DShader(glsl=_SIMPLE_INVERT_SHADER)],
     )
     group = ngl.Group2D(children=[effect], rotation=45.0, anchor=(W / 2, H / 2))
     return _canvas(cfg, group, duration=4.0)
@@ -447,25 +462,29 @@ def _gaussian_kernel_1d(sigma):
     return array.array("f", [w / total for w in kernel]), radius
 
 
-_GAUSSIAN_BLUR_H_GLSL = textwrap.dedent("""\
-    vec2 texel = 1.0 / vec2(textureSize(tex, 0));
-    vec4 sum = vec4(0.0);
-    for (int x = -radius; x <= radius; x++) {
-        float w = kernel.weights[x + radius];
-        sum += ngl_texvideo(tex, tex_coord + vec2(float(x), 0.0) * texel) * w;
+_GAUSSIAN_BLUR_H_GLSL = textwrap.dedent("""
+    vec4 main(const ngl_FragmentInput frag) {
+        vec2 texel = 1.0 / frag.rect_size;
+        vec4 sum = vec4(0.0);
+        for (int x = -radius; x <= radius; x++) {
+            float w = kernel.weights[x + radius];
+            sum += ngl_sample_input(frag, ngl_tex_uv_input(frag, frag.rect_uv + vec2(float(x), 0.0) * texel)) * w;
+        }
+        return sum;
     }
-    return sum;
 """)
 
 
-_GAUSSIAN_BLUR_V_GLSL = textwrap.dedent("""\
-    vec2 texel = 1.0 / vec2(textureSize(tex, 0));
-    vec4 sum = vec4(0.0);
-    for (int y = -radius; y <= radius; y++) {
-        float w = kernel.weights[y + radius];
-        sum += ngl_texvideo(tex, tex_coord + vec2(0.0, float(y)) * texel) * w;
+_GAUSSIAN_BLUR_V_GLSL = textwrap.dedent("""
+    vec4 main(const ngl_FragmentInput frag) {
+        vec2 texel = 1.0 / frag.rect_size;
+        vec4 sum = vec4(0.0);
+        for (int y = -radius; y <= radius; y++) {
+            float w = kernel.weights[y + radius];
+            sum += ngl_sample_input(frag, ngl_tex_uv_input(frag, frag.rect_uv + vec2(0.0, float(y)) * texel)) * w;
+        }
+        return sum;
     }
-    return sum;
 """)
 
 
@@ -485,9 +504,13 @@ def effect2d_resource_scene_texture(cfg: ngl.SceneCfg):
         children=[_colored_rect(32, 32, 192, 192, (1.0, 1.0, 1.0, 1.0))],
         shaders=[
             ngl.Effect2DShader(
-                glsl_color="vec4 color = ngl_texvideo(tex, tex_coord);\n"
-                "vec4 tint = ngl_texvideo(mask, tex_coord);\n"
-                "return color * tint;",
+                glsl=textwrap.dedent("""
+                    vec4 main(const ngl_FragmentInput frag) {
+                        vec4 color = ngl_sample_input(frag);
+                        vec4 tint = ngl_sample_mask(frag);
+                        return color * tint;
+                    }
+                """),
                 resources={"mask": mask},
             )
         ],
@@ -511,12 +534,12 @@ def effect2d_blur(cfg: ngl.SceneCfg):
     resources = {"kernel": kernel, "radius": radius_uniform}
     blur_h = ngl.Effect2D(
         children=_animated_scene(),
-        shaders=[ngl.Effect2DShader(glsl_color=_GAUSSIAN_BLUR_H_GLSL, resources=resources)],
+        shaders=[ngl.Effect2DShader(glsl=_GAUSSIAN_BLUR_H_GLSL, resources=resources)],
         dilation=dilation,
     )
     blur = ngl.Effect2D(
         children=[blur_h],
-        shaders=[ngl.Effect2DShader(glsl_color=_GAUSSIAN_BLUR_V_GLSL, resources=resources)],
+        shaders=[ngl.Effect2DShader(glsl=_GAUSSIAN_BLUR_V_GLSL, resources=resources)],
         dilation=dilation,
     )
     return _canvas(cfg, blur, duration=4.0)

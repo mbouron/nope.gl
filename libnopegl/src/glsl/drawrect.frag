@@ -83,7 +83,7 @@ void main()
 
     /* Rounded-rectangle SDF in pixel space */
     vec2 half_size = ngli_rect_size * 0.5;
-    vec2 pos       = (ngli_uv - 0.5) * ngli_rect_size;
+    vec2 pos       = (ngli_rect_uv - 0.5) * ngli_rect_size;
     vec2 r         = ngli_corner_radius;
     float d        = ngli_sdf_rounded_box(pos, half_size, r);
 
@@ -123,31 +123,13 @@ void main()
     float outer_alpha  = 1.0 - smoothstep(-aa, aa, d_outer);
     float ol_mask      = clamp(outer_alpha - inner_alpha, 0.0, 1.0);
 
-    vec4 stroke_col = ngli_stroke(ngli_uv, ngli_stroke_tex_coord);
-    float ol_alpha  = ol_mask * stroke_col.a * ngli_stroke_opacity;
+    vec4 stroke_color = ngli_stroke(ngli_stroke_fragment_input());
+    float ol_alpha  = ol_mask * stroke_color.a * ngli_stroke_opacity;
 
-    /*
-     * Content transform: orientation, zoom and translate applied to the fill
-     * content (gradient, texture…) independently of the shape.
-     *
-     * ngli_content_orientation is vec2(cos(angle), sin(angle)) for discrete
-     * 90° rotations applied around UV center (0.5, 0.5).
-     * ngli_content_zoom > 1 zooms in; ngli_content_translate pans in UV space.
-     */
-    float co = ngli_content_orientation.x;
-    float so = ngli_content_orientation.y;
-    mat2 rot = mat2(co, so, -so, co);
-    vec2 content_uv        = rot * ((ngli_uv        - 0.5) / ngli_content_zoom + ngli_content_translate) + 0.5;
-    vec2 content_tex_coord = rot * ((ngli_tex_coord - 0.5) / ngli_content_zoom + ngli_content_translate) + 0.5;
-
-    /*
-     * Only sample the fill for fragments inside the original rect (ngli_uv in
-     * [0,1]).  Margin pixels introduced by geometry dilation lie outside this
-     * range and must not bleed color into the outline AA transition.
-     */
+    /* Evaluate the paint wherever the fill contributes, including its AA edge. */
     vec4 tex_color = vec4(0.0);
-    if (all(greaterThanEqual(ngli_uv, vec2(0.0))) && all(lessThanEqual(ngli_uv, vec2(1.0)))) {
-        tex_color = ngli_color(content_uv, content_tex_coord);
+    if (fill_alpha > 0.0) {
+        tex_color = ngli_color(ngli_fill_fragment_input());
     }
 
     /*
@@ -160,9 +142,9 @@ void main()
     float fill_rgb_scale = (ngli_fill_premult != 0 ? tex_color.a : 1.0)
                          * fill_alpha * ngli_fill_opacity;
     float fill_a = tex_color.a * fill_alpha * ngli_fill_opacity;
-    float stroke_rgb_scale = (ngli_stroke_premult != 0 ? stroke_col.a : 1.0)
+    float stroke_rgb_scale = (ngli_stroke_premult != 0 ? stroke_color.a : 1.0)
                            * ol_mask * ngli_stroke_opacity;
-    ngl_out_color.rgb = stroke_col.rgb * stroke_rgb_scale + tex_color.rgb * fill_rgb_scale * (1.0 - ol_alpha);
+    ngl_out_color.rgb = stroke_color.rgb * stroke_rgb_scale + tex_color.rgb * fill_rgb_scale * (1.0 - ol_alpha);
     ngl_out_color.a   = ol_alpha + fill_a * (1.0 - ol_alpha);
 
     /* Global opacity and anti-aliased cascaded clip coverage */

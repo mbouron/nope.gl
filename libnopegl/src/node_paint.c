@@ -111,19 +111,13 @@ int ngli_paint_check_compatible(const struct paint_info *fill, const struct pain
     return 0;
 }
 
-static int is_glsl_ident(char c)
-{
-    return (c >= 'a' && c <= 'z') ||
-           (c >= 'A' && c <= 'Z') ||
-           (c >= '0' && c <= '9') ||
-           c == '_';
-}
-
-void ngli_paint_glsl_write(struct bstr *b, const struct paint_info *paint,
+int ngli_paint_glsl_write(struct bstr *b, const struct paint_info *paint,
                            enum paint_shader_role role, const char *entrypoint)
 {
-    const char *prefix = paint->custom ? NULL : paint_resource_prefixes[role];
-    ngli_shader2d_write_source(b, paint->glsl, entrypoint, prefix);
+    if (!paint->custom)
+        return ngli_shader2d_write_builtin(b, paint->glsl, entrypoint, paint_resource_prefixes[role]);
+    return ngli_shader2d_write_source(b, paint->glsl, entrypoint, paint->color_output_count != 0,
+                                      (int)role + 1, role ? "CustomPaint stroke" : "CustomPaint fill");
 }
 
 void ngli_paint_info_reset(struct paint_info *info)
@@ -155,7 +149,7 @@ struct colorpaint_opts {
 };
 
 static const char colorpaint_glsl[] =
-    "vec4 main(vec2 uv, vec2 tex_coord) { return $color; }\n";
+    "vec4 main(const ngl_FragmentInput frag) { return $color; }\n";
 
 static int colorpaint_init(struct ngl_node *node)
 {
@@ -267,10 +261,10 @@ static const struct param_choices texturepaint_scaling_choices = {
 };
 
 static const char texturepaint_glsl[] =
-    "vec4 main(vec2 uv, vec2 tex_coord) {\n"
-    "    if ($content_wrap == 1 && (any(lessThan(tex_coord, vec2(0.0))) || any(greaterThan(tex_coord, vec2(1.0)))))\n"
+    "vec4 main(const ngl_FragmentInput frag) {\n"
+    "    if ($content_wrap == 1 && (any(lessThan($uv, vec2(0.0))) || any(greaterThan($uv, vec2(1.0)))))\n"
     "        return vec4(0.0);\n"
-    "    return ngl_texvideo($tex, tex_coord);\n"
+    "    return ngl_texvideo($tex, $tex_uv);\n"
     "}\n";
 
 static int texturepaint_init(struct ngl_node *node)
@@ -391,7 +385,8 @@ static const struct param_choices gradientpaint_mode_choices = {
 };
 
 static const char gradientpaint_glsl[] =
-    "vec4 main(vec2 uv, vec2 tex_coord) {\n"
+    "vec4 main(const ngl_FragmentInput frag) {\n"
+    "    vec2 uv = frag.content_uv;\n"
     "    vec3 c0 = $color0 * $opacity0;\n"
     "    vec3 c1 = $color1 * $opacity1;\n"
     "    float aspect = ngli_rect_size.x / ngli_rect_size.y;\n"
@@ -552,7 +547,8 @@ static const char gradient4paint_glsl[] =
     "vec3 $g4(vec3 tl, vec3 tr, vec3 br, vec3 bl, vec2 uv) {\n"
     "    return mix(mix(tl, tr, uv.x), mix(bl, br, uv.x), uv.y);\n"
     "}\n"
-    "vec4 main(vec2 uv, vec2 tex_coord) {\n"
+    "vec4 main(const ngl_FragmentInput frag) {\n"
+    "    vec2 uv = frag.content_uv;\n"
     "    vec3 tl = $color_tl * $opacity_tl;\n"
     "    vec3 tr = $color_tr * $opacity_tr;\n"
     "    vec3 br = $color_br * $opacity_br;\n"
@@ -731,8 +727,8 @@ static const struct param_choices noisepaint_type_choices = {
 };
 
 static const char noisepaint_glsl[] =
-    "vec4 main(vec2 uv, vec2 tex_coord) {\n"
-    "    vec2 st = uv * $noise_scale;\n"
+    "vec4 main(const ngl_FragmentInput frag) {\n"
+    "    vec2 st = frag.content_uv * $noise_scale;\n"
     "    float n = ngli_fbm(vec3(st, $noise_evolution), $noise_type, $noise_amplitude,\n"
     "                       $noise_octaves, $noise_lacunarity, $noise_gain, $noise_seed);\n"
     "    n = (n + 1.0) / 2.0;\n"
@@ -855,13 +851,11 @@ const struct node_class ngli_noisepaint_class = {
 
 struct custompaint_priv {
     struct paint_info info;
-    char *glsl;
 };
 
 struct custompaint_opts {
     struct paint_base_opts base_opts;
-    char *glsl_header;
-    char *glsl_color;
+    char *glsl;
     struct hmap *resources;
     int color_output_count;
 };
@@ -907,87 +901,27 @@ static int register_resource(struct paint_info *info, const char *name, struct n
     }
 }
 
-static int is_glsl_identifier(const char *str)
-{
-    if (!str[0] || (str[0] >= '0' && str[0] <= '9'))
-        return 0;
-    for (const char *p = str; *p; p++)
-        if (!is_glsl_ident(*p))
-            return 0;
-    return 1;
-}
-
-static int is_reserved_key(const char *key)
-{
-    static const char * const names[] = {"main", "uv", "tex_coord"};
-    static const char * const prefixes[] = {"gl_", "ngl_", "ngli_"};
-    for (size_t i = 0; i < NGLI_ARRAY_NB(names); i++)
-        if (!strcmp(key, names[i]))
-            return 1;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(prefixes); i++)
-        if (!strncmp(key, prefixes[i], strlen(prefixes[i])))
-            return 1;
-    return 0;
-}
-
-static int check_resource_key(const char *key)
-{
-    if (!is_glsl_identifier(key)) {
-        LOG(ERROR, "CustomPaint: resource key \"%s\" is not a GLSL identifier", key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-    if (strlen(key) >= PAINT_NAME_LEN) {
-        LOG(ERROR, "CustomPaint: resource key \"%s\" is longer than %d characters", key, PAINT_NAME_LEN - 1);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-    if (is_reserved_key(key)) {
-        LOG(ERROR, "CustomPaint: resource key \"%s\" is reserved", key);
-        return NGL_ERROR_INVALID_USAGE;
-    }
-    return 0;
-}
-
-static char *custompaint_build_glsl(const struct custompaint_opts *o)
-{
-    struct bstr *bstr = ngli_bstr_create();
-    if (!bstr)
-        return NULL;
-
-    ngli_bstr_printf(bstr, "%s main(vec2 uv, vec2 tex_coord) {\n",
-                     o->color_output_count ? "void" : "vec4");
-    ngli_bstr_print(bstr, o->glsl_color);
-    ngli_bstr_print(bstr, "\n}\n");
-
-    char *glsl = ngli_bstr_check(bstr) < 0 ? NULL : ngli_bstr_strdup(bstr);
-    ngli_bstr_freep(&bstr);
-    return glsl;
-}
-
 static int custompaint_init(struct ngl_node *node)
 {
     struct custompaint_priv *s = node->priv_data;
     const struct custompaint_opts *o = node->opts;
 
-    if (!o->glsl_color || !o->glsl_color[0]) {
-        LOG(ERROR, "CustomPaint: glsl_color param is required");
+    if (!o->glsl || !o->glsl[0]) {
+        LOG(ERROR, "CustomPaint: glsl param is required");
         return NGL_ERROR_INVALID_USAGE;
     }
 
     struct paint_info *info = &s->info;
-    info->glsl_header = o->glsl_header && o->glsl_header[0] ? o->glsl_header : NULL;
     info->opts = o;
     info->color_output_count = (size_t)o->color_output_count;
 
-    s->glsl = custompaint_build_glsl(o);
-    if (!s->glsl)
-        return NGL_ERROR_MEMORY;
-    info->glsl = s->glsl;
+    info->glsl = o->glsl;
     info->custom = 1;
 
     if (o->resources) {
         const struct hmap_entry *entry = NULL;
         while ((entry = ngli_hmap_next(o->resources, entry))) {
-            int ret = check_resource_key(entry->key.str);
+            int ret = ngli_shader2d_check_key(entry->key.str, "CustomPaint");
             if (ret < 0)
                 return ret;
             ret = register_resource(info, entry->key.str, entry->data);
@@ -997,13 +931,6 @@ static int custompaint_init(struct ngl_node *node)
     }
 
     return 0;
-}
-
-static void custompaint_uninit(struct ngl_node *node)
-{
-    struct custompaint_priv *s = node->priv_data;
-    ngli_paint_info_reset(&s->info);
-    ngli_freep(&s->glsl);
 }
 
 NGLI_STATIC_ASSERT(offsetof(struct custompaint_priv, info) == 0,
@@ -1028,36 +955,23 @@ static const struct node_param custompaint_params[] = {
         .desc    = NGLI_DOCSTRING("texture scaling mode applied to custom paint content"),
     },
     {
-        .key     = "wrap",
-        .type    = NGLI_PARAM_TYPE_SELECT,
-        .offset  = OFFSET(base_opts.wrap),
-        .choices = &texturepaint_wrap_choices,
-        .desc    = NGLI_DOCSTRING("wrap mode for out-of-bounds coordinates"),
-    },
-    {
         .key       = "premult",
         .type      = NGLI_PARAM_TYPE_BOOL,
         .offset    = OFFSET(base_opts.premult),
         .def_value = {.i32 = 1},
-        .desc      = NGLI_DOCSTRING("premultiply glsl_color() output color by its alpha"),
+        .desc      = NGLI_DOCSTRING("premultiply the paint output color by its alpha"),
     },
     {
-        .key    = "glsl_header",
+        .key    = "glsl",
         .type   = NGLI_PARAM_TYPE_STR,
-        .offset = OFFSET(glsl_header),
-        .desc   = NGLI_DOCSTRING("GLSL code prepended before the color function; fill and stroke share the "
-                                 "same namespace in the final fragment shader and must be compatible"),
-    },
-    {
-        .key    = "glsl_color",
-        .type   = NGLI_PARAM_TYPE_STR,
-        .offset = OFFSET(glsl_color),
-        .desc   = NGLI_DOCSTRING("GLSL body of the color function"),
+        .offset = OFFSET(glsl),
+        .desc   = NGLI_DOCSTRING("GLSL source defining the paint function; see the [shader guide](../expl/shaders.md#2d-shaders)"),
     },
     {
         .key        = "resources",
         .type       = NGLI_PARAM_TYPE_NODEDICT,
         .offset     = OFFSET(resources),
+        .flags      = NGLI_PARAM_FLAG_PRESERVE_ORDER,
         .node_types = (const uint32_t[]){
             NGL_NODE_UNIFORMFLOAT,
             NGL_NODE_UNIFORMVEC2,
@@ -1098,7 +1012,7 @@ static const struct node_param custompaint_params[] = {
             NGL_NODE_BLOCK,
             NGLI_NODE_NONE,
         },
-        .desc = NGLI_DOCSTRING("resources available to `glsl_header` and `glsl_color`"),
+        .desc = NGLI_DOCSTRING("resources available to `glsl`"),
     },
     {
         .key    = "color_output_count",
@@ -1119,7 +1033,7 @@ const struct node_class ngli_custompaint_class = {
     .update    = ngli_node_update_children,
     .pre_draw  = ngli_node_pre_draw_children,
     .draw      = ngli_node_draw_children,
-    .uninit    = custompaint_uninit,
+    .uninit    = paint_uninit,
     .opts_size = sizeof(struct custompaint_opts),
     .priv_size = sizeof(struct custompaint_priv),
     .params    = custompaint_params,

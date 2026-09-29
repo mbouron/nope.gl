@@ -81,14 +81,13 @@ enum paint_shader_role {
 
 struct paint_info {
     uint32_t helper_flags;                                   /* PAINT_HELPER_* bitmask */
-    const char *glsl_header;                                 /* user declarations, NULL if none */
-    const char *glsl;                                        /* paint function template, see ngli_paint_glsl_write() */
+    const char *glsl;                                        /* built-in template or complete CustomPaint source */
     int custom;                                              /* CustomPaint: GLSL and resource names kept as written */
     NGLI_DARRAY(struct paint_uniform_def) uniforms;
     NGLI_DARRAY(struct paint_custom_uniform_def) custom_uniforms;
     NGLI_DARRAY(struct paint_custom_texture_def) custom_textures;
     NGLI_DARRAY(struct paint_custom_block_def) custom_blocks;
-    struct ngl_node *texture;
+    struct ngl_node *texture;                                /* built-in paint texture */
     size_t color_output_count;
     const void *opts;                                        /* pointer to paint node opts struct */
 };
@@ -102,8 +101,9 @@ void ngli_paint_info_reset(struct paint_info *info);
 void ngli_paint_get_builtin_resource_name(char *dst, size_t size,
                                           enum paint_shader_role role, const char *name);
 
-/* Build a paint GLSL shader, renaming main() and expanding '$' (except for a CustomPaint) for a given role */
-void ngli_paint_glsl_write(struct bstr *b, const struct paint_info *paint,
+/* Build a paint GLSL shader for a given role, renaming main to entrypoint.
+ * Expand '$' resource/helper prefixes only for built-in shaders. */
+int ngli_paint_glsl_write(struct bstr *b, const struct paint_info *paint,
                            enum paint_shader_role role, const char *entrypoint);
 
 /* Check that two CustomPaints are compatible, ie: they share the same resources */

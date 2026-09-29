@@ -108,4 +108,6 @@ const struct ngli_image_params *ngli_image_get_params(const struct ngli_image *s
  */
 void ngli_image_set_coordinates_matrix(struct ngli_image *s, const struct ngli_mat4 *matrix);
 
+void ngli_image_get_coordinates_scale_offset(const struct ngli_image *s, float *scale, float *offset);
+
 #endif

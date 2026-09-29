@@ -144,3 +144,13 @@ void ngli_image_set_coordinates_matrix(struct ngli_image *s, const struct ngli_m
     ngli_assert(s);
     s->params.coordinates_matrix = *matrix;
 }
+
+void ngli_image_get_coordinates_scale_offset(const struct ngli_image *s, float *scale, float *offset)
+{
+    const float *m = ngli_image_get_params(s)->coordinates_matrix.m;
+    ngli_assert(m[1] == 0.f && m[4] == 0.f);
+    scale[0] = m[0];
+    scale[1] = m[5];
+    offset[0] = m[12];
+    offset[1] = m[13];
+}

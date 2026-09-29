@@ -36,6 +36,7 @@
 #include "node_uniform.h"
 #include "node_texture.h"
 #include "pipeline.h"
+#include "shader2d.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -50,22 +51,34 @@
 
 /* ngli_stroke() for the no-stroke case: transparent */
 static const char no_stroke_glsl[] =
-    "vec4 ngli_stroke(vec2 uv, vec2 tex_coord) { return vec4(0.0); }\n";
+    "vec4 ngli_stroke(const ngl_FragmentInput frag) { return vec4(0.0); }\n";
 
 static const char *const paint_texture_names[PAINT_SHADER_ROLE_NB] = {
     [PAINT_SHADER_ROLE_FILL]   = "ngli_fill_tex",
     [PAINT_SHADER_ROLE_STROKE] = "ngli_stroke_tex",
 };
 
+struct uv_transform {
+    float lin[4];
+    float off[4];
+};
+
+#define UV_TRANSFORM_FIELDS(prefix) \
+    {.name = prefix "_lin", .type = NGPU_TYPE_VEC4}, \
+    {.name = prefix "_off", .type = NGPU_TYPE_VEC4}
+
 struct drawrect2d_vert_block {
     struct ngli_mat4 projection_matrix;
     struct ngli_mat4 modelview_matrix;
     float rect[4];
-    float uv_scale[2];
-    float stroke_uv_scale[2];
-    float margin_px;
-    float _pad0;
     float margin_uv[2];
+    float margin_px;
+    float _pad;
+    struct uv_transform content_uv;
+    struct uv_transform fill_uv;
+    struct uv_transform stroke_uv;
+    struct uv_transform fill_tex_uv;
+    struct uv_transform stroke_tex_uv;
 };
 
 struct drawrect2d_frag_block {
@@ -78,17 +91,17 @@ struct drawrect2d_frag_block {
     float stroke_opacity;
     int32_t fill_content_wrap;
     int32_t stroke_content_wrap;
-    float content_zoom;
-    float content_translate[2];
-    float content_orientation[2];
-    float frag_uv_scale[2];
     int32_t fill_premult;
     int32_t stroke_premult;
+    float _pad0[3];
+    struct uv_transform content_uv;
+    struct uv_transform fill_uv;
+    struct uv_transform stroke_uv;
     struct ngli_vec4 clip_inv[NGLI_MAX_CLIPS_2D];
     struct ngli_vec4 clip_rect[NGLI_MAX_CLIPS_2D];
     struct ngli_vec4 clip_radius[NGLI_MAX_CLIPS_2D];
     int32_t nb_clips;
-    float _pad1[3];
+    float _pad2[3];
 };
 
 struct drawrect2d_opts {
@@ -149,7 +162,7 @@ struct drawrect2d_priv {
     const struct paint_info *stroke_paint;
     const struct stroke2d_info *stroke;
     char *frag_shader;
-    char *vert_shader;
+    struct shader2d shader;
 };
 
 static void compute_geometry(struct drawrect2d_priv *s, const float *rect, const float *corner_radius)
@@ -170,13 +183,33 @@ static void compute_geometry(struct drawrect2d_priv *s, const float *rect, const
     s->corner_radius[1] = NGLI_MIN(NGLI_MAX(corner_radius[1], 0.f), half_h);
 }
 
+static bool is_2d_texture(const struct ngl_node *node)
+{
+    const enum ngpu_pgcraft_texture_type type = ngli_node_texture_get_pgcraft_texture_type(node);
+    return type == NGPU_PGCRAFT_TEXTURE_TYPE_2D || type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO;
+}
+
 static const struct ngl_node *get_scaling_texture(const struct paint_info *paint)
 {
     if (paint->texture)
         return paint->texture;
-    if (paint->custom_textures.count)
-        return paint->custom_textures.data[0].texture_node;
+    for (size_t i = 0; i < paint->custom_textures.count; i++) {
+        const struct ngl_node *node = paint->custom_textures.data[i].texture_node;
+        if (is_2d_texture(node))
+            return node;
+    }
     return NULL;
+}
+
+static void get_texture_uv_transform(const struct paint_info *paint, float *dst)
+{
+    const struct ngl_node *texture = paint ? get_scaling_texture(paint) : NULL;
+    const struct ngli_image *image = NULL;
+    if (texture) {
+        const struct texture_info *info = ngli_node_texture_get_texture_info(texture);
+        image = ngli_image_resource_get(info->resource);
+    }
+    ngli_image_get_coordinates_scale_offset(image, dst, dst + 2);
 }
 
 static void compute_texture_uv_scale(const struct paint_info *paint,
@@ -213,6 +246,29 @@ static void compute_texture_uv_scale(const struct paint_info *paint,
         uv_scale[0] = ratio < 1.f ? ratio : 1.f;
         uv_scale[1] = ratio > 1.f ? 1.f / ratio : 1.f;
     }
+}
+
+static struct uv_transform compute_uv_transform(const float *cos_sin, const float *scale,
+                                                float zoom, const float *translate)
+{
+    const float co = cos_sin[0], so = cos_sin[1];
+    const float dx = scale[0] / zoom, dy = scale[1] / zoom;
+    const float ox = translate[0] - 0.5f * dx;
+    const float oy = translate[1] - 0.5f * dy;
+    return (struct uv_transform) {
+        .lin = {co * dx, so * dx, -so * dy, co * dy},
+        .off = {co * ox - so * oy + 0.5f, so * ox + co * oy + 0.5f},
+    };
+}
+
+static struct uv_transform apply_texture_uv_transform(struct uv_transform map, const float *uv_transform)
+{
+    for (size_t i = 0; i < 2; i++) {
+        map.lin[i] *= uv_transform[i];
+        map.lin[2 + i] *= uv_transform[i];
+        map.off[i] = map.off[i] * uv_transform[i] + uv_transform[2 + i];
+    }
+    return map;
 }
 
 static int is_valid_orientation(float angle)
@@ -370,30 +426,6 @@ static const struct node_param drawrect2d_params[] = {
 };
 #undef OFFSET
 
-static char *build_vertex_shader(bool has_fill_texture, bool has_stroke_texture)
-{
-    struct bstr *bstr = ngli_bstr_create();
-    if (!bstr)
-        return NULL;
-
-    if (has_fill_texture)
-        ngli_bstr_print(bstr, "#define NGLI_DRAWRECT_FILL_TEXTURE\n");
-    if (has_stroke_texture)
-        ngli_bstr_print(bstr, "#define NGLI_DRAWRECT_STROKE_TEXTURE\n");
-
-    ngli_bstr_print(bstr, drawrect_vert);
-
-    if (ngli_bstr_check(bstr) < 0) {
-        ngli_bstr_freep(&bstr);
-        return NULL;
-    }
-
-    char *shader = ngli_bstr_strdup(bstr);
-    ngli_bstr_freep(&bstr);
-
-    return shader;
-}
-
 static int register_image_sources(struct drawrect2d_priv *s)
 {
     int32_t image_index = 0;
@@ -427,6 +459,35 @@ static int register_image_sources(struct drawrect2d_priv *s)
     return 0;
 }
 
+static const struct shader2d_role shader_roles[] = {
+    [PAINT_SHADER_ROLE_FILL]   = {.name = "fill",   .uv = "ngli_fill_uv"},
+    [PAINT_SHADER_ROLE_STROKE] = {.name = "stroke", .uv = "ngli_stroke_uv"},
+};
+
+static void write_fragment_input(const struct drawrect2d_priv *s, struct bstr *b,
+                                   const struct shader2d_role *shader_role, bool custom)
+{
+    const char *role = shader_role->name;
+    const bool fill = !strcmp(role, "fill");
+    const char *content_uv = fill ? "ngli_v_content_uv" : "ngli_rect_uv";
+    const char *content_lin = fill ? "ngli_content_uv_lin" : "vec4(1.0, 0.0, 0.0, 1.0)";
+    const char *content_off = fill ? "ngli_content_uv_off.xy" : "vec2(0.0)";
+    ngli_bstr_printf(b, "ngl_FragmentInput ngli_%s_fragment_input() {\n", role);
+    ngli_bstr_print(b,  "    ngl_FragmentInput frag;\n"
+                        "    frag.rect_uv = ngli_rect_uv;\n"
+                        "    frag.rect_size = ngli_rect_size;\n"
+                        "    frag.canvas_px = ngli_clip_pos;\n");
+    ngli_bstr_printf(b, "    frag.content_uv = %s;\n", content_uv);
+    ngli_bstr_printf(b, "    frag._uv = ngli_%s_uv;\n"
+                        "    frag._lin = ngli_%s_uv_lin;\n"
+                        "    frag._off = ngli_%s_uv_off.xy;\n", role, role, role);
+    ngli_bstr_printf(b, "    frag._content_lin = %s;\n"
+                        "    frag._content_off = %s;\n", content_lin, content_off);
+    if (custom)
+        ngli_shader2d_write_fragment_input_textures(&s->shader, b, shader_role);
+    ngli_bstr_print(b, "    return frag;\n}\n");
+}
+
 static int drawrect2d_init(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -434,6 +495,8 @@ static int drawrect2d_init(struct ngl_node *node)
     struct drawrect2d_priv *s = node->priv_data;
     const struct drawrect2d_opts *o = node->opts;
     int ret;
+
+    ngli_shader2d_init(&s->shader);
 
     if (!is_valid_orientation(o->content_orientation)) {
         LOG(ERROR, "content_orientation must be 0, +/-90, +/-180 or +/-270, got %g", o->content_orientation);
@@ -467,59 +530,69 @@ static int drawrect2d_init(struct ngl_node *node)
 
     s->pipeline = NULL;
 
-    s->vert_shader = build_vertex_shader(fill_paint->texture != NULL,
-                                         stroke_paint && stroke_paint->texture);
-    if (!s->vert_shader)
-        return NGL_ERROR_MEMORY;
+    const struct paint_info *paints[] = {fill_paint, stroke_paint};
+    for (size_t i = 0; i < NGLI_ARRAY_NB(paints); i++) {
+        if (!paints[i])
+            continue;
+        for (size_t j = 0; j < paints[i]->custom_textures.count; j++) {
+            const struct paint_custom_texture_def *t = &paints[i]->custom_textures.data[j];
+            if (!is_2d_texture(t->texture_node))
+                continue;
+            ret = ngli_shader2d_add_texture(&s->shader, t->name);
+            if (ret < 0)
+                return ret;
+        }
+    }
 
-    /* Build fragment shader */
     struct bstr *bstr = ngli_bstr_create();
     if (!bstr)
         return NGL_ERROR_MEMORY;
-
+    ngli_shader2d_write_header(&s->shader, bstr);
+    write_fragment_input(s, bstr, &shader_roles[PAINT_SHADER_ROLE_FILL], fill_paint->custom);
+    write_fragment_input(s, bstr, &shader_roles[PAINT_SHADER_ROLE_STROKE], stroke_paint && stroke_paint->custom);
     const uint32_t all_helper_flags = fill_paint->helper_flags | (stroke_paint ? stroke_paint->helper_flags : 0);
     if (all_helper_flags & PAINT_HELPER_MISC_UTILS) ngli_bstr_print(bstr, helper_misc_utils_glsl);
     if (all_helper_flags & PAINT_HELPER_NOISE)      ngli_bstr_print(bstr, helper_noise_glsl);
     if (all_helper_flags & PAINT_HELPER_SRGB)       ngli_bstr_print(bstr, helper_srgb_glsl);
-    const char *fill_header = fill_paint->glsl_header;
-    const char *stroke_header = stroke_paint ? stroke_paint->glsl_header : NULL;
-    /* A header shared by two paints is declared once */
-    if (fill_header && stroke_header && !strcmp(fill_header, stroke_header))
-        stroke_header = NULL;
-    if (fill_header)
-        ngli_bstr_printf(bstr, "%s\n", fill_header);
-    if (stroke_header)
-        ngli_bstr_printf(bstr, "%s\n", stroke_header);
-    ngli_paint_glsl_write(bstr, fill_paint, PAINT_SHADER_ROLE_FILL,
-                          fill_paint->color_output_count ? "ngli_colors" : "ngli_color");
-    if (fill_paint->color_output_count) {
-        ngli_bstr_print(bstr, "void main() { ngli_colors(ngli_uv, ngli_tex_coord); }\n");
-    } else {
-        if (stroke_paint)
-            ngli_paint_glsl_write(bstr, stroke_paint, PAINT_SHADER_ROLE_STROKE, "ngli_stroke");
-        else
+    ret = ngli_paint_glsl_write(bstr, fill_paint, PAINT_SHADER_ROLE_FILL,
+                                fill_paint->color_output_count ? "ngli_colors" : "ngli_color");
+    if (ret >= 0 && fill_paint->color_output_count) {
+        ngli_bstr_print(bstr, "void main() { ngli_colors(ngli_fill_fragment_input()); }\n");
+    } else if (ret >= 0) {
+        if (stroke_paint && fill_paint->custom && stroke_paint->custom &&
+            !strcmp(fill_paint->glsl, stroke_paint->glsl)) {
+            ngli_bstr_print(bstr, "vec4 ngli_stroke(const ngl_FragmentInput frag) { return ngli_color(frag); }\n");
+        } else if (stroke_paint) {
+            ret = ngli_paint_glsl_write(bstr, stroke_paint, PAINT_SHADER_ROLE_STROKE, "ngli_stroke");
+        } else {
             ngli_bstr_print(bstr, no_stroke_glsl);
+        }
         ngli_bstr_print(bstr, drawrect_frag);
     }
-
-    if (ngli_bstr_check(bstr) < 0) {
-        ngli_bstr_freep(&bstr);
-        return NGL_ERROR_MEMORY;
+    if (ret >= 0)
+        ret = ngli_bstr_check(bstr);
+    if (ret >= 0) {
+        s->frag_shader = ngli_bstr_strdup(bstr);
+        if (!s->frag_shader)
+            ret = NGL_ERROR_MEMORY;
     }
-    s->frag_shader = ngli_bstr_strdup(bstr);
     ngli_bstr_freep(&bstr);
-    if (!s->frag_shader)
-        return NGL_ERROR_MEMORY;
+    if (ret < 0)
+        return ret;
 
     /* Build vertex uniform block */
     static const struct ngpu_block_field vert_fields[] = {
         {.name = "ngli_projection_matrix", .type = NGPU_TYPE_MAT4},
         {.name = "ngli_modelview_matrix", .type = NGPU_TYPE_MAT4},
         {.name = "ngli_rect",          .type = NGPU_TYPE_VEC4},
-        {.name = "ngli_uv_scale",      .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_stroke_uv_scale", .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_margin_px",     .type = NGPU_TYPE_F32},
         {.name = "ngli_margin_uv",     .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_margin_px",     .type = NGPU_TYPE_F32},
+        /* Unnamed block members need distinct names across stages on GLES. */
+        UV_TRANSFORM_FIELDS("ngli_vert_content_uv"),
+        UV_TRANSFORM_FIELDS("ngli_vert_fill_uv"),
+        UV_TRANSFORM_FIELDS("ngli_vert_stroke_uv"),
+        UV_TRANSFORM_FIELDS("ngli_vert_fill_tex_uv"),
+        UV_TRANSFORM_FIELDS("ngli_vert_stroke_tex_uv"),
     };
     ngpu_block_desc_init(gpu_ctx, &s->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
@@ -539,12 +612,11 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_stroke_opacity",       .type = NGPU_TYPE_F32},
         {.name = "ngli_fill_content_wrap",    .type = NGPU_TYPE_I32},
         {.name = "ngli_stroke_content_wrap",  .type = NGPU_TYPE_I32},
-        {.name = "ngli_content_zoom",         .type = NGPU_TYPE_F32},
-        {.name = "ngli_content_translate",    .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_content_orientation",  .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_frag_uv_scale",        .type = NGPU_TYPE_VEC2},
         {.name = "ngli_fill_premult",         .type = NGPU_TYPE_I32},
         {.name = "ngli_stroke_premult",       .type = NGPU_TYPE_I32},
+        UV_TRANSFORM_FIELDS("ngli_content_uv"),
+        UV_TRANSFORM_FIELDS("ngli_fill_uv"),
+        UV_TRANSFORM_FIELDS("ngli_stroke_uv"),
         {.name = "ngli_clip_inv",             .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
         {.name = "ngli_clip_rect",            .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
         {.name = "ngli_clip_radius",          .type = NGPU_TYPE_VEC4, .count = NGLI_MAX_CLIPS_2D},
@@ -832,37 +904,66 @@ static int drawrect2d_init(struct ngl_node *node)
     }
 
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {.name = "ngli_uv",        .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_tex_coord", .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_stroke_tex_coord", .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_clip_pos",  .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_rect_uv",       .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_clip_pos",      .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_content_uv",  .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_fill_tex_uv",   .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_stroke_tex_uv", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_fill_uv",       .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_stroke_uv",     .type = NGPU_TYPE_VEC2},
     };
+
+    struct shader2d_role roles[PAINT_SHADER_ROLE_NB];
+    size_t role_count = 0;
+    if (fill_paint->custom)
+        roles[role_count++] = shader_roles[PAINT_SHADER_ROLE_FILL];
+    if (stroke_paint && stroke_paint->custom)
+        roles[role_count++] = shader_roles[PAINT_SHADER_ROLE_STROKE];
+    struct bstr *vert = ngli_bstr_create();
+    if (!vert) {
+        ngli_darray_reset(&textures);
+        ngli_darray_reset(&blocks);
+        return NGL_ERROR_MEMORY;
+    }
+    ret = ngli_shader2d_write_vertex(&s->shader, vert, drawrect_vert,
+                                     vert_out_vars, NGLI_ARRAY_NB(vert_out_vars), roles, role_count);
+    if (ret < 0) {
+        ngli_bstr_freep(&vert);
+        ngli_darray_reset(&textures);
+        ngli_darray_reset(&blocks);
+        return ret;
+    }
 
     const struct ngpu_pgcraft_params crafter_params = {
         .program_label    = "nopegl/drawrect",
-        .vert_base        = s->vert_shader,
+        .vert_base        = ngli_bstr_strptr(vert),
         .frag_base        = s->frag_shader,
         .textures         = textures.data,
         .nb_textures      = textures.count,
         .blocks           = blocks.data,
         .nb_blocks        = blocks.count,
-        .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .vert_out_vars    = s->shader.varyings.data,
+        .nb_vert_out_vars = s->shader.varyings.count,
         .nb_frag_output   = fill_paint->color_output_count,
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
     if (!s->crafter) {
+        ngli_bstr_freep(&vert);
         ngli_darray_reset(&textures);
         ngli_darray_reset(&blocks);
         return NGL_ERROR_MEMORY;
     }
 
     ret = ngpu_pgcraft_craft(s->crafter, &crafter_params);
+    ngli_bstr_freep(&vert);
     ngli_darray_reset(&textures);
     ngli_darray_reset(&blocks);
-    if (ret < 0)
+    if (ret < 0) {
+        LOG(ERROR, "DrawRect2D %s: GLSL source 1 is fill %s; source 2 is stroke %s",
+            node->label, o->fill_node->label, stroke ? stroke->paint->label : "(none)");
         return ret;
+    }
 
     s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngli_vert", NGPU_PROGRAM_STAGE_VERT);
     s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngli_frag", NGPU_PROGRAM_STAGE_FRAG);
@@ -1054,13 +1155,27 @@ static void drawrect2d_draw(struct ngl_node *node)
         [3] = { 0.f, -1.f}, /* 270° */
     };
 
+    const float *cos_sin = orientation_cos_sin[orientation_quarter];
+
+    float fill_uv_transform[4], stroke_uv_transform[4];
+    get_texture_uv_transform(fill_paint, fill_uv_transform);
+    get_texture_uv_transform(stroke_paint, stroke_uv_transform);
+
+    const float unit_scale[] = {1.f, 1.f};
+    const float zero_translate[] = {0.f, 0.f};
+    const struct uv_transform content_uv = compute_uv_transform(cos_sin, unit_scale, content_zoom, content_translate);
+    const struct uv_transform fill_uv = compute_uv_transform(cos_sin, uv_scale, content_zoom, content_translate);
+    const struct uv_transform stroke_uv = compute_uv_transform(orientation_cos_sin[0], stroke_uv_scale, 1.f, zero_translate);
+    const struct uv_transform fill_tex_uv = apply_texture_uv_transform(fill_uv, fill_uv_transform);
+    const struct uv_transform stroke_tex_uv = apply_texture_uv_transform(stroke_uv, stroke_uv_transform);
+
     /* Compute Geometry dilation: expand quad to cover outside stroke + AA border */
     const float outer_edge = ngli_stroke2d_get_outer_edge(stroke);
-    const float margin_uv_px = outer_edge + 1.f;
-    const float margin_px = margin_uv_px + 1.f;
+    const float margin_px = outer_edge + 2.f;
+    /* Keep SDF and paint coordinates aligned with the expanded geometry */
     const float margin_uv[2] = {
-        s->rect[2] > 0.f ? margin_uv_px / s->rect[2] : 0.f,
-        s->rect[3] > 0.f ? margin_uv_px / s->rect[3] : 0.f,
+        s->rect[2] > 0.f ? margin_px / s->rect[2] : 0.f,
+        s->rect[3] > 0.f ? margin_px / s->rect[3] : 0.f,
     };
 
     /* Compute opacity: multiply local opacity by cascaded group opacity */
@@ -1074,9 +1189,12 @@ static void drawrect2d_draw(struct ngl_node *node)
         vert_data.projection_matrix = ctx->projection_2d_matrix;
         vert_data.modelview_matrix = modelview_matrix;
         memcpy(vert_data.rect, s->rect, sizeof(vert_data.rect));
-        memcpy(vert_data.uv_scale, uv_scale, sizeof(vert_data.uv_scale));
-        memcpy(vert_data.stroke_uv_scale, stroke_uv_scale, sizeof(vert_data.stroke_uv_scale));
         vert_data.margin_px = margin_px;
+        vert_data.content_uv = content_uv;
+        vert_data.fill_uv = fill_uv;
+        vert_data.stroke_uv = stroke_uv;
+        vert_data.fill_tex_uv = fill_tex_uv;
+        vert_data.stroke_tex_uv = stroke_tex_uv;
         memcpy(vert_data.margin_uv, margin_uv, sizeof(vert_data.margin_uv));
 
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
@@ -1100,10 +1218,9 @@ static void drawrect2d_draw(struct ngl_node *node)
         frag_data.stroke_opacity = stroke_opts ? stroke_opts->opacity : 1.f;
         frag_data.fill_content_wrap = fill_opts->wrap;
         frag_data.stroke_content_wrap = stroke_opts ? stroke_opts->wrap : PAINT_WRAP_DEFAULT;
-        frag_data.content_zoom  = content_zoom;
-        memcpy(frag_data.content_translate, content_translate, sizeof(frag_data.content_translate));
-        memcpy(frag_data.content_orientation, orientation_cos_sin[orientation_quarter], sizeof(frag_data.content_orientation));
-        memcpy(frag_data.frag_uv_scale, uv_scale, sizeof(frag_data.frag_uv_scale));
+        frag_data.content_uv = content_uv;
+        frag_data.fill_uv = fill_uv;
+        frag_data.stroke_uv = stroke_uv;
         frag_data.fill_premult = fill_opts->premult;
         frag_data.stroke_premult = stroke_opts ? stroke_opts->premult : 1;
         size_t nb_clips = ctx->nb_clips_2d;
@@ -1197,8 +1314,8 @@ static void drawrect2d_uninit(struct ngl_node *node)
     ngpu_block_desc_reset(&s->frag_block_desc);
     ngpu_block_desc_reset(&s->user_block_desc);
     ngpu_pgcraft_freep(&s->crafter);
-    ngli_freep(&s->vert_shader);
     ngli_freep(&s->frag_shader);
+    ngli_shader2d_reset(&s->shader);
 }
 
 const struct node_class ngli_drawrect2d_class = {

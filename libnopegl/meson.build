@@ -820,6 +820,12 @@ test_progs = {
     'exe': 'test_path',
     'src': files('src/test_path.c', 'src/path.c', 'src/log.c', ) + math_utils_src + utils_src,
   },
+  '2D shader assembly': {
+    'exe': 'test_shader2d',
+    'src': files('src/test_shader2d.c'),
+    'objects': libnopegl.extract_all_objects(recursive: true),
+    'c_args': lib_c_args,
+  },
   'Scene topology': {
     'exe': 'test_scene',
     'src': files('src/test_scene.c'),

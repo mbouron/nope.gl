@@ -548,16 +548,6 @@
         "desc": "scale to fill the target shape bounds preserving aspect ratio (may crop)"
       }
     ],
-    "paint_wrap": [
-      {
-        "name": "default",
-        "desc": "use texture wrap parameters"
-      },
-      {
-        "name": "discard",
-        "desc": "discard fragment if coordinates are outside texture boundaries"
-      }
-    ],
     "effect2d_bounds": [
       {
         "name": "children",
@@ -604,6 +594,16 @@
       {
         "name": "outside",
         "desc": "stroke lies outside the shape boundary"
+      }
+    ],
+    "paint_wrap": [
+      {
+        "name": "default",
+        "desc": "use texture wrap parameters"
+      },
+      {
+        "name": "discard",
+        "desc": "discard fragment if coordinates are outside texture boundaries"
       }
     ],
     "topology": [
@@ -3035,38 +3035,24 @@
           "desc": "texture scaling mode applied to custom paint content"
         },
         {
-          "name": "wrap",
-          "type": "select",
-          "default": "default",
-          "choices": "paint_wrap",
-          "flags": [],
-          "desc": "wrap mode for out-of-bounds coordinates"
-        },
-        {
           "name": "premult",
           "type": "bool",
           "default": 1,
           "flags": [],
-          "desc": "premultiply glsl_color() output color by its alpha"
+          "desc": "premultiply the paint output color by its alpha"
         },
         {
-          "name": "glsl_header",
+          "name": "glsl",
           "type": "str",
           "flags": [],
-          "desc": "GLSL code prepended before the color function; fill and stroke share the same namespace in the final fragment shader and must be compatible"
-        },
-        {
-          "name": "glsl_color",
-          "type": "str",
-          "flags": [],
-          "desc": "GLSL body of the color function"
+          "desc": "GLSL source defining the paint function; see the [shader guide](../expl/shaders.md#2d-shaders)"
         },
         {
           "name": "resources",
           "type": "node_dict",
           "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "CustomTexture", "Block"],
           "flags": [],
-          "desc": "resources available to `glsl_header` and `glsl_color`"
+          "desc": "resources available to `glsl`"
         },
         {
           "name": "color_output_count",
@@ -3297,16 +3283,10 @@
       "file": "src/node_effect2d_shader.c",
       "params": [
         {
-          "name": "glsl_header",
-          "type": "str",
-          "flags": [],
-          "desc": "optional GLSL code inserted before the fragment body"
-        },
-        {
-          "name": "glsl_color",
+          "name": "glsl",
           "type": "str",
           "flags": ["nonull"],
-          "desc": "fragment shader body; receives UV coordinates (`uv` and `tex_coord` as `vec2`), must return the resulting color as a `vec4`; an empty body renders the offscreen children unchanged"
+          "desc": "GLSL source defining the effect function (see the [shader guide](../expl/shaders.md#2d-shaders)); if empty, the children are rendered unchanged"
         },
         {
           "name": "resources",

@@ -93,10 +93,16 @@ char *ngpu_numbered_lines(const char *s)
 
     const int nb_lines = count_lines(s);
     const int nb_digits = count_digits(nb_lines);
-    int line = 1;
+    int line = 1, source = 0;
     while (*s) {
         const size_t len = strcspn(s, "\n");
-        ngpu_bstr_printf(b, "%*d %.*s\n", nb_digits, line++, (int)len, s);
+        ngpu_bstr_printf(b, "%d:%*d %.*s\n", source, nb_digits, line++, (int)len, s);
+        int next_line, next_source, pos = 0, end = 0;
+        if (sscanf(s, " #line %d%n", &next_line, &pos) == 1 && (size_t)pos <= len) {
+            line = next_line;
+            if (sscanf(s + pos, "%d%n", &next_source, &end) == 1 && (size_t)(pos + end) <= len)
+                source = next_source;
+        }
         if (!s[len])
             break;
         s += len + 1;
