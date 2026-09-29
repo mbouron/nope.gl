@@ -54,6 +54,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `OffscreenCanvas2D.width` and `OffscreenCanvas2D.height` are now live-changeable
 - Timeranges (`TimeRangeFilter`, `TimeRangeFilter2D`, `Effect2DShader`) and
   animation keyframes are now kept as-is and sanitized during evaluation
+- `CustomPaint` no longer expands `$` prefixes in GLSL; resources are
+  referenced by their key
 
 ### Fixed
 - Non-shareable nodes incorrectly allowed to be shared within a graph after the

@@ -21,6 +21,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "internal.h"
 #include "log.h"
@@ -48,10 +49,66 @@ static const char *const paint_resource_prefixes[PAINT_SHADER_ROLE_NB] = {
     [PAINT_SHADER_ROLE_STROKE] = "ngli_stroke_",
 };
 
-void ngli_paint_get_resource_name(char *dst, size_t size,
-                                  enum paint_shader_role role, const char *name)
+void ngli_paint_get_builtin_resource_name(char *dst, size_t size,
+                                          enum paint_shader_role role, const char *name)
 {
     snprintf(dst, size, "%s%s", paint_resource_prefixes[role], name);
+}
+
+const struct ngl_node *ngli_paint_get_custom_resource(const struct paint_info *paint, const char *name)
+{
+    for (size_t i = 0; i < paint->custom_uniforms.count; i++) {
+        const struct paint_custom_uniform_def *cu = &paint->custom_uniforms.data[i];
+        if (!strcmp(cu->name, name))
+            return cu->node;
+    }
+    for (size_t i = 0; i < paint->custom_textures.count; i++) {
+        const struct paint_custom_texture_def *ct = &paint->custom_textures.data[i];
+        if (!strcmp(ct->name, name))
+            return ct->texture_node;
+    }
+    for (size_t i = 0; i < paint->custom_blocks.count; i++) {
+        const struct paint_custom_block_def *cb = &paint->custom_blocks.data[i];
+        if (!strcmp(cb->name, name))
+            return cb->node;
+    }
+    return NULL;
+}
+
+static int check_resource(const struct paint_info *fill, const char *name,
+                          const struct ngl_node *stroke_node)
+{
+    const struct ngl_node *fill_node = ngli_paint_get_custom_resource(fill, name);
+    if (fill_node && fill_node != stroke_node) {
+        LOG(ERROR, "the fill and stroke paints bind different nodes to the resource \"%s\"", name);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    return 0;
+}
+
+int ngli_paint_check_compatible(const struct paint_info *fill, const struct paint_info *stroke)
+{
+    if (!stroke)
+        return 0;
+    for (size_t i = 0; i < stroke->custom_uniforms.count; i++) {
+        const struct paint_custom_uniform_def *cu = &stroke->custom_uniforms.data[i];
+        int ret = check_resource(fill, cu->name, cu->node);
+        if (ret < 0)
+            return ret;
+    }
+    for (size_t i = 0; i < stroke->custom_textures.count; i++) {
+        const struct paint_custom_texture_def *ct = &stroke->custom_textures.data[i];
+        int ret = check_resource(fill, ct->name, ct->texture_node);
+        if (ret < 0)
+            return ret;
+    }
+    for (size_t i = 0; i < stroke->custom_blocks.count; i++) {
+        const struct paint_custom_block_def *cb = &stroke->custom_blocks.data[i];
+        int ret = check_resource(fill, cb->name, cb->node);
+        if (ret < 0)
+            return ret;
+    }
+    return 0;
 }
 
 static int is_glsl_ident(char c)
@@ -62,15 +119,15 @@ static int is_glsl_ident(char c)
            c == '_';
 }
 
-void ngli_paint_glsl_write(struct bstr *b, const char *glsl,
+void ngli_paint_glsl_write(struct bstr *b, const struct paint_info *paint,
                            enum paint_shader_role role, const char *entrypoint)
 {
     const char *prefix = paint_resource_prefixes[role];
 
-    const char *segment = glsl;
-    const char *p = glsl;
+    const char *segment = paint->glsl;
+    const char *p = paint->glsl;
     while (*p) {
-        if (*p == '$') {
+        if (*p == '$' && !paint->custom) {
             ngli_bstr_write(b, segment, (size_t)(p - segment));
             ngli_bstr_print(b, prefix);
             segment = ++p;
@@ -883,6 +940,46 @@ static int register_resource(struct paint_info *info, const char *name, struct n
     }
 }
 
+static int is_glsl_identifier(const char *str)
+{
+    if (!str[0] || (str[0] >= '0' && str[0] <= '9'))
+        return 0;
+    for (const char *p = str; *p; p++)
+        if (!is_glsl_ident(*p))
+            return 0;
+    return 1;
+}
+
+static int is_reserved_key(const char *key)
+{
+    static const char * const names[] = {"main", "uv", "tex_coord"};
+    static const char * const prefixes[] = {"gl_", "ngl_", "ngli_"};
+    for (size_t i = 0; i < NGLI_ARRAY_NB(names); i++)
+        if (!strcmp(key, names[i]))
+            return 1;
+    for (size_t i = 0; i < NGLI_ARRAY_NB(prefixes); i++)
+        if (!strncmp(key, prefixes[i], strlen(prefixes[i])))
+            return 1;
+    return 0;
+}
+
+static int check_resource_key(const char *key)
+{
+    if (!is_glsl_identifier(key)) {
+        LOG(ERROR, "CustomPaint: resource key \"%s\" is not a GLSL identifier", key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    if (strlen(key) >= PAINT_NAME_LEN) {
+        LOG(ERROR, "CustomPaint: resource key \"%s\" is longer than %d characters", key, PAINT_NAME_LEN - 1);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    if (is_reserved_key(key)) {
+        LOG(ERROR, "CustomPaint: resource key \"%s\" is reserved", key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+    return 0;
+}
+
 static char *custompaint_build_glsl(const struct custompaint_opts *o)
 {
     struct bstr *bstr = ngli_bstr_create();
@@ -918,11 +1015,15 @@ static int custompaint_init(struct ngl_node *node)
     if (!s->glsl)
         return NGL_ERROR_MEMORY;
     info->glsl = s->glsl;
+    info->custom = 1;
 
     if (o->resources) {
         const struct hmap_entry *entry = NULL;
         while ((entry = ngli_hmap_next(o->resources, entry))) {
-            int ret = register_resource(info, entry->key.str, entry->data);
+            int ret = check_resource_key(entry->key.str);
+            if (ret < 0)
+                return ret;
+            ret = register_resource(info, entry->key.str, entry->data);
             if (ret < 0)
                 return ret;
         }
@@ -977,9 +1078,8 @@ static const struct node_param custompaint_params[] = {
         .key    = "glsl_header",
         .type   = NGLI_PARAM_TYPE_STR,
         .offset = OFFSET(glsl_header),
-        .desc   = NGLI_DOCSTRING("GLSL code prepended before the color function (helper functions, etc.); "
-                                 "symbols declared here must be written $name so that they are namespaced "
-                                 "per shader role"),
+        .desc   = NGLI_DOCSTRING("GLSL code prepended before the color function; fill and stroke share the "
+                                 "same namespace in the final fragment shader and must be compatible"),
     },
     {
         .key    = "glsl_color",
@@ -1031,8 +1131,7 @@ static const struct node_param custompaint_params[] = {
             NGL_NODE_BLOCK,
             NGLI_NODE_NONE,
         },
-        .desc = NGLI_DOCSTRING("uniform, texture and block nodes available to glsl_color; each node is "
-                               "referenced in the GLSL as $name, where name is the key it is bound to"),
+        .desc = NGLI_DOCSTRING("resources available to `glsl_header` and `glsl_color`"),
     },
     {
         .key    = "color_output_count",

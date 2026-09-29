@@ -1145,6 +1145,57 @@ def api_shader_init_fail(width=320, height=240):
     assert ctx.draw(0) == 0
 
 
+def _check_paints(fill_paint, stroke_paint, width=256, height=256):
+    ctx = ngl.Context()
+    ret = ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend))
+    assert ret == 0
+    rect = ngl.DrawRect2D(
+        rect=(0, 0, width, height),
+        fill=fill_paint,
+        stroke=ngl.Stroke2D(
+            paint=stroke_paint,
+            width=8.0,
+        ),
+    )
+    canvas = ngl.Canvas2D(width=width, height=height, children=[rect])
+    scene = ngl.Scene.from_params(canvas)
+    return ctx.set_scene(scene)
+
+
+def api_paint_fill_and_stroke_shared():
+    """A paint node can be used for both fill and stroke"""
+    paint = ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))
+    assert _check_paints(paint, paint) == 0
+
+    paint = ngl.CustomPaint(
+        glsl_color="return ngl_texvideo(tex, tex_coord) * color;",
+        resources={"color": ngl.UniformVec4(), "tex": ngl.Texture2D(width=4, height=4)},
+    )
+    assert _check_paints(paint, paint) == 0
+
+    # The header is declared once
+    paint = ngl.CustomPaint(
+        glsl_header="vec4 shade(vec4 c) { return c * 0.5; }",
+        glsl_color="return shade(color);",
+        resources={"color": ngl.UniformVec4()},
+    )
+    assert _check_paints(paint, paint) == 0
+
+
+def api_paint_fill_and_stroke_resource_clash():
+    """A resource key used in both the fill and stroke paints must point to the same node."""
+    color = ngl.UniformVec4()
+    fill_paint = ngl.CustomPaint(glsl_color="return color;", resources={"color": color})
+    stroke_paint = ngl.CustomPaint(glsl_color="return color * 0.5;", resources={"color": color})
+    assert _check_paints(fill_paint, stroke_paint) == 0
+
+    stroke_paint = ngl.CustomPaint(glsl_color="return color;", resources={"color": ngl.UniformVec4()})
+    assert _check_paints(fill_paint, stroke_paint) != 0
+
+    stroke_paint = ngl.CustomPaint(glsl_color="return stroke_color;", resources={"stroke_color": ngl.UniformVec4()})
+    assert _check_paints(fill_paint, stroke_paint) == 0
+
+
 def _create_trf(scene, start, end, prefetch_time=None):
     trf = ngl.TimeRangeFilter(scene, start, end)
     if prefetch_time is not None:

@@ -3053,7 +3053,7 @@
           "name": "glsl_header",
           "type": "str",
           "flags": [],
-          "desc": "GLSL code prepended before the color function (helper functions, etc.); symbols declared here must be written $name so that they are namespaced per shader role"
+          "desc": "GLSL code prepended before the color function; fill and stroke share the same namespace in the final fragment shader and must be compatible"
         },
         {
           "name": "glsl_color",
@@ -3066,7 +3066,7 @@
           "type": "node_dict",
           "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "CustomTexture", "Block"],
           "flags": [],
-          "desc": "uniform, texture and block nodes available to glsl_color; each node is referenced in the GLSL as $name, where name is the key it is bound to"
+          "desc": "resources available to `glsl_header` and `glsl_color`"
         },
         {
           "name": "color_output_count",
