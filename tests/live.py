@@ -133,7 +133,7 @@ def _get_group_reparent_function(width=128, height=128):
         rect=(0, 0, width, height),
         fill=ngl.CustomPaint(
             glsl_color="""
-                vec4 c = ngl_texvideo($src, uv);
+                vec4 c = ngl_texvideo(src, uv);
                 return vec4(1.0 - c.rgb, c.a);
             """,
             resources={"src": texture},
