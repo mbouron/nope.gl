@@ -358,12 +358,12 @@ static int media_update(struct ngl_node *node, double t)
         ngli_animation_get_bounds(anim_o->animkf.data, anim_o->animkf.count,
                                   NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
         initial_seek    = s->start_time;
-        time_origin     = times[0];
+        time_origin     = times[0] + anim_o->time_offset;
         has_kf_interval = times[1] > times[0];
 
         double anim_t = t;
         if (o->loop && has_kf_interval)
-            anim_t = times[0] + fmod(NGLI_MAX(0.0, t - times[0]), times[1] - times[0]);
+            anim_t = time_origin + fmod(NGLI_MAX(0.0, t - time_origin), times[1] - times[0]);
 
         int ret = ngli_node_update(anim_node, anim_t);
         if (ret < 0)
