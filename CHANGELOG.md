@@ -66,6 +66,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - Media loops not taking `AnimatedTime.time_offset` into account
 - Media duration handling when animation keyframe times collapse to a single
   value
+- Potential hangs when a media is prefetched multiple times because of live
+  edits
 
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added

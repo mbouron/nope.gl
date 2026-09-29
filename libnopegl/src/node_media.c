@@ -434,6 +434,7 @@ static void media_release(struct ngl_node *node)
     struct release_job *release_job = &s->release_job;
     release_job->player = s->player;
     s->player = NULL;
+    s->duration = 0.0;
 
 #if defined(TARGET_ANDROID)
     release_job->android_surface = s->android_surface;
