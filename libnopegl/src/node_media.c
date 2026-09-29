@@ -349,7 +349,6 @@ static int media_update(struct ngl_node *node, double t)
     double media_time = t;
     double initial_seek = 0.0;
     double time_origin = 0.0;
-    bool has_kf_interval = false;
 
     if (anim_node) {
         struct variable_info *anim = anim_node->priv_data;
@@ -357,12 +356,11 @@ static int media_update(struct ngl_node *node, double t)
         double times[2], values[2];
         ngli_animation_get_bounds(anim_o->animkf.data, anim_o->animkf.count,
                                   NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
-        initial_seek    = s->start_time;
-        time_origin     = times[0] + anim_o->time_offset;
-        has_kf_interval = times[1] > times[0];
+        initial_seek = s->start_time;
+        time_origin  = times[0] + anim_o->time_offset;
 
         double anim_t = t;
-        if (o->loop && has_kf_interval)
+        if (o->loop && times[1] > times[0])
             anim_t = time_origin + fmod(NGLI_MAX(0.0, t - time_origin), times[1] - times[0]);
 
         int ret = ngli_node_update(anim_node, anim_t);
@@ -374,7 +372,7 @@ static int media_update(struct ngl_node *node, double t)
         TRACE("remapped time f(%g)=%g", t, media_time);
     }
 
-    if (o->loop && !has_kf_interval) {
+    if (o->loop && s->end_time == -DBL_MAX) {
         if (s->duration <= 0.0) {
             ngli_fence_wait(&s->duration_fence);
             if (s->duration_job.ret == 0)
