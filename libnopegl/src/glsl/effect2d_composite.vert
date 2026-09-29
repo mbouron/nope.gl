@@ -26,18 +26,19 @@ const vec2 quad_coords[] = vec2[](
     vec2(1.0, 1.0)
 );
 
-void main()
+void ngli_vertex()
 {
     vec2 quad_coord = quad_coords[ngl_vertex_index];
     /* Keep rasterization consistent across backends by shifting Y half a pixel. */
     vec2 position = rect.xy + quad_coord * rect.zw + vec2(0.0, 0.5);
-    ngl_out_pos = projection_matrix * modelview_matrix * vec4(position, 0.0, 1.0);
+    vec4 canvas_pos = modelview_matrix * vec4(position, 0.0, 1.0);
+    ngl_out_pos = projection_matrix * canvas_pos;
 
-    /*
-     * Offset by half a canvas pixel so bilinear samples hit RTT texel centers.
-     * Y uses a full pixel to compensate for the position shift above.
-     */
-    vec2 uv_coord = quad_coord + vec2(0.5, 1.0) / rect.zw;
-    uv = uv_coord;
-    tex_coord = (tex_coord_matrix * vec4(uv_coord, 0.0, 1.0)).xy;
+    /* The rect coordinates follow the quad geometry, like the canvas ones */
+    ngli_rect_px = position - rect.xy;
+    ngli_rect_uv = ngli_rect_px / rect.zw;
+    ngli_canvas_px = canvas_pos.xy;
+
+    /* The texture coordinates includes the half-pixel sampling offset */
+    ngli_tex_coord = ngli_rect_uv * ngli_quad_tex_scale + ngli_quad_tex_offset;
 }

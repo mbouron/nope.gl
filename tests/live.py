@@ -132,10 +132,12 @@ def _get_group_reparent_function(width=128, height=128):
     fx = ngl.DrawRect2D(
         rect=(0, 0, width, height),
         fill=ngl.CustomPaint(
-            glsl_color="""
-                vec4 c = ngl_texvideo(src, uv);
+            glsl="""
+            vec4 main(const ngl_FragmentInput frag) {
+                vec4 c = ngl_sample_src(frag);
                 return vec4(1.0 - c.rgb, c.a);
-            """,
+            }
+        """,
             resources={"src": texture},
         ),
     )
@@ -199,7 +201,7 @@ def _get_offscreencanvas2d_resize_function(width=128, height=128):
     @test_render(
         width=width,
         height=height,
-        tolerance=1,
+        tolerance=2,  # Two filtered passes can differ by two UNORM steps at an edge.
         exercise_serialization=False,
         keyframes_callback=_resize,
         keyframes=[0.0, 1.0, 2.0, 3.0],
@@ -223,10 +225,12 @@ def _get_effect2d_reparent_function(width=128, height=128):
     fx = ngl.Effect2D(
         shaders=[
             ngl.Effect2DShader(
-                glsl_color=textwrap.dedent("""
-                    vec4 c = ngl_texvideo(tex, tex_coord);
-                    return vec4(1.0 - c.rgb, c.a);
-                    """),
+                glsl=textwrap.dedent("""
+            vec4 main(const ngl_FragmentInput frag) {
+                vec4 c = ngl_sample_input(frag);
+                return vec4(1.0 - c.rgb, c.a);
+            }
+        """),
             )
         ],
     )

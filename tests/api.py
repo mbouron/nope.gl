@@ -200,7 +200,9 @@ def api_timerange_inverted(width=16, height=16):
     test_timerange(canvas, trf2d, black)
 
     rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint(color=(1.0, 1.0, 1.0, 1.0)))
-    shader = ngl.Effect2DShader(glsl_color="return vec4(1.0, 0.0, 0.0, 1.0);", start=2.0, end=1.0)
+    shader = ngl.Effect2DShader(
+        glsl="vec4 main(const ngl_FragmentInput frag) { return vec4(1.0, 0.0, 0.0, 1.0); }", start=2.0, end=1.0
+    )
     effect = ngl.Effect2D(children=[rect], shaders=[shader])
     canvas = ngl.Canvas2D(width=width, height=height, children=[effect])
     test_timerange(canvas, shader, white)
@@ -431,7 +433,9 @@ def api_range_edits_during_callbacks():
     events = []
     trf = ngl.TimeRangeFilter(ngl.DrawColor(), start=0, end=1)
     trf2d = ngl.TimeRangeFilter2D(ngl.Group2D(), start=0, end=1)
-    shader = ngl.Effect2DShader(glsl_color="return ngl_texvideo(tex, tex_coord);", start=0, end=1)
+    shader = ngl.Effect2DShader(
+        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_sample_input(frag); }", start=0, end=1
+    )
     ranges = [trf, trf2d, shader]
 
     class EditingTexture(ngl.CustomTexture):
@@ -1168,15 +1172,15 @@ def api_paint_fill_and_stroke_shared():
     assert _check_paints(paint, paint) == 0
 
     paint = ngl.CustomPaint(
-        glsl_color="return ngl_texvideo(tex, tex_coord) * color;",
+        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_sample_tex(frag) * color; }",
         resources={"color": ngl.UniformVec4(), "tex": ngl.Texture2D(width=4, height=4)},
     )
     assert _check_paints(paint, paint) == 0
 
     # The header is declared once
     paint = ngl.CustomPaint(
-        glsl_header="vec4 shade(vec4 c) { return c * 0.5; }",
-        glsl_color="return shade(color);",
+        glsl="vec4 shade(vec4 c) { return c * 0.5; }\n"
+        + "vec4 main(const ngl_FragmentInput frag) { return shade(color); }",
         resources={"color": ngl.UniformVec4()},
     )
     assert _check_paints(paint, paint) == 0
@@ -1185,14 +1189,23 @@ def api_paint_fill_and_stroke_shared():
 def api_paint_fill_and_stroke_resource_clash():
     """A resource key used in both the fill and stroke paints must point to the same node."""
     color = ngl.UniformVec4()
-    fill_paint = ngl.CustomPaint(glsl_color="return color;", resources={"color": color})
-    stroke_paint = ngl.CustomPaint(glsl_color="return color * 0.5;", resources={"color": color})
+    fill_paint = ngl.CustomPaint(
+        glsl="vec4 main(const ngl_FragmentInput frag) { return color; }", resources={"color": color}
+    )
+    stroke_paint = ngl.CustomPaint(
+        glsl="vec4 main(const ngl_FragmentInput frag) { return color * 0.5; }", resources={"color": color}
+    )
     assert _check_paints(fill_paint, stroke_paint) == 0
 
-    stroke_paint = ngl.CustomPaint(glsl_color="return color;", resources={"color": ngl.UniformVec4()})
+    stroke_paint = ngl.CustomPaint(
+        glsl="vec4 main(const ngl_FragmentInput frag) { return color; }", resources={"color": ngl.UniformVec4()}
+    )
     assert _check_paints(fill_paint, stroke_paint) != 0
 
-    stroke_paint = ngl.CustomPaint(glsl_color="return stroke_color;", resources={"stroke_color": ngl.UniformVec4()})
+    stroke_paint = ngl.CustomPaint(
+        glsl="vec4 main(const ngl_FragmentInput frag) { return stroke_color; }",
+        resources={"stroke_color": ngl.UniformVec4()},
+    )
     assert _check_paints(fill_paint, stroke_paint) == 0
 
 

@@ -20,16 +20,17 @@
  */
 
 #include <stddef.h>
+#include <string.h>
 
 #include "internal.h"
 #include "log.h"
 #include "node_effect2d_shader.h"
 #include "nopegl/nopegl.h"
 #include "timerange.h"
+#include "shader2d.h"
 
 struct effect2d_shader_opts {
-    const char *glsl_header;
-    const char *glsl_color;
+    const char *glsl;
     struct hmap *resources;
     int premult;
     double start;
@@ -61,21 +62,32 @@ int ngl_effect2dshader_set_range(struct ngl_node *node, double start, double end
 }
 
 
+static int effect2dshader_init(struct ngl_node *node)
+{
+    const struct effect2d_shader_opts *o = node->opts;
+    if (o->resources) {
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(o->resources, entry))) {
+            if (!strcmp(entry->key.str, "input")) {
+                LOG(ERROR, "Effect2DShader: resource key \"input\" is reserved for the effect input");
+                return NGL_ERROR_INVALID_USAGE;
+            }
+            int ret = ngli_shader2d_check_key(entry->key.str, "Effect2DShader");
+            if (ret < 0)
+                return ret;
+        }
+    }
+    return 0;
+}
+
 #define OFFSET(x) offsetof(struct effect2d_shader_opts, x)
 static const struct node_param effect2d_shader_params[] = {
     {
-        .key       = "glsl_header",
+        .key       = "glsl",
         .type      = NGLI_PARAM_TYPE_STR,
-        .offset    = OFFSET(glsl_header),
-        .desc      = NGLI_DOCSTRING("optional GLSL code inserted before the fragment body"),
-    }, {
-        .key       = "glsl_color",
-        .type      = NGLI_PARAM_TYPE_STR,
-        .offset    = OFFSET(glsl_color),
+        .offset    = OFFSET(glsl),
         .flags     = NGLI_PARAM_FLAG_NON_NULL,
-        .desc      = NGLI_DOCSTRING("fragment shader body; receives UV coordinates (`uv` and `tex_coord` as "
-                                    "`vec2`), must return the resulting color as a `vec4`; an empty body "
-                                    "renders the offscreen children unchanged"),
+        .desc      = NGLI_DOCSTRING("GLSL source defining the effect function (see the [shader guide](../expl/shaders.md#2d-shaders)); if empty, the children are rendered unchanged"),
     }, {
         .key        = "resources",
         .type       = NGLI_PARAM_TYPE_NODEDICT,
@@ -150,8 +162,7 @@ struct effect2d_shader_info ngli_effect2d_shader_get_info(const struct ngl_node 
     ngli_assert(node->cls->id == NGL_NODE_EFFECT2DSHADER);
     const struct effect2d_shader_opts *o = node->opts;
     struct effect2d_shader_info info = {
-        .glsl_header = o->glsl_header,
-        .glsl_color  = o->glsl_color,
+        .glsl  = o->glsl,
         .resources   = o->resources,
         .premult     = o->premult,
     };
@@ -162,6 +173,7 @@ struct effect2d_shader_info ngli_effect2d_shader_get_info(const struct ngl_node 
 const struct node_class ngli_effect2dshader_class = {
     .id        = NGL_NODE_EFFECT2DSHADER,
     .name      = "Effect2DShader",
+    .init      = effect2dshader_init,
     .update    = ngli_node_update_children,
     .opts_size = sizeof(struct effect2d_shader_opts),
     .params    = effect2d_shader_params,

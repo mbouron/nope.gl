@@ -24,6 +24,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_node_reparent_child()` to reparent a node from one container to another
 - `ngl_node_param_insert_nodes()` and `ngl_node_param_move_nodes()` to
   insert/move nodes by index
+- `ngl_FragmentInput`, `ngl_content_uv()` and named 2D texture mapping and sampling
+  helpers for custom paints and effects
 
 ### Removed
 - CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and
@@ -42,6 +44,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `ngpu_ctx_params_gl.shared_context` to share OpenGL objects with an
   application context
 - Reframing transform nodes placed on top of texture nodes
+- `uv` and `tex_coord` inputs to the `CustomPaint` and `Effect2DShader` shaders
+- `CustomPaint.wrap`, which had no effect
+- `CustomPaint` and `Effect2DShader` `glsl_header` and `glsl_color` parameters;
+  use `glsl` with a complete `main(const ngl_FragmentInput)` function
 
 ### Changed
 - The HUD now rely on metrics exported by the NGPU layer instead of inspecting
@@ -56,6 +62,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   animation keyframes are now kept as-is and sanitized during evaluation
 - `CustomPaint` no longer expands `$` prefixes in GLSL; resources are
   referenced by their key
+- The input of an `Effect2DShader` is now named `ngl_input` instead of `tex`
+- Custom paint and effect shader entries receive an `ngl_FragmentInput`
+  structure instead of separate coordinate parameters
+
 
 ### Fixed
 - Non-shareable nodes incorrectly allowed to be shared within a graph after the
@@ -70,6 +80,13 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   value
 - Potential hangs when a media is prefetched multiple times because of live
   edits
+- CustomPaint texture-coordinate selection changing after scene serialization
+- Public 2D rect coordinates inheriting private anti-aliasing offsets
+- Fill texture coordinates stretching when an outside stroke expands the quad
+- Partially covered fill pixels discarded at the edge of a DrawRect2D
+- `DrawRect2D.content_translate` and `content_orientation` moving the content
+  the wrong way for textures stored upside down in memory, such as render
+  targets with OpenGL
 
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added

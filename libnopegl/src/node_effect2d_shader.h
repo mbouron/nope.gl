@@ -26,8 +26,7 @@ struct hmap;
 struct ngl_node;
 
 struct effect2d_shader_info {
-    const char *glsl_header;
-    const char *glsl_color;
+    const char *glsl;
     struct hmap *resources;
     int premult;
     double start;

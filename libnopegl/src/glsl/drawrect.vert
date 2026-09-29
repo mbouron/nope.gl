@@ -26,40 +26,26 @@ const vec2 uvcoords[] = vec2[](
     vec2(1.0, 1.0)
 );
 
-void main()
+vec2 ngli_map_coord(vec4 lin, vec4 off, vec2 uv)
 {
-    /*
-     * Dilate the quad outward by ngli_margin_px canvas pixels to ensure fragments
-     * exist beyond the shape boundary for outside/center strokes and correct
-     * fwidth() derivatives.
-     *
-     * sign(uvcoord - 0.5) gives the outward direction at each corner:
-     *   (0,0) → (-1,-1),  (1,0) → (1,-1),  (0,1) → (-1,1),  (1,1) → (1,1)
-     *
-     * ngli_uv is shifted by ngli_margin_uv = ngli_margin_px / ngli_rect_size so that
-     * the fragment shader keeps evaluating the SDF in canvas-pixel space.
-     *
-     * ngli_tex_coord uses the original uvcoord (undilated) so texture sampling is
-     * unaffected.
-     */
+    return mat2(lin.xy, lin.zw) * uv + off.xy;
+}
+
+void ngli_vertex()
+{
     vec2 uvcoord = uvcoords[ngl_vertex_index];
-    vec2 position = ngli_rect.xy + uvcoord * ngli_rect.zw;
     vec2 dir = sign(uvcoord - 0.5);
-    vec4 canvas_pos = ngli_modelview_matrix * vec4(position + dir * ngli_margin_px, 0.0, 1.0);
+    vec2 local_pos = ngli_rect.xy + uvcoord * ngli_rect.zw + dir * ngli_margin_px;
+    vec4 canvas_pos = ngli_modelview_matrix * vec4(local_pos, 0.0, 1.0);
     ngl_out_pos = ngli_projection_matrix * canvas_pos;
     ngli_clip_pos = canvas_pos.xy;
-    ngli_uv = uvcoord + dir * ngli_margin_uv;
-    vec2 fill_uvcoord = (uvcoord - 0.5) * ngli_uv_scale + 0.5;
-#ifdef NGLI_DRAWRECT_FILL_TEXTURE
-    ngli_tex_coord = (ngli_fill_tex_coord_matrix * vec4(fill_uvcoord, 0.0, 1.0)).xy;
-#else
-    ngli_tex_coord = fill_uvcoord;
-#endif
 
-    vec2 stroke_uvcoord = (uvcoord - 0.5) * ngli_stroke_uv_scale + 0.5;
-#ifdef NGLI_DRAWRECT_STROKE_TEXTURE
-    ngli_stroke_tex_coord = (ngli_stroke_tex_coord_matrix * vec4(stroke_uvcoord, 0.0, 1.0)).xy;
-#else
-    ngli_stroke_tex_coord = stroke_uvcoord;
-#endif
+    /* Match the geometry dilation for both coverage and public coordinates. */
+    vec2 rect_uv = uvcoord + dir * ngli_margin_uv;
+    ngli_rect_uv = rect_uv;
+    ngli_v_content_uv = ngli_map_coord(ngli_vert_content_uv_lin, ngli_vert_content_uv_off, rect_uv);
+    ngli_fill_uv = ngli_map_coord(ngli_vert_fill_uv_lin, ngli_vert_fill_uv_off, rect_uv);
+    ngli_stroke_uv = ngli_map_coord(ngli_vert_stroke_uv_lin, ngli_vert_stroke_uv_off, rect_uv);
+    ngli_fill_tex_uv = ngli_map_coord(ngli_vert_fill_tex_uv_lin, ngli_vert_fill_tex_uv_off, rect_uv);
+    ngli_stroke_tex_uv = ngli_map_coord(ngli_vert_stroke_tex_uv_lin, ngli_vert_stroke_tex_uv_off, rect_uv);
 }
