@@ -111,7 +111,7 @@ static int cmp_item(const void *p1, const void *p2)
     return strcmp(i1->key, i2->key);
 }
 
-static int hmap_to_sorted_items(struct item_darray *items_array, struct hmap *hm)
+static int hmap_to_items(struct item_darray *items_array, struct hmap *hm, uint32_t flags)
 {
     const struct hmap_entry *entry = NULL;
     while ((entry = ngli_hmap_next(hm, entry))) {
@@ -122,7 +122,7 @@ static int hmap_to_sorted_items(struct item_darray *items_array, struct hmap *hm
 
     struct item *items = items_array->data;
     const size_t nb_items = items_array->count;
-    if (nb_items > 1)
+    if (nb_items > 1 && !(flags & NGLI_PARAM_FLAG_PRESERVE_ORDER))
         qsort(items, nb_items, sizeof(struct item), cmp_item);
 
     return 0;
@@ -299,7 +299,7 @@ static int serialize_nodedict(struct bstr *b, const uint8_t *srcp,
     ngli_bstr_printf(b, " %s:", par->key);
 
     struct item_darray items_array = {0};
-    int ret = hmap_to_sorted_items(&items_array, hmap);
+    int ret = hmap_to_items(&items_array, hmap, par->flags);
     if (ret < 0) {
         ngli_darray_reset(&items_array);
         return ret;
@@ -416,7 +416,7 @@ static int serialize_children(struct hmap *nlist,
                     break;
 
                 struct item_darray items_array = {0};
-                int ret = hmap_to_sorted_items(&items_array, hmap);
+                int ret = hmap_to_items(&items_array, hmap, p->flags);
                 if (ret < 0) {
                     ngli_darray_reset(&items_array);
                     return ret;
