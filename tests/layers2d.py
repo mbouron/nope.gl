@@ -204,3 +204,63 @@ def layers2d_mask_rect(cfg: ngl.SceneCfg):
         channel="alpha",
     )
     return _canvas(cfg, masked)
+
+
+# The mask drawn as a scene: a ramp from transparent to opaque across a rect
+_MASK_SHAPE = (48, 40, 160, 176)
+
+
+def _ramp_rect(rect):
+    return ngl.DrawRect2D(
+        rect=rect,
+        fill=ngl.GradientPaint(color0=(1.0, 1.0, 1.0), color1=(1.0, 1.0, 1.0), opacity0=0.0, opacity1=1.0),
+    )
+
+
+def _expected_mask_children(frame, x, y):
+    cx, cy = x + 0.5, y + 0.5
+    rx, ry, rw, rh = _MASK_SHAPE
+    if _inside(x, y, _MASK_SHAPE):
+        r, g, b, _ = _pattern(x, y)
+        a = (cx - rx) / rw
+        return (round(r * a), round(g * a), round(b * a), 255)
+    if cx < rx - 1 or cx > rx + rw + 1 or cy < ry - 1 or cy > ry + rh + 1:
+        return (0, 0, 0, 255)
+    return None
+
+
+@test_expected(expected=_expected_mask_children)
+@ngl.scene(width=W, height=H)
+def layers2d_mask_children(cfg: ngl.SceneCfg):
+    """Mask children are drawn in the children's space: the mask shape lines up with the content."""
+    content = ngl.DrawRect2D(rect=(0, 0, W, H), fill=ngl.TexturePaint(texture=_pattern_texture()))
+    masked = ngl.Mask2D(children=[content], mask_children=[_ramp_rect(_MASK_SHAPE)], channel="alpha")
+    return _canvas(cfg, masked)
+
+
+def _expected_mask_children_transformed(frame, x, y):
+    # The Mask2D is scaled by 0.5 around the canvas center: the content and
+    # its mask move together
+    u, v = (x + 0.5 - W / 4) * 2, (y + 0.5 - H / 4) * 2
+    rx, ry, rw, rh = _MASK_SHAPE
+    margin = 3.0
+    if rx + margin < u < rx + rw - margin and ry + margin < v < ry + rh - margin:
+        a = (u - rx) / rw
+        return (round(255 * a),) * 3 + (255,)
+    if u < rx - margin or u > rx + rw + margin or v < ry - margin or v > ry + rh + margin:
+        return (0, 0, 0, 255)
+    return None
+
+
+@test_expected(expected=_expected_mask_children_transformed)
+@ngl.scene(width=W, height=H)
+def layers2d_mask_children_transformed(cfg: ngl.SceneCfg):
+    """The mask follows the Mask2D transform along with the children."""
+    masked = ngl.Mask2D(
+        children=[_white_rect((0, 0, W, H))],
+        mask_children=[_ramp_rect(_MASK_SHAPE)],
+        channel="alpha",
+        scale=(0.5, 0.5),
+        anchor=(W / 2, H / 2),
+    )
+    return _canvas(cfg, masked)

@@ -83,6 +83,7 @@ struct effect2d_opts {
     float dilation;
     struct ngl_node *mask_node;     /* Mask2D */
     int mask_channel;               /* Mask2D */
+    struct ngli_node_darray mask_children; /* Mask2D */
     struct ngli_node2d_opts node2d;
     struct ngl_node *enabled_node;
     int enabled;
@@ -125,7 +126,9 @@ struct effect2d_program {
 struct effect2d_priv {
     struct ngli_node2d_info node2d_info;
 
-    struct hmap *mask_resources;    /* Mask2D: the mask, bound as ngl_mask */
+    struct hmap *mask_resources;    /* Mask2D: the mask texture, bound as ngl_mask */
+    struct rtt_ctx *mask_rtt;       /* Mask2D: the mask children render, bound as ngl_mask */
+    struct image_resource *mask_image;
 
     struct rtt_ctx *rtt;
     struct image_resource *input_image;
@@ -322,17 +325,25 @@ static const struct node_param mask2d_params[] = {
         .key        = "mask",
         .type       = NGLI_PARAM_TYPE_NODE,
         .offset     = OFFSET(mask_node),
-        .flags      = NGLI_PARAM_FLAG_NON_NULL,
         .node_types = (const uint32_t[]){NGL_NODE_TEXTURE2D, NGL_NODE_CUSTOMTEXTURE, NGLI_NODE_NONE},
         .desc       = NGLI_DOCSTRING("Texture2D or CustomTexture sampled as the mask; the image covers "
                                      "`mask_rect`, or the composited children bounds, their anti-aliased edges "
-                                     "included"),
+                                     "included; when unset, the mask is `mask_children`"),
     }, {
         .key       = "channel",
         .type      = NGLI_PARAM_TYPE_SELECT,
         .offset    = OFFSET(mask_channel),
         .choices   = &ngli_masktexture_channel_choices,
         .desc      = NGLI_DOCSTRING("channel of mask used as coverage"),
+    }, {
+        .key        = "mask_children",
+        .type       = NGLI_PARAM_TYPE_NODELIST,
+        .offset     = OFFSET(mask_children),
+        .flags      = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
+        .node_types = NGLI_NODE2D_TYPES_LIST,
+        .desc       = NGLI_DOCSTRING("2D scenes drawn as the mask when `mask` is unset: they are rendered in the "
+                                     "same local space and at the same resolution as the children, so a mask "
+                                     "shape lines up with the content it masks; they do not extend the bounds"),
     },
     {
         .key       = "translate",
@@ -385,16 +396,17 @@ static const struct node_param mask2d_params[] = {
 };
 
 /*
- * Mask2D composites its input weighted by the mask channel, the mask image
- * spanning the whole effect rect (rect_uv) whether or not the composite quad
- * is cropped to the canvas.
+ * Mask2D composites its input weighted by the mask channel. A mask texture
+ * spans the whole effect rect (rect_uv) whether or not the composite quad is
+ * cropped to the canvas; the mask children are rendered exactly like the
+ * input, so they are sampled like it (tex_coord).
  */
 static const char * const mask2d_coverage_glsl[] = {
-    [MASK_CHANNEL_ALPHA]     = "ngl_teximage(ngl_mask, rect_uv).a",
-    [MASK_CHANNEL_LUMINANCE] = "dot(ngl_teximage(ngl_mask, rect_uv).rgb, vec3(0.299, 0.587, 0.114))",
-    [MASK_CHANNEL_RED]       = "ngl_teximage(ngl_mask, rect_uv).r",
-    [MASK_CHANNEL_GREEN]     = "ngl_teximage(ngl_mask, rect_uv).g",
-    [MASK_CHANNEL_BLUE]      = "ngl_teximage(ngl_mask, rect_uv).b",
+    [MASK_CHANNEL_ALPHA]     = "mask.a",
+    [MASK_CHANNEL_LUMINANCE] = "dot(mask.rgb, vec3(0.299, 0.587, 0.114))",
+    [MASK_CHANNEL_RED]       = "mask.r",
+    [MASK_CHANNEL_GREEN]     = "mask.g",
+    [MASK_CHANNEL_BLUE]      = "mask.b",
 };
 
 static int node_is_texture(const struct ngl_node *node)
@@ -603,15 +615,29 @@ static int effect2d_init(struct ngl_node *node)
      * for a Mask2D, it is the masking composite.
      */
     if (node->cls->id == NGL_NODE_MASK2D) {
-        s->mask_resources = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
-        if (!s->mask_resources)
-            return NGL_ERROR_MEMORY;
-        ret = ngli_hmap_try_set_str(s->mask_resources, "ngl_mask", o->mask_node);
-        if (ret < 0)
-            return ret;
+        const char *mask_coord = "tex_coord";
+        if (o->mask_node) {
+            if (o->mask_children.count) {
+                LOG(ERROR, "mask and mask_children are mutually exclusive");
+                return NGL_ERROR_INVALID_USAGE;
+            }
+            s->mask_resources = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+            if (!s->mask_resources)
+                return NGL_ERROR_MEMORY;
+            ret = ngli_hmap_try_set_str(s->mask_resources, "ngl_mask", o->mask_node);
+            if (ret < 0)
+                return ret;
+            mask_coord = "rect_uv";
+        } else {
+            s->mask_image = ngli_image_resource_create();
+            if (!s->mask_image)
+                return NGL_ERROR_MEMORY;
+        }
         char glsl_color[256];
         snprintf(glsl_color, sizeof(glsl_color),
-                 "return ngl_teximage(ngl_input, tex_coord) * %s;", mask2d_coverage_glsl[o->mask_channel]);
+                 "vec4 mask = ngl_teximage(ngl_mask, %s);\n"
+                 "return ngl_teximage(ngl_input, tex_coord) * %s;",
+                 mask_coord, mask2d_coverage_glsl[o->mask_channel]);
         ret = add_program(node, NULL, glsl_color, s->mask_resources, false);
     } else {
         ret = add_program(node, NULL, NULL, NULL, false);
@@ -710,6 +736,21 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         ngli_darray_reset(&textures);
         return NGL_ERROR_MEMORY;
     }
+    /* The mask children render, next to the input (Mask2D composite only) */
+    const bool has_mask_image = s->mask_image && program == &s->programs.data[0];
+    const int32_t nb_builtin_textures = has_mask_image ? 2 : 1;
+    if (has_mask_image) {
+        const struct ngpu_pgcraft_texture mask_tex = {
+            .name  = "ngl_mask",
+            .type  = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
+            .stage = NGPU_PROGRAM_STAGE_FRAG,
+        };
+        if (ngli_darray_try_push(&textures, mask_tex) < 0) {
+            ngli_darray_reset(&blocks);
+            ngli_darray_reset(&textures);
+            return NGL_ERROR_MEMORY;
+        }
+    }
     for (size_t i = 0; i < program->crafter_textures.count; i++) {
         if (ngli_darray_try_push(&textures, program->crafter_textures.data[i]) < 0) {
             ngli_darray_reset(&blocks);
@@ -788,6 +829,11 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     ret = ngli_pipeline_set_image_source(program->pipeline, 0, s->input_image);
     if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
         return ret;
+    if (has_mask_image) {
+        ret = ngli_pipeline_set_image_source(program->pipeline, 1, s->mask_image);
+        if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
+            return ret;
+    }
     for (size_t i = 0; i < program->crafter_textures.count; i++) {
         const char *name = program->crafter_textures.data[i].name;
         const struct ngl_node *res = program->resources ? ngli_hmap_get_str(program->resources, name) : NULL;
@@ -796,7 +842,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
             return NGL_ERROR_BUG;
         }
         const struct texture_info *info = ngli_node_texture_get_texture_info(res);
-        ret = ngli_pipeline_set_image_source(program->pipeline, (int32_t)i + 1, info->resource);
+        ret = ngli_pipeline_set_image_source(program->pipeline, (int32_t)i + nb_builtin_textures, info->resource);
         if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
             return ret;
     }
@@ -831,11 +877,12 @@ static int effect2d_prepare(struct ngl_node *node,
     return 0;
 }
 
-static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t width, uint32_t height)
+static int resize_rtt(struct rtt_ctx **rttp, struct image_resource *image, struct ngl_ctx *ctx,
+                      uint32_t width, uint32_t height)
 {
-    if (s->rtt) {
+    if (*rttp) {
         uint32_t current_width, current_height;
-        ngli_rtt_get_dimensions(s->rtt, &current_width, &current_height);
+        ngli_rtt_get_dimensions(*rttp, &current_width, &current_height);
         if (current_width == width && current_height == height)
             return 0;
     }
@@ -863,9 +910,9 @@ static int resize_rtt(struct effect2d_priv *s, struct ngl_ctx *ctx, uint32_t wid
     struct ngli_mat4 coordinates;
     ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, coordinates.m);
     ngli_image_set_coordinates_matrix(ngli_rtt_get_image(rtt, 0), &coordinates);
-    ngli_image_resource_set(s->input_image, NULL);
-    ngli_rtt_freep(&s->rtt);
-    s->rtt = rtt;
+    ngli_image_resource_set(image, NULL);
+    ngli_rtt_freep(rttp);
+    *rttp = rtt;
 
     return 0;
 
@@ -923,6 +970,8 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     for (size_t i = 0; i < o->children.count; i++)
         ngli_node_pre_draw(o->children.data[i]);
+    for (size_t i = 0; i < o->mask_children.count; i++)
+        ngli_node_pre_draw(o->mask_children.data[i]);
 
     /*
      * Compute or apply the bounding box and position of the composite quad. A
@@ -1053,9 +1102,14 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const uint32_t w = scaled_w >= max_dim ? max_dim : (uint32_t)scaled_w;
     const uint32_t h = scaled_h >= max_dim ? max_dim : (uint32_t)scaled_h;
 
-    int ret = resize_rtt(s, ctx, w, h);
+    int ret = resize_rtt(&s->rtt, s->input_image, ctx, w, h);
     if (ret < 0)
         return;
+    if (s->mask_image) {
+        ret = resize_rtt(&s->mask_rtt, s->mask_image, ctx, w, h);
+        if (ret < 0)
+            return;
+    }
 
     /* Render children into the RTT in the same isolated 2D space */
     ngli_node2d_apply_default_transform(ctx);
@@ -1074,6 +1128,15 @@ static void effect2d_pre_draw(struct ngl_node *node)
     }
 
     ngli_rtt_end(s->rtt);
+
+    /* The mask children, in the same space and on the same texel grid */
+    if (s->mask_rtt) {
+        ngli_node2d_apply_default_transform(ctx);
+        ngli_rtt_begin(s->mask_rtt);
+        for (size_t i = 0; i < o->mask_children.count; i++)
+            ngli_node_draw(o->mask_children.data[i]);
+        ngli_rtt_end(s->mask_rtt);
+    }
 
     s->drawme = true;
 
@@ -1126,6 +1189,8 @@ static void effect2d_draw(struct ngl_node *node)
     struct ngli_pipeline *pl = program->pipeline;
 
     ngli_image_resource_set(s->input_image, s->rtt ? ngli_rtt_get_image(s->rtt, 0) : NULL);
+    if (s->mask_image)
+        ngli_image_resource_set(s->mask_image, s->mask_rtt ? ngli_rtt_get_image(s->mask_rtt, 0) : NULL);
 
     /* Fill and push vertex block to staging buffer */
     {
@@ -1193,6 +1258,9 @@ static void effect2d_release(struct ngl_node *node)
 
     ngli_image_resource_set(s->input_image, NULL);
     ngli_rtt_freep(&s->rtt);
+    if (s->mask_image)
+        ngli_image_resource_set(s->mask_image, NULL);
+    ngli_rtt_freep(&s->mask_rtt);
 }
 
 static void effect2d_unprepare(struct ngl_node *node)
@@ -1214,6 +1282,7 @@ static void effect2d_uninit(struct ngl_node *node)
         reset_program(&s->programs.data[i]);
     ngli_darray_reset(&s->programs);
     ngli_image_resource_unrefp(&s->input_image);
+    ngli_image_resource_unrefp(&s->mask_image);
 
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);

@@ -49,8 +49,12 @@ Name         | `DrawRect2D` fill                                   | `DrawRect2D
 
 A `Layer2D` and a `Mask2D` are effects without shaders: their children are
 rendered into the effect input and composited as is, or weighted by a mask
-channel. The mask image spans the effect rect, which is the children bounds,
-anti-aliased edges included, like `rect_uv`.
+channel. A mask image spans the effect rect, which is the children bounds,
+anti-aliased edges included, like `rect_uv`, or the `mask_rect`. Mask
+children are rather drawn in the same local space as the children, and
+rendered on the same texel grid as the effect input: a mask shape lines up
+with the content it masks, whatever the bounds, the cropping or the output
+resolution.
 
 ## Sampling elsewhere than at the fragment
 

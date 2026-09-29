@@ -14,7 +14,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `Layer2D` node to composite a 2D subgraph as an isolated layer
 - `Mask2D` node to mask a 2D subgraph with a `Texture2D` or `CustomTexture`,
   using its alpha, luminance, red, green, or blue channel, over the children
-  bounds or a given `mask_rect`
+  bounds or a given `mask_rect`, or with a 2D subgraph drawn in the same space
+  as the children (`mask_children`)
 - Android bindings for `Clip2D`, `Layer2D` and `Mask2D`
 - `ngl_teximage()` GLSL helper to sample a texture at image coordinates, the
   texture coordinates matrix applied

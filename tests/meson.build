@@ -56,6 +56,7 @@ foreach backend : backends
 
   tests_api = [
     '2d_clip_layer_mask',
+    '2d_mask_children',
     'animation_unordered_keyframes',
     'animation_keyframes_edit_order',
     'time_range_inverted',
@@ -586,6 +587,8 @@ foreach backend : backends
     'mask_luminance',
     'mask_cropped',
     'mask_rect',
+    'mask_children',
+    'mask_children_transformed',
     'clip_rect',
   ]
 
