@@ -145,6 +145,11 @@ struct ngl_node;
  */
 #define NGLI_PARAM_FLAG_FILEPATH (1U<<5)
 
+/*
+ * Preserve insertion order when serializing a node dictionary.
+ */
+#define NGLI_PARAM_FLAG_PRESERVE_ORDER (1U<<6)
+
 struct node_param {
     const char *key;
     enum param_type type;

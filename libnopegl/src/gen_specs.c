@@ -380,6 +380,11 @@ static int check_node_params(const struct node_class *cls)
             return NGL_ERROR_BUG;
         }
 
+        if ((par->flags & NGLI_PARAM_FLAG_PRESERVE_ORDER) && par->type != NGLI_PARAM_TYPE_NODEDICT) {
+            fprintf(stderr, "ordered parameter %s.%s must be a node dictionary\n", cls->name, par->key);
+            return NGL_ERROR_BUG;
+        }
+
         if (par->flags & NGLI_PARAM_FLAG_FILEPATH) {
             if (par->type != NGLI_PARAM_TYPE_STR) {
                 fprintf(stderr, "filepath parameter %s.%s must be a string\n", cls->name, par->key);
