@@ -28,6 +28,7 @@
 #include "utils/darray.h"
 
 struct bstr;
+struct ngl_node;
 
 #define PAINT_HELPER_SRGB        (1u << 0)
 #define PAINT_HELPER_MISC_UTILS  (1u << 1)
