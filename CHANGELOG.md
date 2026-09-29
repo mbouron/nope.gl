@@ -63,6 +63,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - HUD overlay clipped by the viewport when `hud_scale` is too large
 - Moving animation key frames one at a time could leave them clamped to an
   intermediate state, depending on the order they were moved in
+- Media loops not taking `AnimatedTime.time_offset` into account
 
 ## [2026.3 / libnopegl 0.15.0][2026.3] - 2026-08-26
 ### Added
