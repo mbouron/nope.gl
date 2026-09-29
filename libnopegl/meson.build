@@ -582,7 +582,6 @@ shaders = {
   'drawrect.vert': 'drawrect_vert.h',
   'effect2d_composite.frag': 'effect2d_composite_frag.h',
   'effect2d_composite.vert': 'effect2d_composite_vert.h',
-  'effect2d.vert': 'effect2d_vert.h',
   'distmap.frag': 'distmap_frag.h',
   'distmap.vert': 'distmap_vert.h',
   'filter_alpha.glsl': 'filter_alpha.h',

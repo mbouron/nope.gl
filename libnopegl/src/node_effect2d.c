@@ -48,7 +48,6 @@
 #include "effect2d_composite_frag.h"
 #include "effect2d_composite_vert.h"
 
-#include "effect2d_vert.h"
 
 struct uniform_map {
     int32_t index;
