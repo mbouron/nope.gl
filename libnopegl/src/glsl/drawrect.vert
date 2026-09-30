@@ -45,8 +45,8 @@ void main()
     vec2 uvcoord = uvcoords[ngl_vertex_index];
     vec2 position = ngli_rect.xy + uvcoord * ngli_rect.zw;
     vec2 dir = sign(uvcoord - 0.5);
-    vec4 canvas_pos = modelview_matrix * vec4(position + dir * ngli_margin_px, 0.0, 1.0);
-    ngl_out_pos = projection_matrix * canvas_pos;
+    vec4 canvas_pos = ngli_modelview_matrix * vec4(position + dir * ngli_margin_px, 0.0, 1.0);
+    ngl_out_pos = ngli_projection_matrix * canvas_pos;
     ngli_clip_pos = canvas_pos.xy;
     ngli_uv = uvcoord + dir * ngli_margin_uv;
     vec2 fill_uvcoord = (uvcoord - 0.5) * ngli_uv_scale + 0.5;
