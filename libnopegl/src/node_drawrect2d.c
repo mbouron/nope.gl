@@ -509,8 +509,8 @@ static int drawrect2d_init(struct ngl_node *node)
 
     /* Build vertex uniform block */
     static const struct ngpu_block_field vert_fields[] = {
-        {.name = "projection_matrix",  .type = NGPU_TYPE_MAT4},
-        {.name = "modelview_matrix",   .type = NGPU_TYPE_MAT4},
+        {.name = "ngli_projection_matrix", .type = NGPU_TYPE_MAT4},
+        {.name = "ngli_modelview_matrix", .type = NGPU_TYPE_MAT4},
         {.name = "ngli_rect",          .type = NGPU_TYPE_VEC4},
         {.name = "ngli_uv_scale",      .type = NGPU_TYPE_VEC2},
         {.name = "ngli_stroke_uv_scale", .type = NGPU_TYPE_VEC2},
@@ -709,7 +709,7 @@ static int drawrect2d_init(struct ngl_node *node)
     NGLI_DARRAY(struct ngpu_pgcraft_block) blocks = {0};
 
     const struct ngpu_pgcraft_block vert_crafter_block = {
-        .name          = "vert",
+        .name          = "ngli_vert",
         .instance_name = "",
         .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .stage         = NGPU_PROGRAM_STAGE_VERT,
@@ -722,7 +722,7 @@ static int drawrect2d_init(struct ngl_node *node)
     }
 
     const struct ngpu_pgcraft_block frag_crafter_block = {
-        .name          = "frag",
+        .name          = "ngli_frag",
         .instance_name = "",
         .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .stage         = NGPU_PROGRAM_STAGE_FRAG,
@@ -736,7 +736,7 @@ static int drawrect2d_init(struct ngl_node *node)
 
     if (has_user_uniforms) {
         const struct ngpu_pgcraft_block user_crafter_block = {
-            .name          = "user",
+            .name          = "ngli_user",
             .instance_name = "",
             .type          = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
@@ -859,10 +859,10 @@ static int drawrect2d_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "vert", NGPU_PROGRAM_STAGE_VERT);
-    s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "frag", NGPU_PROGRAM_STAGE_FRAG);
+    s->vert_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngli_vert", NGPU_PROGRAM_STAGE_VERT);
+    s->frag_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngli_frag", NGPU_PROGRAM_STAGE_FRAG);
     if (has_user_uniforms)
-        s->user_block_index = ngpu_pgcraft_get_block_index(s->crafter, "user", NGPU_PROGRAM_STAGE_FRAG);
+        s->user_block_index = ngpu_pgcraft_get_block_index(s->crafter, "ngli_user", NGPU_PROGRAM_STAGE_FRAG);
 
     return 0;
 }
