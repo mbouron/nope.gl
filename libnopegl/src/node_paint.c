@@ -709,8 +709,8 @@ static const struct param_choices noisepaint_type_choices = {
 static const char noisepaint_glsl[] =
     "vec4 main(vec2 uv, vec2 tex_coord) {\n"
     "    vec2 st = uv * $noise_scale;\n"
-    "    float n = fbm(vec3(st, $noise_evolution), $noise_type, $noise_amplitude,\n"
-    "                  $noise_octaves, $noise_lacunarity, $noise_gain, $noise_seed);\n"
+    "    float n = ngli_fbm(vec3(st, $noise_evolution), $noise_type, $noise_amplitude,\n"
+    "                       $noise_octaves, $noise_lacunarity, $noise_gain, $noise_seed);\n"
     "    n = (n + 1.0) / 2.0;\n"
     "    return vec4(vec3(n), 1.0);\n"
     "}\n";

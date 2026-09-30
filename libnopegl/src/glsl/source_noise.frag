@@ -23,7 +23,7 @@
 vec4 source_noise()
 {
     vec2 st = uv * scale;
-    vec3 noise = vec3(fbm(vec3(st, evolution), type, amplitude, octaves, lacunarity, gain, seed));
+    vec3 noise = vec3(ngli_fbm(vec3(st, evolution), type, amplitude, octaves, lacunarity, gain, seed));
     noise = (noise + 1.0) / 2.0;
     return vec4(noise, 1.0);
 }
