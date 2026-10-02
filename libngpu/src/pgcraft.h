@@ -28,4 +28,8 @@
 
 struct ngpu_ctx;
 
+int ngpu_pgcraft_check_io_limits(const struct ngpu_limits *limits,
+                                 const struct ngpu_pgcraft_iovar *vars, size_t var_count,
+                                 bool explicit_locations);
+
 #endif

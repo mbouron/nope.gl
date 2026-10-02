@@ -161,6 +161,8 @@ NGPU_API const char *ngpu_type_get_name(enum ngpu_type type);
 
 struct ngpu_limits {
     uint32_t max_vertex_attributes;
+    uint32_t max_vertex_output_components;
+    uint32_t max_fragment_input_components;
     uint32_t max_texture_image_units;
     uint32_t max_image_units;
     uint32_t max_compute_work_group_count[3];

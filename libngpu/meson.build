@@ -634,6 +634,12 @@ if get_option('tests')
     'src/utils/memory.c',
   )
   test_progs = {
+    'Shader interface limits': {
+      'exe': 'test_pgcraft',
+      'src': files('src/test_pgcraft.c'),
+      'objects': libngpu.extract_all_objects(recursive: true),
+      'c_args': lib_c_args,
+    },
     'Dynamic array': {
       'exe': 'test_darray',
       'src': files('src/test_darray.c') + test_utils_src,
@@ -643,6 +649,8 @@ if get_option('tests')
     exe = executable(
       test_data.get('exe'),
       test_data.get('src'),
+      objects: test_data.get('objects', []),
+      c_args: test_data.get('c_args', []),
       dependencies: lib_deps,
       build_by_default: false,
       install: false,
