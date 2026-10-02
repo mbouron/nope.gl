@@ -506,6 +506,8 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
 {
     struct ngpu_limits *limits = &glcontext->limits;
 
+    GET(GL_MAX_VERTEX_OUTPUT_COMPONENTS, &limits->max_vertex_output_components);
+    GET(GL_MAX_FRAGMENT_INPUT_COMPONENTS, &limits->max_fragment_input_components);
     GET(GL_MAX_VERTEX_ATTRIBS, &limits->max_vertex_attributes);
     limits->max_vertex_attributes = NGPU_MIN(limits->max_vertex_attributes, NGPU_MAX_VERTEX_BUFFERS);
     /*

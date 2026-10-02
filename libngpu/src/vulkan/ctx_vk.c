@@ -899,6 +899,8 @@ static int vk_init(struct ngpu_ctx *s)
 
     const VkPhysicalDeviceLimits *limits = &vk->phy_device_props.limits;
     s->limits.max_vertex_attributes              = get_max_vertex_attributes(limits);
+    s->limits.max_vertex_output_components       = limits->maxVertexOutputComponents;
+    s->limits.max_fragment_input_components      = limits->maxFragmentInputComponents;
     s->limits.max_color_attachments              = get_max_color_attachments(limits);
     s->limits.max_texture_dimension_1d           = limits->maxImageDimension1D;
     s->limits.max_texture_dimension_2d           = limits->maxImageDimension2D;

@@ -1330,9 +1330,42 @@ static int get_program_compute(struct ngpu_pgcraft *s, const struct ngpu_pgcraft
     return ret;
 }
 
+int ngpu_pgcraft_check_io_limits(const struct ngpu_limits *limits,
+                                 const struct ngpu_pgcraft_iovar *vars, size_t var_count,
+                                 bool explicit_locations)
+{
+    /* Older GLSL versions leave component packing to the GL linker. */
+    if (!explicit_locations)
+        return 0;
+
+    size_t location_count = 0;
+    for (size_t i = 0; i < var_count; i++)
+        location_count += get_location_count(vars[i].type);
+
+    /* Reserve gl_Position slot */
+    const uint32_t max_vertex_output_locations = NGPU_MAX(limits->max_vertex_output_components / 4, 1) - 1;
+    const uint32_t max_fragment_input_location = limits->max_fragment_input_components / 4;
+    if (location_count > max_vertex_output_locations) {
+        LOG(ERROR, "number of vertex output locations (%zu) exceeds device limits (%u)",
+            location_count, max_vertex_output_locations);
+        return NGPU_ERROR_LIMIT_EXCEEDED;
+    }
+    if (location_count > max_fragment_input_location) {
+        LOG(ERROR, "number of fragment input locations (%zu) exceeds device limits (%u)",
+            location_count, max_fragment_input_location);
+        return NGPU_ERROR_LIMIT_EXCEEDED;
+    }
+    return 0;
+}
+
 static int get_program_graphics(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params)
 {
     int ret;
+
+    ret = ngpu_pgcraft_check_io_limits(&s->gpu_ctx->limits, params->vert_out_vars,
+                                       params->nb_vert_out_vars, s->has_in_out_layout_qualifiers);
+    if (ret < 0)
+        return ret;
 
     for (size_t i = 0; i < params->nb_vert_out_vars; i++) {
         if (ngpu_darray_try_push(&s->vert_out_vars, params->vert_out_vars[i]) < 0)
