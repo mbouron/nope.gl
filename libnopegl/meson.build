@@ -275,6 +275,7 @@ lib_src = files(
   'src/scene.c',
   'src/scope.c',
   'src/serialize.c',
+  'src/shader2d.c',
   'src/slug.c',
   'src/text.c',
   'src/text_builtin.c',
