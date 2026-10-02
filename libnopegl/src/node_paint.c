@@ -26,9 +26,9 @@
 #include "internal.h"
 #include "log.h"
 #include "node_paint.h"
+#include "shader2d.h"
 #include "node_texture.h"
 #include "node_uniform.h"
-#include "utils/bstr.h"
 #include "utils/memory.h"
 #include "nopegl/nopegl.h"
 
@@ -122,41 +122,8 @@ static int is_glsl_ident(char c)
 void ngli_paint_glsl_write(struct bstr *b, const struct paint_info *paint,
                            enum paint_shader_role role, const char *entrypoint)
 {
-    const char *prefix = paint_resource_prefixes[role];
-
-    const char *segment = paint->glsl;
-    const char *p = paint->glsl;
-    while (*p) {
-        if (*p == '$' && !paint->custom) {
-            ngli_bstr_write(b, segment, (size_t)(p - segment));
-            ngli_bstr_print(b, prefix);
-            segment = ++p;
-            while (is_glsl_ident(*p))
-                p++;
-            continue;
-        }
-
-        if (!is_glsl_ident(*p)) {
-            p++;
-            continue;
-        }
-
-        const char *ident = p;
-        while (is_glsl_ident(*p))
-            p++;
-        if (p - ident != 4 || memcmp(ident, "main", 4))
-            continue;
-
-        const char *q = p;
-        while (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n')
-            q++;
-        if (*q == '(') {
-            ngli_bstr_write(b, segment, (size_t)(ident - segment));
-            ngli_bstr_print(b, entrypoint);
-            segment = p;
-        }
-    }
-    ngli_bstr_print(b, segment);
+    const char *prefix = paint->custom ? NULL : paint_resource_prefixes[role];
+    ngli_shader2d_write_source(b, paint->glsl, entrypoint, prefix);
 }
 
 void ngli_paint_info_reset(struct paint_info *info)
