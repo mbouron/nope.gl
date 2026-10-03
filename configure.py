@@ -1199,6 +1199,11 @@ def _nopegl_updatespecs(cfg):
     return _nopegl_run_target_cmd(cfg, "updatespecs")
 
 
+@_block("nopegl-updateglsllexer", [_nopegl_install])
+def _nopegl_updateglsllexer(cfg):
+    return _nopegl_run_target_cmd(cfg, "updateglsllexer")
+
+
 @_block("nopegl-updateglwrappers", [_nopegl_install])
 def _nopegl_updateglwrappers(cfg):
     return _nopegl_run_target_cmd(cfg, "updateglwrappers")
@@ -1641,6 +1646,7 @@ def _run():
             _tests,
             _nopegl_updatedoc,
             _nopegl_updatespecs,
+            _nopegl_updateglsllexer,
             _nopegl_updateglwrappers,
             _ngl_tools_install_nosetup,
             _htmldoc,

@@ -177,6 +177,7 @@ lib_src = files(
   'src/eval.c',
   'src/filterschain.c',
   'src/geometry.c',
+  'src/glsl_lexer.c',
   'src/graphics_state.c',
   'src/hud.c',
   'src/hwconv.c',
@@ -747,6 +748,22 @@ run_target(
 )
 
 
+# The generated lexer is checked in; Flex is only needed for regeneration.
+flex = find_program('flex', required: false, native: true)
+if flex.found()
+  glsl_lexer = custom_target(
+    'glsl_lexer',
+    input: 'src/glsl_lexer.l',
+    output: 'glsl_lexer.c',
+    command: [flex, '--noline', '--outfile=@OUTPUT@', '@INPUT@'],
+  )
+  run_target(
+    'updateglsllexer',
+    command: [copyfile, glsl_lexer, meson.current_source_dir() / 'src'],
+  )
+endif
+
+
 #
 # Tests
 #
@@ -782,6 +799,10 @@ test_progs = {
   'Eval': {
     'exe': 'test_eval',
     'src': files('src/test_eval.c', 'src/eval.c', 'src/log.c') + utils_src,
+  },
+  'GLSL lexer': {
+    'exe': 'test_glsl_lexer',
+    'src': files('src/test_glsl_lexer.c', 'src/glsl_lexer.c') + utils_src,
   },
   'Hash map': {
     'exe': 'test_hmap',
