@@ -48,7 +48,6 @@
 #include "utils/utils.h"
 
 /* GLSL fragments as string */
-#include "effect2d_composite_frag.h"
 #include "effect2d_composite_vert.h"
 
 
@@ -505,6 +504,9 @@ static void reset_program(struct effect2d_program *program)
 
 static const struct shader2d_role shader_role = {.name = "effect", .uv = "ngli_v_rect_uv"};
 
+static const char passthrough_glsl[] =
+    "vec4 main(const ngl_FragmentInput frag) { return ngl_sample_input(frag); }\n";
+
 /* The input mapping includes the effect's sampling correction in addition to
  * the image's coordinates. Use the transform already uploaded by Effect2D. */
 static void write_input_helpers(struct bstr *out)
@@ -537,66 +539,67 @@ static int add_program(struct ngl_node *node, const char *glsl,
     ngli_shader2d_init(&program.shader);
     ngpu_block_desc_init(gpu_ctx, &program.user_block_desc, NGPU_BLOCK_LAYOUT_STD140);
 
-    if (!ngli_str_is_empty(glsl)) {
-        struct bstr *bstr = ngli_bstr_create();
-        if (!bstr) {
-            reset_program(&program);
-            return NGL_ERROR_MEMORY;
-        }
+    if (ngli_str_is_empty(glsl))
+        glsl = passthrough_glsl;
 
-        int ret = 0;
-        if (resources) {
-            const struct hmap_entry *entry = NULL;
-            while (ret >= 0 && (entry = ngli_hmap_next(resources, entry))) {
-                const struct ngl_node *res = entry->data;
-                if (!node_is_texture(res))
-                    continue;
-                const enum ngpu_pgcraft_texture_type type = ngli_node_texture_get_pgcraft_texture_type(res);
-                if (type == NGPU_PGCRAFT_TEXTURE_TYPE_2D || type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO)
-                    ret = ngli_shader2d_add_texture(&program.shader, entry->key.str);
-            }
-        }
-        if (ret < 0) {
-            ngli_bstr_freep(&bstr);
-            reset_program(&program);
-            return ret;
-        }
-        ngli_shader2d_write_header(&program.shader, bstr);
-        write_input_helpers(bstr);
-        ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", false, 3, source_label);
-        if (ret < 0) {
-            ngli_bstr_freep(&bstr);
-            reset_program(&program);
-            return ret;
-        }
-        ngli_bstr_print(bstr, "void main() {\n"
-                             "    ngl_FragmentInput frag;\n"
-                             "    frag.rect_uv = ngli_v_rect_uv;\n"
-                             "    frag.rect_size = ngli_effect_size;\n"
-                             "    frag.content_uv = ngli_v_rect_uv;\n"
-                             "    frag.canvas_px = ngli_v_canvas_px;\n"
-                             "    frag._uv = ngli_v_rect_uv;\n"
-                             "    frag._coord = ngli_v_tex_coord;\n"
-                             "    frag._lin = vec4(1.0, 0.0, 0.0, 1.0);\n"
-                             "    frag._off = vec2(0.0);\n"
-                             "    frag._content_lin = frag._lin;\n"
-                             "    frag._content_off = vec2(0.0);\n");
-        ngli_shader2d_write_fragment_input_textures(&program.shader, bstr, &shader_role);
-        ngli_bstr_print(bstr, "    vec4 color = ngli_effect(frag);\n");
-        if (premult)
-            ngli_bstr_printf(bstr, "    color.rgb *= color.a;\n");
-        ngli_bstr_printf(bstr, "    ngl_out_color = color * opacity;\n");
-        ngli_bstr_printf(bstr, "}\n");
-
-        program.frag_glsl = ngli_bstr_strdup(bstr);
-        ngli_bstr_freep(&bstr);
-        if (!program.frag_glsl) {
-            reset_program(&program);
-            return NGL_ERROR_MEMORY;
-        }
+    struct bstr *bstr = ngli_bstr_create();
+    if (!bstr) {
+        reset_program(&program);
+        return NGL_ERROR_MEMORY;
     }
 
-    int ret = register_resources(resources, gpu_ctx, &program);
+    int ret = 0;
+    if (resources) {
+        const struct hmap_entry *entry = NULL;
+        while (ret >= 0 && (entry = ngli_hmap_next(resources, entry))) {
+            const struct ngl_node *res = entry->data;
+            if (!node_is_texture(res))
+                continue;
+            const enum ngpu_pgcraft_texture_type type = ngli_node_texture_get_pgcraft_texture_type(res);
+            if (type == NGPU_PGCRAFT_TEXTURE_TYPE_2D || type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO)
+                ret = ngli_shader2d_add_texture(&program.shader, entry->key.str);
+        }
+    }
+    if (ret < 0) {
+        ngli_bstr_freep(&bstr);
+        reset_program(&program);
+        return ret;
+    }
+    ngli_shader2d_write_header(&program.shader, bstr);
+    write_input_helpers(bstr);
+    ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", false, 3, source_label);
+    if (ret < 0) {
+        ngli_bstr_freep(&bstr);
+        reset_program(&program);
+        return ret;
+    }
+    ngli_bstr_print(bstr, "void main() {\n"
+                         "    ngl_FragmentInput frag;\n"
+                         "    frag.rect_uv = ngli_v_rect_uv;\n"
+                         "    frag.rect_size = ngli_effect_size;\n"
+                         "    frag.content_uv = ngli_v_rect_uv;\n"
+                         "    frag.canvas_px = ngli_v_canvas_px;\n"
+                         "    frag._uv = ngli_v_rect_uv;\n"
+                         "    frag._coord = ngli_v_tex_coord;\n"
+                         "    frag._lin = vec4(1.0, 0.0, 0.0, 1.0);\n"
+                         "    frag._off = vec2(0.0);\n"
+                         "    frag._content_lin = frag._lin;\n"
+                         "    frag._content_off = vec2(0.0);\n");
+    ngli_shader2d_write_fragment_input_textures(&program.shader, bstr, &shader_role);
+    ngli_bstr_print(bstr, "    vec4 color = ngli_effect(frag);\n");
+    if (premult)
+        ngli_bstr_printf(bstr, "    color.rgb *= color.a;\n");
+    ngli_bstr_printf(bstr, "    ngl_out_color = color * opacity;\n");
+    ngli_bstr_printf(bstr, "}\n");
+
+    program.frag_glsl = ngli_bstr_strdup(bstr);
+    ngli_bstr_freep(&bstr);
+    if (!program.frag_glsl) {
+        reset_program(&program);
+        return NGL_ERROR_MEMORY;
+    }
+
+    ret = register_resources(resources, gpu_ctx, &program);
     if (ret < 0) {
         reset_program(&program);
         return ret;
@@ -830,12 +833,11 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         return ret;
     }
 
-    const char *frag_base = program->frag_glsl ? program->frag_glsl : effect2d_composite_frag;
 
     const struct ngpu_pgcraft_params crafter_params = {
         .program_label    = "nopegl/effect2d",
         .vert_base        = ngli_bstr_strptr(vert),
-        .frag_base        = frag_base,
+        .frag_base        = program->frag_glsl,
         .textures         = textures.data,
         .nb_textures      = textures.count,
         .blocks           = blocks.data,
