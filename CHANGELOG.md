@@ -24,7 +24,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_node_reparent_child()` to reparent a node from one container to another
 - `ngl_node_param_insert_nodes()` and `ngl_node_param_move_nodes()` to
   insert/move nodes by index
-- `ngl_FragmentInput`, `ngl_content_uv()` and `<key>_uv()`, `<key>_coord()` and
+- `ngl_FragmentInput`, `ngl_content_uv()`, and the `<key>_coord()` and
   `<key>_sample()` texture helpers for custom paints and effects
 - `Clip2D` node for transformed, nested rounded-rectangle clipping in a 2D
   hierarchy
@@ -33,6 +33,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   using its alpha, luminance, red, green, or blue channel, over the children
   bounds or a given `mask_rect`, or with a 2D subgraph drawn in the same space
   as the children (`mask_children`)
+- `CustomPaint.texture` to specify the paint node’s main texture, exposed as
+  `ngl_texture` with the same helpers as `TexturePaint`: `ngl_texture_uv()`,
+  `ngl_texture_coord()`, and `ngl_texture_sample()`. `CustomPaint.scaling`
+  controls its scaling.
 
 ### Removed
 - CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and

@@ -62,6 +62,7 @@ foreach backend : backends
     'timerange_inverted',
     'paint_fill_and_stroke_shared',
     'paint_fill_and_stroke_resource_clash',
+    'custompaint_texture',
     'animation_evaluate_edits',
     'animation_live_timestamps',
     'backend',

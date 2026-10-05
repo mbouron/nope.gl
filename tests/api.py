@@ -1211,6 +1211,98 @@ def api_paint_fill_and_stroke_resource_clash():
     assert _check_paints(fill_paint, stroke_paint) == 0
 
 
+def api_custompaint_texture(width=64, height=64):
+    """A CustomPaint texture is shown like a TexturePaint's; its resources are sampled as is."""
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            capture_buffer=capture_buffer,
+        )
+    )
+    assert ret == 0
+
+    def pattern(w, h, seed):
+        data = array.array("B")
+        for y in range(h):
+            for x in range(w):
+                data.extend(((x * 37 + seed) & 255, (y * 23 + seed) & 255, ((x ^ y) * 11 + seed) & 255, 255))
+        return ngl.Texture2D(width=w, height=h, data_src=ngl.BufferUBVec4(data=data))
+
+    # TexturePaint's own shader, with its default wrap="discard"
+    show_texture = """
+        vec4 main(const ngl_FragmentInput frag) {
+            if (any(lessThan(ngl_texture_uv(frag), vec2(0.0))) || any(greaterThan(ngl_texture_uv(frag), vec2(1.0))))
+                return vec4(0.0);
+            return ngl_texture_sample(frag);
+        }
+    """
+
+    def render(fill, stroke, **content):
+        rect = ngl.DrawRect2D(
+            rect=(8, 8, width - 16, height - 16),
+            fill=fill,
+            stroke=ngl.Stroke2D(paint=stroke, width=6.0, alignment="inside"),
+            **content,
+        )
+        canvas = ngl.Canvas2D(width=width, height=height, children=[rect])
+        assert ctx.set_scene(ngl.Scene.from_params(canvas, width=width, height=height)) == 0
+        assert ctx.draw(0.0) == 0
+        return bytes(capture_buffer)
+
+    # The same through ngl_texture_uv() at the rect UV, mapped explicitly
+    show_mapped = """
+        vec4 main(const ngl_FragmentInput frag) {
+            vec2 uv = ngl_texture_uv(frag, frag.rect_uv);
+            if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0))))
+                return vec4(0.0);
+            return ngl_texvideo(ngl_texture, (ngl_texture_coord_matrix * vec4(uv, 0.0, 1.0)).xy);
+        }
+    """
+
+    for content in (
+        {},
+        {"content_zoom": 2.0, "content_translate": (0.25, -0.125)},
+        {"content_orientation": 90.0, "content_translate": (0.1, 0.0)},
+    ):
+        for scaling in ("none", "fit", "fill"):
+            expected = render(
+                ngl.TexturePaint(texture=pattern(8, 4, 0), scaling=scaling),
+                ngl.TexturePaint(texture=pattern(4, 8, 128), scaling=scaling),
+                **content,
+            )
+            custom = render(
+                ngl.CustomPaint(glsl=show_texture, texture=pattern(8, 4, 0), scaling=scaling),
+                ngl.CustomPaint(glsl=show_texture, texture=pattern(4, 8, 128), scaling=scaling),
+                **content,
+            )
+            assert custom == expected, (content, scaling)
+            mapped = render(
+                ngl.CustomPaint(glsl=show_mapped, texture=pattern(8, 4, 0), scaling=scaling),
+                ngl.CustomPaint(glsl=show_mapped, texture=pattern(4, 8, 128), scaling=scaling),
+                **content,
+            )
+            assert mapped == expected, (content, scaling)
+
+    # A resource covers the rect as is, whatever the content transform
+    def render_resource(**content):
+        paint = ngl.CustomPaint(
+            glsl="vec4 main(const ngl_FragmentInput frag) { return grain_sample(frag); }",
+            texture=pattern(8, 4, 0),
+            scaling="fill",
+            resources={"grain": pattern(4, 4, 64)},
+        )
+        return render(paint, ngl.ColorPaint(color=(0.0, 0.0, 0.0, 1.0)), **content)
+
+    assert render_resource() == render_resource(content_zoom=2.0, content_translate=(0.25, 0.25))
+
+    assert ctx.set_scene(None) == 0
+
+
 def _create_trf(scene, start, end, prefetch_time=None):
     trf = ngl.TimeRangeFilter(scene, start, end)
     if prefetch_time is not None:

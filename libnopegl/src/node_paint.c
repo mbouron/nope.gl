@@ -116,7 +116,11 @@ int ngli_paint_glsl_write(struct bstr *b, const struct paint_info *paint,
 {
     if (!paint->custom)
         return ngli_shader2d_write_builtin(b, paint->glsl, entrypoint, paint_resource_prefixes[role]);
-    return ngli_shader2d_write_source(b, paint->glsl, entrypoint, paint->color_output_count != 0,
+    /* The paint texture is the role's built-in texture (see paint_info.texture) */
+    char texture[32];
+    snprintf(texture, sizeof(texture), "%stex", paint_resource_prefixes[role]);
+    return ngli_shader2d_write_source(b, paint->glsl, entrypoint, paint->texture ? texture : NULL,
+                                      paint->color_output_count != 0,
                                       (int)role + 1, role ? "CustomPaint stroke" : "CustomPaint fill");
 }
 
@@ -857,6 +861,7 @@ struct custompaint_opts {
     struct paint_base_opts base_opts;
     char *glsl;
     struct hmap *resources;
+    struct ngl_node *texture;
     int color_output_count;
 };
 
@@ -917,6 +922,7 @@ static int custompaint_init(struct ngl_node *node)
 
     info->glsl = o->glsl;
     info->custom = 1;
+    info->texture = o->texture;
 
     if (o->resources) {
         const struct hmap_entry *entry = NULL;
@@ -952,7 +958,7 @@ static const struct node_param custompaint_params[] = {
         .offset  = OFFSET(base_opts.scaling),
         .choices = &texturepaint_scaling_choices,
         .flags   = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
-        .desc    = NGLI_DOCSTRING("texture scaling mode applied to custom paint content"),
+        .desc    = NGLI_DOCSTRING("scaling mode of `texture` relative to the target shape bounds"),
     },
     {
         .key       = "premult",
@@ -1013,6 +1019,18 @@ static const struct node_param custompaint_params[] = {
             NGLI_NODE_NONE,
         },
         .desc = NGLI_DOCSTRING("resources available to `glsl`"),
+    },
+    {
+        .key        = "texture",
+        .type       = NGLI_PARAM_TYPE_NODE,
+        .offset     = OFFSET(texture),
+        .node_types = (const uint32_t[]){
+            NGL_NODE_TEXTURE2D,
+            NGL_NODE_CUSTOMTEXTURE,
+            NGLI_NODE_NONE,
+        },
+        .desc       = NGLI_DOCSTRING("texture the paint shows, as `ngl_texture`: fitted or filled according to "
+                                     "`scaling`, and moved by the draw content transform"),
     },
     {
         .key    = "color_output_count",

@@ -49,7 +49,6 @@ static int test_assembly(void)
     const char *header = ngli_bstr_strptr(out);
     CHECK(strstr(header, "vec2 source_coord(const ngl_FragmentInput frag) { return frag._source_coord; }"));
     CHECK(strstr(header, "(source_coord_matrix * vec4(uv, 0.0, 1.0)).xy"));
-    CHECK(strstr(header, "vec2 source_uv(const ngl_FragmentInput frag, vec2 p) {"));
     CHECK(strstr(header, "{ return ngl_texvideo(source, source_coord(frag)); }"));
     CHECK(strstr(header, "{ return ngl_texvideo(source, source_coord(frag, uv)); }"));
 
@@ -130,11 +129,25 @@ int main(void)
 
     ngli_bstr_clear(out);
     CHECK(ngli_shader2d_write_source(out, "vec4 main(const ngl_FragmentInput c) { return vec4(1.0); }",
-                                     "ngli_fill", false, 37, "test\n#error must not enter GLSL") == 0);
+                                     "ngli_fill", NULL, false, 37, "test\n#error must not enter GLSL") == 0);
     CHECK(strstr(ngli_bstr_strptr(out), "vec4 ngli_fill(const ngl_FragmentInput frag);\n"));
     CHECK(strstr(ngli_bstr_strptr(out), "#line 1 37\nvec4 ngli_fill("));
     CHECK(strstr(ngli_bstr_strptr(out), "#line 1 0\n"));
     CHECK(!strstr(ngli_bstr_strptr(out), "#error"));
+
+    /* The paint texture identifiers, macros included, are the role's texture */
+    ngli_bstr_clear(out);
+    CHECK(ngli_shader2d_write_source(out,
+                                     "#define SIZE ngl_texture_dimensions\n"
+                                     "vec4 main(const ngl_FragmentInput frag) {\n"
+                                     "    vec2 uv = (ngl_texture_coord_matrix * vec4(ngl_texture_uv(frag), 0.0, 1.0)).xy;\n"
+                                     "    return ngl_texvideo(ngl_texture, uv) * ngl_textures * my_ngl_texture / SIZE.x;\n"
+                                     "}\n",
+                                     "ngli_stroke", "ngli_stroke_tex", false, 2, "test") == 0);
+    result = ngli_bstr_strptr(out);
+    CHECK(strstr(result, "#define SIZE ngli_stroke_tex_dimensions\n"));
+    CHECK(strstr(result, "(ngli_stroke_tex_coord_matrix * vec4(ngli_stroke_tex_uv(frag), 0.0, 1.0)).xy"));
+    CHECK(strstr(result, "ngl_texvideo(ngli_stroke_tex, uv) * ngl_textures * my_ngl_texture"));
 
     /* The built-in texture helpers are named after its sampler */
     ngli_bstr_clear(out);

@@ -3054,7 +3054,7 @@
           "default": "none",
           "choices": "paint_scaling",
           "flags": ["live"],
-          "desc": "texture scaling mode applied to custom paint content"
+          "desc": "scaling mode of `texture` relative to the target shape bounds"
         },
         {
           "name": "premult",
@@ -3075,6 +3075,13 @@
           "node_types": ["UniformFloat", "UniformVec2", "UniformVec3", "UniformVec4", "UniformColor", "UniformQuat", "UniformMat4", "UniformInt", "UniformIVec2", "UniformIVec3", "UniformIVec4", "UniformUInt", "UniformUIVec2", "UniformUIVec3", "UniformUIVec4", "UniformBool", "EvalFloat", "EvalVec2", "EvalVec3", "EvalVec4", "AnimatedFloat", "AnimatedVec2", "AnimatedVec3", "AnimatedVec4", "AnimatedQuat", "AnimatedColor", "NoiseFloat", "NoiseVec2", "NoiseVec3", "NoiseVec4", "Time", "Texture2D", "Texture2DArray", "Texture3D", "TextureCube", "CustomTexture", "Block"],
           "flags": [],
           "desc": "resources available to `glsl`"
+        },
+        {
+          "name": "texture",
+          "type": "node",
+          "node_types": ["Texture2D", "CustomTexture"],
+          "flags": [],
+          "desc": "texture the paint shows, as `ngl_texture`: fitted or filled according to `scaling`, and moved by the draw content transform"
         },
         {
           "name": "color_output_count",
