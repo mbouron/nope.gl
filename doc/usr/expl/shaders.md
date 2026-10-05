@@ -398,6 +398,14 @@ Extra textures in `Effect2DShader.resources` have their own image coordinate
 transforms. They use rectangle UVs as their logical UVs and do not inherit the
 effect input's transform or a paint's fit/fill scaling.
 
+`Layer2D` and `Mask2D` are effects without shaders: their children are rendered
+into the effect input, which is composited as is, or weighted by a channel of
+the mask. A mask texture covers the effect rectangle: the children bounds, their
+anti-aliased edges included, or `Mask2D.mask_rect`. Mask children are drawn in
+the local space of the children and on the same texels as the input, so a mask
+shape lines up with the content it masks whatever the bounds or the output
+resolution. Both hold even where the effect extends beyond the canvas.
+
 ### Alpha
 
 The 2D compositor uses premultiplied colors: RGB is multiplied by alpha. For

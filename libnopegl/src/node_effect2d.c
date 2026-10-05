@@ -333,7 +333,7 @@ static const struct node_param mask2d_params[] = {
         .type      = NGLI_PARAM_TYPE_SELECT,
         .offset    = OFFSET(mask_channel),
         .choices   = &ngli_masktexture_channel_choices,
-        .desc      = NGLI_DOCSTRING("channel of mask used as coverage"),
+        .desc      = NGLI_DOCSTRING("channel of mask used as coverage; luminance uses the sRGB / BT.709 weights"),
     }, {
         .key        = "mask_children",
         .type       = NGLI_PARAM_TYPE_NODELIST,

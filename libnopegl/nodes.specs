@@ -3461,7 +3461,7 @@
           "default": "alpha",
           "choices": "mask_texture_channel",
           "flags": [],
-          "desc": "channel of mask used as coverage"
+          "desc": "channel of mask used as coverage; luminance uses the sRGB / BT.709 weights"
         },
         {
           "name": "mask_children",
