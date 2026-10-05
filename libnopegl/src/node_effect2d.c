@@ -64,15 +64,11 @@ struct effect2d_vert_block {
     struct ngli_mat4 modelview_matrix;
     float rect[4];
     float effect_rect[4];
-    float quad_tex_scale[2];
-    float quad_tex_offset[2];
 };
 
 struct effect2d_frag_block {
     float opacity;
     float _pad0;
-    float input_scale[2];
-    float input_offset[2];
     float rect_size[2];
 };
 
@@ -507,8 +503,6 @@ static const struct shader2d_role shader_role = {.name = "effect", .uv = "ngli_v
 static const char passthrough_glsl[] =
     "vec4 main(const ngl_FragmentInput frag) { return ngl_sample_input(frag); }\n";
 
-/* The input mapping includes the effect's sampling correction in addition to
- * the image's coordinates. Use the transform already uploaded by Effect2D. */
 static void write_input_helpers(struct bstr *out)
 {
     ngli_bstr_print(out,
@@ -516,11 +510,11 @@ static void write_input_helpers(struct bstr *out)
         "vec2 ngl_tex_uv_input(const ngl_FragmentInput frag, vec2 p) { return p; }\n"
         "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag) { return ngli_v_tex_coord; }\n"
         "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag, vec2 p) {\n"
-        "    return p * ngli_input_scale + ngli_input_offset;\n"
+        "    return (ngl_input_coord_matrix * vec4(ngl_tex_uv_input(frag, p), 0.0, 1.0)).xy;\n"
         "}\n"
         "vec4 ngl_sample_input(const ngl_FragmentInput frag) { return ngl_texvideo(ngl_input, ngli_v_tex_coord); }\n"
         "vec4 ngl_sample_input(const ngl_FragmentInput frag, vec2 uv) {\n"
-        "    return ngl_texvideo(ngl_input, uv * ngli_input_scale + ngli_input_offset);\n"
+        "    return ngl_texvideo(ngl_input, (ngl_input_coord_matrix * vec4(uv, 0.0, 1.0)).xy);\n"
         "}\n");
 }
 
@@ -638,8 +632,6 @@ static int effect2d_init(struct ngl_node *node)
         {.name = "modelview_matrix",  .type = NGPU_TYPE_MAT4},
         {.name = "rect",              .type = NGPU_TYPE_VEC4},
         {.name = "effect_rect",       .type = NGPU_TYPE_VEC4},
-        {.name = "ngli_quad_tex_scale",  .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_quad_tex_offset", .type = NGPU_TYPE_VEC2},
     };
     ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
     if (ret < 0)
@@ -651,8 +643,6 @@ static int effect2d_init(struct ngl_node *node)
     ngpu_block_desc_init(gpu_ctx, &s->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     static const struct ngpu_block_field frag_fields[] = {
         {.name = "opacity", .type = NGPU_TYPE_F32},
-        {.name = "ngli_input_scale",  .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_input_offset", .type = NGPU_TYPE_VEC2},
         {.name = "ngli_effect_size", .type = NGPU_TYPE_VEC2},
     };
     ret = ngpu_block_desc_add_fields(&s->frag_block_desc, frag_fields, NGLI_ARRAY_NB(frag_fields));
@@ -977,9 +967,6 @@ static int resize_rtt(struct rtt_ctx **rttp, struct image_resource *image, struc
     if (ret < 0)
         goto fail;
 
-    struct ngli_mat4 coordinates;
-    ngpu_ctx_get_rendertarget_uvcoord_matrix(ctx->gpu_ctx, coordinates.m);
-    ngli_image_set_coordinates_matrix(ngli_rtt_get_image(rtt, 0), &coordinates);
     ngli_image_resource_set(image, NULL);
     ngli_rtt_freep(rttp);
     *rttp = rtt;
@@ -989,6 +976,35 @@ static int resize_rtt(struct rtt_ctx **rttp, struct image_resource *image, struc
 fail:
     ngli_rtt_freep(&rtt);
     return ret;
+}
+
+static void set_input_coordinates(struct effect2d_priv *s, struct ngpu_ctx *gpu_ctx)
+{
+    const float w = s->rect[2];
+    const float h = s->rect[3];
+    float sx = 1.f, sy = 1.f, tx = 0.f, ty = 0.f;
+    if (w > 0.f) {
+        sx = s->effect_rect[2] / w;
+        tx = (s->effect_rect[0] - s->rect[0]) / w;
+    }
+    if (h > 0.f) {
+        sy = s->effect_rect[3] / h;
+        ty = (s->effect_rect[1] - s->rect[1]) / h;
+    }
+
+    struct ngli_mat4 crop = {.m = {
+        sx,  0.f, 0.f, 0.f,
+        0.f, sy,  0.f, 0.f,
+        0.f, 0.f, 1.f, 0.f,
+        tx,  ty,  0.f, 1.f,
+    }};
+
+    struct ngli_mat4 memory, coordinates;
+    ngpu_ctx_get_rendertarget_uvcoord_matrix(gpu_ctx, memory.m);
+    ngli_mat4_mul(coordinates.m, memory.m, crop.m);
+    ngli_image_set_coordinates_matrix(ngli_rtt_get_image(s->rtt, 0), &coordinates);
+    if (s->mask_rtt)
+        ngli_image_set_coordinates_matrix(ngli_rtt_get_image(s->mask_rtt, 0), &coordinates);
 }
 
 static void compute_bounds(struct ngl_node *node)
@@ -1171,6 +1187,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
         if (ret < 0)
             return;
     }
+    set_input_coordinates(s, gpu_ctx);
 
     /* Render the children into the RTT in the local 2D coordinates */
     ngli_node2d_apply_default_transform(ctx);
@@ -1253,19 +1270,6 @@ static void effect2d_draw(struct ngl_node *node)
     if (s->mask_image)
         ngli_image_resource_set(s->mask_image, s->mask_rtt ? ngli_rtt_get_image(s->mask_rtt, 0) : NULL);
 
-    float tex_scale[2], tex_offset[2];
-    const struct ngli_image *input = s->rtt ? ngli_rtt_get_image(s->rtt, 0) : NULL;
-    ngli_image_get_coordinates_scale_offset(input, tex_scale, tex_offset);
-
-    /* Compose full-effect UV -> cropped-input UV -> memory once for both stages. */
-    for (size_t i = 0; i < 2; i++) {
-        const float size = s->rect[2 + i];
-        const float scale = size > 0.f ? s->effect_rect[2 + i] / size : 1.f;
-        const float offset = size > 0.f ? (s->effect_rect[i] - s->rect[i]) / size : 0.f;
-        tex_offset[i] += offset * tex_scale[i];
-        tex_scale[i] *= scale;
-    }
-
     /* Fill and push vertex block to staging buffer */
     {
         struct effect2d_vert_block vert_data = {0};
@@ -1273,8 +1277,6 @@ static void effect2d_draw(struct ngl_node *node)
         vert_data.modelview_matrix = s->node2d_info.transform_matrix;
         memcpy(vert_data.rect, s->rect, sizeof(vert_data.rect));
         memcpy(vert_data.effect_rect, s->effect_rect, sizeof(vert_data.effect_rect));
-        memcpy(vert_data.quad_tex_scale, tex_scale, sizeof(vert_data.quad_tex_scale));
-        memcpy(vert_data.quad_tex_offset, tex_offset, sizeof(vert_data.quad_tex_offset));
 
         const size_t vert_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &vert_data, s->vert_block_size);
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
@@ -1289,8 +1291,6 @@ static void effect2d_draw(struct ngl_node *node)
         struct effect2d_frag_block frag_data = {0};
         frag_data.opacity = local_opacity * group_opacity;
         memcpy(frag_data.rect_size, s->effect_rect + 2, sizeof(frag_data.rect_size));
-        memcpy(frag_data.input_scale, tex_scale, sizeof(tex_scale));
-        memcpy(frag_data.input_offset, tex_offset, sizeof(tex_offset));
 
         const size_t frag_offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &frag_data, sizeof(frag_data));
         struct ngpu_buffer *staging_buf = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
