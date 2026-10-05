@@ -501,7 +501,7 @@ static void reset_program(struct effect2d_program *program)
 static const struct shader2d_role shader_role = {.name = "effect", .uv = "ngli_v_rect_uv"};
 
 static const char passthrough_glsl[] =
-    "vec4 main(const ngl_FragmentInput frag) { return ngl_input_sample(frag); }\n";
+    "vec4 main(const ngl_FragmentInput frag) { return ngl_texture_sample(frag); }\n";
 
 static int add_program(struct ngl_node *node, const char *glsl,
                        struct hmap *resources, bool premult, const char *source_label)
@@ -547,7 +547,7 @@ static int add_program(struct ngl_node *node, const char *glsl,
         return ret;
     }
     ngli_shader2d_write_header(&program.shader, bstr);
-    ngli_shader2d_write_texture_helpers(bstr, "ngl_input");
+    ngli_shader2d_write_texture_helpers(bstr, "ngl_texture");
     ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", false, 3, source_label);
     if (ret < 0) {
         ngli_bstr_freep(&bstr);
@@ -663,7 +663,7 @@ static int effect2d_init(struct ngl_node *node)
         snprintf(glsl, sizeof(glsl),
                  "vec4 main(const ngl_FragmentInput frag) {\n"
                  "    vec4 mask = ngl_mask_sample(frag);\n"
-                 "    return ngl_input_sample(frag) * %s;\n"
+                 "    return ngl_texture_sample(frag) * %s;\n"
                  "}\n",
                  mask2d_coverage_glsl[o->mask_channel]);
         ret = add_program(node, glsl, s->mask_resources, false, "mask");
@@ -754,7 +754,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
 
     /* Merge built-in texture with user textures */
     struct ngpu_pgcraft_texture src_tex = {
-        .name  = "ngl_input",
+        .name  = "ngl_texture",
         .type  = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
         .stage = NGPU_PROGRAM_STAGE_FRAG,
     };

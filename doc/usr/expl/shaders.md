@@ -375,18 +375,19 @@ apply. `TexturePaint.wrap="discard"` has a separate logical-image bounds check.
 
 ### Effects and their input
 
-An `Effect2DShader` receives the same fragment input type. Its rectangle is the
-full effect bounds, including dilation. Both its content UVs and logical texture
-UVs equal `frag.rect_uv`.
+An `Effect2DShader` receives the same fragment input type. Its rectangle covers
+the full effect bounds, including dilation. Both its content UVs and logical
+texture UVs equal `frag.rect_uv`.
 
-The input is the texture `ngl_input`, with the same helpers as a texture
-resource: `ngl_input_uv()`, `ngl_input_coord()` and `ngl_input_sample()`. This
-entry returns the rendered children unchanged:
+The Effect receives its input as `ngl_texture`, which supports the same helpers
+as a texture resource: `ngl_texture_uv()`, `ngl_texture_coord()`, and
+`ngl_texture_sample()`. The following entry returns the rendered children
+unchanged.
 
 ```glsl
 vec4 main(const ngl_FragmentInput frag)
 {
-    return ngl_input_sample(frag);
+    return ngl_texture_sample(frag);
 }
 ```
 
@@ -394,22 +395,25 @@ An empty `Effect2DShader.glsl` also passes the children through. Effect and pare
 opacity still apply. `Effect2D.shaders` selects the first shader whose time range
 is active. To apply successive effects, nest `Effect2D` nodes.
 
-For explicit sampling, `ngl_input_uv(frag, p)` equals `p`. `frag.rect_size`
-describes the effect bounds in local units; `ngl_input_dimensions` describes the
+For explicit sampling, `ngl_texture_uv(frag, p)` equals `p`. `frag.rect_size`
+describes the effect bounds in local units; `ngl_texture_dimensions` describes the
 allocated texture in pixels. They can differ, so do not use texture dimensions as
 the effect's rectangle size.
 
-Extra textures in `Effect2DShader.resources` have their own image coordinate
-transforms. They use rectangle UVs as their logical UVs and do not inherit the
-effect input's transform or a paint's fit/fill scaling.
+Additional textures in `Effect2DShader.resources` use their own image coordinate
+transforms, with rectangle UVs as their logical UVs. They do not inherit the
+effect input’s transform or a paint’s fit/fill scaling.
 
-`Layer2D` and `Mask2D` are effects without shaders: their children are rendered
-into the effect input, which is composited as is, or weighted by a channel of
-the mask. A mask texture covers the effect rectangle: the children bounds, their
-anti-aliased edges included, or `Mask2D.mask_rect`. Mask children are drawn in
-the local space of the children and on the same texels as the input, so a mask
-shape lines up with the content it masks whatever the bounds or the output
-resolution. Both hold even where the effect extends beyond the canvas.
+`Layer2D` and `Mask2D` are effects without shaders. Both render their children
+into the effect input: `Layer2D` composites it unchanged, while `Mask2D` weights
+it by a mask channel.
+
+A mask texture covers the effect rectangle, defined by either the children’s
+bounds, including their anti-aliased edges, or `Mask2D.mask_rect`. Mask children
+are rendered in the children’s local space, on the same texel grid as the input.
+This keeps mask shapes aligned with the content they mask, regardless of the
+bounds or output resolution. Both texture coverage and mask alignment are
+preserved even when the effect extends beyond the canvas.
 
 ### Alpha
 

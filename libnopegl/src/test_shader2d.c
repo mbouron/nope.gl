@@ -138,12 +138,12 @@ int main(void)
 
     /* The built-in texture helpers are named after its sampler */
     ngli_bstr_clear(out);
-    ngli_shader2d_write_texture_helpers(out, "ngl_input");
+    ngli_shader2d_write_texture_helpers(out, "ngl_texture");
     result = ngli_bstr_strptr(out);
-    CHECK(strstr(result, "vec2 ngl_input_coord(const ngl_FragmentInput frag) { return frag._coord; }"));
-    CHECK(strstr(result, "(ngl_input_coord_matrix * vec4(uv, 0.0, 1.0)).xy"));
-    CHECK(strstr(result, "vec2 ngl_input_uv(const ngl_FragmentInput frag) { return frag._uv; }"));
-    CHECK(strstr(result, "{ return ngl_texvideo(ngl_input, ngl_input_coord(frag, uv)); }"));
+    CHECK(strstr(result, "vec2 ngl_texture_coord(const ngl_FragmentInput frag) { return frag._coord; }"));
+    CHECK(strstr(result, "(ngl_texture_coord_matrix * vec4(uv, 0.0, 1.0)).xy"));
+    CHECK(strstr(result, "vec2 ngl_texture_uv(const ngl_FragmentInput frag) { return frag._uv; }"));
+    CHECK(strstr(result, "{ return ngl_texvideo(ngl_texture, ngl_texture_coord(frag, uv)); }"));
 
     ngli_bstr_clear(out);
     CHECK(ngli_shader2d_write_builtin(out, "vec4 main() { return $color; }", "ngli_fill", "ngli_fill_") == 0);
