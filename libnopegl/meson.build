@@ -582,7 +582,6 @@ shaders = {
   'colorstats_waveform.comp': 'colorstats_waveform_comp.h',
   'drawrect.frag': 'drawrect_frag.h',
   'drawrect.vert': 'drawrect_vert.h',
-  'effect2d_composite.frag': 'effect2d_composite_frag.h',
   'effect2d_composite.vert': 'effect2d_composite_vert.h',
   'distmap.frag': 'distmap_frag.h',
   'distmap.vert': 'distmap_vert.h',
