@@ -554,6 +554,8 @@ static int add_program(struct ngl_node *node, const char *glsl,
                 ret = ngli_shader2d_add_texture(&program.shader, entry->key.str);
         }
     }
+    if (ret >= 0 && s->mask_image && !s->programs.count)
+        ret = ngli_shader2d_add_texture(&program.shader, "ngl_mask");
     if (ret < 0) {
         ngli_bstr_freep(&bstr);
         reset_program(&program);
@@ -656,7 +658,6 @@ static int effect2d_init(struct ngl_node *node)
      * for a Mask2D, it is the masking composite.
      */
     if (node->cls->id == NGL_NODE_MASK2D) {
-        const char *mask_coord = "ngl_tex_coord_input(frag)";
         if (o->mask_node) {
             if (o->mask_children.count) {
                 LOG(ERROR, "mask and mask_children are mutually exclusive");
@@ -668,7 +669,6 @@ static int effect2d_init(struct ngl_node *node)
             ret = ngli_hmap_try_set_str(s->mask_resources, "ngl_mask", o->mask_node);
             if (ret < 0)
                 return ret;
-            mask_coord = "ngl_tex_coord_ngl_mask(frag)";
         } else {
             s->mask_image = ngli_image_resource_create();
             if (!s->mask_image)
@@ -677,10 +677,10 @@ static int effect2d_init(struct ngl_node *node)
         char glsl[512];
         snprintf(glsl, sizeof(glsl),
                  "vec4 main(const ngl_FragmentInput frag) {\n"
-                 "    vec4 mask = ngl_texvideo(ngl_mask, %s);\n"
+                 "    vec4 mask = ngl_texvideo(ngl_mask, ngl_tex_coord_ngl_mask(frag));\n"
                  "    return ngl_sample_input(frag) * %s;\n"
                  "}\n",
-                 mask_coord, mask2d_coverage_glsl[o->mask_channel]);
+                 mask2d_coverage_glsl[o->mask_channel]);
         ret = add_program(node, glsl, s->mask_resources, false, "mask");
     } else {
         ret = add_program(node, NULL, NULL, false, "passthrough");
