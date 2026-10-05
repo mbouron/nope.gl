@@ -507,11 +507,9 @@ static const struct shader2d_role shader_role = {.name = "effect", .uv = "ngli_r
 static void write_input_helpers(struct bstr *out)
 {
     ngli_bstr_print(out,
-        "vec2 ngl_tex_uv_input(const ngl_FragmentInput frag) { return frag.rect_uv; }\n"
-        "vec2 ngl_tex_uv_input(const ngl_FragmentInput frag, vec2 p) { return p; }\n"
         "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag) { return ngli_tex_coord; }\n"
-        "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag, vec2 p) {\n"
-        "    return (ngl_input_coord_matrix * vec4(ngl_tex_uv_input(frag, p), 0.0, 1.0)).xy;\n"
+        "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag, vec2 uv) {\n"
+        "    return (ngl_input_coord_matrix * vec4(uv, 0.0, 1.0)).xy;\n"
         "}\n"
         "vec4 ngl_sample_input(const ngl_FragmentInput frag) { return ngl_texvideo(ngl_input, ngli_tex_coord); }\n"
         "vec4 ngl_sample_input(const ngl_FragmentInput frag, vec2 uv) {\n"
@@ -560,7 +558,7 @@ static int add_program(struct ngl_node *node, const char *glsl,
         }
         ngli_shader2d_write_header(&program.shader, bstr);
         write_input_helpers(bstr);
-        ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", false, 3, source_label);
+        ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", NULL, false, 3, source_label);
         if (ret < 0) {
             ngli_bstr_freep(&bstr);
             reset_program(&program);
@@ -572,10 +570,11 @@ static int add_program(struct ngl_node *node, const char *glsl,
                              "    frag.rect_size = ngli_effect_size;\n"
                              "    frag.content_uv = ngli_rect_uv;\n"
                              "    frag.canvas_px = ngli_canvas_px;\n"
-                             "    frag._uv = ngli_rect_uv;\n"
-                             "    frag._lin = vec4(1.0, 0.0, 0.0, 1.0);\n"
-                             "    frag._off = vec2(0.0);\n"
-                             "    frag._content_lin = frag._lin;\n"
+                             "    frag.tex_uv = ngli_rect_uv;\n"
+                             "    frag.tex_coord = ngli_tex_coord;\n"
+                             "    frag._tex_lin = vec4(1.0, 0.0, 0.0, 1.0);\n"
+                             "    frag._tex_off = vec2(0.0);\n"
+                             "    frag._content_lin = vec4(1.0, 0.0, 0.0, 1.0);\n"
                              "    frag._content_off = vec2(0.0);\n");
         ngli_shader2d_write_fragment_input_textures(&program.shader, bstr, &shader_role);
         ngli_bstr_print(bstr, "    vec4 color = ngli_effect(frag);\n");

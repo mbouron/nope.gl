@@ -189,16 +189,10 @@ static bool is_2d_texture(const struct ngl_node *node)
     return type == NGPU_PGCRAFT_TEXTURE_TYPE_2D || type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO;
 }
 
+/* The texture a paint shows: TexturePaint.texture or CustomPaint.texture */
 static const struct ngl_node *get_scaling_texture(const struct paint_info *paint)
 {
-    if (paint->texture)
-        return paint->texture;
-    for (size_t i = 0; i < paint->custom_textures.count; i++) {
-        const struct ngl_node *node = paint->custom_textures.data[i].texture_node;
-        if (is_2d_texture(node))
-            return node;
-    }
-    return NULL;
+    return paint->texture;
 }
 
 static void get_texture_uv_transform(const struct paint_info *paint, float *dst)
@@ -460,8 +454,8 @@ static int register_image_sources(struct drawrect2d_priv *s)
 }
 
 static const struct shader2d_role shader_roles[] = {
-    [PAINT_SHADER_ROLE_FILL]   = {.name = "fill",   .uv = "ngli_fill_uv"},
-    [PAINT_SHADER_ROLE_STROKE] = {.name = "stroke", .uv = "ngli_stroke_uv"},
+    [PAINT_SHADER_ROLE_FILL]   = {.name = "fill",   .uv = "ngli_rect_uv"},
+    [PAINT_SHADER_ROLE_STROKE] = {.name = "stroke", .uv = "ngli_rect_uv"},
 };
 
 static void write_fragment_input(const struct drawrect2d_priv *s, struct bstr *b,
@@ -478,9 +472,11 @@ static void write_fragment_input(const struct drawrect2d_priv *s, struct bstr *b
                         "    frag.rect_size = ngli_rect_size;\n"
                         "    frag.canvas_px = ngli_clip_pos;\n");
     ngli_bstr_printf(b, "    frag.content_uv = %s;\n", content_uv);
-    ngli_bstr_printf(b, "    frag._uv = ngli_%s_uv;\n"
-                        "    frag._lin = ngli_%s_uv_lin;\n"
-                        "    frag._off = ngli_%s_uv_off.xy;\n", role, role, role);
+    /* The paint texture, as TexturePaint shows it */
+    ngli_bstr_printf(b, "    frag.tex_uv = ngli_%s_uv;\n"
+                        "    frag.tex_coord = ngli_%s_tex_uv;\n"
+                        "    frag._tex_lin = ngli_%s_uv_lin;\n"
+                        "    frag._tex_off = ngli_%s_uv_off.xy;\n", role, role, role, role);
     ngli_bstr_printf(b, "    frag._content_lin = %s;\n"
                         "    frag._content_off = %s;\n", content_lin, content_off);
     if (custom)
@@ -560,6 +556,7 @@ static int drawrect2d_init(struct ngl_node *node)
         ngli_bstr_print(bstr, "void main() { ngli_colors(ngli_fill_fragment_input()); }\n");
     } else if (ret >= 0) {
         if (stroke_paint && fill_paint->custom && stroke_paint->custom &&
+            fill_paint->texture == stroke_paint->texture &&
             !strcmp(fill_paint->glsl, stroke_paint->glsl)) {
             ngli_bstr_print(bstr, "vec4 ngli_stroke(const ngl_FragmentInput frag) { return ngli_color(frag); }\n");
         } else if (stroke_paint) {

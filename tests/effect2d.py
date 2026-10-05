@@ -468,7 +468,7 @@ _GAUSSIAN_BLUR_H_GLSL = textwrap.dedent("""
         vec4 sum = vec4(0.0);
         for (int x = -radius; x <= radius; x++) {
             float w = kernel.weights[x + radius];
-            sum += ngl_sample_input(frag, ngl_tex_uv_input(frag, frag.rect_uv + vec2(float(x), 0.0) * texel)) * w;
+            sum += ngl_sample_input(frag, frag.rect_uv + vec2(float(x), 0.0) * texel) * w;
         }
         return sum;
     }
@@ -481,7 +481,7 @@ _GAUSSIAN_BLUR_V_GLSL = textwrap.dedent("""
         vec4 sum = vec4(0.0);
         for (int y = -radius; y <= radius; y++) {
             float w = kernel.weights[y + radius];
-            sum += ngl_sample_input(frag, ngl_tex_uv_input(frag, frag.rect_uv + vec2(0.0, float(y)) * texel)) * w;
+            sum += ngl_sample_input(frag, frag.rect_uv + vec2(0.0, float(y)) * texel) * w;
         }
         return sum;
     }

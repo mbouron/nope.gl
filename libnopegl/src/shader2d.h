@@ -33,7 +33,7 @@ int ngli_shader2d_check_key(const char *key, const char *label);
 
 struct shader2d_role {
     const char *name; /* Suffix used in generated varying names */
-    const char *uv;   /* Vertex expression for the role's logical texture UV */
+    const char *uv;   /* Vertex expression for the rect UV the resource textures cover */
 };
 
 /* Owns copied texture names and generated varying declarations.
@@ -61,10 +61,12 @@ int ngli_shader2d_add_texture(struct shader2d *s, const char *name);
 int ngli_shader2d_write_builtin(struct bstr *out, const char *source, const char *entry, const char *prefix);
 
 /* Append user GLSL with an entry prototype (vec4, or void for multiple outputs)
- * and #line directives using source_id. Log label for diagnostics; it is never
+ * and #line directives using source_id. With a texture name, the paint texture
+ * identifiers (ngl_texture and its ngl_texture_* metadata) are renamed to it,
+ * preprocessor directives included. Log label for diagnostics; it is never
  * inserted into the GLSL source. */
 int ngli_shader2d_write_source(struct bstr *out, const char *source, const char *entry,
-                               bool multiple_outputs, int source_id, const char *label);
+                               const char *texture, bool multiple_outputs, int source_id, const char *label);
 
 /* Append the shared fragment declarations: ngl_FragmentInput, ngl_content_uv,
  * and the named texture helpers. Call after registering all textures and before

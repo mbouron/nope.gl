@@ -57,7 +57,7 @@ _CANVAS_PX = "vec4(frag.canvas_px / 256.0, 0.5 * (fract(frag.canvas_px.x) + frac
 @test_render()
 @ngl.scene(width=4 * T, height=2 * T)
 def coords2d_paint_inputs(cfg: ngl.SceneCfg):
-    """Coordinates exposed to paint shaders: rect_uv, rect_size, canvas_px, content_uv and ngl_tex_coord_tex().
+    """Coordinates exposed to paint shaders: rect_uv, rect_size, canvas_px, content_uv and the paint texture's.
 
     Also checks that content transforms affect the fill coordinates but not the stroke coordinates.
     """
@@ -86,16 +86,16 @@ def coords2d_paint_inputs(cfg: ngl.SceneCfg):
     tex_coord_fill = ngl.DrawRect2D(
         rect=_tile(1, 1),
         fill=_paint(
-            "vec4(ngl_tex_coord_tex(frag), 0.0, 1.0)",
-            resources={"tex": ngl.Texture2D(width=2 * T, height=T)},
+            "vec4(frag.tex_coord, 0.0, 1.0)",
+            texture=ngl.Texture2D(width=2 * T, height=T),
             scaling="fill",
         ),
     )
     tex_coord_func = ngl.DrawRect2D(
         rect=_tile(2, 1),
         fill=_paint(
-            "vec4(ngl_tex_coord_tex(frag, frag.rect_uv), 0.0, 1.0)",
-            resources={"tex": ngl.Texture2D(width=2 * T, height=T)},
+            "vec4((ngl_texture_coord_matrix * vec4(frag.tex_uv, 0.0, 1.0)).xy, 0.0, 1.0)",
+            texture=ngl.Texture2D(width=2 * T, height=T),
             scaling="fill",
         ),
         content_zoom=content_zoom,
@@ -185,7 +185,7 @@ def coords2d_paint_sampling(cfg: ngl.SceneCfg):
         ngl.DrawRect2D(rect=_tile(1, 1), fill=ngl.TexturePaint(texture=texture), content_translate=shift),
         ngl.DrawRect2D(
             rect=_tile(2, 1),
-            fill=_paint("ngl_sample_tex(frag)", resources={"tex": texture}),
+            fill=_paint("ngl_texvideo(ngl_texture, frag.tex_coord)", texture=texture),
             content_translate=shift,
         ),
         ngl.DrawRect2D(rect=_tile(3, 1), fill=ngl.CustomPaint(glsl=tex_coord_step, resources={"tex": texture})),

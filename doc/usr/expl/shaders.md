@@ -268,6 +268,8 @@ Field | Meaning
 `frag.rect_size` | Rectangle width and height in local pixel units, before geometric transforms
 `frag.content_uv` | Rectangle UV after the content transform, before paint scaling and the texture coordinate transform
 `frag.canvas_px` | Transformed position in the active canvas, in canvas pixel units
+`frag.tex_uv` | Image UV of the paint texture: `(0, 0)` at its top-left corner and `(1, 1)` at its bottom-right one, fitted or filled and moved by the content transform; `frag.content_uv` without a paint texture
+`frag.tex_coord` | Texture coordinates of the paint texture at `frag.tex_uv`, its coordinate transform included, for `ngl_texvideo(ngl_texture, frag.tex_coord)`
 
 X points right and Y points down. Coordinates are not clamped: strokes,
 antialiasing and transformed content can extend outside the rectangle. The
@@ -282,86 +284,77 @@ keep the content within the rectangle. Stroke and effect content use
 agrees with `frag.content_uv` at `p == frag.rect_uv`.
 
 The fragment input is a snapshot. Changing a field in a copy does not recompute
-the other fields or the coordinates used by sampling helpers. Pass modified
-positions to the mapping helpers instead. Members prefixed with `_` and the
+the other fields or the coordinates used by sampling helpers. Map modified
+positions explicitly instead (see [Paint texture](#paint-texture)). Members prefixed with `_` and the
 complete struct layout are implementation details.
 
-### Texture helpers
+### Paint texture
 
-For a `Texture2D` or a custom texture exposed as a 2D sampler, the resource key
-determines the helper names. A texture registered as `resources={"source": texture}`
-can be sampled with:
+A `CustomPaint` can show a texture like a `TexturePaint`, set as its `texture`:
+`scaling` fits or fills it, and the fill's content orientation, zoom and
+translation move it. Its GLSL names are those of a texture resource, under the
+reserved `ngl_texture` prefix:
+
+Name | Meaning
+-----|--------
+`ngl_texture` | The paint texture sampler
+`ngl_texture_coord_matrix` | Its coordinate transform, mapping an image UV to texture coordinates
+`ngl_texture_dimensions`, `ngl_texture_ts` | Its metadata, as for any [texture](#textures)
+
+with `frag.tex_uv` and `frag.tex_coord` locating it at the fragment. This paint
+shows its texture as a `TexturePaint` does, transparent outside the image:
 
 ```glsl
 vec4 main(const ngl_FragmentInput frag)
 {
-    return ngl_sample_source(frag);
+    if (any(lessThan(frag.tex_uv, vec2(0.0))) || any(greaterThan(frag.tex_uv, vec2(1.0))))
+        return vec4(0.0);
+    return ngl_texvideo(ngl_texture, frag.tex_coord);
 }
 ```
 
-This handles the texture's coordinate transform, including image flipping and
-cropping, and uses `ngl_texvideo` for sampling images and video frames. The
-helper preserves the sampled color's alpha representation; choose `premult`
-according to [Alpha](#alpha).
+`frag.tex_coord` is interpolated, so the direct sampling costs no arithmetic.
+`ngl_tex_uv(frag, p)` maps a rectangle UV `p` to the paint texture's image UV,
+agreeing with `frag.tex_uv` at `p == frag.rect_uv`, as `ngl_content_uv()` does
+for the content UV: it lets a shader working in rectangle space, such as a blur
+offset in local pixels, sample the texture where the paint shows it. To shift,
+rotate or distort the sample in the image itself, work on the image UV, then map
+it:
 
-There are three coordinate spaces involved in texture sampling:
+```glsl
+vec4 main(const ngl_FragmentInput frag)
+{
+    float c = cos(angle), s = sin(angle); // angle is a supplied uniform resource
+    vec2 uv = mat2(c, s, -s, c) * (frag.tex_uv - 0.5) + 0.5;
+    return ngl_texvideo(ngl_texture, (ngl_texture_coord_matrix * vec4(uv, 0.0, 1.0)).xy);
+}
+```
 
-- **Rectangle UVs** describe a position in the drawn rectangle.
-- **Logical texture UVs** include the content transform and the paint's fit/fill
-  scaling. They are suitable for shifting, rotating or distorting a sample.
-- **Texture coordinates** also include the image's coordinate transform. They
-  are suitable for passing directly to `ngl_texvideo` or a compatible sampler.
+`ngl_texvideo` handles images and video frames, and preserves the sampled
+color's alpha representation; choose `premult` according to [Alpha](#alpha). A
+paint without `texture` has no `ngl_texture`. The fill and the stroke paints of a
+draw can show different textures: each source's `ngl_texture` names resolve to
+its own.
 
-For the resource key `source`, the available overloads are:
+### Texture resources
+
+For a `Texture2D` or a custom texture exposed as a 2D sampler, the resource key
+determines the helper names. A resource covers the rectangle as is, unaffected by
+the paint scaling and the content transform. A texture registered as
+`resources={"source": texture}` can be sampled with:
 
 Function | Coordinate contract
 ---------|--------------------
-`ngl_tex_uv_source(frag)` | Current logical texture UV
-`ngl_tex_uv_source(frag, p)` | Map rectangle UV `p` to logical texture UV
-`ngl_sample_source(frag)` | Sample at the current fragment's texture coordinates
-`ngl_sample_source(frag, uv)` | Sample logical texture UV `uv`, applying the image's coordinate transform
-`ngl_tex_coord_source(frag)` | Current texture coordinates for lower-level sampling
-`ngl_tex_coord_source(frag, p)` | Map rectangle UV `p` directly to texture coordinates
+`ngl_sample_source(frag)` | Sample the image over the rectangle
+`ngl_sample_source(frag, uv)` | Sample image UV `uv`, applying the image's coordinate transform
+`ngl_tex_coord_source(frag)` | Current texture coordinates, for lower-level sampling
+`ngl_tex_coord_source(frag, uv)` | Map image UV `uv` to texture coordinates
 
-The mapping overloads accept **rectangle UVs**; the sampling overload accepts
-**logical texture UVs**. Passing `frag.rect_uv` directly to the sampling overload
-bypasses content and fit/fill mapping while retaining the image's coordinate
-transform. Do not pass the result of `ngl_tex_coord_source` to `ngl_sample_source`:
-that would apply the image's coordinate transform twice.
-Helpers can be used from your own functions by passing the fragment input:
-
-```glsl
-vec4 rotated(const ngl_FragmentInput frag, float angle)
-{
-    vec2 uv = ngl_tex_uv_source(frag);
-    float c = cos(angle), s = sin(angle);
-    uv = mat2(c, s, -s, c) * (uv - 0.5) + 0.5;
-    return ngl_sample_source(frag, uv);
-}
-
-vec4 main(const ngl_FragmentInput frag)
-{
-    return rotated(frag, angle); // angle is a supplied uniform resource
-}
-```
-
-To move the sample four local rectangle pixels down, map the rectangle position
-before sampling:
-
-```glsl
-vec4 main(const ngl_FragmentInput frag)
-{
-    vec2 p = frag.rect_uv + vec2(0.0, 4.0) / frag.rect_size;
-    return ngl_sample_source(frag, ngl_tex_uv_source(frag, p));
-}
-```
-
-`CustomPaint` uses the first eligible 2D texture in resource dictionary order as
-its scaling reference, even if the shader does not sample that texture. Array,
-volume and cube textures are skipped and use their usual sampling interfaces.
-Other eligible textures share the paint's logical UV mapping, with a separate
-coordinate transform for each image. This is why there is no single public
-`frag.tex_coord` field or generic `ngl_tex_coord()` alias.
+The image UV of a resource is the rectangle UV: to move the sample four local
+rectangle pixels down, sample at `frag.rect_uv + vec2(0.0, 4.0) / frag.rect_size`.
+Do not pass the result of `ngl_tex_coord_source` to `ngl_sample_source`: that
+would apply the image's coordinate transform twice. Array, volume and cube
+textures are skipped and use their usual sampling interfaces.
 
 The helpers do not add clamping or transparent borders: texture sampler settings
 apply. `TexturePaint.wrap="discard"` has a separate logical-image bounds check.
@@ -370,11 +363,12 @@ apply. `TexturePaint.wrap="discard"` has a separate logical-image bounds check.
 ### Effects and their input
 
 An `Effect2DShader` receives the same fragment input type. Its rectangle is the
-full effect bounds, including dilation. Both its content UVs and logical texture
-UVs equal `frag.rect_uv`.
+full effect bounds, including dilation. Its content UV equals `frag.rect_uv`. The
+input is its texture: `frag.tex_uv` is the input's image UV, the rectangle UV, and
+`frag.tex_coord` the input's texture coordinates.
 
-The engine provides `ngl_sample_input`, `ngl_tex_uv_input` and
-`ngl_tex_coord_input` with the same overloads as the named texture helpers.
+The engine provides `ngl_sample_input` and `ngl_tex_coord_input` with the same
+overloads as the texture resource helpers.
 This entry returns the rendered children unchanged:
 
 ```glsl
@@ -388,14 +382,13 @@ An empty `Effect2DShader.glsl` also passes the children through. Effect and pare
 opacity still apply. `Effect2D.shaders` selects the first shader whose time range
 is active. To apply successive effects, nest `Effect2D` nodes.
 
-For explicit sampling, `ngl_tex_uv_input(frag, p)` equals `p`. The input helpers
-apply the effect's input coordinate transform for you. `frag.rect_size` describes
+The input helpers apply the effect's input coordinate transform for you. `frag.rect_size` describes
 the effect bounds in local units; `ngl_input_dimensions` describes the allocated
 texture in pixels. They can differ, so do not use texture dimensions as the
 effect's rectangle size. The lower-level input sampler is named `ngl_input`.
 
 The input is otherwise a texture like the others: `ngl_input_coord_matrix` is its
-coordinate transform, mapping a logical UV, the effect rectangle UV, to its
+coordinate transform, mapping its image UV, the effect rectangle UV, to its
 texture coordinates. When the effect bounds exceed the visible canvas, the input
 only holds the visible part of the effect rectangle, and the transform includes
 that crop. These are equivalent:
@@ -406,8 +399,8 @@ vec4 b = ngl_texvideo(ngl_input, (ngl_input_coord_matrix * vec4(uv, 0.0, 1.0)).x
 ```
 
 Extra textures in `Effect2DShader.resources` have their own image coordinate
-transforms. They use rectangle UVs as their logical UVs and do not inherit the
-effect input's transform or a paint's fit/fill scaling.
+transforms. They cover the effect rectangle as is and do not inherit the effect
+input's transform.
 
 ### Alpha
 
@@ -457,7 +450,8 @@ and `canvas_px` are allowed as keys because coordinates are fragment input membe
 
 `main` is reserved for the literal entry definition and its optional matching
 prototype. Do not generate it with a macro or use it as a variable, field or
-type. Entry rewriting leaves comments and preprocessor directives unchanged. The
+type. In a paint with a `texture`, the `ngl_texture` identifier and those
+starting with `ngl_texture_` name the paint texture, in macros too. Entry rewriting leaves comments and preprocessor directives unchanged. The
 GLSL compiler handles macros, conditionals and source validation. Diagnostics
 identify user source lines through `#line`. Source IDs are 1 for fill, 2 for
 stroke and 3 for an effect; for example, a diagnostic at source 3, line 17 refers

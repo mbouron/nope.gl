@@ -24,8 +24,11 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `ngl_node_reparent_child()` to reparent a node from one container to another
 - `ngl_node_param_insert_nodes()` and `ngl_node_param_move_nodes()` to
   insert/move nodes by index
-- `ngl_FragmentInput`, `ngl_content_uv()` and named 2D texture mapping and sampling
-  helpers for custom paints and effects
+- `ngl_FragmentInput`, `ngl_content_uv()` and named 2D texture sampling helpers
+  for custom paints and effects, texture resources covering the rect as is
+- `CustomPaint.texture`, shown like a `TexturePaint` texture through
+  `ngl_texture`, `frag.tex_uv`, `frag.tex_coord` and `ngl_tex_uv()`,
+  `CustomPaint.scaling` applying to it
 - `Clip2D` node for transformed, nested rounded-rectangle clipping in a 2D
   hierarchy
 - `Layer2D` node to composite a 2D subgraph as an isolated layer
