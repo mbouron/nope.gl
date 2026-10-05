@@ -230,14 +230,14 @@ def coords2d_effect_inputs(cfg: ngl.SceneCfg):
 
 _SAMPLE_INPUT = textwrap.dedent("""\
     vec4 main(const ngl_FragmentInput frag) {
-        return ngl_input_sample(frag);
+        return ngl_texture_sample(frag);
     }
 """)
 
 # Samples the input at the effect rect_uv, through its coordinate transform
 _SAMPLE_INPUT_AT_RECT_UV = textwrap.dedent("""\
     vec4 main(const ngl_FragmentInput frag) {
-        return ngl_texvideo(ngl_input, ngl_input_coord(frag, frag.rect_uv));
+        return ngl_texvideo(ngl_texture, ngl_texture_coord(frag, frag.rect_uv));
     }
 """)
 

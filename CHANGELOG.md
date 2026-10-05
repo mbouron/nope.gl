@@ -69,7 +69,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   animation keyframes are now kept as-is and sanitized during evaluation
 - `CustomPaint` no longer expands `$` prefixes in GLSL; resources are
   referenced by their key
-- The input of an `Effect2DShader` is now named `ngl_input` instead of `tex`
+- The input of an `Effect2DShader` is now named `ngl_texture` instead of `tex`
 - Custom paint and effect shader entries receive an `ngl_FragmentInput`
   structure instead of separate coordinate parameters
 - 2D canvases use pixel-edge coordinates: pixel centers lie at half-integer

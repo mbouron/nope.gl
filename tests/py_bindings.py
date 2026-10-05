@@ -74,7 +74,7 @@ def py_bindings_allow_node():
     assert effect.set_bounds("canvas") == 0
 
     shader = ngl.Effect2DShader(
-        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_input_sample(frag); }",
+        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_texture_sample(frag); }",
         start=1.0,
         end=2.0,
     )

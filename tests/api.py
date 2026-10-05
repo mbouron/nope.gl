@@ -434,7 +434,7 @@ def api_range_edits_during_callbacks():
     trf = ngl.TimeRangeFilter(ngl.DrawColor(), start=0, end=1)
     trf2d = ngl.TimeRangeFilter2D(ngl.Group2D(), start=0, end=1)
     shader = ngl.Effect2DShader(
-        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_input_sample(frag); }",
+        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_texture_sample(frag); }",
         start=0,
         end=1,
     )
