@@ -644,7 +644,7 @@ def drawrect2d_custom_vignette(cfg: ngl.SceneCfg):
 def drawrect2d_custom_texture(cfg: ngl.SceneCfg):
     """CustomPaint sampling a texture resource."""
     fill = ngl.CustomPaint(
-        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_sample_tex(frag); }",
+        glsl="vec4 main(const ngl_FragmentInput frag) { return tex_sample(frag); }",
         resources={
             "tex": ngl.Texture2D(data_src=ngl.Media(filename=_CITY), min_filter="linear", mag_filter="linear"),
         },
@@ -713,7 +713,7 @@ def drawrect2d_custom_shared_fill_and_stroke(cfg: ngl.SceneCfg):
         label="palette",
     )
     paint = ngl.CustomPaint(
-        glsl="vec4 main(const ngl_FragmentInput frag) { return mix(ngl_sample_tex(frag), palette.tint, amount); }",
+        glsl="vec4 main(const ngl_FragmentInput frag) { return mix(tex_sample(frag), palette.tint, amount); }",
         resources={
             "amount": ngl.UniformFloat(value=0.3),
             "tex": ngl.Texture2D(data_src=ngl.Media(filename=_CITY), min_filter="linear", mag_filter="linear"),

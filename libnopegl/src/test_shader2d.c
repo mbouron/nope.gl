@@ -47,9 +47,11 @@ static int test_assembly(void)
     CHECK(out);
     ngli_shader2d_write_header(&shader, out);
     const char *header = ngli_bstr_strptr(out);
-    CHECK(strstr(header, "return ngl_texvideo(source, frag._source_uv);"));
+    CHECK(strstr(header, "vec2 source_coord(const ngl_FragmentInput frag) { return frag._source_coord; }"));
     CHECK(strstr(header, "(source_coord_matrix * vec4(uv, 0.0, 1.0)).xy"));
-    CHECK(strstr(header, "(source_coord_matrix * vec4(ngl_tex_uv_source(frag, p), 0.0, 1.0)).xy"));
+    CHECK(strstr(header, "vec2 source_uv(const ngl_FragmentInput frag, vec2 p) {"));
+    CHECK(strstr(header, "{ return ngl_texvideo(source, source_coord(frag)); }"));
+    CHECK(strstr(header, "{ return ngl_texvideo(source, source_coord(frag, uv)); }"));
 
     const struct shader2d_role roles[] = {
         {.name = "front", .uv = "front_uv"},
@@ -57,7 +59,7 @@ static int test_assembly(void)
     };
     ngli_bstr_clear(out);
     ngli_shader2d_write_fragment_input_textures(&shader, out, &roles[1]);
-    CHECK(!strcmp(ngli_bstr_strptr(out), "    frag._source_uv = ngli_v_back_source_coord;\n"));
+    CHECK(!strcmp(ngli_bstr_strptr(out), "    frag._source_coord = ngli_v_back_source_coord;\n"));
 
     const struct ngpu_pgcraft_iovar vars[] = {
         {.name = "front_uv", .type = NGPU_TYPE_VEC2},
@@ -133,6 +135,15 @@ int main(void)
     CHECK(strstr(ngli_bstr_strptr(out), "#line 1 37\nvec4 ngli_fill("));
     CHECK(strstr(ngli_bstr_strptr(out), "#line 1 0\n"));
     CHECK(!strstr(ngli_bstr_strptr(out), "#error"));
+
+    /* The built-in texture helpers are named after its sampler */
+    ngli_bstr_clear(out);
+    ngli_shader2d_write_texture_helpers(out, "ngl_input");
+    result = ngli_bstr_strptr(out);
+    CHECK(strstr(result, "vec2 ngl_input_coord(const ngl_FragmentInput frag) { return frag._coord; }"));
+    CHECK(strstr(result, "(ngl_input_coord_matrix * vec4(uv, 0.0, 1.0)).xy"));
+    CHECK(strstr(result, "vec2 ngl_input_uv(const ngl_FragmentInput frag) { return frag._uv; }"));
+    CHECK(strstr(result, "{ return ngl_texvideo(ngl_input, ngl_input_coord(frag, uv)); }"));
 
     ngli_bstr_clear(out);
     CHECK(ngli_shader2d_write_builtin(out, "vec4 main() { return $color; }", "ngli_fill", "ngli_fill_") == 0);

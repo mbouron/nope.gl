@@ -134,7 +134,7 @@ def _get_group_reparent_function(width=128, height=128):
         fill=ngl.CustomPaint(
             glsl="""
             vec4 main(const ngl_FragmentInput frag) {
-                vec4 c = ngl_sample_src(frag);
+                vec4 c = src_sample(frag);
                 return vec4(1.0 - c.rgb, c.a);
             }
         """,
@@ -227,7 +227,7 @@ def _get_effect2d_reparent_function(width=128, height=128):
             ngl.Effect2DShader(
                 glsl=textwrap.dedent("""
             vec4 main(const ngl_FragmentInput frag) {
-                vec4 c = ngl_sample_input(frag);
+                vec4 c = ngl_input_sample(frag);
                 return vec4(1.0 - c.rgb, c.a);
             }
         """),

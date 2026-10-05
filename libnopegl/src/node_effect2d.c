@@ -501,22 +501,7 @@ static void reset_program(struct effect2d_program *program)
 static const struct shader2d_role shader_role = {.name = "effect", .uv = "ngli_v_rect_uv"};
 
 static const char passthrough_glsl[] =
-    "vec4 main(const ngl_FragmentInput frag) { return ngl_sample_input(frag); }\n";
-
-static void write_input_helpers(struct bstr *out)
-{
-    ngli_bstr_print(out,
-        "vec2 ngl_tex_uv_input(const ngl_FragmentInput frag) { return frag.rect_uv; }\n"
-        "vec2 ngl_tex_uv_input(const ngl_FragmentInput frag, vec2 p) { return p; }\n"
-        "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag) { return ngli_v_tex_coord; }\n"
-        "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag, vec2 p) {\n"
-        "    return (ngl_input_coord_matrix * vec4(ngl_tex_uv_input(frag, p), 0.0, 1.0)).xy;\n"
-        "}\n"
-        "vec4 ngl_sample_input(const ngl_FragmentInput frag) { return ngl_texvideo(ngl_input, ngli_v_tex_coord); }\n"
-        "vec4 ngl_sample_input(const ngl_FragmentInput frag, vec2 uv) {\n"
-        "    return ngl_texvideo(ngl_input, (ngl_input_coord_matrix * vec4(uv, 0.0, 1.0)).xy);\n"
-        "}\n");
-}
+    "vec4 main(const ngl_FragmentInput frag) { return ngl_input_sample(frag); }\n";
 
 static int add_program(struct ngl_node *node, const char *glsl,
                        struct hmap *resources, bool premult, const char *source_label)
@@ -562,7 +547,7 @@ static int add_program(struct ngl_node *node, const char *glsl,
         return ret;
     }
     ngli_shader2d_write_header(&program.shader, bstr);
-    write_input_helpers(bstr);
+    ngli_shader2d_write_texture_helpers(bstr, "ngl_input");
     ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", false, 3, source_label);
     if (ret < 0) {
         ngli_bstr_freep(&bstr);
@@ -677,8 +662,8 @@ static int effect2d_init(struct ngl_node *node)
         char glsl[512];
         snprintf(glsl, sizeof(glsl),
                  "vec4 main(const ngl_FragmentInput frag) {\n"
-                 "    vec4 mask = ngl_texvideo(ngl_mask, ngl_tex_coord_ngl_mask(frag));\n"
-                 "    return ngl_sample_input(frag) * %s;\n"
+                 "    vec4 mask = ngl_mask_sample(frag);\n"
+                 "    return ngl_input_sample(frag) * %s;\n"
                  "}\n",
                  mask2d_coverage_glsl[o->mask_channel]);
         ret = add_program(node, glsl, s->mask_resources, false, "mask");
