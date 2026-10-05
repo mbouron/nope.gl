@@ -34,6 +34,6 @@ void ngli_vertex()
     ngl_out_pos = projection_matrix * canvas_pos;
     ngli_rect_px = position - effect_rect.xy;
     ngli_rect_uv = ngli_rect_px / effect_rect.zw;
-    ngli_tex_coord = ngli_rect_uv * ngli_quad_tex_scale + ngli_quad_tex_offset;
+    ngli_tex_coord = (ngl_input_coord_matrix * vec4(ngli_rect_uv, 0.0, 1.0)).xy;
     ngli_canvas_px = canvas_pos.xy;
 }

@@ -394,6 +394,17 @@ the effect bounds in local units; `ngl_input_dimensions` describes the allocated
 texture in pixels. They can differ, so do not use texture dimensions as the
 effect's rectangle size. The lower-level input sampler is named `ngl_input`.
 
+The input is otherwise a texture like the others: `ngl_input_coord_matrix` is its
+coordinate transform, mapping a logical UV, the effect rectangle UV, to its
+texture coordinates. When the effect bounds exceed the visible canvas, the input
+only holds the visible part of the effect rectangle, and the transform includes
+that crop. These are equivalent:
+
+```glsl
+vec4 a = ngl_sample_input(frag, uv);
+vec4 b = ngl_texvideo(ngl_input, (ngl_input_coord_matrix * vec4(uv, 0.0, 1.0)).xy);
+```
+
 Extra textures in `Effect2DShader.resources` have their own image coordinate
 transforms. They use rectangle UVs as their logical UVs and do not inherit the
 effect input's transform or a paint's fit/fill scaling.

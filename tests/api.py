@@ -1209,6 +1209,46 @@ def api_paint_fill_and_stroke_resource_clash():
     assert _check_paints(fill_paint, stroke_paint) == 0
 
 
+def api_effect2d_input_coord_matrix(width=64, height=64):
+    """The effect input's coordinates matrix maps the effect rect UV to the input, crop included."""
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            capture_buffer=capture_buffer,
+        )
+    )
+    assert ret == 0
+
+    data = array.array("B")
+    for y in range(16):
+        for x in range(16):
+            data.extend(((x * 16) & 255, (y * 16) & 255, ((x ^ y) * 16) & 255, 255))
+
+    def render(sample):
+        pattern = ngl.Texture2D(width=16, height=16, data_src=ngl.BufferUBVec4(data=data))
+        # The children stick out of the canvas: the effect input is cropped to it
+        children = ngl.DrawRect2D(rect=(-width / 2, 0, 2 * width, height), fill=ngl.TexturePaint(texture=pattern))
+        shader = ngl.Effect2DShader(glsl=f"vec4 main(const ngl_FragmentInput frag) {{ return {sample}; }}")
+        effect = ngl.Effect2D(children=[children], shaders=[shader])
+        canvas = ngl.Canvas2D(width=width, height=height, children=[effect])
+        assert ctx.set_scene(ngl.Scene.from_params(canvas, width=width, height=height)) == 0
+        assert ctx.draw(0.0) == 0
+        return bytes(capture_buffer)
+
+    sampled = render("ngl_sample_input(frag)")
+    mapped = render("ngl_texvideo(ngl_input, (ngl_input_coord_matrix * vec4(frag.rect_uv, 0.0, 1.0)).xy)")
+    unmapped = render("ngl_texvideo(ngl_input, frag.rect_uv)")
+    assert mapped == sampled
+    assert unmapped != sampled
+
+    assert ctx.set_scene(None) == 0
+
+
 def _create_trf(scene, start, end, prefetch_time=None):
     trf = ngl.TimeRangeFilter(scene, start, end)
     if prefetch_time is not None:
