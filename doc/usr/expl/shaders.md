@@ -11,7 +11,7 @@ allowing node trees to be as portable as possible.
 `Program` and `ComputeProgram` define GPU shader stages used by `Draw` and
 `Compute`. `CustomPaint` and `Effect2DShader` instead provide color functions
 that the engine integrates into a 2D draw. See [2D shaders](#2d-shaders) for
-their entry points, coordinates and sampling helpers.
+their entry points, coordinates and texture helpers.
 
 
 ## Vertex shader
@@ -282,20 +282,20 @@ keep the content within the rectangle. Stroke and effect content use
 agrees with `frag.content_uv` at `p == frag.rect_uv`.
 
 The fragment input is a snapshot. Changing a field in a copy does not recompute
-the other fields or the coordinates used by sampling helpers. Pass modified
-positions to the mapping helpers instead. Members prefixed with `_` and the
-complete struct layout are implementation details.
+the other fields or the coordinates returned by the texture helpers. Pass
+modified positions to the mapping helpers instead. Members prefixed with `_` and
+the complete struct layout are implementation details.
 
 ### Texture helpers
 
 For a `Texture2D` or a custom texture exposed as a 2D sampler, the resource key
-determines the helper names. A texture registered as `resources={"source": texture}`
-can be sampled with:
+names the sampler and its helpers. A texture registered as
+`resources={"source": texture}` can be sampled with:
 
 ```glsl
 vec4 main(const ngl_FragmentInput frag)
 {
-    return ngl_sample_source(frag);
+    return source_sample(frag);
 }
 ```
 
@@ -312,31 +312,37 @@ There are three coordinate spaces involved in texture sampling:
 - **Texture coordinates** also include the image's coordinate transform. They
   are suitable for passing directly to `ngl_texvideo` or a compatible sampler.
 
-For the resource key `source`, the available overloads are:
+For the resource key `source`, the helpers are:
 
 Function | Coordinate contract
 ---------|--------------------
-`ngl_tex_uv_source(frag)` | Current logical texture UV
-`ngl_tex_uv_source(frag, p)` | Map rectangle UV `p` to logical texture UV
-`ngl_sample_source(frag)` | Sample at the current fragment's texture coordinates
-`ngl_sample_source(frag, uv)` | Sample logical texture UV `uv`, applying the image's coordinate transform
-`ngl_tex_coord_source(frag)` | Current texture coordinates for lower-level sampling
-`ngl_tex_coord_source(frag, p)` | Map rectangle UV `p` directly to texture coordinates
+`source_uv(frag)` | Current logical texture UV
+`source_uv(frag, p)` | Map rectangle UV `p` to logical texture UV
+`source_coord(frag)` | Current texture coordinates
+`source_coord(frag, uv)` | Map logical texture UV `uv` to texture coordinates, applying the image's coordinate transform
+`source_sample(frag)` | Sample at the current texture coordinates
+`source_sample(frag, uv)` | Sample logical texture UV `uv`, applying the image's coordinate transform
 
-The mapping overloads accept **rectangle UVs**; the sampling overload accepts
-**logical texture UVs**. Passing `frag.rect_uv` directly to the sampling overload
-bypasses content and fit/fill mapping while retaining the image's coordinate
-transform. Do not pass the result of `ngl_tex_coord_source` to `ngl_sample_source`:
-that would apply the image's coordinate transform twice.
+`source_uv(frag, p)` accepts **rectangle UVs**; `source_coord(frag, uv)` and
+`source_sample(frag, uv)` accept **logical texture UVs**. Passing `frag.rect_uv`
+directly to them bypasses content and fit/fill mapping while retaining the
+image's coordinate transform. `source_sample(frag, uv)` samples
+`source_coord(frag, uv)` with `ngl_texvideo`: do not pass it the result of
+`source_coord()`, that would apply the image's coordinate transform twice. A
+coordinate belongs to its texture: each one includes its own texture's
+coordinate transform, which can differ from another texture's, such as a render
+target stored upside down. The `<key>_uv`, `<key>_coord` and `<key>_sample`
+names are generated next to the `<key>_coord_matrix` and `<key>_dimensions`
+metadata; do not define functions or variables with these names.
 Helpers can be used from your own functions by passing the fragment input:
 
 ```glsl
 vec4 rotated(const ngl_FragmentInput frag, float angle)
 {
-    vec2 uv = ngl_tex_uv_source(frag);
+    vec2 uv = source_uv(frag);
     float c = cos(angle), s = sin(angle);
     uv = mat2(c, s, -s, c) * (uv - 0.5) + 0.5;
-    return ngl_sample_source(frag, uv);
+    return source_sample(frag, uv);
 }
 
 vec4 main(const ngl_FragmentInput frag)
@@ -352,7 +358,7 @@ before sampling:
 vec4 main(const ngl_FragmentInput frag)
 {
     vec2 p = frag.rect_uv + vec2(0.0, 4.0) / frag.rect_size;
-    return ngl_sample_source(frag, ngl_tex_uv_source(frag, p));
+    return source_sample(frag, source_uv(frag, p));
 }
 ```
 
@@ -360,8 +366,8 @@ vec4 main(const ngl_FragmentInput frag)
 its scaling reference, even if the shader does not sample that texture. Array,
 volume and cube textures are skipped and use their usual sampling interfaces.
 Other eligible textures share the paint's logical UV mapping, with a separate
-coordinate transform for each image. This is why there is no single public
-`frag.tex_coord` field or generic `ngl_tex_coord()` alias.
+coordinate transform for each image, hence the coordinates named after each
+texture.
 
 The helpers do not add clamping or transparent borders: texture sampler settings
 apply. `TexturePaint.wrap="discard"` has a separate logical-image bounds check.
@@ -373,14 +379,14 @@ An `Effect2DShader` receives the same fragment input type. Its rectangle is the
 full effect bounds, including dilation. Both its content UVs and logical texture
 UVs equal `frag.rect_uv`.
 
-The engine provides `ngl_sample_input`, `ngl_tex_uv_input` and
-`ngl_tex_coord_input` with the same overloads as the named texture helpers.
-This entry returns the rendered children unchanged:
+The input is the texture `ngl_input`, with the same helpers as a texture
+resource: `ngl_input_uv()`, `ngl_input_coord()` and `ngl_input_sample()`. This
+entry returns the rendered children unchanged:
 
 ```glsl
 vec4 main(const ngl_FragmentInput frag)
 {
-    return ngl_sample_input(frag);
+    return ngl_input_sample(frag);
 }
 ```
 
@@ -388,11 +394,10 @@ An empty `Effect2DShader.glsl` also passes the children through. Effect and pare
 opacity still apply. `Effect2D.shaders` selects the first shader whose time range
 is active. To apply successive effects, nest `Effect2D` nodes.
 
-For explicit sampling, `ngl_tex_uv_input(frag, p)` equals `p`. The input helpers
-apply the effect's input coordinate transform for you. `frag.rect_size` describes
-the effect bounds in local units; `ngl_input_dimensions` describes the allocated
-texture in pixels. They can differ, so do not use texture dimensions as the
-effect's rectangle size. The lower-level input sampler is named `ngl_input`.
+For explicit sampling, `ngl_input_uv(frag, p)` equals `p`. `frag.rect_size`
+describes the effect bounds in local units; `ngl_input_dimensions` describes the
+allocated texture in pixels. They can differ, so do not use texture dimensions as
+the effect's rectangle size.
 
 Extra textures in `Effect2DShader.resources` have their own image coordinate
 transforms. They use rectangle UVs as their logical UVs and do not inherit the
@@ -426,7 +431,7 @@ The effect input already contains premultiplied colors, so the passthrough
 example uses the effect's default `premult=False`. Likewise, set
 `CustomPaint.premult=False` when returning a sample from an `OffscreenCanvas2D`
 color texture. Multiplying such a color by its alpha again darkens translucent
-pixels. The sampling helpers add no alpha conversion of their own.
+pixels. The texture helpers add no alpha conversion of their own.
 
 ### Multiple outputs
 
@@ -448,9 +453,9 @@ premultiplication code. It cannot be used as a stroke or combined with one.
 ### Source and resource rules
 
 Resource keys must be GLSL identifiers of at most 63 characters, must not start
-with `gl_`, `ngl_` or `ngli_`, and must not equal `main`. Effects also reserve
-`input`. Coordinate names such as `rect_uv`, `rect_px`, `content_uv`, `tex_coord`
-and `canvas_px` are allowed as keys because coordinates are fragment input members.
+with `gl_`, `ngl_` or `ngli_`, and must not equal `main`. Coordinate names such
+as `rect_uv`, `content_uv` and `canvas_px` are allowed as keys because coordinates
+are fragment input members.
 
 `main` is reserved for the literal entry definition and its optional matching
 prototype. Do not generate it with a macro or use it as a variable, field or

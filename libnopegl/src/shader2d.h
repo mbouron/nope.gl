@@ -47,9 +47,10 @@ struct shader2d {
  * an object that owns data. Neither init nor reset allocates GPU resources. */
 void ngli_shader2d_init(struct shader2d *s);
 
-/* Copy a 2D/video texture name, also used as the helper suffix. The caller must
- * register it with pgcraft, which supplies <name>_coord_matrix in both stages.
- * Return 0 on success (including duplicates), or a negative error. */
+/* Copy a 2D/video texture name, also naming its <name>_uv(), <name>_coord()
+ * and <name>_sample() helpers. The caller must register it with pgcraft, which
+ * supplies <name>_coord_matrix in both stages. Return 0 on success (including
+ * duplicates), or a negative error. */
 int ngli_shader2d_add_texture(struct shader2d *s, const char *name);
 
 /*
@@ -66,12 +67,18 @@ int ngli_shader2d_write_builtin(struct bstr *out, const char *source, const char
 int ngli_shader2d_write_source(struct bstr *out, const char *source, const char *entry,
                                bool multiple_outputs, int source_id, const char *label);
 
-/* Append the shared fragment declarations: ngl_FragmentInput, ngl_content_uv,
- * and the named texture helpers. Call after registering all textures and before
+/* Append the shared fragment declarations: ngl_FragmentInput, ngl_content_uv
+ * and the <name>_uv(), <name>_coord() and <name>_sample() helpers of the
+ * registered textures. Call after registering all textures and before
  * appending the shader bodies with write_builtin() or write_source(). */
 void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out);
 
-/* Assign the texture UV members of the caller's local ngl_FragmentInput frag. */
+/* Append the <name>_uv(), <name>_coord() and <name>_sample() helpers of the
+ * built-in texture sampled as name, reading the fragment input's built-in
+ * texture members. Call after write_header(). */
+void ngli_shader2d_write_texture_helpers(struct bstr *out, const char *name);
+
+/* Assign the texture coordinate members of the caller's local ngl_FragmentInput frag. */
 void ngli_shader2d_write_fragment_input_textures(const struct shader2d *s, struct bstr *out,
                                                  const struct shader2d_role *role);
 

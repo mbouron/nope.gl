@@ -151,7 +151,7 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
         "    vec4 _content_lin;\n"
         "    vec2 _content_off;\n");
     for (size_t i = 0; i < s->textures.count; i++)
-        ngli_bstr_printf(out, "    vec2 _%s_uv;\n", s->textures.data[i]);
+        ngli_bstr_printf(out, "    vec2 _%s_coord;\n", s->textures.data[i]);
     ngli_bstr_print(out,
         "};\n"
         "vec2 ngl_content_uv(const ngl_FragmentInput frag, vec2 p) {\n"
@@ -160,21 +160,36 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
     for (size_t i = 0; i < s->textures.count; i++) {
         const char *k = s->textures.data[i];
         ngli_bstr_printf(out,
-            "vec2 ngl_tex_uv_%s(const ngl_FragmentInput frag) { return frag._uv; }\n"
-            "vec2 ngl_tex_uv_%s(const ngl_FragmentInput frag, vec2 p) {\n"
+            "vec2 %s_uv(const ngl_FragmentInput frag) { return frag._uv; }\n"
+            "vec2 %s_uv(const ngl_FragmentInput frag, vec2 p) {\n"
             "    return mat2(frag._lin.xy, frag._lin.zw) * p + frag._off;\n"
             "}\n", k, k);
         ngli_bstr_printf(out,
-            "vec2 ngl_tex_coord_%s(const ngl_FragmentInput frag) { return frag._%s_uv; }\n"
-            "vec2 ngl_tex_coord_%s(const ngl_FragmentInput frag, vec2 p) {\n"
-            "    return (%s_coord_matrix * vec4(ngl_tex_uv_%s(frag, p), 0.0, 1.0)).xy;\n"
-            "}\n", k, k, k, k, k);
+            "vec2 %s_coord(const ngl_FragmentInput frag) { return frag._%s_coord; }\n"
+            "vec2 %s_coord(const ngl_FragmentInput frag, vec2 uv) {\n"
+            "    return (%s_coord_matrix * vec4(uv, 0.0, 1.0)).xy;\n"
+            "}\n", k, k, k, k);
         ngli_bstr_printf(out,
-            "vec4 ngl_sample_%s(const ngl_FragmentInput frag) { return ngl_texvideo(%s, frag._%s_uv); }\n"
-            "vec4 ngl_sample_%s(const ngl_FragmentInput frag, vec2 uv) {\n"
-            "    return ngl_texvideo(%s, (%s_coord_matrix * vec4(uv, 0.0, 1.0)).xy);\n"
-            "}\n", k, k, k, k, k, k);
+            "vec4 %s_sample(const ngl_FragmentInput frag) { return ngl_texvideo(%s, %s_coord(frag)); }\n"
+            "vec4 %s_sample(const ngl_FragmentInput frag, vec2 uv) { return ngl_texvideo(%s, %s_coord(frag, uv)); }\n",
+            k, k, k, k, k, k);
     }
+}
+
+void ngli_shader2d_write_texture_helpers(struct bstr *out, const char *name)
+{
+    ngli_bstr_printf(out,
+        "vec2 %s_uv(const ngl_FragmentInput frag) { return frag._uv; }\n"
+        "vec2 %s_uv(const ngl_FragmentInput frag, vec2 p) {\n"
+        "    return mat2(frag._lin.xy, frag._lin.zw) * p + frag._off;\n"
+        "}\n"
+        "vec2 %s_coord(const ngl_FragmentInput frag) { return frag._coord; }\n"
+        "vec2 %s_coord(const ngl_FragmentInput frag, vec2 uv) {\n"
+        "    return (%s_coord_matrix * vec4(uv, 0.0, 1.0)).xy;\n"
+        "}\n"
+        "vec4 %s_sample(const ngl_FragmentInput frag) { return ngl_texvideo(%s, %s_coord(frag)); }\n"
+        "vec4 %s_sample(const ngl_FragmentInput frag, vec2 uv) { return ngl_texvideo(%s, %s_coord(frag, uv)); }\n",
+        name, name, name, name, name, name, name, name, name, name, name);
 }
 
 void ngli_shader2d_write_fragment_input_textures(const struct shader2d *s, struct bstr *out,
@@ -182,7 +197,7 @@ void ngli_shader2d_write_fragment_input_textures(const struct shader2d *s, struc
 {
     for (size_t i = 0; i < s->textures.count; i++) {
         const char *name = s->textures.data[i];
-        ngli_bstr_printf(out, "    frag._%s_uv = ngli_v_%s_%s_coord;\n", name, role->name, name);
+        ngli_bstr_printf(out, "    frag._%s_coord = ngli_v_%s_%s_coord;\n", name, role->name, name);
     }
 }
 

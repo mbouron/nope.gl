@@ -76,7 +76,7 @@ def _animated_scene():
 
 _SIMPLE_INVERT_SHADER = textwrap.dedent("""
     vec4 main(const ngl_FragmentInput frag) {
-        vec4 color = ngl_sample_input(frag);
+        vec4 color = ngl_input_sample(frag);
         return vec4(1.0 - color.rgb, color.a);
     }
 """)
@@ -118,7 +118,7 @@ def effect2d_grayscale(cfg: ngl.SceneCfg):
             ngl.Effect2DShader(
                 glsl=textwrap.dedent("""
                     vec4 main(const ngl_FragmentInput frag) {
-                        vec4 color = ngl_sample_input(frag);
+                        vec4 color = ngl_input_sample(frag);
                         float lum = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
                         return vec4(lum, lum, lum, color.a);
                     }
@@ -177,7 +177,7 @@ effect2d_enabled = _get_effect2d_enabled_func()
 
 _INVERT_SHADER = textwrap.dedent("""\
     vec4 main(const ngl_FragmentInput frag) {
-        vec4 color = ngl_sample_input(frag);
+        vec4 color = ngl_input_sample(frag);
         if (color.a > 0.0)
             color.rgb /= color.a;
         return vec4(1.0 - color.rgb, color.a);
@@ -186,7 +186,7 @@ _INVERT_SHADER = textwrap.dedent("""\
 
 _GRAYSCALE_SHADER = textwrap.dedent("""\
     vec4 main(const ngl_FragmentInput frag) {
-        vec4 color = ngl_sample_input(frag);
+        vec4 color = ngl_input_sample(frag);
         if (color.a > 0.0)
             color.rgb /= color.a;
         float lum = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -266,7 +266,7 @@ def effect2d_bounds_rect_zero(cfg: ngl.SceneCfg):
 def _get_effect2d_bounds_live_func():
     uv_shader = textwrap.dedent("""
         vec4 main(const ngl_FragmentInput frag) {
-            vec4 color = ngl_sample_input(frag);
+            vec4 color = ngl_input_sample(frag);
             return vec4(frag.rect_uv, 0.0, 1.0) * color.a;
         }
     """)
@@ -352,7 +352,7 @@ def effect2d_shader_premultiplied_passthrough(cfg: ngl.SceneCfg):
     baseline = ngl.Effect2D(children=[_colored_rect(16, 48, 96, 160, color)])
     identity = ngl.Effect2D(
         children=[_colored_rect(144, 48, 96, 160, color)],
-        shaders=[ngl.Effect2DShader(glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_sample_input(frag); }")],
+        shaders=[ngl.Effect2DShader(glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_input_sample(frag); }")],
     )
     bg = _colored_rect(0, 0, W, H, (0.1, 0.1, 0.25, 1.0))
     return _canvas(cfg, bg, baseline, identity)
@@ -468,7 +468,7 @@ _GAUSSIAN_BLUR_H_GLSL = textwrap.dedent("""
         vec4 sum = vec4(0.0);
         for (int x = -radius; x <= radius; x++) {
             float w = kernel.weights[x + radius];
-            sum += ngl_sample_input(frag, ngl_tex_uv_input(frag, frag.rect_uv + vec2(float(x), 0.0) * texel)) * w;
+            sum += ngl_input_sample(frag, frag.rect_uv + vec2(float(x), 0.0) * texel) * w;
         }
         return sum;
     }
@@ -481,7 +481,7 @@ _GAUSSIAN_BLUR_V_GLSL = textwrap.dedent("""
         vec4 sum = vec4(0.0);
         for (int y = -radius; y <= radius; y++) {
             float w = kernel.weights[y + radius];
-            sum += ngl_sample_input(frag, ngl_tex_uv_input(frag, frag.rect_uv + vec2(0.0, float(y)) * texel)) * w;
+            sum += ngl_input_sample(frag, frag.rect_uv + vec2(0.0, float(y)) * texel) * w;
         }
         return sum;
     }
@@ -506,8 +506,8 @@ def effect2d_resource_scene_texture(cfg: ngl.SceneCfg):
             ngl.Effect2DShader(
                 glsl=textwrap.dedent("""
                     vec4 main(const ngl_FragmentInput frag) {
-                        vec4 color = ngl_sample_input(frag);
-                        vec4 tint = ngl_sample_mask(frag);
+                        vec4 color = ngl_input_sample(frag);
+                        vec4 tint = mask_sample(frag);
                         return color * tint;
                     }
                 """),

@@ -434,7 +434,9 @@ def api_range_edits_during_callbacks():
     trf = ngl.TimeRangeFilter(ngl.DrawColor(), start=0, end=1)
     trf2d = ngl.TimeRangeFilter2D(ngl.Group2D(), start=0, end=1)
     shader = ngl.Effect2DShader(
-        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_sample_input(frag); }", start=0, end=1
+        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_input_sample(frag); }",
+        start=0,
+        end=1,
     )
     ranges = [trf, trf2d, shader]
 
@@ -1172,7 +1174,7 @@ def api_paint_fill_and_stroke_shared():
     assert _check_paints(paint, paint) == 0
 
     paint = ngl.CustomPaint(
-        glsl="vec4 main(const ngl_FragmentInput frag) { return ngl_sample_tex(frag) * color; }",
+        glsl="vec4 main(const ngl_FragmentInput frag) { return tex_sample(frag) * color; }",
         resources={"color": ngl.UniformVec4(), "tex": ngl.Texture2D(width=4, height=4)},
     )
     assert _check_paints(paint, paint) == 0

@@ -20,7 +20,6 @@
  */
 
 #include <stddef.h>
-#include <string.h>
 
 #include "internal.h"
 #include "log.h"
@@ -68,10 +67,6 @@ static int effect2dshader_init(struct ngl_node *node)
     if (o->resources) {
         const struct hmap_entry *entry = NULL;
         while ((entry = ngli_hmap_next(o->resources, entry))) {
-            if (!strcmp(entry->key.str, "input")) {
-                LOG(ERROR, "Effect2DShader: resource key \"input\" is reserved for the effect input");
-                return NGL_ERROR_INVALID_USAGE;
-            }
             int ret = ngli_shader2d_check_key(entry->key.str, "Effect2DShader");
             if (ret < 0)
                 return ret;
