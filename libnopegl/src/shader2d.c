@@ -70,16 +70,25 @@ void ngli_shader2d_init(struct shader2d *s)
     *s = (struct shader2d){0};
 }
 
-static int rewrite_entry(struct bstr *out, const char *source, const char *entry)
+#define PAINT_TEXTURE "ngl_texture"
+
+static int rewrite_source(struct bstr *out, const char *source, const char *entry, const char *texture)
 {
     struct ngli_glsl_lexer *lexer = ngli_glsl_lexer_create(source);
     const char *segment = source;
     struct ngli_glsl_token token;
+    const size_t texture_len = strlen(PAINT_TEXTURE);
     while (ngli_glsl_lexer_next(lexer, &token)) {
-        if (token.directive || strcmp(token.text, "main"))
+        const bool is_entry = !token.directive && !strcmp(token.text, "main");
+        const bool is_texture = texture && !strncmp(token.text, PAINT_TEXTURE, texture_len) &&
+                                (!token.text[texture_len] || token.text[texture_len] == '_');
+        if (!is_entry && !is_texture)
             continue;
         ngli_bstr_write(out, segment, (size_t)(token.start - segment));
-        ngli_bstr_print(out, entry);
+        if (is_entry)
+            ngli_bstr_print(out, entry);
+        else
+            ngli_bstr_printf(out, "%s%s", texture, token.text + texture_len);
         for (size_t i = 0; i < token.spliced_lines; i++)
             ngli_bstr_print(out, "\\\n");
         segment = token.end;
@@ -106,18 +115,18 @@ int ngli_shader2d_write_builtin(struct bstr *out, const char *source, const char
     ngli_bstr_print(expanded, segment);
     int ret = ngli_bstr_check(expanded);
     if (ret >= 0)
-        ret = rewrite_entry(out, ngli_bstr_strptr(expanded), entry);
+        ret = rewrite_source(out, ngli_bstr_strptr(expanded), entry, NULL);
     ngli_bstr_freep(&expanded);
     return ret;
 }
 
 int ngli_shader2d_write_source(struct bstr *out, const char *source, const char *entry,
-                               bool multiple_outputs, int source_id, const char *label)
+                               const char *texture, bool multiple_outputs, int source_id, const char *label)
 {
     ngli_bstr_printf(out, "%s %s(const ngl_FragmentInput frag);\n", multiple_outputs ? "void" : "vec4", entry);
     LOG(DEBUG, "GLSL source %d: %s", source_id, label);
     ngli_bstr_printf(out, "#line 1 %d\n", source_id);
-    int ret = rewrite_entry(out, source, entry);
+    int ret = rewrite_source(out, source, entry, texture);
     ngli_bstr_print(out, "\n#line 1 0\n");
     return ret;
 }
@@ -159,11 +168,6 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
         "}\n");
     for (size_t i = 0; i < s->textures.count; i++) {
         const char *k = s->textures.data[i];
-        ngli_bstr_printf(out,
-            "vec2 %s_uv(const ngl_FragmentInput frag) { return frag._uv; }\n"
-            "vec2 %s_uv(const ngl_FragmentInput frag, vec2 p) {\n"
-            "    return mat2(frag._lin.xy, frag._lin.zw) * p + frag._off;\n"
-            "}\n", k, k);
         ngli_bstr_printf(out,
             "vec2 %s_coord(const ngl_FragmentInput frag) { return frag._%s_coord; }\n"
             "vec2 %s_coord(const ngl_FragmentInput frag, vec2 uv) {\n"

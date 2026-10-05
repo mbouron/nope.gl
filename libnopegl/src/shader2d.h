@@ -33,7 +33,7 @@ int ngli_shader2d_check_key(const char *key, const char *label);
 
 struct shader2d_role {
     const char *name; /* Suffix used in generated varying names */
-    const char *uv;   /* Vertex expression for the role's logical texture UV */
+    const char *uv;   /* Vertex expression for the rect UV the resource textures cover */
 };
 
 /* Owns copied texture names and generated varying declarations.
@@ -47,8 +47,8 @@ struct shader2d {
  * an object that owns data. Neither init nor reset allocates GPU resources. */
 void ngli_shader2d_init(struct shader2d *s);
 
-/* Copy a 2D/video texture name, also naming its <name>_uv(), <name>_coord()
- * and <name>_sample() helpers. The caller must register it with pgcraft, which
+/* Copy a 2D/video texture name, also naming its <name>_coord() and
+ * <name>_sample() helpers. The caller must register it with pgcraft, which
  * supplies <name>_coord_matrix in both stages. Return 0 on success (including
  * duplicates), or a negative error. */
 int ngli_shader2d_add_texture(struct shader2d *s, const char *name);
@@ -62,15 +62,17 @@ int ngli_shader2d_add_texture(struct shader2d *s, const char *name);
 int ngli_shader2d_write_builtin(struct bstr *out, const char *source, const char *entry, const char *prefix);
 
 /* Append user GLSL with an entry prototype (vec4, or void for multiple outputs)
- * and #line directives using source_id. Log label for diagnostics; it is never
+ * and #line directives using source_id. With a texture name, the paint texture
+ * identifiers (ngl_texture and its ngl_texture_* metadata) are renamed to it,
+ * preprocessor directives included. Log label for diagnostics; it is never
  * inserted into the GLSL source. */
 int ngli_shader2d_write_source(struct bstr *out, const char *source, const char *entry,
-                               bool multiple_outputs, int source_id, const char *label);
+                               const char *texture, bool multiple_outputs, int source_id, const char *label);
 
 /* Append the shared fragment declarations: ngl_FragmentInput, ngl_content_uv
- * and the <name>_uv(), <name>_coord() and <name>_sample() helpers of the
- * registered textures. Call after registering all textures and before
- * appending the shader bodies with write_builtin() or write_source(). */
+ * and the <name>_coord() and <name>_sample() helpers of the registered
+ * textures. Call after registering all textures and before appending the shader
+ * bodies with write_builtin() or write_source(). */
 void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out);
 
 /* Append the <name>_uv(), <name>_coord() and <name>_sample() helpers of the

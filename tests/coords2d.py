@@ -57,7 +57,7 @@ _CANVAS_PX = "vec4(frag.canvas_px / 256.0, 0.5 * (fract(frag.canvas_px.x) + frac
 @test_render()
 @ngl.scene(width=4 * T, height=2 * T)
 def coords2d_paint_inputs(cfg: ngl.SceneCfg):
-    """Coordinates exposed to paint shaders: rect_uv, rect_size, canvas_px, content_uv and tex_coord().
+    """Coordinates exposed to paint shaders: rect_uv, rect_size, canvas_px, content_uv and the paint texture's.
 
     Also checks that content transforms affect the fill coordinates but not the stroke coordinates.
     """
@@ -86,16 +86,16 @@ def coords2d_paint_inputs(cfg: ngl.SceneCfg):
     tex_coord_fill = ngl.DrawRect2D(
         rect=_tile(1, 1),
         fill=_paint(
-            "vec4(tex_coord(frag), 0.0, 1.0)",
-            resources={"tex": ngl.Texture2D(width=2 * T, height=T)},
+            "vec4(ngl_texture_coord(frag), 0.0, 1.0)",
+            texture=ngl.Texture2D(width=2 * T, height=T),
             scaling="fill",
         ),
     )
     tex_coord_func = ngl.DrawRect2D(
         rect=_tile(2, 1),
         fill=_paint(
-            "vec4(tex_coord(frag, tex_uv(frag, frag.rect_uv)), 0.0, 1.0)",
-            resources={"tex": ngl.Texture2D(width=2 * T, height=T)},
+            "vec4(ngl_texture_coord(frag, ngl_texture_uv(frag, frag.rect_uv)), 0.0, 1.0)",
+            texture=ngl.Texture2D(width=2 * T, height=T),
             scaling="fill",
         ),
         content_zoom=content_zoom,
@@ -145,7 +145,7 @@ def _pattern_rect(col: int, row: int, **kwargs) -> ngl.DrawRect2D:
 
 _TEX_COORD_AT_RECT_UV = textwrap.dedent("""\
     vec4 main(const ngl_FragmentInput frag) {
-        return ngl_texvideo(tex, tex_coord(frag, tex_uv(frag, frag.rect_uv)));
+        return ngl_texvideo(tex, tex_coord(frag, frag.rect_uv));
     }
 """)
 
@@ -160,7 +160,7 @@ def coords2d_paint_sampling(cfg: ngl.SceneCfg):
     shift = (16 / T, 8 / T)
     tex_coord_step = textwrap.dedent(f"""\
         vec4 main(const ngl_FragmentInput frag) {{
-            vec2 step_tc = tex_coord(frag, tex_uv(frag, frag.rect_uv + vec2({shift[0]}, {shift[1]}))) - tex_coord(frag);
+            vec2 step_tc = tex_coord(frag, frag.rect_uv + vec2({shift[0]}, {shift[1]})) - tex_coord(frag);
             return ngl_texvideo(tex, tex_coord(frag) + step_tc);
         }}
     """)
@@ -185,7 +185,7 @@ def coords2d_paint_sampling(cfg: ngl.SceneCfg):
         ngl.DrawRect2D(rect=_tile(1, 1), fill=ngl.TexturePaint(texture=texture), content_translate=shift),
         ngl.DrawRect2D(
             rect=_tile(2, 1),
-            fill=_paint("tex_sample(frag)", resources={"tex": texture}),
+            fill=_paint("ngl_texture_sample(frag)", texture=texture),
             content_translate=shift,
         ),
         ngl.DrawRect2D(rect=_tile(3, 1), fill=ngl.CustomPaint(glsl=tex_coord_step, resources={"tex": texture})),

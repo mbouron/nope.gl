@@ -189,16 +189,10 @@ static bool is_2d_texture(const struct ngl_node *node)
     return type == NGPU_PGCRAFT_TEXTURE_TYPE_2D || type == NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO;
 }
 
+/* The texture a paint shows: TexturePaint.texture or CustomPaint.texture */
 static const struct ngl_node *get_scaling_texture(const struct paint_info *paint)
 {
-    if (paint->texture)
-        return paint->texture;
-    for (size_t i = 0; i < paint->custom_textures.count; i++) {
-        const struct ngl_node *node = paint->custom_textures.data[i].texture_node;
-        if (is_2d_texture(node))
-            return node;
-    }
-    return NULL;
+    return paint->texture;
 }
 
 static void get_texture_uv_transform(const struct paint_info *paint, float *dst)
@@ -460,8 +454,8 @@ static int register_image_sources(struct drawrect2d_priv *s)
 }
 
 static const struct shader2d_role shader_roles[] = {
-    [PAINT_SHADER_ROLE_FILL]   = {.name = "fill",   .uv = "ngli_v_fill_uv"},
-    [PAINT_SHADER_ROLE_STROKE] = {.name = "stroke", .uv = "ngli_v_stroke_uv"},
+    [PAINT_SHADER_ROLE_FILL]   = {.name = "fill",   .uv = "ngli_v_rect_uv"},
+    [PAINT_SHADER_ROLE_STROKE] = {.name = "stroke", .uv = "ngli_v_rect_uv"},
 };
 
 static void write_fragment_input(const struct drawrect2d_priv *s, struct bstr *b,
@@ -551,6 +545,10 @@ static int drawrect2d_init(struct ngl_node *node)
     ngli_shader2d_write_header(&s->shader, bstr);
     write_fragment_input(s, bstr, &shader_roles[PAINT_SHADER_ROLE_FILL], fill_paint->custom);
     write_fragment_input(s, bstr, &shader_roles[PAINT_SHADER_ROLE_STROKE], stroke_paint && stroke_paint->custom);
+    if (fill_paint->texture)
+        ngli_shader2d_write_texture_helpers(bstr, paint_texture_names[PAINT_SHADER_ROLE_FILL]);
+    if (stroke_paint && stroke_paint->texture)
+        ngli_shader2d_write_texture_helpers(bstr, paint_texture_names[PAINT_SHADER_ROLE_STROKE]);
     const uint32_t all_helper_flags = fill_paint->helper_flags | (stroke_paint ? stroke_paint->helper_flags : 0);
     if (all_helper_flags & PAINT_HELPER_MISC_UTILS) ngli_bstr_print(bstr, helper_misc_utils_glsl);
     if (all_helper_flags & PAINT_HELPER_NOISE)      ngli_bstr_print(bstr, helper_noise_glsl);
@@ -561,6 +559,7 @@ static int drawrect2d_init(struct ngl_node *node)
         ngli_bstr_print(bstr, "void main() { ngli_colors(ngli_fill_fragment_input()); }\n");
     } else if (ret >= 0) {
         if (stroke_paint && fill_paint->custom && stroke_paint->custom &&
+            fill_paint->texture == stroke_paint->texture &&
             !strcmp(fill_paint->glsl, stroke_paint->glsl)) {
             ngli_bstr_print(bstr, "vec4 ngli_stroke(const ngl_FragmentInput frag) { return ngli_color(frag); }\n");
         } else if (stroke_paint) {

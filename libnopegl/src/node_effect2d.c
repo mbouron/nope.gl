@@ -548,7 +548,7 @@ static int add_program(struct ngl_node *node, const char *glsl,
     }
     ngli_shader2d_write_header(&program.shader, bstr);
     ngli_shader2d_write_texture_helpers(bstr, "ngl_texture");
-    ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", false, 3, source_label);
+    ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", NULL, false, 3, source_label);
     if (ret < 0) {
         ngli_bstr_freep(&bstr);
         reset_program(&program);
