@@ -453,15 +453,8 @@ static int register_image_sources(struct drawrect2d_priv *s)
     return 0;
 }
 
-static const struct shader2d_role shader_roles[] = {
-    [PAINT_SHADER_ROLE_FILL]   = {.name = "fill",   .uv = "ngli_v_rect_uv"},
-    [PAINT_SHADER_ROLE_STROKE] = {.name = "stroke", .uv = "ngli_v_rect_uv"},
-};
-
-static void write_fragment_input(const struct drawrect2d_priv *s, struct bstr *b,
-                                   const struct shader2d_role *shader_role, bool custom)
+static void write_fragment_input(struct bstr *b, const char *role)
 {
-    const char *role = shader_role->name;
     const bool fill = !strcmp(role, "fill");
     const char *content_uv = fill ? "ngli_v_content_uv" : "ngli_v_rect_uv";
     const char *content_lin = fill ? "ngli_content_uv_lin" : "vec4(1.0, 0.0, 0.0, 1.0)";
@@ -478,8 +471,6 @@ static void write_fragment_input(const struct drawrect2d_priv *s, struct bstr *b
                         "    frag._off = ngli_%s_uv_off.xy;\n", role, role, role, role);
     ngli_bstr_printf(b, "    frag._content_lin = %s;\n"
                         "    frag._content_off = %s;\n", content_lin, content_off);
-    if (custom)
-        ngli_shader2d_write_fragment_input_textures(&s->shader, b, shader_role);
     ngli_bstr_print(b, "    return frag;\n}\n");
 }
 
@@ -543,8 +534,8 @@ static int drawrect2d_init(struct ngl_node *node)
     if (!bstr)
         return NGL_ERROR_MEMORY;
     ngli_shader2d_write_header(&s->shader, bstr);
-    write_fragment_input(s, bstr, &shader_roles[PAINT_SHADER_ROLE_FILL], fill_paint->custom);
-    write_fragment_input(s, bstr, &shader_roles[PAINT_SHADER_ROLE_STROKE], stroke_paint && stroke_paint->custom);
+    write_fragment_input(bstr, "fill");
+    write_fragment_input(bstr, "stroke");
     if (fill_paint->texture)
         ngli_shader2d_write_texture_helpers(bstr, paint_texture_names[PAINT_SHADER_ROLE_FILL]);
     if (stroke_paint && stroke_paint->texture)
@@ -913,12 +904,6 @@ static int drawrect2d_init(struct ngl_node *node)
         {.name = "ngli_v_stroke_uv",     .type = NGPU_TYPE_VEC2},
     };
 
-    struct shader2d_role roles[PAINT_SHADER_ROLE_NB];
-    size_t role_count = 0;
-    if (fill_paint->custom)
-        roles[role_count++] = shader_roles[PAINT_SHADER_ROLE_FILL];
-    if (stroke_paint && stroke_paint->custom)
-        roles[role_count++] = shader_roles[PAINT_SHADER_ROLE_STROKE];
     struct bstr *vert = ngli_bstr_create();
     if (!vert) {
         ngli_darray_reset(&textures);
@@ -926,7 +911,7 @@ static int drawrect2d_init(struct ngl_node *node)
         return NGL_ERROR_MEMORY;
     }
     ret = ngli_shader2d_write_vertex(&s->shader, vert, drawrect_vert,
-                                     vert_out_vars, NGLI_ARRAY_NB(vert_out_vars), roles, role_count);
+                                     vert_out_vars, NGLI_ARRAY_NB(vert_out_vars), "ngli_v_rect_uv");
     if (ret < 0) {
         ngli_bstr_freep(&vert);
         ngli_darray_reset(&textures);

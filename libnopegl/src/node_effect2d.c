@@ -498,8 +498,6 @@ static void reset_program(struct effect2d_program *program)
     ngpu_block_desc_reset(&program->user_block_desc);
 }
 
-static const struct shader2d_role shader_role = {.name = "effect", .uv = "ngli_v_rect_uv"};
-
 static const char passthrough_glsl[] =
     "vec4 main(const ngl_FragmentInput frag) { return ngl_texture_sample(frag); }\n";
 
@@ -561,12 +559,11 @@ static int add_program(struct ngl_node *node, const char *glsl,
                          "    frag.content_uv = ngli_v_rect_uv;\n"
                          "    frag.canvas_px = ngli_v_canvas_px;\n"
                          "    frag._uv = ngli_v_rect_uv;\n"
-                         "    frag._coord = ngli_v_tex_coord;\n"
+                         "    frag._coord = ngli_v_coord;\n"
                          "    frag._lin = vec4(1.0, 0.0, 0.0, 1.0);\n"
                          "    frag._off = vec2(0.0);\n"
                          "    frag._content_lin = frag._lin;\n"
                          "    frag._content_off = vec2(0.0);\n");
-    ngli_shader2d_write_fragment_input_textures(&program.shader, bstr, &shader_role);
     ngli_bstr_print(bstr, "    vec4 color = ngli_effect(frag);\n");
     if (premult)
         ngli_bstr_printf(bstr, "    color.rgb *= color.a;\n");
@@ -789,7 +786,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
         {.name = "ngli_v_rect_uv",   .type = NGPU_TYPE_VEC2},
         {.name = "ngli_v_rect_px",   .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_v_tex_coord", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_coord",     .type = NGPU_TYPE_VEC2},
         {.name = "ngli_v_canvas_px", .type = NGPU_TYPE_VEC2},
     };
 
@@ -800,7 +797,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         return NGL_ERROR_MEMORY;
     }
     ret = ngli_shader2d_write_vertex(&program->shader, vert, effect2d_composite_vert,
-                                     vert_out_vars, NGLI_ARRAY_NB(vert_out_vars), &shader_role, 1);
+                                     vert_out_vars, NGLI_ARRAY_NB(vert_out_vars), "ngli_v_rect_uv");
     if (ret < 0) {
         ngli_bstr_freep(&vert);
         ngli_darray_reset(&textures);

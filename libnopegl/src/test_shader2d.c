@@ -47,37 +47,31 @@ static int test_assembly(void)
     CHECK(out);
     ngli_shader2d_write_header(&shader, out);
     const char *header = ngli_bstr_strptr(out);
-    CHECK(strstr(header, "vec2 source_coord(const ngl_FragmentInput frag) { return frag._source_coord; }"));
+    CHECK(strstr(header, "vec2 source_coord(const ngl_FragmentInput frag) { return ngli_v_source_coord; }"));
     CHECK(strstr(header, "(source_coord_matrix * vec4(uv, 0.0, 1.0)).xy"));
     CHECK(strstr(header, "{ return ngl_texvideo(source, source_coord(frag)); }"));
     CHECK(strstr(header, "{ return ngl_texvideo(source, source_coord(frag, uv)); }"));
-
-    const struct shader2d_role roles[] = {
-        {.name = "front", .uv = "front_uv"},
-        {.name = "back",  .uv = "back_uv"},
-    };
-    ngli_bstr_clear(out);
-    ngli_shader2d_write_fragment_input_textures(&shader, out, &roles[1]);
-    CHECK(!strcmp(ngli_bstr_strptr(out), "    frag._source_coord = ngli_v_back_source_coord;\n"));
+    /* The fragment input layout does not depend on the textures */
+    CHECK(strstr(header, "    vec2 _content_off;\n};\n"));
 
     const struct ngpu_pgcraft_iovar vars[] = {
-        {.name = "front_uv", .type = NGPU_TYPE_VEC2},
+        {.name = "rect_uv", .type = NGPU_TYPE_VEC2},
     };
     ngli_bstr_clear(out);
     ngli_bstr_print(out, "// caller prefix\n");
-    CHECK(ngli_shader2d_write_vertex(&shader, out, "void ngli_vertex() {}\n", vars, 1, roles, 2) == 0);
+    CHECK(ngli_shader2d_write_vertex(&shader, out, "void ngli_vertex() {}\n", vars, 1, "rect_uv") == 0);
     CHECK(!strncmp(ngli_bstr_strptr(out), "// caller prefix\n", strlen("// caller prefix\n")));
-    CHECK(shader.varyings.count == 3);
-    CHECK(!strcmp(shader.varyings.data[0].name, "front_uv"));
-    CHECK(strstr(ngli_bstr_strptr(out), "ngli_v_front_source_coord = (source_coord_matrix * vec4(front_uv, 0.0, 1.0)).xy"));
-    CHECK(strstr(ngli_bstr_strptr(out), "ngli_v_back_source_coord = (source_coord_matrix * vec4(back_uv, 0.0, 1.0)).xy"));
-    ngli_bstr_clear(out);
-    CHECK(ngli_shader2d_write_vertex(&shader, out, "void ngli_vertex() {}\n", vars, 1, roles, 1) == 0);
     CHECK(shader.varyings.count == 2);
-    CHECK(!strstr(ngli_bstr_strptr(out), "ngli_v_back_source_coord"));
+    CHECK(!strcmp(shader.varyings.data[0].name, "rect_uv"));
+    CHECK(!strcmp(shader.varyings.data[1].name, "ngli_v_source_coord"));
+    CHECK(strstr(ngli_bstr_strptr(out), "ngli_v_source_coord = (source_coord_matrix * vec4(rect_uv, 0.0, 1.0)).xy"));
+    /* The declarations are rebuilt, not appended */
+    ngli_bstr_clear(out);
+    CHECK(ngli_shader2d_write_vertex(&shader, out, "void ngli_vertex() {}\n", vars, 1, "rect_uv") == 0);
+    CHECK(shader.varyings.count == 2);
     ngli_shader2d_reset(&shader);
     CHECK(!shader.textures.count && !shader.varyings.count);
-    CHECK(strstr(ngli_bstr_strptr(out), "ngli_v_front_source_coord"));
+    CHECK(strstr(ngli_bstr_strptr(out), "ngli_v_source_coord"));
     ngli_bstr_freep(&out);
     CHECK(ngli_shader2d_add_texture(&shader, "source") == 0);
     CHECK(shader.textures.count == 1);
