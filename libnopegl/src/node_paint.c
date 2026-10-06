@@ -262,9 +262,9 @@ static const struct param_choices texturepaint_scaling_choices = {
 
 static const char texturepaint_glsl[] =
     "vec4 main(const ngl_FragmentInput frag) {\n"
-    "    if ($content_wrap == 1 && (any(lessThan($uv, vec2(0.0))) || any(greaterThan($uv, vec2(1.0)))))\n"
+    "    if ($content_wrap == 1 && (any(lessThan(frag._uv, vec2(0.0))) || any(greaterThan(frag._uv, vec2(1.0)))))\n"
     "        return vec4(0.0);\n"
-    "    return ngl_texvideo($tex, $tex_uv);\n"
+    "    return ngl_texvideo($tex, frag._coord);\n"
     "}\n";
 
 static int texturepaint_init(struct ngl_node *node)

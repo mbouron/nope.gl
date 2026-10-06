@@ -145,6 +145,7 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
         "    vec2 content_uv;\n"
         "    vec2 canvas_px;\n"
         "    vec2 _uv;\n"
+        "    vec2 _coord;\n"
         "    vec4 _lin;\n"
         "    vec2 _off;\n"
         "    vec4 _content_lin;\n"
@@ -181,7 +182,7 @@ void ngli_shader2d_write_fragment_input_textures(const struct shader2d *s, struc
 {
     for (size_t i = 0; i < s->textures.count; i++) {
         const char *name = s->textures.data[i];
-        ngli_bstr_printf(out, "    frag._%s_uv = ngli_s2d_%s_%s;\n", name, role->name, name);
+        ngli_bstr_printf(out, "    frag._%s_uv = ngli_v_%s_%s_coord;\n", name, role->name, name);
     }
 }
 
@@ -200,7 +201,7 @@ int ngli_shader2d_write_vertex(struct shader2d *s, struct bstr *out, const char 
         const char *name = s->textures.data[i];
         for (size_t j = 0; j < role_count; j++) {
             struct ngpu_pgcraft_iovar var = {.type = NGPU_TYPE_VEC2};
-            snprintf(var.name, sizeof(var.name), "ngli_s2d_%s_%s", roles[j].name, name);
+            snprintf(var.name, sizeof(var.name), "ngli_v_%s_%s_coord", roles[j].name, name);
             int ret = ngli_darray_try_push(&s->varyings, var);
             if (ret < 0)
                 return ret;

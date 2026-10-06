@@ -503,7 +503,7 @@ static void reset_program(struct effect2d_program *program)
     ngpu_block_desc_reset(&program->user_block_desc);
 }
 
-static const struct shader2d_role shader_role = {.name = "effect", .uv = "ngli_rect_uv"};
+static const struct shader2d_role shader_role = {.name = "effect", .uv = "ngli_v_rect_uv"};
 
 /* The input mapping includes the effect's sampling correction in addition to
  * the image's coordinates. Use the transform already uploaded by Effect2D. */
@@ -512,11 +512,11 @@ static void write_input_helpers(struct bstr *out)
     ngli_bstr_print(out,
         "vec2 ngl_tex_uv_input(const ngl_FragmentInput frag) { return frag.rect_uv; }\n"
         "vec2 ngl_tex_uv_input(const ngl_FragmentInput frag, vec2 p) { return p; }\n"
-        "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag) { return ngli_tex_coord; }\n"
+        "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag) { return ngli_v_tex_coord; }\n"
         "vec2 ngl_tex_coord_input(const ngl_FragmentInput frag, vec2 p) {\n"
         "    return p * ngli_input_scale + ngli_input_offset;\n"
         "}\n"
-        "vec4 ngl_sample_input(const ngl_FragmentInput frag) { return ngl_texvideo(ngl_input, ngli_tex_coord); }\n"
+        "vec4 ngl_sample_input(const ngl_FragmentInput frag) { return ngl_texvideo(ngl_input, ngli_v_tex_coord); }\n"
         "vec4 ngl_sample_input(const ngl_FragmentInput frag, vec2 uv) {\n"
         "    return ngl_texvideo(ngl_input, uv * ngli_input_scale + ngli_input_offset);\n"
         "}\n");
@@ -571,11 +571,12 @@ static int add_program(struct ngl_node *node, const char *glsl,
         }
         ngli_bstr_print(bstr, "void main() {\n"
                              "    ngl_FragmentInput frag;\n"
-                             "    frag.rect_uv = ngli_rect_uv;\n"
+                             "    frag.rect_uv = ngli_v_rect_uv;\n"
                              "    frag.rect_size = ngli_effect_size;\n"
-                             "    frag.content_uv = ngli_rect_uv;\n"
-                             "    frag.canvas_px = ngli_canvas_px;\n"
-                             "    frag._uv = ngli_rect_uv;\n"
+                             "    frag.content_uv = ngli_v_rect_uv;\n"
+                             "    frag.canvas_px = ngli_v_canvas_px;\n"
+                             "    frag._uv = ngli_v_rect_uv;\n"
+                             "    frag._coord = ngli_v_tex_coord;\n"
                              "    frag._lin = vec4(1.0, 0.0, 0.0, 1.0);\n"
                              "    frag._off = vec2(0.0);\n"
                              "    frag._content_lin = frag._lin;\n"
@@ -808,10 +809,10 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     }
 
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {.name = "ngli_rect_uv",   .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_rect_px",   .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_tex_coord", .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_canvas_px", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_rect_uv",   .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_rect_px",   .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_tex_coord", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_canvas_px", .type = NGPU_TYPE_VEC2},
     };
 
     struct bstr *vert = ngli_bstr_create();

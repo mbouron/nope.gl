@@ -21,6 +21,6 @@
 
 void main()
 {
-    vec4 color = ngl_texvideo(ngl_input, ngli_tex_coord);
+    vec4 color = ngl_texvideo(ngl_input, ngli_v_tex_coord);
     ngl_out_color = color * opacity;
 }

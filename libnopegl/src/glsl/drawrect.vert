@@ -38,14 +38,14 @@ void ngli_vertex()
     vec2 local_pos = ngli_rect.xy + uvcoord * ngli_rect.zw + dir * ngli_margin_px;
     vec4 canvas_pos = ngli_modelview_matrix * vec4(local_pos, 0.0, 1.0);
     ngl_out_pos = ngli_projection_matrix * canvas_pos;
-    ngli_clip_pos = canvas_pos.xy;
+    ngli_v_clip_pos = canvas_pos.xy;
 
     /* Match the geometry dilation for both coverage and public coordinates. */
     vec2 rect_uv = uvcoord + dir * ngli_margin_uv;
-    ngli_rect_uv = rect_uv;
+    ngli_v_rect_uv = rect_uv;
     ngli_v_content_uv = ngli_map_coord(ngli_vert_content_uv_lin, ngli_vert_content_uv_off, rect_uv);
-    ngli_fill_uv = ngli_map_coord(ngli_vert_fill_uv_lin, ngli_vert_fill_uv_off, rect_uv);
-    ngli_stroke_uv = ngli_map_coord(ngli_vert_stroke_uv_lin, ngli_vert_stroke_uv_off, rect_uv);
-    ngli_fill_tex_uv = ngli_map_coord(ngli_vert_fill_tex_uv_lin, ngli_vert_fill_tex_uv_off, rect_uv);
-    ngli_stroke_tex_uv = ngli_map_coord(ngli_vert_stroke_tex_uv_lin, ngli_vert_stroke_tex_uv_off, rect_uv);
+    ngli_v_fill_uv = ngli_map_coord(ngli_vert_fill_uv_lin, ngli_vert_fill_uv_off, rect_uv);
+    ngli_v_stroke_uv = ngli_map_coord(ngli_vert_stroke_uv_lin, ngli_vert_stroke_uv_off, rect_uv);
+    ngli_v_fill_tex_uv = ngli_map_coord(ngli_vert_fill_tex_uv_lin, ngli_vert_fill_tex_uv_off, rect_uv);
+    ngli_v_stroke_tex_uv = ngli_map_coord(ngli_vert_stroke_tex_uv_lin, ngli_vert_stroke_tex_uv_off, rect_uv);
 }
