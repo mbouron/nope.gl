@@ -158,10 +158,7 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
         "    vec4 _lin;\n"
         "    vec2 _off;\n"
         "    vec4 _content_lin;\n"
-        "    vec2 _content_off;\n");
-    for (size_t i = 0; i < s->textures.count; i++)
-        ngli_bstr_printf(out, "    vec2 _%s_coord;\n", s->textures.data[i]);
-    ngli_bstr_print(out,
+        "    vec2 _content_off;\n"
         "};\n"
         "vec2 ngl_content_uv(const ngl_FragmentInput frag, vec2 p) {\n"
         "    return mat2(frag._content_lin.xy, frag._content_lin.zw) * p + frag._content_off;\n"
@@ -169,7 +166,7 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
     for (size_t i = 0; i < s->textures.count; i++) {
         const char *k = s->textures.data[i];
         ngli_bstr_printf(out,
-            "vec2 %s_coord(const ngl_FragmentInput frag) { return frag._%s_coord; }\n"
+            "vec2 %s_coord(const ngl_FragmentInput frag) { return ngli_v_%s_coord; }\n"
             "vec2 %s_coord(const ngl_FragmentInput frag, vec2 uv) {\n"
             "    return (%s_coord_matrix * vec4(uv, 0.0, 1.0)).xy;\n"
             "}\n", k, k, k, k);
@@ -196,18 +193,9 @@ void ngli_shader2d_write_texture_helpers(struct bstr *out, const char *name)
         name, name, name, name, name, name, name, name, name, name, name);
 }
 
-void ngli_shader2d_write_fragment_input_textures(const struct shader2d *s, struct bstr *out,
-                                                 const struct shader2d_role *role)
-{
-    for (size_t i = 0; i < s->textures.count; i++) {
-        const char *name = s->textures.data[i];
-        ngli_bstr_printf(out, "    frag._%s_coord = ngli_v_%s_%s_coord;\n", name, role->name, name);
-    }
-}
-
 int ngli_shader2d_write_vertex(struct shader2d *s, struct bstr *out, const char *base,
                                const struct ngpu_pgcraft_iovar *vars, size_t var_count,
-                               const struct shader2d_role *roles, size_t role_count)
+                               const char *uv)
 {
     ngli_darray_reset(&s->varyings);
     for (size_t i = 0; i < var_count; i++) {
@@ -218,15 +206,12 @@ int ngli_shader2d_write_vertex(struct shader2d *s, struct bstr *out, const char 
     ngli_bstr_print(out, "\nvoid main() {\n    ngli_vertex();\n");
     for (size_t i = 0; i < s->textures.count; i++) {
         const char *name = s->textures.data[i];
-        for (size_t j = 0; j < role_count; j++) {
-            struct ngpu_pgcraft_iovar var = {.type = NGPU_TYPE_VEC2};
-            snprintf(var.name, sizeof(var.name), "ngli_v_%s_%s_coord", roles[j].name, name);
-            int ret = ngli_darray_try_push(&s->varyings, var);
-            if (ret < 0)
-                return ret;
-            ngli_bstr_printf(out, "    %s = (%s_coord_matrix * vec4(%s, 0.0, 1.0)).xy;\n",
-                             var.name, name, roles[j].uv);
-        }
+        struct ngpu_pgcraft_iovar var = {.type = NGPU_TYPE_VEC2};
+        snprintf(var.name, sizeof(var.name), "ngli_v_%s_coord", name);
+        int ret = ngli_darray_try_push(&s->varyings, var);
+        if (ret < 0)
+            return ret;
+        ngli_bstr_printf(out, "    %s = (%s_coord_matrix * vec4(%s, 0.0, 1.0)).xy;\n", var.name, name, uv);
     }
     ngli_bstr_print(out, "}\n");
     return ngli_bstr_check(out);

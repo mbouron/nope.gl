@@ -31,11 +31,6 @@ struct bstr;
 
 int ngli_shader2d_check_key(const char *key, const char *label);
 
-struct shader2d_role {
-    const char *name; /* Suffix used in generated varying names */
-    const char *uv;   /* Vertex expression for the rect UV the resource textures cover */
-};
-
 /* Owns copied texture names and generated varying declarations.
  * Callers manage the corresponding resources and bindings. */
 struct shader2d {
@@ -80,17 +75,14 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out);
  * texture members. Call after write_header(). */
 void ngli_shader2d_write_texture_helpers(struct bstr *out, const char *name);
 
-/* Assign the texture coordinate members of the caller's local ngl_FragmentInput frag. */
-void ngli_shader2d_write_fragment_input_textures(const struct shader2d *s, struct bstr *out,
-                                                 const struct shader2d_role *role);
-
-/* Append base and a main() that calls ngli_vertex() and assigns texture varyings.
- * Each role's uv expression must be valid after ngli_vertex(). Rebuild s->varyings
- * from a copy of vars followed by the generated declarations. The caller owns out;
- * s owns the declarations until the next write_vertex() or reset. */
+/* Append base and a main() that calls ngli_vertex() and assigns texture varyings
+ * from uv, the vertex expression for the rect UV the textures cover, valid after
+ * ngli_vertex(). Rebuild s->varyings from a copy of vars followed by the generated
+ * declarations. The caller owns out; s owns the declarations until the next
+ * write_vertex() or reset. */
 int ngli_shader2d_write_vertex(struct shader2d *s, struct bstr *out, const char *base,
                                const struct ngpu_pgcraft_iovar *vars, size_t var_count,
-                               const struct shader2d_role *roles, size_t role_count);
+                               const char *uv);
 
 /* Free owned data and return to an empty, reusable state. */
 void ngli_shader2d_reset(struct shader2d *s);
