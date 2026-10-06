@@ -460,8 +460,8 @@ static int register_image_sources(struct drawrect2d_priv *s)
 }
 
 static const struct shader2d_role shader_roles[] = {
-    [PAINT_SHADER_ROLE_FILL]   = {.name = "fill",   .uv = "ngli_fill_uv"},
-    [PAINT_SHADER_ROLE_STROKE] = {.name = "stroke", .uv = "ngli_stroke_uv"},
+    [PAINT_SHADER_ROLE_FILL]   = {.name = "fill",   .uv = "ngli_v_fill_uv"},
+    [PAINT_SHADER_ROLE_STROKE] = {.name = "stroke", .uv = "ngli_v_stroke_uv"},
 };
 
 static void write_fragment_input(const struct drawrect2d_priv *s, struct bstr *b,
@@ -469,18 +469,19 @@ static void write_fragment_input(const struct drawrect2d_priv *s, struct bstr *b
 {
     const char *role = shader_role->name;
     const bool fill = !strcmp(role, "fill");
-    const char *content_uv = fill ? "ngli_v_content_uv" : "ngli_rect_uv";
+    const char *content_uv = fill ? "ngli_v_content_uv" : "ngli_v_rect_uv";
     const char *content_lin = fill ? "ngli_content_uv_lin" : "vec4(1.0, 0.0, 0.0, 1.0)";
     const char *content_off = fill ? "ngli_content_uv_off.xy" : "vec2(0.0)";
     ngli_bstr_printf(b, "ngl_FragmentInput ngli_%s_fragment_input() {\n", role);
     ngli_bstr_print(b,  "    ngl_FragmentInput frag;\n"
-                        "    frag.rect_uv = ngli_rect_uv;\n"
+                        "    frag.rect_uv = ngli_v_rect_uv;\n"
                         "    frag.rect_size = ngli_rect_size;\n"
-                        "    frag.canvas_px = ngli_clip_pos;\n");
+                        "    frag.canvas_px = ngli_v_clip_pos;\n");
     ngli_bstr_printf(b, "    frag.content_uv = %s;\n", content_uv);
-    ngli_bstr_printf(b, "    frag._uv = ngli_%s_uv;\n"
+    ngli_bstr_printf(b, "    frag._uv = ngli_v_%s_uv;\n"
+                        "    frag._coord = ngli_v_%s_tex_uv;\n"
                         "    frag._lin = ngli_%s_uv_lin;\n"
-                        "    frag._off = ngli_%s_uv_off.xy;\n", role, role, role);
+                        "    frag._off = ngli_%s_uv_off.xy;\n", role, role, role, role);
     ngli_bstr_printf(b, "    frag._content_lin = %s;\n"
                         "    frag._content_off = %s;\n", content_lin, content_off);
     if (custom)
@@ -904,13 +905,13 @@ static int drawrect2d_init(struct ngl_node *node)
     }
 
     static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
-        {.name = "ngli_rect_uv",       .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_clip_pos",      .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_v_content_uv",  .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_fill_tex_uv",   .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_stroke_tex_uv", .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_fill_uv",       .type = NGPU_TYPE_VEC2},
-        {.name = "ngli_stroke_uv",     .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_rect_uv",       .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_clip_pos",      .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_content_uv",    .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_fill_tex_uv",   .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_stroke_tex_uv", .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_fill_uv",       .type = NGPU_TYPE_VEC2},
+        {.name = "ngli_v_stroke_uv",     .type = NGPU_TYPE_VEC2},
     };
 
     struct shader2d_role roles[PAINT_SHADER_ROLE_NB];

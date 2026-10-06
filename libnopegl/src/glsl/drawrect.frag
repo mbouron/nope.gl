@@ -72,7 +72,7 @@ void main()
         vec4 inv = ngli_clip_inv[i];
         vec4 rc  = ngli_clip_rect[i];
         vec2 rad = ngli_clip_radius[i].xy;
-        vec2 dlt = ngli_clip_pos - rc.xy;
+        vec2 dlt = ngli_v_clip_pos - rc.xy;
         vec2 loc = vec2(dot(inv.xy, dlt), dot(inv.zw, dlt));
         float cd  = ngli_sdf_rounded_box(loc, rc.zw, rad);
         float caa = max(fwidth(cd) * 0.5, 1e-6);
@@ -83,7 +83,7 @@ void main()
 
     /* Rounded-rectangle SDF in pixel space */
     vec2 half_size = ngli_rect_size * 0.5;
-    vec2 pos       = (ngli_rect_uv - 0.5) * ngli_rect_size;
+    vec2 pos       = (ngli_v_rect_uv - 0.5) * ngli_rect_size;
     vec2 r         = ngli_corner_radius;
     float d        = ngli_sdf_rounded_box(pos, half_size, r);
 
