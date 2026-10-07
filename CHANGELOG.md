@@ -9,6 +9,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
 ### Added
+- Android: `NGLNode.evaluateAnimation()` to evaluate an animation, as
+  `ngl_anim_evaluate()` does
 - Live changes of the time and value of the vector, quaternion and color key
   frames, as of the float ones
 - Live edits of the key frames of the animations (but `AnimatedTime`):

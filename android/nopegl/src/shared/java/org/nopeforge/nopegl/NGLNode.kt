@@ -104,6 +104,15 @@ open class NGLNode(
         return NGLNodeType.values().first { it.type == nativeGetType(nativePtr) }
     }
 
+    /**
+     * Evaluates this animation (an AnimatedFloat, AnimatedVec2, AnimatedVec3,
+     * AnimatedVec4, AnimatedQuat or a Velocity node) at [time], its value
+     * written to [dst] (1 to 4 components, as many as the animation has).
+     *
+     * @return 0 on success, a negative NGL error code otherwise
+     */
+    fun evaluateAnimation(time: Double, dst: FloatArray): Int = nativeAnimEvaluate(nativePtr, time, dst)
+
     fun getBoundingBox(): BoundingBox? {
         val nativeBoundingBox = nativeGetBoundingBox(nativePtr) ?: return null
 
@@ -392,6 +401,7 @@ open class NGLNode(
 
     private external fun nativeGetLabel(nativePtr: Long): String
     private external fun nativeGetType(nativePtr: Long): Int
+    private external fun nativeAnimEvaluate(nativePtr: Long, time: Double, dst: FloatArray): Int
     private external fun nativeGetBoundingBox(nativePtr: Long): FloatArray?
     private external fun nativeGetGlobalTransformMatrix(nativePtr: Long): FloatArray?
     private external fun nativeGetGlobalPosition(nativePtr: Long): FloatArray?

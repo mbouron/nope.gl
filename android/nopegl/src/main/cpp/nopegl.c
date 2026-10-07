@@ -485,6 +485,25 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetType(
     return (jint)type;
 }
 
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeAnimEvaluate(JNIEnv *env,
+                                                                           jobject thiz,
+                                                                           jlong native_ptr,
+                                                                           jdouble time,
+                                                                           jfloatArray dst)
+{
+    struct ngl_node *node = (struct ngl_node *)(uintptr_t)native_ptr;
+
+    /* Large enough for any animation, whatever the length of dst */
+    float value[4] = {0};
+    int ret = ngl_anim_evaluate(node, value, time);
+    if (ret < 0)
+        return ret;
+
+    const jsize len = (*env)->GetArrayLength(env, dst);
+    (*env)->SetFloatArrayRegion(env, dst, 0, len < 4 ? len : 4, value);
+    return 0;
+}
+
 JNIEXPORT jfloatArray JNICALL Java_org_nopeforge_nopegl_NGLNode_nativeGetBoundingBox(JNIEnv *env,
                                                                                      jobject thiz,
                                                                                      jlong native_ptr)
