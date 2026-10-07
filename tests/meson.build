@@ -61,6 +61,7 @@ foreach backend : backends
     'animation_keyframes_unordered',
     'animation_keyframes_editing_order',
     'animation_keyframes_live_values',
+    'animation_keyframes_live_list',
     'animation_keyframes_empty',
     'timerange_inverted',
     'paint_fill_and_stroke_shared',

@@ -11,6 +11,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 ### Added
 - Live changes of the time and value of the vector, quaternion and color key
   frames, as of the float ones
+- Live edits of the key frames of the animations (but `AnimatedTime`):
+  key frames can be added, inserted and removed once the scene is loaded
 - `bezier_cubic` easing, a cubic Bézier curve as CSS `cubic-bezier()`, its
   control points given as the 4 easing arguments
 - `Effect2D.isolate` to draw the children directly while no shader applies,
