@@ -1,4 +1,5 @@
 /*
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -64,6 +65,9 @@ static const struct param_choices easing_choices = {
         {"back_out",         EASING_BACK_OUT,         .desc=NGLI_DOCSTRING("overstep target value and smoothly converge back to it")},
         {"back_in_out",      EASING_BACK_IN_OUT,      .desc=NGLI_DOCSTRING("combination of `back_in` then `back_out`")},
         {"back_out_in",      EASING_BACK_OUT_IN,      .desc=NGLI_DOCSTRING("combination of `back_out` then `back_in`")},
+        {"bezier_cubic",     EASING_BEZIER_CUBIC,     .desc=NGLI_DOCSTRING("cubic Bézier curve from (0,0) to (1,1), as CSS `cubic-bezier()`: "
+                                                                           "its 4 arguments are the control points `x1`, `y1`, `x2` and `y2`, "
+                                                                           "with `x1` and `x2` in [0,1]")},
         {NULL}
     }
 };
@@ -323,10 +327,162 @@ static easing_type back_derivative(easing_type t, easing_type s)
 DECLARE_EASINGS(back,            , back_func(x, PARAM(0, 1.70158)), TRANSFORM)
 DECLARE_EASINGS(back, _derivative, back_derivative(x, PARAM(0, 1.70158)), DERIVATIVE)
 
+/*
+ * Cubic Bézier
+ *
+ * The curve runs from (0, 0) to (1, 1), with control points (x1, y1) and
+ * (x2, y2). Store each coordinate as a polynomial in t: a*t³ + b*t² + c*t.
+ *
+ * Keep the control point coordinates p1 and p2 for derivative calculations.
+ * This preserves exact zeros at the endpoints. For example, when x2 is 1,
+ * x'(1) must be 0, but computing 3a + 2b + c can leave a small rounding
+ * error and prevent the special handling of zero derivatives.
+ */
+struct bezier_poly {
+    double a, b, c;
+    double p1, p2;
+};
+
+static struct bezier_poly bezier_poly(double p1, double p2)
+{
+    const double c = 3.0 * p1;
+    const double b = 3.0 * (p2 - p1) - c;
+    const double a = 1.0 - c - b;
+    return (struct bezier_poly){a, b, c, p1, p2};
+}
+
+static double bezier_eval(struct bezier_poly p, double t)
+{
+    return ((p.a * t + p.b) * t + p.c) * t;
+}
+
+static double bezier_derivative(struct bezier_poly p, double t)
+{
+    const double u = 1.0 - t;
+    return 3.0 * (u * u * p.p1 + 2.0 * u * t * (p.p2 - p.p1) + t * t * (1.0 - p.p2));
+}
+
+static double bezier_derivative2(struct bezier_poly p, double t)
+{
+    return 6.0 * ((1.0 - t) * (p.p2 - 2.0 * p.p1) + t * (1.0 - 2.0 * p.p2 + p.p1));
+}
+
+/*
+ * Stop when the x error or the remaining t interval is small enough.
+ *
+ * Since x and t are both in [0, 1], use an absolute tolerance. 1e-14 leaves
+ * room for rounding in double arithmetic (about 2e-16 between values near
+ * 1), so the solver does not spend iterations chasing rounding errors.
+ */
+#define BEZIER_PRECISION 1e-14
+
+/*
+ * Find t such that x(t) equals the requested x. With x1 and x2 in [0, 1],
+ * x(t) increases from 0 to 1, so each x in that range has one solution.
+ *
+ * Start Newton's method at t = x and track the interval [lo, hi] containing
+ * the solution. Narrow the interval after each evaluation. If a Newton step
+ * falls outside it or produces infinity or NaN, use the midpoint instead.
+ * This bisection fallback keeps the search moving when the slope is zero
+ * or Newton's method takes too large a step.
+ */
+static double bezier_solve(struct bezier_poly px, double x)
+{
+    if (x <= 0.0)
+        return 0.0;
+    if (x >= 1.0)
+        return 1.0;
+
+    double lo = 0.0;
+    double hi = 1.0;
+    double t = x;
+    while (hi - lo > BEZIER_PRECISION) {
+        const double err = bezier_eval(px, t) - x;
+        if (fabs(err) < BEZIER_PRECISION)
+            break;
+        if (err < 0.0)
+            lo = t;
+        else
+            hi = t;
+        const double next = t - err / bezier_derivative(px, t);
+        t = next > lo && next < hi ? next : (lo + hi) / 2.0;
+    }
+    return t;
+}
+
+static easing_type bezier_cubic(easing_type x, size_t args_nb, const easing_type *args)
+{
+    const struct bezier_poly px = bezier_poly(args[0], args[2]);
+    const struct bezier_poly py = bezier_poly(args[1], args[3]);
+    return bezier_eval(py, bezier_solve(px, x));
+}
+
+static easing_type bezier_cubic_derivative(easing_type x, size_t args_nb, const easing_type *args)
+{
+    const struct bezier_poly px = bezier_poly(args[0], args[2]);
+    const struct bezier_poly py = bezier_poly(args[1], args[3]);
+    const double t = bezier_solve(px, x);
+
+    /*
+     * The slope is dy/dx = y'(t) / x'(t). Since x(t) is increasing, x'(t)
+     * is non-negative. fabs() turns any -0.0 into +0.0 so that an infinite
+     * slope has the sign of y'(t).
+     *
+     * If x'(t) is zero, the division gives a signed infinity when y'(t) is
+     * nonzero, or NaN when both derivatives are zero.
+     */
+    const double slope = bezier_derivative(py, t) / fabs(bezier_derivative(px, t));
+    if (!isnan(slope))
+        return slope;
+
+    /*
+     * Both first derivatives are zero, so use L'Hopital's rule to find the
+     * limiting slope. If x''(t) is nonzero, the result is y''(t) / x''(t).
+     *
+     * If x''(t) is zero but y''(t) is not, y'(t) approaches zero more slowly
+     * than x'(t), so the slope is infinite. Use the sign of y''(t) for the
+     * limit from the right. At t = 1, approach from the left and reverse
+     * the sign.
+     *
+     * If both second derivatives are also zero, use y'''(t) / x'''(t).
+     * The factors of 6 cancel, leaving py.a / px.a.
+     */
+    const double ddx = bezier_derivative2(px, t);
+    const double ddy = bezier_derivative2(py, t);
+    if (ddx != 0.0)
+        return ddy / ddx;
+    if (ddy != 0.0)
+        return copysign(INFINITY, t == 1.0 ? -ddy : ddy);
+    return py.a / px.a;
+}
+
+static int bezier_cubic_check_args(size_t args_nb, const easing_type *args)
+{
+    if (args_nb != 4) {
+        LOG(ERROR, "bezier_cubic expects 4 arguments (x1, y1, x2, y2), got %zu", args_nb);
+        return NGL_ERROR_INVALID_ARG;
+    }
+    /*
+     * Clamping leaves valid coordinates unchanged. The comparison also
+     * rejects NaN: fmax(NaN, 0.0) returns 0.0, and 0.0 != NaN is true.
+     */
+    const double x1 = args[0], x2 = args[2];
+    if (fmin(fmax(x1, 0.0), 1.0) != x1 || fmin(fmax(x2, 0.0), 1.0) != x2) {
+        LOG(ERROR, "bezier_cubic control points must have x1 and x2 in [0,1], got %g and %g", x1, x2);
+        return NGL_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(args[1]) || !isfinite(args[3])) {
+        LOG(ERROR, "bezier_cubic control points must have finite y1 and y2, got %g and %g", args[1], args[3]);
+        return NGL_ERROR_INVALID_ARG;
+    }
+    return 0;
+}
+
 static const struct {
     easing_function function;
     easing_function derivative;
     easing_function resolution;
+    int (*check_args)(size_t args_nb, const easing_type *args);
 } easings[] = {
     [EASING_LINEAR]           = {linear,                 linear_derivative,             linear_resolution},
     [EASING_QUADRATIC_IN]     = {quadratic_in,           quadratic_in_derivative,       quadratic_in_resolution},
@@ -369,7 +525,15 @@ static const struct {
     [EASING_BACK_OUT]         = {back_out,               back_out_derivative,           NULL},
     [EASING_BACK_IN_OUT]      = {back_in_out,            back_in_out_derivative,        NULL},
     [EASING_BACK_OUT_IN]      = {back_out_in,            back_out_in_derivative,        NULL},
+    [EASING_BEZIER_CUBIC]     = {bezier_cubic,           bezier_cubic_derivative,       NULL, bezier_cubic_check_args},
 };
+
+static int check_args(int easing_id, size_t args_nb, const easing_type *args)
+{
+    if (!easings[easing_id].check_args)
+        return 0;
+    return easings[easing_id].check_args(args_nb, args);
+}
 
 static int check_offsets(double x0, double x1)
 {
@@ -428,6 +592,10 @@ static int animkeyframe_init(struct ngl_node *node)
     else
         return NGL_ERROR_BUG;
 
+    int ret = check_args(easing_id, o->args.count, o->args.data);
+    if (ret < 0)
+        return ret;
+
     s->function   = easings[easing_id].function;
     s->derivative = easings[easing_id].derivative;
     s->resolution = easings[easing_id].resolution;
@@ -435,7 +603,7 @@ static int animkeyframe_init(struct ngl_node *node)
     const double x0 = o->offsets[0];
     const double x1 = o->offsets[1];
     if (x0 != 0.0 || x1 != 1.0) {
-        int ret = check_offsets(x0, x1);
+        ret = check_offsets(x0, x1);
         if (ret < 0)
             return ret;
         s->scale_boundaries = 1;
@@ -501,6 +669,9 @@ int ngl_easing_evaluate(const char *name, const double *args, size_t nb_args,
     int ret = ngli_params_get_select_val(easing_choices.consts, name, &easing_id);
     if (ret < 0)
         return ret;
+    ret = check_args(easing_id, nb_args, args);
+    if (ret < 0)
+        return ret;
     if (offsets) {
         ret = check_offsets(offsets[0], offsets[1]);
         if (ret < 0)
@@ -526,6 +697,9 @@ int ngl_easing_derivate(const char *name, const double *args, size_t nb_args,
 {
     int easing_id;
     int ret = ngli_params_get_select_val(easing_choices.consts, name, &easing_id);
+    if (ret < 0)
+        return ret;
+    ret = check_args(easing_id, nb_args, args);
     if (ret < 0)
         return ret;
     if (offsets) {
@@ -554,6 +728,9 @@ int ngl_easing_solve(const char *name, const double *args, size_t nb_args,
 {
     int easing_id;
     int ret = ngli_params_get_select_val(easing_choices.consts, name, &easing_id);
+    if (ret < 0)
+        return ret;
+    ret = check_args(easing_id, nb_args, args);
     if (ret < 0)
         return ret;
     if (!easings[easing_id].resolution) {
