@@ -40,6 +40,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `bezier_cubic` easing, a cubic Bézier curve as CSS `cubic-bezier()`, its
   control points given as the 4 easing arguments
 - Live editing of keyframes time and value (float, vector, color, quaternion)
+- Live editing of keyframes (they can now be added, inserted and removed live)
 
 ### Removed
 - CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and

@@ -155,6 +155,54 @@ def api_animation_keyframes_editing_order():
         assert ctx.set_scene(None) == 0
 
 
+def api_animation_keyframes_editing_live(width=16, height=16):
+    """Keyframes can be added, inserted and removed live."""
+    kf0 = ngl.AnimKeyFrameFloat(0, 0)
+    kf1 = ngl.AnimKeyFrameFloat(1, 1)
+    opacity = ngl.AnimatedFloat([kf0, kf1])
+    velocity = ngl.VelocityFloat(opacity)
+    draw = ngl.DrawColor(color=(1, 1, 1), opacity=ngl.EvalFloat("o + 0 * v", resources=dict(o=opacity, v=velocity)))
+    scene = ngl.Scene.from_params(draw)
+
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            capture_buffer=capture_buffer,
+        )
+    )
+    assert ret == 0
+    assert ctx.set_scene(scene) == 0
+
+    def output_color(t: float):
+        assert ctx.draw(t) == 0
+        offset = ((height // 2) * width + width // 2) * 4
+        return tuple(capture_buffer[offset : offset + 4])
+
+    r, g, b, a = output_color(0.5)
+    assert abs(a - 128) <= 1 and r == g == b == a, (r, g, b, a)
+
+    kf_mid = ngl.AnimKeyFrameFloat(0.5, 0, easing="bezier_cubic", easing_args=(0.42, 0.0, 0.58, 1.0))
+    assert opacity.insert_keyframes(1, kf_mid) == 0
+    assert opacity.evaluate(0.25) == 0
+    assert output_color(0.25) == (0, 0, 0, 0)
+    assert abs(opacity.evaluate(0.75) - 0.5) < 1e-6
+    assert velocity.evaluate(0.25) == 0
+
+    assert opacity.remove_keyframes(kf0) == 0
+    assert opacity.remove_keyframes(kf_mid) == 0
+    assert output_color(0.0) == (255, 255, 255, 255)
+    assert opacity.evaluate(0.0) == 1
+
+    assert opacity.remove_keyframes(kf1) != 0
+    assert output_color(0.0) == (255, 255, 255, 255)
+    assert ctx.set_scene(None) == 0
+
+
 def api_animation_keyframes_empty():
     """Animation keyframes can not be empty."""
     kf = ngl.AnimKeyFrameFloat(0, 1)

@@ -59,6 +59,7 @@ foreach backend : backends
     '2d_mask_children',
     'animation_keyframes_unordered',
     'animation_keyframes_editing_order',
+    'animation_keyframes_editing_live',
     'animation_keyframes_empty',
     'timerange_inverted',
     'paint_fill_and_stroke_shared',
