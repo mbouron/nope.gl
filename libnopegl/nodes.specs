@@ -1292,14 +1292,14 @@
           "name": "time",
           "type": "f64",
           "default": 0.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "the time key point in seconds"
         },
         {
           "name": "value",
           "type": "vec2",
           "default": [0.000000,0.000000],
-          "flags": [],
+          "flags": ["live"],
           "desc": "the value at time `time`"
         },
         {
@@ -1339,14 +1339,14 @@
           "name": "time",
           "type": "f64",
           "default": 0.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "the time key point in seconds"
         },
         {
           "name": "value",
           "type": "vec3",
           "default": [0.000000,0.000000,0.000000],
-          "flags": [],
+          "flags": ["live"],
           "desc": "the value at time `time`"
         },
         {
@@ -1386,14 +1386,14 @@
           "name": "time",
           "type": "f64",
           "default": 0.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "the time key point in seconds"
         },
         {
           "name": "value",
           "type": "vec4",
           "default": [0.000000,0.000000,0.000000,0.000000],
-          "flags": [],
+          "flags": ["live"],
           "desc": "the value at time `time`"
         },
         {
@@ -1433,14 +1433,14 @@
           "name": "time",
           "type": "f64",
           "default": 0.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "the time key point in seconds"
         },
         {
           "name": "quat",
           "type": "vec4",
           "default": [0.000000,0.000000,0.000000,0.000000],
-          "flags": [],
+          "flags": ["live"],
           "desc": "the quat at time `time`"
         },
         {
@@ -1480,14 +1480,14 @@
           "name": "time",
           "type": "f64",
           "default": 0.000000,
-          "flags": [],
+          "flags": ["live"],
           "desc": "the time key point in seconds"
         },
         {
           "name": "color",
           "type": "vec3",
           "default": [0.000000,0.000000,0.000000],
-          "flags": [],
+          "flags": ["live"],
           "desc": "the color at time `time`"
         },
         {
