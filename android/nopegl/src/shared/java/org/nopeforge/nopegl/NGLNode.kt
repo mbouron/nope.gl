@@ -104,6 +104,8 @@ open class NGLNode(
         return NGLNodeType.values().first { it.type == nativeGetType(nativePtr) }
     }
 
+    fun evaluateAnimation(time: Double, dst: FloatArray): Int = nativeAnimEvaluate(nativePtr, time, dst)
+
     fun getBoundingBox(): BoundingBox? {
         val nativeBoundingBox = nativeGetBoundingBox(nativePtr) ?: return null
 
@@ -392,6 +394,7 @@ open class NGLNode(
 
     private external fun nativeGetLabel(nativePtr: Long): String
     private external fun nativeGetType(nativePtr: Long): Int
+    private external fun nativeAnimEvaluate(nativePtr: Long, time: Double, dst: FloatArray): Int
     private external fun nativeGetBoundingBox(nativePtr: Long): FloatArray?
     private external fun nativeGetGlobalTransformMatrix(nativePtr: Long): FloatArray?
     private external fun nativeGetGlobalPosition(nativePtr: Long): FloatArray?
