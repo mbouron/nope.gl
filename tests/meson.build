@@ -60,6 +60,7 @@ foreach backend : backends
     '2d_mask_children',
     'animation_keyframes_unordered',
     'animation_keyframes_editing_order',
+    'animation_keyframes_live_values',
     'timerange_inverted',
     'paint_fill_and_stroke_shared',
     'paint_fill_and_stroke_resource_clash',

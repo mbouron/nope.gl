@@ -97,11 +97,11 @@ static const struct node_param animkeyframe##id##_params[] = {                  
 #define L NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE
 
 ANIMKEYFRAME_PARAMS(float, value, NGLI_PARAM_TYPE_F64, scalar, L, L);
-ANIMKEYFRAME_PARAMS(vec2,  value, NGLI_PARAM_TYPE_VEC2, value, 0, 0);
-ANIMKEYFRAME_PARAMS(vec3,  value, NGLI_PARAM_TYPE_VEC3, value, 0, 0);
-ANIMKEYFRAME_PARAMS(vec4,  value, NGLI_PARAM_TYPE_VEC4, value, 0, 0);
-ANIMKEYFRAME_PARAMS(quat,  quat,  NGLI_PARAM_TYPE_VEC4, value, 0, 0);
-ANIMKEYFRAME_PARAMS(color, color, NGLI_PARAM_TYPE_VEC3, value, 0, 0);
+ANIMKEYFRAME_PARAMS(vec2,  value, NGLI_PARAM_TYPE_VEC2, value, L, L);
+ANIMKEYFRAME_PARAMS(vec3,  value, NGLI_PARAM_TYPE_VEC3, value, L, L);
+ANIMKEYFRAME_PARAMS(vec4,  value, NGLI_PARAM_TYPE_VEC4, value, L, L);
+ANIMKEYFRAME_PARAMS(quat,  quat,  NGLI_PARAM_TYPE_VEC4, value, L, L);
+ANIMKEYFRAME_PARAMS(color, color, NGLI_PARAM_TYPE_VEC3, value, L, L);
 ANIMKEYFRAME_PARAMS(buffer, data, NGLI_PARAM_TYPE_DATA, data,  0, 0);
 
 #define TRANSFORM_IN(f, x)     f(x, args_nb, args)

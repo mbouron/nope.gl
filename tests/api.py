@@ -155,6 +155,56 @@ def api_animation_keyframes_editing_order():
         assert ctx.set_scene(None) == 0
 
 
+def _live_capture(scene, width, height):
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(offscreen=True, width=width, height=height, backend=_backend, capture_buffer=capture_buffer)
+    )
+    assert ret == 0
+    assert ctx.set_scene(scene) == 0
+
+    def output_color(t: float):
+        assert ctx.draw(t) == 0
+        offset = ((height // 2) * width + width // 2) * 4
+        return tuple(capture_buffer[offset : offset + 4])
+
+    return ctx, output_color
+
+
+def api_animation_keyframes_live_values(width=16, height=16):
+    """Vector, quaternion and color keyframes are moved and given other values live."""
+    color_kfs = [ngl.AnimKeyFrameColor(0, (1, 0, 0)), ngl.AnimKeyFrameColor(1, (1, 0, 0))]
+    vec2_kfs = [ngl.AnimKeyFrameVec2(0, (0, 0)), ngl.AnimKeyFrameVec2(1, (0, 0))]
+    vec4_kfs = [ngl.AnimKeyFrameVec4(0, (0, 0, 0, 0)), ngl.AnimKeyFrameVec4(1, (0, 0, 0, 0))]
+    quat_kfs = [ngl.AnimKeyFrameQuat(0, (0, 0, 0, 1)), ngl.AnimKeyFrameQuat(1, (0, 0, 0, 1))]
+    vec2 = ngl.AnimatedVec2(vec2_kfs)
+    vec4 = ngl.AnimatedVec4(vec4_kfs)
+    quat = ngl.AnimatedQuat(quat_kfs)
+    # The vec4 is only read, for its keyframes to be part of the scene
+    opacity = ngl.EvalFloat("v.y + 0 * w.x", resources=dict(v=vec2, w=vec4))
+    draw = ngl.DrawColor(color=ngl.AnimatedColor(color_kfs), opacity=opacity)
+    scene = ngl.Scene.from_params(ngl.RotateQuat(draw, quat=quat))
+    ctx, output_color = _live_capture(scene, width, height)
+
+    assert output_color(0.5) == (0, 0, 0, 0)
+
+    assert color_kfs[1].set_color(0, 0, 1) == 0
+    assert vec2_kfs[1].set_value(0, 1) == 0
+    assert vec2_kfs[1].set_time(0.5) == 0
+    assert vec4_kfs[1].set_value(1, 0, 0, 0) == 0
+    assert quat_kfs[1].set_quat(0, 0, 1, 0) == 0
+    assert quat_kfs[1].set_time(2) == 0
+    assert vec2.evaluate(0.5) == (0, 1)
+    assert vec4.evaluate(0.5) == (0.5, 0, 0, 0)
+    assert quat.evaluate(1.0) == quat.evaluate(1.0)
+    # The color mixed halfway from red to blue, fully opaque; the quad
+    # rotated by the quaternion still covers the center
+    r, g, b, a = output_color(0.5)
+    assert 0 < r < 255 and r == b and g == 0 and a == 255, (r, g, b, a)
+    assert ctx.set_scene(None) == 0
+
+
 def api_timerange_inverted(width=16, height=16):
     """A timerange with start > end is empty."""
     black = (0, 0, 0, 255)
