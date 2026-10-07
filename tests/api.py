@@ -1728,6 +1728,83 @@ def api_bounding_box(width=256, height=256):
     ctx.set_scene(None)
 
 
+def api_effect2d_direct(width=64, height=64):
+    """A non-isolated Effect2D draws its children directly, as a Group2D, while no shader applies."""
+
+    invert = "vec4 main(const ngl_FragmentInput frag) { vec4 c = ngl_texture_sample(frag); return vec4(c.a - c.rgb, c.a); }"
+
+    def children():
+        # Overlapping translucent rects: drawn directly, the opacity applies to each
+        return [
+            ngl.DrawRect2D(rect=(4, 4, 40, 40), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0))),
+            ngl.DrawRect2D(rect=(20, 20, 40, 40), fill=ngl.ColorPaint(color=(0.0, 0.0, 1.0, 1.0))),
+        ]
+
+    trs = dict(translate=(2.0, -3.0), scale=(0.9, 0.9), anchor=(32.0, 32.0), opacity=0.5)
+
+    def render(root, times, samples=0):
+        capture_buffer = bytearray(width * height * 4)
+        ctx = ngl.Context()
+        ret = ctx.configure(
+            ngl.Config(
+                offscreen=True,
+                width=width,
+                height=height,
+                backend=_backend,
+                samples=samples,
+                clear_color=(0.0, 0.0, 0.0, 1.0),
+                capture_buffer=capture_buffer,
+            )
+        )
+        assert ret == 0
+        canvas = ngl.Canvas2D(width=width, height=height, children=[root])
+        assert ctx.set_scene(ngl.Scene.from_params(canvas, width=width, height=height, duration=4)) == 0
+        frames = []
+        for t in times:
+            assert ctx.draw(t) == 0
+            frames.append(bytes(capture_buffer))
+        assert ctx.set_scene(None) == 0
+        return frames
+
+    def pixel(frame, x, y):
+        offset = (y * width + x) * 4
+        return frame[offset : offset + 4]
+
+    for samples in (0, 4):
+        (group,) = render(ngl.Group2D(children=children(), **trs), [0.0], samples)
+        shader = ngl.Effect2DShader(glsl=invert, start=1.0, end=2.0)
+        effect = ngl.Effect2D(children=children(), isolate=False, shaders=[shader], **trs)
+        before, during, after = render(effect, [0.5, 1.5, 2.5], samples)
+
+        # Outside the shader window, drawn directly: exactly a Group2D
+        assert before == group, samples
+        assert after == group, samples
+        # Inside, the children are composited through the shader
+        assert during != group, samples
+        assert pixel(during, 30, 30)[:3] != pixel(group, 30, 30)[:3], samples
+
+        # A disabled effect draws its children directly too
+        effect = ngl.Effect2D(children=children(), isolate=False, enabled=False, shaders=[shader], **trs)
+        (disabled,) = render(effect, [1.5], samples)
+        assert disabled == group, samples
+
+    # A parent render target its offscreen cannot reproduce is rejected upfront
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend)) == 0
+    for isolate in (True, False):
+        textures = [ngl.Texture2D(width=width, height=height) for _ in range(2)]
+        effect = ngl.Effect2D(children=children(), isolate=isolate)
+        mrt = ngl.OffscreenCanvas2D(children=[effect], width=width, height=height, color_textures=textures)
+        ret = ctx.set_scene(ngl.Scene.from_params(ngl.Canvas2D(width=width, height=height, children=[mrt])))
+        assert (ret == 0) == isolate, isolate
+    assert ctx.set_scene(None) == 0
+
+    # An isolated effect keeps compositing one layer: its opacity applies once to the overlap
+    (isolated,) = render(ngl.Effect2D(children=children(), **trs), [0.0])
+    (group,) = render(ngl.Group2D(children=children(), **trs), [0.0])
+    assert isolated != group
+
+
 def api_2d_clip_layer_mask(width=64, height=64):
     """Exercise the Clip2D, Layer2D and texture-backed Mask2D render paths."""
 

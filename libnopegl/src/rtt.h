@@ -46,6 +46,13 @@ struct rtt_params {
 struct rtt_ctx *ngli_rtt_create(struct ngl_ctx *ctx);
 int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params);
 int ngli_rtt_from_texture_params(struct rtt_ctx *s, const struct ngpu_texture_params *params);
+/*
+ * Render into a sampled texture (owned) through a render target matching the
+ * layout of another one: its color format, multisampling (resolved into the
+ * texture) and depth/stencil, so that the same pipelines draw into both.
+ */
+int ngli_rtt_from_layout(struct rtt_ctx *s, const struct ngpu_rendertarget_layout *layout,
+                         uint32_t width, uint32_t height);
 void ngli_rtt_get_dimensions(struct rtt_ctx *s, uint32_t *width, uint32_t *height);
 struct ngpu_texture *ngli_rtt_get_texture(struct rtt_ctx *s, size_t index);
 /* Borrowed image, owned by the RTT context. */

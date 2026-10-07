@@ -3368,6 +3368,13 @@
           "desc": "whether to apply shader processing before compositing"
         },
         {
+          "name": "isolate",
+          "type": "bool",
+          "default": 1,
+          "flags": [],
+          "desc": "render the children offscreen and composite them as one layer even when no shader applies; when false, the children are drawn directly while no shader applies (none is active, or `enabled` is false), as a Group2D draws them: the effect opacity applies to each child, and its blend mode and bounds do not apply; the offscreen then matches the parent render target"
+        },
+        {
           "name": "shaders",
           "type": "node_list",
           "node_types": ["Effect2DShader"],

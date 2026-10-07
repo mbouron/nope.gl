@@ -9,6 +9,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
 ### Added
+- `Effect2D.isolate` to draw the children directly while no shader applies,
+  without an offscreen
 - `ngl_config_gl.shared_context`, specified through `ngl_config.backend_config`,
   to share OpenGL objects with an application context
 - `ngpu_ctx_params_gl.shared_context` to share OpenGL objects between libngpu

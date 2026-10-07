@@ -84,6 +84,7 @@ struct effect2d_opts {
     struct ngli_node2d_opts node2d;
     struct ngl_node *enabled_node;
     int enabled;
+    int isolate;
     struct ngli_node_darray shaders;
 };
 
@@ -145,6 +146,7 @@ struct effect2d_priv {
     NGLI_DARRAY(struct effect2d_program) programs;
     size_t active_program_index;
     bool drawme;
+    bool direct;                    /* children drawn directly this frame (see isolate) */
 };
 
 #define OFFSET(x) offsetof(struct effect2d_opts, x)
@@ -229,6 +231,16 @@ static const struct node_param effect2d_params[] = {
         .def_value = {.i32=1},
         .flags     = NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE | NGLI_PARAM_FLAG_ALLOW_NODE,
         .desc      = NGLI_DOCSTRING("whether to apply shader processing before compositing"),
+    }, {
+        .key       = "isolate",
+        .type      = NGLI_PARAM_TYPE_BOOL,
+        .offset    = OFFSET(isolate),
+        .def_value = {.i32=1},
+        .desc      = NGLI_DOCSTRING("render the children offscreen and composite them as one layer even when no "
+                                    "shader applies; when false, the children are drawn directly while no shader "
+                                    "applies (none is active, or `enabled` is false), as a Group2D draws them: the "
+                                    "effect opacity applies to each child, and its blend mode and bounds do not "
+                                    "apply; the offscreen then matches the parent render target"),
     }, {
         .key        = "shaders",
         .type       = NGLI_PARAM_TYPE_NODELIST,
@@ -680,10 +692,21 @@ static int effect2d_init(struct ngl_node *node)
     return 0;
 }
 
+/* Whether the children may be drawn directly, into the parent render target */
+static bool may_draw_directly(const struct ngl_node *node)
+{
+    const struct effect2d_opts *o = node->opts;
+    return node->cls->id == NGL_NODE_EFFECT2D && !o->isolate;
+}
+
 static void effect2d_get_rendertarget_layout(const struct ngl_node *node,
                                              struct ngpu_rendertarget_layout *layout)
 {
     const struct effect2d_priv *s = node->priv_data;
+
+    /* Children drawn into either target are prepared for the parent's */
+    if (may_draw_directly(node))
+        return;
     *layout = s->layout;
 }
 
@@ -911,6 +934,21 @@ static int effect2d_prepare(struct ngl_node *node,
                             const struct ngpu_rendertarget_layout *rendertarget_layout)
 {
     struct effect2d_priv *s = node->priv_data;
+
+    /* The offscreen matches the parent target, which may have changed */
+    if (may_draw_directly(node)) {
+        const uint32_t needed = NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | NGPU_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+        if (rendertarget_layout->nb_colors != 1 ||
+            (rendertarget_layout->samples > 1 && !rendertarget_layout->colors[0].resolve) ||
+            (ngpu_ctx_get_format_features(node->ctx->gpu_ctx, rendertarget_layout->colors[0].format) & needed) != needed) {
+            LOG(ERROR, "a non-isolated Effect2D needs a parent render target with a single, resolved "
+                "color attachment whose format can also be sampled, which its offscreen can reproduce");
+            return NGL_ERROR_UNSUPPORTED;
+        }
+        ngli_image_resource_set(s->input_image, NULL);
+        ngli_rtt_freep(&s->rtt);
+    }
+
     for (size_t i = 0; i < s->programs.count; i++) {
         int ret = prepare_program(node, &s->programs.data[i], rendertarget_layout);
         if (ret < 0)
@@ -919,8 +957,12 @@ static int effect2d_prepare(struct ngl_node *node,
     return 0;
 }
 
+/*
+ * (Re)create the render target at the given size: an RGBA8 one, or with a
+ * layout, one matching it.
+ */
 static int resize_rtt(struct rtt_ctx **rttp, struct image_resource *image, struct ngl_ctx *ctx,
-                      uint32_t width, uint32_t height)
+                      const struct ngpu_rendertarget_layout *layout, uint32_t width, uint32_t height)
 {
     if (*rttp) {
         uint32_t current_width, current_height;
@@ -933,19 +975,24 @@ static int resize_rtt(struct rtt_ctx **rttp, struct image_resource *image, struc
     if (!rtt)
         return NGL_ERROR_MEMORY;
 
-    const struct ngpu_texture_params tex_params = {
-        .type    = NGPU_TEXTURE_TYPE_2D,
-        .format  = NGPU_FORMAT_R8G8B8A8_UNORM,
-        .width   = width,
-        .height  = height,
-        .usage   = NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT |
-                   NGPU_TEXTURE_USAGE_SAMPLED_BIT,
-        .min_filter = NGPU_FILTER_LINEAR,
-        .mag_filter = NGPU_FILTER_LINEAR,
-        .wrap_s  = NGPU_WRAP_CLAMP_TO_EDGE,
-        .wrap_t  = NGPU_WRAP_CLAMP_TO_EDGE,
-    };
-    int ret = ngli_rtt_from_texture_params(rtt, &tex_params);
+    int ret;
+    if (layout) {
+        ret = ngli_rtt_from_layout(rtt, layout, width, height);
+    } else {
+        const struct ngpu_texture_params tex_params = {
+            .type    = NGPU_TEXTURE_TYPE_2D,
+            .format  = NGPU_FORMAT_R8G8B8A8_UNORM,
+            .width   = width,
+            .height  = height,
+            .usage   = NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT |
+                       NGPU_TEXTURE_USAGE_SAMPLED_BIT,
+            .min_filter = NGPU_FILTER_LINEAR,
+            .mag_filter = NGPU_FILTER_LINEAR,
+            .wrap_s  = NGPU_WRAP_CLAMP_TO_EDGE,
+            .wrap_t  = NGPU_WRAP_CLAMP_TO_EDGE,
+        };
+        ret = ngli_rtt_from_texture_params(rtt, &tex_params);
+    }
     if (ret < 0)
         goto fail;
 
@@ -1004,6 +1051,30 @@ static void compute_bounds(struct ngl_node *node)
     s->node2d_info.effect_margin = ngli_node2d_scale_effect_margin(modelview_matrix, s->local_effect_margin);
 }
 
+/* Visit the children in the effect's 2D space, as a Group2D does */
+static void draw_children_directly(struct ngl_node *node, void (*visit)(struct ngl_node *))
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct effect2d_priv *s = node->priv_data;
+    const struct effect2d_opts *o = node->opts;
+
+    const struct ngli_mat4 prev_transform_2d = ctx->transform_2d_matrix;
+    const float prev_opacity_2d = ctx->opacity_2d;
+    ngli_node2d_apply_transform(node);
+    const struct ngli_mat4 local_transform_matrix = ctx->transform_2d_matrix;
+
+    for (size_t i = 0; i < o->children.count; i++)
+        visit(o->children.data[i]);
+
+    struct ngli_node2d_info *node2d_info = &s->node2d_info;
+    node2d_info->screen_aabb = ngli_node_compute_children_bounding_box(o->children.data, o->children.count);
+    node2d_info->effect_margin = ngli_node_compute_children_effect_margin(o->children.data, o->children.count);
+    node2d_info->transform_matrix = local_transform_matrix;
+
+    ctx->transform_2d_matrix = prev_transform_2d;
+    ctx->opacity_2d = prev_opacity_2d;
+}
+
 static void effect2d_pre_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -1013,7 +1084,11 @@ static void effect2d_pre_draw(struct ngl_node *node)
 
     static const struct ngli_mat4 id_matrix = {.m = NGLI_MAT4_IDENTITY};
 
+    /* A direct draw keeps the last measured bounds for its anchor */
+    const struct aabb prev_aabb = s->node2d_info.aabb;
+
     s->drawme = false;
+    s->direct = false;
     s->node2d_info.aabb = NGLI_AABB_EMPTY;
     s->node2d_info.transform_matrix = id_matrix;
     s->node2d_info.screen_aabb = NGLI_AABB_EMPTY;
@@ -1021,8 +1096,17 @@ static void effect2d_pre_draw(struct ngl_node *node)
     if (!o->node2d.visible)
         return;
 
-    /* Forward the pre-draw callback to the resources consumed by the effect2d composite pipeline */
     const int enabled = *(const int *)ngli_node_get_data_ptr(o->enabled_node, &o->enabled);
+
+    /* No shader applies: draw the children directly, as a Group2D */
+    if (may_draw_directly(node) && (!enabled || !s->active_program_index)) {
+        s->direct = true;
+        s->node2d_info.aabb = prev_aabb;
+        draw_children_directly(node, ngli_node_pre_draw);
+        return;
+    }
+
+    /* Forward the pre-draw callback to the resources consumed by the effect2d composite pipeline */
     const struct effect2d_program *active_program = &s->programs.data[enabled ? s->active_program_index : 0];
     if (active_program->resources) {
         const struct hmap_entry *entry = NULL;
@@ -1161,11 +1245,13 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const uint32_t w = scaled_w >= max_dim ? max_dim : (uint32_t)scaled_w;
     const uint32_t h = scaled_h >= max_dim ? max_dim : (uint32_t)scaled_h;
 
-    int ret = resize_rtt(&s->rtt, s->input_image, ctx, w, h);
+    const struct ngpu_rendertarget_layout *rtt_layout =
+        may_draw_directly(node) ? &node->prepared_rendertarget_layout : NULL;
+    int ret = resize_rtt(&s->rtt, s->input_image, ctx, rtt_layout, w, h);
     if (ret < 0)
         return;
     if (s->mask_image) {
-        ret = resize_rtt(&s->mask_rtt, s->mask_image, ctx, w, h);
+        ret = resize_rtt(&s->mask_rtt, s->mask_image, ctx, NULL, w, h);
         if (ret < 0)
             return;
     }
@@ -1235,6 +1321,11 @@ static void effect2d_draw(struct ngl_node *node)
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct effect2d_priv *s = node->priv_data;
     const struct effect2d_opts *o = node->opts;
+
+    if (o->node2d.visible && s->direct) {
+        draw_children_directly(node, ngli_node_draw);
+        return;
+    }
 
     if (!o->node2d.visible || !s->drawme) {
         s->node2d_info.screen_aabb = NGLI_AABB_EMPTY;

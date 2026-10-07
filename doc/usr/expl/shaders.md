@@ -399,6 +399,15 @@ An empty `Effect2DShader.glsl` also passes the children through. Effect and pare
 opacity still apply. `Effect2D.shaders` selects the first shader whose time range
 is active. To apply successive effects, nest `Effect2D` nodes.
 
+Even without an active shader, an `Effect2D` renders its children offscreen and
+composites them as one layer. An effect that only applies at times, such as an
+animation, can instead set `isolate=False`: while no shader applies, its
+children are then drawn directly, as a `Group2D` draws them, without the
+offscreen. The effect opacity then applies to each child, so overlapping
+translucent children show through each other, and the effect blend mode and
+bounds do not apply. The offscreen used while a shader applies matches the
+parent render target, so the children draw into either.
+
 `frag.rect_size` describes the effect bounds in local units;
 `ngl_texture_dimensions` describes the allocated texture in pixels. They can
 differ, so do not use texture dimensions as the effect's rectangle size.

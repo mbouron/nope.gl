@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "internal.h"
+#include "log.h"
 #include <ngpu/ngpu.h>
 #include "rtt.h"
 #include "utils/memory.h"
@@ -37,6 +38,7 @@ struct rtt_ctx {
 
     struct ngpu_rendertarget *rt;
     struct ngpu_texture *depth;
+    struct ngpu_texture *depth_resolve;
 
     struct ngpu_texture *ms_colors[NGPU_MAX_COLOR_ATTACHMENTS];
     size_t nb_ms_colors;
@@ -112,7 +114,9 @@ int ngli_rtt_init(struct rtt_ctx *s, const struct rtt_params *params)
             .width                = s->params.width,
             .height               = s->params.height,
             .layout               = NGLI_IMAGE_LAYOUT_DEFAULT,
-            .planes               = {rt_params.colors[i].attachment},
+            /* The resolved texture is the one to sample when multisampling */
+            .planes               = {rt_params.colors[i].resolve_target ? rt_params.colors[i].resolve_target
+                                                                        : rt_params.colors[i].attachment},
             .color_info           = NGLI_COLOR_INFO_DEFAULTS,
             .color_matrix         = {.m = NGLI_MAT4_IDENTITY},
             .mapping_color_matrix = {.m = NGLI_MAT4_IDENTITY},
@@ -220,6 +224,79 @@ int ngli_rtt_from_texture_params(struct rtt_ctx *s, const struct ngpu_texture_pa
     return ngli_rtt_init(s, &rtt_params);
 }
 
+int ngli_rtt_from_layout(struct rtt_ctx *s, const struct ngpu_rendertarget_layout *layout,
+                         uint32_t width, uint32_t height)
+{
+    struct ngl_ctx *ctx = s->ctx;
+    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
+
+    /* A single color, sampled as resolved when multisampling */
+    if (layout->nb_colors != 1 || (layout->samples > 1 && !layout->colors[0].resolve)) {
+        LOG(ERROR, "unsupported render target layout to render into a sampled texture");
+        return NGL_ERROR_UNSUPPORTED;
+    }
+
+    s->color = ngpu_texture_create(gpu_ctx);
+    if (!s->color)
+        return NGL_ERROR_MEMORY;
+
+    const struct ngpu_texture_params color_params = {
+        .type       = NGPU_TEXTURE_TYPE_2D,
+        .format     = layout->colors[0].format,
+        .width      = width,
+        .height     = height,
+        .min_filter = NGPU_FILTER_LINEAR,
+        .mag_filter = NGPU_FILTER_LINEAR,
+        .wrap_s     = NGPU_WRAP_CLAMP_TO_EDGE,
+        .wrap_t     = NGPU_WRAP_CLAMP_TO_EDGE,
+        .usage      = NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT | NGPU_TEXTURE_USAGE_SAMPLED_BIT,
+    };
+    int ret = ngpu_texture_init(s->color, &color_params);
+    if (ret < 0)
+        return ret;
+
+    struct rtt_params rtt_params = {
+        .width     = width,
+        .height    = height,
+        .samples   = layout->samples,
+        .nb_colors = 1,
+        .colors[0] = {
+            .attachment = s->color,
+            .load_op    = NGPU_LOAD_OP_CLEAR,
+            .store_op   = NGPU_STORE_OP_STORE,
+        },
+    };
+
+    const struct ngpu_rendertarget_layout_entry *depth_stencil = &layout->depth_stencil;
+    if (depth_stencil->format != NGPU_FORMAT_UNDEFINED) {
+        if (depth_stencil->resolve) {
+            /* The multisampled depth is resolved into a texture of its own */
+            s->depth_resolve = ngpu_texture_create(gpu_ctx);
+            if (!s->depth_resolve)
+                return NGL_ERROR_MEMORY;
+            const struct ngpu_texture_params depth_params = {
+                .type   = NGPU_TEXTURE_TYPE_2D,
+                .format = depth_stencil->format,
+                .width  = width,
+                .height = height,
+                .usage  = NGPU_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            };
+            ret = ngpu_texture_init(s->depth_resolve, &depth_params);
+            if (ret < 0)
+                return ret;
+            rtt_params.depth_stencil = (struct ngpu_attachment) {
+                .attachment = s->depth_resolve,
+                .load_op    = NGPU_LOAD_OP_CLEAR,
+                .store_op   = NGPU_STORE_OP_DONT_CARE,
+            };
+        } else {
+            rtt_params.depth_stencil_format = depth_stencil->format;
+        }
+    }
+
+    return ngli_rtt_init(s, &rtt_params);
+}
+
 void ngli_rtt_get_dimensions(struct rtt_ctx *s, uint32_t *width, uint32_t *height)
 {
     *width = s->params.width;
@@ -294,6 +371,7 @@ void ngli_rtt_freep(struct rtt_ctx **sp)
 
     ngpu_rendertarget_freep(&s->rt);
     ngpu_texture_freep(&s->depth);
+    ngpu_texture_freep(&s->depth_resolve);
 
     for (size_t i = 0; i < s->nb_ms_colors; i++)
         ngpu_texture_freep(&s->ms_colors[i]);

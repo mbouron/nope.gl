@@ -56,6 +56,7 @@ foreach backend : backends
 
   tests_api = [
     '2d_clip_layer_mask',
+    'effect2d_direct',
     '2d_mask_children',
     'animation_keyframes_unordered',
     'animation_keyframes_editing_order',
