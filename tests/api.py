@@ -205,6 +205,19 @@ def api_animation_keyframes_live_values(width=16, height=16):
     assert ctx.set_scene(None) == 0
 
 
+def api_animation_keyframes_empty():
+    """An animation without keyframes is refused, and its keyframes can not all be removed."""
+    kf = ngl.AnimKeyFrameFloat(0, 1)
+    animation = ngl.AnimatedFloat([kf])
+    assert animation.remove_keyframes(kf) != 0
+    try:
+        ngl.Scene.from_params(ngl.DrawColor(opacity=ngl.AnimatedFloat()))
+    except Exception:
+        pass
+    else:
+        assert False
+
+
 def api_timerange_inverted(width=16, height=16):
     """A timerange with start > end is empty."""
     black = (0, 0, 0, 255)

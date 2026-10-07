@@ -203,6 +203,11 @@ static int apply_remove_children(struct ngl_node *node, const struct node_param 
     struct ngl_scene *scene = node->scene;
     struct ngli_node_darray *list = get_node_list(node, par);
 
+    if ((par->flags & NGLI_PARAM_FLAG_NON_NULL) && nb_nodes >= list->count) {
+        LOG(ERROR, "%s.%s can not be emptied", node->label, par->key);
+        return NGL_ERROR_INVALID_USAGE;
+    }
+
     /* Save the edge positions before the node-list parameter is modified */
     struct ngli_node_graph_range range = {0};
     if (scene)

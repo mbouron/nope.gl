@@ -76,7 +76,8 @@ struct ngl_node;
  * Imply that the parameter must be set, otherwise it will fail at the node
  * initialization.
  *
- * Only applicable to pointer-based parameters such as nodes or strings.
+ * Only applicable to pointer-based parameters such as nodes or strings, and to
+ * node lists, which then can not be empty, nor be emptied once live.
  *
  * This option can not be combined with NGLI_PARAM_FLAG_ALLOW_NODE.
  */

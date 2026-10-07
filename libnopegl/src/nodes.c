@@ -859,9 +859,17 @@ int ngli_node_check_params_sanity(const struct ngl_node *node)
 
     while (par->key) {
         const void *p = base_ptr + par->offset;
-        if ((par->flags & NGLI_PARAM_FLAG_NON_NULL) && !*(uint8_t **)p) {
-            LOG(ERROR, "%s: %s parameter can not be null", node->label, par->key);
-            return NGL_ERROR_INVALID_ARG;
+        if (par->flags & NGLI_PARAM_FLAG_NON_NULL) {
+            if (par->type == NGLI_PARAM_TYPE_NODELIST) {
+                const struct ngli_node_darray *list = p;
+                if (!list->count) {
+                    LOG(ERROR, "%s: %s parameter can not be empty", node->label, par->key);
+                    return NGL_ERROR_INVALID_ARG;
+                }
+            } else if (!*(uint8_t **)p) {
+                LOG(ERROR, "%s: %s parameter can not be null", node->label, par->key);
+                return NGL_ERROR_INVALID_ARG;
+            }
         }
         par++;
     }
