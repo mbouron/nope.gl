@@ -1,4 +1,5 @@
 #
+# Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2020-2022 GoPro Inc.
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -52,6 +53,8 @@ _easing_specs = (
     ("elastic",         1),
     ("elastic:1.5:1.2", 1),
     ("back",            3),
+    ("bezier_cubic:0.42:0:0.58:1",     0),
+    ("bezier_cubic:0.68:-0.6:0.32:1.6", 0),
     # fmt: on
 )
 
@@ -78,8 +81,56 @@ _offsets = (None, (0.0, 0.7), (0.3, 1.0), (0.3, 0.7))
 _easing_list = _get_easing_list()
 
 
+def _bezier_cubic_reference(args, x):
+    """
+    Evaluates the curve at x by bisecting its parameter t, which only relies
+    on x(t) being non-decreasing.
+    """
+    x1, y1, x2, y2 = args
+    bezier = lambda t, p1, p2: 3 * (1 - t) ** 2 * t * p1 + 3 * (1 - t) * t**2 * p2 + t**3
+    lo, hi = 0.0, 1.0
+    for _ in range(100):
+        t = (lo + hi) / 2
+        if bezier(t, x1, x2) < x:
+            lo = t
+        else:
+            hi = t
+    return bezier((lo + hi) / 2, y1, y2)
+
+
+def _test_bezier_cubic():
+    # The CSS keyword curves, an overshooting one and the linear equivalent
+    curves = (
+        (0.25, 0.1, 0.25, 1.0),
+        (0.42, 0.0, 1.0, 1.0),
+        (0.0, 0.0, 0.58, 1.0),
+        (0.42, 0.0, 0.58, 1.0),
+        (0.68, -0.6, 0.32, 1.6),
+        (0.0, 0.0, 1.0, 1.0),
+    )
+    for args in curves:
+        for i in range(101):
+            x = i / 100
+            value = ngl.easing_evaluate("bezier_cubic", x, args)
+            assert abs(value - _bezier_cubic_reference(args, x)) < 1e-9, (args, x)
+
+    # The curve must be a function of x: x1 and x2 in [0,1], and all 4
+    # control point coordinates given
+    for args in ((1.2, 0.0, 0.5, 1.0), (0.5, 0.0, -0.1, 1.0), (0.42, 0.0, 0.58)):
+        try:
+            ngl.easing_evaluate("bezier_cubic", 0.5, args)
+        except Exception:
+            pass
+        else:
+            assert False, args
+
+
 @test_floats()
 def anim_forward_api(nb_points=7):
+    # We slip the cubic Bézier checks in this function because all the test
+    # functions must have a reference in this file.
+    _test_bezier_cubic()
+
     scale = 1.0 / float(nb_points)
     ret = []
     times = [i * scale for i in range(nb_points + 1)]

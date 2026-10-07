@@ -300,6 +300,10 @@
       {
         "name": "back_out_in",
         "desc": "combination of `back_out` then `back_in`"
+      },
+      {
+        "name": "bezier_cubic",
+        "desc": "cubic Bézier curve from (0,0) to (1,1), as CSS `cubic-bezier()`: its 4 arguments are the control points `x1`, `y1`, `x2` and `y2`, with `x1` and `x2` in [0,1]"
       }
     ],
     "memory_layout": [

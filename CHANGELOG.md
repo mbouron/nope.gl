@@ -9,6 +9,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
 ### Added
+- `bezier_cubic` easing, a cubic Bézier curve as CSS `cubic-bezier()`, its
+  control points given as the 4 easing arguments
 - `Effect2D.isolate` to draw the children directly while no shader applies,
   without an offscreen
 - `ngl_config_gl.shared_context`, specified through `ngl_config.backend_config`,
