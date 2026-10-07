@@ -37,6 +37,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   `ngl_texture` with the same helpers as `TexturePaint`: `ngl_texture_uv()`,
   `ngl_texture_coord()`, and `ngl_texture_sample()`. `CustomPaint.scaling`
   controls its scaling.
+- `bezier_cubic` easing, a cubic Bézier curve as CSS `cubic-bezier()`, its
+  control points given as the 4 easing arguments
 
 ### Removed
 - CoreVideo capture support (`NGL_CAPTURE_BUFFER_TYPE_COREVIDEO` and
