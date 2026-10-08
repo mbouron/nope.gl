@@ -136,6 +136,12 @@ int ngpu_texture_generate_mipmap(struct ngpu_texture *s)
     return s->gpu_ctx->cls->texture_generate_mipmap(s);
 }
 
+int ngpu_texture_acquire_ahardware_buffer(struct ngpu_texture *s, int acquire_fence_fd)
+{
+    ngpu_assert(s->params.import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER);
+    return s->gpu_ctx->cls->texture_acquire_ahardware_buffer(s, acquire_fence_fd);
+}
+
 struct ngpu_texture *ngpu_texture_ref(const struct ngpu_texture *s)
 {
     return s ? NGPU_RC_REF((struct ngpu_texture *)s) : NULL;

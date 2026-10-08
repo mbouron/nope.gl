@@ -596,6 +596,14 @@ NGPU_API int ngpu_texture_upload(struct ngpu_texture *s, const uint8_t *data, ui
 NGPU_API int ngpu_texture_upload_with_params(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params);
 NGPU_API int ngpu_texture_read_pixels(struct ngpu_texture *s, uint8_t *data);
 NGPU_API int ngpu_texture_generate_mipmap(struct ngpu_texture *s);
+
+/*
+ * Acquires the content its producer rendered anew into the Android hardware
+ * buffer the texture was imported from: the GPU work submitted next waits on
+ * acquire_fence_fd (-1 if the content is ready), which the function takes the
+ * ownership of.
+ */
+NGPU_API int ngpu_texture_acquire_ahardware_buffer(struct ngpu_texture *s, int acquire_fence_fd);
 NGPU_API struct ngpu_texture *ngpu_texture_ref(const struct ngpu_texture *s);
 NGPU_API void ngpu_texture_unrefp(struct ngpu_texture **sp);
 NGPU_API void ngpu_texture_freep(struct ngpu_texture **sp);

@@ -43,6 +43,7 @@ static void cmd_buffer_vk_freep(void **sp)
     ngpu_darray_reset(&s->wait_sems);
     ngpu_darray_reset(&s->wait_stages);
     ngpu_darray_reset(&s->wait_values);
+    ngpu_darray_reset(&s->owned_sems);
     ngpu_darray_reset(&s->signal_sems);
     ngpu_darray_reset(&s->signal_values);
 
@@ -65,6 +66,15 @@ static void unref_rc(void *user_arg, void *data)
 {
     struct ngpu_rc **rcp = data;
     NGPU_RC_UNREFP(rcp);
+}
+
+static void destroy_sem(void *user_arg, void *data)
+{
+    struct ngpu_cmd_buffer_vk *s = user_arg;
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    VkSemaphore *semp = data;
+    vk->funcs.DestroySemaphore(vk->device, *semp, NULL);
 }
 
 static void unref_buffer(void *user_arg, void *data)
@@ -105,6 +115,7 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
 
     ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
     ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
+    ngpu_darray_set_free_func(&s->owned_sems, destroy_sem, s);
 
     return VK_SUCCESS;
 }
@@ -112,6 +123,21 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
 VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage)
 {
     return ngpu_cmd_buffer_vk_add_wait_timeline(s, sem, stage, 0);
+}
+
+/*
+ * Waits on a semaphore the command buffer takes the ownership of, even on
+ * failure: it is destroyed once the command buffer completes, a semaphore
+ * with a pending wait not being reusable.
+ */
+VkResult ngpu_cmd_buffer_vk_add_owned_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage)
+{
+    if (ngpu_darray_try_push(&s->owned_sems, sem) < 0) {
+        destroy_sem(s, &sem);
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return ngpu_cmd_buffer_vk_add_wait_sem(s, sem, stage);
 }
 
 VkResult ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value)
@@ -176,6 +202,7 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
     s->applied_bindgroup_pipeline = NULL;
     ngpu_darray_clear(&s->refs);
     ngpu_darray_clear(&s->buffer_refs);
+    ngpu_darray_clear(&s->owned_sems);
 
     ngpu_darray_clear(&s->wait_sems);
     ngpu_darray_clear(&s->wait_stages);
@@ -293,6 +320,7 @@ VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
 
     ngpu_darray_clear(&s->refs);
     ngpu_darray_clear(&s->buffer_refs);
+    ngpu_darray_clear(&s->owned_sems);
 
     size_t i = 0;
     while (i < gpu_ctx_vk->pending_cmd_buffers.count) {

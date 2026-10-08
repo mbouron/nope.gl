@@ -46,6 +46,7 @@ struct ngpu_cmd_buffer_vk {
     NGPU_DARRAY(VkSemaphore) wait_sems;
     NGPU_DARRAY(VkPipelineStageFlags) wait_stages;
     NGPU_DARRAY(uint64_t) wait_values;
+    NGPU_DARRAY(VkSemaphore) owned_sems;
     NGPU_DARRAY(VkSemaphore) signal_sems;
     NGPU_DARRAY(uint64_t) signal_values;
     NGPU_DARRAY(struct ngpu_rc *) refs;
@@ -56,6 +57,7 @@ struct ngpu_cmd_buffer_vk *ngpu_cmd_buffer_vk_create(struct ngpu_ctx *gpu_ctx);
 void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp);
 VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type);
 VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage);
+VkResult ngpu_cmd_buffer_vk_add_owned_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage);
 VkResult ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value);
 VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem);
 VkResult ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value);
