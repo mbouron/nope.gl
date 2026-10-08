@@ -49,6 +49,7 @@ struct ngpu_ctx_class {
     int (*end_draw)(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep);
     int (*query_draw_time)(struct ngpu_ctx *s, int64_t *time);
     void (*wait_idle)(struct ngpu_ctx *s);
+    int (*wait_sync_fd)(struct ngpu_ctx *s, int fd);
     void (*destroy)(struct ngpu_ctx *s);
 
     enum ngpu_cull_mode (*get_cull_mode)(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode);
@@ -119,7 +120,6 @@ struct ngpu_ctx_class {
     struct ngpu_texture *(*texture_create)(struct ngpu_ctx *ctx);
     int (*texture_init)(struct ngpu_texture *s, const struct ngpu_texture_params *params);
     int (*texture_import)(struct ngpu_texture *s, const struct ngpu_texture_params *params);
-    int (*texture_acquire_ahardware_buffer)(struct ngpu_texture *s, int acquire_fence_fd);
     int (*texture_upload)(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize);
     int (*texture_upload_with_params)(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params);
     int (*texture_read_pixels)(struct ngpu_texture *s, uint8_t *data);

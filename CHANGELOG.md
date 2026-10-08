@@ -9,8 +9,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
 ### Added
-- `ngpu_texture_acquire_ahardware_buffer()` to acquire the content rendered
-  anew into the Android hardware buffer a texture is imported from
+- `ngpu_ctx_wait_sync_fd()` to make the GPU work of the current update or draw
+  wait on a sync_file fence
 - Android: `NGLNode.evaluateAnimation()` to evaluate an animation, as
   `ngl_anim_evaluate()` does
 - Live changes of the time and value of the vector, quaternion and color key

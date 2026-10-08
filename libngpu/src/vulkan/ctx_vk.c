@@ -28,6 +28,12 @@
 
 #include <vulkan/vulkan.h>
 
+#include "config.h"
+
+#if !defined(TARGET_WINDOWS)
+#include <unistd.h>
+#endif
+
 #include "utils/darray.h"
 #include "utils/log.h"
 #include "utils/memory.h"
@@ -1058,6 +1064,14 @@ static VkResult vk_add_pending_wait_value(struct ngpu_ctx *s)
     return VK_SUCCESS;
 }
 
+static void acquire_foreign_textures(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
+
+    ngpu_darray_foreach(texturep, &s_priv->foreign_textures)
+        ngpu_texture_vk_acquire_from_foreign_queue(*texturep);
+}
+
 static int vk_begin_update(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
@@ -1080,6 +1094,8 @@ static int vk_begin_update(struct ngpu_ctx *s)
     res = vk_add_pending_wait_value(s);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
+
+    acquire_foreign_textures(s);
 
     return 0;
 }
@@ -1116,6 +1132,8 @@ static int vk_begin_draw(struct ngpu_ctx *s)
     res = vk_add_pending_wait_value(s);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
+
+    acquire_foreign_textures(s);
 
     if (ctx_params->offscreen) {
         s_priv->default_rt = s_priv->rts.data[s->current_frame_index];
@@ -1271,6 +1289,7 @@ static void vk_destroy(struct ngpu_ctx *s)
     destroy_render_resources(s);
     destroy_swapchain(s);
     destroy_query_pool(s);
+    ngpu_darray_reset(&s_priv->foreign_textures);
 
     ngpu_glslang_uninit();
 
@@ -1292,6 +1311,56 @@ static void vk_wait_idle(struct ngpu_ctx *s)
     pthread_mutex_lock(&vk->queue_lock);
     vk->funcs.DeviceWaitIdle(vk->device);
     pthread_mutex_unlock(&vk->queue_lock);
+}
+
+static int vk_wait_sync_fd(struct ngpu_ctx *s, int fd)
+{
+    struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
+    struct vkcontext *vk = s_priv->vkcontext;
+
+    if (!s_priv->cur_cmd_buffer) {
+        LOG(ERROR, "a sync fd can only be waited on during an update or a draw");
+        goto fail;
+    }
+
+    if (!vk->funcs.ImportSemaphoreFdKHR) {
+        LOG(ERROR, "VK_KHR_external_semaphore_fd is required to wait on a sync fd");
+        goto fail;
+    }
+
+    const VkSemaphoreCreateInfo sem_info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+    VkSemaphore sem = VK_NULL_HANDLE;
+    VkResult res = vk->funcs.CreateSemaphore(vk->device, &sem_info, NULL, &sem);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not create semaphore: %s", ngpu_vk_res2str(res));
+        goto fail;
+    }
+
+    const VkImportSemaphoreFdInfoKHR import_info = {
+        .sType      = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
+        .semaphore  = sem,
+        .flags      = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
+        .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+        .fd         = fd,
+    };
+    res = vk->funcs.ImportSemaphoreFdKHR(vk->device, &import_info);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not import semaphore fd: %s", ngpu_vk_res2str(res));
+        vk->funcs.DestroySemaphore(vk->device, sem, NULL);
+        goto fail;
+    }
+
+    /* A semaphore with a pending wait can not import the next fence */
+    res = ngpu_cmd_buffer_vk_add_owned_wait_sem(s_priv->cur_cmd_buffer, sem, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    return ngpu_vk_res2ret(res);
+
+fail:
+#if !defined(TARGET_WINDOWS)
+    close(fd);
+#endif
+    return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
 }
 
 static enum ngpu_cull_mode vk_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_mode cull_mode)
@@ -1639,6 +1708,7 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
     .query_draw_time                    = vk_query_draw_time,
     .end_draw                           = vk_end_draw,
     .wait_idle                          = vk_wait_idle,
+    .wait_sync_fd                       = vk_wait_sync_fd,
     .destroy                            = vk_destroy,
 
     .get_cull_mode                      = vk_get_cull_mode,
@@ -1710,7 +1780,6 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
     .texture_create                     = ngpu_texture_vk_create,
     .texture_init                       = ngpu_texture_vk_init,
     .texture_import                     = ngpu_texture_vk_import,
-    .texture_acquire_ahardware_buffer   = ngpu_texture_vk_acquire_ahardware_buffer,
     .texture_upload                     = ngpu_texture_vk_upload,
     .texture_upload_with_params         = ngpu_texture_vk_upload_with_params,
     .texture_read_pixels                = ngpu_texture_vk_read_pixels,

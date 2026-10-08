@@ -302,6 +302,13 @@ void ngpu_ctx_wait_idle(struct ngpu_ctx *s)
     s->cls->wait_idle(s);
 }
 
+int ngpu_ctx_wait_sync_fd(struct ngpu_ctx *s, int fd)
+{
+    if (fd < 0)
+        return 0;
+    return s->cls->wait_sync_fd(s, fd);
+}
+
 void ngpu_ctx_freep(struct ngpu_ctx **sp)
 {
     NGPU_RC_UNREFP(sp);

@@ -461,33 +461,6 @@ static int texture_import_dma_buf(struct ngpu_texture *s)
 #endif
 }
 
-#if defined(TARGET_ANDROID)
-/*
- * Makes the GL commands issued from now on wait on the fence: those of the
- * frame, recorded in the command buffer, are only issued when it is submitted.
- */
-static int wait_fence_fd(struct glcontext *gl, int fence_fd)
-{
-    if (fence_fd < 0)
-        return 0;
-
-    const EGLint sync_attrs[] = {
-        EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fence_fd,
-        EGL_NONE,
-    };
-    EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, sync_attrs);
-    if (sync == EGL_NO_SYNC_KHR) {
-        LOG(ERROR, "could not create native fence EGLSync from acquire fd");
-        close(fence_fd);
-        return NGPU_ERROR_EXTERNAL;
-    }
-    ngpu_eglWaitSyncKHR(gl, sync, 0);
-    ngpu_eglDestroySyncKHR(gl, sync);
-
-    return 0;
-}
-#endif
-
 static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
 {
 #if defined(TARGET_ANDROID)
@@ -521,7 +494,7 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
     else
         gl->funcs.EGLImageTargetTexture2DOES(s_priv->target, s_priv->egl_image);
 
-    return wait_fence_fd(gl, ahb_params->acquire_fence_fd);
+    return ngpu_ctx_wait_sync_fd(s->gpu_ctx, ahb_params->acquire_fence_fd);
 #else
     return NGPU_ERROR_UNSUPPORTED;
 #endif
@@ -704,19 +677,6 @@ int ngpu_texture_gl_import(struct ngpu_texture *s, const struct ngpu_texture_par
         return ret;
 
     return 0;
-}
-
-int ngpu_texture_gl_acquire_ahardware_buffer(struct ngpu_texture *s, int acquire_fence_fd)
-{
-#if defined(TARGET_ANDROID)
-    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
-
-    /* The EGL image aliases the buffer: its new content only needs the wait */
-    return wait_fence_fd(gl, acquire_fence_fd);
-#else
-    return NGPU_ERROR_UNSUPPORTED;
-#endif
 }
 
 int ngpu_texture_gl_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t linesize)

@@ -658,59 +658,17 @@ static int import_dma_buf(struct ngpu_texture *s)
 #endif
 }
 
-#if defined(TARGET_ANDROID)
 /*
- * Acquires the content the producer rendered into the hardware buffer: the
- * command buffer waits on its fence, and takes the image from the foreign
- * queue it was rendered on.
+ * Takes the image from the foreign queue its external producer renders on, as
+ * the first command of the current command buffer to use it: its content is
+ * that of the last fence the command buffer waits on.
  */
-static int acquire_android_hardware_buffer(struct ngpu_texture *s, int acquire_fence_fd)
+void ngpu_texture_vk_acquire_from_foreign_queue(struct ngpu_texture *s)
 {
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
-
-    if (acquire_fence_fd >= 0) {
-        if (!vk->funcs.ImportSemaphoreFdKHR) {
-            LOG(ERROR, "VK_KHR_external_semaphore_fd is required to import a fence");
-            close(acquire_fence_fd);
-            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
-        }
-
-        const VkSemaphoreCreateInfo sem_info = {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        };
-        VkSemaphore sem = VK_NULL_HANDLE;
-        VkResult res = vk->funcs.CreateSemaphore(vk->device, &sem_info, NULL, &sem);
-        if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not create semaphore: %s", ngpu_vk_res2str(res));
-            close(acquire_fence_fd);
-            return NGPU_ERROR_GRAPHICS_GENERIC;
-        }
-
-        const VkImportSemaphoreFdInfoKHR import_info = {
-            .sType      = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
-            .semaphore  = sem,
-            .flags      = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
-            .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
-            .fd         = acquire_fence_fd,
-        };
-        res = vk->funcs.ImportSemaphoreFdKHR(vk->device, &import_info);
-        if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not import semaphore fd: %s", ngpu_vk_res2str(res));
-            vk->funcs.DestroySemaphore(vk->device, sem, NULL);
-            close(acquire_fence_fd);
-            return NGPU_ERROR_GRAPHICS_GENERIC;
-        }
-
-        /* A semaphore with a pending wait can not import the next fence */
-        res = ngpu_cmd_buffer_vk_add_owned_wait_sem(cmd_buffer_vk, sem,
-                                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-        if (res != VK_SUCCESS)
-            return NGPU_ERROR_GRAPHICS_GENERIC;
-    }
 
     const VkImageSubresourceRange subres_range = {
         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -723,30 +681,29 @@ static int acquire_android_hardware_buffer(struct ngpu_texture *s, int acquire_f
     const VkImageMemoryBarrier barrier = {
         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .srcAccessMask       = 0,
-        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+        .dstAccessMask       = get_vk_access_mask_from_image_layout(s_priv->default_image_layout, 1),
         .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        .newLayout           = s_priv->default_image_layout,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
         .dstQueueFamilyIndex = vk->graphics_queue_index,
         .image               = s_priv->image,
         .subresourceRange    = subres_range,
     };
 
+    /*
+     * The source stage chains the barrier to the sync fd waits of the
+     * command buffer, registered on all the commands
+     */
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
     vk->funcs.CmdPipelineBarrier(cmd_buffer_vk->cmd_buf,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                          0,
                          0, NULL,
                          0, NULL,
                          1, &barrier);
-    s_priv->image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    ngpu_texture_vk_transition_to_default_layout(s);
-
-    return 0;
+    s_priv->image_layout = s_priv->default_image_layout;
 }
-#endif
 
 static int import_android_hardware_buffer(struct ngpu_texture *s)
 {
@@ -891,16 +848,17 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         s_priv->format = ahb_format_props.format;
     }
 
-    return acquire_android_hardware_buffer(s, ahb_params->acquire_fence_fd);
-#else
-    return NGPU_ERROR_UNSUPPORTED;
-#endif
-}
+    /*
+     * The producer renders anew into the buffer: the image is taken from it
+     * again at the start of each command buffer
+     */
+    if (ngpu_darray_try_push(&gpu_ctx_vk->foreign_textures, s) < 0)
+        return NGPU_ERROR_MEMORY;
+    s_priv->foreign = 1;
 
-int ngpu_texture_vk_acquire_ahardware_buffer(struct ngpu_texture *s, int acquire_fence_fd)
-{
-#if defined(TARGET_ANDROID)
-    return acquire_android_hardware_buffer(s, acquire_fence_fd);
+    ngpu_texture_vk_acquire_from_foreign_queue(s);
+
+    return ngpu_ctx_wait_sync_fd(s->gpu_ctx, ahb_params->acquire_fence_fd);
 #else
     return NGPU_ERROR_UNSUPPORTED;
 #endif
@@ -1478,6 +1436,15 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    if (s_priv->foreign) {
+        for (size_t i = 0; i < gpu_ctx_vk->foreign_textures.count; i++) {
+            if (gpu_ctx_vk->foreign_textures.data[i] == s) {
+                ngpu_darray_remove(&gpu_ctx_vk->foreign_textures, i);
+                break;
+            }
+        }
+    }
 
     ngpu_ycbcr_sampler_vk_unrefp(&s_priv->ycbcr_sampler);
     if (!s_priv->wrapped_sampler)

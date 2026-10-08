@@ -435,7 +435,7 @@ int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct 
     if (info && info->hardware_buffer && info->hardware_buffer == s->hardware_buffer) {
         const struct ngpu_texture_params *params = ngpu_texture_get_params(s->texture_info.texture);
         if (info->width == params->width && info->height == params->height)
-            return ngpu_texture_acquire_ahardware_buffer(s->texture_info.texture, info->acquire_fence_fd);
+            return ngpu_ctx_wait_sync_fd(node->ctx->gpu_ctx, info->acquire_fence_fd);
     }
 
     /* Cleanup previous texture/image */

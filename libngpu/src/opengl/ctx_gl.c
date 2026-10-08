@@ -25,6 +25,14 @@
 
 #include "config.h"
 
+#if !defined(TARGET_WINDOWS)
+#include <unistd.h>
+#endif
+
+#if defined(TARGET_ANDROID)
+#include "egl.h"
+#endif
+
 #include "utils/log.h"
 #include "ctx.h"
 #include "ngpu/ngpu.h"
@@ -781,6 +789,39 @@ static void gl_wait_idle(struct ngpu_ctx *s)
     gl->funcs.Finish();
 }
 
+/*
+ * Makes the GL commands issued from now on wait on the fence: those of the
+ * frame, recorded in the command buffer, are only issued when it is submitted.
+ */
+static int gl_wait_sync_fd(struct ngpu_ctx *s, int fd)
+{
+#if defined(TARGET_ANDROID)
+    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
+    struct glcontext *gl = s_priv->glcontext;
+
+    const EGLint sync_attrs[] = {
+        EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fd,
+        EGL_NONE,
+    };
+    EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, sync_attrs);
+    if (sync == EGL_NO_SYNC_KHR) {
+        LOG(ERROR, "could not create native fence EGLSync from sync fd");
+        close(fd);
+        return NGPU_ERROR_EXTERNAL;
+    }
+    ngpu_eglWaitSyncKHR(gl, sync, 0);
+    ngpu_eglDestroySyncKHR(gl, sync);
+
+    return 0;
+#else
+    LOG(ERROR, "waiting on a sync fd is not supported on this platform");
+#if !defined(TARGET_WINDOWS)
+    close(fd);
+#endif
+    return NGPU_ERROR_UNSUPPORTED;
+#endif
+}
+
 static void gl_destroy(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
@@ -1046,6 +1087,7 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
     .end_draw                           = gl_end_draw,                           \
     .query_draw_time                    = gl_query_draw_time,                    \
     .wait_idle                          = gl_wait_idle,                          \
+    .wait_sync_fd                       = gl_wait_sync_fd,                       \
     .destroy                            = gl_destroy,                            \
                                                                                  \
     .get_cull_mode                      = gl_get_cull_mode,                      \
@@ -1117,7 +1159,6 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
     .texture_create                     = ngpu_texture_gl_create,                \
     .texture_init                       = ngpu_texture_gl_init,                  \
     .texture_import                     = ngpu_texture_gl_import,                \
-    .texture_acquire_ahardware_buffer   = ngpu_texture_gl_acquire_ahardware_buffer, \
     .texture_upload                     = ngpu_texture_gl_upload,                \
     .texture_upload_with_params         = ngpu_texture_gl_upload_with_params,    \
     .texture_read_pixels                = ngpu_texture_gl_read_pixels,           \

@@ -596,14 +596,6 @@ NGPU_API int ngpu_texture_upload(struct ngpu_texture *s, const uint8_t *data, ui
 NGPU_API int ngpu_texture_upload_with_params(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params);
 NGPU_API int ngpu_texture_read_pixels(struct ngpu_texture *s, uint8_t *data);
 NGPU_API int ngpu_texture_generate_mipmap(struct ngpu_texture *s);
-
-/*
- * Acquires the content its producer rendered anew into the Android hardware
- * buffer the texture was imported from: the GPU work submitted next waits on
- * acquire_fence_fd (-1 if the content is ready), which the function takes the
- * ownership of.
- */
-NGPU_API int ngpu_texture_acquire_ahardware_buffer(struct ngpu_texture *s, int acquire_fence_fd);
 NGPU_API struct ngpu_texture *ngpu_texture_ref(const struct ngpu_texture *s);
 NGPU_API void ngpu_texture_unrefp(struct ngpu_texture **sp);
 NGPU_API void ngpu_texture_freep(struct ngpu_texture **sp);
@@ -1024,6 +1016,14 @@ NGPU_API int ngpu_ctx_begin_draw(struct ngpu_ctx *s);
 NGPU_API int ngpu_ctx_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep);
 NGPU_API int ngpu_ctx_query_draw_time(struct ngpu_ctx *s, int64_t *time);
 NGPU_API void ngpu_ctx_wait_idle(struct ngpu_ctx *s);
+
+/*
+ * Makes the GPU work of the current update or draw wait on a sync_file fence,
+ * such as the one an external producer signals once done writing into a
+ * buffer: the function takes the ownership of fd, -1 meaning there is nothing
+ * to wait on.
+ */
+NGPU_API int ngpu_ctx_wait_sync_fd(struct ngpu_ctx *s, int fd);
 NGPU_API void ngpu_ctx_freep(struct ngpu_ctx **sp);
 
 NGPU_API enum ngpu_backend_type ngpu_ctx_get_backend_type(const struct ngpu_ctx *s);

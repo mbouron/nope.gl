@@ -53,6 +53,9 @@ struct ngpu_ctx_vk {
     struct ngpu_cmd_buffer_vk *cur_cmd_buffer;
     int cur_cmd_buffer_is_transient;
 
+    /* Textures imported from the memory an external producer renders into */
+    NGPU_DARRAY(struct ngpu_texture *) foreign_textures;
+
     VkQueryPool query_pool;
 
     VkSurfaceCapabilitiesKHR surface_caps;
