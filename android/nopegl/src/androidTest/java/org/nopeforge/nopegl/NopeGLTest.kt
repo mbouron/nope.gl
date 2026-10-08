@@ -842,6 +842,74 @@ class NopeGLTest {
         canvasWith2DNodes(NGLConfig.BACKEND_VULKAN)
     }
 
+    /* Each frame shows what the canvas drew for it, its texture being kept */
+    private fun canvasRedrawn(backend: Int) {
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        NGLContext.init(appContext)
+
+        val width = 256
+        val height = 256
+        var color = Color.RED
+        val canvas = NGLAndroidCanvas(
+            width = width,
+            height = height,
+            callback = object: NGLAndroidCanvas.Callback {
+                override fun onDraw(canvas: Canvas) {
+                    canvas.drawColor(color)
+                }
+            },
+            tag = "canvas",
+        )
+
+        val group = NGLCanvas2D(
+            width = width,
+            height = height,
+            children = listOf(
+                NGLDrawRect2D(
+                    rect = NGLVec4(0f, 0f, 256f, 256f),
+                    fill = NGLTexturePaint(
+                        texture = canvas.node,
+                    ),
+                )
+            )
+        )
+
+        val scene = NGLScene(rootNode = group, duration = 2.0)
+
+        val captureBuffer = ByteBuffer.allocateDirect(width * height * 4)
+        val ctx = createContext(backend).apply {
+            val ret = setCaptureBuffer(captureBuffer)
+            assertEquals(ret, 0)
+            setScene(scene)
+        }
+
+        val expected = listOf(
+            Color.RED to 0xFF0000FFu,
+            Color.GREEN to 0x00FF00FFu,
+            Color.BLUE to 0x0000FFFFu,
+            Color.RED to 0xFF0000FFu,
+        )
+        expected.forEachIndexed { i, (drawn, rgba) ->
+            color = drawn
+            val ret = ctx.draw(i * 0.1)
+            assertEquals(ret, 0)
+            val buffer = captureBuffer.asIntBuffer()
+            assertEquals(rgba, buffer[(height / 2) * width + width / 2].toUInt())
+        }
+
+        ctx.release()
+    }
+
+    @Test
+    fun canvasRedrawnGL() {
+        canvasRedrawn(NGLConfig.BACKEND_OPENGLES)
+    }
+
+    @Test
+    fun canvasRedrawnVK() {
+        canvasRedrawn(NGLConfig.BACKEND_VULKAN)
+    }
+
     @Test
     fun generatedKeyframeListEdits() {
         NGLContext.init(InstrumentationRegistry.getInstrumentation().targetContext)

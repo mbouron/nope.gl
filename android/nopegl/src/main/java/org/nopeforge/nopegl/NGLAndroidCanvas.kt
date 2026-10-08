@@ -109,7 +109,8 @@ class NGLAndroidCanvas(
         override fun draw() {
             if (!callback.onPreDraw()) return
 
-            setHardwareBufferInfo(null)
+            // The texture keeps the buffer it is imported from until the next
+            // one is set: given the same buffer again, it is not imported anew
             hardwareBuffer?.let { renderer?.releaseBuffer(it) }
             hardwareBuffer = null
 
