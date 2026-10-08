@@ -333,9 +333,15 @@ DECLARE_EASINGS(back, _derivative, back_derivative(x, PARAM(0, 1.70158)), DERIVA
  * The curve goes from (0,0) to (1,1) through the control points (x1,y1) and
  * (x2,y2). Each coordinate is a cubic polynomial of the curve parameter t,
  * written here as a*t³ + b*t² + c*t.
+ *
+ * The derivatives are evaluated from the control points p1 and p2 instead
+ * (Bernstein form), which makes them exact at the ends of the curve: the
+ * coefficients a, b and c are rounded, so x'(1) = 3a + 2b + c would only be a
+ * few ulps away from 0 where x2 is 1, defeating the vanishing slope cases.
  */
 struct bezier_poly {
     double a, b, c;
+    double p1, p2;
 };
 
 static struct bezier_poly bezier_poly(double p1, double p2)
@@ -343,7 +349,7 @@ static struct bezier_poly bezier_poly(double p1, double p2)
     const double c = 3.0 * p1;
     const double b = 3.0 * (p2 - p1) - c;
     const double a = 1.0 - c - b;
-    return (struct bezier_poly){a, b, c};
+    return (struct bezier_poly){a, b, c, p1, p2};
 }
 
 static double bezier_eval(struct bezier_poly p, double t)
@@ -353,12 +359,13 @@ static double bezier_eval(struct bezier_poly p, double t)
 
 static double bezier_derivative(struct bezier_poly p, double t)
 {
-    return (3.0 * p.a * t + 2.0 * p.b) * t + p.c;
+    const double u = 1.0 - t;
+    return 3.0 * (u * u * p.p1 + 2.0 * u * t * (p.p2 - p.p1) + t * t * (1.0 - p.p2));
 }
 
 static double bezier_derivative2(struct bezier_poly p, double t)
 {
-    return 6.0 * p.a * t + 2.0 * p.b;
+    return 6.0 * ((1.0 - t) * (p.p2 - 2.0 * p.p1) + t * (1.0 - 2.0 * p.p2 + p.p1));
 }
 
 /* Close to the double precision of x and t, both in [0,1] */

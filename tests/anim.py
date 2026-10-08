@@ -21,6 +21,7 @@
 #
 
 import itertools
+import math
 import random
 
 import pynopegl as ngl
@@ -113,6 +114,19 @@ def _test_bezier_cubic():
             x = i / 100
             value = ngl.easing_evaluate("bezier_cubic", x, args)
             assert abs(value - _bezier_cubic_reference(args, x)) < 1e-9, (args, x)
+
+    # Slopes at the ends of the curve where x'(t) vanishes: the limit of
+    # y''/x'' where y'(t) vanishes as well, an infinite slope otherwise
+    for i in range(1, 100):
+        p = i / 100
+        for x, args, expected in (
+            (0.0, (0.0, 0.0, p, 0.3), 0.3 / p),
+            (1.0, (p, 0.3, 1.0, 1.0), (1.0 - 0.3) / (1.0 - p)),
+            (0.0, (0.0, 0.3, p, 1.0), math.inf),
+            (1.0, (p, 0.0, 1.0, 1.3), -math.inf),
+        ):
+            value = ngl.easing_derivate("bezier_cubic", x, args)
+            assert value == expected or abs(value - expected) < 1e-9, (args, x, value, expected)
 
     # The curve must be a function of x: x1 and x2 in [0,1], y1 and y2
     # finite, and all 4 control point coordinates given
