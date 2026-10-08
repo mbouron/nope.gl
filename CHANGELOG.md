@@ -73,6 +73,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   use `glsl` with a complete `main(const ngl_FragmentInput)` function
 
 ### Changed
+- `ngl_custom_texture_set_texture_info_ahb()` keeps the texture imported from
+  a hardware buffer defined again with the same dimensions, and only acquires
+  its new content
 - The HUD now rely on metrics exported by the NGPU layer instead of inspecting
   the graph, only the count of active nodes remains
 - `ngl_configure()` now fails with `NGL_ERROR_BUSY` if a frame obtained from

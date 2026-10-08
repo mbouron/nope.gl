@@ -95,6 +95,10 @@ struct ngl_custom_texture_info_ahb {
  * This function must only be called from the node user-defined functions of
  * the NGL_NODE_CUSTOMTEXTURE node.
  *
+ * Defining the same AHB with the same dimensions again, once its producer
+ * rendered into it anew, keeps the texture imported from it: only the new
+ * acquire fence is waited on.
+ *
  * @param node  pointer to the target node
  * @param info  pointer to a ngl_custom_texture_info_ahb structure. NULL can be
  *              passed to reset previous texture information.

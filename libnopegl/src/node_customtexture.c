@@ -30,6 +30,8 @@
 #include "params.h"
 
 #if defined(TARGET_ANDROID)
+#include <android/hardware_buffer.h>
+
 #include "jni_utils.h"
 #include "nopegl/nopegl_android.h"
 #endif
@@ -47,7 +49,24 @@ struct customtexture_opts {
 
 struct customtexture_priv {
     struct texture_info texture_info;
+#if defined(TARGET_ANDROID)
+    /* The hardware buffer the texture is imported from, held while it is */
+    struct AHardwareBuffer *hardware_buffer;
+#endif
 };
+
+static void reset_texture(struct customtexture_priv *s)
+{
+    ngli_image_resource_set(s->texture_info.resource, NULL);
+    ngli_image_unrefp(&s->texture_info.image);
+    ngpu_texture_freep(&s->texture_info.texture);
+#if defined(TARGET_ANDROID)
+    if (s->hardware_buffer) {
+        AHardwareBuffer_release(s->hardware_buffer);
+        s->hardware_buffer = NULL;
+    }
+#endif
+}
 
 #define OFFSET(x) offsetof(struct customtexture_opts, x)
 static const struct node_param customtexture_params[] = {
@@ -174,8 +193,7 @@ static void customtexture_uninit(struct ngl_node *node)
     const struct customtexture_opts *o = node->opts;
     const struct ngl_node_funcs *funcs = &o->funcs;
 
-    ngli_image_unrefp(&s->texture_info.image);
-    ngpu_texture_freep(&s->texture_info.texture);
+    reset_texture(s);
 
     if (funcs->uninit)
         funcs->uninit(NULL, o->user_data);
@@ -313,9 +331,7 @@ int ngl_custom_texture_set_texture_info_gl(struct ngl_node *node, const struct n
     struct customtexture_priv *s = node->priv_data;
 
     /* Cleanup previous texture/image */
-    ngli_image_resource_set(s->texture_info.resource, NULL);
-    ngli_image_unrefp(&s->texture_info.image);
-    ngpu_texture_freep(&s->texture_info.texture);
+    reset_texture(s);
     if (!info) {
         ngli_node_invalidate_branch(node);
         return 0;
@@ -412,10 +428,18 @@ int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct 
 
     struct customtexture_priv *s = node->priv_data;
 
+    /*
+     * The same buffer rendered anew: the texture imported from it stands,
+     * only its new content is waited on
+     */
+    if (info && info->hardware_buffer && info->hardware_buffer == s->hardware_buffer) {
+        const struct ngpu_texture_params *params = ngpu_texture_get_params(s->texture_info.texture);
+        if (info->width == params->width && info->height == params->height)
+            return ngpu_texture_acquire_ahardware_buffer(s->texture_info.texture, info->acquire_fence_fd);
+    }
+
     /* Cleanup previous texture/image */
-    ngli_image_resource_set(s->texture_info.resource, NULL);
-    ngli_image_unrefp(&s->texture_info.image);
-    ngpu_texture_freep(&s->texture_info.texture);
+    reset_texture(s);
     if (!info || !info->hardware_buffer) {
         ngli_node_invalidate_branch(node);
         return 0;
@@ -424,6 +448,9 @@ int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct 
     int ret = import_texture_ahb(node, info);
     if (ret < 0)
         return ret;
+
+    AHardwareBuffer_acquire(info->hardware_buffer);
+    s->hardware_buffer = info->hardware_buffer;
 
     ngli_node_invalidate_branch(node);
     return 0;
