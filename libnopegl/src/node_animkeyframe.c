@@ -368,9 +368,11 @@ static double bezier_derivative2(struct bezier_poly p, double t)
  * Find the parameter t at which the curve reaches x. With x1 and x2 in
  * [0,1], x(t) is non-decreasing over [0,1], so there is a single such t (or a
  * single range of them, where the curve is vertical). Newton's method finds
- * it in a few iterations from the identity guess; where it does not converge
- * (a vanishing slope, or a step leaving [0,1]), a bisection, which the
- * monotony makes certain to converge, takes over.
+ * it in a few iterations from the identity guess. Each evaluation also
+ * narrows a [lo,hi] range around t, and wherever a Newton step does not land
+ * inside it (a step leaving it, or an infinite or NaN step from a vanishing
+ * slope, which fails the comparisons), a bisection step is taken instead,
+ * which the monotony makes certain to converge.
  */
 static double bezier_solve(struct bezier_poly px, double x)
 {
@@ -379,28 +381,19 @@ static double bezier_solve(struct bezier_poly px, double x)
     if (x >= 1.0)
         return 1.0;
 
-    double t = x;
-    for (int i = 0; i < 8; i++) {
-        const double err = bezier_eval(px, t) - x;
-        if (fabs(err) < BEZIER_PRECISION)
-            return t;
-        const double slope = bezier_derivative(px, t);
-        if (slope == 0.0)
-            break;
-        t -= err / slope;
-        if (!(t >= 0.0 && t <= 1.0))
-            break;
-    }
-
     double lo = 0.0;
     double hi = 1.0;
-    t = x;
+    double t = x;
     while (hi - lo > BEZIER_PRECISION) {
-        if (bezier_eval(px, t) < x)
+        const double err = bezier_eval(px, t) - x;
+        if (fabs(err) < BEZIER_PRECISION)
+            break;
+        if (err < 0.0)
             lo = t;
         else
             hi = t;
-        t = (lo + hi) / 2.0;
+        const double next = t - err / bezier_derivative(px, t);
+        t = next > lo && next < hi ? next : (lo + hi) / 2.0;
     }
     return t;
 }
@@ -418,21 +411,34 @@ static easing_type bezier_cubic_derivative(easing_type x, size_t args_nb, const 
     const struct bezier_poly py = bezier_poly(args[1], args[3]);
     const double t = bezier_solve(px, x);
 
-    /* dy/dx = y'(t) / x'(t) */
-    const double dx = bezier_derivative(px, t);
-    const double dy = bezier_derivative(py, t);
-    if (dx != 0.0)
-        return dy / dx;
+    /*
+     * dy/dx = y'(t) / x'(t), x'(t) being non-negative with the monotony (its
+     * absolute value discards a -0.0, which would flip the sign of an
+     * infinite slope). x'(t) vanishes where a control point lies on an end of
+     * the curve, or where the curve is vertical: the division then gives the
+     * infinite slope, or NaN if y'(t) vanishes as well.
+     */
+    const double slope = bezier_derivative(py, t) / fabs(bezier_derivative(px, t));
+    if (!isnan(slope))
+        return slope;
 
     /*
-     * x'(t) vanishes where a control point lies on an end of the curve, or
-     * where the curve is vertical: the slope is then the limit of y'/x',
-     * which is y''/x'' when y'(t) vanishes as well.
+     * The slope is then the limit of y'/x' on the side of t where x' is
+     * positive (after t, but before t=1). By L'Hôpital's rule, it is y''/x'',
+     * whose sign is right since x'' is positive at t=0 and negative at t=1.
+     * Where x''(t) vanishes too, x' grows as (t-t0)² while y' grows as
+     * y''(t0)·(t-t0): the slope is infinite, of the sign of y' on that side,
+     * as the sign of a vanishing x'' carries nothing. Otherwise, it is the
+     * ratio of the third derivatives, x'''(t) being non-zero since the
+     * coefficients of x(t) sum to 1.
      */
-    if (dy != 0.0)
-        return copysign(INFINITY, dy);
     const double ddx = bezier_derivative2(px, t);
-    return ddx != 0.0 ? bezier_derivative2(py, t) / ddx : 0.0;
+    const double ddy = bezier_derivative2(py, t);
+    if (ddx != 0.0)
+        return ddy / ddx;
+    if (ddy != 0.0)
+        return copysign(INFINITY, t == 1.0 ? -ddy : ddy);
+    return py.a / px.a;
 }
 
 static int bezier_cubic_check_args(size_t args_nb, const easing_type *args)
@@ -441,8 +447,14 @@ static int bezier_cubic_check_args(size_t args_nb, const easing_type *args)
         LOG(ERROR, "bezier_cubic expects 4 arguments (x1, y1, x2, y2), got %zu", args_nb);
         return NGL_ERROR_INVALID_ARG;
     }
-    if (args[0] < 0.0 || args[0] > 1.0 || args[2] < 0.0 || args[2] > 1.0) {
-        LOG(ERROR, "bezier_cubic control points must have x1 and x2 in [0,1], got %g and %g", args[0], args[2]);
+    /* A NaN is clamped to 0 by fmax(), so it differs from its clamped value */
+    const double x1 = args[0], x2 = args[2];
+    if (fmin(fmax(x1, 0.0), 1.0) != x1 || fmin(fmax(x2, 0.0), 1.0) != x2) {
+        LOG(ERROR, "bezier_cubic control points must have x1 and x2 in [0,1], got %g and %g", x1, x2);
+        return NGL_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(args[1]) || !isfinite(args[3])) {
+        LOG(ERROR, "bezier_cubic control points must have finite y1 and y2, got %g and %g", args[1], args[3]);
         return NGL_ERROR_INVALID_ARG;
     }
     return 0;

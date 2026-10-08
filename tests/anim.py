@@ -114,9 +114,19 @@ def _test_bezier_cubic():
             value = ngl.easing_evaluate("bezier_cubic", x, args)
             assert abs(value - _bezier_cubic_reference(args, x)) < 1e-9, (args, x)
 
-    # The curve must be a function of x: x1 and x2 in [0,1], and all 4
-    # control point coordinates given
-    for args in ((1.2, 0.0, 0.5, 1.0), (0.5, 0.0, -0.1, 1.0), (0.42, 0.0, 0.58)):
+    # The curve must be a function of x: x1 and x2 in [0,1], y1 and y2
+    # finite, and all 4 control point coordinates given
+    nan, inf = float("nan"), float("inf")
+    invalid_args = (
+        (1.2, 0.0, 0.5, 1.0),
+        (0.5, 0.0, -0.1, 1.0),
+        (nan, 0.0, 0.5, 1.0),
+        (0.5, 0.0, nan, 1.0),
+        (0.5, nan, 0.5, 1.0),
+        (0.5, 0.0, 0.5, inf),
+        (0.42, 0.0, 0.58),
+    )
+    for args in invalid_args:
         try:
             ngl.easing_evaluate("bezier_cubic", 0.5, args)
         except Exception:
