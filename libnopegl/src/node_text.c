@@ -667,12 +667,14 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
             .no_metadata = true,
+            .precision   = NGPU_PRECISION_HIGH,
         },
         {
             .name        = "band_tex",
             .type        = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage       = NGPU_PROGRAM_STAGE_FRAG,
             .no_metadata = true,
+            .precision   = NGPU_PRECISION_HIGH,
         },
     };
 
