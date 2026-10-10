@@ -75,7 +75,7 @@ fun ChoiceEnum.toFileSpec(): FileSpec {
                 addEnumConstant(
                     entry.className,
                     TypeSpec.anonymousClassBuilder()
-                        .addKdoc(entry.description)
+                        .addKdoc("%L", entry.description)
                         .addSuperclassConstructorParameter("%S", entry.nativeName)
                         .build()
                 )
