@@ -636,10 +636,10 @@ shaders_h = []
 foreach shader_file, header_file : shaders
   shaders_h += custom_target(
     shader_file,
-    command: [glsl2c, '@INPUT@'],
-    capture: true,
+    command: [glsl2c, '@INPUT@', '@OUTPUT@', '@DEPFILE@'],
     input: files('src/glsl' / shader_file),
     output: header_file,
+    depfile: header_file + '.d',
     env: {'PYTHONIOENCODING': 'UTF-8'}
   )
 endforeach
