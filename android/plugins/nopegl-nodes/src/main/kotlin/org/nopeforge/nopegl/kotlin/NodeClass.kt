@@ -122,7 +122,7 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
                 .addStatement(if (sourceFile == null) "" else "file: $sourceFile")
                 .apply {
                     parameters.forEach {
-                        addStatement("@param ${it.parameterName} ${it.description} (live: ${it.live})")
+                        addStatement("@param %L %L (live: %L)", it.parameterName, it.description, it.live)
                     }
                 }
                 .build()
@@ -264,7 +264,7 @@ private fun NodeClass.toTypeSpec(choices: Map<String, ChoiceEnum>): TypeSpec {
 private fun FunSpec.Builder.addKdoc(param: NodeClass.Parameter): FunSpec.Builder {
     return addKdoc(
         CodeBlock.builder()
-            .addStatement(param.description)
+            .addStatement("%L", param.description)
             .run {
                 if (param.live) {
                     addStatement("Once the node's scene is loaded, this parameter should be updated from a single thread.")
