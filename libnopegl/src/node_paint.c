@@ -393,7 +393,7 @@ static const char gradientpaint_glsl[] =
     "    vec2 uv = frag.content_uv;\n"
     "    vec3 c0 = $color0 * $opacity0;\n"
     "    vec3 c1 = $color1 * $opacity1;\n"
-    "    float aspect = ngli_rect_size.x / ngli_rect_size.y;\n"
+    "    float aspect = frag.rect_size.x / frag.rect_size.y;\n"
     "    float t = 0.0;\n"
     "    if ($gradient_mode == 0) {\n"
     "        vec2 pa = uv - $pos0, ba = $pos1 - $pos0;\n"
