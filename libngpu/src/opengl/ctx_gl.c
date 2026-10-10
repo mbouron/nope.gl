@@ -466,6 +466,7 @@ static int gl_init(struct ngpu_ctx *s)
 #endif
 
     uintptr_t shared_handle = 0;
+    uintptr_t display = ctx_params->display;
     if (ctx_params->shared_ctx && ctx_params_gl && ctx_params_gl->shared_context) {
         LOG(ERROR, "shared_ctx and shared_context cannot be set together");
         return NGPU_ERROR_INVALID_ARG;
@@ -477,6 +478,8 @@ static int gl_init(struct ngpu_ctx *s)
             return NGPU_ERROR_INVALID_USAGE;
         }
         shared_handle = ngpu_glcontext_get_handle(shared_priv->glcontext);
+        if (!display)
+            display = ngpu_glcontext_get_display(shared_priv->glcontext);
     } else if (ctx_params_gl) {
         shared_handle = ctx_params_gl->shared_context;
     }
@@ -484,7 +487,7 @@ static int gl_init(struct ngpu_ctx *s)
     const struct glcontext_params params = {
         .platform      = ctx_params->platform,
         .backend       = ctx_params->backend,
-        .display       = ctx_params->display,
+        .display       = display,
         .window        = ctx_params->window,
         .shared_ctx    = shared_handle,
         .swap_interval = ctx_params->swap_interval,
