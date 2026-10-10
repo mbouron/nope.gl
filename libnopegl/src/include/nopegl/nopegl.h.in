@@ -1435,6 +1435,9 @@ NGL_API struct ngpu_fence *ngl_frame_get_signal_fence(const struct ngl_frame *f)
  * The frame is invalidated by this call. Do not access it, the texture, or
  * the signal fence afterwards.
  *
+ * The NGL context takes ownership of the fence. Therefore, the GPU context
+ * that created the fence must outlive the NGL context.
+ *
  * @param f             pointer to the frame
  * @param fence         optional GPU fence signaling consumer-side completion
  */
