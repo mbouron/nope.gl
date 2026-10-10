@@ -766,24 +766,22 @@ fail:
     return NULL;
 }
 
+static _Thread_local struct glcontext *current_glcontext;
+
 int ngpu_glcontext_make_current(struct glcontext *glcontext, int current)
 {
     if (current) {
-        if (glcontext->is_active) {
-            ngpu_assert(pthread_equal(pthread_self(), glcontext->owner_thread));
+        if (current_glcontext == glcontext)
             return 0;
-        }
         int ret = 0;
         if (glcontext->cls->make_current)
             ret = glcontext->cls->make_current(glcontext, 1);
         if (ret < 0)
             return ret;
-        glcontext->owner_thread = pthread_self();
-        glcontext->is_active = true;
+        current_glcontext = glcontext;
     } else {
-        ngpu_assert(glcontext->is_active);
-        ngpu_assert(pthread_equal(pthread_self(), glcontext->owner_thread));
-        glcontext->is_active = false;
+        ngpu_assert(current_glcontext == glcontext);
+        current_glcontext = NULL;
         if (glcontext->cls->make_current)
             return glcontext->cls->make_current(glcontext, 0);
     }
@@ -835,6 +833,9 @@ void ngpu_glcontext_freep(struct glcontext **glcontextp)
 
     if (glcontext->cls->uninit)
         glcontext->cls->uninit(glcontext);
+
+    /* Uninitializing can leave no context current */
+    current_glcontext = NULL;
 
     ngpu_free(glcontext->priv_data);
     ngpu_freep(glcontextp);
