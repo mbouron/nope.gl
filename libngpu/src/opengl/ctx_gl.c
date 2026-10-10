@@ -787,6 +787,8 @@ static void gl_wait_idle(struct ngpu_ctx *s)
 static void gl_destroy(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
+    if (s_priv->glcontext)
+        ngpu_glcontext_make_current(s_priv->glcontext, 1);
     timer_reset(s);
     rendertarget_reset(s);
     destroy_command_buffers(s);
