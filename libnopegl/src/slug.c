@@ -25,6 +25,7 @@
 #include <ngpu/ngpu.h>
 
 #include "internal.h"
+#include "log.h"
 #include "path.h"
 #include "slug.h"
 #include "utils/cubic_to_quad.h"
@@ -304,6 +305,26 @@ static int push_texel(struct slug_texel_darray *texels, float x, float y, float 
     return 0;
 }
 
+static int ensure_band_texels_in_row(struct slug *s, int32_t *band_pos, int32_t n)
+{
+    if (n > NGLI_SLUG_BAND_TEX_WIDTH) {
+        LOG(ERROR, "%d slug band texels do not fit in a texture row", n);
+        return NGL_ERROR_LIMIT_EXCEEDED;
+    }
+
+    const int32_t x = *band_pos % NGLI_SLUG_BAND_TEX_WIDTH;
+    if (x + n <= NGLI_SLUG_BAND_TEX_WIDTH)
+        return 0;
+
+    for (int32_t i = x; i < NGLI_SLUG_BAND_TEX_WIDTH; i++) {
+        int ret = push_texel(&s->band_texels, 0.f, 0.f, 0.f, 0.f);
+        if (ret < 0)
+            return ret;
+        (*band_pos)++;
+    }
+    return 0;
+}
+
 static int upload_texture(struct slug *s, struct slug_texel_darray *texels,
                           struct ngpu_texture **texturep, int32_t *capacity,
                           int32_t *texture_height)
@@ -375,6 +396,9 @@ static int finalize_internal(struct slug *s)
         }
 
         /* Record glyph location in band texture */
+        ret = ensure_band_texels_in_row(s, &band_pos, nb_hbands + nb_vbands);
+        if (ret < 0)
+            goto end;
         glyph->data.glyph_loc[0] = band_pos % NGLI_SLUG_BAND_TEX_WIDTH;
         glyph->data.glyph_loc[1] = band_pos / NGLI_SLUG_BAND_TEX_WIDTH;
         glyph->data.band_max[0] = nb_hbands - 1;
@@ -434,6 +458,9 @@ static int finalize_internal(struct slug *s)
                 qsort(band_entries.data, nb_entries, sizeof(*band_entries.data), cmp_band_entry_desc);
 
             /* Write band header: (count, offset_to_curve_list, 0, 0) */
+            ret = ensure_band_texels_in_row(s, &band_pos, (int32_t)nb_entries);
+            if (ret < 0)
+                goto end;
             const int32_t offset = band_pos - header_start;
             float *header = (float *)s->band_texels.data + (size_t)(header_start + j) * 4;
             header[0] = (float)nb_entries;
@@ -477,6 +504,9 @@ static int finalize_internal(struct slug *s)
                 qsort(band_entries.data, nb_entries, sizeof(*band_entries.data), cmp_band_entry_desc);
 
             /* Write band header at offset nb_hbands + j from glyph start */
+            ret = ensure_band_texels_in_row(s, &band_pos, (int32_t)nb_entries);
+            if (ret < 0)
+                goto end;
             const int32_t offset = band_pos - header_start;
             float *header = (float *)s->band_texels.data + (size_t)(header_start + nb_hbands + j) * 4;
             header[0] = (float)nb_entries;
