@@ -27,6 +27,10 @@ import java.nio.ByteBuffer
 
 class NGLContext {
     private var nativePtr: Long
+
+    val nativeHandle: Long
+        get() = nativePtr
+
     private var captureBuffer: ByteBuffer? = null
 
     init {
