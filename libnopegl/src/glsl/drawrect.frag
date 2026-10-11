@@ -61,6 +61,27 @@ float ngli_sdf_rounded_box(vec2 pos, vec2 half_size, vec2 radius)
 void main()
 {
     /*
+     * Rounded-rectangle SDF in pixel space, first: its anti-aliasing width
+     * uses derivatives, undefined next to a discarded fragment
+     */
+    vec2 half_size = ngli_rect_size * 0.5;
+    vec2 pos       = (ngli_v_rect_uv - 0.5) * ngli_rect_size;
+    vec2 r         = ngli_corner_radius;
+    float d        = ngli_sdf_rounded_box(pos, half_size, r);
+
+    /*
+     * Use the screen-space position derivatives instead of fwidth(d) for the
+     * anti-aliasing width.  The box SDF uses max(q.x, q.y) in its interior,
+     * which has a derivative discontinuity at sharp corners (where q.x ==
+     * q.y).  Within the GPU 2×2 fragment quad, max() can select different axes
+     * in neighbouring fragments, making fwidth(d) depend on which row/column
+     * the hardware samples — producing different results across GPUs.  pos
+     * always has smooth, hardware-independent derivatives so min(fwidth) gives
+     * a stable per-pixel transition width.
+     */
+    float aa = min(fwidth(pos.x), fwidth(pos.y)) * 0.5;
+
+    /*
      * Rounded clip rectangles: each clip is a rounded box evaluated in its own
      * local space: map the canvas-pixel position into that space (inverse of
      * the clip's transform), evaluate the rounded-box SDF and anti-alias the
@@ -80,24 +101,6 @@ void main()
     }
     if (clip_cov <= 0.0)
         discard;
-
-    /* Rounded-rectangle SDF in pixel space */
-    vec2 half_size = ngli_rect_size * 0.5;
-    vec2 pos       = (ngli_v_rect_uv - 0.5) * ngli_rect_size;
-    vec2 r         = ngli_corner_radius;
-    float d        = ngli_sdf_rounded_box(pos, half_size, r);
-
-    /*
-     * Use the screen-space position derivatives instead of fwidth(d) for the
-     * anti-aliasing width.  The box SDF uses max(q.x, q.y) in its interior,
-     * which has a derivative discontinuity at sharp corners (where q.x ==
-     * q.y).  Within the GPU 2×2 fragment quad, max() can select different axes
-     * in neighbouring fragments, making fwidth(d) depend on which row/column
-     * the hardware samples — producing different results across GPUs.  pos
-     * always has smooth, hardware-independent derivatives so min(fwidth) gives
-     * a stable per-pixel transition width.
-     */
-    float aa = min(fwidth(pos.x), fwidth(pos.y)) * 0.5;
 
     /*
      * Outline inner/outer edges:
