@@ -789,12 +789,15 @@ class NopeGLTest {
 
         val width = 256
         val height = 256
+        var color = Color.WHITE
+        var changed = false
         val canvas = NGLAndroidCanvas(
             width = width,
             height = height,
             callback = object: NGLAndroidCanvas.Callback {
+                override fun onPreDraw(): Boolean = changed
                 override fun onDraw(canvas: Canvas) {
-                    canvas.drawColor(Color.WHITE)
+                    canvas.drawColor(color)
                     super.onDraw(canvas)
                 }
             },
@@ -817,17 +820,29 @@ class NopeGLTest {
         val scene = NGLScene(rootNode = group, duration = 2.0)
 
         val captureBuffer = ByteBuffer.allocateDirect(width * height * 4)
+        val captureBufferRGBA = captureBuffer.asIntBuffer()
         val ctx = createContext(backend).apply {
             val ret = setCaptureBuffer(captureBuffer)
             assertEquals(ret, 0)
             setScene(scene)
         }
 
-        val ret = ctx.draw(0.0)
-        assertEquals(ret, 0)
-
-        val buffer = captureBuffer.asIntBuffer()
-        assertEquals((0xFFFFFFFF).toUInt(), buffer[0].toUInt())
+        data class Step(
+            val color: Int,
+            val changed: Boolean,
+            val expectedColor: UInt
+        )
+        val steps = listOf(
+            Step(Color.WHITE, false, 0xFFFFFFFFu),
+            Step(Color.RED, false, 0xFFFFFFFFu),
+            Step(Color.RED, true, 0xFF0000FFu),
+        )
+        steps.forEach { step ->
+            color = step.color
+            changed = step.changed
+            assertEquals(0, ctx.draw(0.0))
+            assertEquals(step.expectedColor, captureBufferRGBA[0].toUInt())
+        }
 
         ctx.release()
     }

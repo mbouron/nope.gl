@@ -66,6 +66,8 @@ class NGLAndroidCanvas(
             val h = pendingHeight
             if (renderer != null && w == currentWidth && h == currentHeight) return
 
+            hardwareBuffer?.let { renderer?.releaseBuffer(it) }
+            hardwareBuffer = null
             renderer?.close()
             renderNode?.discardDisplayList()
 
@@ -107,13 +109,14 @@ class NGLAndroidCanvas(
         }
 
         override fun draw() {
-            if (!callback.onPreDraw()) return
+            ensureRenderer()
+
+            val changed = callback.onPreDraw()
+            if (hardwareBuffer != null && !changed) return
 
             setHardwareBufferInfo(null)
             hardwareBuffer?.let { renderer?.releaseBuffer(it) }
             hardwareBuffer = null
-
-            ensureRenderer()
 
             val renderer = renderer ?: return
             val renderNode = renderNode ?: return
@@ -163,7 +166,12 @@ class NGLAndroidCanvas(
         fun onUpdate(time: Double) = Unit
 
         /**
-         * @return true to draw a frame, false otherwise
+         * Determines whether to draw a new frame or reuse the previous one.
+         *
+         * Called before each draw. If no previous frame is available for
+         * reuse, the return value is ignored and a new frame is drawn.
+         *
+         * @return `true` to draw a new frame, or `false` to reuse the previous one.
          */
         fun onPreDraw(): Boolean = true
         fun onDraw(canvas: Canvas) = Unit
