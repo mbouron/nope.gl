@@ -157,6 +157,26 @@ def _gen_ios_cross_file(cfg):
         fp.write(cross_file)
 
 
+_CLANG_CL_NATIVE_FILE = textwrap.dedent("""\
+    [binaries]
+    c = 'clang-cl'
+    cpp = 'clang-cl'
+    """)
+
+
+def _get_clang_cl_native_file_path(cfg):
+    return op.join(cfg.prefix, "meson-clang-cl.ini")
+
+
+def _gen_clang_cl_native_file(cfg):
+    with open(_get_clang_cl_native_file_path(cfg), "w") as fp:
+        fp.write(_CLANG_CL_NATIVE_FILE)
+
+
+def _get_clang_cl_meson_opts(cfg):
+    return ["--native-file", _get_clang_cl_native_file_path(cfg), "-Db_lto_mode=thin"]
+
+
 _ROOTDIR = op.abspath(op.dirname(__file__))
 _SYSTEM = "MinGW" if sysconfig.get_platform().startswith("mingw") else platform.system()
 _RENDERDOC_ID = f"renderdoc_{_SYSTEM}"
@@ -1005,6 +1025,9 @@ def _ngpu_setup(cfg):
     if cfg.host in ("Darwin", "iOS"):
         ngpu_opts += ["-Dvulkan-static=enabled"]
 
+    if cfg.host == "Windows":
+        ngpu_opts += _get_clang_cl_meson_opts(cfg)
+
     extra_library_dirs = []
     extra_include_dirs = []
     if cfg.host == "Windows":
@@ -1098,6 +1121,9 @@ def _nopegl_setup(cfg):
         renderdoc_dir = cfg.externals[_RENDERDOC_ID]
         nopegl_opts += [f"-Drenderdoc_dir={renderdoc_dir}"]
 
+    if cfg.host == "Windows":
+        nopegl_opts += _get_clang_cl_meson_opts(cfg)
+
     extra_library_dirs = []
     extra_include_dirs = []
     if cfg.host == "Windows":
@@ -1169,6 +1195,8 @@ def _ngl_tools_setup(cfg):
     opts = []
     if cfg.args.sanitize:
         opts += [f"-Db_sanitize={cfg.args.sanitize}"]
+    if cfg.host == "Windows":
+        opts += _get_clang_cl_meson_opts(cfg)
     return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(*opts, "ngl-tools", _get_builddir(cfg, "ngl-tools"))]
 
 
@@ -1543,6 +1571,8 @@ def _build_env_cross_file(cfg):
         _gen_android_cross_file(cfg)
     elif cfg.args.host == "iOS":
         _gen_ios_cross_file(cfg)
+    elif cfg.host == "Windows":
+        _gen_clang_cl_native_file(cfg)
 
 
 def _build_env_scripts(cfg):

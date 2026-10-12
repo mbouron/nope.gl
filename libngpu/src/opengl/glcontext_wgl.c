@@ -123,7 +123,7 @@ static int wgl_init_extensions(struct glcontext *ctx)
         memcpy((void *)((uintptr_t)wgl + offset), &function_ptr, sizeof(function_ptr));
     }
 
-    wgl->SwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+    wgl->SwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)(void *)wglGetProcAddress("wglSwapIntervalEXT");
     if (!wgl->SwapIntervalEXT)
         LOG(WARNING, "context does not support any swap interval extension (%lu)", GetLastError());
 

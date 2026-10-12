@@ -1,5 +1,5 @@
 # Warning: this name must stay in sync with the badges referenced in the README
-name: 'tests MSVC'
+name: 'tests Windows'
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
       - cron: "0 0 * * 6"  # Run every Saturday at midnight
 
 jobs:
-  msvc:
+  windows:
 
     runs-on: windows-latest
     env:
@@ -45,6 +45,8 @@ jobs:
         run: |
           $Env:VULKAN_SDK = "C:/VulkanSDK/${{env.VULKAN_SDK_VERSION}}"
           .\scripts\msvc-env.ps1
+          clang-cl --version
+          lld-link --version
           python.exe .\configure.py --debug-opts gpu_capture --build-backend ${{matrix.build_backend}}
           nmake
 

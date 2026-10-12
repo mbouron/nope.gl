@@ -29,9 +29,6 @@
 
 int wsi_init(void)
 {
-#ifdef SDL_MAIN_HANDLED
-    SDL_SetMainReady();
-#endif
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
         return -1;

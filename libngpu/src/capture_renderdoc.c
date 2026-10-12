@@ -59,7 +59,7 @@ int ngpu_capture_init(struct ngpu_capture_ctx *s)
         return NGPU_ERROR_UNSUPPORTED;
     }
     pRENDERDOC_GetAPI RENDERDOC_GetAPI =
-        (pRENDERDOC_GetAPI)GetProcAddress(s->mod, "RENDERDOC_GetAPI");
+        (pRENDERDOC_GetAPI)(void *)GetProcAddress(s->mod, "RENDERDOC_GetAPI");
 #else
     s->mod = dlopen("librenderdoc.so", RTLD_LAZY);
     if (!s->mod) {
