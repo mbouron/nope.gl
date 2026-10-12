@@ -126,9 +126,9 @@ static VkImageViewType get_vk_image_view_type(enum ngpu_texture_type type)
     return image_view_type_map[type];
 }
 
-static VkAccessFlagBits get_vk_access_mask_from_image_layout(VkImageLayout layout, int dst_mask)
+static VkAccessFlags get_vk_access_mask_from_image_layout(VkImageLayout layout, int dst_mask)
 {
-    VkPipelineStageFlags access_mask = 0;
+    VkAccessFlags access_mask = 0;
     switch (layout) {
     case VK_IMAGE_LAYOUT_UNDEFINED:
         ngpu_assert(!dst_mask);
