@@ -77,12 +77,9 @@ foreach builtin : builtins
 endforeach
 conf_data.set10('HAVE_BUILTIN_OVERFLOW', has_builtin_overflow)
 
-mandatory_builtins = []
-if cc.get_id() != 'msvc'
-  mandatory_builtins += [
-    '__builtin_clz',
-  ]
-endif
+mandatory_builtins = [
+  '__builtin_clz',
+]
 foreach builtin : mandatory_builtins
   if not cc.has_function(builtin)
     error('Builtin @0@ is not available'.format(builtin))
@@ -101,20 +98,9 @@ conf_data.set10('DEBUG_GPU_CAPTURE', 'gpu_capture' in debug_opts)
 
 if host_system == 'windows'
   if cc.get_id() == 'msvc'
-    conf_data.set10('TARGET_MSVC', true)
-    msvc_args = [
-      '/experimental:c11atomics',
-      # Ignore several spurious warnings
-      '/wd4018', # comparison between signed and unsigned numbers
-      '/wd4146', # unary minus operator applied to unsigned type when its result is still unsigned (INT_MIN)
-      '/wd4244', # conversion from 'type1' to 'type2', resulting in a possible loss of data
-      '/wd4305', # value is converted to a smaller type in an initialization, resulting in a loss of information.
-      # Enable some warnings to match GCC/Clang
-      '/w14062', # enumerator 'identifier' in switch of enum 'enumeration' is not handled
-      '/w14101', # 'identifier' : unreferenced local variable
-      '/w14189', # 'identifier' : local variable is initialized but not referenced
-    ]
-    add_project_arguments(msvc_args, language: 'c')
+    error('MSVC cl.exe is not supported, use clang-cl instead')
+  elif cc.get_id() == 'clang-cl'
+    add_project_arguments(['-D_CRT_SECURE_NO_WARNINGS'], language: 'c')
   else
     conf_data.set10('TARGET_MINGW_W64', true)
     add_project_arguments(['-D__USE_MINGW_ANSI_STDIO=1'], language: 'c')
@@ -147,6 +133,9 @@ project_args = cc.get_supported_arguments([
   '-Wcast-function-type',
   '-Wcast-function-type-strict',
 ])
+if cc.get_id() == 'clang-cl'
+  project_args += ['-Wno-format-signedness', '-Wno-sign-conversion']
+endif
 add_project_arguments(project_args, language: 'c')
 
 # Also apply to local generator targets such as gen_specs
@@ -585,7 +574,7 @@ ngpu_version_cdata.set('NGPU_MICRO_VERSION', version_array[2])
 ngpu_version_cdata.set('NGPU_VERSION', meson.project_version())
 
 # Add properties information with a rc file for the DLL under Windows
-if cc.get_id() == 'msvc'
+if cc.get_id() == 'clang-cl'
   ngpu_rc = configure_file(
     input: 'ngpu.rc.in',
     output: 'ngpu.rc',

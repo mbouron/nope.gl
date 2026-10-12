@@ -25,23 +25,13 @@
 
 #include <stdint.h>
 
-#ifdef _MSC_VER
-#include <intrin.h>
-#endif
-
 /*
  * Returns the number of leading 0-bits in x, starting at the most significant
  * bit position. If x is 0, the result is undefined.
  */
 static inline uint32_t ngli_clz(uint32_t x)
 {
-#ifdef _MSC_VER
-    unsigned long ret;
-    _BitScanReverse(&ret, x);
-    return 31 - ret;
-#else
     return (uint32_t)__builtin_clz(x);
-#endif
 }
 
 /*

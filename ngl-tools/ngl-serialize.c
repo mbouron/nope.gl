@@ -20,6 +20,7 @@
  */
 
 #if defined(_WIN32) && defined(_MSC_VER)
+#include <io.h>
 #define STDOUT_FILENO _fileno(stdout)
 #define STDERR_FILENO _fileno(stderr)
 #else

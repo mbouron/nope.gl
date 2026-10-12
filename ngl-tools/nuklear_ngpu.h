@@ -41,17 +41,12 @@
 # pragma GCC diagnostic ignored "-Wfloat-conversion"
 # pragma GCC diagnostic ignored "-Wsign-conversion"
 # pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
-#elif defined(_MSC_VER)
-# pragma warning(push)
-# pragma warning(disable: 5287)
 #endif
 
 #include "nuklear.h"
 
 #if defined(__GNUC__) || defined(__clang__)
 # pragma GCC diagnostic pop
-#elif defined(_MSC_VER)
-# pragma warning(pop)
 #endif
 
 struct nk_ngpu_ctx;

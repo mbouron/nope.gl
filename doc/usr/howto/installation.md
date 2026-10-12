@@ -45,7 +45,7 @@ building and running the complete `nope.gl` stack.
 
 [MSYS2]: https://www.msys2.org/
 
-### Windows (MSVC toolchain)
+### Windows (clang-cl toolchain)
 
 - Install [Python][python-win] ≥ 3.8 using the Windows Installer and make
   sure to select the option to add Python to the system `PATH` during its
@@ -54,18 +54,22 @@ building and running the complete `nope.gl` stack.
   select the option to add Graphviz to the system `PATH` during its installation
 - Install [Microsoft Visual Studio][vs] and make sure the *Desktop development
   with C++* is included (it should enable MSVC build tools and Windows 10 SDK).
+- Install [LLVM][llvm] using the Windows Installer and make sure to select the
+  option to add LLVM to the system `PATH` during its installation (it provides
+  the `clang-cl` compiler and the `lld-link` linker)
 - Install [VulkanSDK][vksdk] (optional)
 - To be allowed to run the build scripts, you will need to run this once in an
   administrator Powershell: `Set-ExecutionPolicy RemoteSigned`
 - In a Powershell (as user), in the `nope.gl` sources, run
   `.\scripts\msvc-env.ps1` to import all the necessary variables for the MSVC
-  environment. Alternatively, you can open *VS Native Tools Prompt* and spawn a
-  `powershell` from here.
+  environment (`clang-cl` relies on its headers and libraries). Alternatively,
+  you can open *VS Native Tools Prompt* and spawn a `powershell` from here.
 - Finally, run `python.exe .\configure.py` followed by `nmake`
 
 [python-win]: https://www.python.org/downloads/windows/
 [graphviz]: https://graphviz.org/download/
 [vs]: https://visualstudio.microsoft.com/downloads/
+[llvm]: https://github.com/llvm/llvm-project/releases
 [vksdk]: https://vulkan.lunarg.com/sdk/home#windows
 
 

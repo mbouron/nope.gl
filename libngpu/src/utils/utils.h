@@ -33,7 +33,7 @@
 
 #include "ngpu/ngpu.h"
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 # ifdef TARGET_MINGW_W64
 #  define ngpu_printf_format(fmtpos, attrpos) __attribute__((__format__(__MINGW_PRINTF_FORMAT, fmtpos, attrpos)))
 # else

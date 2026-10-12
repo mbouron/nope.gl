@@ -32,11 +32,7 @@
 
 static bool needs_aligned(size_t alignment)
 {
-#ifdef TARGET_MSVC
-    return alignment > _Alignof(double);
-#else
     return alignment > _Alignof(max_align_t);
-#endif
 }
 
 static int reserve(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)

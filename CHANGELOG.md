@@ -82,6 +82,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   structure instead of separate coordinate parameters
 - 2D canvases use pixel-edge coordinates: pixel centers lie at half-integer
   positions, so a 1:1 texture can be sampled without a half-texel offset
+- The Windows build now relies on `clang-cl` instead of `cl` (which is now
+  unsupported)
 
 
 ### Fixed
