@@ -8,6 +8,8 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+
+## [2026.4 / libnopegl 0.16.0][2026.4] - 2026-10-13
 ### Added
 - `ngl_config_gl.shared_context`, specified through `ngl_config.backend_config`,
   to share OpenGL objects with an application context
@@ -582,3 +584,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 [2026.1]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.1
 [2026.2]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.2
 [2026.3]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.3
+[2026.4]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.4
