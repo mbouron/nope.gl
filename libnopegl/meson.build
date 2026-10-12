@@ -24,9 +24,9 @@
 project(
   'libnopegl',
   'c',
-   default_options: ['c_std=c17'],
+   default_options: ['c_std=c23,c2x'],
    license: 'Apache',
-   meson_version: '>= 0.57.0',
+   meson_version: '>= 1.4.0',
    version: files('VERSION'),
 )
 
