@@ -22,9 +22,9 @@
 project(
   'ngl-tools',
   'c',
-   default_options: ['c_std=c17'],
+   default_options: ['c_std=c23,c2x'],
    license: 'Apache',
-   meson_version: '>= 0.53.0',
+   meson_version: '>= 1.4.0',
 )
 
 host_system = host_machine.system()
