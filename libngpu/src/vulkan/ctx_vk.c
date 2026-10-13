@@ -644,7 +644,7 @@ static VkResult recreate_swapchain(struct ngpu_ctx *gpu_ctx, struct vkcontext *v
     destroy_swapchain(gpu_ctx);
 
     if ((res = create_swapchain(gpu_ctx)) != VK_SUCCESS ||
-        (res = create_render_resources(gpu_ctx) != VK_SUCCESS))
+        (res = create_render_resources(gpu_ctx)) != VK_SUCCESS)
         return res;
 
     return VK_SUCCESS;
