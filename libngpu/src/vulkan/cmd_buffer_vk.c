@@ -120,10 +120,10 @@ VkResult ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSe
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     if (ngpu_darray_try_push(&s->wait_stages, stage) < 0)
-        return NGPU_ERROR_MEMORY;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     if (ngpu_darray_try_push(&s->wait_values, value) < 0)
-        return NGPU_ERROR_MEMORY;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     return VK_SUCCESS;
 }
@@ -139,7 +139,7 @@ VkResult ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, Vk
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     if (ngpu_darray_try_push(&s->signal_values, value) < 0)
-        return NGPU_ERROR_MEMORY;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     return VK_SUCCESS;
 }

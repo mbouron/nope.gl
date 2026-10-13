@@ -138,7 +138,7 @@ VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s, const struc
     VkResult res = vk->funcs.CreateSamplerYcbcrConversion(vk->device, &sampler_ycbcr_info, 0, &s->conv);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create sampler YCbCr conversion: %s", ngpu_vk_res2str(res));
-        return NGPU_ERROR_GRAPHICS_GENERIC;
+        return res;
     }
 
     const VkSamplerYcbcrConversionInfo sampler_ycbcr_conv_info = {
@@ -169,7 +169,7 @@ VkResult ngpu_ycbcr_sampler_vk_init(struct ngpu_ycbcr_sampler_vk *s, const struc
     res = vk->funcs.CreateSampler(vk->device, &sampler_info, 0, &s->sampler);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create sampler: %s", ngpu_vk_res2str(res));
-        return NGPU_ERROR_GRAPHICS_GENERIC;
+        return res;
     }
 
     return VK_SUCCESS;
