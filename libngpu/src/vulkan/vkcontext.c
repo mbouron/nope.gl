@@ -239,7 +239,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
                     (int)VK_VERSION_MAJOR(VK_API_VERSION_1_2),
                     (int)VK_VERSION_MINOR(VK_API_VERSION_1_2),
                     (int)VK_VERSION_PATCH(VK_API_VERSION_1_2));
-        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+        return VK_ERROR_INCOMPATIBLE_DRIVER;
     }
 
     VkResult res = s->funcs.EnumerateInstanceLayerProperties(&s->nb_layers, NULL);
@@ -681,7 +681,7 @@ static VkResult select_physical_device(struct vkcontext *s, VkSurfaceKHR surface
     if (!type || !props) {
         ngpu_bstr_freep(&type);
         ngpu_bstr_freep(&props);
-        return NGPU_ERROR_MEMORY;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
     LOG(DEBUG, "available memory types:");
     for (uint32_t i = 0; i < s->phydev_mem_props.memoryTypeCount; i++) {
