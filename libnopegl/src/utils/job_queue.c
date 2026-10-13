@@ -305,7 +305,7 @@ void ngli_queue_destroy(struct ngli_queue *queue)
 
     pthread_mutex_lock(&queue->lock);
     queue->stopped = 1;
-    pthread_cond_signal(&queue->has_queued_cond);
+    pthread_cond_broadcast(&queue->has_queued_cond);
     pthread_mutex_unlock(&queue->lock);
 
     for (uint32_t i = 0; i < queue->nb_threads; i++) {
