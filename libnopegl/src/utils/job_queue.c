@@ -146,10 +146,8 @@ static void ngli_barrier_destroy(struct ngli_barrier *barrier)
     pthread_cond_destroy(&barrier->cond);
 }
 
-static int ngli_barrier_wait(struct ngli_barrier *barrier)
+static void ngli_barrier_wait(struct ngli_barrier *barrier)
 {
-    int is_serial = 0;
-
     pthread_mutex_lock(&barrier->mutex);
 
     ngli_assert(barrier->waiters < barrier->count);
@@ -164,12 +162,9 @@ static int ngli_barrier_wait(struct ngli_barrier *barrier)
         barrier->waiters = 0;
         barrier->sequence++;
         pthread_cond_broadcast(&barrier->cond);
-        is_serial = 1;
     }
 
     pthread_mutex_unlock(&barrier->mutex);
-
-    return is_serial;
 }
 
 struct ngli_queue_job {
@@ -394,8 +389,7 @@ static void wait_barrier(void *data, void *shared_data, uint32_t thread_index)
 {
     struct ngli_barrier *barrier = data;
 
-    if (ngli_barrier_wait(barrier))
-        ngli_barrier_destroy(barrier);
+    ngli_barrier_wait(barrier);
 }
 
 void ngli_queue_wait(struct ngli_queue *queue)
@@ -418,4 +412,6 @@ void ngli_queue_wait(struct ngli_queue *queue)
         ngli_fence_wait(&fences[i]);
         ngli_fence_destroy(&fences[i]);
     }
+
+    ngli_barrier_destroy(&barrier);
 }
