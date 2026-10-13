@@ -208,7 +208,7 @@ static int drawnoise_init(struct ngl_node *node)
         int ret;
         if ((ret = ngli_geometry_set_vertices(s->geometry, 4, default_vertices)) < 0 ||
             (ret = ngli_geometry_set_uvcoords(s->geometry, 4, default_uvcoords)) < 0 ||
-            (ret = ngli_geometry_init(s->geometry, NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP) < 0))
+            (ret = ngli_geometry_init(s->geometry, NGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)) < 0)
             return ret;
     } else {
         s->geometry = *(struct geometry **)o->geometry->priv_data;
