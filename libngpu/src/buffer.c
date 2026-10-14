@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2022 GoPro Inc.
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file

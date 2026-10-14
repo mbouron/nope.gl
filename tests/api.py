@@ -1,4 +1,5 @@
 #
+# Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2019-2022 GoPro Inc.
 #
 # Licensed to the Apache Software Foundation (ASF) under one

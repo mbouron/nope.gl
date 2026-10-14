@@ -1,4 +1,5 @@
 /*
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2021-2022 GoPro Inc.
  * Copyright 2021-2022 Clément Bœsch <u pkh.me>
  *
