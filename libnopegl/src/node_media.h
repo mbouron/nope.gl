@@ -28,6 +28,7 @@
 #include <stddef.h>
 #include <nopemd.h>
 
+#include "timerange.h"
 #include "utils/job_queue.h"
 
 struct duration_job {
@@ -46,6 +47,10 @@ struct media_priv {
     double start_time;
     double end_time;
     double duration;
+    double timebase;
+    struct ngli_timerange loop_range;
+    struct ngli_timerange loop_inputs[2];
+    struct ngli_timerange next_loop_range;
     struct duration_job duration_job;
     struct ngli_fence duration_fence;
     struct release_job release_job;
