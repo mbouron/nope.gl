@@ -260,6 +260,7 @@ cdef extern from "nopegl/nopegl.h":
     int ngl_resize(ngl_ctx *s, uint32_t width, uint32_t height)
     int ngl_get_viewport(ngl_ctx *s, int32_t *viewport)
     int ngl_set_capture_buffer(ngl_ctx *s, void *capture_buffer)
+    int ngl_set_loop_range(ngl_ctx *s, double start, double end)
     int ngl_set_scene(ngl_ctx *s, ngl_scene *scene)
     int ngl_release_detached_resources(ngl_ctx *s)
     int ngl_update(ngl_ctx *s, double t) nogil
@@ -1090,6 +1091,9 @@ cdef class Context:
         if ret >= 0:
             self.capture_buffer = capture_buffer
         return ret
+
+    def set_loop_range(self, double start, double end):
+        return ngl_set_loop_range(self.ctx, start, end)
 
     def set_scene(self, Scene scene):
         cdef ngl_scene *c_scene = NULL

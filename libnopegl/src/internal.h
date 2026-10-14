@@ -52,6 +52,7 @@ struct nmd_frame;
 #include "slug.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
+#include "timerange.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/job_queue.h"
@@ -123,6 +124,9 @@ struct ngl_ctx {
     struct ngpu_staging_buffer **update_staging_buffers;
     struct ngpu_staging_buffer **draw_staging_buffers;
     struct ngpu_staging_buffer *current_staging_buffer;
+
+    /* Range over which the playback loops, empty if it does not (see ngl_set_loop_range()) */
+    struct ngli_timerange loop_range;
 
     /*
      * Array of nodes that are candidate to either prefetch (active) or release
@@ -237,8 +241,6 @@ enum node_state {
     NGLI_NODE_STATE_READY         = 2, /* post prefetch() */
 };
 
-struct ngli_prefetch_range;
-
 struct ngl_node {
     const struct node_class *cls;
     struct ngl_ctx *ctx;
@@ -255,6 +257,7 @@ struct ngl_node {
     double visit_time;
     double prefetch_time;
     double prefetch_delay;
+    struct ngli_timerange update_range;
     double last_update_time;
     uint64_t traversal_id;
 
@@ -493,6 +496,24 @@ struct node_class {
      * when: any time a parameter is live-changed
      */
     void (*invalidate)(struct ngl_node *node);
+
+    /*
+     * Apply a new ctx->loop_range to the prefetched resources without
+     * waiting for the next update. update() must still handle a changed
+     * loop range by itself; this only makes the change take effect earlier.
+     *
+     * This allows a node to prepare for the new loop wrap even when update() is
+     * not called, e.g. while playback is paused or before its first update.
+     *
+     * If resources have not been prefetched, leave their configuration to
+     * prefetch().
+     *
+     * reentrant: yes
+     * execution-order: loose
+     * dispatch: managed
+     * when: ngl_set_loop_range(), for every node of the scene
+     */
+    int (*set_loop_range)(struct ngl_node *node);
 
     /*
      * Update CPU/GPU resources according to the time.

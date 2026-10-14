@@ -63,6 +63,10 @@ class NGLContext {
         return nativeDraw(nativePtr, time)
     }
 
+    fun setLoopRange(start: Double, end: Double): Int {
+        return nativeSetLoopRange(nativePtr, start, end)
+    }
+
     fun releaseDetachedResources(): Int {
         return nativeReleaseDetachedResources(nativePtr)
     }
@@ -174,6 +178,7 @@ class NGLContext {
     private external fun nativeConfigure(nativePtr: Long, config: NGLConfig): Int
     private external fun nativeResize(nativePtr: Long, width: Int, height: Int): Int
     private external fun nativeDraw(nativePtr: Long, time: Double): Int
+    private external fun nativeSetLoopRange(nativePtr: Long, start: Double, end: Double): Int
     private external fun nativeReleaseDetachedResources(nativePtr: Long): Int
     private external fun nativeGetGpuCtx(nativePtr: Long): Long
 
