@@ -21,6 +21,7 @@
 
 #include <inttypes.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -122,12 +123,11 @@ static int buffer_init_from_filename(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
-    if (size > SIZE_MAX) {
+    if (ckd_add(&s->buf.data_size, size, 0)) {
         LOG(ERROR, "'%s' size (%" PRId64 ") exceeds supported limit (%zu)", o->filename, size, SIZE_MAX);
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    s->buf.data_size = (size_t)size;
     layout->count = layout->count ? layout->count : s->buf.data_size / layout->stride;
 
     if (s->buf.data_size != layout->count * layout->stride) {
