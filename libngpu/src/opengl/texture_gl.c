@@ -733,6 +733,21 @@ int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *da
     return 0;
 }
 
+/* Keep to the formats guaranteed by OpenGL ES to avoid querying the driver. */
+static int is_gles_readable(enum ngpu_format format)
+{
+    switch (format) {
+    case NGPU_FORMAT_R8G8B8A8_UNORM:
+    case NGPU_FORMAT_R8G8B8A8_SRGB:
+    case NGPU_FORMAT_R32G32B32A32_UINT:
+    case NGPU_FORMAT_R32G32B32A32_SINT:
+    case NGPU_FORMAT_R32G32B32A32_SFLOAT:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
 {
     struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
@@ -741,6 +756,11 @@ int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
     const struct ngpu_texture_params *params = &s->params;
     const GLsizei w = (GLsizei)params->width;
     const GLsizei h = (GLsizei)params->height;
+
+    if (gl->backend == NGPU_BACKEND_OPENGLES && !is_gles_readable(params->format)) {
+        LOG(ERROR, "reading back format %u is not supported", params->format);
+        return NGPU_ERROR_UNSUPPORTED;
+    }
 
     if (!s_priv->readback_texture) {
         gl->funcs.GenTextures(1, &s_priv->readback_texture);
