@@ -38,4 +38,6 @@ struct ngpu_texture {
 
 NGPU_RC_CHECK_STRUCT(ngpu_texture);
 
+uint32_t ngpu_texture_get_mipmap_levels(const struct ngpu_texture_params *params);
+
 #endif
