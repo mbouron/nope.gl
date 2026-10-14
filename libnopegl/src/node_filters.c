@@ -489,7 +489,7 @@ static void filter_uninit(struct ngl_node *node)
 static void filtercolormap_uninit(struct ngl_node *node)
 {
     struct filter *s = node->priv_data;
-    ngli_freep(&s->code);
+    ngli_freep((char **)&s->code);
     filter_uninit(node);
 }
 

@@ -65,14 +65,14 @@ int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src)
             const size_t size = sizeof(struct ngl_config_gl);
             tmp.backend_config = ngli_try_memdup(src->backend_config, size);
             if (!tmp.backend_config) {
-                ngli_freep(&tmp.hud_export_filename);
+                ngli_freep((char **)&tmp.hud_export_filename);
                 return NGL_ERROR_MEMORY;
             }
             goto done;
         }
 #endif
 
-        ngli_freep(&tmp.hud_export_filename);
+        ngli_freep((char **)&tmp.hud_export_filename);
         LOG(ERROR, "backend_config %p is not supported by backend %u",
             src->backend_config, src->backend);
         return NGL_ERROR_UNSUPPORTED;
@@ -87,6 +87,6 @@ done:
 void ngli_config_reset(struct ngl_config *config)
 {
     ngli_freep(&config->backend_config);
-    ngli_freep(&config->hud_export_filename);
+    ngli_freep((char **)&config->hud_export_filename);
     memset(config, 0, sizeof(*config));
 }
