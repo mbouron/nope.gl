@@ -24,6 +24,7 @@
 
 #include "ctx.h"
 #include "ngpu/ngpu.h"
+#include "utils/darray.h"
 
 struct ngpu_rendertarget;
 struct ngpu_bindgroup;
@@ -106,6 +107,9 @@ struct ngpu_cmd_gl {
 };
 
 struct ngpu_cmd_buffer_gl;
+
+NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_gl_darray, struct ngpu_cmd_buffer_gl *);
+NGPU_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_gl_darray)
 
 struct ngpu_cmd_buffer_gl *ngpu_cmd_buffer_gl_create(struct ngpu_ctx *gpu_ctx);
 void ngpu_cmd_buffer_gl_freep(struct ngpu_cmd_buffer_gl **sp);

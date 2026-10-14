@@ -26,10 +26,6 @@
 #include "buffer.h"
 #include "opengl/cmd_buffer_gl.h"
 #include "opengl/glincludes.h"
-#include "utils/darray.h"
-
-NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_gl_darray, struct ngpu_cmd_buffer_gl *);
-NGPU_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_gl_darray)
 
 struct ngpu_buffer_gl {
     struct ngpu_buffer parent;
