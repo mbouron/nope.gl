@@ -64,12 +64,6 @@
 #define NGLI_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define NGLI_CLAMP(x, min, max) NGLI_MAX(NGLI_MIN(x, max), min)
 
-#if HAVE_BUILTIN_OVERFLOW
-#define NGLI_CHK_MUL(result, a, b) __builtin_mul_overflow(a, b, result)
-#else
-#define NGLI_CHK_MUL(result, a, b) (*(result) = (a) * (b), false)
-#endif
-
 #define NGLI_ARRAY_MEMDUP(dst, src, name) do {                                 \
     const size_t nb = (src)->nb_##name;                                        \
     if (nb > 0) {                                                              \

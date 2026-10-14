@@ -20,6 +20,7 @@
  * under the License.
  */
 
+#include <stdckdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,7 +43,7 @@ static int reserve(ngli_darray_data_alias *data, size_t *capacity, size_t elemen
 
     if (needs_aligned(alignment)) {
         size_t size;
-        if (NGLI_CHK_MUL(&size, new_capacity, element_size))
+        if (ckd_mul(&size, new_capacity, element_size))
             return NGL_ERROR_MEMORY;
         void *ptr = ngli_try_malloc_aligned(alignment, size);
         if (!ptr)
