@@ -62,10 +62,10 @@ static struct ngl_node *create_filter(uint32_t type, struct ngl_node *child, str
     return node;
 }
 
-static struct prefetch_probe visit(uint32_t type, double t,
+static struct prefetch_probe visit(uint32_t type, double t, double loop_start, double loop_end,
                                    struct range first, const struct range *second, bool nested)
 {
-    struct ngl_ctx ctx = {0};
+    struct ngl_ctx ctx = {.loop_range = {loop_start, loop_end}};
     struct prefetch_probe probe = {.time = -1.0};
     struct ngl_node leaf = {
         .cls = &probe_class,
@@ -105,11 +105,11 @@ static struct prefetch_probe visit(uint32_t type, double t,
     return ret;
 }
 
-static void test_prefetch(uint32_t type, double t,
+static void test_prefetch(uint32_t type, double t, double loop_start, double loop_end,
                           struct range first, const struct range *second, bool nested,
                           double expected)
 {
-    const struct prefetch_probe probe = visit(type, t, first, second, nested);
+    const struct prefetch_probe probe = visit(type, t, loop_start, loop_end, first, second, nested);
     ngli_assert(expected < 0.0 || probe.count == 1);
     ngli_assert(fabs(probe.time - expected) < 1e-9);
 }
@@ -120,9 +120,23 @@ int main(void)
     for (size_t i = 0; i < NGLI_ARRAY_NB(types); i++) {
         const uint32_t type = types[i];
         /* Already visible: prepare for the current scene time, 2.5s. */
-        test_prefetch(type, 2.5, (struct range){0, -1, -1}, NULL, false, 2.5);
+        test_prefetch(type, 2.5, 0, 0, (struct range){0, -1, -1}, NULL, false, 2.5);
         /* Visible from 3s: prepare for 3s even though prefetch runs at 2.5s. */
-        test_prefetch(type, 2.5, (struct range){3, 5, -1}, NULL, false, 3);
+        test_prefetch(type, 2.5, 0, 0, (struct range){3, 5, -1}, NULL, false, 3);
+        test_prefetch(type, 4.5, 1, 5, (struct range){0, 2, -1}, NULL, false, 1);
+        test_prefetch(type, 4.5, 1, 5, (struct range){2, 3, -1}, NULL, false, 2);
+        test_prefetch(type, 4.5, 1, 5, (struct range){0, 2, 4}, NULL, false, 4);
+        test_prefetch(type, 4.5, 1, 5, (struct range){0, 2, -1}, &(struct range){1.5, 3, -1}, true, 1.5);
+        test_prefetch(type, 4.5, 1, 5, (struct range){0, 2, -1}, &(struct range){2.5, 4, -1}, true, -1);
+        test_prefetch(type, 4.5, 1, 5, (struct range){0, 2, -1}, &(struct range){0, 3, 1.5}, true, 1.5);
+        test_prefetch(type, 4.5, 1, 5, (struct range){0, 2, -1}, &(struct range){0, 3, 3}, true, -1);
+
+        /* Current use takes priority over the next loop, in either visit order. */
+        const struct range current = {4, 5, 4.5};
+        const struct range future = {0, 2, 0.1};
+        test_prefetch(type, 4.5, 1, 5, future, &current, false, 4.5);
+        test_prefetch(type, 4.5, 1, 5, current, &future, false, 4.5);
+        test_prefetch(type, 4.5, 1, 5, (struct range){2.2, 2.5, 7}, &(struct range){1.5, 2, 9}, false, 9);
     }
     return 0;
 }

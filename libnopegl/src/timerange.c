@@ -65,19 +65,44 @@ void ngli_timerange_filter_prefetch(struct ngli_prefetch_range *range, const str
         range->render_time = render_time;
 }
 
-bool ngli_timerange_get_prefetch_time(const struct ngli_prefetch_range *range, double t,
+bool ngli_timerange_get_prefetch_time(const struct ngli_prefetch_range *range,
+                                     double t, const struct ngli_timerange *loop,
                                      double *time, double *delay)
 {
     const struct ngli_timerange *update = &range->update;
     if (update->end <= update->start)
         return false;
 
-    const double next = t > update->start ? t : update->start;
-    if (next >= update->end)
-        return false;
+    double next = t > update->start ? t : update->start;
+    double wait = next - t;
+    const bool can_loop = loop->end > loop->start && t < loop->end;
+    if (next >= update->end || (can_loop && next >= loop->end)) {
+        next = loop->start > update->start ? loop->start : update->start;
+        if (!can_loop || next >= loop->end || next >= update->end)
+            return false;
+        wait = loop->end - t + next - loop->start;
+    }
     *time = range->render_time >= 0.0 ? range->render_time : next;
-    *delay = next - t;
+    *delay = wait;
     return true;
+}
+
+/*
+ * Ranges reached by the loop are prefetched before playback returns to them,
+ * accounting for the time left before the wrap.
+ */
+bool ngli_timerange_is_active(const struct ngli_timerange *range, double t, double prefetch_time,
+                              const struct ngli_timerange *loop)
+{
+    const bool looping = loop->end > loop->start && t < loop->end;
+    if (looping && range->start >= loop->end)
+        return false;
+    if (t >= range->start - prefetch_time && t < range->end)
+        return true;
+    if (!looping || range->end <= loop->start)
+        return false;
+    const double back_time = loop->end + (range->start > loop->start ? range->start - loop->start : 0.0);
+    return t >= back_time - prefetch_time;
 }
 
 void ngli_timerange_filter_init(struct ngli_timerange_filter *s, double start, double end,
@@ -89,7 +114,8 @@ void ngli_timerange_filter_init(struct ngli_timerange_filter *s, double start, d
 }
 
 bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool is_active,
-                                 bool child_is_active, struct ngli_prefetch_range *child_range)
+                                 bool child_is_active, const struct ngli_timerange *loop,
+                                 struct ngli_prefetch_range *child_range)
 {
     /*
      * The life of the parent takes over the life of its children: if the
@@ -102,7 +128,7 @@ bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool
         if (render_time >= 0.0)
             is_active = ngli_timerange_contains(&s->range, render_time);
         else
-            is_active = t >= s->range.start - s->prefetch_time && t < s->range.end;
+            is_active = ngli_timerange_is_active(&s->range, t, s->prefetch_time, loop);
 
         /* A released child needs an update when prefetched again. */
         if (!child_is_active)

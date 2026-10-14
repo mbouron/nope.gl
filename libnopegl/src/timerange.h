@@ -40,8 +40,11 @@ struct ngli_prefetch_range {
 
 void ngli_timerange_filter_prefetch(struct ngli_prefetch_range *range, const struct ngli_timerange *filter_range,
                                     double render_time);
-bool ngli_timerange_get_prefetch_time(const struct ngli_prefetch_range *range, double t,
+bool ngli_timerange_get_prefetch_time(const struct ngli_prefetch_range *range,
+                                     double t, const struct ngli_timerange *loop,
                                      double *time, double *delay);
+bool ngli_timerange_is_active(const struct ngli_timerange *range, double t, double prefetch_time,
+                              const struct ngli_timerange *loop);
 
 struct ngli_timerange_filter {
     struct ngli_timerange range;
@@ -53,7 +56,8 @@ struct ngli_timerange_filter {
 void ngli_timerange_filter_init(struct ngli_timerange_filter *s, double start, double end,
                                 double render_time, double prefetch_time);
 bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool is_active,
-                                 bool child_is_active, struct ngli_prefetch_range *child_range);
+                                 bool child_is_active, const struct ngli_timerange *loop,
+                                 struct ngli_prefetch_range *child_range);
 bool ngli_timerange_filter_update(struct ngli_timerange_filter *s, double *t);
 
 #endif

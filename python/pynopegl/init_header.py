@@ -380,6 +380,9 @@ class Context(_ngl.Context):
     def set_capture_buffer(self, capture_buffer: Optional[bytearray]) -> int:
         return super().set_capture_buffer(capture_buffer)
 
+    def set_loop_range(self, start: float, end: float) -> int:
+        return super().set_loop_range(start, end)
+
     def set_scene(self, scene: Optional[Scene]) -> int:
         return super().set_scene(scene)
 

@@ -664,7 +664,8 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t, const struc
 
     double prefetch_time, prefetch_delay;
     if (is_active && node->cls->prefetch &&
-        ngli_timerange_get_prefetch_time(range, t, &prefetch_time, &prefetch_delay) &&
+        ngli_timerange_get_prefetch_time(range, t, &node->ctx->loop_range,
+                                         &prefetch_time, &prefetch_delay) &&
         prefetch_delay < node->prefetch_delay) {
         node->prefetch_time = prefetch_time;
         node->prefetch_delay = prefetch_delay;

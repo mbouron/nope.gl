@@ -139,9 +139,11 @@ static int timerangefilter_visit(struct ngl_node *node, bool is_active, double t
 {
     struct timerangefilter_priv *s = node->priv_data;
     const struct timerangefilter_opts *o = node->opts;
+    const struct ngl_ctx *ctx = node->ctx;
 
     struct ngli_prefetch_range child_range = *range;
-    is_active = ngli_timerange_filter_visit(&s->range, t, is_active, o->child->is_active, &child_range);
+    is_active = ngli_timerange_filter_visit(&s->range, t, is_active, o->child->is_active,
+                                            &ctx->loop_range, &child_range);
     return ngli_node_visit(o->child, is_active, t, &child_range);
 }
 

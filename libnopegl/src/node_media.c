@@ -32,6 +32,7 @@
 #include "animation.h"
 #include "internal.h"
 #include "log.h"
+#include "node_animkeyframe.h"
 #include "node_media.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
@@ -248,6 +249,108 @@ static int get_media_time(struct ngl_node *node, double t, double *dst_time)
     return 0;
 }
 
+/* Whether time_anim covers t with at least two keyframes, or is unset */
+static bool is_time_mapped(const struct ngl_node *node, double t)
+{
+    const struct media_opts *o = node->opts;
+    if (!o->anim)
+        return true;
+
+    const struct variable_opts *anim_o = o->anim->opts;
+    if (anim_o->animkf.count < 2)
+        return false;
+
+    double times[2], values[2];
+    ngli_animation_get_bounds(anim_o->animkf.data, anim_o->animkf.count,
+                              NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
+    return t >= times[0] + anim_o->time_offset && t <= times[1] + anim_o->time_offset;
+}
+
+/*
+ * Limit the player's loop to the configured media range with the loop option,
+ * or the context loop mapped through time_anim when both bounds are covered.
+ */
+static int get_loop_range(struct ngl_node *node, struct ngli_timerange *dst)
+{
+    struct media_priv *s = node->priv_data;
+    const struct media_opts *o = node->opts;
+    const struct ngli_timerange *loop = &node->ctx->loop_range;
+    int ret;
+
+    struct ngli_timerange range = {0};
+    if (o->loop) {
+        range.end = s->end_time != -DBL_MAX ? s->end_time - s->start_time : INFINITY;
+    } else if (loop->end > loop->start &&
+               is_time_mapped(node, loop->start) && is_time_mapped(node, loop->end)) {
+        ret = get_media_time(node, loop->start, &range.start);
+        if (ret < 0)
+            return ret;
+        ret = get_media_time(node, loop->end, &range.end);
+        if (ret < 0)
+            return ret;
+
+        /*
+         * If a keyframe's time is before the scene loop end and its value maps
+         * to range.end, the animation holds that media time until the loop
+         * ends.
+         *
+         * The player excludes range.end when looping, so we need to extend
+         * range.end by one stream tick to keep the held frame inside the loop
+         * after timestamp rounding.
+         *
+         * The player also rounds times to microseconds, so we need to extend
+         * range.end by at least one microsecond to keep the extension from
+         * rounding to zero. Until the time base is known, leave the end open
+         * so prefetch does not discard the held frame.
+         */
+        if (o->anim) {
+            const struct variable_opts *anim_o = o->anim->opts;
+            for (size_t i = 0; i < anim_o->animkf.count; i++) {
+                const struct animkeyframe_opts *kf = anim_o->animkf.data[i]->opts;
+                if (kf->time + anim_o->time_offset >= loop->end)
+                    break;
+                if (kf->scalar - s->start_time >= range.end) {
+                    range.end = nextafter(range.end + NGLI_MAX(s->timebase, 1e-6), INFINITY);
+                    break;
+                }
+            }
+        }
+    }
+
+    *dst = range;
+    return 0;
+}
+
+/* Cache only successful range changes so failed ones are retried. */
+static int set_player_loop(struct ngl_node *node, const struct ngli_timerange *range)
+{
+    struct media_priv *s = node->priv_data;
+    if (range->start == s->loop_range.start && range->end == s->loop_range.end)
+        return 0;
+
+    TRACE("loop %s over [%g,%g)", node->label, range->start, range->end);
+    int ret = nmd_set_loop_range(s->player, range->start, range->end);
+    if (ret < 0) {
+        LOG(ERROR, "unable to loop %s over [%g,%g)", node->label, range->start, range->end);
+        return NGL_ERROR_EXTERNAL;
+    }
+    s->loop_range = *range;
+    return 0;
+}
+
+static int media_set_loop_range(struct ngl_node *node)
+{
+    const struct media_priv *s = node->priv_data;
+    if (node->state != NGLI_NODE_STATE_READY || !s->player)
+        return 0;
+
+    struct ngli_timerange range;
+    int ret = get_loop_range(node, &range);
+    if (ret < 0)
+        return ret;
+    return set_player_loop(node, &range);
+}
+
 static int media_prefetch(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
@@ -277,6 +380,15 @@ static int media_prefetch(struct ngl_node *node)
 
     nmd_set_option(s->player, "stream_idx", o->stream_idx);
     nmd_set_option(s->player, "auto_hwaccel", o->hwaccel);
+
+    s->timebase = INFINITY;
+    s->loop_range = (struct ngli_timerange){NAN, NAN};
+    struct ngli_timerange loop_range;
+    ret = get_loop_range(node, &loop_range);
+    if (ret < 0)
+        return ret;
+    /* Failure to set the loop does not prevent playback; retry on update. */
+    set_player_loop(node, &loop_range);
 
     nmd_set_option(s->player, "sw_pix_fmt", NMD_PIXFMT_AUTO);
     if (o->audio_tex) {
@@ -360,10 +472,34 @@ static int media_update(struct ngl_node *node, double t)
 {
     struct media_priv *s = node->priv_data;
     const struct media_opts *o = node->opts;
-    double media_time;
-    int ret = get_media_time(node, t, &media_time);
+
+    /* Evaluate loop bounds first: they update the time remapping animation. */
+    struct ngli_timerange loop_range;
+    int ret = get_loop_range(node, &loop_range);
     if (ret < 0)
         return ret;
+    if (!o->loop && isinf(loop_range.end) && isinf(s->timebase)) {
+        /* Fetch stream info on update so prefetch stays asynchronous. */
+        struct nmd_info info;
+        if (nmd_get_info(s->player, &info) == 0 && info.timebase[0] > 0 && info.timebase[1] > 0) {
+            s->timebase = (double)info.timebase[0] / info.timebase[1];
+            ret = get_loop_range(node, &loop_range);
+            if (ret < 0)
+                return ret;
+        }
+    }
+    /* Keep playing if the loop cannot be set; retry on the next update. */
+    set_player_loop(node, &loop_range);
+
+    double media_time;
+    ret = get_media_time(node, t, &media_time);
+    if (ret < 0)
+        return ret;
+
+    /* Rounding must not move a request outside the media loop. */
+    if (!o->loop && ngli_timerange_contains(&node->ctx->loop_range, t) &&
+        s->loop_range.end > s->loop_range.start && media_time >= s->loop_range.end)
+        media_time = nextafter(s->loop_range.end, -INFINITY);
 
     nmd_frame_releasep(&s->frame);
 
@@ -413,6 +549,7 @@ static void media_release(struct ngl_node *node)
     release_job->player = s->player;
     s->player = NULL;
     s->duration = 0.0;
+    s->timebase = INFINITY;
 
     ngli_queue_add_job(&ctx->background_queue, release_job, release_fence, release_player, NULL);
 }
@@ -458,6 +595,7 @@ const struct node_class ngli_media_class = {
     .prefetch  = media_prefetch,
     .update    = media_update,
     .invalidate = media_invalidate,
+    .set_loop_range = media_set_loop_range,
     .release   = media_release,
     .uninit    = media_uninit,
     .opts_size = sizeof(struct media_opts),

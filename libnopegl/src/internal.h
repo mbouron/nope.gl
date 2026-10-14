@@ -52,6 +52,7 @@ struct nmd_frame;
 #include "slug.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
+#include "timerange.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/job_queue.h"
@@ -123,6 +124,9 @@ struct ngl_ctx {
     struct ngpu_staging_buffer **update_staging_buffers;
     struct ngpu_staging_buffer **draw_staging_buffers;
     struct ngpu_staging_buffer *current_staging_buffer;
+
+    /* Range over which the playback loops, empty if it does not (see ngl_set_loop_range()) */
+    struct ngli_timerange loop_range;
 
     /*
      * Array of nodes that are candidate to either prefetch (active) or release
@@ -236,8 +240,6 @@ enum node_state {
     NGLI_NODE_STATE_INITIALIZED   = 1, /* post init() or release() */
     NGLI_NODE_STATE_READY         = 2, /* post prefetch() */
 };
-
-struct ngli_prefetch_range;
 
 struct ngl_node {
     const struct node_class *cls;
@@ -493,6 +495,17 @@ struct node_class {
      * when: any time a parameter is live-changed
      */
     void (*invalidate)(struct ngl_node *node);
+
+    /*
+     * Follow a change of the playback loop range, typically to loop a media
+     * player over it.
+     *
+     * reentrant: yes
+     * execution-order: loose
+     * dispatch: managed
+     * when: ngl_set_loop_range(), for every node of the scene
+     */
+    int (*set_loop_range)(struct ngl_node *node);
 
     /*
      * Update CPU/GPU resources according to the time.

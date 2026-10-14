@@ -320,25 +320,49 @@ def api_timerange_once_reentry(width=16, height=16):
     trf2d = ngl.TimeRangeFilter2D(rect, start=1, end=2, render_time=1.5, prefetch_time=2)
     test_once(ngl.Canvas2D(width=width, height=height, children=[trf2d]))
 
-    # The child needs its resources when the parent's render_time is inside its
-    # range, even if scene time is outside.
-    for render_time in (0.5, 1, 2, 3):
-        expected = red if 1 <= render_time < 3 else black
-        child = ngl.TimeRangeFilter(ngl.DrawColor(color=(1.0, 0.0, 0.0)), start=1, end=3, prefetch_time=0)
-        parent = ngl.TimeRangeFilter(child, start=0, end=1, render_time=render_time)
+    assert ctx.set_loop_range(1, 3) == 0
+
+    def test_nested_once(node: ngl.Node):
+        assert root.add_children(node) == 0
+        assert output_color(1.2) == red
+        assert output_color(1.4) == black
+        # The parent skips updates outside [1,2), but keeps the child active.
+        for t in (2.5, 0.5, 2.5):
+            assert output_color(t) == black
+            assert output_color(1.2) == red
+            assert output_color(1.4) == black
+        assert root.remove_children(node) == 0
+
+    for start, end in ((1, 2), (0, 3)):
+        child = ngl.TimeRangeFilter(ngl.DrawColor(color=(1.0, 0.0, 0.0)), start=start, end=end, render_time=1.5)
+        test_nested_once(ngl.TimeRangeFilter(child, start=1, end=2))
 
         rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
-        child2d = ngl.TimeRangeFilter2D(rect, start=1, end=3, prefetch_time=0)
-        parent2d = ngl.TimeRangeFilter2D(child2d, start=0, end=1, render_time=render_time)
-        canvas = ngl.Canvas2D(width=width, height=height, children=[parent2d])
+        child = ngl.TimeRangeFilter2D(rect, start=start, end=end, render_time=1.5)
+        parent = ngl.TimeRangeFilter2D(child, start=1, end=2)
+        test_nested_once(ngl.Canvas2D(width=width, height=height, children=[parent]))
 
-        for node in (parent, canvas):
-            assert root.add_children(node) == 0
-            assert output_color(0.2) == expected
-            assert output_color(0.4) == black
-            assert output_color(1.2) == black
-            assert output_color(0.2) == expected
-            assert root.remove_children(node) == 0
+    # The child needs its resources when the parent's render_time is inside its
+    # range, even if scene time or the playback loop is outside of it.
+    for loop_range in ((0, 0), (0, 1)):
+        assert ctx.set_loop_range(*loop_range) == 0
+        for render_time in (0.5, 1, 2, 3):
+            expected = red if 1 <= render_time < 3 else black
+            child = ngl.TimeRangeFilter(ngl.DrawColor(color=(1.0, 0.0, 0.0)), start=1, end=3, prefetch_time=0)
+            parent = ngl.TimeRangeFilter(child, start=0, end=1, render_time=render_time)
+
+            rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
+            child2d = ngl.TimeRangeFilter2D(rect, start=1, end=3, prefetch_time=0)
+            parent2d = ngl.TimeRangeFilter2D(child2d, start=0, end=1, render_time=render_time)
+            canvas = ngl.Canvas2D(width=width, height=height, children=[parent2d])
+
+            for node in (parent, canvas):
+                assert root.add_children(node) == 0
+                assert output_color(0.2) == expected
+                assert output_color(0.4) == black
+                assert output_color(1.2) == black
+                assert output_color(0.2) == expected
+                assert root.remove_children(node) == 0
 
 
 def api_backend():
@@ -1516,6 +1540,166 @@ def api_trf_seek_keep_alive(width=320, height=240):
     assert ctx.draw(end) == 0
     assert ctx.draw(start) == 0
     assert ctx.draw(end) == 0
+
+
+def _is_active(ctx, t, label):
+    """Return whether the node with the given label is active at time t."""
+    dot = ctx.dot(t).decode()
+    lines = [line for line in dot.splitlines() if f"<i>{label}</i>" in line]
+    assert len(lines) == 1
+    return 'color="#333333"' not in lines[0]
+
+
+def api_timerange_loop_prefetch(width=16, height=16):
+    """
+    Time ranges in the loop are prefetched before playback returns to them.
+    Changes to the loop range also take effect while playback is paused.
+    """
+    ctx = ngl.Context()
+    ret = ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend))
+    assert ret == 0
+
+    m0 = load_media("mire")
+    media = ngl.Media(m0.filename, label="media_3d")
+    texture = ngl.Texture2D(data_src=media)
+    media_2d = ngl.Media(m0.filename, label="media_2d")
+    texture_2d = ngl.Texture2D(data_src=media_2d)
+    rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.TexturePaint(texture=texture_2d))
+    root = ngl.Group(
+        children=[
+            ngl.TimeRangeFilter(ngl.DrawTexture(texture), start=0, end=1, prefetch_time=0.5),
+            ngl.Canvas2D(
+                width=width,
+                height=height,
+                children=[ngl.TimeRangeFilter2D(rect, start=0.25, end=1, prefetch_time=0.5)],
+            ),
+        ]
+    )
+    assert ctx.set_scene(ngl.Scene.from_params(root, duration=4)) == 0
+
+    # Without looping, both media nodes become inactive after their ranges end.
+    assert _is_active(ctx, 0.5, "media_3d")
+    assert _is_active(ctx, 0.5, "media_2d")
+    assert not _is_active(ctx, 3.8, "media_3d")
+    assert not _is_active(ctx, 3.8, "media_2d")
+
+    # Looping over [0,4): prefetched over the last 0.5s before the loop comes
+    # back to their start (4s and 4.25s)
+    assert ctx.set_loop_range(0, 4) == 0
+    assert not _is_active(ctx, 3.4, "media_3d")
+    assert _is_active(ctx, 3.6, "media_3d")
+    assert not _is_active(ctx, 3.6, "media_2d")
+    assert _is_active(ctx, 3.8, "media_2d")
+
+    # And again from the start of the loop, as it plays
+    assert _is_active(ctx, 0.0, "media_3d")
+    assert not _is_active(ctx, 2.0, "media_3d")
+
+    # At the loop end, both media nodes are inactive.
+    assert not _is_active(ctx, 4.0, "media_3d")
+    assert not _is_active(ctx, 4.0, "media_2d")
+
+    # Looping over [0.5,4): the loop comes back to both of them at its start
+    assert ctx.set_loop_range(0.5, 4) == 0
+    assert not _is_active(ctx, 3.4, "media_3d")
+    assert not _is_active(ctx, 3.4, "media_2d")
+    assert _is_active(ctx, 3.6, "media_3d")
+    assert _is_active(ctx, 3.6, "media_2d")
+
+    # Looping over [1,4): the loop never comes back to them
+    assert ctx.set_loop_range(1, 4) == 0
+    assert not _is_active(ctx, 3.8, "media_3d")
+    assert not _is_active(ctx, 3.8, "media_2d")
+
+    # Looping over [0,0.25): the playback never gets to media_2d, which starts
+    # at the end of the loop
+    assert ctx.set_loop_range(0, 0.25) == 0
+    assert _is_active(ctx, 0.1, "media_3d")
+    assert not _is_active(ctx, 0.1, "media_2d")
+
+    # Change either end or disable the loop while playback is paused.
+    for start, end, active in (
+        (0, 4, True),
+        (0, 5, False),
+        (0, 4, True),
+        (1, 4, False),
+        (0.5, 4, True),
+        (0, 0, False),
+        (0, 4, True),
+        (4, 0, False),
+    ):
+        assert ctx.set_loop_range(start, end) == 0
+        assert _is_active(ctx, 3.8, "media_3d") == active
+        assert _is_active(ctx, 3.8, "media_2d") == active
+
+    assert ctx.set_loop_range(0, math.nan) < 0
+    assert ctx.set_loop_range(math.nan, 4) < 0
+    assert ctx.set_loop_range(0, math.inf) < 0
+    assert ctx.set_loop_range(-math.inf, 4) < 0
+
+
+def api_media_loop_range(width=32, height=24):
+    """
+    Looping renders the same frames as seeking to the same scene times.
+    This includes time remapping, held frames and loop range changes.
+    """
+    m0 = load_media("mire")
+
+    def get_ctx(keyframes, time_offset, loop_range):
+        capture_buffer = bytearray(width * height * 4)
+        ctx = ngl.Context()
+        config = ngl.Config(offscreen=True, width=width, height=height, backend=_backend, capture_buffer=capture_buffer)
+        assert ctx.configure(config) == 0
+        time_anim = (
+            ngl.AnimatedTime([ngl.AnimKeyFrameFloat(t, value) for t, value in keyframes], time_offset=time_offset)
+            if keyframes
+            else None
+        )
+        texture = ngl.Texture2D(data_src=ngl.Media(m0.filename, time_anim=time_anim))
+        assert ctx.set_scene(ngl.Scene.from_params(ngl.DrawTexture(texture), duration=m0.duration)) == 0
+        if loop_range is not None:
+            assert ctx.set_loop_range(loop_range[0] / 30, loop_range[1] / 30) == 0
+        return ctx, capture_buffer
+
+    # The remapped media starts at 2s on the timeline, 8s into the file
+    remapped = ((2, 8), (12, 18))
+    held_end = ((0, 0), (1, 1), (2, 1))
+    held_middle = (*held_end, (3, 2))
+    # Loop ranges in 1/30s, played 2.5 times each. Key frames at 0 (IDR) and
+    # 8.333 (CRA).
+    for keyframes, time_offset, loop_ranges in (
+        (None, 0, ((15, 45),)),
+        (None, 0, ((258, 282),)),
+        (None, 0, ((237, 264),)),
+        (remapped, 0, ((75, 99),)),
+        (None, 0, ((15, 45), (24, 36))),
+        (remapped, 0, ((75, 99), (69, 111))),
+        # The held frame is needed before the scene loop ends, even though
+        # its media time equals the mapped loop end.
+        (held_end, 0, ((0, 60),)),
+        (held_middle, 0, ((0, 45), (0, 90), (0, 60))),
+        (((0, 8), (1, 9), (2, 9)), 2, ((60, 120),)),
+        # These media times round up to the frame at 1s. Extending the loop
+        # by only one microsecond would still exclude it.
+        (((0, 0), (1, 0.99999), (2, 0.99999), (3, 2)), 0, ((0, 60),)),
+        (((0, 0.123456), (1, 0.99999), (2, 0.99999), (3, 2)), 0, ((0, 60),)),
+    ):
+        ctx_loop, capture_loop = get_ctx(keyframes, time_offset, loop_ranges[0])
+        ctx_ref, capture_ref = get_ctx(keyframes, time_offset, None)
+        k = loop_ranges[0][0]
+        for i, (start, end) in enumerate(loop_ranges):
+            if i:
+                assert ctx_loop.set_loop_range(start / 30, end / 30) == 0
+            for _ in range((end - start) * 5 // 2):
+                if k >= end:
+                    k = start
+                t = k / 30
+                assert ctx_loop.draw(t) == 0
+                assert ctx_ref.draw(t) == 0
+                assert capture_loop == capture_ref, f"loop [{start / 30},{end / 30}) at t={t}"
+                k += 1
+        del ctx_loop
+        del ctx_ref
 
 
 def api_media_missing(width=16, height=16):
