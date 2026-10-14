@@ -216,9 +216,10 @@ static void texture_upload(struct ngpu_texture *s, const uint8_t *data, const st
         break;
     case GL_TEXTURE_CUBE_MAP: {
         const size_t layer_size = bytes_per_row * transfer_params->height;
-        const uint8_t *layer_data = data + (transfer_params->base_layer * layer_size);
-        for (uint32_t face = transfer_params->base_layer; face < transfer_params->layer_count; face++) {
-            gl->funcs.TexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, 0, 0, width, height,
+        const uint8_t *layer_data = data;
+        for (uint32_t i = 0; i < transfer_params->layer_count; i++) {
+            const GLenum face = GL_TEXTURE_CUBE_MAP_POSITIVE_X + transfer_params->base_layer + i;
+            gl->funcs.TexSubImage2D(face, 0, 0, 0, width, height,
                                     s_priv->format, s_priv->format_type, layer_data);
             layer_data += layer_size;
         }
