@@ -38,9 +38,16 @@ void *ngpu_try_malloc_aligned(size_t alignment, size_t size);
 void *ngpu_try_realloc(void *ptr, size_t n, size_t size);
 
 void ngpu_free(void *ptr);
-void ngpu_freep(void *ptr);
 void ngpu_free_aligned(void *ptr);
-void ngpu_freep_aligned(void *ptr);
+
+#define NGPU_FREEP_(free_func, objp) do {       \
+    __typeof__(objp) ngpu_freep_objp_ = (objp); \
+    free_func(*ngpu_freep_objp_);               \
+    *ngpu_freep_objp_ = NULL;                   \
+} while (0)
+
+#define ngpu_freep(objp) NGPU_FREEP_(ngpu_free, objp)
+#define ngpu_freep_aligned(objp) NGPU_FREEP_(ngpu_free_aligned, objp)
 
 void *ngpu_try_memdup(const void *src, size_t n);
 
