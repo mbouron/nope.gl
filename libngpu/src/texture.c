@@ -62,7 +62,7 @@ uint32_t ngpu_texture_get_mipmap_levels(const struct ngpu_texture_params *params
 {
     if (params->mipmap_filter == NGPU_MIPMAP_FILTER_NONE)
         return 1;
-    return ngpu_log2(params->width | params->height | 1);
+    return ngpu_log2(params->width | params->height | 1) + 1;
 }
 
 static uint64_t get_memory_size(const struct ngpu_texture_params *params)
