@@ -64,7 +64,6 @@
 #include "opengl/priv_gl.h"
 #include "opengl/texture_gl.h"
 #include "ngpu/ngpu_opengl.h"
-#include "utils/bits.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
@@ -149,16 +148,6 @@ static void texture_allocate(struct ngpu_texture *s)
     }
 }
 
-static uint32_t get_mipmap_levels(const struct ngpu_texture *s)
-{
-    const struct ngpu_texture_params *params = &s->params;
-
-    uint32_t mipmap_levels = 1;
-    if (params->mipmap_filter != NGPU_MIPMAP_FILTER_NONE)
-        mipmap_levels = ngpu_log2(params->width | params->height | 1);
-    return mipmap_levels;
-}
-
 static void texture_allocate_storage(struct ngpu_texture *s)
 {
     struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
@@ -170,7 +159,7 @@ static void texture_allocate_storage(struct ngpu_texture *s)
     const GLint height = (GLint)params->height;
     const GLint depth = (GLint)params->depth;
     const GLint array_layers = (GLint)s_priv->array_layers;
-    const GLint mipmap_levels = (GLint)get_mipmap_levels(s);
+    const GLint mipmap_levels = (GLint)ngpu_texture_get_mipmap_levels(params);
 
     switch (s_priv->target) {
     case GL_TEXTURE_2D:

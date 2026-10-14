@@ -36,7 +36,6 @@
 #include "vulkan/texture_vk.h"
 #include "vulkan/vkutils.h"
 #include "vulkan/ycbcr_sampler_vk.h"
-#include "utils/bits.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
@@ -248,11 +247,6 @@ static VkFormatFeatureFlags get_vk_texture_format_features(const struct ngpu_tex
     return features;
 }
 
-static uint32_t get_mipmap_levels(uint32_t width, uint32_t height)
-{
-    return ngpu_log2(width | height | 1);
-}
-
 static int init_fields(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
@@ -278,10 +272,7 @@ static int init_fields(struct ngpu_texture *s, const struct ngpu_texture_params 
         s_priv->array_layers = params->depth;
     }
 
-    s_priv->mipmap_levels = 1;
-    if (params->mipmap_filter != NGPU_MIPMAP_FILTER_NONE) {
-        s_priv->mipmap_levels = get_mipmap_levels(params->width, params->height);
-    }
+    s_priv->mipmap_levels = ngpu_texture_get_mipmap_levels(params);
 
     const VkImageUsageFlags usage = ngpu_vk_get_image_usage_flags(s->params.usage);
     s_priv->default_image_layout = VK_IMAGE_LAYOUT_GENERAL;
