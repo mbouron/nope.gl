@@ -963,7 +963,8 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
         .type = NGPU_CMD_TYPE_GL_SET_BINDGROUP,
         .set_bindgroup.bindgroup = bindgroup,
     };
-    memcpy(cmd_gl.set_bindgroup.offsets, offsets, nb_offsets * sizeof(*offsets));
+    if (nb_offsets)
+        memcpy(cmd_gl.set_bindgroup.offsets, offsets, nb_offsets * sizeof(*offsets));
     cmd_gl.set_bindgroup.nb_offsets = nb_offsets;
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &cmd_gl);
