@@ -32,6 +32,7 @@
 #include "utils/utils.h"
 
 struct ngpu_buffer;
+struct ngpu_texture;
 
 struct ngpu_cmd_buffer_vk {
     struct ngpu_rc rc;
@@ -50,6 +51,7 @@ struct ngpu_cmd_buffer_vk {
     NGPU_DARRAY(uint64_t) signal_values;
     NGPU_DARRAY(struct ngpu_rc *) refs;
     NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
+    NGPU_DARRAY(struct ngpu_texture *) texture_refs;
 };
 
 NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_vk_darray, struct ngpu_cmd_buffer_vk *);
@@ -65,6 +67,7 @@ void ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSema
 #define NGPU_CMD_BUFFER_VK_REF(cmd, rc) ngpu_cmd_buffer_vk_ref((cmd), (struct ngpu_rc *)(rc))
 void ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc);
 void ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buffer *buffer);
+void ngpu_cmd_buffer_vk_ref_texture(struct ngpu_cmd_buffer_vk *s, struct ngpu_texture *texture);
 
 VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s);
 VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence);

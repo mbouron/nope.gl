@@ -345,12 +345,19 @@ static VkResult create_sampler(struct ngpu_texture *s)
     return vk->funcs.CreateSampler(vk->device, &sampler_info, NULL, &s_priv->sampler);
 }
 
+static void unref_cmd_buffer(void *user_arg, void *data)
+{
+    struct ngpu_cmd_buffer_vk **cmd_bufferp = data;
+    ngpu_cmd_buffer_vk_freep(cmd_bufferp);
+}
+
 struct ngpu_texture *ngpu_texture_vk_create(struct ngpu_ctx *gpu_ctx)
 {
     struct ngpu_texture_vk *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
+    ngpu_darray_set_free_func(&s->cmd_buffers, unref_cmd_buffer, NULL);
     return (struct ngpu_texture *)s;
 }
 
@@ -1332,6 +1339,16 @@ int ngpu_texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t
 
 int ngpu_texture_vk_upload_with_params(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params)
 {
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+
+    /* An upload can overwrite staging data before recorded commands execute. */
+    ngpu_darray_foreach(cmd_buffer, &s_priv->cmd_buffers) {
+        if (!(*cmd_buffer)->submitted) {
+            LOG(ERROR, "texture is used by a command buffer being recorded");
+            return NGPU_ERROR_INVALID_USAGE;
+        }
+    }
+
     VkResult res = texture_vk_upload(s, data, transfer_params);
     if (res != VK_SUCCESS)
         LOG(ERROR, "unable to upload texture: %s", ngpu_vk_res2str(res));
@@ -1480,6 +1497,31 @@ int ngpu_texture_vk_generate_mipmap(struct ngpu_texture *s)
     return ngpu_vk_res2ret(res);
 }
 
+void ngpu_texture_vk_ref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
+{
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+
+    size_t index = ngpu_cmd_buffer_vk_darray_find(&s_priv->cmd_buffers, cmd_buffer);
+    if (index != SIZE_MAX)
+        return;
+
+    ngpu_darray_push(&s_priv->cmd_buffers, cmd_buffer);
+    NGPU_RC_REF(cmd_buffer);
+}
+
+int ngpu_texture_vk_unref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
+{
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+
+    size_t index = ngpu_cmd_buffer_vk_darray_find(&s_priv->cmd_buffers, cmd_buffer);
+    if (index == SIZE_MAX)
+        return 0;
+
+    ngpu_darray_remove(&s_priv->cmd_buffers, index);
+
+    return 0;
+}
+
 void ngpu_texture_vk_freep(struct ngpu_texture **sp)
 {
     if (!*sp)
@@ -1489,6 +1531,8 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    ngpu_darray_reset(&s_priv->cmd_buffers);
 
     ngpu_ycbcr_sampler_vk_unrefp(&s_priv->ycbcr_sampler);
     if (!s_priv->wrapped_sampler)
