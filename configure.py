@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 #
+# Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2023 Nope Forge
 # Copyright 2021-2022 GoPro Inc.
 #

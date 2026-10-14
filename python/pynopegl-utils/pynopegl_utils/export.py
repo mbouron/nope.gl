@@ -2,7 +2,6 @@
 # Copyright 2023 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2023 Clément Bœsch <u pkh.me>
 # Copyright 2023 Nope Forge
-# Copyright 2017-2022 GoPro Inc.
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file

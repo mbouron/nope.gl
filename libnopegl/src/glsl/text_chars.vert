@@ -1,7 +1,6 @@
 /*
  * Copyright 2025 Clément Bœsch <u pkh.me>
  * Copyright 2023 Nope Forge
- * Copyright 2019-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file

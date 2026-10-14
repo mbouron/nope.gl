@@ -1,4 +1,5 @@
 /*
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023-2025 Clément Bœsch <u pkh.me>
  * Copyright 2023 Nope Forge
  *

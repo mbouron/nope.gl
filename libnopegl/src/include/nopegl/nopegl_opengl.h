@@ -1,4 +1,5 @@
 /*
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023-2025 Nope Forge
  *
  * Licensed to the Apache Software Foundation (ASF) under one

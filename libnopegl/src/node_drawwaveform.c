@@ -1,4 +1,5 @@
 /*
+ * Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2023 Nope Forge
  * Copyright 2021-2022 GoPro Inc.
  * Copyright 2021-2024 Clément Bœsch <u pkh.me>

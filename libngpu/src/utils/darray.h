@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Matthieu Bouron <matthieu@gmail.com>
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file

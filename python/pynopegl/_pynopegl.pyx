@@ -1,6 +1,6 @@
 # cython: c_string_type=unicode, c_string_encoding=utf8
 #
-# Copyright 2024 Matthieu Bouron <matthieu.bouron@gmail.com>
+# Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2016-2022 GoPro Inc.
 #
 # Licensed to the Apache Software Foundation (ASF) under one

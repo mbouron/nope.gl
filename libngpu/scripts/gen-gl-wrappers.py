@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 #
+# Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
 # Copyright 2017-2022 GoPro Inc.
 #
 # Licensed to the Apache Software Foundation (ASF) under one
