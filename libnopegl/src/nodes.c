@@ -1403,8 +1403,8 @@ void ngl_node_params_info_freep(const struct ngl_param_info **infosp, size_t nb_
         return;
     struct ngl_param_info *infos = (struct ngl_param_info *)*infosp;
     for (size_t i = 0; i < nb_infos; i++)
-        ngli_freep(&infos[i].choices);
-    ngli_freep(infosp);
+        ngli_freep((const char ***)&infos[i].choices);
+    ngli_freep((struct ngl_param_info **)infosp);
 }
 
 #define FORWARD_TO_PARAM_GET(type, ...)                  \

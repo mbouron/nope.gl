@@ -144,12 +144,6 @@ void ngli_free(void *ptr)
     free(ptr);
 }
 
-void ngli_freep(void *ptr)
-{
-    ngli_free(*(void **)ptr);
-    memset(ptr, 0, sizeof(void *));
-}
-
 void ngli_free_aligned(void *ptr)
 {
 #ifdef _WIN32
@@ -157,12 +151,6 @@ void ngli_free_aligned(void *ptr)
 #else
     free(ptr);
 #endif
-}
-
-void ngli_freep_aligned(void *ptr)
-{
-    ngli_free_aligned(*(void **)ptr);
-    memset(ptr, 0, sizeof(void *));
 }
 
 void *ngli_try_memdup(const void *src, size_t n)

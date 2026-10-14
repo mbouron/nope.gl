@@ -38,9 +38,16 @@ void *ngli_try_malloc_aligned(size_t alignment, size_t size);
 void *ngli_try_realloc(void *ptr, size_t n, size_t size);
 
 void ngli_free(void *ptr);
-void ngli_freep(void *ptr);
 void ngli_free_aligned(void *ptr);
-void ngli_freep_aligned(void *ptr);
+
+#define NGLI_FREEP_(free_func, objp) do {       \
+    __typeof__(objp) ngli_freep_objp_ = (objp); \
+    free_func(*ngli_freep_objp_);               \
+    *ngli_freep_objp_ = NULL;                   \
+} while (0)
+
+#define ngli_freep(objp) NGLI_FREEP_(ngli_free, objp)
+#define ngli_freep_aligned(objp) NGLI_FREEP_(ngli_free_aligned, objp)
 
 void *ngli_try_memdup(const void *src, size_t n);
 
