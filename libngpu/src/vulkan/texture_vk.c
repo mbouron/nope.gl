@@ -861,6 +861,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
                          0, NULL,
                          0, NULL,
                          1, &barrier);
+    s_priv->image_layout = barrier.newLayout;
 
     ngpu_texture_vk_transition_to_default_layout(s);
 
