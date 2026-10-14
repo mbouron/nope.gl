@@ -463,9 +463,11 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
 
     s_priv->image_layout = s_priv->default_image_layout;
 
-    res = create_image_view(s);
-    if (res != VK_SUCCESS)
-        return res;
+    if (params->usage & (NGPU_TEXTURE_USAGE_SAMPLED_BIT | NGPU_TEXTURE_USAGE_STORAGE_BIT)) {
+        res = create_image_view(s);
+        if (res != VK_SUCCESS)
+            return res;
+    }
 
     return create_sampler(s);
 }
