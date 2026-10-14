@@ -13,7 +13,7 @@ on:
 jobs:
   linux:
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -37,9 +37,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup SDL3
-      uses: ./.github/actions/setup-sdl3-linux
-
     - name: Install dependencies
       run: |
         sudo apt -y update
@@ -51,8 +48,8 @@ jobs:
         #
         #         apt-get install python3-venv
         #
-        sudo apt -y install libva-dev python3-venv valgrind spirv-tools libvulkan-dev mesa-vulkan-drivers vulkan-validationlayers
-        sudo apt -y install ffmpeg libavcodec-dev libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev libswscale-dev libswresample-dev libpostproc-dev
+        sudo apt -y install libsdl3-dev libva-dev python3-venv valgrind spirv-tools libvulkan-dev mesa-vulkan-drivers vulkan-validationlayers
+        sudo apt -y install ffmpeg libavcodec-dev libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev libswscale-dev libswresample-dev
         sudo apt -y install libfreetype-dev libharfbuzz-dev libfribidi-dev
         sudo apt -y install graphviz
 
