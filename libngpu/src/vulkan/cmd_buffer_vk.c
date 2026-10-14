@@ -25,6 +25,7 @@
 #include "vulkan/ctx_vk.h"
 #include "vulkan/fence_vk.h"
 #include "vulkan/priv_vk.h"
+#include "vulkan/texture_vk.h"
 #include "vulkan/vkutils.h"
 #include "utils/darray.h"
 #include "utils/log.h"
@@ -41,6 +42,7 @@ static void cmd_buffer_vk_freep(void **sp)
 
     ngpu_darray_reset(&s->refs);
     ngpu_darray_reset(&s->buffer_refs);
+    ngpu_darray_reset(&s->texture_refs);
 
     ngpu_darray_reset(&s->wait_sems);
     ngpu_darray_reset(&s->wait_stages);
@@ -81,6 +83,18 @@ static void unref_buffer(void *user_arg, void *data)
     ngpu_buffer_freep(bufferp);
 }
 
+static void unref_texture(void *user_arg, void *data)
+{
+    struct ngpu_cmd_buffer_vk *cmd_buffer = user_arg;
+    struct ngpu_texture **texturep = data;
+
+    if (!*texturep)
+        return;
+
+    ngpu_texture_vk_unref_cmd_buffer(*texturep, cmd_buffer);
+    ngpu_texture_freep(texturep);
+}
+
 void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp)
 {
     NGPU_RC_UNREFP(sp);
@@ -107,6 +121,7 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
 
     ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
     ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
+    ngpu_darray_set_free_func(&s->texture_refs, unref_texture, s);
 
     return VK_SUCCESS;
 }
@@ -150,12 +165,23 @@ void ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buf
     ngpu_buffer_vk_ref_cmd_buffer(buffer, s);
 }
 
+void ngpu_cmd_buffer_vk_ref_texture(struct ngpu_cmd_buffer_vk *s, struct ngpu_texture *texture)
+{
+    ngpu_cmd_buffer_vk_ref(s, (struct ngpu_rc *)texture);
+
+    ngpu_darray_push(&s->texture_refs, texture);
+    NGPU_RC_REF(texture);
+
+    ngpu_texture_vk_ref_cmd_buffer(texture, s);
+}
+
 VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
 {
     s->applied_bindgroup = NULL;
     s->applied_bindgroup_pipeline = NULL;
     ngpu_darray_clear(&s->refs);
     ngpu_darray_clear(&s->buffer_refs);
+    ngpu_darray_clear(&s->texture_refs);
 
     ngpu_darray_clear(&s->wait_sems);
     ngpu_darray_clear(&s->wait_stages);
@@ -281,6 +307,7 @@ VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
 
     ngpu_darray_clear(&s->refs);
     ngpu_darray_clear(&s->buffer_refs);
+    ngpu_darray_clear(&s->texture_refs);
 
     size_t i = 0;
     while (i < gpu_ctx_vk->pending_cmd_buffers.count) {

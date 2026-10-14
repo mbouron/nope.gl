@@ -1449,6 +1449,14 @@ static void vk_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width
     *height = s->params.height;
 }
 
+static void ref_attachment(struct ngpu_cmd_buffer_vk *cmd_buffer, const struct ngpu_attachment *attachment)
+{
+    if (attachment->attachment)
+        ngpu_cmd_buffer_vk_ref_texture(cmd_buffer, attachment->attachment);
+    if (attachment->resolve_target)
+        ngpu_cmd_buffer_vk_ref_texture(cmd_buffer, attachment->resolve_target);
+}
+
 static void vk_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
 {
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
@@ -1479,6 +1487,9 @@ static void vk_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *r
     }
 
     NGPU_CMD_BUFFER_VK_REF(s_priv->cur_cmd_buffer, rt);
+    for (size_t i = 0; i < params->nb_colors; i++)
+        ref_attachment(s_priv->cur_cmd_buffer, &params->colors[i]);
+    ref_attachment(s_priv->cur_cmd_buffer, &params->depth_stencil);
 
     VkCommandBuffer cmd_buf = s_priv->cur_cmd_buffer->cmd_buf;
     const VkRenderPassBeginInfo render_pass_begin_info = {
