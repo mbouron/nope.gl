@@ -446,7 +446,8 @@ void ngpu_ctx_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup
     s->bindgroup = bindgroup;
 
     ngpu_assert(bindgroup->layout->nb_dynamic_offsets == nb_offsets);
-    memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
+    if (nb_offsets)
+        memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
     s->nb_dynamic_offsets = nb_offsets;
 
     s->cls->set_bindgroup(s, bindgroup, offsets, nb_offsets);
