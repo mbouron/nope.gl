@@ -86,7 +86,7 @@ static VkSamplerAddressMode get_vk_wrap(enum ngpu_wrap wrap)
     return vk_wrap_map[wrap];
 }
 
-static VkImageAspectFlags get_vk_image_aspect_flags(VkFormat format)
+VkImageAspectFlags ngpu_vk_get_image_aspect_flags(VkFormat format)
 {
     switch (format) {
     case VK_FORMAT_D16_UNORM:
@@ -300,7 +300,7 @@ static VkResult create_image_view(struct ngpu_texture *s)
         .viewType = get_vk_image_view_type(s->params.type),
         .format   = s_priv->format,
         .subresourceRange = {
-            .aspectMask     = get_vk_image_aspect_flags(s_priv->format),
+            .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
             .baseMipLevel   = 0,
             .levelCount     = s_priv->mipmap_levels,
             .baseArrayLayer = 0,
@@ -442,7 +442,7 @@ static VkResult texture_vk_init(struct ngpu_texture *s, const struct ngpu_textur
         return res;
 
     const VkImageSubresourceRange subres_range = {
-        .aspectMask     = get_vk_image_aspect_flags(s_priv->format),
+        .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
         .baseMipLevel   = 0,
         .levelCount     = VK_REMAINING_MIP_LEVELS,
         .baseArrayLayer = 0,
@@ -1041,7 +1041,7 @@ void ngpu_texture_vk_transition_layout(struct ngpu_texture *s, VkImageLayout lay
 
     VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
     const VkImageSubresourceRange subres_range = {
-        .aspectMask     = get_vk_image_aspect_flags(s_priv->format),
+        .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
         .baseMipLevel   = 0,
         .levelCount     = VK_REMAINING_MIP_LEVELS,
         .baseArrayLayer = 0,
@@ -1230,7 +1230,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
     ngpu_cmd_buffer_vk_ref_buffer(cmd_buffer_vk, s_priv->staging_buffer);
 
     const VkImageSubresourceRange subres_range = {
-        .aspectMask     = get_vk_image_aspect_flags(s_priv->format),
+        .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
         .baseMipLevel   = 0,
         .levelCount     = 1,
         .baseArrayLayer = 0,
@@ -1252,7 +1252,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
             .bufferRowLength   = transfer_params->pixels_per_row,
             .bufferImageHeight = 0,
             .imageSubresource = {
-                .aspectMask     = get_vk_image_aspect_flags(s_priv->format),
+                .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
                 .mipLevel       = 0,
                 .baseArrayLayer = i,
                 .layerCount     = 1,
@@ -1351,7 +1351,7 @@ static VkResult texture_vk_generate_mipmap(struct ngpu_texture *s)
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
 
     const VkImageSubresourceRange subres_range = {
-        .aspectMask     = get_vk_image_aspect_flags(s_priv->format),
+        .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
         .baseMipLevel   = 0,
         .levelCount     = VK_REMAINING_MIP_LEVELS,
         .baseArrayLayer = 0,

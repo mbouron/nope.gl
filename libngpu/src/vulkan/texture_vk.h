@@ -79,5 +79,6 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp);
 
 VkFilter ngpu_vk_get_filter(enum ngpu_filter filter);
 VkImageUsageFlags ngpu_vk_get_image_usage_flags(uint32_t usage);
+VkImageAspectFlags ngpu_vk_get_image_aspect_flags(VkFormat format);
 
 #endif

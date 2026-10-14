@@ -219,22 +219,6 @@ VkResult ngpu_vk_create_compatible_renderpass(struct ngpu_ctx *s, const struct n
     return vk_create_compatible_renderpass(s, layout, NULL, render_pass);
 }
 
-static VkImageAspectFlags get_vk_image_aspect_flags(VkFormat format)
-{
-    switch (format) {
-    case VK_FORMAT_D16_UNORM:
-    case VK_FORMAT_D32_SFLOAT:
-    case VK_FORMAT_X8_D24_UNORM_PACK32:
-        return VK_IMAGE_ASPECT_DEPTH_BIT;
-    case VK_FORMAT_D16_UNORM_S8_UINT:
-    case VK_FORMAT_D24_UNORM_S8_UINT:
-    case VK_FORMAT_D32_SFLOAT_S8_UINT:
-        return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    default:
-        return VK_IMAGE_ASPECT_COLOR_BIT;
-    }
-}
-
 static VkResult create_image_view(const struct ngpu_rendertarget *s, const struct ngpu_texture *texture, uint32_t layer, VkImageView *view)
 {
     const struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
@@ -258,7 +242,7 @@ static VkResult create_image_view(const struct ngpu_rendertarget *s, const struc
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
         .format   = texture_vk->format,
         .subresourceRange = {
-            .aspectMask     = get_vk_image_aspect_flags(texture_vk->format),
+            .aspectMask     = ngpu_vk_get_image_aspect_flags(texture_vk->format),
             .baseMipLevel   = 0,
             .levelCount     = 1,
             .baseArrayLayer = layer,
