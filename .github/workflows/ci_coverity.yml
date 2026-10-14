@@ -30,6 +30,7 @@ jobs:
         sudo apt -y install ffmpeg libavcodec-dev libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev libswscale-dev libswresample-dev
         sudo apt -y install libfreetype-dev libharfbuzz-dev libfribidi-dev
         sudo apt -y install graphviz
+        sudo apt -y install clang
 
     - name: Download Coverity Build Tool
       run: |
@@ -40,6 +41,7 @@ jobs:
     - name: Build
       run: |
         export PATH="$(pwd)/cov-analysis-linux64/bin:$PATH"
+        export CC=clang
         ./configure.py --buildtype debug --debug-opts gl vk gpu_capture
         . venv/bin/activate
         make nopegl-setup
