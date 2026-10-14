@@ -42,6 +42,7 @@ struct android_ctx {
     media_status_t (*AImageReader_setImageListener)(AImageReader *reader, AImageReader_ImageListener *listener);
     media_status_t (*AImageReader_getWindow)(AImageReader *reader, ANativeWindow **window);
     media_status_t (*AImageReader_acquireNextImage)(AImageReader *reader, AImage **image);
+    media_status_t (*AImageReader_setBufferRemovedListener)(AImageReader *reader, AImageReader_BufferRemovedListener *listener);
     void (*AImageReader_delete)(AImageReader *reader);
 
     /* ANativeWindow */
@@ -49,6 +50,8 @@ struct android_ctx {
 
     /* AHardwareBuffer */
     void (*AHardwareBuffer_describe)(const AHardwareBuffer *buffer, AHardwareBuffer_Desc *outDesc);
+    void (*AHardwareBuffer_acquire)(AHardwareBuffer *buffer);
+    void (*AHardwareBuffer_release)(AHardwareBuffer *buffer);
 };
 
 int ngli_android_ctx_init(struct ngpu_ctx *gpu_ctx, struct android_ctx *s);

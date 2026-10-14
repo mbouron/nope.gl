@@ -21,6 +21,7 @@
  * under the License.
  */
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <jni.h>
@@ -30,6 +31,7 @@
 #include "android_imagereader.h"
 #include "jni_utils.h"
 #include "log.h"
+#include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"
 
@@ -46,6 +48,8 @@ struct android_imagereader {
     pthread_mutex_t lock;
     pthread_cond_t cond;
     int buffer_available;
+    NGLI_DARRAY(AHardwareBuffer *) removed_buffers;
+    bool removed_overflow; // some removed buffers could not be recorded
 };
 
 void ngli_android_get_crop_matrix(float *matrix, const AHardwareBuffer_Desc *desc, const AImageCropRect *crop_rect, int filtering)
@@ -137,6 +141,15 @@ static void on_buffer_available(void *context, AImageReader *reader)
     pthread_mutex_unlock(&s->lock);
 }
 
+static void on_buffer_removed(void *context, AImageReader *reader, AHardwareBuffer *buffer)
+{
+    struct android_imagereader *s = context;
+    pthread_mutex_lock(&s->lock);
+    if (ngli_darray_try_push(&s->removed_buffers, buffer) < 0)
+        s->removed_overflow = true;
+    pthread_mutex_unlock(&s->lock);
+}
+
 struct android_imagereader *ngli_android_imagereader_create(struct android_ctx *android_ctx, int32_t width, int32_t height, int format, int max_images)
 {
     struct android_imagereader *s = ngli_try_calloc(1, sizeof(*s));
@@ -170,6 +183,17 @@ struct android_imagereader *ngli_android_imagereader_create(struct android_ctx *
     status = android_ctx->AImageReader_setImageListener(s->reader, &listener);
     if (status != AMEDIA_OK) {
         LOG(ERROR, "failed to set image listener");
+        goto fail;
+    }
+
+    AImageReader_BufferRemovedListener removed_listener = {
+        .context = s,
+        .onBufferRemoved = on_buffer_removed,
+    };
+
+    status = android_ctx->AImageReader_setBufferRemovedListener(s->reader, &removed_listener);
+    if (status != AMEDIA_OK) {
+        LOG(ERROR, "failed to set buffer removed listener");
         goto fail;
     }
 
@@ -247,6 +271,20 @@ int ngli_android_imagereader_acquire_next_image(struct android_imagereader *s, s
     return 0;
 }
 
+bool ngli_android_imagereader_flush_removed_buffers(struct android_imagereader *s,
+                                                    void (*remove)(void *arg, const AHardwareBuffer *buffer),
+                                                    void *arg)
+{
+    pthread_mutex_lock(&s->lock);
+    for (size_t i = 0; i < s->removed_buffers.count; i++)
+        remove(arg, s->removed_buffers.data[i]);
+    ngli_darray_clear(&s->removed_buffers);
+    const bool overflow = s->removed_overflow;
+    s->removed_overflow = false;
+    pthread_mutex_unlock(&s->lock);
+    return !overflow;
+}
+
 void ngli_android_imagereader_freep(struct android_imagereader **sp)
 {
     if (!*sp)
@@ -256,6 +294,7 @@ void ngli_android_imagereader_freep(struct android_imagereader **sp)
     struct android_ctx *android_ctx = s->android_ctx;
     android_ctx->AImageReader_delete(s->reader);
 
+    ngli_darray_reset(&s->removed_buffers);
     pthread_mutex_destroy(&s->lock);
     pthread_cond_destroy(&s->cond);
 

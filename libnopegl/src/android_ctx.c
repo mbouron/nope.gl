@@ -57,8 +57,11 @@ static int load_media_api(struct android_ctx *s)
     NDK_LOAD_FUNC(s->libmediandk_handle, AImageReader_getWindow);
     NDK_LOAD_FUNC(s->libmediandk_handle, AImageReader_acquireNextImage);
     NDK_LOAD_FUNC(s->libmediandk_handle, AImageReader_setImageListener);
+    NDK_LOAD_FUNC(s->libmediandk_handle, AImageReader_setBufferRemovedListener);
     NDK_LOAD_FUNC(s->libmediandk_handle, AImageReader_delete);
     NDK_LOAD_FUNC(s->libmediandk_handle, AHardwareBuffer_describe);
+    NDK_LOAD_FUNC(s->libmediandk_handle, AHardwareBuffer_acquire);
+    NDK_LOAD_FUNC(s->libmediandk_handle, AHardwareBuffer_release);
 
     return 0;
 
