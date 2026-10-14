@@ -142,12 +142,6 @@ void ngpu_free(void *ptr)
     free(ptr);
 }
 
-void ngpu_freep(void *ptr)
-{
-    ngpu_free(*(void **)ptr);
-    memset(ptr, 0, sizeof(void *));
-}
-
 void ngpu_free_aligned(void *ptr)
 {
 #ifdef _WIN32
@@ -155,12 +149,6 @@ void ngpu_free_aligned(void *ptr)
 #else
     free(ptr);
 #endif
-}
-
-void ngpu_freep_aligned(void *ptr)
-{
-    ngpu_free_aligned(*(void **)ptr);
-    memset(ptr, 0, sizeof(void *));
 }
 
 void *ngpu_try_memdup(const void *src, size_t n)
