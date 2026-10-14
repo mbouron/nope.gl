@@ -377,6 +377,12 @@ static int texture_init(struct ngpu_texture *s, const struct ngpu_texture_params
     return 0;
 }
 
+static void unref_cmd_buffer(void *user_arg, void *data)
+{
+    struct ngpu_cmd_buffer_gl **cmd_bufferp = data;
+    ngpu_cmd_buffer_gl_freep(cmd_bufferp);
+}
+
 struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
 {
     struct ngpu_texture_gl *s = ngpu_try_calloc(1, sizeof(*s));
@@ -386,6 +392,7 @@ struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
 #if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
     s->fd = -1;
 #endif
+    ngpu_darray_set_free_func(&s->cmd_buffers, unref_cmd_buffer, NULL);
     return (struct ngpu_texture *)s;
 }
 
@@ -747,6 +754,14 @@ int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *da
     ngpu_assert(!s_priv->wrapped);
     ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
+    /* Uploads are immediate and would run before commands still being recorded. */
+    ngpu_darray_foreach(cmd_buffer, &s_priv->cmd_buffers) {
+        if (!ngpu_cmd_buffer_gl_is_submitted(*cmd_buffer)) {
+            LOG(ERROR, "texture is used by a command buffer being recorded");
+            return NGPU_ERROR_INVALID_USAGE;
+        }
+    }
+
     gl->funcs.BindTexture(s_priv->target, s_priv->texture);
     if (data) {
         texture_upload(s, data, transfer_params);
@@ -849,6 +864,35 @@ int ngpu_texture_gl_generate_mipmap(struct ngpu_texture *s)
     return 0;
 }
 
+int ngpu_texture_gl_ref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
+{
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+
+    size_t index = ngpu_cmd_buffer_gl_darray_find(&s_priv->cmd_buffers, cmd_buffer);
+    if (index != SIZE_MAX)
+        return 0;
+
+    if (ngpu_darray_try_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
+        return NGPU_ERROR_MEMORY;
+
+    NGPU_RC_REF(cmd_buffer);
+
+    return 0;
+}
+
+int ngpu_texture_gl_unref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
+{
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+
+    size_t index = ngpu_cmd_buffer_gl_darray_find(&s_priv->cmd_buffers, cmd_buffer);
+    if (index == SIZE_MAX)
+        return 0;
+
+    ngpu_darray_remove(&s_priv->cmd_buffers, index);
+
+    return 0;
+}
+
 void ngpu_texture_gl_freep(struct ngpu_texture **sp)
 {
     if (!*sp)
@@ -858,6 +902,8 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
     struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    ngpu_darray_reset(&s_priv->cmd_buffers);
 
     if (!s_priv->wrapped) {
         if (s_priv->target == GL_RENDERBUFFER)

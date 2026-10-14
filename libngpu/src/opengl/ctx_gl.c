@@ -867,12 +867,23 @@ static void gl_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width
     *height = s->params.height;
 }
 
+static void ref_attachment(struct ngpu_cmd_buffer_gl *cmd_buffer, const struct ngpu_attachment *attachment)
+{
+    if (attachment->attachment)
+        ngpu_cmd_buffer_gl_ref_texture(cmd_buffer, attachment->attachment);
+    if (attachment->resolve_target)
+        ngpu_cmd_buffer_gl_ref_texture(cmd_buffer, attachment->resolve_target);
+}
+
 static void gl_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, rt);
+    for (size_t i = 0; i < rt->params.nb_colors; i++)
+        ref_attachment(cmd_buffer, &rt->params.colors[i]);
+    ref_attachment(cmd_buffer, &rt->params.depth_stencil);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_BEGIN_RENDER_PASS,
@@ -957,7 +968,7 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
             ngpu_cmd_buffer_gl_ref_buffer(cmd_buffer, (struct ngpu_buffer *)binding->buffer);
     ngpu_darray_foreach(binding, &bindgroup_gl->texture_bindings)
         if (binding->texture)
-            NGPU_CMD_BUFFER_GL_REF(cmd_buffer, binding->texture);
+            ngpu_cmd_buffer_gl_ref_texture(cmd_buffer, (struct ngpu_texture *)binding->texture);
 
     struct ngpu_cmd_gl cmd_gl = {
         .type = NGPU_CMD_TYPE_GL_SET_BINDGROUP,
