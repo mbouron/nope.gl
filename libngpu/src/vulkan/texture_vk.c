@@ -22,6 +22,7 @@
 
 #include "config.h"
 
+#include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
 
@@ -869,6 +870,53 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
 #else
     return NGPU_ERROR_UNSUPPORTED;
 #endif
+}
+
+static int transfer_external_ownership(struct ngpu_texture *s, bool acquire)
+{
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+
+    struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
+    VkResult res = NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
+    if (res != VK_SUCCESS)
+        return ngpu_vk_res2ret(res);
+
+    /* The layout is kept, the foreign producer does not use it */
+    const VkAccessFlags access_mask = get_vk_access_mask_from_image_layout(s_priv->image_layout, acquire);
+    const VkImageMemoryBarrier barrier = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask       = acquire ? 0 : access_mask,
+        .dstAccessMask       = acquire ? access_mask : 0,
+        .oldLayout           = s_priv->image_layout,
+        .newLayout           = s_priv->image_layout,
+        .srcQueueFamilyIndex = acquire ? VK_QUEUE_FAMILY_FOREIGN_EXT : vk->graphics_queue_index,
+        .dstQueueFamilyIndex = acquire ? vk->graphics_queue_index : VK_QUEUE_FAMILY_FOREIGN_EXT,
+        .image               = s_priv->image,
+        .subresourceRange    = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .levelCount = 1,
+            .layerCount = 1,
+        },
+    };
+
+    const VkPipelineStageFlags src_stage = acquire ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    const VkPipelineStageFlags dst_stage = acquire ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    vk->funcs.CmdPipelineBarrier(cmd_buffer_vk->cmd_buf, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &barrier);
+    return 0;
+}
+
+int ngpu_texture_vk_release_external(struct ngpu_texture *s)
+{
+    ngpu_assert(s->params.import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER);
+    return transfer_external_ownership(s, false);
+}
+
+int ngpu_texture_vk_acquire_external(struct ngpu_texture *s)
+{
+    ngpu_assert(s->params.import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER);
+    return transfer_external_ownership(s, true);
 }
 
 static int import_metal_texture(struct ngpu_texture *s)
