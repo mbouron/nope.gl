@@ -831,10 +831,8 @@ static const char *skip_arg(const char *p)
             p += strcspn(p, "\r\n");
             // TODO: skip to EOL (handle '\' at EOL?)
         } else if (!strncmp(p, "/*", 2)) {
-            p += 2;
-            const char *eoc = strstr(p, "*/");
-            if (eoc)
-                p = eoc + 2;
+            const char *eoc = strstr(p + 2, "*/");
+            p = eoc ? eoc + 2 : p + strlen(p);
         } else {
             p++;
         }
