@@ -34,6 +34,7 @@
 
 struct hwmap_common {
     struct ngli_image_color_cache color_cache;
+    const struct format_desc *desc;
     int32_t width;
     int32_t height;
     size_t nb_planes;
@@ -197,6 +198,7 @@ static int common_init(struct hwmap *hwmap, struct nmd_frame *frame)
         return NGL_ERROR_UNSUPPORTED;
     }
 
+    common->desc = desc;
     common->width = frame->width;
     common->height = frame->height;
     common->nb_planes = desc->nb_planes;
@@ -257,7 +259,7 @@ static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct
             return ret;
     }
 
-    const struct format_desc *desc = common_get_format_desc(frame->pix_fmt);
+    const struct format_desc *desc = common->desc;
     const int src_max = ((1 << desc->depth) - 1) << desc->shift;
     const int dst_max = (1 << desc->format_depth) - 1;
     const float color_scale = (float)dst_max / (float)src_max;
