@@ -22,6 +22,7 @@
 
 #include "config.h"
 
+#include <stdckdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -92,13 +93,9 @@ void *ngpu_try_realloc(void *ptr, size_t n, size_t size)
 {
     if (failure_requested())
         return NULL;
-#if HAVE_BUILTIN_OVERFLOW
     size_t bytes;
-    if (__builtin_mul_overflow(n, size, &bytes))
+    if (ckd_mul(&bytes, n, size))
         return NULL;
-#else
-    size_t bytes = n * size;
-#endif
     return realloc(ptr, bytes);
 }
 

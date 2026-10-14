@@ -19,6 +19,7 @@
  * under the License.
  */
 
+#include <stdckdint.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -121,11 +122,11 @@ static size_t find_entry(const struct hmap *hm, union hmap_key key, uint32_t has
 static int grow_indices(struct hmap *hm)
 {
     size_t new_size;
-    if (NGPU_CHK_MUL(&new_size, hm->size, 2))
+    if (ckd_mul(&new_size, hm->size, 2))
         return NGPU_ERROR_LIMIT_EXCEEDED;
 
     size_t alloc_size;
-    if (NGPU_CHK_MUL(&alloc_size, new_size, sizeof(*hm->indices)))
+    if (ckd_mul(&alloc_size, new_size, sizeof(*hm->indices)))
         return NGPU_ERROR_LIMIT_EXCEEDED;
 
     size_t *new_indices = ngpu_try_malloc(alloc_size);
@@ -150,7 +151,7 @@ static int grow_entries(struct hmap *hm)
         return 0;
 
     size_t new_capacity = hm->capacity ? hm->capacity : (size_t)1 << HMAP_SIZE_NBIT;
-    if (hm->capacity && NGPU_CHK_MUL(&new_capacity, hm->capacity, 2))
+    if (hm->capacity && ckd_mul(&new_capacity, hm->capacity, 2))
         return NGPU_ERROR_LIMIT_EXCEEDED;
 
     struct hmap_entry *entries = ngpu_try_realloc(hm->entries, new_capacity, sizeof(*entries));

@@ -19,6 +19,8 @@
  * under the License.
  */
 
+#include <stdckdint.h>
+
 #include "utils/log.h"
 #include "vulkan/bindgroup_vk.h"
 #include "vulkan/buffer_vk.h"
@@ -103,12 +105,12 @@ static VkResult allocate_desc_pool(struct ngpu_bindgroup_layout *s, uint32_t fac
     const struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_bindgroup_layout_vk *s_priv = NGPU_PRIV_VK(s);
 
-    if (NGPU_CHK_MUL(&s_priv->max_desc_sets, s_priv->max_desc_sets, factor))
+    if (ckd_mul(&s_priv->max_desc_sets, s_priv->max_desc_sets, factor))
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     for (size_t i = 0; i < s_priv->desc_pool_size_count; i++) {
-        if (NGPU_CHK_MUL(&s_priv->desc_pool_sizes[i].descriptorCount,
-                         s_priv->desc_pool_sizes[i].descriptorCount, factor))
+        if (ckd_mul(&s_priv->desc_pool_sizes[i].descriptorCount,
+                    s_priv->desc_pool_sizes[i].descriptorCount, factor))
             return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 

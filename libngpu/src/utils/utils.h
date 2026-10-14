@@ -64,12 +64,6 @@
 #define NGPU_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define NGPU_CLAMP(x, min, max) NGPU_MAX(NGPU_MIN(x, max), min)
 
-#if HAVE_BUILTIN_OVERFLOW
-#define NGPU_CHK_MUL(result, a, b) __builtin_mul_overflow(a, b, result)
-#else
-#define NGPU_CHK_MUL(result, a, b) (*(result) = (a) * (b), false)
-#endif
-
 #define NGPU_ARRAY_MEMDUP(dst, src, name) do {                                 \
     const size_t nb = (src)->nb_##name;                                        \
     if (nb > 0) {                                                              \

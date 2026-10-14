@@ -19,6 +19,7 @@
  * under the License.
  */
 
+#include <stdckdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +42,7 @@ static int reserve(ngpu_darray_data_alias *data, size_t *capacity, size_t elemen
 
     if (needs_aligned(alignment)) {
         size_t size;
-        if (NGPU_CHK_MUL(&size, new_capacity, element_size))
+        if (ckd_mul(&size, new_capacity, element_size))
             return NGPU_ERROR_MEMORY;
         void *ptr = ngpu_try_malloc_aligned(alignment, size);
         if (!ptr)
