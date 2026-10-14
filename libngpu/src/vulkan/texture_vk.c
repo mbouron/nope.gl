@@ -1261,7 +1261,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
 
     NGPU_DARRAY(VkBufferImageCopy) copy_regions = {0};
 
-    for (uint32_t i = transfer_params->base_layer; i < transfer_params->layer_count; i++) {
+    for (uint32_t i = 0; i < transfer_params->layer_count; i++) {
         const VkDeviceSize offset = i * transfer_layer_size;
         const VkBufferImageCopy region = {
             .bufferOffset      = offset,
@@ -1270,7 +1270,7 @@ static VkResult texture_vk_upload(struct ngpu_texture *s, const uint8_t *data, c
             .imageSubresource = {
                 .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
                 .mipLevel       = 0,
-                .baseArrayLayer = i,
+                .baseArrayLayer = transfer_params->base_layer + i,
                 .layerCount     = 1,
             },
             .imageOffset = {
