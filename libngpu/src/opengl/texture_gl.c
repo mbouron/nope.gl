@@ -775,8 +775,13 @@ int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
     /* Blit with Y-flip: source (0,0,w,h) → dest (0,h,w,0) */
     gl->funcs.BlitFramebuffer(0, 0, w, h, 0, h, w, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
+    const size_t bytes_per_row = (size_t)w * s_priv->bytes_per_pixel;
+    const size_t alignment = NGPU_MIN(NGPU_ALIGNMENT(bytes_per_row), 8);
+    gl->funcs.PixelStorei(GL_PACK_ALIGNMENT, (GLint)alignment);
+
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->readback_dst_fbo);
     gl->funcs.ReadPixels(0, 0, w, h, s_priv->format, s_priv->format_type, data);
+    gl->funcs.PixelStorei(GL_PACK_ALIGNMENT, 4);
 
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, 0);
     ngpu_glstate_enable_scissor_test(gl, &gpu_ctx_gl->glstate, GL_TRUE);
