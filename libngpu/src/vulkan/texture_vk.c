@@ -1094,6 +1094,8 @@ void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *
     VkCommandBuffer cmd_buf = gpu_ctx_vk->cur_cmd_buffer->cmd_buf;
     vk->funcs.CmdCopyImageToBuffer(cmd_buf, s_priv->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                            buffer_vk->buffer, 1, &region);
+
+    ngpu_texture_vk_transition_to_default_layout(s);
 }
 
 int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data)
