@@ -52,6 +52,9 @@ struct ngpu_cmd_buffer_vk {
     NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
 };
 
+NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_vk_darray, struct ngpu_cmd_buffer_vk *);
+NGPU_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_vk_darray)
+
 struct ngpu_cmd_buffer_vk *ngpu_cmd_buffer_vk_create(struct ngpu_ctx *gpu_ctx);
 void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp);
 VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type);

@@ -27,10 +27,6 @@
 
 #include "buffer.h"
 #include "vulkan/cmd_buffer_vk.h"
-#include "utils/darray.h"
-
-NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_vk_darray, struct ngpu_cmd_buffer_vk *);
-NGPU_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_vk_darray)
 
 struct ngpu_buffer_vk {
     struct ngpu_buffer parent;
