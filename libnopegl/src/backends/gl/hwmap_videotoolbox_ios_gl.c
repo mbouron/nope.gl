@@ -93,6 +93,7 @@ static int vt_ios_map_plane(struct hwmap *hwmap, CVPixelBufferRef cvpixbuf, size
         .mag_filter = hwmap->params.texture_mag_filter,
         .usage  = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
         .import_params = {
+            .type = NGPU_IMPORT_TYPE_COREVIDEO_BUFFER,
             .corevideo_buffer = {
                 .corevideo_buffer = cvpixbuf,
                 .plane = (uint32_t)index,
