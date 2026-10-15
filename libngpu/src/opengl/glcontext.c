@@ -185,7 +185,7 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_INVALIDATE_SUBDATA,
         .version        = 430,
         .es_version     = 300,
-        .extensions     = (const char*[]){"GL_ARB_invalidate_subdata"},
+        .extensions     = (const char*[]){"GL_ARB_invalidate_subdata", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(InvalidateFramebuffer),
                                            SIZE_MAX}
     }, {
