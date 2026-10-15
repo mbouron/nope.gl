@@ -277,13 +277,11 @@ static const struct glfeature {
         .name           = "texture_float_linear",
         .flag           = NGPU_FEATURE_GL_TEXTURE_FLOAT_LINEAR,
         .version        = 300,
-        .es_version     = 320,
         .es_extensions  = (const char*[]){"GL_OES_texture_float_linear", NULL},
     }, {
         .name           = "float_blend",
         .flag           = NGPU_FEATURE_GL_FLOAT_BLEND,
         .version        = 300,
-        .es_version     = 320,
         .es_extensions  = (const char*[]){"GL_EXT_float_blend", NULL},
     }, {
         .name           = "viewport_array",
