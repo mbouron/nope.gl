@@ -927,8 +927,8 @@ static uint32_t gl_get_format_features(struct ngpu_ctx *s, enum ngpu_format form
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
-    const struct ngpu_format_gl *format_gl = ngpu_format_get_gl_texture_format(gl, format);
-    return format_gl->features;
+    ngpu_assert(format >= 0 && format < NGPU_FORMAT_NB);
+    return gl->formats[format].features;
 }
 
 static void gl_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *texture)
