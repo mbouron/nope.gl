@@ -296,13 +296,18 @@ static VkResult create_image_view(struct ngpu_texture *s)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
 
+    /* Shader bindings require a single aspect; use depth to match OpenGL. */
+    VkImageAspectFlags aspect = ngpu_vk_get_image_aspect_flags(s_priv->format);
+    if (aspect & VK_IMAGE_ASPECT_DEPTH_BIT)
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+
     const VkImageViewCreateInfo view_info = {
         .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image    = s_priv->image,
         .viewType = get_vk_image_view_type(s->params.type),
         .format   = s_priv->format,
         .subresourceRange = {
-            .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
+            .aspectMask     = aspect,
             .baseMipLevel   = 0,
             .levelCount     = s_priv->mipmap_levels,
             .baseArrayLayer = 0,
