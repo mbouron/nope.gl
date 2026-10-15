@@ -292,10 +292,6 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
     }
     s->params.depth = depth;
 
-#if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
-    s_priv->fd = -1;
-#endif
-
     s_priv->array_layers = 1;
     if (params->type == NGPU_TEXTURE_TYPE_CUBE) {
         s_priv->array_layers = 6;
@@ -387,6 +383,9 @@ struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
+#if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
+    s->fd = -1;
+#endif
     return (struct ngpu_texture *)s;
 }
 
