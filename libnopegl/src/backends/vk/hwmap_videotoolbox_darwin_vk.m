@@ -118,6 +118,10 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, str
         return NGL_ERROR_GRAPHICS_GENERIC;
     }
 
+    for (size_t i = 0; i < NGLI_ARRAY_NB(vt->planes); i++) {
+        ngpu_texture_freep(&vt->planes[i]);
+    }
+
     for (size_t i = 0; i < vt->format_desc.nb_planes; i++) {
         const size_t width = CVPixelBufferGetWidthOfPlane(cvpixbuf, i);
         const size_t height = CVPixelBufferGetHeightOfPlane(cvpixbuf, i);
