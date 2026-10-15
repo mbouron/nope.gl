@@ -133,6 +133,12 @@ void ngpu_format_gl_init(struct glcontext *gl)
         gl->formats[NGPU_FORMAT_R16G16B16_SINT].features |= C;
         gl->formats[NGPU_FORMAT_R32G32B32_UINT].features |= C;
         gl->formats[NGPU_FORMAT_R32G32B32_SINT].features |= C;
+
+        gl->formats[NGPU_FORMAT_D16_UNORM].features           |= SL;
+        gl->formats[NGPU_FORMAT_X8_D24_UNORM_PACK32].features |= SL;
+        gl->formats[NGPU_FORMAT_D32_SFLOAT].features          |= SL;
+        gl->formats[NGPU_FORMAT_D24_UNORM_S8_UINT].features   |= SL;
+        gl->formats[NGPU_FORMAT_D32_SFLOAT_S8_UINT].features  |= SL;
     }
 
     if (gl->features & NGPU_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT) {
