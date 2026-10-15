@@ -131,7 +131,7 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
             gl->funcs.FramebufferTextureLayer(GL_FRAMEBUFFER, attachment_index, texture_gl->texture, 0, (GLint)layer);
             break;
         case GL_TEXTURE_CUBE_MAP:
-            gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index++, GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer, texture_gl->texture, 0);
+            gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer, texture_gl->texture, 0);
             break;
         default:
             ngpu_assert(0);
