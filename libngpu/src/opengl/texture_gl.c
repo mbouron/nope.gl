@@ -628,12 +628,33 @@ static int texture_import_opengl_texture(struct ngpu_texture *s)
     return 0;
 }
 
+static uint32_t get_required_format_features(const struct ngpu_texture_params *params)
+{
+    uint32_t features = 0;
+    if (params->usage & NGPU_TEXTURE_USAGE_SAMPLED_BIT) {
+        features |= NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+        if (params->min_filter != NGPU_FILTER_NEAREST || params->mag_filter != NGPU_FILTER_NEAREST)
+            features |= NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+    }
+    if (params->usage & NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT)
+        features |= NGPU_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+    if (params->usage & NGPU_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+        features |= NGPU_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    return features;
+}
+
 int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
     struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     const struct ngpu_format_gl *format_gl = &gl->formats[params->format];
+
+    const uint32_t required_features = get_required_format_features(params);
+    if (!format_gl->features || (format_gl->features & required_features) != required_features) {
+        LOG(ERROR, "format %u does not support the texture usage 0x%x", params->format, params->usage);
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+    }
 
     if (format_gl->swizzle_bgra && (params->usage & NGPU_TEXTURE_USAGE_STORAGE_BIT)) {
         LOG(ERROR, "format %u cannot be used as a storage image", params->format);
