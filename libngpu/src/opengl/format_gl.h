@@ -36,6 +36,7 @@ struct ngpu_format_gl {
     GLenum internal_format;
     GLenum type;
     uint32_t features;
+    int swizzle_bgra;
 };
 
 void ngpu_format_gl_init(struct glcontext *gl);

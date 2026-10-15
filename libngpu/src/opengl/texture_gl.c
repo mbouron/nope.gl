@@ -562,6 +562,10 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
     if (width > INT_MAX || height > INT_MAX)
         return NGPU_ERROR_LIMIT_EXCEEDED;
 
+    /* CoreVideo imports BGRA buffers directly. */
+    if (gl->formats[s->params.format].swizzle_bgra)
+        s_priv->format = GL_BGRA;
+
     CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
     CVReturn err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
                                                                 *cache,
@@ -627,8 +631,15 @@ static int texture_import_opengl_texture(struct ngpu_texture *s)
 
 int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
+    const struct ngpu_format_gl *format_gl = &gl->formats[params->format];
+
+    if (format_gl->swizzle_bgra && (params->usage & NGPU_TEXTURE_USAGE_STORAGE_BIT)) {
+        LOG(ERROR, "format %u cannot be used as a storage image", params->format);
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+    }
 
     int ret = texture_init_fields(s, params);
     if (ret < 0)
@@ -637,6 +648,11 @@ int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_param
     ret = texture_init(s, params);
     if (ret < 0)
         return ret;
+
+    if (format_gl->swizzle_bgra) {
+        gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+        gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_SWIZZLE_B, GL_RED);
+    }
 
     if (gl->features & NGPU_FEATURE_GL_TEXTURE_STORAGE) {
         texture_allocate_storage(s);
