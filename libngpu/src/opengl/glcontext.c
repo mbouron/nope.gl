@@ -274,6 +274,13 @@ static const struct glfeature {
         .extensions     = (const char*[]){"GL_EXT_texture_sRGB_RG8", NULL},
         .es_extensions  = (const char*[]){"GL_EXT_texture_sRGB_RG8", NULL},
     }, {
+        .name           = "texture_stencil8",
+        .flag           = NGPU_FEATURE_GL_TEXTURE_STENCIL8,
+        .version        = 440,
+        .es_version     = 320,
+        .extensions     = (const char*[]){"GL_ARB_texture_stencil8", NULL},
+        .es_extensions  = (const char*[]){"GL_OES_texture_stencil8", NULL},
+    }, {
         .name           = "texture_float_linear",
         .flag           = NGPU_FEATURE_GL_TEXTURE_FLOAT_LINEAR,
         .version        = 300,

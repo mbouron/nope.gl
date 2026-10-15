@@ -111,7 +111,7 @@ static const struct ngpu_format_gl formats[NGPU_FORMAT_NB] = {
     [NGPU_FORMAT_D32_SFLOAT]           = {GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT32F, GL_FLOAT,                          S|DS},
     [NGPU_FORMAT_D24_UNORM_S8_UINT]    = {GL_DEPTH_STENCIL,   GL_DEPTH24_STENCIL8,   GL_UNSIGNED_INT_24_8,              S|DS},
     [NGPU_FORMAT_D32_SFLOAT_S8_UINT]   = {GL_DEPTH_STENCIL,   GL_DEPTH32F_STENCIL8,  GL_FLOAT_32_UNSIGNED_INT_24_8_REV, S|DS},
-    [NGPU_FORMAT_S8_UINT]              = {GL_STENCIL_INDEX,   GL_STENCIL_INDEX8,     GL_UNSIGNED_BYTE,                  S|DS},
+    [NGPU_FORMAT_S8_UINT]              = {GL_STENCIL_INDEX,   GL_STENCIL_INDEX8,     GL_UNSIGNED_BYTE,                  DS},
 };
 
 NGPU_STATIC_ASSERT(NGPU_FIELD_SIZEOF(struct glcontext, formats) == sizeof(formats), "formats size");
@@ -158,6 +158,9 @@ void ngpu_format_gl_init(struct glcontext *gl)
         gl->formats[NGPU_FORMAT_R32G32_SFLOAT].features       |= SL;
         gl->formats[NGPU_FORMAT_R32G32B32A32_SFLOAT].features |= SL;
     }
+
+    if (gl->features & NGPU_FEATURE_GL_TEXTURE_STENCIL8)
+        gl->formats[NGPU_FORMAT_S8_UINT].features |= S;
 
     if (gl->features & NGPU_FEATURE_GL_TEXTURE_SRGB_R8)
         gl->formats[NGPU_FORMAT_R8_SRGB].features |= S|SL;
