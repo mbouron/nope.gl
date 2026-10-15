@@ -1,0 +1,102 @@
+From f124017e7697e45dcf05d29dfc5dc7287fc82b72 Mon Sep 17 00:00:00 2001
+From: Matthieu Bouron <matthieu.bouron@gmail.com>
+Date: Thu, 15 Oct 2026 10:41:27 +0200
+Subject: [PATCH 1/2] avformat/tls_openssl: support BoringSSL
+
+BoringSSL has neither BIO_read_ex() nor the DTLS_get_data_mtu() and
+DTLS_set_link_mtu() DTLS accessors.
+
+Read the PEM strings with BIO_read(). In DTLS, the link MTU is the MTU
+set with SSL_set_mtu(), the URL BIO having no datagram overhead, and
+BoringSSL keeps it with SSL_OP_NO_QUERY_MTU: the data MTU is this MTU
+minus the record overhead given by SSL_max_seal_overhead(). The
+configure check falls back on SSL_max_seal_overhead() to find BoringSSL.
+---
+ configure                 |  1 +
+ libavformat/tls_openssl.c | 19 +++++++++++++++++--
+ 2 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/configure b/configure
+index 374bd5c..d2f3fca 100755
+--- a/configure
++++ b/configure
+@@ -7554,6 +7554,7 @@ enabled openssl           && { { check_pkg_config openssl "openssl >= 3.0.0" ope
+                                check_pkg_config openssl "openssl >= 1.1.1" openssl/ssl.h DTLS_get_data_mtu ||
+                                check_lib openssl openssl/ssl.h DTLS_get_data_mtu -lssl -lcrypto ||
+                                check_lib openssl openssl/ssl.h DTLS_get_data_mtu -lssl -lcrypto -lws2_32 -lgdi32 ||
++                               check_lib openssl openssl/ssl.h SSL_max_seal_overhead -lssl -lcrypto ||
+                                die "ERROR: openssl (>= 1.1.1) not found"; }
+ enabled pocketsphinx      && require_pkg_config pocketsphinx pocketsphinx pocketsphinx/pocketsphinx.h ps_init
+ enabled rkmpp             && { require_pkg_config rkmpp "rockchip_mpp >= 1.3.8" "rockchip/rk_mpi.h rockchip/mpp_buffer.h" "mpp_create mpp_buffer_sync_begin_f" &&
+diff --git a/libavformat/tls_openssl.c b/libavformat/tls_openssl.c
+index 48b4a22..7eaf93f 100644
+--- a/libavformat/tls_openssl.c
++++ b/libavformat/tls_openssl.c
+@@ -47,6 +47,7 @@ static int pkey_to_pem_string(EVP_PKEY *pkey, char *out, size_t out_sz)
+ {
+     BIO *mem = NULL;
+     size_t read_bytes = 0;
++    int ret;
+ 
+     if (!pkey || !out || !out_sz)
+         goto done;
+@@ -57,8 +58,10 @@ static int pkey_to_pem_string(EVP_PKEY *pkey, char *out, size_t out_sz)
+     if (!PEM_write_bio_PrivateKey(mem, pkey, NULL, NULL, 0, NULL, NULL))
+         goto done;
+ 
+-    if (!BIO_read_ex(mem, out, out_sz - 1, &read_bytes))
++    ret = BIO_read(mem, out, (int)FFMIN(out_sz - 1, INT_MAX));
++    if (ret <= 0)
+         goto done;
++    read_bytes = ret;
+ 
+ done:
+     BIO_free(mem);
+@@ -74,6 +77,7 @@ static int cert_to_pem_string(X509 *cert, char *out, size_t out_sz)
+ {
+     BIO *mem = NULL;
+     size_t read_bytes = 0;
++    int ret;
+ 
+     if (!cert || !out || !out_sz)
+         goto done;
+@@ -84,8 +88,10 @@ static int cert_to_pem_string(X509 *cert, char *out, size_t out_sz)
+     if (!PEM_write_bio_X509(mem, cert))
+         goto done;
+ 
+-    if (!BIO_read_ex(mem, out, out_sz - 1, &read_bytes))
++    ret = BIO_read(mem, out, (int)FFMIN(out_sz - 1, INT_MAX));
++    if (ret <= 0)
+         goto done;
++    read_bytes = ret;
+ 
+ done:
+     BIO_free(mem);
+@@ -847,7 +853,10 @@ static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **op
+             s->mtu = 1096;
+         SSL_set_options(c->ssl, SSL_OP_NO_QUERY_MTU);
+         SSL_set_mtu(c->ssl, s->mtu);
++#ifndef OPENSSL_IS_BORINGSSL
++        /* BoringSSL has no link MTU: it is the MTU above, the URL BIO has no datagram overhead */
+         DTLS_set_link_mtu(c->ssl, s->mtu);
++#endif
+     }
+ 
+     init_bio_method(h);
+@@ -961,7 +970,13 @@ static int tls_write(URLContext *h, const uint8_t *buf, int size)
+     uc->flags |= h->flags & AVIO_FLAG_NONBLOCK;
+ 
+     if (s->is_dtls) {
++#ifdef OPENSSL_IS_BORINGSSL
++        /* With SSL_OP_NO_QUERY_MTU, BoringSSL keeps the MTU set at initialization */
++        const size_t overhead = SSL_max_seal_overhead(c->ssl);
++        const size_t mtu_size = (size_t)s->mtu > overhead ? s->mtu - overhead : 0;
++#else
+         const size_t mtu_size = DTLS_get_data_mtu(c->ssl);
++#endif
+         size = FFMIN(size, mtu_size);
+     }
+ 
+-- 
+2.56.0
+
