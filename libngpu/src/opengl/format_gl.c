@@ -163,6 +163,8 @@ void ngpu_format_gl_init(struct glcontext *gl)
         gl->formats[NGPU_FORMAT_R16_SNORM].features          |= S|SL;
         gl->formats[NGPU_FORMAT_R16G16_UNORM].features       |= S|SL|C|B;
         gl->formats[NGPU_FORMAT_R16G16_SNORM].features       |= S|SL;
+        gl->formats[NGPU_FORMAT_R16G16B16_UNORM].features    |= S|SL;
+        gl->formats[NGPU_FORMAT_R16G16B16_SNORM].features    |= S|SL;
         gl->formats[NGPU_FORMAT_R16G16B16A16_UNORM].features |= S|SL|C|B;
         gl->formats[NGPU_FORMAT_R16G16B16A16_SNORM].features |= S|SL;
     }
