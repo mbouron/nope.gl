@@ -213,7 +213,7 @@ void ngpu_glstate_reset(const struct glcontext *gl, struct ngpu_glstate *glstate
 void ngpu_glstate_update(const struct glcontext *gl, struct ngpu_glstate *glstate, const struct ngpu_graphics_state *state)
 {
     /* Blend */
-    const GLboolean blend = (GLboolean)state->blend;
+    const GLboolean blend = state->blend ? GL_TRUE : GL_FALSE;
     if (blend != glstate->blend) {
         if (blend)
             gl->funcs.Enable(GL_BLEND);
@@ -262,7 +262,7 @@ void ngpu_glstate_update(const struct glcontext *gl, struct ngpu_glstate *glstat
     }
 
     /* Depth */
-    const GLboolean depth_test = (GLboolean)state->depth_test;
+    const GLboolean depth_test = state->depth_test ? GL_TRUE : GL_FALSE;
     if (depth_test != glstate->depth_test) {
         if (depth_test)
             gl->funcs.Enable(GL_DEPTH_TEST);
@@ -271,7 +271,7 @@ void ngpu_glstate_update(const struct glcontext *gl, struct ngpu_glstate *glstat
         glstate->depth_test = depth_test;
     }
 
-    const GLboolean depth_write = (GLboolean)state->depth_write;
+    const GLboolean depth_write = state->depth_write ? GL_TRUE : GL_FALSE;
     if (depth_write != glstate->depth_write) {
         gl->funcs.DepthMask(depth_write);
         glstate->depth_write = depth_write;
@@ -284,7 +284,7 @@ void ngpu_glstate_update(const struct glcontext *gl, struct ngpu_glstate *glstat
     }
 
     /* Stencil */
-    const GLboolean stencil_test = (GLboolean)state->stencil_test;
+    const GLboolean stencil_test = state->stencil_test ? GL_TRUE : GL_FALSE;
     if (stencil_test != glstate->stencil_test) {
         if (stencil_test)
             gl->funcs.Enable(GL_STENCIL_TEST);
