@@ -139,6 +139,24 @@ void ngpu_format_gl_init(struct glcontext *gl)
         gl->formats[NGPU_FORMAT_D32_SFLOAT].features          |= SL;
         gl->formats[NGPU_FORMAT_D24_UNORM_S8_UINT].features   |= SL;
         gl->formats[NGPU_FORMAT_D32_SFLOAT_S8_UINT].features  |= SL;
+    } else {
+        /*
+         * Store BGRA data as RGBA and swap red and blue when sampling. Rendering
+         * and image stores ignore the swizzle, so only report sampling features.
+         */
+        static const enum ngpu_format bgra_formats[][2] = {
+            {NGPU_FORMAT_B8G8R8A8_UNORM, NGPU_FORMAT_R8G8B8A8_UNORM},
+            {NGPU_FORMAT_B8G8R8A8_SNORM, NGPU_FORMAT_R8G8B8A8_SNORM},
+            {NGPU_FORMAT_B8G8R8A8_UINT,  NGPU_FORMAT_R8G8B8A8_UINT},
+            {NGPU_FORMAT_B8G8R8A8_SINT,  NGPU_FORMAT_R8G8B8A8_SINT},
+            {NGPU_FORMAT_B8G8R8A8_SRGB,  NGPU_FORMAT_R8G8B8A8_SRGB},
+        };
+        for (size_t i = 0; i < NGPU_ARRAY_NB(bgra_formats); i++) {
+            struct ngpu_format_gl *format_gl = &gl->formats[bgra_formats[i][0]];
+            *format_gl = gl->formats[bgra_formats[i][1]];
+            format_gl->features &= S|SL;
+            format_gl->swizzle_bgra = 1;
+        }
     }
 
     if (gl->features & NGPU_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT) {
