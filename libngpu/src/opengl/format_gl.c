@@ -122,9 +122,10 @@ void ngpu_format_gl_init(struct glcontext *gl)
 
     if (gl->backend == NGPU_BACKEND_OPENGL) {
         gl->formats[NGPU_FORMAT_B8G8R8A8_UNORM].features |= S|SL|C|B;
-        gl->formats[NGPU_FORMAT_B8G8R8A8_SNORM].features |= S|SL|C|B;
+        gl->formats[NGPU_FORMAT_B8G8R8A8_SNORM].features |= S|SL;
         gl->formats[NGPU_FORMAT_B8G8R8A8_UINT].features  |= S|C;
         gl->formats[NGPU_FORMAT_B8G8R8A8_SINT].features  |= S|C;
+        gl->formats[NGPU_FORMAT_B8G8R8A8_SRGB].features  |= S|SL|C|B;
 
         gl->formats[NGPU_FORMAT_R8G8B8_UINT].features    |= C;
         gl->formats[NGPU_FORMAT_R8G8B8_SINT].features    |= C;
