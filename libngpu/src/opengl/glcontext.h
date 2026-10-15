@@ -60,6 +60,8 @@
 #define NGPU_FEATURE_GL_FLOAT_BLEND                                (1ULL << 44)
 #define NGPU_FEATURE_GL_EGL_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS     (1ULL << 45)
 #define NGPU_FEATURE_GL_VIEWPORT_ARRAY                             (1ULL << 46)
+#define NGPU_FEATURE_GL_TEXTURE_SRGB_R8                            (1ULL << 47)
+#define NGPU_FEATURE_GL_TEXTURE_SRGB_RG8                           (1ULL << 48)
 
 #define NGPU_FEATURE_GL_COMPUTE_SHADER_ALL (NGPU_FEATURE_GL_COMPUTE_SHADER | \
                                             NGPU_FEATURE_GL_PROGRAM_INTERFACE_QUERY | \
