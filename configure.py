@@ -194,16 +194,20 @@ _EXTERNAL_DEPS = dict(
         sha256="d11af569e42a1baa1650d20ad61d12e41af4fead4aa7964a01f93b08b53ab074",
     ),
     ffmpeg=dict(
-        version="7.1.5",
+        version="9.0.2",
         url="https://ffmpeg.org/releases/ffmpeg-@VERSION@.tar.xz",
         dst_file="ffmpeg-@VERSION@.tar.xz",
-        sha256="de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f",
+        sha256="8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+        patches=[
+            "0001-avformat-tls_openssl-support-BoringSSL.patch",
+            "0002-avformat-tls-do-not-verify-the-peer-certificate-by-d.patch",
+        ],
     ),
     ffmpeg_Windows=dict(
-        version="7.1.5",
-        url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-31-14-10/ffmpeg-n@VERSION@-12-g1fdbca85aa-win64-lgpl-shared-7.1.zip",
+        version="9.0.2",
+        url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n@VERSION@-17-g2a571b6068-win64-lgpl-shared-9.0.zip",
         dst_file="ffmpeg-@VERSION@.zip",
-        sha256="0f376f96fb38554ccefb1b2ae9c7c6a7b351f0e60a372b38262c320e8392c5d0",
+        sha256="7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646",
     ),
     sdl3_Windows=dict(
         version="3.4.8",
@@ -667,6 +671,7 @@ def _ffmpeg_setup(cfg):
             "--pkg-config=pkg-config",
             f"--cross-prefix={cfg.android_ndk_bin}{op.sep}llvm-",
             f"--cc={cfg.android_ndk_bin}{os.sep}{cfg.android_compiler}-clang",
+            f"--cxx={cfg.android_ndk_bin}{os.sep}{cfg.android_compiler}-clang++",
         ]
     elif cfg.host == "iOS":
         decoders += [
