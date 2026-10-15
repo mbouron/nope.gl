@@ -121,7 +121,6 @@ int ngpu_format_has_depth(enum ngpu_format format)
 int ngpu_format_has_stencil(enum ngpu_format format)
 {
     switch (format) {
-    case NGPU_FORMAT_X8_D24_UNORM_PACK32:
     case NGPU_FORMAT_D24_UNORM_S8_UINT:
     case NGPU_FORMAT_D32_SFLOAT_S8_UINT:
     case NGPU_FORMAT_S8_UINT:
