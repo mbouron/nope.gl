@@ -67,7 +67,7 @@ static CAMetalLayer *get_metal_layer(NSObject *object)
         UIView *view = (UIView *)object;
         layer = view.layer;
     } else if ([object isKindOfClass:[CAMetalLayer class]]) {
-        layer = (CALayer *)layer;
+        layer = (CALayer *)object;
     }
     if (layer == nil) {
         LOG(ERROR, "window must be either a UIView or a CAMetalLayer");
