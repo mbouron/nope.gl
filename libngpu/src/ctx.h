@@ -44,7 +44,7 @@ struct ngpu_ctx_class {
     int (*resize)(struct ngpu_ctx *s, uint32_t width, uint32_t height);
     int (*set_capture_buffer)(struct ngpu_ctx *s, void *capture_buffer);
     int (*begin_update)(struct ngpu_ctx *s);
-    int (*end_update)(struct ngpu_ctx *s, struct ngpu_fence *wait_fence);
+    int (*end_update)(struct ngpu_ctx *s, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep);
     int (*begin_draw)(struct ngpu_ctx *s);
     int (*end_draw)(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep);
     int (*query_draw_time)(struct ngpu_ctx *s, int64_t *time);

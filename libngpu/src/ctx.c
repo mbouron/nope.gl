@@ -276,9 +276,9 @@ int ngpu_ctx_begin_update(struct ngpu_ctx *s)
     return s->cls->begin_update(s);
 }
 
-int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
+int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
-    return s->cls->end_update(s, wait_fence);
+    return s->cls->end_update(s, wait_fence, signal_fencep);
 }
 
 int ngpu_ctx_begin_draw(struct ngpu_ctx *s)

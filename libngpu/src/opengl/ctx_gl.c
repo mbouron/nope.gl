@@ -631,13 +631,24 @@ static int gl_begin_update(struct ngpu_ctx *s)
     return 0;
 }
 
-static int gl_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
+static int gl_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
-    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer, wait_fence, NULL);
-    if (ret < 0)
+    if (signal_fencep)
+        *signal_fencep = ngpu_fence_create(s);
+
+    struct ngpu_fence *signal_fence = signal_fencep ? *signal_fencep : NULL;
+
+    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer, wait_fence, signal_fence);
+    if (ret < 0) {
+        if (signal_fencep)
+            ngpu_fence_freep(signal_fencep);
         return ret;
+    }
+
+    if (signal_fencep && !signal_fence)
+        return NGPU_ERROR_MEMORY;
 
     return 0;
 }
