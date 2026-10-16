@@ -55,13 +55,13 @@ struct ngpu_cmd_buffer_vk {
 struct ngpu_cmd_buffer_vk *ngpu_cmd_buffer_vk_create(struct ngpu_ctx *gpu_ctx);
 void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp);
 VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type);
-VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage);
-VkResult ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value);
-VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem);
-VkResult ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value);
+void ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage);
+void ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value);
+void ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem);
+void ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value);
 #define NGPU_CMD_BUFFER_VK_REF(cmd, rc) ngpu_cmd_buffer_vk_ref((cmd), (struct ngpu_rc *)(rc))
-VkResult ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc);
-VkResult ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buffer *buffer);
+void ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc);
+void ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buffer *buffer);
 
 VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s);
 VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence);

@@ -109,65 +109,43 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
     return VK_SUCCESS;
 }
 
-VkResult ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage)
+void ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage)
 {
-    return ngpu_cmd_buffer_vk_add_wait_timeline(s, sem, stage, 0);
+    ngpu_cmd_buffer_vk_add_wait_timeline(s, sem, stage, 0);
 }
 
-VkResult ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value)
+void ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value)
 {
-    if (ngpu_darray_try_push(&s->wait_sems, sem) < 0)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-    if (ngpu_darray_try_push(&s->wait_stages, stage) < 0)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-    if (ngpu_darray_try_push(&s->wait_values, value) < 0)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-    return VK_SUCCESS;
+    ngpu_darray_push(&s->wait_sems, sem);
+    ngpu_darray_push(&s->wait_stages, stage);
+    ngpu_darray_push(&s->wait_values, value);
 }
 
-VkResult ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem)
+void ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem)
 {
-    return ngpu_cmd_buffer_vk_add_signal_timeline(s, sem, 0);
+    ngpu_cmd_buffer_vk_add_signal_timeline(s, sem, 0);
 }
 
-VkResult ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value)
+void ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value)
 {
-    if (ngpu_darray_try_push(&s->signal_sems, sem) < 0)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-    if (ngpu_darray_try_push(&s->signal_values, value) < 0)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-    return VK_SUCCESS;
+    ngpu_darray_push(&s->signal_sems, sem);
+    ngpu_darray_push(&s->signal_values, value);
 }
 
-VkResult ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc)
+void ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc)
 {
-    if (ngpu_darray_try_push(&s->refs, rc) < 0)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
+    ngpu_darray_push(&s->refs, rc);
     NGPU_RC_REF(rc);
-
-    return VK_SUCCESS;
 }
 
-VkResult ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buffer *buffer)
+void ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buffer *buffer)
 {
-    VkResult res = ngpu_cmd_buffer_vk_ref(s, (struct ngpu_rc *)buffer);
-    if (res != VK_SUCCESS)
-        return res;
+    ngpu_cmd_buffer_vk_ref(s, (struct ngpu_rc *)buffer);
 
-    if (ngpu_darray_try_push(&s->buffer_refs, buffer) < 0)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
+    ngpu_darray_push(&s->buffer_refs, buffer);
     NGPU_RC_REF(buffer);
 
     ngpu_buffer_vk_ref_cmd_buffer(buffer, s);
-
-    return VK_SUCCESS;
 }
 
 VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
@@ -195,6 +173,14 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
     return vk->funcs.BeginCommandBuffer(s->cmd_buf, &cmd_buf_begin_info);
 }
 
+/* The recorded commands cannot be dropped (e.g. the ownership transfers of the imported textures) */
+static VkResult abort_on_oom(VkResult res)
+{
+    if (res == VK_ERROR_OUT_OF_HOST_MEMORY || res == VK_ERROR_OUT_OF_DEVICE_MEMORY)
+        ngpu_oom();
+    return res;
+}
+
 VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence)
 {
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
@@ -202,21 +188,16 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
 
     VkResult res = vk->funcs.EndCommandBuffer(s->cmd_buf);
     if (res != VK_SUCCESS)
-        return res;
+        return abort_on_oom(res);
 
     if (wait_fence) {
         const VkSemaphore timeline_sem = NGPU_PRIV_VK(wait_fence->gpu_ctx)->timeline_sem;
         const uint64_t wait_value = NGPU_PRIV_VK(wait_fence)->value;
         const VkPipelineStageFlags stage_flags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        res = ngpu_cmd_buffer_vk_add_wait_timeline(s, timeline_sem, stage_flags, wait_value);
-        if (res != VK_SUCCESS)
-            return res;
+        ngpu_cmd_buffer_vk_add_wait_timeline(s, timeline_sem, stage_flags, wait_value);
 
-        if (wait_fence->gpu_ctx != s->gpu_ctx) {
-            res = NGPU_CMD_BUFFER_VK_REF(s, wait_fence->gpu_ctx);
-            if (res != VK_SUCCESS)
-                return res;
-        }
+        if (wait_fence->gpu_ctx != s->gpu_ctx)
+            NGPU_CMD_BUFFER_VK_REF(s, wait_fence->gpu_ctx);
     }
 
     if (signal_fence) {
@@ -227,9 +208,7 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
 
     s->signal_value = ++gpu_ctx_vk->timeline_value;
 
-    res = ngpu_cmd_buffer_vk_add_signal_timeline(s, gpu_ctx_vk->timeline_sem, s->signal_value);
-    if (res != VK_SUCCESS)
-        return res;
+    ngpu_cmd_buffer_vk_add_signal_timeline(s, gpu_ctx_vk->timeline_sem, s->signal_value);
 
     const VkTimelineSemaphoreSubmitInfo timeline_info = {
         .sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
@@ -255,12 +234,11 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
     res = vk->funcs.QueueSubmit(vk->graphic_queue, 1, &submit_info, VK_NULL_HANDLE);
     pthread_mutex_unlock(&vk->queue_lock);
     if (res != VK_SUCCESS)
-        return res;
+        return abort_on_oom(res);
 
     s->submitted = VK_TRUE;
 
-    if (ngpu_darray_try_push(&gpu_ctx_vk->pending_cmd_buffers, s) < 0)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    ngpu_darray_push(&gpu_ctx_vk->pending_cmd_buffers, s);
 
     ngpu_darray_clear(&s->wait_sems);
     ngpu_darray_clear(&s->wait_stages);

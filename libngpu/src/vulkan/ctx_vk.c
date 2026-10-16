@@ -687,14 +687,8 @@ static VkResult swapchain_acquire_image(struct ngpu_ctx *s, uint32_t *image_inde
     const VkPipelineStageFlags stage_flags =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    res = ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, sem, stage_flags);
-    if (res != VK_SUCCESS)
-        return res;
-
-    res = ngpu_cmd_buffer_vk_add_signal_sem(s_priv->cur_cmd_buffer,
-                                            s_priv->image_present_sems[*image_index]);
-    if (res != VK_SUCCESS)
-        return res;
+    ngpu_cmd_buffer_vk_add_wait_sem(s_priv->cur_cmd_buffer, sem, stage_flags);
+    ngpu_cmd_buffer_vk_add_signal_sem(s_priv->cur_cmd_buffer, s_priv->image_present_sems[*image_index]);
 
     return VK_SUCCESS;
 }
@@ -1036,26 +1030,22 @@ static int vk_set_capture_buffer(struct ngpu_ctx *s, void *capture_buffer)
     return 0;
 }
 
-static VkResult vk_add_pending_wait_value(struct ngpu_ctx *s)
+static void vk_add_pending_wait_value(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
 
     if (!s_priv->pending_wait_value)
-        return VK_SUCCESS;
+        return;
 
     const VkPipelineStageFlags stage_flags =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
         VK_PIPELINE_STAGE_TRANSFER_BIT;
 
-    VkResult res = ngpu_cmd_buffer_vk_add_wait_timeline(s_priv->cur_cmd_buffer, s_priv->timeline_sem,
-                                                        stage_flags, s_priv->pending_wait_value);
-    if (res != VK_SUCCESS)
-        return res;
+    ngpu_cmd_buffer_vk_add_wait_timeline(s_priv->cur_cmd_buffer, s_priv->timeline_sem,
+                                         stage_flags, s_priv->pending_wait_value);
 
     s_priv->pending_wait_value = 0;
-
-    return VK_SUCCESS;
 }
 
 static int vk_begin_update(struct ngpu_ctx *s)
@@ -1077,9 +1067,7 @@ static int vk_begin_update(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
-    res = vk_add_pending_wait_value(s);
-    if (res != VK_SUCCESS)
-        return ngpu_vk_res2ret(res);
+    vk_add_pending_wait_value(s);
 
     return 0;
 }
@@ -1113,9 +1101,7 @@ static int vk_begin_draw(struct ngpu_ctx *s)
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
-    res = vk_add_pending_wait_value(s);
-    if (res != VK_SUCCESS)
-        return ngpu_vk_res2ret(res);
+    vk_add_pending_wait_value(s);
 
     if (ctx_params->offscreen) {
         s_priv->default_rt = s_priv->rts.data[s->current_frame_index];
