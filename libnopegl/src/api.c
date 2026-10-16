@@ -44,6 +44,12 @@
 #include "utils/memory.h"
 #include "utils/utils.h"
 
+#if defined(TARGET_ANDROID)
+#include <unistd.h>
+
+#include "android_imagereader.h"
+#endif
+
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "ngpu/ngpu_opengl.h"
 #endif
@@ -402,6 +408,36 @@ static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene
     return vp;
 }
 
+#if defined(TARGET_ANDROID)
+void ngli_ctx_release_android_image(struct ngl_ctx *s, struct android_image **imagep)
+{
+    if (!*imagep)
+        return;
+
+    if (!s->in_frame) {
+        ngpu_ctx_wait_idle(s->gpu_ctx);
+        ngli_android_image_releasep(imagep, -1);
+        return;
+    }
+
+    ngli_android_image_list_push(&s->android_images, imagep);
+}
+
+static void return_android_images(struct ngl_ctx *s, struct ngpu_fence *fence)
+{
+    if (!s->android_images)
+        return;
+
+    int fence_fd = -1;
+    if (!fence || ngpu_fence_export_sync_file(fence, &fence_fd) < 0) {
+        ngpu_ctx_wait_idle(s->gpu_ctx);
+        fence_fd = -1;
+    }
+
+    ngli_android_image_list_releasep(&s->android_images, fence_fd);
+}
+#endif
+
 int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
 {
     const bool previous = ctx_enter(s);
@@ -680,7 +716,41 @@ int ngli_ctx_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
     return 0;
 }
 
-int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
+/* Use the update fence to return the images when no draw follows. */
+static int end_update(struct ngl_ctx *s, bool return_images)
+{
+#if defined(TARGET_ANDROID)
+    if (return_images && s->android_images) {
+        struct ngpu_fence *fence = NULL;
+        int ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, &fence);
+        if (ret >= 0)
+            return_android_images(s, fence);
+        ngpu_fence_freep(&fence);
+        return ret;
+    }
+#endif
+
+    return ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
+}
+
+static int update_scene(struct ngl_ctx *s, double t)
+{
+    struct ngl_scene *scene = s->scene;
+    if (!scene)
+        return 0;
+
+    struct ngl_node *root = scene->params.root;
+    LOG(DEBUG, "prepare scene %s @ t=%f", root->label, t);
+
+    const bool previous = ctx_enter(s);
+    int ret = ngli_node_honor_release_prefetch(root, t);
+    if (ret >= 0)
+        ret = ngli_node_update(root, t);
+    ctx_leave(s, previous);
+    return ret;
+}
+
+static int prepare_draw(struct ngl_ctx *s, double t, bool return_images)
 {
     const int64_t start_time = s->hud ? ngli_gettime_relative() : 0;
 
@@ -694,38 +764,44 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
     if (ret < 0)
         return ret;
 
-    struct ngl_scene *scene = s->scene;
-    if (!scene) {
-        return ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
-    }
-
-    struct ngl_node *root = scene->params.root;
-    LOG(DEBUG, "prepare scene %s @ t=%f", root->label, t);
-
-    const bool previous = ctx_enter(s);
-    ret = ngli_node_honor_release_prefetch(root, t);
-    if (ret >= 0)
-        ret = ngli_node_update(root, t);
-    ctx_leave(s, previous);
+    /*
+     * Submit commands recorded before an update fails: resource states already
+     * reflect them (e.g. texture layouts and ownership transfers).
+     */
+    ret = update_scene(s, t);
+    int end_ret = ngpu_staging_buffer_flush(s->current_staging_buffer);
+    if (end_ret >= 0)
+        end_ret = end_update(s, return_images);
     if (ret < 0)
         return ret;
-
-    ret = ngpu_staging_buffer_flush(s->current_staging_buffer);
-    if (ret < 0)
-        return ret;
-
-    ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
-    if (ret < 0)
-        return ret;
+    if (end_ret < 0)
+        return end_ret;
 
     s->frame_stats.cpu_update_time = s->hud ? ngli_gettime_relative() - start_time : 0;
 
     return 0;
 }
 
-int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence)
+static void end_frame(struct ngl_ctx *s)
 {
-    int ret = ngli_ctx_prepare_draw(s, t);
+    s->in_frame = false;
+#if defined(TARGET_ANDROID)
+    /* Return images left by a failed frame. */
+    return_android_images(s, NULL);
+#endif
+}
+
+int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
+{
+    s->in_frame = true;
+    int ret = prepare_draw(s, t, true);
+    end_frame(s);
+    return ret;
+}
+
+static int draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence)
+{
+    int ret = prepare_draw(s, t, false);
     if (ret < 0)
         return ret;
 
@@ -780,7 +856,27 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, st
     if (ret < 0)
         return ret;
 
+#if defined(TARGET_ANDROID)
+    if (s->android_images) {
+        struct ngpu_fence *fence = NULL;
+        struct ngpu_fence **fencep = signal_fence ? signal_fence : &fence;
+        ret = ngpu_ctx_end_draw(s->gpu_ctx, t, wait_fence, fencep);
+        if (ret >= 0)
+            return_android_images(s, *fencep);
+        ngpu_fence_freep(&fence);
+        return ret;
+    }
+#endif
+
     return ngpu_ctx_end_draw(s->gpu_ctx, t, wait_fence, signal_fence);
+}
+
+int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence)
+{
+    s->in_frame = true;
+    int ret = draw(s, t, wait_fence, signal_fence);
+    end_frame(s);
+    return ret;
 }
 
 enum probe_mode {

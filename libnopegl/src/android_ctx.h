@@ -34,6 +34,7 @@ struct android_ctx {
 
     /* AImage */
     void (*AImage_delete)(AImage *image);
+    void (*AImage_deleteAsync)(AImage *image, int release_fence_fd);
     media_status_t (*AImage_getHardwareBuffer)(const AImage *image, AHardwareBuffer **buffer);
     media_status_t (*AImage_getCropRect)(const AImage *image, AImageCropRect *rect);
 
