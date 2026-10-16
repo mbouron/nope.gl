@@ -78,7 +78,7 @@ static void mc_release_frame_resources(struct hwmap *hwmap)
 
     ngpu_texture_freep(&mc->texture);
 
-    ngli_android_image_freep(&mc->android_image);
+    ngli_ctx_release_android_image(hwmap->ctx, &mc->android_image);
 }
 
 static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngli_image **imagep)
