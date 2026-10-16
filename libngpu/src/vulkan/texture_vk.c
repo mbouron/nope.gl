@@ -765,6 +765,9 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
+    /* Keep the texture alive until the command buffer completes */
+    NGPU_CMD_BUFFER_VK_REF(gpu_ctx_vk->cur_cmd_buffer, s);
+
     if (ahb_params->acquire_fence_fd >= 0) {
         if (!vk->funcs.ImportSemaphoreFdKHR) {
             LOG(ERROR, "VK_KHR_external_semaphore_fd is required to import a fence");
