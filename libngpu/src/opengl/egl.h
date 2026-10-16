@@ -52,6 +52,9 @@ EGLint ngpu_eglWaitSyncKHR(struct glcontext *gl,
 #if defined(TARGET_ANDROID)
 EGLClientBuffer ngpu_eglGetNativeClientBufferANDROID(struct glcontext *gl,
                                                      const struct AHardwareBuffer *buffer);
+
+EGLint ngpu_eglDupNativeFenceFDANDROID(struct glcontext *gl,
+                                       EGLSyncKHR sync);
 #endif
 
 const char *ngpu_eglGetDisplayDriverName(struct glcontext *gl);

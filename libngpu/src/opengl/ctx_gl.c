@@ -1099,6 +1099,7 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
     .fence_reset                        = ngpu_fence_gl_reset,                   \
     .fence_wait                         = ngpu_fence_gl_wait,                    \
     .fence_is_signaled                  = ngpu_fence_gl_is_signaled,             \
+    .fence_export_sync_file             = ngpu_fence_gl_export_sync_file,        \
     .fence_freep                        = ngpu_fence_gl_freep,                   \
                                                                                  \
     .buffer_create                      = ngpu_buffer_gl_create,                 \

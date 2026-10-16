@@ -151,6 +151,7 @@
     MACRO(true, true, true, GetMemoryFdKHR)                                  \
     MACRO(true, true, true, GetMemoryFdPropertiesKHR)                        \
     MACRO(true, true, true, ImportSemaphoreFdKHR)                            \
+    MACRO(true, true, true, GetSemaphoreFdKHR)                               \
     MACRO(true, true, true, GetRefreshCycleDurationGOOGLE)                   \
     MACRO(true, true, true, GetPastPresentationTimingGOOGLE)
 

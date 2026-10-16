@@ -85,6 +85,7 @@ struct ngpu_ctx_class {
     int (*fence_reset)(struct ngpu_fence *fence);
     int (*fence_wait)(struct ngpu_fence *fence);
     int (*fence_is_signaled)(struct ngpu_fence *fence);
+    int (*fence_export_sync_file)(struct ngpu_fence *fence, int *fdp);
     void (*fence_freep)(struct ngpu_fence **sp);
 
     struct ngpu_buffer *(*buffer_create)(struct ngpu_ctx *ctx);

@@ -19,12 +19,18 @@
  * under the License.
  */
 
+#include "config.h"
+
 #include "utils/log.h"
 #include "opengl/ctx_gl.h"
 #include "opengl/fence_gl.h"
 #include "ngpu/ngpu_opengl.h"
 #include "opengl/priv_gl.h"
 #include "utils/memory.h"
+
+#if defined(TARGET_ANDROID)
+#include "opengl/egl.h"
+#endif
 
 static void fence_gl_release(void **sp)
 {
@@ -128,6 +134,37 @@ int ngpu_fence_gl_is_signaled(struct ngpu_fence *s)
 
     GLenum ret = gl->funcs.ClientWaitSync(s_priv->fence, 0, 0);
     return ret == GL_ALREADY_SIGNALED || ret == GL_CONDITION_SATISFIED;
+}
+
+int ngpu_fence_gl_export_sync_file(struct ngpu_fence *s, int *fdp)
+{
+#if defined(TARGET_ANDROID)
+    struct ngpu_fence_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
+    struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    if (!s_priv->fence)
+        return NGPU_ERROR_INVALID_USAGE;
+
+    EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+    if (sync == EGL_NO_SYNC_KHR) {
+        LOG(ERROR, "could not create the native fence");
+        return NGPU_ERROR_EXTERNAL;
+    }
+
+    gl->funcs.Flush();
+    const EGLint fd = ngpu_eglDupNativeFenceFDANDROID(gl, sync);
+    ngpu_eglDestroySyncKHR(gl, sync);
+    if (fd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+        LOG(ERROR, "could not export the native fence");
+        return NGPU_ERROR_EXTERNAL;
+    }
+
+    *fdp = fd;
+    return 0;
+#else
+    return NGPU_ERROR_UNSUPPORTED;
+#endif
 }
 
 void ngpu_fence_gl_freep(struct ngpu_fence **sp) { NGPU_RC_UNREFP(sp); }

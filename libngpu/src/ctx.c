@@ -535,6 +535,12 @@ int ngpu_fence_is_signaled(struct ngpu_fence *fence)
     return fence->gpu_ctx->cls->fence_is_signaled(fence);
 }
 
+int ngpu_fence_export_sync_file(struct ngpu_fence *fence, int *fdp)
+{
+    *fdp = -1;
+    return fence->gpu_ctx->cls->fence_export_sync_file(fence, fdp);
+}
+
 void ngpu_fence_freep(struct ngpu_fence **sp)
 {
     if (!*sp)

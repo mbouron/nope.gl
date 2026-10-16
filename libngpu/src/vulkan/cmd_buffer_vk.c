@@ -25,7 +25,9 @@
 #include "vulkan/ctx_vk.h"
 #include "vulkan/fence_vk.h"
 #include "vulkan/priv_vk.h"
+#include "vulkan/vkutils.h"
 #include "utils/darray.h"
+#include "utils/log.h"
 #include "utils/memory.h"
 
 static void cmd_buffer_vk_freep(void **sp)
@@ -209,6 +211,14 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
     s->signal_value = ++gpu_ctx_vk->timeline_value;
 
     ngpu_cmd_buffer_vk_add_signal_timeline(s, gpu_ctx_vk->timeline_sem, s->signal_value);
+
+#if defined(TARGET_ANDROID)
+    if (signal_fence && vk->funcs.GetSemaphoreFdKHR) {
+        res = ngpu_fence_vk_signal_export_sem(signal_fence, s);
+        if (res != VK_SUCCESS)
+            LOG(WARNING, "the fence cannot be exported: %s", ngpu_vk_res2str(res));
+    }
+#endif
 
     const VkTimelineSemaphoreSubmitInfo timeline_info = {
         .sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,

@@ -393,6 +393,95 @@ static void destroy_timeline_semaphore(struct ngpu_ctx *s)
         vk->funcs.DestroySemaphore(vk->device, s_priv->timeline_sem, NULL);
 }
 
+static void destroy_export_semaphores(struct ngpu_ctx *s)
+{
+    struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
+    struct vkcontext *vk = s_priv->vkcontext;
+
+    ngpu_darray_foreach(export_sem, &s_priv->export_sems)
+        vk->funcs.DestroySemaphore(vk->device, export_sem->sem, NULL);
+    ngpu_darray_reset(&s_priv->export_sems);
+}
+
+static VkResult get_export_sem(struct ngpu_ctx *s, uint64_t value, VkSemaphore *semp)
+{
+    struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
+    struct vkcontext *vk = s_priv->vkcontext;
+
+    uint64_t completed = 0;
+    VkResult res = vk->funcs.GetSemaphoreCounterValue(vk->device, s_priv->timeline_sem, &completed);
+    if (res != VK_SUCCESS)
+        return res;
+
+    size_t i = 0;
+    while (i < s_priv->export_sems.count) {
+        struct ngpu_export_sem_vk *export_sem = &s_priv->export_sems.data[i];
+        if (export_sem->in_use || export_sem->value >= completed) {
+            i++;
+            continue;
+        }
+        if (export_sem->exported) {
+            export_sem->value = value;
+            export_sem->in_use = true;
+            export_sem->exported = false;
+            *semp = export_sem->sem;
+            return VK_SUCCESS;
+        }
+        vk->funcs.DestroySemaphore(vk->device, export_sem->sem, NULL);
+        ngpu_darray_remove(&s_priv->export_sems, i);
+    }
+
+    const VkExportSemaphoreCreateInfo export_info = {
+        .sType       = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+    };
+    const VkSemaphoreCreateInfo sem_info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = &export_info,
+    };
+    VkSemaphore sem;
+    res = vk->funcs.CreateSemaphore(vk->device, &sem_info, NULL, &sem);
+    if (res != VK_SUCCESS)
+        return res;
+
+    const struct ngpu_export_sem_vk export_sem = {.sem = sem, .value = value, .in_use = true};
+    if (ngpu_darray_try_push(&s_priv->export_sems, export_sem) < 0) {
+        vk->funcs.DestroySemaphore(vk->device, sem, NULL);
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    *semp = sem;
+    return VK_SUCCESS;
+}
+
+VkResult ngpu_ctx_vk_get_export_sem(struct ngpu_ctx *s, uint64_t value, VkSemaphore *semp)
+{
+    struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
+
+    pthread_mutex_lock(&s_priv->export_sems_lock);
+    VkResult res = get_export_sem(s, value, semp);
+    pthread_mutex_unlock(&s_priv->export_sems_lock);
+    return res;
+}
+
+void ngpu_ctx_vk_release_export_sem(struct ngpu_ctx *s, VkSemaphore sem, bool exported)
+{
+    struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
+
+    pthread_mutex_lock(&s_priv->export_sems_lock);
+    bool found = false;
+    ngpu_darray_foreach(export_sem, &s_priv->export_sems) {
+        if (export_sem->sem == sem) {
+            export_sem->in_use = false;
+            export_sem->exported = exported;
+            found = true;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&s_priv->export_sems_lock);
+    ngpu_assert(found);
+}
+
 static VkResult create_swapchain_semaphores(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
@@ -762,6 +851,10 @@ static struct ngpu_ctx *vk_create(const struct ngpu_ctx_params *params)
     struct ngpu_ctx_vk *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
+    if (pthread_mutex_init(&s->export_sems_lock, NULL)) {
+        ngpu_freep(&s);
+        return NULL;
+    }
     return (struct ngpu_ctx *)s;
 }
 
@@ -1234,8 +1327,10 @@ static void vk_destroy(struct ngpu_ctx *s)
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
     struct vkcontext *vk = s_priv->vkcontext;
 
-    if (!vk)
+    if (!vk) {
+        pthread_mutex_destroy(&s_priv->export_sems_lock);
         return;
+    }
 
     if (s_priv->timeline_sem) {
         const VkSemaphoreWaitInfo wait_info = {
@@ -1264,6 +1359,8 @@ static void vk_destroy(struct ngpu_ctx *s)
 
     destroy_command_pool_and_buffers(s);
     destroy_timeline_semaphore(s);
+    destroy_export_semaphores(s);
+    pthread_mutex_destroy(&s_priv->export_sems_lock);
     destroy_dummy_texture(s);
     destroy_render_resources(s);
     destroy_swapchain(s);
@@ -1673,6 +1770,7 @@ const struct ngpu_ctx_class ngpu_ctx_vk = {
     .fence_reset                        = ngpu_fence_vk_reset,
     .fence_wait                         = ngpu_fence_vk_wait,
     .fence_is_signaled                  = ngpu_fence_vk_is_signaled,
+    .fence_export_sync_file             = ngpu_fence_vk_export_sync_file,
     .fence_freep                        = ngpu_fence_vk_freep,
 
     .buffer_create                      = ngpu_buffer_vk_create,

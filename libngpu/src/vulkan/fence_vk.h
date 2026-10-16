@@ -22,6 +22,7 @@
 #ifndef NGPU_FENCE_VK_H
 #define NGPU_FENCE_VK_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <vulkan/vulkan.h>
@@ -30,15 +31,21 @@
 
 struct ngpu_ctx;
 
+struct ngpu_cmd_buffer_vk;
+
 struct ngpu_fence_vk {
     struct ngpu_fence parent;
     uint64_t value;
+    VkSemaphore export_sem;
+    bool exported;
 };
 
 struct ngpu_fence *ngpu_fence_vk_create(struct ngpu_ctx *ctx);
 int ngpu_fence_vk_reset(struct ngpu_fence *fence);
 int ngpu_fence_vk_wait(struct ngpu_fence *fence);
 int ngpu_fence_vk_is_signaled(struct ngpu_fence *fence);
+VkResult ngpu_fence_vk_signal_export_sem(struct ngpu_fence *fence, struct ngpu_cmd_buffer_vk *cmd_buffer);
+int ngpu_fence_vk_export_sync_file(struct ngpu_fence *fence, int *fdp);
 void ngpu_fence_vk_freep(struct ngpu_fence **sp);
 
 #endif
