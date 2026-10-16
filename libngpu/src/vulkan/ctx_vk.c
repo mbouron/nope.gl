@@ -1072,17 +1072,28 @@ static int vk_begin_update(struct ngpu_ctx *s)
     return 0;
 }
 
-static int vk_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
+static int vk_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
 
-    VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer, wait_fence, NULL);
-    if (res != VK_SUCCESS)
+    if (signal_fencep)
+        *signal_fencep = ngpu_fence_create(s);
+
+    struct ngpu_fence *signal_fence = signal_fencep ? *signal_fencep : NULL;
+
+    VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer, wait_fence, signal_fence);
+    if (res != VK_SUCCESS) {
+        if (signal_fencep)
+            ngpu_fence_freep(signal_fencep);
         return ngpu_vk_res2ret(res);
+    }
 
     s_priv->pending_wait_value = s_priv->cur_cmd_buffer->signal_value;
 
     s_priv->cur_cmd_buffer = NULL;
+
+    if (signal_fencep && !signal_fence)
+        return NGPU_ERROR_MEMORY;
 
     return 0;
 }

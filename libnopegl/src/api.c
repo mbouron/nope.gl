@@ -459,12 +459,12 @@ int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
             goto fail;
     }
 
-    ngpu_ctx_end_update(s->gpu_ctx, NULL);
+    ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
     ctx_leave(s, previous);
     return 0;
 
 fail:
-    ngpu_ctx_end_update(s->gpu_ctx, NULL);
+    ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
     reset_scene(s, NGLI_ACTION_UNREF_SCENE);
     ctx_leave(s, previous);
     return ret;
@@ -696,7 +696,7 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
 
     struct ngl_scene *scene = s->scene;
     if (!scene) {
-        return ngpu_ctx_end_update(s->gpu_ctx, NULL);
+        return ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
     }
 
     struct ngl_node *root = scene->params.root;
@@ -714,7 +714,7 @@ int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
     if (ret < 0)
         return ret;
 
-    ret = ngpu_ctx_end_update(s->gpu_ctx, NULL);
+    ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
     if (ret < 0)
         return ret;
 
