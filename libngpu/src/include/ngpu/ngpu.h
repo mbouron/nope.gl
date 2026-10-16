@@ -1222,6 +1222,7 @@ NGPU_API struct ngpu_fence *ngpu_fence_create(struct ngpu_ctx *gpu_ctx);
 NGPU_API int ngpu_fence_reset(struct ngpu_fence *fence);
 NGPU_API int ngpu_fence_wait(struct ngpu_fence *fence);
 NGPU_API int ngpu_fence_is_signaled(struct ngpu_fence *fence);
+NGPU_API int ngpu_fence_export_sync_file(struct ngpu_fence *fence, int *fdp);
 NGPU_API void ngpu_fence_freep(struct ngpu_fence **sp);
 
 #endif
