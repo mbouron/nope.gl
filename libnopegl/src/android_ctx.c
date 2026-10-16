@@ -51,6 +51,7 @@ static int load_media_api(struct android_ctx *s)
     }
 
     NDK_LOAD_FUNC(s->libmediandk_handle, AImage_delete);
+    NDK_LOAD_FUNC(s->libmediandk_handle, AImage_deleteAsync);
     NDK_LOAD_FUNC(s->libmediandk_handle, AImage_getHardwareBuffer);
     NDK_LOAD_FUNC(s->libmediandk_handle, AImage_getCropRect);
     NDK_LOAD_FUNC(s->libmediandk_handle, AImageReader_newWithUsage);
