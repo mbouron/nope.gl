@@ -279,20 +279,16 @@ void ngpu_buffer_vk_unmap(struct ngpu_buffer *s)
     vk->funcs.UnmapMemory(vk->device, s_priv->memory);
 }
 
-int ngpu_buffer_vk_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
+void ngpu_buffer_vk_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
 {
     struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     size_t index = ngpu_cmd_buffer_vk_darray_find(&s_priv->cmd_buffers, cmd_buffer);
     if (index != SIZE_MAX)
-        return 0;
+        return;
 
-    if (ngpu_darray_try_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
-        return NGPU_ERROR_MEMORY;
-
+    ngpu_darray_push(&s_priv->cmd_buffers, cmd_buffer);
     NGPU_RC_REF(cmd_buffer);
-
-    return 0;
 }
 
 int ngpu_buffer_vk_unref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_vk *cmd_buffer)

@@ -799,11 +799,9 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
             return NGPU_ERROR_GRAPHICS_GENERIC;
         }
 
-        res = ngpu_cmd_buffer_vk_add_wait_sem(gpu_ctx_vk->cur_cmd_buffer, s_priv->acquire_sem,
-                                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                                              VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-        if (res != VK_SUCCESS)
-            return res;
+        ngpu_cmd_buffer_vk_add_wait_sem(gpu_ctx_vk->cur_cmd_buffer, s_priv->acquire_sem,
+                                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     }
 
     const VkImageSubresourceRange subres_range = {
@@ -879,9 +877,7 @@ static int transfer_external_ownership(struct ngpu_texture *s, bool acquire)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
     struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
-    VkResult res = NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
-    if (res != VK_SUCCESS)
-        return ngpu_vk_res2ret(res);
+    NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
 
     /* The layout is kept, the foreign producer does not use it */
     const VkAccessFlags access_mask = get_vk_access_mask_from_image_layout(s_priv->image_layout, acquire);
