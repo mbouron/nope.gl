@@ -21,8 +21,13 @@
  * under the License.
  */
 
+#include <errno.h>
+#include <poll.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <jni.h>
 #include <android/native_window.h>
 #include <media/NdkImageReader.h>
@@ -30,15 +35,23 @@
 #include "android_imagereader.h"
 #include "jni_utils.h"
 #include "log.h"
+#include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"
 
+/*
+ * Each image holds a reference to its `reader`, as deleting the reader also
+ * closes its images.
+ */
 struct android_image {
     struct android_ctx *android_ctx;
+    struct android_imagereader *reader;
     AImage *image;
+    struct android_image *next;
 };
 
 struct android_imagereader {
+    atomic_int refcount;
     struct android_ctx *android_ctx;
     AImageReader *reader;
     jobject window;
@@ -46,6 +59,8 @@ struct android_imagereader {
     pthread_mutex_t lock;
     pthread_cond_t cond;
     int buffer_available;
+    NGLI_DARRAY(AHardwareBuffer *) removed_buffers;
+    bool removed_overflow; // some removed buffers could not be recorded
 };
 
 void ngli_android_get_crop_matrix(float *matrix, const AHardwareBuffer_Desc *desc, const AImageCropRect *crop_rect, int filtering)
@@ -116,6 +131,8 @@ int ngli_android_image_get_crop_rect(struct android_image *s, AImageCropRect *re
     return 0;
 }
 
+static void imagereader_unref(struct android_imagereader *s);
+
 void ngli_android_image_freep(struct android_image **sp)
 {
     if (!*sp)
@@ -123,9 +140,66 @@ void ngli_android_image_freep(struct android_image **sp)
 
     struct android_image *s = *sp;
     struct android_ctx *android_ctx = s->android_ctx;
+    struct android_imagereader *reader = s->reader;
     android_ctx->AImage_delete(s->image);
 
     ngli_freep(sp);
+    imagereader_unref(reader);
+}
+
+void ngli_android_image_releasep(struct android_image **sp, int release_fence_fd)
+{
+    if (!*sp) {
+        if (release_fence_fd >= 0)
+            close(release_fence_fd);
+        return;
+    }
+
+    struct android_image *s = *sp;
+    struct android_ctx *android_ctx = s->android_ctx;
+    struct android_imagereader *reader = s->reader;
+    android_ctx->AImage_deleteAsync(s->image, release_fence_fd);
+
+    ngli_freep(sp);
+    imagereader_unref(reader);
+}
+
+void ngli_android_image_list_push(struct android_image **listp, struct android_image **imagep)
+{
+    struct android_image *s = *imagep;
+    if (!s)
+        return;
+
+    s->next = *listp;
+    *listp = s;
+    *imagep = NULL;
+}
+
+void ngli_android_image_list_releasep(struct android_image **listp, int release_fence_fd)
+{
+    struct android_image *s = *listp;
+    *listp = NULL;
+
+    if (!s && release_fence_fd >= 0)
+        close(release_fence_fd);
+
+    while (s) {
+        struct android_image *next = s->next;
+        int fd = release_fence_fd;
+        if (release_fence_fd >= 0 && next) {
+            fd = dup(release_fence_fd);
+            if (fd < 0) {
+                LOG(ERROR, "could not duplicate the release fence");
+                struct pollfd pfd = {.fd = release_fence_fd, .events = POLLIN};
+                while (poll(&pfd, 1, -1) < 0 && errno == EINTR)
+                    ;
+                close(release_fence_fd);
+                release_fence_fd = -1;
+            }
+        }
+        ngli_android_image_releasep(&s, fd);
+        s = next;
+    }
 }
 
 static void on_buffer_available(void *context, AImageReader *reader)
@@ -137,12 +211,22 @@ static void on_buffer_available(void *context, AImageReader *reader)
     pthread_mutex_unlock(&s->lock);
 }
 
+static void on_buffer_removed(void *context, AImageReader *reader, AHardwareBuffer *buffer)
+{
+    struct android_imagereader *s = context;
+    pthread_mutex_lock(&s->lock);
+    if (ngli_darray_try_push(&s->removed_buffers, buffer) < 0)
+        s->removed_overflow = true;
+    pthread_mutex_unlock(&s->lock);
+}
+
 struct android_imagereader *ngli_android_imagereader_create(struct android_ctx *android_ctx, int32_t width, int32_t height, int format, int max_images)
 {
     struct android_imagereader *s = ngli_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
+    atomic_init(&s->refcount, 1);
     s->android_ctx = android_ctx;
     if (pthread_mutex_init(&s->lock, NULL)) {
         ngli_freep(&s);
@@ -170,6 +254,17 @@ struct android_imagereader *ngli_android_imagereader_create(struct android_ctx *
     status = android_ctx->AImageReader_setImageListener(s->reader, &listener);
     if (status != AMEDIA_OK) {
         LOG(ERROR, "failed to set image listener");
+        goto fail;
+    }
+
+    AImageReader_BufferRemovedListener removed_listener = {
+        .context = s,
+        .onBufferRemoved = on_buffer_removed,
+    };
+
+    status = android_ctx->AImageReader_setBufferRemovedListener(s->reader, &removed_listener);
+    if (status != AMEDIA_OK) {
+        LOG(ERROR, "failed to set buffer removed listener");
         goto fail;
     }
 
@@ -240,22 +335,38 @@ int ngli_android_imagereader_acquire_next_image(struct android_imagereader *s, s
         android_ctx->AImage_delete(android_image);
         return NGL_ERROR_MEMORY;
     }
+    atomic_fetch_add_explicit(&s->refcount, 1, memory_order_relaxed);
     image->android_ctx = android_ctx;
+    image->reader = s;
     image->image = android_image;
     *imagep = image;
 
     return 0;
 }
 
-void ngli_android_imagereader_freep(struct android_imagereader **sp)
+bool ngli_android_imagereader_flush_removed_buffers(struct android_imagereader *s,
+                                                    void (*remove)(void *arg, const AHardwareBuffer *buffer),
+                                                    void *arg)
 {
-    if (!*sp)
+    pthread_mutex_lock(&s->lock);
+    for (size_t i = 0; i < s->removed_buffers.count; i++)
+        remove(arg, s->removed_buffers.data[i]);
+    ngli_darray_clear(&s->removed_buffers);
+    const bool overflow = s->removed_overflow;
+    s->removed_overflow = false;
+    pthread_mutex_unlock(&s->lock);
+    return !overflow;
+}
+
+static void imagereader_unref(struct android_imagereader *s)
+{
+    if (atomic_fetch_sub_explicit(&s->refcount, 1, memory_order_acq_rel) != 1)
         return;
 
-    struct android_imagereader *s = *sp;
     struct android_ctx *android_ctx = s->android_ctx;
     android_ctx->AImageReader_delete(s->reader);
 
+    ngli_darray_reset(&s->removed_buffers);
     pthread_mutex_destroy(&s->lock);
     pthread_cond_destroy(&s->cond);
 
@@ -263,5 +374,14 @@ void ngli_android_imagereader_freep(struct android_imagereader **sp)
     if (env)
         (*env)->DeleteGlobalRef(env, s->window);
 
-    ngli_freep(sp);
+    ngli_freep(&s);
+}
+
+void ngli_android_imagereader_freep(struct android_imagereader **sp)
+{
+    if (!*sp)
+        return;
+
+    imagereader_unref(*sp);
+    *sp = NULL;
 }

@@ -981,6 +981,7 @@ struct vk_extension {
         .device = 1,
         .functions = (const struct vk_ext_function[]) {
             DECLARE_EXT_FUNC(ImportSemaphoreFdKHR, 1),
+            DECLARE_EXT_FUNC(GetSemaphoreFdKHR, 1),
             {0},
         },
     }, {

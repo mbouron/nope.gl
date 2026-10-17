@@ -185,7 +185,7 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_INVALIDATE_SUBDATA,
         .version        = 430,
         .es_version     = 300,
-        .extensions     = (const char*[]){"GL_ARB_invalidate_subdata"},
+        .extensions     = (const char*[]){"GL_ARB_invalidate_subdata", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(InvalidateFramebuffer),
                                            SIZE_MAX}
     }, {
@@ -264,16 +264,31 @@ static const struct glfeature {
         .version        = 300,
         .es_extensions  = (const char*[]){"GL_EXT_texture_norm16", NULL},
     }, {
+        .name           = "texture_srgb_r8",
+        .flag           = NGPU_FEATURE_GL_TEXTURE_SRGB_R8,
+        .extensions     = (const char*[]){"GL_EXT_texture_sRGB_R8", NULL},
+        .es_extensions  = (const char*[]){"GL_EXT_texture_sRGB_R8", NULL},
+    }, {
+        .name           = "texture_srgb_rg8",
+        .flag           = NGPU_FEATURE_GL_TEXTURE_SRGB_RG8,
+        .extensions     = (const char*[]){"GL_EXT_texture_sRGB_RG8", NULL},
+        .es_extensions  = (const char*[]){"GL_EXT_texture_sRGB_RG8", NULL},
+    }, {
+        .name           = "texture_stencil8",
+        .flag           = NGPU_FEATURE_GL_TEXTURE_STENCIL8,
+        .version        = 440,
+        .es_version     = 320,
+        .extensions     = (const char*[]){"GL_ARB_texture_stencil8", NULL},
+        .es_extensions  = (const char*[]){"GL_OES_texture_stencil8", NULL},
+    }, {
         .name           = "texture_float_linear",
         .flag           = NGPU_FEATURE_GL_TEXTURE_FLOAT_LINEAR,
         .version        = 300,
-        .es_version     = 320,
         .es_extensions  = (const char*[]){"GL_OES_texture_float_linear", NULL},
     }, {
         .name           = "float_blend",
         .flag           = NGPU_FEATURE_GL_FLOAT_BLEND,
         .version        = 300,
-        .es_version     = 320,
         .es_extensions  = (const char*[]){"GL_EXT_float_blend", NULL},
     }, {
         .name           = "viewport_array",

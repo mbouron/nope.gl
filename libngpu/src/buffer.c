@@ -23,6 +23,7 @@
 
 #include "buffer.h"
 #include "ctx.h"
+#include "utils/log.h"
 #include "utils/utils.h"
 
 static void buffer_freep(void **bufferp)
@@ -54,6 +55,17 @@ struct ngpu_buffer *ngpu_buffer_create(struct ngpu_ctx *gpu_ctx)
 
 int ngpu_buffer_init(struct ngpu_buffer *s, size_t size, uint32_t usage)
 {
+    const uint32_t gpu_usage = NGPU_BUFFER_USAGE_TRANSFER_SRC_BIT
+                             | NGPU_BUFFER_USAGE_TRANSFER_DST_BIT
+                             | NGPU_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+                             | NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                             | NGPU_BUFFER_USAGE_INDEX_BUFFER_BIT
+                             | NGPU_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    if (!(usage & gpu_usage)) {
+        LOG(ERROR, "buffer usage 0x%x has no transfer, uniform, storage, index or vertex usage", usage);
+        return NGPU_ERROR_INVALID_ARG;
+    }
+
     s->size = size;
     s->usage = usage;
 

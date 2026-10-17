@@ -75,6 +75,7 @@ VkFormat ngpu_format_ngl_to_vk(enum ngpu_format format)
         [NGPU_FORMAT_R16G16B16A16_SFLOAT]  = VK_FORMAT_R16G16B16A16_SFLOAT,
         [NGPU_FORMAT_R32_UINT]             = VK_FORMAT_R32_UINT,
         [NGPU_FORMAT_R32_SINT]             = VK_FORMAT_R32_SINT,
+        [NGPU_FORMAT_R64_SINT]             = VK_FORMAT_R64_SINT,
         [NGPU_FORMAT_R32_SFLOAT]           = VK_FORMAT_R32_SFLOAT,
         [NGPU_FORMAT_R32G32_UINT]          = VK_FORMAT_R32G32_UINT,
         [NGPU_FORMAT_R32G32_SINT]          = VK_FORMAT_R32G32_SINT,

@@ -22,6 +22,7 @@
 #ifndef ANDROID_IMAGEREADER_H
 #define ANDROID_IMAGEREADER_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <android/hardware_buffer.h>
 
@@ -54,12 +55,17 @@ struct android_image;
 AHardwareBuffer *ngli_android_image_get_hardware_buffer(struct android_image *s);
 int ngli_android_image_get_crop_rect(struct android_image *s, AImageCropRect *rect);
 void ngli_android_image_freep(struct android_image **sp);
+void ngli_android_image_releasep(struct android_image **sp, int release_fence_fd);
+void ngli_android_image_list_push(struct android_image **listp, struct android_image **imagep);
+void ngli_android_image_list_releasep(struct android_image **listp, int release_fence_fd);
 
 struct android_imagereader;
 
 struct android_imagereader *ngli_android_imagereader_create(struct android_ctx *api, int32_t width, int32_t height, int format, int max_images);
 int  ngli_android_imagereader_get_window(struct android_imagereader *s, void **window);
 int  ngli_android_imagereader_acquire_next_image(struct android_imagereader *s, struct android_image **imagep);
+bool ngli_android_imagereader_flush_removed_buffers(struct android_imagereader *s,
+                                                    void (*remove)(void *arg, const AHardwareBuffer *buffer), void *arg);
 void ngli_android_imagereader_freep(struct android_imagereader **sp);
 
 #endif /* ANDROID_IMAGEREADER_H */

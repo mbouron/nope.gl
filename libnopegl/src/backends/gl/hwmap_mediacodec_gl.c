@@ -35,11 +35,27 @@
 #include "math_utils.h"
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
+#include "utils/darray.h"
+
+/* Maximum number of buffers in an Android BufferQueue. */
+#define MAX_AHB_TEXTURES 64
+
+/*
+ * The image reader reuses its buffers. Cache one imported texture per buffer
+ * to avoid recreating the EGLImage and GL texture for each frame.
+ *
+ * Keep a reference to `buffer` so its address cannot be reused for another
+ * buffer while it is used as a cache key.
+ */
+struct ahb_texture {
+    AHardwareBuffer *buffer;
+    struct ngpu_texture *texture;
+};
 
 struct hwmap_mc {
     struct ngli_image_color_cache color_cache;
     struct android_image *android_image;
-    struct ngpu_texture *texture;
+    NGLI_DARRAY(struct ahb_texture) textures;
 };
 
 static bool support_direct_rendering(struct hwmap *hwmap)
@@ -64,8 +80,92 @@ static bool support_direct_rendering(struct hwmap *hwmap)
     return direct_rendering;
 }
 
+static void reset_ahb_texture(void *user_arg, void *data)
+{
+    struct android_ctx *android_ctx = user_arg;
+    struct ahb_texture *ahb_texture = data;
+    ngpu_texture_freep(&ahb_texture->texture);
+    android_ctx->AHardwareBuffer_release(ahb_texture->buffer);
+}
+
+static int owns_ahb_buffer(const AHardwareBuffer *buffer, const struct ahb_texture *ahb_texture)
+{
+    return ahb_texture->buffer == buffer;
+}
+
+static void remove_ahb_texture(void *arg, const AHardwareBuffer *buffer)
+{
+    struct hwmap_mc *mc = arg;
+    ngli_darray_remove_if(&mc->textures, owns_ahb_buffer, buffer);
+}
+
+static int get_ahb_texture(struct hwmap *hwmap, AHardwareBuffer *buffer, const AHardwareBuffer_Desc *desc,
+                           struct ngpu_texture **texturep)
+{
+    const struct hwmap_params *params = &hwmap->params;
+    struct hwmap_mc *mc = hwmap->hwmap_priv_data;
+    struct ngl_ctx *ctx = hwmap->ctx;
+    struct android_ctx *android_ctx = &ctx->android_ctx;
+
+    if (!ngli_android_imagereader_flush_removed_buffers(params->android_imagereader, remove_ahb_texture, mc))
+        ngli_darray_clear(&mc->textures);
+
+    ngli_darray_foreach(ahb_texture, &mc->textures) {
+        if (ahb_texture->buffer == buffer) {
+            *texturep = ahb_texture->texture;
+            return 0;
+        }
+    }
+
+    if (mc->textures.count == MAX_AHB_TEXTURES) {
+        LOG(WARNING, "more than %d buffers in the image reader queue", MAX_AHB_TEXTURES);
+        ngli_darray_clear(&mc->textures);
+    }
+
+    struct ngpu_texture_params texture_params = {
+        .type       = NGPU_TEXTURE_TYPE_2D,
+        .format     = NGPU_FORMAT_UNDEFINED,
+        .width      = desc->width,
+        .height     = desc->height,
+        .min_filter = params->texture_min_filter,
+        .mag_filter = params->texture_mag_filter,
+        .usage      = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
+        .import_params = {
+            .type = NGPU_IMPORT_TYPE_AHARDWARE_BUFFER,
+            .ahardware_buffer = {
+                .hardware_buffer  = buffer,
+                .acquire_fence_fd = -1,
+            },
+        },
+    };
+
+    struct ngpu_texture *texture = ngpu_texture_create(ctx->gpu_ctx);
+    if (!texture)
+        return NGL_ERROR_MEMORY;
+
+    int ret = ngpu_texture_init(texture, &texture_params);
+    if (ret < 0) {
+        ngpu_texture_freep(&texture);
+        return ret;
+    }
+
+    android_ctx->AHardwareBuffer_acquire(buffer);
+    struct ahb_texture ahb_texture = {.buffer = buffer, .texture = texture};
+    if (ngli_darray_try_push(&mc->textures, ahb_texture) < 0) {
+        reset_ahb_texture(android_ctx, &ahb_texture);
+        return NGL_ERROR_MEMORY;
+    }
+
+    *texturep = texture;
+    return 0;
+}
+
 static int mc_init(struct hwmap *hwmap, struct nmd_frame *frame)
 {
+    struct hwmap_mc *mc = hwmap->hwmap_priv_data;
+    struct ngl_ctx *ctx = hwmap->ctx;
+
+    ngli_darray_set_free_func(&mc->textures, reset_ahb_texture, &ctx->android_ctx);
     hwmap->require_hwconv = !support_direct_rendering(hwmap);
 
     return 0;
@@ -76,7 +176,6 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngl
     const struct hwmap_params *params = &hwmap->params;
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
     struct ngl_ctx *ctx = hwmap->ctx;
-    struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     struct android_ctx *android_ctx = &ctx->android_ctx;
 
     const float ts = (float)frame->ts;
@@ -93,8 +192,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngl
     if (ret < 0)
         return ret;
 
-    ngpu_texture_freep(&mc->texture);
-    ngli_android_image_freep(&mc->android_image);
+    ngli_ctx_release_android_image(ctx, &mc->android_image);
 
     mc->android_image = android_image;
 
@@ -114,28 +212,8 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngl
     const int filtering = params->texture_min_filter || params->texture_mag_filter;
     ngli_android_get_crop_matrix(coordinates_matrix.m, &desc, &crop_rect, filtering);
 
-    struct ngpu_texture_params texture_params = {
-        .type       = NGPU_TEXTURE_TYPE_2D,
-        .format     = NGPU_FORMAT_UNDEFINED,
-        .width      = desc.width,
-        .height     = desc.height,
-        .min_filter = params->texture_min_filter,
-        .mag_filter = params->texture_mag_filter,
-        .usage      = NGPU_TEXTURE_USAGE_SAMPLED_BIT,
-        .import_params = {
-            .type = NGPU_IMPORT_TYPE_AHARDWARE_BUFFER,
-            .ahardware_buffer = {
-                .hardware_buffer  = hardware_buffer,
-                .acquire_fence_fd = -1,
-            },
-        },
-    };
-
-    mc->texture = ngpu_texture_create(gpu_ctx);
-    if (!mc->texture)
-        return NGL_ERROR_MEMORY;
-
-    ret = ngpu_texture_init(mc->texture, &texture_params);
+    struct ngpu_texture *texture;
+    ret = get_ahb_texture(hwmap, hardware_buffer, &desc, &texture);
     if (ret < 0)
         return ret;
 
@@ -145,7 +223,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngl
         .width                = width,
         .height               = height,
         .layout               = NGLI_IMAGE_LAYOUT_MEDIACODEC,
-        .planes               = {mc->texture},
+        .planes               = {texture},
         .color_scale          = 1.f,
         .color_info           = color_info,
         .color_matrix         = mc->color_cache.color_matrix,
@@ -164,8 +242,8 @@ static void mc_uninit(struct hwmap *hwmap)
 {
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
 
-    ngpu_texture_freep(&mc->texture);
-    ngli_android_image_freep(&mc->android_image);
+    ngli_darray_reset(&mc->textures);
+    ngli_ctx_release_android_image(hwmap->ctx, &mc->android_image);
 }
 
 const struct hwmap_class ngli_hwmap_mc_gl_class = {

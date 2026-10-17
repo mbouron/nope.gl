@@ -1011,7 +1011,7 @@ NGPU_API uint32_t ngpu_ctx_get_nb_in_flight_frames(struct ngpu_ctx *s);
 NGPU_API const struct ngpu_frame_stats *ngpu_ctx_get_frame_stats(const struct ngpu_ctx *s);
 NGPU_API const struct ngpu_memory_stats *ngpu_ctx_get_memory_stats(const struct ngpu_ctx *s);
 NGPU_API int ngpu_ctx_begin_update(struct ngpu_ctx *s);
-NGPU_API int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence);
+NGPU_API int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep);
 NGPU_API int ngpu_ctx_begin_draw(struct ngpu_ctx *s);
 NGPU_API int ngpu_ctx_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep);
 NGPU_API int ngpu_ctx_query_draw_time(struct ngpu_ctx *s, int64_t *time);
@@ -1222,6 +1222,7 @@ NGPU_API struct ngpu_fence *ngpu_fence_create(struct ngpu_ctx *gpu_ctx);
 NGPU_API int ngpu_fence_reset(struct ngpu_fence *fence);
 NGPU_API int ngpu_fence_wait(struct ngpu_fence *fence);
 NGPU_API int ngpu_fence_is_signaled(struct ngpu_fence *fence);
+NGPU_API int ngpu_fence_export_sync_file(struct ngpu_fence *fence, int *fdp);
 NGPU_API void ngpu_fence_freep(struct ngpu_fence **sp);
 
 #endif

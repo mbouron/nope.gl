@@ -33,6 +33,7 @@
 #include <CoreVideo/CoreVideo.h>
 #endif
 
+#include "opengl/cmd_buffer_gl.h"
 #include "opengl/glincludes.h"
 #include "texture.h"
 
@@ -65,6 +66,8 @@ struct ngpu_texture_gl {
     GLuint readback_texture;
     GLuint readback_src_fbo;
     GLuint readback_dst_fbo;
+
+    struct ngpu_cmd_buffer_gl_darray cmd_buffers;
 };
 
 struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx);
@@ -74,6 +77,8 @@ int ngpu_texture_gl_upload(struct ngpu_texture *s, const uint8_t *data, uint32_t
 int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *data, const struct ngpu_texture_transfer_params *transfer_params);
 int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data);
 int ngpu_texture_gl_generate_mipmap(struct ngpu_texture *s);
+int ngpu_texture_gl_ref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_gl *cmd_buffer);
+int ngpu_texture_gl_unref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_gl *cmd_buffer);
 void ngpu_texture_gl_freep(struct ngpu_texture **sp);
 
 #endif

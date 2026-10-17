@@ -34,7 +34,7 @@ const struct hwmap_class *ngli_hwmap_vk_classes[] = {
 #if defined(HAVE_VAAPI)
     &ngli_hwmap_vaapi_vk_class,
 #endif
-#if defined(TARGET_DARWIN)
+#if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
     &ngli_hwmap_vt_darwin_vk_class,
 #endif
     NULL

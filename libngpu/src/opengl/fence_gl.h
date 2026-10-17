@@ -38,6 +38,7 @@ int ngpu_fence_gl_insert(struct ngpu_fence *fence);
 int ngpu_fence_gl_wait(struct ngpu_fence *fence);
 int ngpu_fence_gl_wait_gpu(struct ngpu_fence *fence);
 int ngpu_fence_gl_is_signaled(struct ngpu_fence *fence);
+int ngpu_fence_gl_export_sync_file(struct ngpu_fence *fence, int *fdp);
 void ngpu_fence_gl_freep(struct ngpu_fence **sp);
 
 #endif

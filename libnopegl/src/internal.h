@@ -34,6 +34,8 @@
 
 #if defined(TARGET_ANDROID)
 #include "android_ctx.h"
+
+struct android_image;
 #endif
 
 #if HAVE_TEXT_LIBRARIES
@@ -155,6 +157,7 @@ struct ngl_ctx {
 #endif
 #if defined(TARGET_ANDROID)
     struct android_ctx android_ctx;
+    struct android_image *android_images;
 #endif
     struct hud *hud;
     struct ngli_frame_stats frame_stats;
@@ -167,6 +170,8 @@ struct ngl_ctx {
      * and nested backend dispatches are refused for the duration.
      */
     bool in_node_callbacks;
+
+    bool in_frame;
 
     /*
      * Array of frame slots tracking the borrow/release state of the ngl_frames.
@@ -200,6 +205,18 @@ int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene);
 int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t);
 int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fence);
 void ngli_ctx_reset(struct ngl_ctx *s, int action);
+#if defined(TARGET_ANDROID)
+/*
+ * Return an image to its producer without allowing it to reuse the buffer
+ * while the GPU is still using it.
+ *
+ * During an update or draw, queue the image in `android_images` until the
+ * frame's commands are submitted, then return it with a release fence. Outside
+ * a frame, wait for GPU idle before returning the image. The passed image
+ * pointer is set to NULL in both cases.
+ */
+void ngli_ctx_release_android_image(struct ngl_ctx *s, struct android_image **imagep);
+#endif
 
 int ngli_ctx_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg);
 void ngli_ctx_release_resources(struct ngl_ctx *s);

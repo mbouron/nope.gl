@@ -236,11 +236,11 @@ static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
 
     const VkPipelineDepthStencilStateCreateInfo depthstencil_state_create_info = {
         .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable       = (VkBool32)state->depth_test,
-        .depthWriteEnable      = (VkBool32)state->depth_write,
+        .depthTestEnable       = state->depth_test ? VK_TRUE : VK_FALSE,
+        .depthWriteEnable      = state->depth_write ? VK_TRUE : VK_FALSE,
         .depthCompareOp        = get_vk_compare_op(state->depth_func),
         .depthBoundsTestEnable = 0,
-        .stencilTestEnable     = (VkBool32)state->stencil_test,
+        .stencilTestEnable     = state->stencil_test ? VK_TRUE : VK_FALSE,
         .front = {
             .failOp      = get_vk_stencil_op(state->stencil_front.fail),
             .passOp      = get_vk_stencil_op(state->stencil_front.depth_pass),
@@ -266,7 +266,7 @@ static VkResult pipeline_graphics_init(struct ngpu_pipeline *s)
     VkPipelineColorBlendAttachmentState colorblend_attachment_states[NGPU_MAX_COLOR_ATTACHMENTS] = {0};
     for (size_t i = 0; i < graphics->rt_layout.nb_colors; i++) {
         colorblend_attachment_states[i] = (VkPipelineColorBlendAttachmentState) {
-            .blendEnable         = (VkBool32)state->blend,
+            .blendEnable         = state->blend ? VK_TRUE : VK_FALSE,
             .srcColorBlendFactor = get_vk_blend_factor(state->blend_src_factor),
             .dstColorBlendFactor = get_vk_blend_factor(state->blend_dst_factor),
             .colorBlendOp        = get_vk_blend_op(state->blend_op),
@@ -441,7 +441,7 @@ static int prepare_and_bind_descriptor_set(struct ngpu_pipeline *s, VkCommandBuf
                 ngpu_cmd_buffer_vk_ref_buffer(cmd_buffer_vk, (struct ngpu_buffer *)binding->buffer);
         ngpu_darray_foreach(binding, &bindgroup_vk->texture_bindings)
             if (binding->texture)
-                NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, binding->texture);
+                ngpu_cmd_buffer_vk_ref_texture(cmd_buffer_vk, (struct ngpu_texture *)binding->texture);
         struct vkcontext *vk = gpu_ctx_vk->vkcontext;
         if (gpu_ctx->nb_dynamic_offsets ||
             cmd_buffer_vk->applied_bindgroup != gpu_ctx->bindgroup ||

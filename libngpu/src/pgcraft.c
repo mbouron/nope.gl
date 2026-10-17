@@ -768,16 +768,6 @@ static const struct ngpu_pgcraft_texture *get_texture(const struct ngpu_pgcraft_
     return NULL;
 }
 
-static int texture_needs_clamping(const struct ngpu_pgcraft_params *params,
-                                  const char *name, size_t name_len)
-{
-    const struct ngpu_pgcraft_texture *texture = get_texture(params, name, name_len);
-    if (!texture)
-        return 0;
-
-    return texture->clamp_video;
-}
-
 static int texture_needs_premultiply(const struct ngpu_pgcraft_params *params,
                                         const char *name, size_t name_len)
 {
@@ -831,10 +821,8 @@ static const char *skip_arg(const char *p)
             p += strcspn(p, "\r\n");
             // TODO: skip to EOL (handle '\' at EOL?)
         } else if (!strncmp(p, "/*", 2)) {
-            p += 2;
-            const char *eoc = strstr(p, "*/");
-            if (eoc)
-                p = eoc + 2;
+            const char *eoc = strstr(p + 2, "*/");
+            p = eoc ? eoc + 2 : p + strlen(p);
         } else {
             p++;
         }
@@ -852,9 +840,6 @@ struct token {
 static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params,
                         const struct token *token, const char *p, struct bstr *dst)
 {
-    struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngpu_ctx_params *gpu_ctx_params = &gpu_ctx->params;
-
     /* Skip "ngl_XXX(" and the whitespaces */
     p += strlen(token->id);
     p += strspn(p, WHITESPACES);
@@ -862,8 +847,6 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
         return NGPU_ERROR_INVALID_ARG;
     p += strspn(p, WHITESPACES);
 
-    /* Extract the first argument (texture base name) from which we later
-     * derive all the uniform names */
     const char *arg0_start = p;
     p = skip_arg(p);
     size_t arg0_len = (size_t)(p - arg0_start);
@@ -881,10 +864,9 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
             return NGPU_ERROR_INVALID_ARG;
         p++;
 
-        const int premultiply = texture_needs_premultiply(params, arg0_start, arg0_len);
-
         const enum ngpu_pgcraft_texture_type texture_type = get_texture_type(params, arg0_start, arg0_len);
         if (texture_type != NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO) {
+            const int premultiply = texture_needs_premultiply(params, arg0_start, arg0_len);
             if (premultiply)
                 ngpu_bstr_print(dst, "ngli_premultiply(");
 
@@ -896,62 +878,7 @@ static int handle_token(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params
             return 0;
         }
 
-        if (premultiply)
-            ngpu_bstr_print(dst, "ngli_premultiply(");
-
-        const int clamp = texture_needs_clamping(params, arg0_start, arg0_len);
-        if (clamp)
-            ngpu_bstr_print(dst, "clamp(");
-
-        ngpu_bstr_print(dst, "(");
-        ngpu_bstr_print(dst, "(");
-
-        if (gpu_ctx_params->backend == NGPU_BACKEND_OPENGLES &&
-            NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
-            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_MEDIACODEC);
-            ngpu_bstr_printf(dst, "texture(%.*s_oes, %.*s) : ", ARG_FMT(arg0), ARG_FMT(coords));
-        }
-
-        if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT)) {
-            ngpu_bstr_printf(dst, " %.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_NV12_RECTANGLE);
-            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)).r, "
-                                                           "texture(%.*s_rect_1, (%.*s) * textureSize(%.*s_rect_1)).rg, 1.0) : ",
-                             ARG_FMT(arg0),
-                             ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0),
-                             ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
-        }
-
-        if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT)) {
-            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_RECTANGLE);
-            ngpu_bstr_printf(dst, "texture(%.*s_rect_0, (%.*s) * textureSize(%.*s_rect_0)) : ",
-                             ARG_FMT(arg0), ARG_FMT(coords), ARG_FMT(arg0));
-        }
-
-            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_NV12);
-            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
-                                                           "texture(%.*s_1, %.*s).rg, 1.0) : ",
-                             ARG_FMT(arg0),
-                             ARG_FMT(arg0), ARG_FMT(coords),
-                             ARG_FMT(arg0), ARG_FMT(coords));
-
-            ngpu_bstr_printf(dst, "%.*s_sampling_mode == %d ? ", ARG_FMT(arg0), NGPU_IMAGE_LAYOUT_YUV);
-            ngpu_bstr_printf(dst, "%.*s_color_matrix * vec4(texture(%.*s,   %.*s).r, "
-                                                           "texture(%.*s_1, %.*s).r, "
-                                                           "texture(%.*s_2, %.*s).r, 1.0) : ",
-                             ARG_FMT(arg0),
-                             ARG_FMT(arg0), ARG_FMT(coords),
-                             ARG_FMT(arg0), ARG_FMT(coords),
-                             ARG_FMT(arg0), ARG_FMT(coords));
-
-        ngpu_bstr_printf(dst, "texture(%.*s, %.*s)", ARG_FMT(arg0), ARG_FMT(coords));
-
-        ngpu_bstr_printf(dst, ") * %.*s_mapping_color_matrix", ARG_FMT(arg0));
-
-        ngpu_bstr_print(dst, ")");
-        if (clamp)
-            ngpu_bstr_print(dst, ", 0.0, 1.0)");
-        if (premultiply)
-            ngpu_bstr_print(dst, ")");
+        ngpu_bstr_printf(dst, "ngli_texvideo_%.*s(%.*s)", ARG_FMT(arg0), ARG_FMT(coords));
         ngpu_bstr_print(dst, p);
     } else {
         ngpu_assert(0);
@@ -1141,10 +1068,76 @@ static int craft_comp(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
     return 0;
 }
 
+/* Evaluate coordinates once and avoid duplicating nested ngl_texvideo() calls. */
+static void inject_texvideo_helpers(struct ngpu_pgcraft *s, struct bstr *b, enum ngpu_program_stage stage)
+{
+    struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
+    const struct ngpu_ctx_params *gpu_ctx_params = &gpu_ctx->params;
+
+    ngpu_darray_foreach(texture, &s->textures) {
+        if (texture->type != NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO || texture->no_metadata ||
+            get_texture_field_stage(texture) != stage)
+            continue;
+
+        const char *name = texture->name;
+        ngpu_bstr_printf(b, "vec4 ngli_texvideo_%s(vec2 coords)\n"
+                           "{\n"
+                           "    vec4 color;\n"
+                           "    switch (%s_sampling_mode) {\n", name, name);
+
+        if (gpu_ctx_params->backend == NGPU_BACKEND_OPENGLES &&
+            NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
+            ngpu_bstr_printf(b, "    case %d:\n"
+                                "        color = texture(%s_oes, coords);\n"
+                                "        break;\n",
+                             NGPU_IMAGE_LAYOUT_MEDIACODEC, name);
+        }
+
+        if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT)) {
+            ngpu_bstr_printf(b, "    case %d:\n"
+                                "        color = %s_color_matrix * vec4(\n"
+                                "            texture(%s_rect_0, coords * textureSize(%s_rect_0)).r,\n"
+                                "            texture(%s_rect_1, coords * textureSize(%s_rect_1)).rg, 1.0);\n"
+                                "        break;\n",
+                             NGPU_IMAGE_LAYOUT_NV12_RECTANGLE, name, name, name, name, name);
+            ngpu_bstr_printf(b, "    case %d:\n"
+                                "        color = texture(%s_rect_0, coords * textureSize(%s_rect_0));\n"
+                                "        break;\n",
+                             NGPU_IMAGE_LAYOUT_RECTANGLE, name, name);
+        }
+
+        ngpu_bstr_printf(b, "    case %d:\n"
+                            "        color = %s_color_matrix * vec4(\n"
+                            "            texture(%s, coords).r,\n"
+                            "            texture(%s_1, coords).rg, 1.0);\n"
+                            "        break;\n",
+                         NGPU_IMAGE_LAYOUT_NV12, name, name, name);
+        ngpu_bstr_printf(b, "    case %d:\n"
+                            "        color = %s_color_matrix * vec4(\n"
+                            "            texture(%s, coords).r,\n"
+                            "            texture(%s_1, coords).r,\n"
+                            "            texture(%s_2, coords).r, 1.0);\n"
+                            "        break;\n",
+                         NGPU_IMAGE_LAYOUT_YUV, name, name, name, name);
+        ngpu_bstr_printf(b, "    default:\n"
+                            "        color = texture(%s, coords);\n"
+                            "        break;\n"
+                            "    }\n"
+                            "    color *= %s_mapping_color_matrix;\n", name, name);
+
+        if (texture->clamp_video)
+            ngpu_bstr_print(b, "    color = clamp(color, 0.0, 1.0);\n");
+        if (texture->premult)
+            ngpu_bstr_print(b, "    color = vec4(color.rgb, 1.0) * color.a;\n");
+        ngpu_bstr_print(b, "    return color;\n}\n");
+    }
+}
+
 static int finalize_shader(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params,
                            enum ngpu_program_stage stage, const char *base)
 {
     struct bstr *b = s->shaders[stage];
+    inject_texvideo_helpers(s, b, stage);
     ngpu_bstr_print(b, base);
     return samplers_preproc(s, params, b);
 }

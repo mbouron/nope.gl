@@ -32,6 +32,7 @@
 #include "opengl/pipeline_gl.h"
 #include "opengl/priv_gl.h"
 #include "opengl/rendertarget_gl.h"
+#include "opengl/texture_gl.h"
 
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -45,6 +46,7 @@ struct ngpu_cmd_buffer_gl {
     NGPU_DARRAY(struct ngpu_cmd_gl) cmds;
     NGPU_DARRAY(struct ngpu_rc *) refs;
     NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
+    NGPU_DARRAY(struct ngpu_texture *) texture_refs;
 };
 
 static void cmd_buffer_gl_freep(void **sp)
@@ -59,6 +61,7 @@ static void cmd_buffer_gl_freep(void **sp)
 
     ngpu_darray_reset(&s->refs);
     ngpu_darray_reset(&s->buffer_refs);
+    ngpu_darray_reset(&s->texture_refs);
     ngpu_darray_reset(&s->cmds);
 
     ngpu_freep(sp);
@@ -92,6 +95,18 @@ static void unref_buffer(void *user_arg, void *data)
     ngpu_buffer_freep(bufferp);
 }
 
+static void unref_texture(void *user_arg, void *data)
+{
+    struct ngpu_cmd_buffer_gl *cmd_buffer = user_arg;
+    struct ngpu_texture **texturep = data;
+
+    if (!*texturep)
+        return;
+
+    ngpu_texture_gl_unref_cmd_buffer(*texturep, cmd_buffer);
+    ngpu_texture_freep(texturep);
+}
+
 void ngpu_cmd_buffer_gl_freep(struct ngpu_cmd_buffer_gl **sp)
 {
     NGPU_RC_UNREFP(sp);
@@ -105,6 +120,7 @@ int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s)
 
     ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
     ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
+    ngpu_darray_set_free_func(&s->texture_refs, unref_texture, s);
 
     return 0;
 }
@@ -131,6 +147,22 @@ int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buff
     NGPU_RC_REF(buffer);
 
     ngpu_buffer_gl_ref_cmd_buffer(buffer, s);
+
+    return 0;
+}
+
+int ngpu_cmd_buffer_gl_ref_texture(struct ngpu_cmd_buffer_gl *s, struct ngpu_texture *texture)
+{
+    int ret = ngpu_cmd_buffer_gl_ref(s, (struct ngpu_rc *)texture);
+    if (ret < 0)
+        return ret;
+
+    if (ngpu_darray_try_push(&s->texture_refs, texture) < 0)
+        return NGPU_ERROR_MEMORY;
+
+    NGPU_RC_REF(texture);
+
+    ngpu_texture_gl_ref_cmd_buffer(texture, s);
 
     return 0;
 }
@@ -303,6 +335,7 @@ int ngpu_cmd_buffer_gl_wait(struct ngpu_cmd_buffer_gl *s)
 
     ngpu_darray_clear(&s->refs);
     ngpu_darray_clear(&s->buffer_refs);
+    ngpu_darray_clear(&s->texture_refs);
 
     return ret;
 }

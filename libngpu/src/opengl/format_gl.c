@@ -40,18 +40,18 @@ static const struct ngpu_format_gl formats[NGPU_FORMAT_NB] = {
     [NGPU_FORMAT_R8_SNORM]             = {GL_RED,         GL_R8_SNORM, GL_BYTE,          S|SL|B},
     [NGPU_FORMAT_R8_UINT]              = {GL_RED_INTEGER, GL_R8UI,     GL_UNSIGNED_BYTE, S|C},
     [NGPU_FORMAT_R8_SINT]              = {GL_RED_INTEGER, GL_R8I,      GL_BYTE,          S|C},
-    [NGPU_FORMAT_R8_SRGB]              = {GL_RED,         GL_SR8,      GL_BYTE,          S|SL},
+    [NGPU_FORMAT_R8_SRGB]              = {GL_RED,         GL_SR8,      GL_UNSIGNED_BYTE, 0},
 
     [NGPU_FORMAT_R8G8_UNORM]           = {GL_RG,         GL_RG8,       GL_UNSIGNED_BYTE, S|SL|C|B},
     [NGPU_FORMAT_R8G8_SNORM]           = {GL_RG,         GL_RG8_SNORM, GL_BYTE,          S|SL|B},
     [NGPU_FORMAT_R8G8_UINT]            = {GL_RG_INTEGER, GL_RG8UI,     GL_UNSIGNED_BYTE, S|C},
     [NGPU_FORMAT_R8G8_SINT]            = {GL_RG_INTEGER, GL_RG8I,      GL_BYTE,          S|C},
-    [NGPU_FORMAT_R8G8_SRGB]            = {GL_RG,         GL_SRG8,      GL_BYTE,          S|SL},
+    [NGPU_FORMAT_R8G8_SRGB]            = {GL_RG,         GL_SRG8,      GL_UNSIGNED_BYTE, 0},
 
     [NGPU_FORMAT_R8G8B8_UNORM]         = {GL_RGB,         GL_RGB8,       GL_UNSIGNED_BYTE, S|SL|C|B},
     [NGPU_FORMAT_R8G8B8_SNORM]         = {GL_RGB,         GL_RGB8_SNORM, GL_BYTE,          S|SL},
-    [NGPU_FORMAT_R8G8B8_UINT]          = {GL_RGB_INTEGER, GL_RGB8UI,     GL_UNSIGNED_BYTE, S|C},
-    [NGPU_FORMAT_R8G8B8_SINT]          = {GL_RGB_INTEGER, GL_RGB8I,      GL_BYTE,          S|C},
+    [NGPU_FORMAT_R8G8B8_UINT]          = {GL_RGB_INTEGER, GL_RGB8UI,     GL_UNSIGNED_BYTE, S},
+    [NGPU_FORMAT_R8G8B8_SINT]          = {GL_RGB_INTEGER, GL_RGB8I,      GL_BYTE,          S},
     [NGPU_FORMAT_R8G8B8_SRGB]          = {GL_RGB,         GL_SRGB8,      GL_UNSIGNED_BYTE, S|SL},
 
     [NGPU_FORMAT_R8G8B8A8_UNORM]       = {GL_RGBA,         GL_RGBA8,        GL_UNSIGNED_BYTE, S|SL|C|B},
@@ -64,7 +64,7 @@ static const struct ngpu_format_gl formats[NGPU_FORMAT_NB] = {
     [NGPU_FORMAT_B8G8R8A8_SNORM]       = {GL_BGRA,         GL_RGBA8_SNORM, GL_BYTE,          0},
     [NGPU_FORMAT_B8G8R8A8_UINT]        = {GL_BGRA_INTEGER, GL_RGBA8UI,     GL_UNSIGNED_BYTE, 0},
     [NGPU_FORMAT_B8G8R8A8_SINT]        = {GL_BGRA_INTEGER, GL_RGBA8I,      GL_BYTE,          0},
-    [NGPU_FORMAT_B8G8R8A8_SRGB]        = {GL_BGRA,         GL_SRGB8_ALPHA8,GL_BYTE,          0},
+    [NGPU_FORMAT_B8G8R8A8_SRGB]        = {GL_BGRA,         GL_SRGB8_ALPHA8,GL_UNSIGNED_BYTE, 0},
 
     [NGPU_FORMAT_R16_UNORM]            = {GL_RED,          GL_R16,       GL_UNSIGNED_SHORT, 0},
     [NGPU_FORMAT_R16_SNORM]            = {GL_RED,          GL_R16_SNORM, GL_SHORT,          0},
@@ -80,8 +80,8 @@ static const struct ngpu_format_gl formats[NGPU_FORMAT_NB] = {
 
     [NGPU_FORMAT_R16G16B16_UNORM]      = {GL_RGB,         GL_RGB16,       GL_UNSIGNED_SHORT, 0},
     [NGPU_FORMAT_R16G16B16_SNORM]      = {GL_RGB,         GL_RGB16_SNORM, GL_SHORT,          0},
-    [NGPU_FORMAT_R16G16B16_UINT]       = {GL_RGB_INTEGER, GL_RGB16UI,     GL_UNSIGNED_SHORT, S|C},
-    [NGPU_FORMAT_R16G16B16_SINT]       = {GL_RGB_INTEGER, GL_RGB16I,      GL_SHORT,          S|C},
+    [NGPU_FORMAT_R16G16B16_UINT]       = {GL_RGB_INTEGER, GL_RGB16UI,     GL_UNSIGNED_SHORT, S},
+    [NGPU_FORMAT_R16G16B16_SINT]       = {GL_RGB_INTEGER, GL_RGB16I,      GL_SHORT,          S},
     [NGPU_FORMAT_R16G16B16_SFLOAT]     = {GL_RGB,         GL_RGB16F,      GL_HALF_FLOAT,     S|SL},
 
     [NGPU_FORMAT_R16G16B16A16_UNORM]   = {GL_RGBA,         GL_RGBA16,       GL_UNSIGNED_SHORT, 0},
@@ -98,8 +98,8 @@ static const struct ngpu_format_gl formats[NGPU_FORMAT_NB] = {
     [NGPU_FORMAT_R32G32_SINT]          = {GL_RG_INTEGER, GL_RG32I,  GL_INT,          S|C},
     [NGPU_FORMAT_R32G32_SFLOAT]        = {GL_RG,         GL_RG32F,  GL_FLOAT,        S},
 
-    [NGPU_FORMAT_R32G32B32_UINT]       = {GL_RGB_INTEGER, GL_RGB32UI, GL_UNSIGNED_INT, S|C},
-    [NGPU_FORMAT_R32G32B32_SINT]       = {GL_RGB_INTEGER, GL_RGB32I,  GL_INT,          S|C},
+    [NGPU_FORMAT_R32G32B32_UINT]       = {GL_RGB_INTEGER, GL_RGB32UI, GL_UNSIGNED_INT, S},
+    [NGPU_FORMAT_R32G32B32_SINT]       = {GL_RGB_INTEGER, GL_RGB32I,  GL_INT,          S},
     [NGPU_FORMAT_R32G32B32_SFLOAT]     = {GL_RGB,         GL_RGB32F,  GL_FLOAT,        S},
 
     [NGPU_FORMAT_R32G32B32A32_UINT]    = {GL_RGBA_INTEGER,     GL_RGBA32UI, GL_UNSIGNED_INT, S|C},
@@ -111,7 +111,7 @@ static const struct ngpu_format_gl formats[NGPU_FORMAT_NB] = {
     [NGPU_FORMAT_D32_SFLOAT]           = {GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT32F, GL_FLOAT,                          S|DS},
     [NGPU_FORMAT_D24_UNORM_S8_UINT]    = {GL_DEPTH_STENCIL,   GL_DEPTH24_STENCIL8,   GL_UNSIGNED_INT_24_8,              S|DS},
     [NGPU_FORMAT_D32_SFLOAT_S8_UINT]   = {GL_DEPTH_STENCIL,   GL_DEPTH32F_STENCIL8,  GL_FLOAT_32_UNSIGNED_INT_24_8_REV, S|DS},
-    [NGPU_FORMAT_S8_UINT]              = {GL_STENCIL_INDEX,   GL_STENCIL_INDEX8,     GL_UNSIGNED_BYTE,                  S|DS},
+    [NGPU_FORMAT_S8_UINT]              = {GL_STENCIL_INDEX,   GL_STENCIL_INDEX8,     GL_UNSIGNED_BYTE,                  DS},
 };
 
 NGPU_STATIC_ASSERT(NGPU_FIELD_SIZEOF(struct glcontext, formats) == sizeof(formats), "formats size");
@@ -122,9 +122,41 @@ void ngpu_format_gl_init(struct glcontext *gl)
 
     if (gl->backend == NGPU_BACKEND_OPENGL) {
         gl->formats[NGPU_FORMAT_B8G8R8A8_UNORM].features |= S|SL|C|B;
-        gl->formats[NGPU_FORMAT_B8G8R8A8_SNORM].features |= S|SL|C|B;
+        gl->formats[NGPU_FORMAT_B8G8R8A8_SNORM].features |= S|SL;
         gl->formats[NGPU_FORMAT_B8G8R8A8_UINT].features  |= S|C;
         gl->formats[NGPU_FORMAT_B8G8R8A8_SINT].features  |= S|C;
+        gl->formats[NGPU_FORMAT_B8G8R8A8_SRGB].features  |= S|SL|C|B;
+
+        gl->formats[NGPU_FORMAT_R8G8B8_UINT].features    |= C;
+        gl->formats[NGPU_FORMAT_R8G8B8_SINT].features    |= C;
+        gl->formats[NGPU_FORMAT_R16G16B16_UINT].features |= C;
+        gl->formats[NGPU_FORMAT_R16G16B16_SINT].features |= C;
+        gl->formats[NGPU_FORMAT_R32G32B32_UINT].features |= C;
+        gl->formats[NGPU_FORMAT_R32G32B32_SINT].features |= C;
+
+        gl->formats[NGPU_FORMAT_D16_UNORM].features           |= SL;
+        gl->formats[NGPU_FORMAT_X8_D24_UNORM_PACK32].features |= SL;
+        gl->formats[NGPU_FORMAT_D32_SFLOAT].features          |= SL;
+        gl->formats[NGPU_FORMAT_D24_UNORM_S8_UINT].features   |= SL;
+        gl->formats[NGPU_FORMAT_D32_SFLOAT_S8_UINT].features  |= SL;
+    } else {
+        /*
+         * Store BGRA data as RGBA and swap red and blue when sampling. Rendering
+         * and image stores ignore the swizzle, so only report sampling features.
+         */
+        static const enum ngpu_format bgra_formats[][2] = {
+            {NGPU_FORMAT_B8G8R8A8_UNORM, NGPU_FORMAT_R8G8B8A8_UNORM},
+            {NGPU_FORMAT_B8G8R8A8_SNORM, NGPU_FORMAT_R8G8B8A8_SNORM},
+            {NGPU_FORMAT_B8G8R8A8_UINT,  NGPU_FORMAT_R8G8B8A8_UINT},
+            {NGPU_FORMAT_B8G8R8A8_SINT,  NGPU_FORMAT_R8G8B8A8_SINT},
+            {NGPU_FORMAT_B8G8R8A8_SRGB,  NGPU_FORMAT_R8G8B8A8_SRGB},
+        };
+        for (size_t i = 0; i < NGPU_ARRAY_NB(bgra_formats); i++) {
+            struct ngpu_format_gl *format_gl = &gl->formats[bgra_formats[i][0]];
+            *format_gl = gl->formats[bgra_formats[i][1]];
+            format_gl->features &= S|SL;
+            format_gl->swizzle_bgra = 1;
+        }
     }
 
     if (gl->features & NGPU_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT) {
@@ -151,11 +183,22 @@ void ngpu_format_gl_init(struct glcontext *gl)
         gl->formats[NGPU_FORMAT_R32G32B32A32_SFLOAT].features |= SL;
     }
 
+    if (gl->features & NGPU_FEATURE_GL_TEXTURE_STENCIL8)
+        gl->formats[NGPU_FORMAT_S8_UINT].features |= S;
+
+    if (gl->features & NGPU_FEATURE_GL_TEXTURE_SRGB_R8)
+        gl->formats[NGPU_FORMAT_R8_SRGB].features |= S|SL;
+
+    if (gl->features & NGPU_FEATURE_GL_TEXTURE_SRGB_RG8)
+        gl->formats[NGPU_FORMAT_R8G8_SRGB].features |= S|SL;
+
     if (gl->features & NGPU_FEATURE_GL_TEXTURE_NORM16) {
         gl->formats[NGPU_FORMAT_R16_UNORM].features          |= S|SL|C|B;
         gl->formats[NGPU_FORMAT_R16_SNORM].features          |= S|SL;
         gl->formats[NGPU_FORMAT_R16G16_UNORM].features       |= S|SL|C|B;
         gl->formats[NGPU_FORMAT_R16G16_SNORM].features       |= S|SL;
+        gl->formats[NGPU_FORMAT_R16G16B16_UNORM].features    |= S|SL;
+        gl->formats[NGPU_FORMAT_R16G16B16_SNORM].features    |= S|SL;
         gl->formats[NGPU_FORMAT_R16G16B16A16_UNORM].features |= S|SL|C|B;
         gl->formats[NGPU_FORMAT_R16G16B16A16_SNORM].features |= S|SL;
     }

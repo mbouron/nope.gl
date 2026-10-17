@@ -24,6 +24,7 @@
 
 #include "ctx.h"
 #include "ngpu/ngpu.h"
+#include "utils/darray.h"
 
 struct ngpu_rendertarget;
 struct ngpu_bindgroup;
@@ -107,6 +108,9 @@ struct ngpu_cmd_gl {
 
 struct ngpu_cmd_buffer_gl;
 
+NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_gl_darray, struct ngpu_cmd_buffer_gl *);
+NGPU_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_gl_darray)
+
 struct ngpu_cmd_buffer_gl *ngpu_cmd_buffer_gl_create(struct ngpu_ctx *gpu_ctx);
 void ngpu_cmd_buffer_gl_freep(struct ngpu_cmd_buffer_gl **sp);
 int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s);
@@ -114,6 +118,7 @@ int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s);
 #define NGPU_CMD_BUFFER_GL_REF(cmd, rc) ngpu_cmd_buffer_gl_ref((cmd), (struct ngpu_rc *)(rc))
 int ngpu_cmd_buffer_gl_ref(struct ngpu_cmd_buffer_gl *s, struct ngpu_rc *rc);
 int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buffer *buffer);
+int ngpu_cmd_buffer_gl_ref_texture(struct ngpu_cmd_buffer_gl *s, struct ngpu_texture *texture);
 
 int ngpu_cmd_buffer_gl_begin(struct ngpu_cmd_buffer_gl *s);
 int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_gl *cmd);

@@ -32,10 +32,12 @@ static const struct {
     [NGPU_FORMAT_R8_SNORM]            = {1, 1},
     [NGPU_FORMAT_R8_UINT]             = {1, 1},
     [NGPU_FORMAT_R8_SINT]             = {1, 1},
+    [NGPU_FORMAT_R8_SRGB]             = {1, 1},
     [NGPU_FORMAT_R8G8_UNORM]          = {2, 1 + 1},
     [NGPU_FORMAT_R8G8_SNORM]          = {2, 1 + 1},
     [NGPU_FORMAT_R8G8_UINT]           = {2, 1 + 1},
     [NGPU_FORMAT_R8G8_SINT]           = {2, 1 + 1},
+    [NGPU_FORMAT_R8G8_SRGB]           = {2, 1 + 1},
     [NGPU_FORMAT_R8G8B8_UNORM]        = {3, 1 + 1 + 1},
     [NGPU_FORMAT_R8G8B8_SNORM]        = {3, 1 + 1 + 1},
     [NGPU_FORMAT_R8G8B8_UINT]         = {3, 1 + 1 + 1},
@@ -50,6 +52,7 @@ static const struct {
     [NGPU_FORMAT_B8G8R8A8_SNORM]      = {4, 1 + 1 + 1 + 1},
     [NGPU_FORMAT_B8G8R8A8_UINT]       = {4, 1 + 1 + 1 + 1},
     [NGPU_FORMAT_B8G8R8A8_SINT]       = {4, 1 + 1 + 1 + 1},
+    [NGPU_FORMAT_B8G8R8A8_SRGB]       = {4, 1 + 1 + 1 + 1},
     [NGPU_FORMAT_R16_UNORM]           = {1, 2},
     [NGPU_FORMAT_R16_SNORM]           = {1, 2},
     [NGPU_FORMAT_R16_UINT]            = {1, 2},
@@ -118,7 +121,6 @@ int ngpu_format_has_depth(enum ngpu_format format)
 int ngpu_format_has_stencil(enum ngpu_format format)
 {
     switch (format) {
-    case NGPU_FORMAT_X8_D24_UNORM_PACK32:
     case NGPU_FORMAT_D24_UNORM_S8_UINT:
     case NGPU_FORMAT_D32_SFLOAT_S8_UINT:
     case NGPU_FORMAT_S8_UINT:

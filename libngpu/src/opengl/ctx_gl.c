@@ -631,13 +631,24 @@ static int gl_begin_update(struct ngpu_ctx *s)
     return 0;
 }
 
-static int gl_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
+static int gl_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
-    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer, wait_fence, NULL);
-    if (ret < 0)
+    if (signal_fencep)
+        *signal_fencep = ngpu_fence_create(s);
+
+    struct ngpu_fence *signal_fence = signal_fencep ? *signal_fencep : NULL;
+
+    int ret = ngpu_cmd_buffer_gl_submit(s_priv->cur_cmd_buffer, wait_fence, signal_fence);
+    if (ret < 0) {
+        if (signal_fencep)
+            ngpu_fence_freep(signal_fencep);
         return ret;
+    }
+
+    if (signal_fencep && !signal_fence)
+        return NGPU_ERROR_MEMORY;
 
     return 0;
 }
@@ -856,12 +867,23 @@ static void gl_get_default_rendertarget_size(struct ngpu_ctx *s, uint32_t *width
     *height = s->params.height;
 }
 
+static void ref_attachment(struct ngpu_cmd_buffer_gl *cmd_buffer, const struct ngpu_attachment *attachment)
+{
+    if (attachment->attachment)
+        ngpu_cmd_buffer_gl_ref_texture(cmd_buffer, attachment->attachment);
+    if (attachment->resolve_target)
+        ngpu_cmd_buffer_gl_ref_texture(cmd_buffer, attachment->resolve_target);
+}
+
 static void gl_begin_render_pass(struct ngpu_ctx *s, struct ngpu_rendertarget *rt)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_cmd_buffer_gl *cmd_buffer = s_priv->cur_cmd_buffer;
 
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, rt);
+    for (size_t i = 0; i < rt->params.nb_colors; i++)
+        ref_attachment(cmd_buffer, &rt->params.colors[i]);
+    ref_attachment(cmd_buffer, &rt->params.depth_stencil);
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &(struct ngpu_cmd_gl){
                                             .type = NGPU_CMD_TYPE_GL_BEGIN_RENDER_PASS,
@@ -916,8 +938,8 @@ static uint32_t gl_get_format_features(struct ngpu_ctx *s, enum ngpu_format form
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
-    const struct ngpu_format_gl *format_gl = ngpu_format_get_gl_texture_format(gl, format);
-    return format_gl->features;
+    ngpu_assert(format >= 0 && format < NGPU_FORMAT_NB);
+    return gl->formats[format].features;
 }
 
 static void gl_generate_texture_mipmap(struct ngpu_ctx *s, struct ngpu_texture *texture)
@@ -946,13 +968,14 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
             ngpu_cmd_buffer_gl_ref_buffer(cmd_buffer, (struct ngpu_buffer *)binding->buffer);
     ngpu_darray_foreach(binding, &bindgroup_gl->texture_bindings)
         if (binding->texture)
-            NGPU_CMD_BUFFER_GL_REF(cmd_buffer, binding->texture);
+            ngpu_cmd_buffer_gl_ref_texture(cmd_buffer, (struct ngpu_texture *)binding->texture);
 
     struct ngpu_cmd_gl cmd_gl = {
         .type = NGPU_CMD_TYPE_GL_SET_BINDGROUP,
         .set_bindgroup.bindgroup = bindgroup,
     };
-    memcpy(cmd_gl.set_bindgroup.offsets, offsets, nb_offsets * sizeof(*offsets));
+    if (nb_offsets)
+        memcpy(cmd_gl.set_bindgroup.offsets, offsets, nb_offsets * sizeof(*offsets));
     cmd_gl.set_bindgroup.nb_offsets = nb_offsets;
 
     ngpu_cmd_buffer_gl_push(cmd_buffer, &cmd_gl);
@@ -1088,6 +1111,7 @@ const struct ngpu_ctx_class ngpu_ctx_##cls_suffix = {                           
     .fence_reset                        = ngpu_fence_gl_reset,                   \
     .fence_wait                         = ngpu_fence_gl_wait,                    \
     .fence_is_signaled                  = ngpu_fence_gl_is_signaled,             \
+    .fence_export_sync_file             = ngpu_fence_gl_export_sync_file,        \
     .fence_freep                        = ngpu_fence_gl_freep,                   \
                                                                                  \
     .buffer_create                      = ngpu_buffer_gl_create,                 \

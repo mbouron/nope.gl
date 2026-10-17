@@ -23,12 +23,58 @@
 #ifndef NGPU_CTX_VK_H
 #define NGPU_CTX_VK_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "ctx.h"
 #include "utils/darray.h"
 #include "vulkan/cmd_buffer_vk.h"
 #include "vulkan/vkcontext.h"
+
+/*
+ * Binary semaphore used to export an NGPU fence as a sync_file fd on Android.
+ *
+ * A sync_file fd allows another API to wait for our GPU work before using its
+ * result, without blocking the CPU. NGPU fences use the context's timeline
+ * semaphore, which cannot be exported as a sync_file fd. Binary semaphores
+ * can.
+ *
+ * To allow exporting these fences, submissions with an output fence also
+ * signal an exportable binary semaphore when vkGetSemaphoreFdKHR() is
+ * available. Both semaphores signal the completion of the same GPU work. The
+ * binary semaphore is kept in the fence so ngpu_fence_export_sync_file() can
+ * export it later, even while the GPU work is still pending. It must be added
+ * before submission, whether or not the user eventually exports it.
+ *
+ * Exporting consumes the binary semaphore's signal, leaving it unsignaled. The
+ * returned fd keeps that signal independently. A fence can only be exported
+ * once per signal; waiting on the fence still uses the timeline semaphore.
+ *
+ * The context keeps these binary semaphores in a pool. When a semaphore is
+ * associated with a fence, `in_use` is set and `value` records the
+ * submission's timeline signal value. Resetting or freeing the fence clears
+ * `in_use` and sets `exported` according to whether its signal was exported.
+ * This returns the semaphore to the pool without waiting for the GPU.
+ *
+ * A released semaphore can only be reused or destroyed once the completed
+ * timeline value is greater than `value`. The two semaphore signals in a
+ * submission are unordered, so reaching `value` alone does not guarantee that
+ * the binary signal has completed. A later submission's timeline signal does.
+ *
+ * Once this condition is met, an exported semaphore is unsignaled and can be
+ * reused for another fence. A semaphore that was not exported remains signaled
+ * and is destroyed instead. If none is available, a new one is created.
+ *
+ * Access to the pool is protected by `export_sems_lock`, as fences can be
+ * released from another thread. The remaining semaphores are destroyed when
+ * the context is destroyed, after waiting for the device to become idle.
+ */
+struct ngpu_export_sem_vk {
+    VkSemaphore sem;
+    uint64_t value;
+    bool in_use;
+    bool exported;
+};
 
 struct ngpu_ctx_vk {
     struct ngpu_ctx parent;
@@ -50,6 +96,8 @@ struct ngpu_ctx_vk {
     struct ngpu_cmd_buffer_vk **cmd_buffers;
     struct ngpu_cmd_buffer_vk **update_cmd_buffers;
     NGPU_DARRAY(struct ngpu_cmd_buffer_vk *) pending_cmd_buffers;
+    NGPU_DARRAY(struct ngpu_export_sem_vk) export_sems;
+    pthread_mutex_t export_sems_lock;
     struct ngpu_cmd_buffer_vk *cur_cmd_buffer;
     int cur_cmd_buffer_is_transient;
 
@@ -83,5 +131,8 @@ struct ngpu_ctx_vk {
      */
     struct ngpu_texture *dummy_texture;
 };
+
+VkResult ngpu_ctx_vk_get_export_sem(struct ngpu_ctx *s, uint64_t value, VkSemaphore *semp);
+void ngpu_ctx_vk_release_export_sem(struct ngpu_ctx *s, VkSemaphore sem, bool exported);
 
 #endif

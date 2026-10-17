@@ -64,7 +64,6 @@
 #include "opengl/priv_gl.h"
 #include "opengl/texture_gl.h"
 #include "ngpu/ngpu_opengl.h"
-#include "utils/bits.h"
 #include "utils/memory.h"
 #include "utils/utils.h"
 
@@ -149,16 +148,6 @@ static void texture_allocate(struct ngpu_texture *s)
     }
 }
 
-static uint32_t get_mipmap_levels(const struct ngpu_texture *s)
-{
-    const struct ngpu_texture_params *params = &s->params;
-
-    uint32_t mipmap_levels = 1;
-    if (params->mipmap_filter != NGPU_MIPMAP_FILTER_NONE)
-        mipmap_levels = ngpu_log2(params->width | params->height | 1);
-    return mipmap_levels;
-}
-
 static void texture_allocate_storage(struct ngpu_texture *s)
 {
     struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
@@ -170,7 +159,7 @@ static void texture_allocate_storage(struct ngpu_texture *s)
     const GLint height = (GLint)params->height;
     const GLint depth = (GLint)params->depth;
     const GLint array_layers = (GLint)s_priv->array_layers;
-    const GLint mipmap_levels = (GLint)get_mipmap_levels(s);
+    const GLint mipmap_levels = (GLint)ngpu_texture_get_mipmap_levels(params);
 
     switch (s_priv->target) {
     case GL_TEXTURE_2D:
@@ -227,9 +216,10 @@ static void texture_upload(struct ngpu_texture *s, const uint8_t *data, const st
         break;
     case GL_TEXTURE_CUBE_MAP: {
         const size_t layer_size = bytes_per_row * transfer_params->height;
-        const uint8_t *layer_data = data + (transfer_params->base_layer * layer_size);
-        for (uint32_t face = transfer_params->base_layer; face < transfer_params->layer_count; face++) {
-            gl->funcs.TexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, 0, 0, width, height,
+        const uint8_t *layer_data = data;
+        for (uint32_t i = 0; i < transfer_params->layer_count; i++) {
+            const GLenum face = GL_TEXTURE_CUBE_MAP_POSITIVE_X + transfer_params->base_layer + i;
+            gl->funcs.TexSubImage2D(face, 0, 0, 0, width, height,
                                     s_priv->format, s_priv->format_type, layer_data);
             layer_data += layer_size;
         }
@@ -302,10 +292,6 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
         depth = params->depth;
     }
     s->params.depth = depth;
-
-#if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
-    s_priv->fd = -1;
-#endif
 
     s_priv->array_layers = 1;
     if (params->type == NGPU_TEXTURE_TYPE_CUBE) {
@@ -392,12 +378,22 @@ static int texture_init(struct ngpu_texture *s, const struct ngpu_texture_params
     return 0;
 }
 
+static void unref_cmd_buffer(void *user_arg, void *data)
+{
+    struct ngpu_cmd_buffer_gl **cmd_bufferp = data;
+    ngpu_cmd_buffer_gl_freep(cmd_bufferp);
+}
+
 struct ngpu_texture *ngpu_texture_gl_create(struct ngpu_ctx *gpu_ctx)
 {
     struct ngpu_texture_gl *s = ngpu_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
+#if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
+    s->fd = -1;
+#endif
+    ngpu_darray_set_free_func(&s->cmd_buffers, unref_cmd_buffer, NULL);
     return (struct ngpu_texture *)s;
 }
 
@@ -573,6 +569,10 @@ static int texture_import_corevideo_buffer(struct ngpu_texture *s)
     if (width > INT_MAX || height > INT_MAX)
         return NGPU_ERROR_LIMIT_EXCEEDED;
 
+    /* CoreVideo imports BGRA buffers directly. */
+    if (gl->formats[s->params.format].swizzle_bgra)
+        s_priv->format = GL_BGRA;
+
     CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
     CVReturn err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
                                                                 *cache,
@@ -636,10 +636,38 @@ static int texture_import_opengl_texture(struct ngpu_texture *s)
     return 0;
 }
 
+static uint32_t get_required_format_features(const struct ngpu_texture_params *params)
+{
+    uint32_t features = 0;
+    if (params->usage & NGPU_TEXTURE_USAGE_SAMPLED_BIT) {
+        features |= NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+        if (params->min_filter != NGPU_FILTER_NEAREST || params->mag_filter != NGPU_FILTER_NEAREST)
+            features |= NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+    }
+    if (params->usage & NGPU_TEXTURE_USAGE_COLOR_ATTACHMENT_BIT)
+        features |= NGPU_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+    if (params->usage & NGPU_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+        features |= NGPU_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    return features;
+}
+
 int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_params *params)
 {
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
+    const struct ngpu_format_gl *format_gl = &gl->formats[params->format];
+
+    const uint32_t required_features = get_required_format_features(params);
+    if (!format_gl->features || (format_gl->features & required_features) != required_features) {
+        LOG(ERROR, "format %u does not support the texture usage 0x%x", params->format, params->usage);
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+    }
+
+    if (format_gl->swizzle_bgra && (params->usage & NGPU_TEXTURE_USAGE_STORAGE_BIT)) {
+        LOG(ERROR, "format %u cannot be used as a storage image", params->format);
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+    }
 
     int ret = texture_init_fields(s, params);
     if (ret < 0)
@@ -648,6 +676,11 @@ int ngpu_texture_gl_init(struct ngpu_texture *s, const struct ngpu_texture_param
     ret = texture_init(s, params);
     if (ret < 0)
         return ret;
+
+    if (format_gl->swizzle_bgra) {
+        gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+        gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_SWIZZLE_B, GL_RED);
+    }
 
     if (gl->features & NGPU_FEATURE_GL_TEXTURE_STORAGE) {
         texture_allocate_storage(s);
@@ -722,6 +755,14 @@ int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *da
     ngpu_assert(!s_priv->wrapped);
     ngpu_assert(params->usage & NGPU_TEXTURE_USAGE_TRANSFER_DST_BIT);
 
+    /* Uploads are immediate and would run before commands still being recorded. */
+    ngpu_darray_foreach(cmd_buffer, &s_priv->cmd_buffers) {
+        if (!ngpu_cmd_buffer_gl_is_submitted(*cmd_buffer)) {
+            LOG(ERROR, "texture is used by a command buffer being recorded");
+            return NGPU_ERROR_INVALID_USAGE;
+        }
+    }
+
     gl->funcs.BindTexture(s_priv->target, s_priv->texture);
     if (data) {
         texture_upload(s, data, transfer_params);
@@ -733,6 +774,21 @@ int ngpu_texture_gl_upload_with_params(struct ngpu_texture *s, const uint8_t *da
     return 0;
 }
 
+/* Keep to the formats guaranteed by OpenGL ES to avoid querying the driver. */
+static int is_gles_readable(enum ngpu_format format)
+{
+    switch (format) {
+    case NGPU_FORMAT_R8G8B8A8_UNORM:
+    case NGPU_FORMAT_R8G8B8A8_SRGB:
+    case NGPU_FORMAT_R32G32B32A32_UINT:
+    case NGPU_FORMAT_R32G32B32A32_SINT:
+    case NGPU_FORMAT_R32G32B32A32_SFLOAT:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
 {
     struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
@@ -741,6 +797,11 @@ int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
     const struct ngpu_texture_params *params = &s->params;
     const GLsizei w = (GLsizei)params->width;
     const GLsizei h = (GLsizei)params->height;
+
+    if (gl->backend == NGPU_BACKEND_OPENGLES && !is_gles_readable(params->format)) {
+        LOG(ERROR, "reading back format %u is not supported", params->format);
+        return NGPU_ERROR_UNSUPPORTED;
+    }
 
     if (!s_priv->readback_texture) {
         gl->funcs.GenTextures(1, &s_priv->readback_texture);
@@ -775,8 +836,13 @@ int ngpu_texture_gl_read_pixels(struct ngpu_texture *s, uint8_t *data)
     /* Blit with Y-flip: source (0,0,w,h) → dest (0,h,w,0) */
     gl->funcs.BlitFramebuffer(0, 0, w, h, 0, h, w, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
+    const size_t bytes_per_row = (size_t)w * s_priv->bytes_per_pixel;
+    const size_t alignment = NGPU_MIN(NGPU_ALIGNMENT(bytes_per_row), 8);
+    gl->funcs.PixelStorei(GL_PACK_ALIGNMENT, (GLint)alignment);
+
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, s_priv->readback_dst_fbo);
     gl->funcs.ReadPixels(0, 0, w, h, s_priv->format, s_priv->format_type, data);
+    gl->funcs.PixelStorei(GL_PACK_ALIGNMENT, 4);
 
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, 0);
     ngpu_glstate_enable_scissor_test(gl, &gpu_ctx_gl->glstate, GL_TRUE);
@@ -799,6 +865,35 @@ int ngpu_texture_gl_generate_mipmap(struct ngpu_texture *s)
     return 0;
 }
 
+int ngpu_texture_gl_ref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
+{
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+
+    size_t index = ngpu_cmd_buffer_gl_darray_find(&s_priv->cmd_buffers, cmd_buffer);
+    if (index != SIZE_MAX)
+        return 0;
+
+    if (ngpu_darray_try_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
+        return NGPU_ERROR_MEMORY;
+
+    NGPU_RC_REF(cmd_buffer);
+
+    return 0;
+}
+
+int ngpu_texture_gl_unref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_gl *cmd_buffer)
+{
+    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
+
+    size_t index = ngpu_cmd_buffer_gl_darray_find(&s_priv->cmd_buffers, cmd_buffer);
+    if (index == SIZE_MAX)
+        return 0;
+
+    ngpu_darray_remove(&s_priv->cmd_buffers, index);
+
+    return 0;
+}
+
 void ngpu_texture_gl_freep(struct ngpu_texture **sp)
 {
     if (!*sp)
@@ -808,6 +903,8 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
     struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    ngpu_darray_reset(&s_priv->cmd_buffers);
 
     if (!s_priv->wrapped) {
         if (s_priv->target == GL_RENDERBUFFER)

@@ -26,6 +26,7 @@
 
 #include "buffer.h"
 #include "texture.h"
+#include "vulkan/cmd_buffer_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/ycbcr_sampler_vk.h"
 
@@ -62,6 +63,7 @@ struct ngpu_texture_vk {
     void *readback_buffer_ptr;
     int fd;
     VkSemaphore acquire_sem;
+    struct ngpu_cmd_buffer_vk_darray cmd_buffers;
 };
 
 struct ngpu_texture *ngpu_texture_vk_create(struct ngpu_ctx *gpu_ctx);
@@ -75,9 +77,12 @@ void ngpu_texture_vk_transition_layout(struct ngpu_texture *s, VkImageLayout lay
 void ngpu_texture_vk_transition_to_default_layout(struct ngpu_texture *s);
 void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *buffer);
 int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data);
+void ngpu_texture_vk_ref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer);
+int ngpu_texture_vk_unref_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer);
 void ngpu_texture_vk_freep(struct ngpu_texture **sp);
 
 VkFilter ngpu_vk_get_filter(enum ngpu_filter filter);
 VkImageUsageFlags ngpu_vk_get_image_usage_flags(uint32_t usage);
+VkImageAspectFlags ngpu_vk_get_image_aspect_flags(VkFormat format);
 
 #endif

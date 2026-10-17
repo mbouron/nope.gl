@@ -75,6 +75,7 @@ struct egl_priv {
     EGLAPIENTRY EGLint (*WaitSyncKHR)(EGLDisplay, EGLSyncKHR, EGLint);
 #if defined(TARGET_ANDROID)
     EGLAPIENTRY EGLClientBuffer (*GetNativeClientBufferANDROID)(const struct AHardwareBuffer *);
+    EGLAPIENTRY EGLint (*DupNativeFenceFDANDROID)(EGLDisplay, EGLSyncKHR);
 #endif
     int has_platform_x11_ext;
     int has_platform_mesa_surfaceless_ext;
@@ -133,6 +134,14 @@ EGLClientBuffer ngpu_eglGetNativeClientBufferANDROID(struct glcontext *gl, const
     struct egl_priv *egl = gl->priv_data;
     return egl->GetNativeClientBufferANDROID(buffer);
 }
+
+EGLint ngpu_eglDupNativeFenceFDANDROID(struct glcontext *gl, EGLSyncKHR sync)
+{
+    struct egl_priv *egl = gl->priv_data;
+    if (!egl->DupNativeFenceFDANDROID)
+        return EGL_NO_NATIVE_FENCE_FD_ANDROID;
+    return egl->DupNativeFenceFDANDROID(egl->display, sync);
+}
 #endif
 
 const char *ngpu_eglGetDisplayDriverName(struct glcontext *gl)
@@ -190,6 +199,14 @@ static int egl_probe_extensions(struct glcontext *ctx)
             return NGPU_ERROR_EXTERNAL;
         }
         ctx->features |= NGPU_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER;
+    }
+
+    if (ngpu_glcontext_check_extension("EGL_ANDROID_native_fence_sync", egl->extensions)) {
+        egl->DupNativeFenceFDANDROID = (void *)eglGetProcAddress("eglDupNativeFenceFDANDROID");
+        if (!egl->DupNativeFenceFDANDROID) {
+            LOG(ERROR, "could not retrieve eglDupNativeFenceFDANDROID()");
+            return NGPU_ERROR_EXTERNAL;
+        }
     }
 #endif
 

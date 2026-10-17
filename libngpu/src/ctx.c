@@ -276,9 +276,9 @@ int ngpu_ctx_begin_update(struct ngpu_ctx *s)
     return s->cls->begin_update(s);
 }
 
-int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence)
+int ngpu_ctx_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence, struct ngpu_fence **signal_fencep)
 {
-    return s->cls->end_update(s, wait_fence);
+    return s->cls->end_update(s, wait_fence, signal_fencep);
 }
 
 int ngpu_ctx_begin_draw(struct ngpu_ctx *s)
@@ -446,7 +446,8 @@ void ngpu_ctx_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgroup
     s->bindgroup = bindgroup;
 
     ngpu_assert(bindgroup->layout->nb_dynamic_offsets == nb_offsets);
-    memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
+    if (nb_offsets)
+        memcpy(s->dynamic_offsets, offsets, nb_offsets * sizeof(*s->dynamic_offsets));
     s->nb_dynamic_offsets = nb_offsets;
 
     s->cls->set_bindgroup(s, bindgroup, offsets, nb_offsets);
@@ -533,6 +534,12 @@ int ngpu_fence_wait(struct ngpu_fence *fence)
 int ngpu_fence_is_signaled(struct ngpu_fence *fence)
 {
     return fence->gpu_ctx->cls->fence_is_signaled(fence);
+}
+
+int ngpu_fence_export_sync_file(struct ngpu_fence *fence, int *fdp)
+{
+    *fdp = -1;
+    return fence->gpu_ctx->cls->fence_export_sync_file(fence, fdp);
 }
 
 void ngpu_fence_freep(struct ngpu_fence **sp)

@@ -58,6 +58,13 @@ static const uint64_t import_feature_map[] = {
     [NGPU_IMPORT_TYPE_METAL_TEXTURE]    = NGPU_FEATURE_IMPORT_METAL_TEXTURE_BIT,
 };
 
+uint32_t ngpu_texture_get_mipmap_levels(const struct ngpu_texture_params *params)
+{
+    if (params->mipmap_filter == NGPU_MIPMAP_FILTER_NONE)
+        return 1;
+    return ngpu_log2(params->width | params->height | 1) + 1;
+}
+
 static uint64_t get_memory_size(const struct ngpu_texture_params *params)
 {
     uint32_t depth = params->type == NGPU_TEXTURE_TYPE_3D ? params->depth : 1;
@@ -70,9 +77,7 @@ static uint64_t get_memory_size(const struct ngpu_texture_params *params)
     const uint32_t samples = params->samples ? params->samples : 1;
     const uint64_t bytes_per_pixel = ngpu_format_get_bytes_per_pixel(params->format);
 
-    uint32_t levels = 1;
-    if (params->mipmap_filter != NGPU_MIPMAP_FILTER_NONE)
-        levels = ngpu_log2(params->width | params->height | 1);
+    const uint32_t levels = ngpu_texture_get_mipmap_levels(params);
 
     uint32_t width = params->width;
     uint32_t height = params->height;
