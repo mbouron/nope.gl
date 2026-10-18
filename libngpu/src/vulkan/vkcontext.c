@@ -21,6 +21,8 @@
  */
 
 #include "config.h"
+
+#define VK_ENABLE_BETA_EXTENSIONS 1
 #include <vulkan/vulkan_core.h>
 
 #if defined(TARGET_LINUX)
@@ -301,6 +303,16 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
         }
     }
 
+    VkInstanceCreateFlags instance_flags = 0;
+    static const char *portability_ext = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+    if (ngpu_vkcontext_has_extension(s, portability_ext, 0)) {
+        if (ngpu_darray_try_push(&extensions, portability_ext) < 0) {
+            res = VK_ERROR_OUT_OF_HOST_MEMORY;
+            goto end;
+        }
+        instance_flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    }
+
     static const char *debug_ext = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     const int has_debug_extension = ngpu_vkcontext_has_extension(s, debug_ext, 0);
     if (debug) {
@@ -329,6 +341,7 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
 
     const VkInstanceCreateInfo instance_create_info = {
         .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .flags                   = instance_flags,
         .pApplicationInfo        = &app_info,
         .enabledExtensionCount   = (uint32_t)extensions.count,
         .ppEnabledExtensionNames = extensions.data,
@@ -797,6 +810,7 @@ static VkResult create_device(struct vkcontext *s)
         VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
         VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
         VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
+        VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME,
 #if defined(TARGET_ANDROID)
         VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
         VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME,
