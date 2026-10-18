@@ -31,7 +31,6 @@
 #elif defined(TARGET_WINDOWS)
 # define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
-# include <MoltenVK/mvk_vulkan.h>
 # include "wsi_apple.h"
 #endif
 
@@ -115,8 +114,8 @@ static int has_layer(struct vkcontext *s, const char *name)
 static const char *platform_ext_names[] = {
     [NGPU_PLATFORM_XLIB]    = "VK_KHR_xlib_surface",
     [NGPU_PLATFORM_ANDROID] = "VK_KHR_android_surface",
-    [NGPU_PLATFORM_MACOS]   = "VK_MVK_macos_surface",
-    [NGPU_PLATFORM_IOS]     = "VK_MVK_ios_surface",
+    [NGPU_PLATFORM_MACOS]   = "VK_EXT_metal_surface",
+    [NGPU_PLATFORM_IOS]     = "VK_EXT_metal_surface",
     [NGPU_PLATFORM_WINDOWS] = "VK_KHR_win32_surface",
     [NGPU_PLATFORM_WAYLAND] = "VK_KHR_wayland_surface",
 };
@@ -290,9 +289,6 @@ static VkResult create_instance(struct vkcontext *s, enum ngpu_platform_type pla
     const char *mandatory_extensions[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
         surface_extension_name,
-#if defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_IOS_MVK)
-        "VK_EXT_metal_surface",
-#endif
     };
 
     NGPU_DARRAY(const char *) extensions = {0};
@@ -782,7 +778,7 @@ static VkResult create_device(struct vkcontext *s)
 
     static const char *mandatory_device_extensions[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-#if defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_IOS_MVK)
+#if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
         VK_EXT_METAL_OBJECTS_EXTENSION_NAME,
 #endif
     };
