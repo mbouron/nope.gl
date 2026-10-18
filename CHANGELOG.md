@@ -8,6 +8,66 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Added
+- `ngpu_fence_export_sync_file()` to export a fence as a sync file descriptor
+  for external GPU synchronization
+- `ngpu_texture_vk_release_external()` and `ngpu_texture_vk_acquire_external()`
+  to transfer ownership of imported `AHardwareBuffer` textures to and from
+  their producer
+- BGRA texture sampling with OpenGL ES
+
+### Changed
+- `ngpu_ctx_end_update()` has a new `signal_fencep` argument to retrieve a fence
+  signaled when the update commands complete; use `NULL` if no fence is needed
+- MediaCodec now reuses imported textures
+- The Vulkan backend now aborts on memory allocation failures when tracking
+  command buffer resources or submitting commands
+- Texture uploads now fail if the texture is used by commands that have not
+  been submitted yet
+- NGPU now rejects buffers without GPU usage and OpenGL textures whose
+  format does not support the requested usage
+- OpenGL ES texture readback is now limited to formats whose readback is
+  guaranteed by OpenGL ES
+- The Vulkan backend now uses `VK_EXT_metal_surface` on macOS and iOS instead
+  of the deprecated MoltenVK surface extensions
+- The Vulkan backend now also enumerates portability drivers such as MoltenVK
+
+### Fixed
+- MediaCodec buffers reused by the decoder while still being read by the GPU
+- Imported `AHardwareBuffer` textures losing their content or being released
+  while still in use with Vulkan
+- Incorrect path and `HexagonalBlur` rendering on OpenGL ES devices without
+  32-bit float linear filtering support
+- Slow Vulkan context creation after destroying the last context, caused by
+  repeated glslang initialization
+- Vulkan errors and geometry initialization failures not always reported to
+  the caller
+- Potential hangs when destroying the job queue and crashes when waiting for
+  jobs to complete
+- OpenGL texture readback writing past the end of the user buffer when the row
+  size is not a multiple of 4
+- Vulkan texture layout not restored after readback
+- Texture uploads skipping layers or using the wrong data when `base_layer`
+  is not zero, with OpenGL cube maps and Vulkan
+- Mipmapped textures missing their smallest level
+- Incorrect texture format capabilities reported with OpenGL and OpenGL ES
+- Incorrect handling of depth/stencil and stencil-only textures with Vulkan
+- Vulkan image views created for textures without sampled or storage usage
+- `X8_D24_UNORM_PACK32` incorrectly reported as a stencil format
+- Assertion when querying unsupported OpenGL texture formats
+- Missing `R64_SINT` format support with Vulkan
+- Missing sRGB format sizes and incorrect sRGB texture uploads with OpenGL
+- OpenGL texture cleanup closing standard input after an initialization failure
+  on Linux and Android
+- Out-of-bounds read when checking the OpenGL `invalidate_subdata` extensions
+- Unterminated block comments incorrectly parsed inside shader texture helpers
+- `ngl_texvideo()` evaluating texture coordinates more than once when sampling
+  images with multiple planes
+- Vulkan context creation failing on iOS when the window is a `CAMetalLayer`
+- VideoToolbox frames not displayed on iOS with OpenGL ES and Vulkan
+- Memory leak when displaying VideoToolbox frames with Vulkan on macOS
+- Crash when releasing a media after a failed VideoToolbox frame import with
+  Vulkan on macOS and iOS
 
 ## [2026.4 / libnopegl 0.16.0][2026.4] - 2026-10-13
 ### Added
