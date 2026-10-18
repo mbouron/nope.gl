@@ -19,6 +19,7 @@
  * under the License.
  */
 
-#include <MoltenVK/mvk_vulkan.h>
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_metal.h>
 
 CAMetalLayer *ngpu_window_get_metal_layer(const void *handle);
