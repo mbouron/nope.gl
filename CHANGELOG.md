@@ -8,6 +8,8 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+
+## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added
 - `ngpu_fence_export_sync_file()` to export a fence as a sync file descriptor
   for external GPU synchronization
@@ -645,3 +647,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 [2026.2]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.2
 [2026.3]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.3
 [2026.4]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.4
+[2026.5]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.5
