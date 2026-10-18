@@ -234,8 +234,10 @@ static void vt_darwin_uninit(struct hwmap *hwmap)
     for (size_t i = 0; i < 2; i++)
         ngpu_texture_freep(&vt->planes[i]);
 
-    CVMetalTextureCacheFlush(vt->texture_cache, 0);
-    CFRelease(vt->texture_cache);
+    if (vt->texture_cache) {
+        CVMetalTextureCacheFlush(vt->texture_cache, 0);
+        CFRelease(vt->texture_cache);
+    }
 
     nmd_frame_releasep(&vt->frame);
 }
