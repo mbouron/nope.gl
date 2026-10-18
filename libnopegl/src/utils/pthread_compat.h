@@ -53,6 +53,9 @@ typedef SRWLOCK pthread_mutex_t;
 typedef CONDITION_VARIABLE pthread_cond_t;
 #define PTHREAD_COND_INITIALIZER CONDITION_VARIABLE_INIT
 
+typedef INIT_ONCE pthread_once_t;
+#define PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT
+
 static unsigned __stdcall pthread_compat_worker(void *arg)
 {
     pthread_t *thread = (pthread_t *)arg;
@@ -198,6 +201,25 @@ static inline int pthread_cond_signal(pthread_cond_t *cond)
  */
 static inline int pthread_cond_destroy(pthread_cond_t *cond)
 {
+    return 0;
+}
+
+struct pthread_compat_once_args {
+    void (*init_routine)(void);
+};
+
+static BOOL CALLBACK pthread_compat_once_worker(PINIT_ONCE once, PVOID param, PVOID *context)
+{
+    const struct pthread_compat_once_args *args = (const struct pthread_compat_once_args *)param;
+    args->init_routine();
+    return TRUE;
+}
+
+static inline int pthread_once(pthread_once_t *once_control, void (*init_routine)(void))
+{
+    struct pthread_compat_once_args args = {.init_routine = init_routine};
+    if (!InitOnceExecuteOnce(once_control, pthread_compat_once_worker, &args, NULL))
+        return EINVAL;
     return 0;
 }
 #endif
