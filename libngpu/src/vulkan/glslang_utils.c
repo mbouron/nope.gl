@@ -21,6 +21,7 @@
 
 #include "config.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <glslang/build_info.h>
@@ -33,22 +34,23 @@
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"
 
-static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static int refcount = 0;
+static pthread_once_t init_once = PTHREAD_ONCE_INIT;
+static int init_ret;
+
+static void initialize_process(void)
+{
+    if (!glslang_initialize_process()) {
+        init_ret = NGPU_ERROR_EXTERNAL;
+        return;
+    }
+    /* Avoid rebuilding glslang's symbol tables when contexts are recreated. */
+    atexit(glslang_finalize_process);
+}
 
 int ngpu_glslang_init(void)
 {
-    int ret = 0;
-    pthread_mutex_lock(&lock);
-    if (!refcount++) {
-        if (!glslang_initialize_process()) {
-            refcount--;
-            ret = NGPU_ERROR_EXTERNAL;
-        }
-    }
-    pthread_mutex_unlock(&lock);
-
-    return ret;
+    pthread_once(&init_once, initialize_process);
+    return init_ret;
 }
 
 int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int debug, int emit_nonsemantic_info, void **datap, size_t *sizep)
@@ -166,12 +168,4 @@ int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
     glslang_program_delete(program);
 
     return 0;
-}
-
-void ngpu_glslang_uninit(void)
-{
-    pthread_mutex_lock(&lock);
-    if (refcount && (refcount-- == 1))
-        glslang_finalize_process();
-    pthread_mutex_unlock(&lock);
 }

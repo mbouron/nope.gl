@@ -1366,8 +1366,6 @@ static void vk_destroy(struct ngpu_ctx *s)
     destroy_swapchain(s);
     destroy_query_pool(s);
 
-    ngpu_glslang_uninit();
-
     ngpu_freep(&s_priv->present_modes);
     ngpu_freep(&s_priv->surface_formats);
     if (s_priv->surface)
