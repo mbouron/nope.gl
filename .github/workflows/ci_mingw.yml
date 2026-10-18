@@ -30,6 +30,8 @@ jobs:
           pacman -S --noconfirm --needed git make mingw-w64-ucrt-x86_64-{toolchain,ffmpeg,python,python-pillow,python-numpy,python-jinja,meson,cmake,sdl3}
           # Install vulkan-devel packages explicitely to workaround a conflict between vulkan-utility-libraries and vulkan-validation-layers
           pacman -S --noconfirm --needed  mingw-w64-ucrt-x86_64-{spirv-headers,spirv-tools,vulkan-headers,vulkan-loader,vulkan-validation-layers}
+          # Install Mesa which provides a Vulkan software driver (lavapipe)
+          pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-mesa
           # Prevents random "SSL: CERTIFICATE_VERIFY_FAILED" error with urllib HTTPS calls
           pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-ca-certificates
 
@@ -51,3 +53,27 @@ jobs:
           ngl-python -h
 
           python -c 'import pynopegl, pynopegl_utils'
+
+      - name: Run tests vulkan
+        run: |
+          # Register lavapipe as a Vulkan system driver so the Vulkan loader can find it
+          MSYS2_ARG_CONV_EXCL='*' reg add 'HKLM\SOFTWARE\Khronos\Vulkan\Drivers' \
+            /v "$(cygpath -w /ucrt64/share/vulkan/icd.d/lvp_icd.x86_64.json)" /t REG_DWORD /d 0 /f
+          . venv/bin/ngli-activate
+          ngl-probe -l debug -b vulkan --cap compute
+          make tests-setup
+          meson test -C builddir/tests --timeout-multiplier=3 --suite vulkan
+
+      - name: Upload Logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mingw logs vulkan
+          path: builddir/tests/meson-logs/testlog.txt
+
+      - name: Upload Report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mingw report vulkan
+          path: builddir/tests/report
