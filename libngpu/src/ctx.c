@@ -122,25 +122,24 @@ int ngpu_ctx_params_copy(struct ngpu_ctx_params *dst, const struct ngpu_ctx_para
     struct ngpu_ctx_params tmp = *src;
 
     if (src->backend_params) {
+        size_t size = 0;
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
         if (src->backend == NGPU_BACKEND_OPENGL ||
-            src->backend == NGPU_BACKEND_OPENGLES) {
-            const size_t size = sizeof(struct ngpu_ctx_params_gl);
-            tmp.backend_params = ngpu_try_memdup(src->backend_params, size);
-            if (!tmp.backend_params) {
-                return NGPU_ERROR_MEMORY;
-            }
-            goto done;
-            }
+            src->backend == NGPU_BACKEND_OPENGLES)
+            size = sizeof(struct ngpu_ctx_params_gl);
 #endif
+        if (!size) {
+            LOG(ERROR, "backend_params %p is not supported by backend %u",
+                src->backend_params, src->backend);
+            return NGPU_ERROR_UNSUPPORTED;
+        }
 
-        LOG(ERROR, "backend_params %p is not supported by backend %u",
-            src->backend_params, src->backend);
-        return NGPU_ERROR_UNSUPPORTED;
+        tmp.backend_params = ngpu_try_memdup(src->backend_params, size);
+        if (!tmp.backend_params)
+            return NGPU_ERROR_MEMORY;
     }
 
-    done:
-        *dst = tmp;
+    *dst = tmp;
 
     return 0;
 }

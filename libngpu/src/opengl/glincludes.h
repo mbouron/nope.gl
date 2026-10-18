@@ -25,17 +25,6 @@
 
 #include "config.h"
 
-#ifdef __APPLE__
-# include <TargetConditionals.h>
-# if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
-#  include <OpenGLES/ES3/gl.h>
-#  include <OpenGLES/ES3/glext.h>
-# elif TARGET_OS_MAC
-#  include <OpenGL/gl3.h>
-#  include <OpenGL/glext.h>
-# endif
-#endif
-
 #ifdef __ANDROID__
 # include <GLES3/gl3.h>
 # include <GLES3/gl3ext.h>
@@ -93,9 +82,6 @@ typedef void (NGPU_GL_APIENTRY *GLDEBUGPROC)(GLenum source, GLenum type, GLuint 
 
 /* OES external images */
 # define GL_TEXTURE_EXTERNAL_OES               0x8D65
-
-/* Rectangle textures (macOS) */
-#define GL_TEXTURE_RECTANGLE                   0x84F5
 
 /* Desktop formats and features */
 # define GL_STENCIL_INDEX                      0x1901

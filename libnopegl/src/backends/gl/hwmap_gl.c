@@ -25,18 +25,12 @@
 
 extern const struct hwmap_class ngli_hwmap_mc_gl_class;
 extern const struct hwmap_class ngli_hwmap_vaapi_gl_class;
-extern const struct hwmap_class ngli_hwmap_vt_darwin_gl_class;
-extern const struct hwmap_class ngli_hwmap_vt_ios_gl_class;
 
 const struct hwmap_class *ngli_hwmap_gl_classes[] = {
 #if defined(TARGET_ANDROID)
     &ngli_hwmap_mc_gl_class,
 #elif defined(HAVE_VAAPI)
     &ngli_hwmap_vaapi_gl_class,
-#elif defined(TARGET_DARWIN)
-    &ngli_hwmap_vt_darwin_gl_class,
-#elif defined(TARGET_IPHONE)
-    &ngli_hwmap_vt_ios_gl_class,
 #endif
     NULL
 };

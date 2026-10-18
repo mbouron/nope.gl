@@ -192,7 +192,6 @@ static const int type_flags_map[NGPU_TYPE_NB] = {
     [NGPU_TYPE_BOOL]                        = 0,
     [NGPU_TYPE_SAMPLER_2D]                  = TYPE_FLAG_HAS_PRECISION|TYPE_FLAG_IS_SAMPLER,
     [NGPU_TYPE_SAMPLER_2D_ARRAY]            = TYPE_FLAG_HAS_PRECISION|TYPE_FLAG_IS_SAMPLER,
-    [NGPU_TYPE_SAMPLER_2D_RECT]             = TYPE_FLAG_HAS_PRECISION|TYPE_FLAG_IS_SAMPLER,
     [NGPU_TYPE_SAMPLER_3D]                  = TYPE_FLAG_HAS_PRECISION|TYPE_FLAG_IS_SAMPLER,
     [NGPU_TYPE_SAMPLER_CUBE]                = TYPE_FLAG_HAS_PRECISION|TYPE_FLAG_IS_SAMPLER,
     [NGPU_TYPE_SAMPLER_EXTERNAL_OES]        = TYPE_FLAG_HAS_PRECISION|TYPE_FLAG_IS_SAMPLER,
@@ -210,7 +209,6 @@ static const int type_flags_map[NGPU_TYPE_NB] = {
 static const int type_binding_map[NGPU_TYPE_NB] = {
     [NGPU_TYPE_SAMPLER_2D]                  = NGPU_BINDING_TYPE_TEXTURE,
     [NGPU_TYPE_SAMPLER_2D_ARRAY]            = NGPU_BINDING_TYPE_TEXTURE,
-    [NGPU_TYPE_SAMPLER_2D_RECT]             = NGPU_BINDING_TYPE_TEXTURE,
     [NGPU_TYPE_SAMPLER_3D]                  = NGPU_BINDING_TYPE_TEXTURE,
     [NGPU_TYPE_SAMPLER_CUBE]                = NGPU_BINDING_TYPE_TEXTURE,
     [NGPU_TYPE_SAMPLER_EXTERNAL_OES]        = NGPU_BINDING_TYPE_TEXTURE,
@@ -289,7 +287,7 @@ static const char *get_array_suffix(size_t count, char *buf, size_t len)
 #define GET_ARRAY_SUFFIX(count) get_array_suffix(count, (char[32]){0}, 32)
 
 struct sampler_desc {
-    const char *suffix;          /* GLSL name suffix ("", "_1", "_2", "_oes", "_rect_0", "_rect_1") */
+    const char *suffix;          /* GLSL name suffix ("", "_1", "_2", "_oes") */
     size_t info_offset;          /* offsetof(struct ngpu_pgcraft_texture_info, sampler_*_index) */
     enum ngpu_type types[NGPU_PGCRAFT_TEXTURE_TYPE_NB]; /* sampler type per texture type, NONE if unused */
 };
@@ -331,20 +329,6 @@ static const struct sampler_desc sampler_descs[] = {
             [NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO] = NGPU_TYPE_SAMPLER_EXTERNAL_OES,
         },
     },
-    {
-        .suffix = "_rect_0",
-        .info_offset = offsetof(struct ngpu_pgcraft_texture_info, sampler_rect_0_index),
-        .types = {
-            [NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO] = NGPU_TYPE_SAMPLER_2D_RECT,
-        },
-    },
-    {
-        .suffix = "_rect_1",
-        .info_offset = offsetof(struct ngpu_pgcraft_texture_info, sampler_rect_1_index),
-        .types = {
-            [NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO] = NGPU_TYPE_SAMPLER_2D_RECT,
-        },
-    },
 };
 #define NB_SAMPLER_DESCS NGPU_ARRAY_NB(sampler_descs)
 
@@ -353,9 +337,6 @@ static int is_type_supported(const struct ngpu_pgcraft *s, enum ngpu_type type)
     const struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
 
     switch(type) {
-    case NGPU_TYPE_SAMPLER_2D_RECT:
-        return gpu_ctx->params.backend == NGPU_BACKEND_OPENGL &&
-            NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT);
     case NGPU_TYPE_SAMPLER_EXTERNAL_OES:
     case NGPU_TYPE_SAMPLER_EXTERNAL_2D_Y2Y_EXT:
         return gpu_ctx->params.backend == NGPU_BACKEND_OPENGLES &&
@@ -388,8 +369,6 @@ static int prepare_texture_infos(struct ngpu_pgcraft *s, const struct ngpu_pgcra
             .sampler_1_index      = -1,
             .sampler_2_index      = -1,
             .sampler_oes_index    = -1,
-            .sampler_rect_0_index = -1,
-            .sampler_rect_1_index = -1,
             .metadata_index       = -1,
         };
 
@@ -1091,19 +1070,6 @@ static void inject_texvideo_helpers(struct ngpu_pgcraft *s, struct bstr *b, enum
                                 "        color = texture(%s_oes, coords);\n"
                                 "        break;\n",
                              NGPU_IMAGE_LAYOUT_MEDIACODEC, name);
-        }
-
-        if (NGPU_HAS_ALL_FLAGS(gpu_ctx->features, NGPU_FEATURE_IMPORT_IOSURFACE_BIT)) {
-            ngpu_bstr_printf(b, "    case %d:\n"
-                                "        color = %s_color_matrix * vec4(\n"
-                                "            texture(%s_rect_0, coords * textureSize(%s_rect_0)).r,\n"
-                                "            texture(%s_rect_1, coords * textureSize(%s_rect_1)).rg, 1.0);\n"
-                                "        break;\n",
-                             NGPU_IMAGE_LAYOUT_NV12_RECTANGLE, name, name, name, name, name);
-            ngpu_bstr_printf(b, "    case %d:\n"
-                                "        color = texture(%s_rect_0, coords * textureSize(%s_rect_0));\n"
-                                "        break;\n",
-                             NGPU_IMAGE_LAYOUT_RECTANGLE, name, name);
         }
 
         ngpu_bstr_printf(b, "    case %d:\n"

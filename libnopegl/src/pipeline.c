@@ -315,14 +315,12 @@ static int push_texture_info_block(struct ngli_pipeline *s, struct ngpu_staging_
     return apply_buffer(s, s->texture_infos.block_index, buffer, offset, size);
 }
 
-static void get_image_texture_indices(const struct ngpu_pgcraft_texture_info *info, int32_t indices[6])
+static void get_image_texture_indices(const struct ngpu_pgcraft_texture_info *info, int32_t indices[4])
 {
     indices[0] = info->sampler_index;
     indices[1] = info->sampler_1_index;
     indices[2] = info->sampler_2_index;
     indices[3] = info->sampler_oes_index;
-    indices[4] = info->sampler_rect_0_index;
-    indices[5] = info->sampler_rect_1_index;
 }
 
 /*
@@ -335,9 +333,7 @@ static const int8_t layout_plane_slots[NGLI_NB_IMAGE_LAYOUTS][4] = {
     [NGLI_IMAGE_LAYOUT_DEFAULT]        = { 0, -1, -1, -1},
     [NGLI_IMAGE_LAYOUT_MEDIACODEC]     = { 3, -1, -1, -1},
     [NGLI_IMAGE_LAYOUT_NV12]           = { 0,  1, -1, -1},
-    [NGLI_IMAGE_LAYOUT_NV12_RECTANGLE] = { 4,  5, -1, -1},
     [NGLI_IMAGE_LAYOUT_YUV]            = { 0,  1,  2, -1},
-    [NGLI_IMAGE_LAYOUT_RECTANGLE]      = { 4, -1, -1, -1},
 };
 
 static int update_image_bindings(struct ngli_pipeline *s, int32_t index,
@@ -351,7 +347,7 @@ static int update_image_bindings(struct ngli_pipeline *s, int32_t index,
     const struct ngli_image_params *params = ngli_image_get_params(image);
     const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[index];
 
-    int32_t indices[6];
+    int32_t indices[4];
     get_image_texture_indices(info, indices);
 
     struct ngpu_texture_binding bindings[NGLI_ARRAY_NB(indices)] = {0};
@@ -624,7 +620,7 @@ int ngli_pipeline_set_image_source(struct ngli_pipeline *s, int32_t image_index,
 
     const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[image_index];
     const enum slot_mode expected = s->image_sources[image_index] ? SLOT_IMAGE : SLOT_UNBOUND;
-    int32_t indices[6];
+    int32_t indices[4];
     get_image_texture_indices(info, indices);
     int used = info->metadata_index >= 0 && s->texture_infos.block_index >= 0;
     for (size_t i = 0; i < NGLI_ARRAY_NB(indices); i++) {

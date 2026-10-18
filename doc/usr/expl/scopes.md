@@ -19,10 +19,9 @@ This screenshot comes from the `scopes` scene from the [nope.demos] repository.
 ## Requirements
 
 [ColorStats] relies on compute shaders and SSBO, which are available pretty
-much anywhere nowadays, but there are a few exceptions to keep in mind. MacOS
-OpenGL support is not sufficient and you will need to enable the Metal backend
-(through Vulkan/MoltenVK) to benefit from it. Also, some Android devices
-officially support them, but experience showed that reality begs to disagree.
+much anywhere nowadays, but there are a few exceptions to keep in mind. Some
+Android devices officially support them, but experience showed that reality
+begs to disagree.
 
 So while effort has been made such that [ColorStats] runs as fast as possible
 and on all backends, your mileage may vary.

@@ -289,7 +289,7 @@ int ngpu_rendertarget_gl_init(struct ngpu_rendertarget *s)
 done:;
     struct ngpu_rendertarget *rt = gpu_ctx->rendertarget;
     struct ngpu_rendertarget_gl *rt_gl = NGPU_PRIV_GL(rt);
-    const GLuint fbo = rt_gl ? rt_gl->fbo : ngpu_glcontext_get_default_framebuffer(gl);
+    const GLuint fbo = rt_gl ? rt_gl->fbo : 0;
     gl->funcs.BindFramebuffer(GL_FRAMEBUFFER, fbo);
 
     return ret;
@@ -329,7 +329,7 @@ void ngpu_rendertarget_gl_begin_pass(struct ngpu_rendertarget *s)
      */
     if (gl->backend == NGPU_BACKEND_OPENGL &&
         gl->default_framebuffer_is_srgb &&
-        s_priv->fbo == ngpu_glcontext_get_default_framebuffer(gl)) {
+        s_priv->fbo == 0) {
         gl->funcs.Disable(GL_FRAMEBUFFER_SRGB);
     }
 
@@ -379,7 +379,7 @@ void ngpu_rendertarget_gl_end_pass(struct ngpu_rendertarget *s)
 
     if (gl->backend == NGPU_BACKEND_OPENGL &&
         gl->default_framebuffer_is_srgb &&
-        s_priv->fbo == ngpu_glcontext_get_default_framebuffer(gl)) {
+        s_priv->fbo == 0) {
         gl->funcs.Enable(GL_FRAMEBUFFER_SRGB);
     }
 
