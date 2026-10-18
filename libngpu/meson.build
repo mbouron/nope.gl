@@ -169,13 +169,13 @@ hosts_cfg = {
     'deps': ['x11'],
   },
   'darwin': {
-    'frameworks': ['CoreVideo', 'CoreFoundation', 'AppKit', 'IOSurface'],
+    'frameworks': ['CoreFoundation', 'AppKit'],
   },
   'android': {
     'libs': ['android'],
   },
   'iphone': {
-    'frameworks': ['CoreVideo', 'Foundation', 'UIKit', 'IOSurface'],
+    'frameworks': ['Foundation', 'UIKit'],
   },
 }
 
@@ -285,11 +285,6 @@ gbackends_cfg = {
         'cfg': 'HAVE_GLPLATFORM_EGL',
         'deps': ['gl', 'egl'],
       },
-      'darwin': {
-        'src': files('src/opengl/glcontext_nsgl.m'),
-        'cfg': 'HAVE_GLPLATFORM_NSGL',
-        'frameworks': ['OpenGL'],
-      },
       'windows': {
         'src': files('src/opengl/glcontext_wgl.c'),
         'cfg': 'HAVE_GLPLATFORM_WGL',
@@ -324,11 +319,6 @@ gbackends_cfg = {
         'src': files('src/opengl/glcontext_egl.c'),
         'cfg': 'HAVE_GLPLATFORM_EGL',
         'libs': ['EGL'],
-      },
-      'iphone': {
-        'src': files('src/opengl/glcontext_eagl.m'),
-        'cfg': 'HAVE_GLPLATFORM_EAGL',
-        'frameworks': ['OpenGLES'],
       },
       'windows': {
         'src': files('src/opengl/glcontext_wgl.c'),
@@ -365,7 +355,7 @@ gbackends_cfg = {
         ),
         'deps': ['glslang'],
         'libs': ['MoltenVK'],
-        'frameworks': ['Metal', 'QuartzCore', 'CoreGraphics', 'IOKit'],
+        'frameworks': ['Metal', 'QuartzCore', 'CoreGraphics', 'IOKit', 'IOSurface'],
       },
       'android': {
         'deps': ['vulkan', 'glslang'],
@@ -376,7 +366,7 @@ gbackends_cfg = {
         ),
         'deps': ['glslang'],
         'libs': ['MoltenVK'],
-        'frameworks': ['Metal', 'QuartzCore', 'CoreGraphics'],
+        'frameworks': ['Metal', 'QuartzCore', 'CoreGraphics', 'IOSurface'],
       },
       'windows': {
         'deps': ['vulkan', 'glslang'],
@@ -540,15 +530,6 @@ else
   lib_c_args += '-DUSE_NGPU_STATIC_LIB'
 endif
 
-lib_objc_args = []
-if host_system == 'darwin'
-  lib_c_args += '-DGL_SILENCE_DEPRECATION'
-  lib_objc_args += '-DGL_SILENCE_DEPRECATION'
-elif host_system == 'iphone'
-  lib_c_args += '-DGLES_SILENCE_DEPRECATION'
-  lib_objc_args += '-DGLES_SILENCE_DEPRECATION'
-endif
-
 
 # Create ngpu version data for rc
 ngpu_version_cdata = configuration_data()
@@ -576,7 +557,6 @@ libngpu = library(
   install_rpath: install_rpath,
   version: meson.project_version(),
   c_args: lib_c_args,
-  objc_args: lib_objc_args,
   gnu_symbol_visibility: 'hidden',
   include_directories: inc_dir,
 )

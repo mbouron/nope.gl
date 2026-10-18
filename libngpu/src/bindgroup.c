@@ -126,7 +126,6 @@ static int validate_texture(const struct ngpu_bindgroup_layout *layout, size_t i
         switch (entry->type) {
         case NGPU_TYPE_SAMPLER_2D:
         case NGPU_TYPE_SAMPLER_2D_ARRAY:
-        case NGPU_TYPE_SAMPLER_2D_RECT:
         case NGPU_TYPE_SAMPLER_3D:
         case NGPU_TYPE_SAMPLER_CUBE:
         case NGPU_TYPE_SAMPLER_EXTERNAL_OES:

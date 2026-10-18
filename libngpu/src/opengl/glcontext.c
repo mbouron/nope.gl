@@ -50,14 +50,10 @@ NGPU_STATIC_ASSERT(GL_FALSE == 0 && GL_TRUE == 1,              "GLboolean values
 
 enum {
     GLPLATFORM_EGL,
-    GLPLATFORM_NSGL,
-    GLPLATFORM_EAGL,
     GLPLATFORM_WGL,
 };
 
 extern const struct glcontext_class ngpu_glcontext_egl_class;
-extern const struct glcontext_class ngpu_glcontext_nsgl_class;
-extern const struct glcontext_class ngpu_glcontext_eagl_class;
 extern const struct glcontext_class ngpu_glcontext_wgl_class;
 
 static const struct {
@@ -66,16 +62,6 @@ static const struct {
 #ifdef HAVE_GLPLATFORM_EGL
     [GLPLATFORM_EGL] = {
         .cls = &ngpu_glcontext_egl_class,
-    },
-#endif
-#ifdef HAVE_GLPLATFORM_NSGL
-    [GLPLATFORM_NSGL] = {
-        .cls = &ngpu_glcontext_nsgl_class,
-    },
-#endif
-#ifdef HAVE_GLPLATFORM_EAGL
-    [GLPLATFORM_EAGL] = {
-        .cls = &ngpu_glcontext_eagl_class,
     },
 #endif
 #ifdef HAVE_GLPLATFORM_WGL
@@ -88,8 +74,6 @@ static const struct {
 static const int platform_to_glplatform[] = {
     [NGPU_PLATFORM_XLIB]    = GLPLATFORM_EGL,
     [NGPU_PLATFORM_ANDROID] = GLPLATFORM_EGL,
-    [NGPU_PLATFORM_MACOS]   = GLPLATFORM_NSGL,
-    [NGPU_PLATFORM_IOS]     = GLPLATFORM_EAGL,
     [NGPU_PLATFORM_WINDOWS] = GLPLATFORM_WGL,
     [NGPU_PLATFORM_WAYLAND] = GLPLATFORM_EGL,
 };
@@ -525,12 +509,6 @@ static int glcontext_probe_limits(struct glcontext *glcontext)
     GET(GL_MAX_FRAGMENT_INPUT_COMPONENTS, &limits->max_fragment_input_components);
     GET(GL_MAX_VERTEX_ATTRIBS, &limits->max_vertex_attributes);
     limits->max_vertex_attributes = NGPU_MIN(limits->max_vertex_attributes, NGPU_MAX_VERTEX_BUFFERS);
-    /*
-     * macOS and iOS OpenGL drivers pass gl_VertexID and gl_InstanceID as
-     * standard attributes and forget to count them in GL_MAX_VERTEX_ATTRIBS.
-     */
-    if (glcontext->platform == NGPU_PLATFORM_MACOS || glcontext->platform == NGPU_PLATFORM_IOS)
-        limits->max_vertex_attributes -= 2;
 
     GET(GL_MAX_TEXTURE_IMAGE_UNITS, &limits->max_texture_image_units);
     GET(GL_MAX_TEXTURE_SIZE, &limits->max_texture_dimension_1d);
@@ -658,20 +636,15 @@ static int glcontext_check_default_framebuffer_encoding(struct glcontext *glcont
         return 0;
 
     const int es = glcontext->backend == NGPU_BACKEND_OPENGLES;
-    const GLuint default_fbo = ngpu_glcontext_get_default_framebuffer(glcontext);
-    const GLenum default_color_attachment = default_fbo == 0 ? (es ? GL_BACK : GL_BACK_LEFT) : GL_COLOR_ATTACHMENT0;
+    const GLenum default_color_attachment = es ? GL_BACK : GL_BACK_LEFT;
 
     GLint encoding = GL_LINEAR;
-    glcontext->funcs.BindFramebuffer(GL_FRAMEBUFFER, default_fbo);
+    glcontext->funcs.BindFramebuffer(GL_FRAMEBUFFER, 0);
     glcontext->funcs.GetFramebufferAttachmentParameteriv(
         GL_FRAMEBUFFER, default_color_attachment,
         GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &encoding);
 
     glcontext->default_framebuffer_is_srgb = (encoding == GL_SRGB);
-
-#if defined(TARGET_DARWIN)
-    glcontext->default_framebuffer_is_srgb = 1;
-#endif
 
     return 0;
 }
@@ -866,16 +839,6 @@ void *ngpu_glcontext_get_proc_address(struct glcontext *glcontext, const char *n
     return ptr;
 }
 
-void *ngpu_glcontext_get_texture_cache(struct glcontext *glcontext)
-{
-    void *texture_cache = NULL;
-
-    if (glcontext->cls->get_texture_cache)
-        texture_cache = glcontext->cls->get_texture_cache(glcontext);
-
-    return texture_cache;
-}
-
 uintptr_t ngpu_glcontext_get_display(struct glcontext *glcontext)
 {
     uintptr_t handle = 0;
@@ -894,16 +857,6 @@ uintptr_t ngpu_glcontext_get_handle(struct glcontext *glcontext)
         handle = glcontext->cls->get_handle(glcontext);
 
     return handle;
-}
-
-GLuint ngpu_glcontext_get_default_framebuffer(struct glcontext *glcontext)
-{
-    GLuint fbo = 0;
-
-    if (glcontext->cls->get_default_framebuffer)
-        fbo = glcontext->cls->get_default_framebuffer(glcontext);
-
-    return fbo;
 }
 
 int ngpu_glcontext_check_extension(const char *extension, const char *extensions)

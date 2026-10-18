@@ -415,9 +415,6 @@ gbackends_cfg = {
     'hosts_cfg': {
       'linux': {
       },
-      'darwin': {
-        'src': files('src/backends/gl/hwmap_videotoolbox_darwin_gl.c'),
-      },
       'windows': {
         'cfg': 'HAVE_GLPLATFORM_WGL',
       },
@@ -434,9 +431,6 @@ gbackends_cfg = {
       },
       'android': {
         'src': files('src/backends/gl/hwmap_mediacodec_gl.c'),
-      },
-      'iphone': {
-        'src': files('src/backends/gl/hwmap_videotoolbox_ios_gl.c'),
       },
       'windows': {
         'cfg': 'HAVE_GLPLATFORM_WGL',
@@ -633,15 +627,6 @@ else
   lib_c_args += '-DUSE_NOPEGL_STATIC_LIB'
 endif
 
-lib_objc_args = []
-if host_system == 'darwin'
-  lib_c_args += '-DGL_SILENCE_DEPRECATION'
-  lib_objc_args += '-DGL_SILENCE_DEPRECATION'
-elif host_system == 'iphone'
-  lib_c_args += '-DGLES_SILENCE_DEPRECATION'
-  lib_objc_args += '-DGLES_SILENCE_DEPRECATION'
-endif
-
 
 # Create nopegl version data for rc
 nopegl_version_cdata = configuration_data()
@@ -669,7 +654,6 @@ libnopegl = library(
   install_rpath: install_rpath,
   version: meson.project_version(),
   c_args: lib_c_args,
-  objc_args: lib_objc_args,
   gnu_symbol_visibility: 'hidden',
   include_directories: inc_dir,
 )

@@ -128,7 +128,6 @@ enum ngpu_type {
     NGPU_TYPE_BOOL,
     NGPU_TYPE_SAMPLER_2D,
     NGPU_TYPE_SAMPLER_2D_ARRAY,
-    NGPU_TYPE_SAMPLER_2D_RECT,
     NGPU_TYPE_SAMPLER_3D,
     NGPU_TYPE_SAMPLER_CUBE,
     NGPU_TYPE_SAMPLER_EXTERNAL_OES,
@@ -465,8 +464,6 @@ enum ngpu_import_type {
     NGPU_IMPORT_TYPE_NONE,
     NGPU_IMPORT_TYPE_DMA_BUF,
     NGPU_IMPORT_TYPE_AHARDWARE_BUFFER,
-    NGPU_IMPORT_TYPE_IOSURFACE,
-    NGPU_IMPORT_TYPE_COREVIDEO_BUFFER,
     NGPU_IMPORT_TYPE_METAL_TEXTURE,
     NGPU_IMPORT_TYPE_OPENGL_TEXTURE,
 };
@@ -486,16 +483,6 @@ struct ngpu_import_ahardware_buffer_params {
     int acquire_fence_fd;
 };
 
-struct ngpu_import_iosurface_params {
-    void *iosurface; // IOSurfaceRef
-    uint32_t plane;
-};
-
-struct ngpu_import_corevideo_buffer_params {
-    void *corevideo_buffer; // CVPixelBufferRef
-    uint32_t plane;
-};
-
 struct ngpu_import_metal_texture_params {
     void *metal_texture; // MTLTexture
 };
@@ -510,8 +497,6 @@ struct ngpu_import_params {
     union {
         struct ngpu_import_dma_buf_params dma_buf;
         struct ngpu_import_ahardware_buffer_params ahardware_buffer;
-        struct ngpu_import_iosurface_params iosurface;
-        struct ngpu_import_corevideo_buffer_params corevideo_buffer;
         struct ngpu_import_metal_texture_params metal_texture;
         struct ngpu_import_opengl_texture_params opengl_texture;
     };
@@ -994,8 +979,6 @@ enum {
     NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT             = 1U << 3,
     NGPU_FEATURE_IMPORT_DMA_BUF_BIT                    = 1U << 4,
     NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT           = 1U << 5,
-    NGPU_FEATURE_IMPORT_IOSURFACE_BIT                  = 1U << 6,
-    NGPU_FEATURE_IMPORT_COREVIDEO_BUFFER_BIT           = 1U << 7,
     NGPU_FEATURE_IMPORT_METAL_TEXTURE_BIT              = 1U << 8,
     NGPU_FEATURE_IMPORT_OPENGL_TEXTURE_BIT             = 1U << 9,
     NGPU_FEATURE_MAX_ENUM                              = 0x7FFFFFFF,
@@ -1125,9 +1108,7 @@ enum ngpu_image_layout {
     NGPU_IMAGE_LAYOUT_DEFAULT        = 1,
     NGPU_IMAGE_LAYOUT_MEDIACODEC     = 2,
     NGPU_IMAGE_LAYOUT_NV12           = 3,
-    NGPU_IMAGE_LAYOUT_NV12_RECTANGLE = 4,
     NGPU_IMAGE_LAYOUT_YUV            = 5,
-    NGPU_IMAGE_LAYOUT_RECTANGLE      = 6,
     NGPU_IMAGE_LAYOUT_NB,
     NGPU_IMAGE_LAYOUT_MAX_ENUM       = 0x7FFFFFFF,
 };
@@ -1150,8 +1131,6 @@ struct ngpu_pgcraft_texture_info {
     int32_t sampler_1_index;        /* secondary plane (NV12/YUV) */
     int32_t sampler_2_index;        /* third plane (YUV) */
     int32_t sampler_oes_index;      /* Android MediaCodec external OES */
-    int32_t sampler_rect_0_index;   /* macOS IOSurface rectangle plane 0 */
-    int32_t sampler_rect_1_index;   /* macOS IOSurface rectangle plane 1 */
     /* Index in the shared metadata array, -1 if no_metadata is set. */
     int32_t metadata_index;
 };

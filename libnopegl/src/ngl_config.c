@@ -59,26 +59,26 @@ int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src)
     }
 
     if (src->backend_config) {
+        size_t size = 0;
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
         if (src->backend == NGL_BACKEND_OPENGL ||
-            src->backend == NGL_BACKEND_OPENGLES) {
-            const size_t size = sizeof(struct ngl_config_gl);
-            tmp.backend_config = ngli_try_memdup(src->backend_config, size);
-            if (!tmp.backend_config) {
-                ngli_freep((char **)&tmp.hud_export_filename);
-                return NGL_ERROR_MEMORY;
-            }
-            goto done;
-        }
+            src->backend == NGL_BACKEND_OPENGLES)
+            size = sizeof(struct ngl_config_gl);
 #endif
+        if (!size) {
+            ngli_freep((char **)&tmp.hud_export_filename);
+            LOG(ERROR, "backend_config %p is not supported by backend %u",
+                src->backend_config, src->backend);
+            return NGL_ERROR_UNSUPPORTED;
+        }
 
-        ngli_freep((char **)&tmp.hud_export_filename);
-        LOG(ERROR, "backend_config %p is not supported by backend %u",
-            src->backend_config, src->backend);
-        return NGL_ERROR_UNSUPPORTED;
+        tmp.backend_config = ngli_try_memdup(src->backend_config, size);
+        if (!tmp.backend_config) {
+            ngli_freep((char **)&tmp.hud_export_filename);
+            return NGL_ERROR_MEMORY;
+        }
     }
 
-done:
     *dst = tmp;
 
     return 0;

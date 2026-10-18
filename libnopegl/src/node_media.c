@@ -168,17 +168,6 @@ static void callback_nopemd_log(void *arg, int level, const char *filename, int 
     va_end(vl_copy);
 }
 
-#if defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
-static const char *get_default_vt_pix_fmts(enum ngl_backend_type backend)
-{
-    /* OpenGLES 3.0 (iOS) does not support 16-bit texture formats */
-    if (backend == NGL_BACKEND_OPENGLES)
-        return "nv12";
-
-    return "nv12,p010";
-}
-#endif
-
 #if defined(TARGET_ANDROID)
 static int init_android_surface(struct android_ctx *ctx, struct android_surface_compat *surface)
 {
@@ -283,10 +272,9 @@ static int media_prefetch(struct ngl_node *node)
         return ret;
     nmd_set_option(s->player, "opaque", &s->android_surface.surface_handle);
 #elif defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
-    const struct ngl_config *config = &ctx->config;
     const char *vt_pix_fmt = o->vt_pix_fmt;
     if (!strcmp(o->vt_pix_fmt, "auto"))
-        vt_pix_fmt = get_default_vt_pix_fmts(config->backend);
+        vt_pix_fmt = "nv12,p010";
     nmd_set_option(s->player, "vt_pix_fmt", vt_pix_fmt);
 #elif defined(HAVE_VAAPI)
     struct vaapi_ctx *vaapi_ctx = &ctx->vaapi_ctx;

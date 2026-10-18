@@ -34,9 +34,7 @@
 #include "nopegl/nopegl_android.h"
 #endif
 
-#if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "nopegl/nopegl_opengl.h"
-#endif
 
 struct customtexture_opts {
     void *user_data;
@@ -293,7 +291,7 @@ static int import_texture_gl(struct ngl_node *node, const struct ngl_custom_text
     return 0;
 }
 #else
-static int import_texture_gl(struct ngl_node *node, struct ngl_custom_texture_info *info)
+static int import_texture_gl(struct ngl_node *node, const struct ngl_custom_texture_info_gl *info)
 {
     return NGL_ERROR_UNSUPPORTED;
 }

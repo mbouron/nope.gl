@@ -92,8 +92,6 @@ static int create_rendertarget(struct ngpu_ctx *s,
                                struct ngpu_texture *depth_stencil,
                                struct ngpu_rendertarget **rendertargetp)
 {
-    struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
-    struct glcontext *gl = s_priv->glcontext;
     const struct ngpu_ctx_params *ctx_params = &s->params;
 
     struct ngpu_rendertarget *rendertarget = ngpu_rendertarget_create(s);
@@ -125,8 +123,7 @@ static int create_rendertarget(struct ngpu_ctx *s,
     if (color) {
         ret = ngpu_rendertarget_init(rendertarget, &params);
     } else {
-        const GLuint default_fbo = ngpu_glcontext_get_default_framebuffer(gl);
-        ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, default_fbo);
+        ret = ngpu_rendertarget_gl_wrap(rendertarget, &params, 0);
     }
     if (ret < 0) {
         ngpu_rendertarget_freep(&rendertarget);
@@ -367,11 +364,6 @@ static void ngpu_ctx_info_init(struct ngpu_ctx *s)
         if (NGPU_HAS_ALL_FLAGS(gl->features, feature_gl))
             s->features |= feature;
     }
-    if (s->params.platform == NGPU_PLATFORM_MACOS)
-        s->features |= NGPU_FEATURE_IMPORT_IOSURFACE_BIT;
-
-    if (s->params.platform == NGPU_PLATFORM_IOS)
-        s->features |= NGPU_FEATURE_IMPORT_COREVIDEO_BUFFER_BIT;
 
     s->features |= NGPU_FEATURE_IMPORT_OPENGL_TEXTURE_BIT;
 
@@ -574,13 +566,6 @@ static int gl_resize(struct ngpu_ctx *s, uint32_t width, uint32_t height)
     s_priv->default_rt->width = gl->width;
     s_priv->default_rt->height = gl->height;
 
-    /*
-    * The default framebuffer id can change after a resize operation on EAGL,
-    * thus we need to update the rendertargets wrapping the default framebuffer
-    */
-    struct ngpu_rendertarget_gl *rt_gl = NGPU_PRIV_GL(s_priv->default_rt);
-    rt_gl->fbo = ngpu_glcontext_get_default_framebuffer(gl);
-
     return 0;
 }
 
@@ -660,11 +645,7 @@ static int gl_begin_draw(struct ngpu_ctx *s)
     const struct ngpu_ctx_params *ctx_params = &s->params;
 
     if (ctx_params->timer_queries)
-#if defined(TARGET_DARWIN)
-        gl->timer_funcs.BeginQuery(GL_TIME_ELAPSED, s_priv->queries[0]);
-#else
         gl->timer_funcs.QueryCounter(s_priv->queries[0], GL_TIMESTAMP);
-#endif
 
     if (ctx_params->offscreen && s_priv->rts)
         s_priv->default_rt = s_priv->rts[s->current_frame_index];
@@ -760,12 +741,6 @@ static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
     if (ret < 0)
         return ret;
 
-#if defined(TARGET_DARWIN)
-    GLuint64 time_elapsed = 0;
-    gl->timer_funcs.EndQuery(GL_TIME_ELAPSED);
-    gl->timer_funcs.GetQueryObjectui64v(s_priv->queries[0], GL_QUERY_RESULT, &time_elapsed);
-    *time = (int64_t)time_elapsed;
-#else
     gl->timer_funcs.QueryCounter(s_priv->queries[1], GL_TIMESTAMP);
 
     GLuint64 start_time = 0;
@@ -775,7 +750,6 @@ static int gl_query_draw_time(struct ngpu_ctx *s, int64_t *time)
     gl->timer_funcs.GetQueryObjectui64v(s_priv->queries[1], GL_QUERY_RESULT, &end_time);
 
     *time = (int64_t)(end_time - start_time);
-#endif
     ret = ngpu_cmd_buffer_gl_begin(cmd_buffer);
     if (ret < 0)
         return ret;

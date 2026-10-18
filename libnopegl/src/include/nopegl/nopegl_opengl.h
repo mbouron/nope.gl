@@ -27,8 +27,8 @@
 
 struct ngl_config_gl {
     /*
-     * Native OpenGL context handle (EGLContext, HGLRC, NSOpenGLContext, or
-     * EAGLContext, depending on the platform), or zero.
+     * Native OpenGL context handle (EGLContext or HGLRC, depending on the
+     * platform), or zero.
      *
      * If nonzero, the OpenGL context created by nope.gl shares all shareable
      * data, as defined by the client API, with the specified context and the

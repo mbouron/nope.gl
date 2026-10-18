@@ -43,16 +43,6 @@
 #include "egl.h"
 #endif
 
-#if defined(TARGET_DARWIN)
-#include <CoreVideo/CoreVideo.h>
-#include <IOSurface/IOSurface.h>
-#include <OpenGL/CGLIOSurface.h>
-#endif
-
-#if defined(TARGET_IPHONE)
-#include <CoreVideo/CoreVideo.h>
-#endif
-
 #include <string.h>
 
 
@@ -333,8 +323,6 @@ static int texture_init_fields(struct ngpu_texture *s, const struct ngpu_texture
 
     if (params->import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER)
         s_priv->target = GL_TEXTURE_EXTERNAL_OES;
-    if (params->import_params.type == NGPU_IMPORT_TYPE_IOSURFACE)
-        s_priv->target = GL_TEXTURE_RECTANGLE;
 
     const struct ngpu_format_gl *format_gl = ngpu_format_get_gl_texture_format(gl, params->format);
     s_priv->format          = format_gl->format;
@@ -511,111 +499,6 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
 #endif
 }
 
-static int texture_import_iosurface(struct ngpu_texture *s)
-{
-#if defined(TARGET_DARWIN)
-    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
-    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
-
-    const struct ngpu_import_params *import_params = &s->params.import_params;
-    const struct ngpu_import_iosurface_params *iosurface_params = &import_params->iosurface;
-    IOSurfaceRef surface = iosurface_params->iosurface;
-    size_t index = iosurface_params->plane;
-
-    /* CGLTexImageIOSurface2D() requires GL_UNSIGNED_INT_8_8_8_8_REV instead of GL_UNSIGNED_SHORT to map BGRA IOSurface2D */
-    const GLenum format_type = s_priv->format == GL_BGRA ? GL_UNSIGNED_INT_8_8_8_8_REV : s_priv->format_type;
-
-    gl->funcs.BindTexture(GL_TEXTURE_RECTANGLE, s_priv->texture);
-    CGLError err = CGLTexImageIOSurface2D(CGLGetCurrentContext(), GL_TEXTURE_RECTANGLE,
-                                          s_priv->internal_format, (GLsizei)s->params.width, (GLsizei)s->params.height,
-                                          s_priv->format, format_type, surface, (GLuint)index);
-    if (err != kCGLNoError) {
-        LOG(ERROR, "could not bind IOSurface plane %zu to texture %u: %s", index, s_priv->texture, CGLErrorString(err));
-        return NGPU_ERROR_EXTERNAL;
-    }
-
-    gl->funcs.BindTexture(GL_TEXTURE_RECTANGLE, 0);
-
-    return 0;
-#else
-    return NGPU_ERROR_UNSUPPORTED;
-#endif
-}
-
-static int texture_import_corevideo_buffer(struct ngpu_texture *s)
-{
-#if defined(TARGET_IPHONE)
-    struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
-    struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
-    struct glcontext *gl = gpu_ctx_gl->glcontext;
-
-    const struct ngpu_import_params *import_params = &s->params.import_params;
-    const struct ngpu_import_corevideo_buffer_params *cv_buffer_params = &import_params->corevideo_buffer;
-    CVPixelBufferRef cv_pixel_buffer = cv_buffer_params->corevideo_buffer;
-    size_t index = cv_buffer_params->plane;
-
-    const int is_planar = CVPixelBufferIsPlanar(cv_pixel_buffer);
-    if (!is_planar && index != 0)
-        return NGPU_ERROR_INVALID_ARG;
-
-    const size_t width = is_planar
-        ? CVPixelBufferGetWidthOfPlane(cv_pixel_buffer, index)
-        : CVPixelBufferGetWidth(cv_pixel_buffer);
-    const size_t height = is_planar
-        ? CVPixelBufferGetHeightOfPlane(cv_pixel_buffer, index)
-        : CVPixelBufferGetHeight(cv_pixel_buffer);
-    if (width > INT_MAX || height > INT_MAX)
-        return NGPU_ERROR_LIMIT_EXCEEDED;
-
-    /* CoreVideo imports BGRA buffers directly. */
-    if (gl->formats[s->params.format].swizzle_bgra)
-        s_priv->format = GL_BGRA;
-
-    CVOpenGLESTextureCacheRef *cache = ngpu_glcontext_get_texture_cache(gl);
-    CVReturn err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
-                                                                *cache,
-                                                                cv_pixel_buffer,
-                                                                NULL,
-                                                                GL_TEXTURE_2D,
-                                                                (GLint)s_priv->internal_format,
-                                                                (GLsizei)width,
-                                                                (GLsizei)height,
-                                                                s_priv->format,
-                                                                s_priv->format_type,
-                                                                index,
-                                                                &s_priv->cv_texture);
-    if (err != noErr) {
-        LOG(ERROR, "could not create CoreVideo texture from image: %d", err);
-        return NGPU_ERROR_EXTERNAL;
-    }
-
-    s_priv->cv_pixel_buffer = CFRetain(cv_pixel_buffer);
-
-    /* Delete pre-allocated texture handle */
-    gl->funcs.DeleteTextures(1, &s_priv->texture);
-
-    s_priv->texture = CVOpenGLESTextureGetName(s_priv->cv_texture);
-    s_priv->wrapped = 1;
-
-    gl->funcs.BindTexture(GL_TEXTURE_2D, s_priv->texture);
-    const GLint min_filter = ngpu_texture_get_gl_min_filter(s->params.min_filter, s->params.mipmap_filter);
-    const GLint mag_filter = ngpu_texture_get_gl_mag_filter(s->params.mag_filter);
-    const GLint wrap_s = ngpu_texture_get_gl_wrap(s->params.wrap_s);
-    const GLint wrap_t = ngpu_texture_get_gl_wrap(s->params.wrap_t);
-    gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_MIN_FILTER, min_filter);
-    gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_MAG_FILTER, mag_filter);
-    gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_WRAP_S, wrap_s);
-    gl->funcs.TexParameteri(s_priv->target, GL_TEXTURE_WRAP_T, wrap_t);
-    gl->funcs.BindTexture(GL_TEXTURE_2D, 0);
-
-    return 0;
-#else
-    return NGPU_ERROR_UNSUPPORTED;
-#endif
-}
-
 static int texture_import_opengl_texture(struct ngpu_texture *s)
 {
     struct ngpu_texture_gl *s_priv = NGPU_PRIV_GL(s);
@@ -708,12 +591,6 @@ int ngpu_texture_gl_import(struct ngpu_texture *s, const struct ngpu_texture_par
         break;
     case NGPU_IMPORT_TYPE_AHARDWARE_BUFFER:
         ret = texture_import_android_hardware_buffer(s);
-        break;
-    case NGPU_IMPORT_TYPE_IOSURFACE:
-        ret = texture_import_iosurface(s);
-        break;
-    case NGPU_IMPORT_TYPE_COREVIDEO_BUFFER:
-        ret = texture_import_corevideo_buffer(s);
         break;
     case NGPU_IMPORT_TYPE_OPENGL_TEXTURE:
         ret = texture_import_opengl_texture(s);
@@ -925,13 +802,6 @@ void ngpu_texture_gl_freep(struct ngpu_texture **sp)
 
     if (s_priv->fd != -1)
         close(s_priv->fd);
-#endif
-
-#if defined(TARGET_IPHONE)
-    if (s_priv->cv_pixel_buffer)
-        CFRelease(s_priv->cv_pixel_buffer);
-    if (s_priv->cv_texture)
-        CFRelease(s_priv->cv_texture);
 #endif
 
     ngpu_freep(sp);

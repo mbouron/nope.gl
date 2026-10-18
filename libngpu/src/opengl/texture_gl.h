@@ -29,10 +29,6 @@
 #include "egl.h"
 #endif
 
-#if defined(TARGET_IPHONE)
-#include <CoreVideo/CoreVideo.h>
-#endif
-
 #include "opengl/cmd_buffer_gl.h"
 #include "opengl/glincludes.h"
 #include "texture.h"
@@ -56,11 +52,6 @@ struct ngpu_texture_gl {
 #if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
     EGLImageKHR egl_image;
     int fd;
-#endif
-
-#if defined(TARGET_IPHONE)
-    CVPixelBufferRef cv_pixel_buffer;
-    CVOpenGLESTextureRef cv_texture;
 #endif
 
     GLuint readback_texture;

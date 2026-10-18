@@ -46,9 +46,7 @@ static const size_t nb_planes_map[] = {
     [NGLI_IMAGE_LAYOUT_DEFAULT]        = 1,
     [NGLI_IMAGE_LAYOUT_MEDIACODEC]     = 1,
     [NGLI_IMAGE_LAYOUT_NV12]           = 2,
-    [NGLI_IMAGE_LAYOUT_NV12_RECTANGLE] = 2,
     [NGLI_IMAGE_LAYOUT_YUV]            = 3,
-    [NGLI_IMAGE_LAYOUT_RECTANGLE]      = 1,
 };
 
 NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(nb_planes_map) == NGLI_NB_IMAGE_LAYOUTS, "nb planes map");
@@ -82,9 +80,7 @@ bool ngli_image_color_cache_update(struct ngli_image_color_cache *s, enum ngli_i
     s->color_info = *color_info;
     s->color_scale = color_scale;
     s->color_matrix = empty_image.params.color_matrix;
-    if (layout == NGLI_IMAGE_LAYOUT_NV12 ||
-        layout == NGLI_IMAGE_LAYOUT_NV12_RECTANGLE ||
-        layout == NGLI_IMAGE_LAYOUT_YUV)
+    if (layout == NGLI_IMAGE_LAYOUT_NV12 || layout == NGLI_IMAGE_LAYOUT_YUV)
         s->color_matrix = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(color_info, color_scale);
     s->mapping_color_matrix = layout == NGLI_IMAGE_LAYOUT_NONE ? (struct ngli_mat4){0}
         : ngli_colorconv_get_mapping_color_matrix(color_info, NMD_COL_PRI_BT709);
