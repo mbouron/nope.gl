@@ -8,6 +8,10 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Added
+- The Android package exports FFmpeg and nope.media through Prefab (`nopegl`),
+  so other native modules can use the bundled headers and libraries
+
 ### Removed
 - OpenGL/ES backend support on macOS, iOS and Windows
 
