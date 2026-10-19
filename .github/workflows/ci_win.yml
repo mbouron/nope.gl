@@ -41,6 +41,14 @@ jobs:
           iwr https://sdk.lunarg.com/sdk/download/${{env.VULKAN_SDK_VERSION}}/windows/VulkanRT-X64-${{env.VULKAN_SDK_VERSION}}-Installer.exe -OutFile VulkanRT-Installer.exe
           .\VulkanRT-Installer.exe /S | Out-Null
 
+      # Install Mesa which provides a Vulkan software driver (lavapipe)
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: ucrt64
+          update: true
+          install: mingw-w64-ucrt-x86_64-mesa
+
       - name: Build (${{matrix.build_backend}})
         run: |
           $Env:VULKAN_SDK = "C:/VulkanSDK/${{env.VULKAN_SDK_VERSION}}"
@@ -66,3 +74,29 @@ jobs:
           bash -l -c "ldd python/pynopegl/_pynopegl.*.pyd"
 
           python.exe -c "import pynopegl, pynopegl_utils"
+
+      - name: Run tests vulkan
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          # Register lavapipe as a Vulkan system driver so the Vulkan loader can find it
+          reg add HKLM\SOFTWARE\Khronos\Vulkan\Drivers /v "${{steps.msys2.outputs.msys2-location}}\ucrt64\share\vulkan\icd.d\lvp_icd.x86_64.json" /t REG_DWORD /d 0 /f
+          $Env:VULKAN_SDK = "C:/VulkanSDK/${{env.VULKAN_SDK_VERSION}}"
+          .\scripts\msvc-env.ps1
+          .\venv\Scripts\ngli-activate.ps1
+          ngl-probe.exe -l debug -b vulkan --cap compute
+          nmake tests-setup
+          meson test -C builddir\tests --timeout-multiplier=3 --suite vulkan
+
+      - name: Upload Logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows logs vulkan
+          path: builddir/tests/meson-logs/testlog.txt
+
+      - name: Upload Report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows report vulkan
+          path: builddir/tests/report
