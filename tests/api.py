@@ -1476,7 +1476,7 @@ def api_get_backend():
     specific so tricky to test its output
     """
     ctx = ngl.Context()
-    cfg = ngl.Config(offscreen=True, width=32, height=32, backend=ngl.Backend.AUTO)
+    cfg = ngl.Config(offscreen=True, width=32, height=32, backend=_backend)
     try:
         backend = ctx.get_backend()
     except Exception:
@@ -1487,8 +1487,11 @@ def api_get_backend():
     assert ret == 0
     backend = ctx.get_backend()
     assert isinstance(backend["id"], ngl.Backend)
-    assert backend["id"] != ngl.Backend.AUTO
-    assert backend["is_default"] == True
+    if _backend == ngl.Backend.AUTO:
+        assert backend["id"] != ngl.Backend.AUTO
+        assert backend["is_default"] == True
+    else:
+        assert backend["id"] == _backend
     assert backend["caps"]
     pprint.pprint(backend)
 
