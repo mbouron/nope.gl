@@ -9,10 +9,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
 ### Removed
-- OpenGL/ES backend support on macOS and iOS
+- OpenGL/ES backend support on macOS, iOS and Windows
 
 ### Changed
-- Vulkan is now the default backend on macOS and iOS
+- Vulkan is now the default backend on macOS, iOS and Windows
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added

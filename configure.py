@@ -211,18 +211,6 @@ _EXTERNAL_DEPS = dict(
         dst_file="nope.media-@VERSION@.tar.gz",
         sha256="fb8dd91282f1a60ea1375edfbb5879783a2df1a9a33c2165f59f5ea5b4e0aa27",
     ),
-    egl_registry=dict(
-        version="9ab6036",
-        url="https://github.com/KhronosGroup/EGL-Registry/archive/@VERSION@.zip",
-        dst_file="egl-registry-@VERSION@.zip",
-        sha256="b981b5a250d4f10284c670ae89f4a43c9eac42adca65306e5d56b921f609c46b",
-    ),
-    opengl_registry=dict(
-        version="d0342a4",
-        url="https://github.com/KhronosGroup/OpenGL-Registry/archive/@VERSION@.zip",
-        dst_file="opengl-registry-@VERSION@.zip",
-        sha256="8e6efa8d9ec5ef1b2c735b2fc2afdfed210a3a5aa01c48e572326914e27bb221",
-    ),
     sdl3_Windows=dict(
         version="3.4.8",
         url="https://github.com/libsdl-org/SDL/releases/download/release-@VERSION@/SDL3-devel-@VERSION@-VC.zip",
@@ -315,8 +303,6 @@ def _get_external_deps(args):
         deps.append("fribidi")
     elif host == "Windows":
         deps.append("pkgconf")
-        deps.append("egl_registry")
-        deps.append("opengl_registry")
         deps.append("ffmpeg_Windows")
         deps.append("sdl3_Windows")
         deps.append("freetype")
@@ -513,38 +499,6 @@ def _pkgconf_install(cfg):
     pkgconf_exe = op.join(cfg.bin_path, "pkgconf.exe")
     pkgconfig_exe = op.join(cfg.bin_path, "pkg-config.exe")
     return ret + [f"copy {pkgconf_exe} {pkgconfig_exe}"]
-
-
-@_block("egl-registry-install", [])
-def _egl_registry_install(cfg):
-    dirs = (
-        "EGL",
-        "KHR",
-    )
-    cmds = []
-    for d in dirs:
-        src = op.join(cfg.externals["egl_registry"], "api", d)
-        dst = op.join(cfg.prefix, "Include", d)
-        cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y", "/i"))
-    return cmds
-
-
-@_block("opengl-registry-install", [])
-def _opengl_registry_install(cfg):
-    dirs = (
-        "GL",
-        "GLES",
-        "GLES2",
-        "GLES3",
-        "GLSC",
-        "GLSC2",
-    )
-    cmds = []
-    for d in dirs:
-        src = op.join(cfg.externals["opengl_registry"], "api", d)
-        dst = op.join(cfg.prefix, "Include", d)
-        cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y", "/i"))
-    return cmds
 
 
 @_block("boringssl-setup", [])
@@ -1003,8 +957,6 @@ def _fribidi_install(cfg):
             _xxhash_install,
         ],
         "Windows": [
-            _egl_registry_install,
-            _opengl_registry_install,
             _glslang_install,
             _xxhash_install,
         ],
@@ -1098,8 +1050,6 @@ def _ngpu_install(cfg):
         "Windows": [
             _nopemd_install,
             _sdl3_install,
-            _egl_registry_install,
-            _opengl_registry_install,
             _glslang_install,
             _xxhash_install,
             _freetype_install,
