@@ -36,18 +36,7 @@
 # include <GL/glext.h>
 #endif
 
-#ifdef _WIN32
-# include <Windows.h>
-# include <GL/gl.h>
-# include <GL/glcorearb.h>
-# include <GL/glext.h>
-#endif
-
-#ifdef _WIN32
-#define NGPU_GL_APIENTRY WINAPI
-#else
 #define NGPU_GL_APIENTRY
-#endif
 
 #ifndef GL_OES_EGL_image
 typedef void* GLeglImageOES;

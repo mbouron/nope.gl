@@ -57,7 +57,7 @@ building and running the complete `nope.gl` stack.
 - Install [LLVM][llvm] using the Windows Installer and make sure to select the
   option to add LLVM to the system `PATH` during its installation (it provides
   the `clang-cl` compiler and the `lld-link` linker)
-- Install [VulkanSDK][vksdk] (optional)
+- Install [VulkanSDK][vksdk]
 - To be allowed to run the build scripts, you will need to run this once in an
   administrator Powershell: `Set-ExecutionPolicy RemoteSigned`
 - In a Powershell (as user), in the `nope.gl` sources, run

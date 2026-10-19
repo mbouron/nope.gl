@@ -285,11 +285,6 @@ gbackends_cfg = {
         'cfg': 'HAVE_GLPLATFORM_EGL',
         'deps': ['gl', 'egl'],
       },
-      'windows': {
-        'src': files('src/opengl/glcontext_wgl.c'),
-        'cfg': 'HAVE_GLPLATFORM_WGL',
-        'libs': ['OpenGL32', 'gdi32'],
-      },
     },
   },
   'gles': {
@@ -319,11 +314,6 @@ gbackends_cfg = {
         'src': files('src/opengl/glcontext_egl.c'),
         'cfg': 'HAVE_GLPLATFORM_EGL',
         'libs': ['EGL'],
-      },
-      'windows': {
-        'src': files('src/opengl/glcontext_wgl.c'),
-        'cfg': 'HAVE_GLPLATFORM_WGL',
-        'libs': ['OpenGL32', 'gdi32'],
       },
     },
   },
@@ -489,9 +479,6 @@ foreach gbackend_name, gbackend_cfg : gbackends_cfg
     endif
     gbackend_deps += dep
   endforeach
-  if host_system == 'windows' and gbackend_name in ['gl', 'gles']
-    gbackend_deps += declare_dependency(include_directories: extra_include_dirs)
-  endif
   if 'frameworks' in host_backend_cfg
     gbackend_deps += dependency('appleframeworks', modules: host_backend_cfg.get('frameworks'), required: opt_gbackend)
   endif

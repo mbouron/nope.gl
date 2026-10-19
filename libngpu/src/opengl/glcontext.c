@@ -50,11 +50,9 @@ NGPU_STATIC_ASSERT(GL_FALSE == 0 && GL_TRUE == 1,              "GLboolean values
 
 enum {
     GLPLATFORM_EGL,
-    GLPLATFORM_WGL,
 };
 
 extern const struct glcontext_class ngpu_glcontext_egl_class;
-extern const struct glcontext_class ngpu_glcontext_wgl_class;
 
 static const struct {
     const struct glcontext_class *cls;
@@ -64,17 +62,11 @@ static const struct {
         .cls = &ngpu_glcontext_egl_class,
     },
 #endif
-#ifdef HAVE_GLPLATFORM_WGL
-    [GLPLATFORM_WGL] = {
-        .cls = &ngpu_glcontext_wgl_class,
-    },
-#endif
 };
 
 static const int platform_to_glplatform[] = {
     [NGPU_PLATFORM_XLIB]    = GLPLATFORM_EGL,
     [NGPU_PLATFORM_ANDROID] = GLPLATFORM_EGL,
-    [NGPU_PLATFORM_WINDOWS] = GLPLATFORM_WGL,
     [NGPU_PLATFORM_WAYLAND] = GLPLATFORM_EGL,
 };
 

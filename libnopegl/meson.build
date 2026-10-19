@@ -415,9 +415,6 @@ gbackends_cfg = {
     'hosts_cfg': {
       'linux': {
       },
-      'windows': {
-        'cfg': 'HAVE_GLPLATFORM_WGL',
-      },
     },
   },
   'gles': {
@@ -431,9 +428,6 @@ gbackends_cfg = {
       },
       'android': {
         'src': files('src/backends/gl/hwmap_mediacodec_gl.c'),
-      },
-      'windows': {
-        'cfg': 'HAVE_GLPLATFORM_WGL',
       },
     },
   },

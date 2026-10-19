@@ -66,7 +66,7 @@ NGLI_STATIC_ASSERT(sizeof(enum ngl_capture_buffer_type) == sizeof(int32_t), "32-
 
 #if defined(TARGET_ANDROID)
 # define DEFAULT_BACKEND NGL_BACKEND_OPENGLES
-#elif defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
+#elif defined(TARGET_DARWIN) || defined(TARGET_IPHONE) || defined(TARGET_WINDOWS)
 # define DEFAULT_BACKEND NGL_BACKEND_VULKAN
 #else
 # define DEFAULT_BACKEND NGL_BACKEND_OPENGL
