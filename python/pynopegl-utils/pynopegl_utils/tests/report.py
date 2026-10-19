@@ -31,10 +31,18 @@ import json
 import os
 import os.path as op
 import shutil
+import sys
 import tempfile
+import time
+from contextlib import contextmanager
 
 from jinja2 import Environment, FileSystemLoader
 from pynopegl_utils.misc import get_nopegl_tempdir
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 _TEMPLATE_DIR = op.dirname(__file__)
 
@@ -57,6 +65,26 @@ def _atomic_write_text(path, content):
     except BaseException:
         os.unlink(tmp_path)
         raise
+
+
+@contextmanager
+def _exclusive_lock(path):
+    with open(path, "wb") as f:
+        if sys.platform == "win32":
+            # LK_LOCK gives up after 10 attempts; keep waiting for the lock.
+            while True:
+                try:
+                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    time.sleep(0.01)
+            try:
+                yield
+            finally:
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            yield
 
 
 def save_test_result(report_dir, test_name, frame, ref_path, out_img, diff_img, stats):
@@ -142,6 +170,12 @@ def generate_report(report_dir):
     if not op.exists(data_dir):
         return None
 
+    # Lock before reading results so older reports cannot overwrite newer ones.
+    with _exclusive_lock(op.join(report_dir, ".lock")):
+        return _generate_report(report_dir, data_dir)
+
+
+def _generate_report(report_dir, data_dir):
     raw_results = []
     for path in sorted(glob_mod.glob(op.join(data_dir, "*.json"))):
         with open(path) as f:
