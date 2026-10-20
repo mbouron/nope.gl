@@ -253,6 +253,7 @@ static int media_prefetch(struct ngl_node *node)
     struct media_priv *s = node->priv_data;
     const struct media_opts *o = node->opts;
     struct ngl_ctx *ctx = node->ctx;
+    int ret;
 
     s->player = nmd_create(o->filename);
     if (!s->player)
@@ -293,6 +294,19 @@ static int media_prefetch(struct ngl_node *node)
     struct vaapi_ctx *vaapi_ctx = &ctx->vaapi_ctx;
     nmd_set_option(s->player, "opaque", &vaapi_ctx->va_display);
 #endif
+
+    /*
+     * Before starting the decoder, seek to the media time of the expected first
+     * update. This avoids decoding from the start only to seek again on update.
+     */
+    if (node->prefetch_time >= 0.0 && (!o->loop || s->end_time != -DBL_MAX)) {
+        double media_time;
+        ret = get_media_time(node, node->prefetch_time, &media_time);
+        if (ret < 0)
+            return ret;
+        if (media_time > 0.0)
+            nmd_seek(s->player, media_time);
+    }
 
     nmd_start(s->player);
 

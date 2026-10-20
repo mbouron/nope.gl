@@ -237,6 +237,8 @@ enum node_state {
     NGLI_NODE_STATE_READY         = 2, /* post prefetch() */
 };
 
+struct ngli_prefetch_range;
+
 struct ngl_node {
     const struct node_class *cls;
     struct ngl_ctx *ctx;
@@ -251,6 +253,8 @@ struct ngl_node {
     bool force_release_prefetch;
 
     double visit_time;
+    double prefetch_time;
+    double prefetch_delay;
     double last_update_time;
     uint64_t traversal_id;
 
@@ -439,8 +443,10 @@ struct node_class {
      *******************************/
 
     /*
-     * Allow a node to stop the descent into its children by optionally
-     * changing is_active and forwarding the call to the children.
+     * Visit children and mark whether their resources are needed. A child can
+     * be active before it is visible so it can prepare resources in advance.
+     * Time filters also adjust `range` to describe when their children can be
+     * updated and which timestamp they will receive.
      *
      * The callback MUST forward the call, even if the purpose is to disable
      * the branch.
@@ -450,15 +456,24 @@ struct node_class {
      * dispatch: delegated
      * when: first step during an api draw call
      */
-    int (*visit)(struct ngl_node *node, bool is_active, double t);
+    int (*visit)(struct ngl_node *node, bool is_active, double t, const struct ngli_prefetch_range *range);
 
     /*
-     * Pre-allocate resources or start background processing so that they are
-     * ready at update time (typically nope.media). Contrary to allocations
-     * done in the init, the prefetched resources lifetime is reduced to active
-     * timeranges.
+     * Allocate resources or start background work so the node is ready for
+     * its first update. These resources are kept while the node is active
+     * and freed by the release callback.
      *
-     * The symmetrical callback for prefetch is the release callback.
+     * `node->prefetch_time` is the timestamp to prepare for: the time expected
+     * by the node's first update, or -1 if no upcoming update was found. Media
+     * nodes map this timestamp through time_anim before seeking. The separate
+     * TimeRangeFilter `prefetch_time` option controls how early preparation
+     * can start.
+     *
+     * `node->prefetch_delay` is the number of scene seconds until that update
+     * can happen. A shared node prepares for the branch with the shortest
+     * delay, even if that branch requests a later timestamp.
+     *
+     * Once resources are ready, this callback is skipped until they are released.
      *
      * reentrant: no (comparing state against NGLI_NODE_STATE_READY)
      * execution-order: leaf first
@@ -595,7 +610,7 @@ int ngli_node_prepare(struct ngl_node *node,
                       const struct ngpu_rendertarget_layout *rendertarget_layout);
 int ngli_node_prepare_nodes(struct ngl_ctx *ctx, size_t nb_nodes, struct ngl_node *const *nodes,
                             const struct ngpu_rendertarget_layout *rendertarget_layout);
-int ngli_node_visit(struct ngl_node *node, bool is_active, double t);
+int ngli_node_visit(struct ngl_node *node, bool is_active, double t, const struct ngli_prefetch_range *range);
 int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t);
 int ngli_node_update(struct ngl_node *node, double t);
 int ngli_node_update_children(struct ngl_node *node, double t);

@@ -61,11 +61,11 @@ static const struct node_param userswitch2d_params[] = {
     {NULL}
 };
 
-static int userswitch2d_visit(struct ngl_node *node, bool is_active, double t)
+static int userswitch2d_visit(struct ngl_node *node, bool is_active, double t, const struct ngli_prefetch_range *range)
 {
     const struct userswitch2d_opts *o = node->opts;
     const int enabled = o->live.val.i[0];
-    return ngli_node_visit(o->child, is_active && enabled, t);
+    return ngli_node_visit(o->child, is_active && enabled, t, range);
 }
 
 static int userswitch2d_update(struct ngl_node *node, double t)

@@ -135,13 +135,14 @@ static int timerangefilter_init(struct ngl_node *node)
     return 0;
 }
 
-static int timerangefilter_visit(struct ngl_node *node, bool is_active, double t)
+static int timerangefilter_visit(struct ngl_node *node, bool is_active, double t, const struct ngli_prefetch_range *range)
 {
     struct timerangefilter_priv *s = node->priv_data;
     const struct timerangefilter_opts *o = node->opts;
 
-    is_active = ngli_timerange_filter_visit(&s->range, t, is_active, o->child->is_active);
-    return ngli_node_visit(o->child, is_active, t);
+    struct ngli_prefetch_range child_range = *range;
+    is_active = ngli_timerange_filter_visit(&s->range, t, is_active, o->child->is_active, &child_range);
+    return ngli_node_visit(o->child, is_active, t, &child_range);
 }
 
 static int timerangefilter_update(struct ngl_node *node, double t)
