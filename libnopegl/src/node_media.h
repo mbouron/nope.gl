@@ -36,20 +36,8 @@ struct duration_job {
     double duration;
 };
 
-#if defined(TARGET_ANDROID)
-#include "android_imagereader.h"
-
-struct android_surface_compat {
-    struct android_imagereader *imagereader;
-    void *surface_handle;
-};
-#endif
-
 struct release_job {
     struct nmd_ctx *player;
-#if defined(TARGET_ANDROID)
-    struct android_surface_compat android_surface;
-#endif
 };
 
 struct media_priv {
@@ -62,10 +50,6 @@ struct media_priv {
     struct ngli_fence duration_fence;
     struct release_job release_job;
     struct ngli_fence release_fence;
-
-#if defined(TARGET_ANDROID)
-    struct android_surface_compat android_surface;
-#endif
 };
 
 #endif

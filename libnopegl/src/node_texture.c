@@ -391,8 +391,6 @@ static int texture_prefetch(struct ngl_node *node)
 
     if (o->data_src) {
         if (o->data_src->cls->id == NGL_NODE_MEDIA) {
-            struct ngl_node *media = o->data_src;
-            ngli_unused struct media_priv *media_priv = media->priv_data;
             const struct hwmap_params hwmap_params = {
                 .label                 = node->label,
                 .image_layouts         = i->supported_image_layouts,
@@ -402,9 +400,6 @@ static int texture_prefetch(struct ngl_node *node)
                 .texture_wrap_s        = params->wrap_s,
                 .texture_wrap_t        = params->wrap_t,
                 .texture_usage         = params->usage,
-#if defined(TARGET_ANDROID)
-                .android_imagereader   = media_priv->android_surface.imagereader,
-#endif
             };
             return ngli_hwmap_init(&s->hwmap, ctx, &hwmap_params);
         } else if (o->data_src->cls->category == NGLI_NODE_CATEGORY_BUFFER) {

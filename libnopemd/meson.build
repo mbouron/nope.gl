@@ -79,6 +79,10 @@ if vaapi_dep.found()
   add_project_arguments('-DHAVE_VAAPI_HWACCEL=1', language: 'c')
 endif
 
+if host_system == 'android'
+  lib_deps += cc.find_library('mediandk')
+endif
+
 
 #
 # Library
@@ -96,6 +100,13 @@ lib_src = files(
   'src/msg.c',
   'src/utils.c',
 )
+
+if host_system == 'android'
+  lib_src += files(
+    'src/decoder_mediacodec.c',
+    'src/mediacodec.c',
+  )
+endif
 
 lib_c_args = []
 if get_option('default_library') == 'shared'

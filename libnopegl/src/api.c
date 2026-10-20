@@ -45,9 +45,11 @@
 #include "utils/utils.h"
 
 #if defined(TARGET_ANDROID)
+#include <errno.h>
+#include <poll.h>
 #include <unistd.h>
 
-#include "android_imagereader.h"
+#include <nopemd.h>
 #endif
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
@@ -411,23 +413,42 @@ static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene
 }
 
 #if defined(TARGET_ANDROID)
-void ngli_ctx_release_android_image(struct ngl_ctx *s, struct android_image **imagep)
+void ngli_ctx_release_mc_frame(struct ngl_ctx *s, struct nmd_frame **framep)
 {
-    if (!*imagep)
+    if (!*framep)
         return;
 
     if (!s->in_frame) {
         ngpu_ctx_wait_idle(s->gpu_ctx);
-        ngli_android_image_releasep(imagep, -1);
+        nmd_mc_frame_releasep(framep, -1);
         return;
     }
 
-    ngli_android_image_list_push(&s->android_images, imagep);
+    ngli_darray_push(&s->mc_frames, *framep);
+    *framep = NULL;
 }
 
-static void return_android_images(struct ngl_ctx *s, struct ngpu_fence *fence)
+static int wait_sync_file(int fd)
 {
-    if (!s->android_images)
+    struct pollfd pfd = {.fd = fd, .events = POLLIN};
+    int ret;
+    do {
+        ret = poll(&pfd, 1, -1);
+    } while (ret < 0 && errno == EINTR);
+    if (ret < 0) {
+        LOG(ERROR, "could not wait for the release fence: %s", strerror(errno));
+        return NGL_ERROR_EXTERNAL;
+    }
+    if (!(pfd.revents & POLLIN) || (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))) {
+        LOG(ERROR, "unexpected release fence events: %#x", pfd.revents);
+        return NGL_ERROR_EXTERNAL;
+    }
+    return 0;
+}
+
+static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
+{
+    if (ngli_darray_is_empty(&s->mc_frames))
         return;
 
     int fence_fd = -1;
@@ -436,7 +457,29 @@ static void return_android_images(struct ngl_ctx *s, struct ngpu_fence *fence)
         fence_fd = -1;
     }
 
-    ngli_android_image_list_releasep(&s->android_images, fence_fd);
+    /*
+     * Frame release takes ownership of the fence fd and closes it when done.
+     * Duplicate the fd for each frame except the last, which uses the original.
+     */
+    for (size_t i = 0; i < s->mc_frames.count; i++) {
+        struct nmd_frame *frame = s->mc_frames.data[i];
+        int fd = -1;
+        if (fence_fd >= 0 && i == s->mc_frames.count - 1) {
+            fd = fence_fd;
+            fence_fd = -1;
+        } else if (fence_fd >= 0) {
+            fd = dup(fence_fd);
+            if (fd < 0) {
+                LOG(ERROR, "could not duplicate the release fence");
+                if (wait_sync_file(fence_fd) < 0)
+                    ngpu_ctx_wait_idle(s->gpu_ctx);
+                close(fence_fd);
+                fence_fd = -1;
+            }
+        }
+        nmd_mc_frame_releasep(&frame, fd);
+    }
+    ngli_darray_clear(&s->mc_frames);
 }
 #endif
 
@@ -542,6 +585,8 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
     ngli_vaapi_ctx_reset(&s->vaapi_ctx);
 #endif
 #if defined(TARGET_ANDROID)
+    release_mc_frames(s, NULL);
+    ngli_darray_reset(&s->mc_frames);
     ngli_android_ctx_reset(&s->android_ctx);
 #endif
     if (s->gpu_ctx) {
@@ -722,11 +767,11 @@ int ngli_ctx_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
 static int end_update(struct ngl_ctx *s, bool return_images)
 {
 #if defined(TARGET_ANDROID)
-    if (return_images && s->android_images) {
+    if (return_images && !ngli_darray_is_empty(&s->mc_frames)) {
         struct ngpu_fence *fence = NULL;
         int ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, &fence);
         if (ret >= 0)
-            return_android_images(s, fence);
+            release_mc_frames(s, fence);
         ngpu_fence_freep(&fence);
         return ret;
     }
@@ -767,8 +812,8 @@ static int prepare_draw(struct ngl_ctx *s, double t, bool return_images)
         return ret;
 
     /*
-     * Submit commands recorded before an update fails: resource states already
-     * reflect them (e.g. texture layouts and ownership transfers).
+     * Submit recorded commands even if the update fails. Texture layouts and
+     * ownership tracked on the CPU already assume these commands will run.
      */
     ret = update_scene(s, t);
     int end_ret = ngpu_staging_buffer_flush(s->current_staging_buffer);
@@ -788,8 +833,8 @@ static void end_frame(struct ngl_ctx *s)
 {
     s->in_frame = false;
 #if defined(TARGET_ANDROID)
-    /* Return images left by a failed frame. */
-    return_android_images(s, NULL);
+    /* Release the frames left by a failed frame. */
+    release_mc_frames(s, NULL);
 #endif
 }
 
@@ -859,12 +904,12 @@ static int draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, stru
         return ret;
 
 #if defined(TARGET_ANDROID)
-    if (s->android_images) {
+    if (!ngli_darray_is_empty(&s->mc_frames)) {
         struct ngpu_fence *fence = NULL;
         struct ngpu_fence **fencep = signal_fence ? signal_fence : &fence;
         ret = ngpu_ctx_end_draw(s->gpu_ctx, t, wait_fence, fencep);
         if (ret >= 0)
-            return_android_images(s, *fencep);
+            release_mc_frames(s, *fencep);
         ngpu_fence_freep(&fence);
         return ret;
     }

@@ -29,10 +29,6 @@
 
 #include "config.h"
 
-#if defined(TARGET_ANDROID)
-#include "android_imagereader.h"
-#endif
-
 #include "animation.h"
 #include "internal.h"
 #include "log.h"
@@ -168,29 +164,6 @@ static void callback_nopemd_log(void *arg, int level, const char *filename, int 
     va_end(vl_copy);
 }
 
-#if defined(TARGET_ANDROID)
-static int init_android_surface(struct android_ctx *ctx, struct android_surface_compat *surface)
-{
-    surface->imagereader = ngli_android_imagereader_create(ctx, 1, 1,
-                                                           NGLI_ANDROID_IMAGE_FORMAT_PRIVATE, 2);
-    if (!surface->imagereader)
-        return NGL_ERROR_MEMORY;
-
-    int ret = ngli_android_imagereader_get_window(surface->imagereader, &surface->surface_handle);
-    if (ret < 0)
-        return ret;
-
-    return 0;
-}
-
-static void reset_android_surface(struct android_surface_compat *surface)
-{
-    ngli_android_imagereader_freep(&surface->imagereader);
-
-    memset(surface, 0, sizeof(*surface));
-}
-#endif
-
 static void get_start_end_time(struct ngl_node *node, double *start, double *end)
 {
     const struct media_opts *o = node->opts;
@@ -265,13 +238,7 @@ static int media_prefetch(struct ngl_node *node)
         return 0;
     }
 
-#if defined(TARGET_ANDROID)
-    struct android_ctx *android_ctx = &ctx->android_ctx;
-    int ret = init_android_surface(android_ctx, &s->android_surface);
-    if (ret < 0)
-        return ret;
-    nmd_set_option(s->player, "opaque", &s->android_surface.surface_handle);
-#elif defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
+#if defined(TARGET_IPHONE) || defined(TARGET_DARWIN)
     const char *vt_pix_fmt = o->vt_pix_fmt;
     if (!strcmp(o->vt_pix_fmt, "auto"))
         vt_pix_fmt = "nv12,p010";
@@ -403,10 +370,6 @@ static void release_player(void *data, void *shared_data, uint32_t thread_index)
     struct release_job *job = data;
 
     nmd_freep(&job->player);
-
-#if defined(TARGET_ANDROID)
-    reset_android_surface(&job->android_surface);
-#endif
 }
 
 static void media_release(struct ngl_node *node)
@@ -423,11 +386,6 @@ static void media_release(struct ngl_node *node)
     release_job->player = s->player;
     s->player = NULL;
     s->duration = 0.0;
-
-#if defined(TARGET_ANDROID)
-    release_job->android_surface = s->android_surface;
-    memset(&s->android_surface, 0, sizeof(s->android_surface));
-#endif
 
     ngli_queue_add_job(&ctx->background_queue, release_job, release_fence, release_player, NULL);
 }

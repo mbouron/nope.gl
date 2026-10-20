@@ -62,7 +62,7 @@ void ngli_android_image_list_releasep(struct android_image **listp, int release_
 struct android_imagereader;
 
 struct android_imagereader *ngli_android_imagereader_create(struct android_ctx *api, int32_t width, int32_t height, int format, int max_images);
-int  ngli_android_imagereader_get_window(struct android_imagereader *s, void **window);
+int  ngli_android_imagereader_get_window(struct android_imagereader *s, ANativeWindow **window);
 int  ngli_android_imagereader_acquire_next_image(struct android_imagereader *s, struct android_image **imagep);
 bool ngli_android_imagereader_flush_removed_buffers(struct android_imagereader *s,
                                                     void (*remove)(void *arg, const AHardwareBuffer *buffer), void *arg);

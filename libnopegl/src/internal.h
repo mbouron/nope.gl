@@ -35,7 +35,7 @@
 #if defined(TARGET_ANDROID)
 #include "android_ctx.h"
 
-struct android_image;
+struct nmd_frame;
 #endif
 
 #if HAVE_TEXT_LIBRARIES
@@ -157,7 +157,7 @@ struct ngl_ctx {
 #endif
 #if defined(TARGET_ANDROID)
     struct android_ctx android_ctx;
-    struct android_image *android_images;
+    NGLI_DARRAY(struct nmd_frame *) mc_frames;
 #endif
     struct hud *hud;
     struct ngli_frame_stats frame_stats;
@@ -207,15 +207,12 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, st
 void ngli_ctx_reset(struct ngl_ctx *s, int action);
 #if defined(TARGET_ANDROID)
 /*
- * Return an image to its producer without allowing it to reuse the buffer
- * while the GPU is still using it.
- *
- * During an update or draw, queue the image in `android_images` until the
- * frame's commands are submitted, then return it with a release fence. Outside
- * a frame, wait for GPU idle before returning the image. The passed image
- * pointer is set to NULL in both cases.
+ * Prevent the decoder from reusing a frame while the GPU is reading it.
+ * During an update or draw, queue the frame until submission and release it
+ * with a fence. Otherwise wait for GPU idle. Takes ownership of *framep and
+ * sets it to NULL.
  */
-void ngli_ctx_release_android_image(struct ngl_ctx *s, struct android_image **imagep);
+void ngli_ctx_release_mc_frame(struct ngl_ctx *s, struct nmd_frame **framep);
 #endif
 
 int ngli_ctx_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg);

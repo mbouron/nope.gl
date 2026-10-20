@@ -29,10 +29,19 @@
 #include "log.h"
 
 extern const struct decoder nmdi_decoder_ffmpeg_sw;
-extern const struct decoder nmdi_decoder_ffmpeg_hw;
 static const struct decoder *decoder_def_software = &nmdi_decoder_ffmpeg_sw;
 
+#if HAVE_MEDIACODEC_HWACCEL
+extern const struct decoder nmdi_decoder_mediacodec;
+extern const struct decoder nmdi_decoder_mediacodec_sw;
+static const struct decoder *decoder_def_hwaccel = &nmdi_decoder_mediacodec;
+/* Our FFmpeg build relies on Android for codecs such as H.264 and AAC */
+static const struct decoder *decoder_def_fallback = &nmdi_decoder_mediacodec_sw;
+#else
+extern const struct decoder nmdi_decoder_ffmpeg_hw;
 static const struct decoder *decoder_def_hwaccel = &nmdi_decoder_ffmpeg_hw;
+static const struct decoder *decoder_def_fallback = NULL;
+#endif
 
 struct decoding_ctx {
     void *log_ctx;
@@ -77,7 +86,6 @@ int nmdi_decoding_init(void *log_ctx,
                        const struct nmdi_opts *opts)
 {
     int ret;
-    const struct decoder *dec_def, *dec_def_fallback;
 
     AVCodecParameters *par = avcodec_parameters_alloc();
     if (!par)
@@ -88,13 +96,14 @@ int nmdi_decoding_init(void *log_ctx,
     ctx->frames_queue = frames_queue;
     ctx->is_image = is_image;
 
-    if (opts->auto_hwaccel && decoder_def_hwaccel) {
-        dec_def          = decoder_def_hwaccel;
-        dec_def_fallback = decoder_def_software;
-    } else {
-        dec_def          = decoder_def_software;
-        dec_def_fallback = NULL;
-    }
+    const struct decoder *decs[3];
+    int nb_decs = 0;
+    const enum AVMediaType type = stream->codecpar->codec_type;
+    if (type == AVMEDIA_TYPE_VIDEO && opts->auto_hwaccel)
+        decs[nb_decs++] = decoder_def_hwaccel;
+    decs[nb_decs++] = decoder_def_software;
+    if (decoder_def_fallback)
+        decs[nb_decs++] = decoder_def_fallback;
 
     ctx->st_timebase = stream->time_base;
 
@@ -116,16 +125,18 @@ int nmdi_decoding_init(void *log_ctx,
 
     DUMP_INFO(stream->codecpar, "original");
 
-    ret = nmdi_decoder_init(log_ctx, ctx->decoder, dec_def, stream, ctx, opts);
-    if (ret < 0 && dec_def_fallback) {
+    ret = nmdi_decoder_init(log_ctx, ctx->decoder, decs[0], stream, ctx, opts);
+    for (int i = 1; ret < 0 && i < nb_decs; i++) {
         TRACE(ctx, "unable to init %s decoder, fallback on %s decoder",
-              dec_def->name, dec_def_fallback->name);
+              decs[i - 1]->name, decs[i]->name);
         if (ret != AVERROR_DECODER_NOT_FOUND)
             LOG(ctx, ERROR, "Decoder fallback due to %s", av_err2str(ret));
-        ret = nmdi_decoder_init(log_ctx, ctx->decoder, dec_def_fallback, stream, ctx, opts);
+        ret = nmdi_decoder_init(log_ctx, ctx->decoder, decs[i], stream, ctx, opts);
     }
-    if (ret < 0)
+    if (ret < 0) {
+        avcodec_parameters_free(&par);
         return ret;
+    }
 
     avcodec_parameters_from_context(par, ctx->decoder->avctx);
     DUMP_INFO(par, "initialized");

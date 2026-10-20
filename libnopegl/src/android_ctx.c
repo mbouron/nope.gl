@@ -72,24 +72,6 @@ done:
     return NGL_ERROR_UNSUPPORTED;
 }
 
-static int load_window_api(struct android_ctx *s)
-{
-    s->libandroid_handle = dlopen("libandroid.so", RTLD_NOW);
-    if (!s->libandroid_handle) {
-        LOG(ERROR, "could not open libandroid.so");
-        return NGL_ERROR_UNSUPPORTED;
-    }
-
-    NDK_LOAD_FUNC(s->libandroid_handle, ANativeWindow_toSurface);
-
-    return 0;
-
-done:
-    dlclose(s->libandroid_handle);
-    s->libandroid_handle = NULL;
-    return NGL_ERROR_UNSUPPORTED;
-}
-
 int ngli_android_ctx_init(struct ngpu_ctx *gpu_ctx, struct android_ctx *s)
 {
     memset(s, 0, sizeof(*s));
@@ -97,12 +79,6 @@ int ngli_android_ctx_init(struct ngpu_ctx *gpu_ctx, struct android_ctx *s)
     int ret = load_media_api(s);
     if (ret < 0) {
         LOG(INFO, "could not load native media API");
-        return ret;
-    }
-
-    ret = load_window_api(s);
-    if (ret < 0) {
-        LOG(INFO, "could not load native window API");
         return ret;
     }
 
@@ -119,7 +95,5 @@ void ngli_android_ctx_reset(struct android_ctx *s)
 {
     if (s->libmediandk_handle)
         dlclose(s->libmediandk_handle);
-    if (s->libandroid_handle)
-        dlclose(s->libandroid_handle);
     memset(s, 0, sizeof(*s));
 }

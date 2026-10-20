@@ -26,6 +26,7 @@
 #include <nopemd.h>
 #include <android/hardware_buffer.h>
 #include <android/hardware_buffer_jni.h>
+#include <media/NdkImage.h>
 
 #include "android_imagereader.h"
 #include "hwmap.h"
@@ -37,25 +38,25 @@
 #include "nopegl/nopegl.h"
 #include "utils/darray.h"
 
-/* Maximum number of buffers in an Android BufferQueue. */
+/* Match the Android BufferQueue limit so every decoder buffer can be cached */
 #define MAX_AHB_TEXTURES 64
 
 /*
- * The image reader reuses its buffers. Cache one imported texture per buffer
- * to avoid recreating the EGLImage and GL texture for each frame.
- *
- * Keep a reference to `buffer` so its address cannot be reused for another
- * buffer while it is used as a cache key.
+ * Reuse textures when the decoder returns the same buffers. Hold a buffer
+ * reference so a different buffer cannot reuse its address and match the
+ * cache entry. Discard unused entries as the decoder replaces its buffers.
  */
 struct ahb_texture {
     AHardwareBuffer *buffer;
     struct ngpu_texture *texture;
+    uint64_t map_index;
 };
 
 struct hwmap_mc {
     struct ngli_image_color_cache color_cache;
-    struct android_image *android_image;
+    struct nmd_frame *frame;
     NGLI_DARRAY(struct ahb_texture) textures;
+    uint64_t map_index;
 };
 
 static bool support_direct_rendering(struct hwmap *hwmap)
@@ -88,15 +89,9 @@ static void reset_ahb_texture(void *user_arg, void *data)
     android_ctx->AHardwareBuffer_release(ahb_texture->buffer);
 }
 
-static int owns_ahb_buffer(const AHardwareBuffer *buffer, const struct ahb_texture *ahb_texture)
+static int is_stale_ahb_texture(const struct hwmap_mc *mc, const struct ahb_texture *ahb_texture)
 {
-    return ahb_texture->buffer == buffer;
-}
-
-static void remove_ahb_texture(void *arg, const AHardwareBuffer *buffer)
-{
-    struct hwmap_mc *mc = arg;
-    ngli_darray_remove_if(&mc->textures, owns_ahb_buffer, buffer);
+    return mc->map_index - ahb_texture->map_index > MAX_AHB_TEXTURES;
 }
 
 static int get_ahb_texture(struct hwmap *hwmap, AHardwareBuffer *buffer, const AHardwareBuffer_Desc *desc,
@@ -107,11 +102,12 @@ static int get_ahb_texture(struct hwmap *hwmap, AHardwareBuffer *buffer, const A
     struct ngl_ctx *ctx = hwmap->ctx;
     struct android_ctx *android_ctx = &ctx->android_ctx;
 
-    if (!ngli_android_imagereader_flush_removed_buffers(params->android_imagereader, remove_ahb_texture, mc))
-        ngli_darray_clear(&mc->textures);
+    mc->map_index++;
+    ngli_darray_remove_if(&mc->textures, is_stale_ahb_texture, mc);
 
     ngli_darray_foreach(ahb_texture, &mc->textures) {
         if (ahb_texture->buffer == buffer) {
+            ahb_texture->map_index = mc->map_index;
             *texturep = ahb_texture->texture;
             return 0;
         }
@@ -150,7 +146,7 @@ static int get_ahb_texture(struct hwmap *hwmap, AHardwareBuffer *buffer, const A
     }
 
     android_ctx->AHardwareBuffer_acquire(buffer);
-    struct ahb_texture ahb_texture = {.buffer = buffer, .texture = texture};
+    struct ahb_texture ahb_texture = {.buffer = buffer, .texture = texture, .map_index = mc->map_index};
     if (ngli_darray_try_push(&mc->textures, ahb_texture) < 0) {
         reset_ahb_texture(android_ctx, &ahb_texture);
         return NGL_ERROR_MEMORY;
@@ -182,38 +178,28 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngl
     const uint32_t width = (uint32_t)frame->width;
     const uint32_t height = (uint32_t)frame->height;
     const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
+    const AImage *image = (const AImage *)frame->datap[0];
 
-    int ret = nmd_mc_frame_render_and_releasep(&frame);
-    if (ret < 0)
-        return ret;
+    ngli_ctx_release_mc_frame(ctx, &mc->frame);
+    mc->frame = frame;
 
-    struct android_image *android_image;
-    ret = ngli_android_imagereader_acquire_next_image(params->android_imagereader, &android_image);
-    if (ret < 0)
-        return ret;
-
-    ngli_ctx_release_android_image(ctx, &mc->android_image);
-
-    mc->android_image = android_image;
-
-    AHardwareBuffer *hardware_buffer = ngli_android_image_get_hardware_buffer(mc->android_image);
-    if (!hardware_buffer)
+    AHardwareBuffer *hardware_buffer = NULL;
+    if (android_ctx->AImage_getHardwareBuffer(image, &hardware_buffer) != AMEDIA_OK || !hardware_buffer)
         return NGL_ERROR_EXTERNAL;
 
     AHardwareBuffer_Desc desc;
     android_ctx->AHardwareBuffer_describe(hardware_buffer, &desc);
 
     AImageCropRect crop_rect;
-    ret = ngli_android_image_get_crop_rect(mc->android_image, &crop_rect);
-    if (ret < 0)
-        return ret;
+    if (android_ctx->AImage_getCropRect(image, &crop_rect) != AMEDIA_OK)
+        return NGL_ERROR_EXTERNAL;
 
     struct ngli_mat4 coordinates_matrix = {.m = NGLI_MAT4_IDENTITY};
     const int filtering = params->texture_min_filter || params->texture_mag_filter;
     ngli_android_get_crop_matrix(coordinates_matrix.m, &desc, &crop_rect, filtering);
 
     struct ngpu_texture *texture;
-    ret = get_ahb_texture(hwmap, hardware_buffer, &desc, &texture);
+    int ret = get_ahb_texture(hwmap, hardware_buffer, &desc, &texture);
     if (ret < 0)
         return ret;
 
@@ -243,7 +229,7 @@ static void mc_uninit(struct hwmap *hwmap)
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
 
     ngli_darray_reset(&mc->textures);
-    ngli_ctx_release_android_image(hwmap->ctx, &mc->android_image);
+    ngli_ctx_release_mc_frame(hwmap->ctx, &mc->frame);
 }
 
 const struct hwmap_class ngli_hwmap_mc_gl_class = {
