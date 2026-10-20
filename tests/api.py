@@ -1447,6 +1447,23 @@ def api_trf_seek_keep_alive(width=320, height=240):
     assert ctx.draw(end) == 0
 
 
+def api_media_missing(width=16, height=16):
+    """
+    A missing media file must not make ctx.draw() fail, whether the video is
+    being prefetched before its visible range or requested within that range.
+    """
+    ctx = ngl.Context()
+    ret = ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend))
+    assert ret == 0
+
+    media = ngl.Media("/nonexistent/media.mp4")
+    draw = ngl.DrawTexture(ngl.Texture2D(data_src=media))
+    scene = ngl.Group(children=[ngl.DrawColor(), ngl.TimeRangeFilter(draw, start=2, end=4)])
+    assert ctx.set_scene(ngl.Scene.from_params(scene, duration=5)) == 0
+    for t in (0.0, 1.5, 2.5, 3.5, 4.5):
+        assert ctx.draw(t) == 0
+
+
 def api_dot(width=320, height=240):
     """
     Exercise the ngl.dot() API.

@@ -63,14 +63,14 @@ static const struct node_param userselect_params[] = {
     {NULL}
 };
 
-static int userselect_visit(struct ngl_node *node, bool is_active, double t)
+static int userselect_visit(struct ngl_node *node, bool is_active, double t, const struct ngli_prefetch_range *range)
 {
     const struct userselect_opts *o = node->opts;
 
     const int branch_id = o->live.val.i[0];
     for (size_t i = 0; i < o->branches.count; i++) {
         struct ngl_node *branch = o->branches.data[i];
-        int ret = ngli_node_visit(branch, is_active && i == branch_id, t);
+        int ret = ngli_node_visit(branch, is_active && i == branch_id, t, range);
         if (ret < 0)
             return ret;
     }
