@@ -202,6 +202,52 @@ static void get_duration(void *data, void *shared_data, uint32_t thread_index)
     job->ret = nmd_get_duration(job->player, &job->duration);
 }
 
+static int get_media_time(struct ngl_node *node, double t, double *dst_time)
+{
+    struct media_priv *s = node->priv_data;
+    const struct media_opts *o = node->opts;
+    struct ngl_node *anim_node = o->anim;
+    double media_time = t;
+    double initial_seek = 0.0;
+    double time_origin = 0.0;
+
+    if (anim_node) {
+        struct variable_info *anim = anim_node->priv_data;
+        const struct variable_opts *anim_o = anim_node->opts;
+        double times[2], values[2];
+        ngli_animation_get_bounds(anim_o->animkf.data, anim_o->animkf.count,
+                                  NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
+        initial_seek = s->start_time;
+        time_origin  = times[0] + anim_o->time_offset;
+
+        double anim_t = t;
+        if (o->loop && times[1] > times[0])
+            anim_t = time_origin + fmod(NGLI_MAX(0.0, t - time_origin), times[1] - times[0]);
+
+        int ret = ngli_node_update(anim_node, anim_t);
+        if (ret < 0)
+            return ret;
+        const double dval = *(double *)anim->data;
+        media_time = NGLI_MAX(0, dval - initial_seek);
+
+        TRACE("remapped time f(%g)=%g", t, media_time);
+    }
+
+    if (o->loop && s->end_time == -DBL_MAX) {
+        if (s->duration <= 0.0) {
+            ngli_fence_wait(&s->duration_fence);
+            if (s->duration_job.ret == 0)
+                s->duration = s->duration_job.duration;
+        }
+        const double loop_duration = s->duration - initial_seek;
+        if (loop_duration > 0.0)
+            media_time = fmod(NGLI_MAX(0.0, t - time_origin), loop_duration);
+    }
+
+    *dst_time = media_time;
+    return 0;
+}
+
 static int media_prefetch(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
@@ -300,49 +346,16 @@ static int media_update(struct ngl_node *node, double t)
 {
     struct media_priv *s = node->priv_data;
     const struct media_opts *o = node->opts;
-    struct ngl_node *anim_node = o->anim;
-    double media_time = t;
-    double initial_seek = 0.0;
-    double time_origin = 0.0;
-
-    if (anim_node) {
-        struct variable_info *anim = anim_node->priv_data;
-        const struct variable_opts *anim_o = anim_node->opts;
-        double times[2], values[2];
-        ngli_animation_get_bounds(anim_o->animkf.data, anim_o->animkf.count,
-                                  NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
-        initial_seek = s->start_time;
-        time_origin  = times[0] + anim_o->time_offset;
-
-        double anim_t = t;
-        if (o->loop && times[1] > times[0])
-            anim_t = time_origin + fmod(NGLI_MAX(0.0, t - time_origin), times[1] - times[0]);
-
-        int ret = ngli_node_update(anim_node, anim_t);
-        if (ret < 0)
-            return ret;
-        const double dval = *(double *)anim->data;
-        media_time = NGLI_MAX(0, dval - initial_seek);
-
-        TRACE("remapped time f(%g)=%g", t, media_time);
-    }
-
-    if (o->loop && s->end_time == -DBL_MAX) {
-        if (s->duration <= 0.0) {
-            ngli_fence_wait(&s->duration_fence);
-            if (s->duration_job.ret == 0)
-                s->duration = s->duration_job.duration;
-        }
-        const double loop_duration = s->duration - initial_seek;
-        if (loop_duration > 0.0)
-            media_time = fmod(NGLI_MAX(0.0, t - time_origin), loop_duration);
-    }
+    double media_time;
+    int ret = get_media_time(node, t, &media_time);
+    if (ret < 0)
+        return ret;
 
     nmd_frame_releasep(&s->frame);
 
     TRACE("get frame from %s at t=%g", node->label, media_time);
     struct nmd_frame *frame = NULL;
-    int ret = nmd_get_frame(s->player, media_time, &frame);
+    ret = nmd_get_frame(s->player, media_time, &frame);
     if (ret == NMD_RET_NEWFRAME) {
         const char *pix_fmt_str = get_pix_fmt_name(frame->pix_fmt);
         if (o->audio_tex) {
