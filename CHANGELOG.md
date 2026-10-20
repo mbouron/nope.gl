@@ -11,6 +11,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 ### Added
 - The Android package exports FFmpeg and nope.media through Prefab (`nopegl`),
   so other native modules can use the bundled headers and libraries
+- `libnopemd` builtin MediaCodec decoder with failure recovery and software
+  fallback
 
 ### Removed
 - OpenGL/ES backend support on macOS, iOS and Windows
@@ -20,6 +22,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 ### Changed
 - Vulkan is now the default backend on macOS, iOS and Windows
 - nope.media is now part of the project as `libnopemd` (LGPL 2.1 or later)
+- Frames produced by the MediaCodec decoder now expose an `AImage` instead of
+  an `AVMediaCodecBuffer` and are released with `nmd_mc_frame_releasep()`
+  (which replaces `nmd_mc_frame_render_and_releasep()`). Providing an output
+  surface to the decoder through the `opaque` option is no longer supported.
 
 ### Fixed
 - Incorrect `ColorStats` histograms with OpenGL ES on Mali GPUs

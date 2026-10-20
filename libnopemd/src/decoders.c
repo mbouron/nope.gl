@@ -55,14 +55,9 @@ int nmdi_decoder_init(void *log_ctx,
             return AVERROR(ENOMEM);
     }
 
-    // We need to copy the stream information because the stream (and its codec
-    // context) can be destroyed any time after the nmdi_decoder_init() returns
+    /* Copy the parameters because the stream may be freed after initialization */
     avcodec_parameters_to_context(ctx->avctx, stream->codecpar);
-
-    // The MediaCodec decoder needs pkt_timebase in order to rescale the
-    // timestamps that will be forwarded to the output surface
-    if (HAVE_MEDIACODEC_HWACCEL && !strcmp(dec->name, "ffmpeg_hw"))
-        ctx->avctx->pkt_timebase = stream->time_base;
+    ctx->st_timebase = stream->time_base;
 
     ret = dec->init(ctx, opts);
     if (ret < 0) {

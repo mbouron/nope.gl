@@ -36,71 +36,6 @@ struct ffdec_context {
     int extra_hw_frames;
 };
 
-#if HAVE_MEDIACODEC_HWACCEL
-#include <libavcodec/mediacodec.h>
-#include <libavutil/hwcontext_mediacodec.h>
-
-static const char *get_mediacodec_codec_name(enum AVCodecID codec_id)
-{
-    switch (codec_id) {
-    case AV_CODEC_ID_H264:
-        return "h264_mediacodec";
-    case AV_CODEC_ID_HEVC:
-        return "hevc_mediacodec";
-    case AV_CODEC_ID_MPEG4:
-        return "mpeg4_mediacodec";
-    case AV_CODEC_ID_VP8:
-        return "vp8_mediacodec";
-    case AV_CODEC_ID_VP9:
-        return "vp9_mediacodec";
-    case AV_CODEC_ID_AV1:
-        return "av1_mediacodec";
-    default:
-        return NULL;
-    }
-}
-
-static int init_mediacodec(struct decoder_ctx *ctx)
-{
-    AVCodecContext *avctx = ctx->avctx;
-
-    const char *codec_name = get_mediacodec_codec_name(avctx->codec_id);
-    if (!codec_name)
-        return AVERROR_DECODER_NOT_FOUND;
-
-    const AVCodec *codec = avcodec_find_decoder_by_name(codec_name);
-    if (!codec)
-        return AVERROR_DECODER_NOT_FOUND;
-
-    AVBufferRef *hw_device_ctx_ref = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_MEDIACODEC);
-    if (!hw_device_ctx_ref)
-        return -1;
-
-    AVHWDeviceContext *hw_device_ctx = (AVHWDeviceContext *)hw_device_ctx_ref->data;
-    AVMediaCodecDeviceContext *hw_ctx = hw_device_ctx->hwctx;
-    hw_ctx->surface = ctx->opaque;
-
-    int ret = av_hwdevice_ctx_init(hw_device_ctx_ref);
-    if (ret < 0) {
-        av_buffer_unref(&hw_device_ctx_ref);
-        return ret;
-    }
-
-    avctx->hw_device_ctx = hw_device_ctx_ref;
-    avctx->thread_count = 0;
-
-    AVDictionary *opts = NULL;
-    av_dict_set_int(&opts, "delay_flush", 1, 0);
-
-    ret = avcodec_open2(avctx, codec, &opts);
-    if (ret < 0) {
-        av_buffer_unref(&avctx->hw_device_ctx);
-    }
-    av_dict_free(&opts);
-    return ret;
-}
-#endif
-
 #if HAVE_VAAPI_HWACCEL
 #include <libavutil/hwcontext_vaapi.h>
 
@@ -349,6 +284,8 @@ static int ffdec_init_sw(struct decoder_ctx *ctx, const struct nmdi_opts *opts)
     avctx->flags2 |= AV_CODEC_FLAG2_ICC_PROFILES;
 
     const AVCodec *codec = avcodec_find_decoder(avctx->codec_id);
+    if (!codec)
+        return AVERROR_DECODER_NOT_FOUND;
     return avcodec_open2(avctx, codec, NULL);
 }
 
@@ -357,9 +294,7 @@ static int ffdec_init_hw(struct decoder_ctx *ctx, const struct nmdi_opts *opts)
     AVCodecContext *avctx = ctx->avctx;
     avctx->flags2 |= AV_CODEC_FLAG2_ICC_PROFILES;
 
-#if HAVE_MEDIACODEC_HWACCEL
-    return init_mediacodec(ctx);
-#elif HAVE_VAAPI_HWACCEL
+#if HAVE_VAAPI_HWACCEL
     return init_vaapi(ctx, opts);
 #endif
     return AVERROR_DECODER_NOT_FOUND;

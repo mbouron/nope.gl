@@ -38,7 +38,9 @@
 #include "internal.h"
 
 #if HAVE_MEDIACODEC_HWACCEL
-#include <libavcodec/mediacodec.h>
+#include <unistd.h>
+
+#include "mediacodec.h"
 #endif
 
 struct nmd_ctx {
@@ -572,19 +574,18 @@ void nmd_frame_releasep(struct nmd_frame **framep)
     av_freep(framep);
 }
 
-int nmd_mc_frame_render_and_releasep(struct nmd_frame **framep)
+void nmd_mc_frame_releasep(struct nmd_frame **framep, int release_fence_fd)
 {
 #if HAVE_MEDIACODEC_HWACCEL
     struct nmd_frame *frame = *framep;
-    if (!frame)
-        return 0;
-    av_assert0(frame->pix_fmt == NMD_PIXFMT_MEDIACODEC);
-    AVMediaCodecBuffer *buffer = (AVMediaCodecBuffer *)frame->datap[0];
-    int ret = av_mediacodec_release_buffer(buffer, 1);
-    nmd_frame_releasep(framep);
-    if (ret < 0)
-        return -1;
-    return 0;
+    if (!frame) {
+        if (release_fence_fd >= 0)
+            close(release_fence_fd);
+        return;
+    }
+    AVFrame *avframe = frame->internal;
+    nmdi_mediacodec_release_frame(&avframe, release_fence_fd);
+    av_freep(framep);
 #else
     av_assert0(0);
 #endif
@@ -836,20 +837,12 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
                   av_ts2timestr(diff, &s->st_timebase),
                   PTS2TIMESTR(o->dist_time_seek_trigger64));
 
-        /* If we never returned a frame and got a candidate, we do not free it
-         * immediately, because after the seek we might not actually get
-         * anything. Typical case: images where we request a random timestamp.
-         *
-         * There is however an exception if the frame is from MediaCodec. Since
-         * the MediaCodec flush command discard both input and output buffers,
-         * we need to release any frame we retain before performing a seek
-         * otherwise the ffmpeg MediaCodec decoder will never send the command
-         * to the codec and will queue input packets until it reaches EOF.
+        /*
+         * Keep a candidate if no frame has been returned yet. Seeking a still
+         * image to a later timestamp may produce no new frame.
          */
-        if ((candidate && candidate->format == AV_PIX_FMT_MEDIACODEC) ||
-            (diff > 0 && s->last_pushed_frame_ts != AV_NOPTS_VALUE)) {
+        if (diff > 0 && s->last_pushed_frame_ts != AV_NOPTS_VALUE)
             av_frame_free(&candidate);
-        }
 
         av_frame_free(&s->cached_frame);
 

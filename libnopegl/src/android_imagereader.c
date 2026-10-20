@@ -28,12 +28,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <jni.h>
 #include <android/native_window.h>
 #include <media/NdkImageReader.h>
 
 #include "android_imagereader.h"
-#include "jni_utils.h"
 #include "log.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
@@ -54,7 +52,6 @@ struct android_imagereader {
     atomic_int refcount;
     struct android_ctx *android_ctx;
     AImageReader *reader;
-    jobject window;
 
     pthread_mutex_t lock;
     pthread_cond_t cond;
@@ -279,30 +276,11 @@ fail:
     return NULL;
 }
 
-int ngli_android_imagereader_get_window(struct android_imagereader *s, void **window)
+int ngli_android_imagereader_get_window(struct android_imagereader *s, ANativeWindow **window)
 {
     struct android_ctx *android_ctx = s->android_ctx;
-
-    if (s->window) {
-        *window = s->window;
-        return 0;
-    }
-
-    ANativeWindow *native_window;
-    media_status_t status = android_ctx->AImageReader_getWindow(s->reader, &native_window);
-    if (status != AMEDIA_OK)
-        return NGL_ERROR_EXTERNAL;
-
-    JNIEnv *env = ngli_jni_get_env();
-    if (!env)
-        return NGL_ERROR_EXTERNAL;
-
-    jobject object = android_ctx->ANativeWindow_toSurface(env, native_window);
-    s->window = (*env)->NewGlobalRef(env, object);
-    (*env)->DeleteLocalRef(env, object);
-
-    *window = s->window;
-    return *window ? 0 : NGL_ERROR_EXTERNAL;
+    media_status_t status = android_ctx->AImageReader_getWindow(s->reader, window);
+    return status == AMEDIA_OK ? 0 : NGL_ERROR_EXTERNAL;
 }
 
 int ngli_android_imagereader_acquire_next_image(struct android_imagereader *s, struct android_image **imagep)
@@ -369,10 +347,6 @@ static void imagereader_unref(struct android_imagereader *s)
     ngli_darray_reset(&s->removed_buffers);
     pthread_mutex_destroy(&s->lock);
     pthread_cond_destroy(&s->cond);
-
-    JNIEnv *env = ngli_jni_get_env();
-    if (env)
-        (*env)->DeleteGlobalRef(env, s->window);
 
     ngli_freep(&s);
 }

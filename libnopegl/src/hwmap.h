@@ -41,9 +41,6 @@ struct hwmap_params {
     enum ngpu_wrap texture_wrap_s;
     enum ngpu_wrap texture_wrap_t;
     uint32_t texture_usage;
-#if defined(TARGET_ANDROID)
-    struct android_imagereader *android_imagereader;
-#endif
 };
 
 struct hwmap {

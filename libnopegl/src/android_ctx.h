@@ -23,13 +23,12 @@
 #ifndef ANDROID_CTX_H
 #define ANDROID_CTX_H
 
-#include <android/native_window_jni.h>
+#include <android/native_window.h>
 #include <media/NdkImageReader.h>
 
 struct ngpu_ctx;
 
 struct android_ctx {
-    void *libandroid_handle;
     void *libmediandk_handle;
 
     /* AImage */
@@ -45,9 +44,6 @@ struct android_ctx {
     media_status_t (*AImageReader_acquireNextImage)(AImageReader *reader, AImage **image);
     media_status_t (*AImageReader_setBufferRemovedListener)(AImageReader *reader, AImageReader_BufferRemovedListener *listener);
     void (*AImageReader_delete)(AImageReader *reader);
-
-    /* ANativeWindow */
-    jobject (*ANativeWindow_toSurface)(JNIEnv* env, ANativeWindow* window);
 
     /* AHardwareBuffer */
     void (*AHardwareBuffer_describe)(const AHardwareBuffer *buffer, AHardwareBuffer_Desc *outDesc);

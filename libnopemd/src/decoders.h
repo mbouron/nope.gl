@@ -31,6 +31,7 @@ struct decoding_ctx;
 struct decoder_ctx {
     void *log_ctx;
     AVCodecContext *avctx;
+    AVRational st_timebase;
     const struct decoder *dec;
     void *priv_data;
     struct decoding_ctx *decoding_ctx;
