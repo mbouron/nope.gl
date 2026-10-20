@@ -1,0 +1,149 @@
+name: 'tests libnopemd'
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'staging'
+    paths:
+      - 'libnopemd/**'
+      - '.github/workflows/ci_nopemd.yml'
+  pull_request:
+    paths:
+      - 'libnopemd/**'
+      - '.github/workflows/ci_nopemd.yml'
+
+jobs:
+  linux:
+
+    runs-on: ubuntu-26.04
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt -y update
+        sudo apt -y install libva-dev python3-venv valgrind
+        sudo apt -y install libavcodec-dev libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev libswscale-dev libswresample-dev
+
+    - name: Build
+      run: |
+        ./configure.py --buildtype debug
+        make nopemd-install
+
+    - name: Run tests
+      run: |
+        make nopemd-tests
+
+    - name: Run memory tests
+      run: |
+        . venv/bin/ngli-activate
+        meson test -C builddir/libnopemd --wrap 'valgrind --error-exitcode=1'
+
+    - name: Upload Logs
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux logs
+        path: builddir/libnopemd/meson-logs/testlog.txt
+
+  macos:
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        brew install python3 pkg-config ffmpeg
+
+    - name: Build
+      run: |
+        ./configure.py
+        make nopemd-install
+
+    - name: Run tests
+      run: |
+        make nopemd-tests
+
+    - name: Upload Logs
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos logs
+        path: builddir/libnopemd/meson-logs/testlog.txt
+
+  mingw:
+
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: ucrt64
+        update: true
+
+    - name: Install dependencies
+      run: |
+        pacman -S --noconfirm --needed git make mingw-w64-ucrt-x86_64-{toolchain,ffmpeg,python,meson}
+        # Prevents random "SSL: CERTIFICATE_VERIFY_FAILED" error with urllib HTTPS calls
+        pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-ca-certificates
+
+    - name: Build
+      run: |
+        ./configure.py
+        make nopemd-install
+
+    - name: Run tests
+      run: |
+        make nopemd-tests
+
+    - name: Upload Logs
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: mingw logs
+        path: builddir/libnopemd/meson-logs/testlog.txt
+
+  msvc:
+
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.13.5'
+
+    - name: Build
+      run: |
+        $PSNativeCommandUseErrorActionPreference = $true
+        .\scripts\msvc-env.ps1
+        python.exe .\configure.py --build-backend ninja
+        nmake nopemd-install
+
+    - name: Run tests
+      run: |
+        $PSNativeCommandUseErrorActionPreference = $true
+        .\scripts\msvc-env.ps1
+        nmake nopemd-tests
+
+    - name: Upload Logs
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: msvc logs
+        path: builddir/libnopemd/meson-logs/testlog.txt

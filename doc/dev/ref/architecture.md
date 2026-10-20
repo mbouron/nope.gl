@@ -4,6 +4,9 @@ The `nope.gl` project is split in several parts:
 
 - `libnopegl`: the core of the project, an `OpenGL` engine in `C`, containing
   all the nodes.
+- `libnopemd`: the media (video, audio and images) playback library used by
+  `libnopegl`, licensed under the LGPL 2.1 or later (formerly the `nope.media`
+  project).
 - `ngl-tools`: a set of various program tools using `libnopegl`.
 - `pynopegl`: a Python binding for `libnopegl` (with the help of `Cython`) to
   create graph scenes in the most simple way.
@@ -13,9 +16,11 @@ The `nope.gl` project is split in several parts:
 ## Dependencies
 
 - `libnopegl` requires a standard C toolchain and [meson build system][meson].
-  It also depends on [nope.media][nope_media] (libnopemd) for media (video and
-  images) playback. [Graphviz][graphviz] is optional but can be used to render
-  and preview graphs obtained from the API.
+  It also depends on `libnopemd` for media (video and images) playback.
+  [Graphviz][graphviz] is optional but can be used to render and preview graphs
+  obtained from the API.
+- `libnopemd` requires a standard C toolchain, [meson build system][meson] and
+  [FFmpeg][ffmpeg].
 - `ngl-tools` needs [SDL3][sdl3] and `libnopegl` installed.
 - `pynopegl` needs [Python][python] and [Cython][cython], and `libnopegl`
   installed.
@@ -25,6 +30,7 @@ The `nope.gl` project is split in several parts:
 ```{mermaid}
 graph
     libnopegl(libnopegl)
+    libnopemd(libnopemd)
     ngl_tools(ngl-tools)
     pynopegl(pynopegl)
     pynopegl_utils(pynopegl-utils)
@@ -33,7 +39,6 @@ graph
     ffmpeg[FFmpeg]
     python[Python]
     sdl3[SDL3]
-    libnopemd[libnopemd]
     numpy[NumPy]
     jinja[Jinja]
 
@@ -55,12 +60,12 @@ graph
 
     classDef ngldep fill:#add8e6,color:#222
     classDef extdep fill:#c0c0c0,color:#222
-    class libnopegl,ngl_tools,pynopegl,pynopegl_utils ngldep
-    class libnopemd,ffmpeg,sdl3,python,cython,graphviz,pyside6,watchdog,numpy,jinja extdep
+    class libnopegl,libnopemd,ngl_tools,pynopegl,pynopegl_utils ngldep
+    class ffmpeg,sdl3,python,cython,graphviz,pyside6,watchdog,numpy,jinja extdep
 ```
 
 [meson]: https://mesonbuild.com/
-[nope_media]: https://github.com/NopeForge/nope.media
+[ffmpeg]: https://ffmpeg.org/
 [graphviz]: http://www.graphviz.org/
 [python]: https://www.python.org/
 [cython]: http://cython.org/
