@@ -1,0 +1,384 @@
+/*
+ * This file is part of nope.media.
+ *
+ * Copyright (c) 2015 Stupeflix
+ *
+ * nope.media is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * nope.media is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with nope.media; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#ifndef NOPE_MEDIA_H
+#define NOPE_MEDIA_H
+
+#include <stdint.h>
+#include <stdarg.h>
+
+#define NMD_VERSION_MAJOR @version_major@
+#define NMD_VERSION_MINOR @version_minor@
+#define NMD_VERSION_MICRO @version_micro@
+
+#define NMD_GET_VERSION(major, minor, micro) ((major)<<16 | (minor)<<8 | (micro))
+
+#define NMD_VERSION_INT NMD_GET_VERSION(NMD_VERSION_MAJOR, NMD_VERSION_MINOR, NMD_VERSION_MICRO)
+
+#if defined(_WIN32)
+#  if defined(BUILD_NOPE_MEDIA_SHARED_LIB) /* On Windows, we need to export the symbols while building */
+#    define NMDAPI __declspec(dllexport)
+#  elif defined(USE_NOPE_MEDIA_STATIC_LIB) /* Static library users don't need anything special */
+#    define NMDAPI
+#  else
+#    define NMDAPI __declspec(dllimport)  /* Dynamic library users (default) need a DLL import spec */
+#  endif
+#else
+#  define NMDAPI __attribute__((visibility("default"))) /* This cancel the hidden GNU symbol visibility attribute */
+#endif
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ *                                 t=0                            t=END
+ *                                  v                              v
+ *                       -----------+------------------------------+---------
+ *      timeline           PREFECH  |##############################| LAST
+ *                       -----------+------------------------------+---------
+ *                                 .                              .
+ *                                .                              .
+ *                               .                              .
+ *                              .                              .
+ *                      +------+------------------------------+---------+
+ *  Video timeline      |     #|##############################|         |
+ *                      +------+------------------------------+---------+
+ *                      ^     ^^                              ^
+ *                    Vt=0   Vt=start_time              Vt=end_time
+ *
+ *  t:  timeline timestamp
+ *  Vt: video timestamp
+ *  PREFETCH: starts thread if necessary and returns NULL
+ *  LAST: repeat last frame (or like any other frame NULL if it was already raised)
+ *      ...
+ *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+struct nmd_ctx;
+
+enum nmd_media_selection {
+    NMD_SELECT_VIDEO,
+    NMD_SELECT_AUDIO,
+    NB_NMD_MEDIA_SELECTION // *NOT* part of the API/ABI
+};
+
+enum nmd_pixel_format {
+    NMD_PIXFMT_NONE = -1,
+    NMD_PIXFMT_AUTO,
+    NMD_PIXFMT_RGBA,
+    NMD_PIXFMT_BGRA,
+    NMD_PIXFMT_VT,        // VideoToolBox pixel format (HW accelerated, frame->data/frame->datap[0] is a CVPixelBufferRef)
+    NMD_PIXFMT_MEDIACODEC,// MediaCodec pixel format (HW accelerated, frame->data/frame->datap[0] is a AVMediaCodecBuffer)
+    NMD_SMPFMT_FLT,
+    NMD_PIXFMT_VAAPI,     // VAAPI pixel format (HW accelerated, frame->data/frame->datap[0] is a VASurfaceID)
+    NMD_PIXFMT_NV12,
+    NMD_PIXFMT_YUV420P,
+    NMD_PIXFMT_YUV422P,
+    NMD_PIXFMT_YUV444P,
+    NMD_PIXFMT_P010LE,
+    NMD_PIXFMT_YUV420P10LE,
+    NMD_PIXFMT_YUV422P10LE,
+    NMD_PIXFMT_YUV444P10LE,
+};
+
+enum nmd_loglevel {
+    NMD_LOG_VERBOSE,
+    NMD_LOG_DEBUG,
+    NMD_LOG_INFO,
+    NMD_LOG_WARNING,
+    NMD_LOG_ERROR,
+};
+
+enum {
+    NMD_COL_SPC_RGB,
+    NMD_COL_SPC_BT709,
+    NMD_COL_SPC_UNSPECIFIED,
+    NMD_COL_SPC_RESERVED,
+    NMD_COL_SPC_FCC,
+    NMD_COL_SPC_BT470BG,
+    NMD_COL_SPC_SMPTE170M,
+    NMD_COL_SPC_SMPTE240M,
+    NMD_COL_SPC_YCGCO,
+    NMD_COL_SPC_BT2020_NCL,
+    NMD_COL_SPC_BT2020_CL,
+    NMD_COL_SPC_SMPTE2085,
+    NMD_COL_SPC_CHROMA_DERIVED_NCL,
+    NMD_COL_SPC_CHROMA_DERIVED_CL,
+    NMD_COL_SPC_ICTCP,
+    NB_NMD_COL_SPC // *NOT* part of API/ABI
+};
+
+enum {
+    NMD_COL_RNG_UNSPECIFIED,
+    NMD_COL_RNG_LIMITED,
+    NMD_COL_RNG_FULL,
+    NB_NMD_COL_RNG // *NOT* part of API/ABI
+};
+
+enum {
+    NMD_COL_PRI_RESERVED0,
+    NMD_COL_PRI_BT709,
+    NMD_COL_PRI_UNSPECIFIED,
+    NMD_COL_PRI_RESERVED,
+    NMD_COL_PRI_BT470M,
+    NMD_COL_PRI_BT470BG,
+    NMD_COL_PRI_SMPTE170M,
+    NMD_COL_PRI_SMPTE240M,
+    NMD_COL_PRI_FILM,
+    NMD_COL_PRI_BT2020,
+    NMD_COL_PRI_SMPTE428,
+    NMD_COL_PRI_SMPTE431,
+    NMD_COL_PRI_SMPTE432,
+    NMD_COL_PRI_JEDEC_P22,
+    NB_NMD_COL_PRI // *NOT* part of API/ABI
+};
+
+enum {
+    NMD_COL_TRC_RESERVED0,
+    NMD_COL_TRC_BT709,
+    NMD_COL_TRC_UNSPECIFIED,
+    NMD_COL_TRC_RESERVED,
+    NMD_COL_TRC_GAMMA22,
+    NMD_COL_TRC_GAMMA28,
+    NMD_COL_TRC_SMPTE170M,
+    NMD_COL_TRC_SMPTE240M,
+    NMD_COL_TRC_LINEAR,
+    NMD_COL_TRC_LOG,
+    NMD_COL_TRC_LOG_SQRT,
+    NMD_COL_TRC_IEC61966_2_4,
+    NMD_COL_TRC_BT1361_ECG,
+    NMD_COL_TRC_IEC61966_2_1,
+    NMD_COL_TRC_BT2020_10,
+    NMD_COL_TRC_BT2020_12,
+    NMD_COL_TRC_SMPTE2084,
+    NMD_COL_TRC_SMPTE428,
+    NMD_COL_TRC_ARIB_STD_B67,
+    NB_NMD_COL_TRC // *NOT* part of the API/ABI
+};
+
+enum {
+    NMD_ERR_MEMORY     = -3,              // a memory error occured, frame pointer is always NULL
+    NMD_ERR_EOF        = -2,              // reached end of file (or requested end time), frame pointer
+                                          // is always NULL
+    NMD_ERR_GENERIC    = -1,              // an error occured, frame pointer is always NULL
+    NMD_RET_SUCCESS    = 0,               // the requested operation succeeded
+    NMD_RET_NEWFRAME   = NMD_RET_SUCCESS, // a new frame is returned, frame pointer is not NULL
+    NMD_RET_UNCHANGED  = 1,               // the returned frame would be the same as the previous one,
+                                          // frame pointer is always NULL
+};
+
+struct nmd_frame {
+    void *internal;     // nmd internal frame context frame, do not alter
+    uint8_t *datap[8];  // pointer to the frame planes
+    int linesizep[8];   // linesize in bytes of each planes
+    double ts;          // video timestamp
+    int64_t ms;         // video timestamp in microseconds
+    int64_t pts;        // video presentation time stamp in stream timebase unit
+    union {
+    int width;          // frame width in pixel
+    int nb_samples;     // number of audio samples contained in the frame
+    };
+    int height;         // frame height in pixel
+    int pix_fmt;        // nmd_pixel_format
+    int color_space;    // video color space (any of NMD_COL_CSP_*)
+    int color_range;    // video color range (any of NMD_COL_RNG_*)
+    int color_primaries;// video color primaries (any of NMD_COL_PRI_*)
+    int color_trc;      // video color transfer (any of NMD_COL_TRC_*)
+};
+
+struct nmd_info {
+    int width;
+    int height;
+    double duration;
+    int is_image;
+    int timebase[2];    // stream timebase
+};
+
+/**
+ * Create media player context
+ *
+ * @param filename media input file name
+ */
+NMDAPI struct nmd_ctx *nmd_create(const char *filename);
+
+/**
+ * Type of the user log callback
+ *
+ * @param arg       opaque user argument
+ * @param level     log level of the message (NMD_LOG_*)
+ * @param filename  source filename
+ * @param ln        line number in the source file
+ * @param fn        function name in the source
+ * @param fmt       log string format
+ * @param vl        variable argument list associated with the format
+ */
+typedef void (*nmd_log_callback_type)(void *arg, int level, const char *filename,
+                                      int ln, const char *fn, const char *fmt, va_list vl);
+
+/**
+ * Set user logging callback
+ *
+ * Setting the logging callback disables the local logging, and every log
+ * messages at every level are forwarded to the user through the specified
+ * callback.
+ *
+ * @param arg       opaque user argument to be sent back as first argument in
+ *                  the callback
+ * @param callback  custom user logging callback
+ */
+NMDAPI void nmd_set_log_callback(struct nmd_ctx *s, void *arg, nmd_log_callback_type callback);
+
+/**
+ * Set an option.
+ *
+ * Available options:
+ *
+ *   key                      type      description
+ *   ----------------------------------------------
+ *   avselect                 integer   select audio or video stream (see NMD_SELECT_*)
+ *   start_time               double    start time of the video
+ *   end_time                 double    end time of the video
+ *   dist_time_seek_trigger   double    how much time forward will trigger a seek
+ *   max_nb_frames            integer   maximum number of frames in the queue
+ *   filters                  string    custom user filters (software decoding only)
+ *   sw_pix_fmt               integer   pixel format format to use when using software decoding (video only),
+ *                                      can be any NMD_PIXFMT_* not HW accelerated. If sw_pix_fmt is set
+ *                                      to NMD_PIXFMT_AUTO, nope.media automatically selects a pixel format
+ *                                      based on the intersection between the decoder output pixel format and
+ *                                      the list of non-HW accelerated formats supported by nope.media (NMD_PIXFMT_*).
+ *                                      If the decoder output format is not supported, nope.media fallbacks to RGBA.
+ *   autorotate               integer   automatically insert rotation filters (video software decoding only)
+ *   auto_hwaccel             integer   attempt to enable hardware acceleration
+ *   opaque                   binary    pointer to an opaque pointer forwarded to the decoder (for example, a pointer to an android/view/Surface to use in conjonction with the mediacodec decoder)
+ *   max_pixels               integer   maximum number of pixels per frame
+ *   audio_texture            integer   output audio as a video texture
+ *   vt_pix_fmt               string    comma or space separated list of allowed VideoToolbox pixel formats (example: "nv12,p010,bgra").
+ *                                      Allowed Videotoolbox pixel formats are: "bgra", "nv12", "p010"
+ *   stream_idx               integer   force a stream number instead of picking the "best" one (note: stream MUST be of type avselect)
+ *   use_pkt_duration         integer   use packet duration instead of decoding the next frame to get the next frame pts
+ */
+NMDAPI int nmd_set_option(struct nmd_ctx *s, const char *key, ...);
+
+/**
+ * Get the media duration (clipped to end_time if set).
+ *
+ * The duration is expressed in seconds.
+ */
+NMDAPI int nmd_get_duration(struct nmd_ctx *s, double *duration);
+
+/**
+ * Get various information on the media.
+ */
+NMDAPI int nmd_get_info(struct nmd_ctx *s, struct nmd_info *info);
+
+/**
+ * Get the frame at an absolute time.
+ *
+ * The returned frame needs to be released using nmd_frame_releasep().
+ *
+ * Requesting a negative time is equivalent to calling nmd_prefetch().
+ *
+ * If you are working on a player (which typically needs seeking and has a
+ * refresh rate architecture), this is the function you are probably interested
+ * in.
+ *
+ * The function is blocking, it will make sure any asynchronous operation
+ * previously requested (start, seek, stop) is honored before returning.
+ *
+ * Return: NMD_RET_* or NMD_ERR_*
+ */
+NMDAPI int nmd_get_frame(struct nmd_ctx *s, double t, struct nmd_frame **framep);
+
+/**
+ * Same as nmd_get_frame, but with timestamp expressed in microseconds.
+ */
+NMDAPI int nmd_get_frame_ms(struct nmd_ctx *s, int64_t ms, struct nmd_frame **framep);
+
+/**
+ * Request a playback start to the player.
+ *
+ * The function always returns immediately (it doesn't wait for a frame to be
+ * decoded).
+ *
+ * Return 0 on success, a negative value on error.
+ */
+NMDAPI int nmd_start(struct nmd_ctx *s);
+
+/**
+ * Request a stop to the player to liberate playback ressources.
+ *
+ * The function always returns immediately (it doesn't wait for every
+ * ressources and contexts to be destroyed).
+ *
+ * Return 0 on success, a negative value on error.
+ */
+NMDAPI int nmd_stop(struct nmd_ctx *s);
+
+/**
+ * Request a seek to the player at a given time.
+ *
+ * The function always returns immediately (the seek will be delayed and
+ * executed in another thread).
+ *
+ * Note: the passed time is relative to the skip option.
+ *
+ * Return 0 on success, a negative value on error.
+ */
+NMDAPI int nmd_seek(struct nmd_ctx *s, double t);
+
+/**
+ * Get the next frame.
+ *
+ * The returned frame needs to be released using nmd_frame_releasep().
+ *
+ * At EOF nmd_get_next_frame() will return NULL. You can call
+ * nmd_get_next_frame() to restart the decoding from the beginning.
+ *
+ * If you want to process every single frame of the media regardless of a
+ * "refresh rate" or seeking needs, this is the function you are probably
+ * interested in. You can still use this function in combination with
+ * nmd_get_frame() in case you need seeking.
+ *
+ * Return: NMD_RET_NEW_FRAME or NMD_ERR_*
+ */
+NMDAPI int nmd_get_next_frame(struct nmd_ctx *s, struct nmd_frame **framep);
+
+/**
+ * Release a frame obtained with nmd_get_frame(), nmd_get_frame_ms() or
+ * nmd_get_next_frame().
+ */
+NMDAPI void nmd_frame_releasep(struct nmd_frame **framep);
+
+/**
+ * Render to surface and release a MediaCodec frame obtained with
+ * nmd_get_frame(), nmd_get_frame_ms() or nmd_get_next_frame().
+ *
+ * @param framep the address of a nmd_frame pointer to be rendered
+ *               and released
+ *
+ * Note: the nmd_frame is released even if the underlying MediaCodec
+ * buffer failed to be rendered.
+ *
+ * Return 0 on success, a negative value on error
+ */
+NMDAPI int nmd_mc_frame_render_and_releasep(struct nmd_frame **framep);
+
+/* Close and free everything */
+NMDAPI void nmd_freep(struct nmd_ctx **sp);
+
+#endif

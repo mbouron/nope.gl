@@ -205,12 +205,6 @@ _EXTERNAL_DEPS = dict(
         dst_file="ffmpeg-@VERSION@.zip",
         sha256="0f376f96fb38554ccefb1b2ae9c7c6a7b351f0e60a372b38262c320e8392c5d0",
     ),
-    nopemd=dict(
-        version="13.1.0",
-        url="https://github.com/mbouron/nope.media/archive/v@VERSION@.tar.gz",
-        dst_file="nope.media-@VERSION@.tar.gz",
-        sha256="fb8dd91282f1a60ea1375edfbb5879783a2df1a9a33c2165f59f5ea5b4e0aa27",
-    ),
     sdl3_Windows=dict(
         version="3.4.8",
         url="https://github.com/libsdl-org/SDL/releases/download/release-@VERSION@/SDL3-devel-@VERSION@-VC.zip",
@@ -278,7 +272,6 @@ def _is_local(system):
 
 def _get_external_deps(args):
     deps = [
-        "nopemd",
         "glslang",
         "xxhash",
     ]
@@ -887,13 +880,12 @@ def _glslang_install(cfg):
     },
 )
 def _nopemd_setup(cfg):
-    builddir = _get_builddir(cfg, "nopemd")
-    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(cfg.externals["nopemd"], builddir)]
+    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join("libnopemd", _get_builddir(cfg, "libnopemd"))]
 
 
 @_block("nopemd-install", [_nopemd_setup])
 def _nopemd_install(cfg):
-    return _meson_compile_install_cmd(cfg, "nopemd")
+    return _meson_compile_install_cmd(cfg, "libnopemd")
 
 
 @_block("renderdoc-install")
@@ -1211,6 +1203,11 @@ def _tests_setup(cfg):
     return ["$(MESON) setup --backend=ninja " + _cmd_join("tests", _get_builddir(cfg, "tests"))]
 
 
+@_block("nopemd-tests", [_nopemd_install])
+def _nopemd_tests(cfg):
+    return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "libnopemd"))]
+
+
 @_block("nopegl-tests", [_nopegl_install])
 def _nopegl_tests(cfg):
     return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "libnopegl"))]
@@ -1242,7 +1239,7 @@ def _clean_py(cfg):
 
 @_block("clean", [_clean_py])
 def _clean(cfg):
-    deps = ["doc", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
+    deps = ["doc", "libnopemd", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
     return [_rd(_get_builddir(cfg, dep)) for dep in deps]
 
 
@@ -1262,7 +1259,7 @@ def _coverage_xml(cfg):
     return _coverage(cfg, "xml")
 
 
-@_block("tests", [_nopegl_tests, _tests_setup])
+@_block("tests", [_nopemd_tests, _nopegl_tests, _tests_setup])
 def _tests(cfg):
     return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "tests"))]
 

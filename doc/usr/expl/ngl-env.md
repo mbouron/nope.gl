@@ -16,7 +16,7 @@ This command by default creates a Python Virtual environment in the `venv`
 directory (unless customized to something else with the `-p` option). In this
 virtual environment, `pip` is installed, along with `meson` (needed for
 building some of our components) and various other module requirements. A few
-external dependencies such as `nope.media` are then pulled, and a `Makefile`
+external dependencies such as `glslang` are then pulled, and a `Makefile`
 is generated.
 
 The generated `Makefile` (compatible `NMake` on Windows and `GNU/Make` on other
