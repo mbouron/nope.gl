@@ -62,6 +62,7 @@ foreach backend : backends
     'animation_keyframes_editing_live',
     'animation_keyframes_empty',
     'timerange_inverted',
+    'media_missing',
     'paint_fill_and_stroke_shared',
     'paint_fill_and_stroke_resource_clash',
     'custompaint_texture',

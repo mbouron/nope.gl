@@ -39,6 +39,7 @@
 #include "nodes_register.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
+#include "timerange.h"
 #include "utils/hmap.h"
 #include "utils/memory.h"
 #include "utils/string.h"
@@ -615,7 +616,7 @@ int ngli_node_prepare(struct ngl_node *node,
     return ngli_node_prepare_nodes(node->ctx, 1, &node, layout);
 }
 
-int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
+int ngli_node_visit(struct ngl_node *node, bool is_active, double t, const struct ngli_prefetch_range *range)
 {
     /*
      * If a node is inactive and meant to be, there is no need
@@ -650,6 +651,8 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
          */
         node->is_active = is_active;
         node->visit_time = t;
+        node->prefetch_time = -1.0;
+        node->prefetch_delay = DBL_MAX;
     } else {
         /*
          * This is not the first time we come across that node, so if it's
@@ -659,8 +662,16 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
         node->is_active |= is_active;
     }
 
+    double prefetch_time, prefetch_delay;
+    if (is_active && node->cls->prefetch &&
+        ngli_timerange_get_prefetch_time(range, t, &prefetch_time, &prefetch_delay) &&
+        prefetch_delay < node->prefetch_delay) {
+        node->prefetch_time = prefetch_time;
+        node->prefetch_delay = prefetch_delay;
+    }
+
     if (node->cls->visit) {
-        int ret = node->cls->visit(node, is_active, t);
+        int ret = node->cls->visit(node, is_active, t, range);
         if (ret < 0)
             return ret;
     } else {
@@ -668,7 +679,7 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t)
         struct ngl_node **children = children_array->data;
         for (size_t i = 0; i < children_array->count; i++) {
             struct ngl_node *child = children[i];
-            int ret = ngli_node_visit(child, is_active, t);
+            int ret = ngli_node_visit(child, is_active, t, range);
             if (ret < 0)
                 return ret;
         }
@@ -711,7 +722,8 @@ int ngli_node_honor_release_prefetch(struct ngl_node *scene, double t)
     /* Build a new list of activity checks nodes */
     struct ngli_node_darray *nodes_array = &scene->ctx->activitycheck_nodes;
     ngli_darray_clear(nodes_array);
-    int ret = ngli_node_visit(scene, true, t);
+    const struct ngli_prefetch_range range = {.update = {0.0, INFINITY}, .render_time = -1.0};
+    int ret = ngli_node_visit(scene, true, t, &range);
     if (ret < 0)
         return ret;
 

@@ -784,6 +784,12 @@ test_progs = {
     'objects': libnopegl.extract_all_objects(recursive: true),
     'c_args': lib_c_args,
   },
+  'Prefetch timing': {
+    'exe': 'test_prefetch',
+    'src': files('src/test_prefetch.c'),
+    'objects': libnopegl.extract_all_objects(recursive: true),
+    'c_args': lib_c_args,
+  },
   'Utils': {
     'exe': 'test_utils',
     'src': files('src/test_utils.c', 'src/log.c') + utils_src,

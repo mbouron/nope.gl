@@ -44,6 +44,42 @@ bool ngli_timerange_contains(const struct ngli_timerange *range, double t)
     return t >= range->start && t < range->end;
 }
 
+void ngli_timerange_filter_prefetch(struct ngli_prefetch_range *range, const struct ngli_timerange *filter_range,
+                                    double render_time)
+{
+    struct ngli_timerange *update = &range->update;
+    if (range->render_time >= 0.0) {
+        /*
+         * The parent passes a fixed timestamp to this filter. The child can
+         * only be updated if that timestamp falls within this filter's range.
+         */
+        if (!ngli_timerange_contains(filter_range, range->render_time))
+            update->end = update->start;
+    } else {
+        if (filter_range->start > update->start)
+            update->start = filter_range->start;
+        if (filter_range->end < update->end)
+            update->end = filter_range->end;
+    }
+    if (render_time >= 0.0)
+        range->render_time = render_time;
+}
+
+bool ngli_timerange_get_prefetch_time(const struct ngli_prefetch_range *range, double t,
+                                     double *time, double *delay)
+{
+    const struct ngli_timerange *update = &range->update;
+    if (update->end <= update->start)
+        return false;
+
+    const double next = t > update->start ? t : update->start;
+    if (next >= update->end)
+        return false;
+    *time = range->render_time >= 0.0 ? range->render_time : next;
+    *delay = next - t;
+    return true;
+}
+
 void ngli_timerange_filter_init(struct ngli_timerange_filter *s, double start, double end,
                                 double render_time, double prefetch_time)
 {
@@ -52,7 +88,8 @@ void ngli_timerange_filter_init(struct ngli_timerange_filter *s, double start, d
     s->prefetch_time = prefetch_time;
 }
 
-bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool is_active, bool child_is_active)
+bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool is_active,
+                                 bool child_is_active, struct ngli_prefetch_range *child_range)
 {
     /*
      * The life of the parent takes over the life of its children: if the
@@ -69,6 +106,8 @@ bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool
         if (!child_is_active)
             s->updated = 0;
     }
+
+    ngli_timerange_filter_prefetch(child_range, &s->range, s->render_time);
 
     return is_active;
 }
