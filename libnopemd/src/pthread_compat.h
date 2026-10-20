@@ -1,6 +1,7 @@
 /*
  * This file is part of nope.media.
  *
+ * Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright (c) 2021 GoPro
  *
  * nope.media is free software; you can redistribute it and/or
@@ -32,6 +33,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 typedef struct pthread_t {
     void *(*func)(void *arg);
@@ -49,6 +51,9 @@ typedef SRWLOCK pthread_mutex_t;
 
 typedef CONDITION_VARIABLE pthread_cond_t;
 #define PTHREAD_COND_INITIALIZER CONDITION_VARIABLE_INIT
+
+typedef INIT_ONCE pthread_once_t;
+#define PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT
 
 static unsigned __stdcall pthread_compat_worker(void *arg)
 {
@@ -72,7 +77,7 @@ static inline int pthread_create(pthread_t *thread, const pthread_attr_t *attr, 
      * conditions.
      * See: https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread#remarks
      */
-    thread->handle    = (HANDLE)_beginthreadex(NULL, stack_size, pthread_compat_worker, thread, 0, NULL);
+    thread->handle    = (HANDLE)_beginthreadex(NULL, (unsigned)stack_size, pthread_compat_worker, thread, 0, NULL);
     if (!thread->handle)
         return EAGAIN;
     return 0;
@@ -87,6 +92,20 @@ static inline int pthread_join(pthread_t thread, void **retval)
     if (retval)
         *retval = thread.ret;
     return 0;
+}
+
+static inline pthread_t pthread_self(void)
+{
+    return (pthread_t) {
+        .handle = GetCurrentThread(),
+    };
+}
+
+static inline int pthread_equal(pthread_t t1, pthread_t t2)
+{
+    const DWORD id1 = GetThreadId(t1.handle);
+    const DWORD id2 = GetThreadId(t2.handle);
+    return id1 == id2;
 }
 
 static inline int pthread_attr_init(pthread_attr_t *attr)
@@ -159,6 +178,29 @@ static inline int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex
     return 0;
 }
 
+static inline int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime)
+{
+    struct timespec curtime;
+    timespec_get(&curtime, TIME_UTC);
+
+    int64_t abstime_ms = abstime->tv_sec * 1000LL + abstime->tv_nsec / 1000000;
+    int64_t curtime_ms = curtime.tv_sec * 1000LL + curtime.tv_nsec / 1000000;
+    int64_t time = abstime_ms - curtime_ms;
+    if (time < 0)
+        time = 0;
+    else if (time > UINT32_MAX)
+        time = UINT32_MAX;
+
+    if (!SleepConditionVariableSRW(cond, mutex, (DWORD)time, 0)) {
+        DWORD err = GetLastError();
+        if (err == ERROR_TIMEOUT)
+            return ETIMEDOUT;
+        else
+            return EINVAL;
+    }
+    return 0;
+}
+
 static inline int pthread_cond_signal(pthread_cond_t *cond)
 {
     WakeConditionVariable(cond);
@@ -172,6 +214,25 @@ static inline int pthread_cond_signal(pthread_cond_t *cond)
  */
 static inline int pthread_cond_destroy(pthread_cond_t *cond)
 {
+    return 0;
+}
+
+struct pthread_compat_once_args {
+    void (*init_routine)(void);
+};
+
+static BOOL CALLBACK pthread_compat_once_worker(PINIT_ONCE once, PVOID param, PVOID *context)
+{
+    const struct pthread_compat_once_args *args = (const struct pthread_compat_once_args *)param;
+    args->init_routine();
+    return TRUE;
+}
+
+static inline int pthread_once(pthread_once_t *once_control, void (*init_routine)(void))
+{
+    struct pthread_compat_once_args args = {.init_routine = init_routine};
+    if (!InitOnceExecuteOnce(once_control, pthread_compat_once_worker, &args, NULL))
+        return EINVAL;
     return 0;
 }
 #endif
