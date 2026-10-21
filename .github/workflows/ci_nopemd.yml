@@ -113,7 +113,7 @@ jobs:
         name: mingw logs
         path: builddir/libnopemd/meson-logs/testlog.txt
 
-  msvc:
+  windows:
 
     runs-on: windows-latest
 
@@ -132,6 +132,8 @@ jobs:
       run: |
         $PSNativeCommandUseErrorActionPreference = $true
         .\scripts\msvc-env.ps1
+        clang-cl --version
+        lld-link --version
         python.exe .\configure.py --build-backend ninja
         nmake nopemd-install
 
@@ -145,5 +147,5 @@ jobs:
       if: ${{ always() }}
       uses: actions/upload-artifact@v4
       with:
-        name: msvc logs
+        name: windows logs
         path: builddir/libnopemd/meson-logs/testlog.txt

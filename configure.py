@@ -880,7 +880,10 @@ def _glslang_install(cfg):
     },
 )
 def _nopemd_setup(cfg):
-    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join("libnopemd", _get_builddir(cfg, "libnopemd"))]
+    opts = []
+    if cfg.host == "Windows":
+        opts += _get_clang_cl_meson_opts(cfg)
+    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(*opts, "libnopemd", _get_builddir(cfg, "libnopemd"))]
 
 
 @_block("nopemd-install", [_nopemd_setup])

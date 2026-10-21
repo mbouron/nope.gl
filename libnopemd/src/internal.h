@@ -21,6 +21,7 @@
 #ifndef NOPE_MEDIA_INTERNAL_H
 #define NOPE_MEDIA_INTERNAL_H
 
+#include <assert.h>
 #include <stdio.h>
 #include <libavcodec/version.h>
 #include <libavutil/pixfmt.h>
@@ -49,6 +50,6 @@ void nmdi_update_dimensions(int *width, int *height, int max_pixels);
 #define TIME2INT64(d) llrint((d) * av_q2d(av_inv_q(AV_TIME_BASE_Q)))
 #define PTS2TIMESTR(t64) av_ts2timestr(t64, &AV_TIME_BASE_Q)
 
-#define NMDI_STATIC_ASSERT(id, c) _Static_assert(c, #id)
+#define NMDI_STATIC_ASSERT(id, c) static_assert(c, #id)
 
 #endif

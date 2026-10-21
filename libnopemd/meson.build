@@ -1,9 +1,9 @@
 project(
   'nope.media',
   'c',
-  default_options: ['c_std=c17'],
+  default_options: ['c_std=c23,c2x'],
   license: 'LGPL-2.1',
-  meson_version: '>= 0.57.0',
+  meson_version: '>= 1.4.0',
   version: files('VERSION'),
 )
 
@@ -17,6 +17,14 @@ host_system = host_machine.system()
 cc = meson.get_compiler('c')
 
 install_rpath = get_option('rpath') ? get_option('prefix') / get_option('libdir') : ''
+
+if host_system == 'windows'
+  if cc.get_id() == 'msvc'
+    error('MSVC cl.exe is not supported, use clang-cl instead')
+  elif cc.get_id() == 'clang-cl'
+    add_project_arguments(['-D_CRT_SECURE_NO_WARNINGS'], language: 'c')
+  endif
+endif
 
 # This trim prefix is used to make __FILE__ starts from the source dir with
 # out-of-tree builds.
