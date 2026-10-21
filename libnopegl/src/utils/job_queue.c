@@ -97,11 +97,7 @@ int ngli_fence_wait_timeout(struct ngli_fence *fence, int64_t timeout)
     }
 
     struct timespec ts;
-#if defined(TARGET_ANDROID)
-    clock_gettime(CLOCK_REALTIME, &ts);
-#else
     timespec_get(&ts, TIME_UTC);
-#endif
 
     ts.tv_sec += timeout / NGLI_NS_PER_SEC;
     ts.tv_nsec += timeout % NGLI_NS_PER_SEC;

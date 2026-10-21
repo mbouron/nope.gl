@@ -49,7 +49,7 @@ _CPU_FAMILIES = [
     "x86_64",
 ]
 
-_ANDROID_VERSION = 28
+_ANDROID_VERSION = 29
 
 _ANDROID_COMPILER_MAP = dict(
     arm=f"armv7a-linux-androideabi{_ANDROID_VERSION}",

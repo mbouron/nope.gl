@@ -182,7 +182,7 @@ val prefabModules = mapOf(
 )
 
 // Keep in sync with _ANDROID_VERSION in configure.py.
-val nativeApiLevel = 28
+val nativeApiLevel = 29
 
 val generatePrefab = tasks.register("generatePrefab") {
     val outputDir = layout.buildDirectory.dir("prefab")

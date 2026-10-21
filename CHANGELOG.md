@@ -15,6 +15,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 ### Removed
 - OpenGL/ES backend support on macOS, iOS and Windows
 - Support for OpenGL < 4.5 (OpenGL ES 3.0 is still supported)
+- Support for Android < 10
 
 ### Changed
 - Vulkan is now the default backend on macOS, iOS and Windows
