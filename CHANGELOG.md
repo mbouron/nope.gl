@@ -21,6 +21,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - Vulkan is now the default backend on macOS, iOS and Windows
 - nope.media is now part of the project as `libnopemd` (LGPL 2.1 or later)
 
+### Fixed
+- Incorrect `ColorStats` histograms with OpenGL ES on Mali GPUs
+
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added
 - `ngpu_fence_export_sync_file()` to export a fence as a sync file descriptor

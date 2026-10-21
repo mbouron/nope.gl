@@ -92,10 +92,11 @@ void main()
         uint l = hist_bl[i] >> 16U;
         stats.data[data_offset + i] = uvec4(r, g, b, l);
 
-        atomicAdd(stats.summary[i].r, r);
-        atomicAdd(stats.summary[i].g, g);
-        atomicAdd(stats.summary[i].b, b);
-        atomicAdd(stats.summary[i].a, l);
+        /* Mali GLES may ignore the array index in atomic operations on swizzled components */
+        atomicAdd(stats.summary[i][0], r);
+        atomicAdd(stats.summary[i][1], g);
+        atomicAdd(stats.summary[i][2], b);
+        atomicAdd(stats.summary[i][3], l);
     }
 
     /* 1st thread from each workgroup populate their maximum to the global one */
