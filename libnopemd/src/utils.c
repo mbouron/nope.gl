@@ -81,7 +81,7 @@ void nmdi_set_thread_name(const char *name)
 {
 #if defined(__APPLE__)
     pthread_setname_np(name);
-#elif defined(__linux__) && defined(__GLIBC__)
+#elif (defined(__linux__) && defined(__GLIBC__)) || defined(__ANDROID__)
     pthread_setname_np(pthread_self(), name);
 #endif
 }
