@@ -49,7 +49,6 @@
 #define NGPU_FEATURE_GL_EGL_ANDROID_GET_IMAGE_NATIVE_CLIENT_BUFFER (1ULL << 30)
 #define NGPU_FEATURE_GL_KHR_DEBUG                                  (1ULL << 31)
 #define NGPU_FEATURE_GL_SHADER_IMAGE_SIZE                          (1ULL << 33)
-#define NGPU_FEATURE_GL_SHADING_LANGUAGE_420PACK                   (1ULL << 34)
 #define NGPU_FEATURE_GL_COLOR_BUFFER_FLOAT                         (1ULL << 36)
 #define NGPU_FEATURE_GL_COLOR_BUFFER_HALF_FLOAT                    (1ULL << 37)
 #define NGPU_FEATURE_GL_BUFFER_STORAGE                             (1ULL << 39)

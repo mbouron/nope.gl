@@ -99,7 +99,6 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_COMPUTE_SHADER,
         .version        = 430,
         .es_version     = 310,
-        .extensions     = (const char*[]){"GL_ARB_compute_shader", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(DispatchCompute),
                                            SIZE_MAX}
     }, {
@@ -107,7 +106,6 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_PROGRAM_INTERFACE_QUERY,
         .version        = 430,
         .es_version     = 310,
-        .extensions     = (const char*[]){"GL_ARB_program_interface_query", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(GetProgramResourceIndex),
                                            OFFSET(GetProgramResourceiv),
                                            OFFSET(GetProgramResourceLocation),
@@ -119,7 +117,6 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_SHADER_IMAGE_LOAD_STORE,
         .version        = 420,
         .es_version     = 310,
-        .extensions     = (const char*[]){"GL_ARB_shader_image_load_store", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(BindImageTexture),
                                            OFFSET(MemoryBarrier),
                                            SIZE_MAX}
@@ -128,7 +125,6 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_SHADER_STORAGE_BUFFER_OBJECT,
         .version        = 430,
         .es_version     = 310,
-        .extensions     = (const char*[]){"GL_ARB_shader_storage_buffer_object", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(TexStorage2D),
                                            OFFSET(TexStorage3D),
                                            SIZE_MAX}
@@ -137,14 +133,12 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_INTERNALFORMAT_QUERY,
         .version        = 420,
         .es_version     = 300,
-        .extensions     = (const char*[]){"GL_ARB_internalformat_query", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(GetInternalformativ),
                                            SIZE_MAX}
     }, {
         .name           = "timer_query",
         .flag           = NGPU_FEATURE_GL_TIMER_QUERY,
         .version        = 330,
-        .extensions     = (const char*[]){"GL_ARB_timer_query", NULL},
     }, {
         .name           = "ext_disjoint_timer_query",
         .flag           = NGPU_FEATURE_GL_EXT_DISJOINT_TIMER_QUERY,
@@ -161,7 +155,6 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_INVALIDATE_SUBDATA,
         .version        = 430,
         .es_version     = 300,
-        .extensions     = (const char*[]){"GL_ARB_invalidate_subdata", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(InvalidateFramebuffer),
                                            SIZE_MAX}
     }, {
@@ -203,12 +196,6 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_SHADER_IMAGE_SIZE,
         .version        = 430,
         .es_version     = 310,
-        .extensions     = (const char*[]){"GL_ARB_shader_image_size", NULL},
-    }, {
-        .name           = "shading_language_420pack",
-        .flag           = NGPU_FEATURE_GL_SHADING_LANGUAGE_420PACK,
-        .version        = 420,
-        .extensions     = (const char*[]){"GL_ARB_shading_language_420pack", NULL},
     }, {
         .name           = "color_buffer_float",
         .flag           = NGPU_FEATURE_GL_COLOR_BUFFER_FLOAT,
@@ -225,7 +212,6 @@ static const struct glfeature {
         .name           = "buffer_storage",
         .flag           = NGPU_FEATURE_GL_BUFFER_STORAGE,
         .version        = 440,
-        .extensions     = (const char*[]){"GL_ARB_buffer_storage", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(BufferStorage),
                                            SIZE_MAX}
     }, {
@@ -254,7 +240,6 @@ static const struct glfeature {
         .flag           = NGPU_FEATURE_GL_TEXTURE_STENCIL8,
         .version        = 440,
         .es_version     = 320,
-        .extensions     = (const char*[]){"GL_ARB_texture_stencil8", NULL},
         .es_extensions  = (const char*[]){"GL_OES_texture_stencil8", NULL},
     }, {
         .name           = "texture_float_linear",
@@ -270,7 +255,6 @@ static const struct glfeature {
         .name           = "viewport_array",
         .flag           = NGPU_FEATURE_GL_VIEWPORT_ARRAY,
         .version        = 410,
-        .extensions     = (const char*[]){"GL_ARB_viewport_array", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(ViewportIndexedf),
                                            SIZE_MAX}
     },
@@ -352,8 +336,8 @@ static int glcontext_probe_version(struct glcontext *glcontext)
 
     glcontext->version = major_version * 100 + minor_version * 10;
 
-    if (glcontext->backend == NGPU_BACKEND_OPENGL && glcontext->version < 330) {
-        LOG(ERROR, "nope.gl only supports OpenGL >= 3.3");
+    if (glcontext->backend == NGPU_BACKEND_OPENGL && glcontext->version < 450) {
+        LOG(ERROR, "nope.gl only supports OpenGL >= 4.5");
         return NGPU_ERROR_UNSUPPORTED;
     } else if (glcontext->backend == NGPU_BACKEND_OPENGLES && glcontext->version < 300) {
         LOG(ERROR, "nope.gl only supports OpenGL ES >= 3.0");

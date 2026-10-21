@@ -23,7 +23,6 @@
 
 #include "config.h"
 
-#include <limits.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -38,7 +37,6 @@
 #include "utils/utils.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
-#include "opengl/ctx_gl.h"
 #include "opengl/priv_gl.h"
 #include "opengl/program_gl_utils.h"
 #endif
@@ -668,70 +666,15 @@ static int inject_attributes(struct ngpu_pgcraft *s, struct bstr *b,
     return 0;
 }
 
-static int params_have_ssbos(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params, enum ngpu_program_stage stage)
+static void set_glsl_header(struct ngpu_pgcraft *s, struct bstr *b)
 {
-    for (size_t i = 0; i < params->nb_blocks; i++) {
-        const struct ngpu_pgcraft_block *pgcraft_block = &params->blocks[i];
-        if (pgcraft_block->stage == stage && pgcraft_block->type == NGPU_TYPE_STORAGE_BUFFER)
-            return 1;
-    }
-    return 0;
-}
-
-static int params_have_images(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params, enum ngpu_program_stage stage)
-{
-    ngpu_darray_foreach(texture, &s->textures) {
-        for (size_t j = 0; j < NB_SAMPLER_DESCS; j++) {
-            const struct sampler_desc *sd = &sampler_descs[j];
-            const enum ngpu_type sampler_type = sd->types[texture->type];
-            if (sampler_type == NGPU_TYPE_NONE || !is_type_supported(s, sampler_type))
-                continue;
-            const enum ngpu_program_stage field_stage = get_texture_field_stage(texture);
-            if (field_stage == stage && is_image(sampler_type))
-                return 1;
-        }
-    }
-    return 0;
-}
-
-static void set_glsl_header(struct ngpu_pgcraft *s, struct bstr *b, const struct ngpu_pgcraft_params *params, enum ngpu_program_stage stage)
-{
-    struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
-
     ngpu_bstr_printf(b, "#version %d%s\n", s->glsl_version, s->glsl_version_suffix);
 
-    const int require_ssbo_feature = params_have_ssbos(s, params, stage);
-    const int require_image_feature = params_have_images(s, params, stage);
 #if defined(TARGET_ANDROID)
-    const int require_image_external_essl3_feature = s->texture_infos.count > 0;
+    const struct ngpu_ctx_params *ctx_params = &s->gpu_ctx->params;
+    if (ctx_params->backend == NGPU_BACKEND_OPENGLES && s->texture_infos.count > 0)
+        ngpu_bstr_print(b, "#extension GL_OES_EGL_image_external_essl3 : require\n");
 #endif
-
-    const struct {
-        int backend;
-        const char *extension;
-        int glsl_version;
-        int required;
-    } features[] = {
-        /* OpenGL */
-        {NGPU_BACKEND_OPENGL, "GL_ARB_shading_language_420pack",       420, s->has_explicit_bindings},
-        {NGPU_BACKEND_OPENGL, "GL_ARB_shader_image_load_store",        420, require_image_feature},
-        {NGPU_BACKEND_OPENGL, "GL_ARB_shader_image_size",              430, require_image_feature},
-        {NGPU_BACKEND_OPENGL, "GL_ARB_shader_storage_buffer_object",   430, require_ssbo_feature},
-        {NGPU_BACKEND_OPENGL, "GL_ARB_compute_shader",                 430, stage == NGPU_PROGRAM_STAGE_COMP},
-
-        /* OpenGLES */
-#if defined(TARGET_ANDROID)
-        {NGPU_BACKEND_OPENGLES, "GL_OES_EGL_image_external_essl3", INT_MAX, require_image_external_essl3_feature},
-#endif
-    };
-
-    for (size_t i = 0; i < NGPU_ARRAY_NB(features); i++) {
-        if (features[i].backend == ctx_params->backend &&
-            features[i].glsl_version > s->glsl_version &&
-            features[i].required)
-            ngpu_bstr_printf(b, "#extension %s : require\n", features[i].extension);
-    }
 
     ngpu_bstr_print(b, "\n");
 }
@@ -962,7 +905,7 @@ static int craft_vert(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
 {
     struct bstr *b = s->shaders[NGPU_PROGRAM_STAGE_VERT];
 
-    set_glsl_header(s, b, params, NGPU_PROGRAM_STAGE_VERT);
+    set_glsl_header(s, b);
 
     ngpu_bstr_printf(b, "#define ngl_out_pos gl_Position\n"
                         "#define ngl_vertex_index %s\n"
@@ -984,7 +927,7 @@ static int craft_frag(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
 {
     struct bstr *b = s->shaders[NGPU_PROGRAM_STAGE_FRAG];
 
-    set_glsl_header(s, b, params, NGPU_PROGRAM_STAGE_FRAG);
+    set_glsl_header(s, b);
 
     if (s->has_precision_qualifiers)
         ngpu_bstr_print(b, "#if GL_FRAGMENT_PRECISION_HIGH\n"
@@ -1034,7 +977,7 @@ static int craft_comp(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
 {
     struct bstr *b = s->shaders[NGPU_PROGRAM_STAGE_COMP];
 
-    set_glsl_header(s, b, params, NGPU_PROGRAM_STAGE_COMP);
+    set_glsl_header(s, b);
 
     const uint32_t *wg_size = params->workgroup_size;
     ngpu_bstr_printf(b, "layout(local_size_x=%u, local_size_y=%u, local_size_z=%u) in;\n", NGPU_ARG_VEC3(wg_size));
@@ -1174,8 +1117,6 @@ static void setup_glsl_info_gl(struct ngpu_pgcraft *s)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     const struct ngpu_ctx_params *ctx_params = &gpu_ctx->params;
-    const struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
-    const struct glcontext *gl = gpu_ctx_gl->glcontext;
 
     s->sym_vertex_index   = "gl_VertexID";
     s->sym_instance_index = "gl_InstanceID";
@@ -1188,8 +1129,7 @@ static void setup_glsl_info_gl(struct ngpu_pgcraft *s)
     s->has_in_out_layout_qualifiers = IS_GLSL_ES_MIN(310) || IS_GLSL_MIN(410);
     s->has_precision_qualifiers     = IS_GLSL_ES_MIN(100);
 
-    s->has_explicit_bindings = IS_GLSL_ES_MIN(310) || IS_GLSL_MIN(420) ||
-                               (gl->features & NGPU_FEATURE_GL_SHADING_LANGUAGE_420PACK);
+    s->has_explicit_bindings = IS_GLSL_ES_MIN(310) || IS_GLSL_MIN(420);
 
     /*
      * Bindings are shared across all stages. UBO, SSBO, texture and image
