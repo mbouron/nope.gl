@@ -44,7 +44,6 @@
 #include "opengl/glcontext.h"
 #include "utils/log.h"
 #include "ngpu/ngpu.h"
-#include "utils/utils.h"
 
 #define EGL_PLATFORM_DEVICE_EXT 0x313F
 #define EGL_PLATFORM_X11 0x31D5
@@ -502,26 +501,17 @@ try_again:;
         const EGLint context_flags = ctx->debug ? EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR : 0;
 
         if (ctx->backend == NGPU_BACKEND_OPENGL) {
-            static const struct {
-                int major;
-                int minor;
-            } gl_versions[] ={
-                {4, 1}, // OpenGL 4.1
-                {3, 3}, // OpenGL 3.3 (Mesa software renderers: llvmpipe, softpipe, swrast)
+            const EGLint ctx_attribs[] = {
+                EGL_CONTEXT_MAJOR_VERSION_KHR, 4,
+                EGL_CONTEXT_MINOR_VERSION_KHR, 5,
+                EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR,
+                EGL_CONTEXT_FLAGS_KHR, context_flags,
+                EGL_NONE
             };
-            for (size_t i = 0; i < NGPU_ARRAY_NB(gl_versions); i++) {
-                const EGLint ctx_attribs[] = {
-                    EGL_CONTEXT_MAJOR_VERSION_KHR, gl_versions[i].major,
-                    EGL_CONTEXT_MINOR_VERSION_KHR, gl_versions[i].minor,
-                    EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR,
-                    EGL_CONTEXT_FLAGS_KHR, context_flags,
-                    EGL_NONE
-                };
 
-                egl->handle = eglCreateContext(egl->display, egl->config, shared_context, ctx_attribs);
-                if (egl->handle)
-                    break;
-            }
+            egl->handle = eglCreateContext(egl->display, egl->config, shared_context, ctx_attribs);
+            if (!egl->handle)
+                LOG(ERROR, "could not create an OpenGL 4.5 core profile context");
         } else if (ctx->backend == NGPU_BACKEND_OPENGLES) {
             const EGLint ctx_attribs[] = {
                 EGL_CONTEXT_MAJOR_VERSION_KHR, 2,
