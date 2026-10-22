@@ -20,6 +20,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/avassert.h>
 #include <libavutil/avstring.h>
@@ -286,6 +287,10 @@ static int ffdec_init_sw(struct decoder_ctx *ctx, const struct nmdi_opts *opts)
     const AVCodec *codec = avcodec_find_decoder(avctx->codec_id);
     if (!codec)
         return AVERROR_DECODER_NOT_FOUND;
+#if HAVE_MEDIACODEC_HWACCEL
+    if (codec->wrapper_name && !strcmp(codec->wrapper_name, "mediacodec"))
+        return AVERROR_DECODER_NOT_FOUND;
+#endif
     return avcodec_open2(avctx, codec, NULL);
 }
 

@@ -653,20 +653,9 @@ def _ffmpeg_setup(cfg):
     extra_libs = "-lstdc++"  # Required by BoringSSL
     extra_args = []
     if cfg.host == "Android":
-        decoders += [
-            "aac_mediacodec",
-            "amrnb_mediacodec",
-            "amrwb_mediacodec",
-            "av1_mediacodec",
-            "h264_mediacodec",
-            "hevc_mediacodec",
-            "vp8_mediacodec",
-            "vp9_mediacodec",
-        ]
         protocols += ["android_content"]
         extra_args += [
             "--enable-jni",
-            "--enable-mediacodec",
             "--target-os=android",
             "--pkg-config=pkg-config",
             f"--cross-prefix={cfg.android_ndk_bin}{op.sep}llvm-",
