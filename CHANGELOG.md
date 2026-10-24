@@ -67,6 +67,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   conversion being applied on the encoded signal instead of the linear one
 - Incorrect colors when displaying HDR media due to the luma correction applied
   on the unnormalized color difference in our BT.2446 method A implementation
+- Incorrect colors when displaying HDR media due to out of range pixel values
+  not being handled
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added

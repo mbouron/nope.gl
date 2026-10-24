@@ -29,10 +29,13 @@ const float pq_c1 = 0.8359375;
 const float pq_c2 = 18.8515625;
 const float pq_c3 = 18.6875;
 
-/* PQ Reference EOTF (linearize: R'G'B' HDR → RGB HDR), ITU-R BT.2100 */
+/*
+ * PQ Reference EOTF (linearize: R'G'B' HDR → RGB HDR), ITU-R BT.2100. The
+ * signal is clamped: pow() is undefined below 0 (e.g. black once decoded).
+ */
 vec3 pq_eotf3(vec3 x)
 {
-    vec3 p = pow(x, vec3(1.0 / pq_m2));
+    vec3 p = pow(clamp(x, 0.0, 1.0), vec3(1.0 / pq_m2));
     vec3 num = max(p - pq_c1, 0.0);
     vec3 den = pq_c2 - pq_c3 * p;
     vec3 Y = pow(num / den, vec3(1.0 / pq_m1));
@@ -123,7 +126,7 @@ void main()
      */
     float m1 = max(rgb_linear.r, max(rgb_linear.g, rgb_linear.b));
     float m2 = pq_eotf(pq_eetf(pq_oetf(m1)));
-    rgb_linear *= m2 / m1;
+    rgb_linear *= m1 > 0.0 ? m2 / m1 : 0.0;
 
     /* Rescale the PQ signal so [0, 1000] maps to [0, 1] */
     rgb_linear /= 1000.0;
