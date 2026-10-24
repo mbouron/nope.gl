@@ -22,9 +22,11 @@
  */
 
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "colorconv.h"
 #include "hwconv.h"
 #include "image.h"
 #include "internal.h"
@@ -50,6 +52,16 @@ struct eetf_block {
     float src_peak;
     float dst_black;
     float dst_peak;
+};
+
+/*
+ * Parameters of the HDR->SDR conversion, see:
+ * - hdr_hlg2sdr.frag
+ * - hdr_pq2sdr.frag
+ */
+struct hdr_block {
+    struct ngli_mat4 primaries;
+    struct eetf_block eetf;
 };
 
 /* PQ inverse EOTF (luminance in cd/m² → non-linear signal), ITU-R BT.2100 */
@@ -79,6 +91,33 @@ static struct eetf_block get_eetf_params(const struct color_info *info)
         .dst_black = (pq_oetf(0.f) - src_black) / (src_peak - src_black),
         .dst_peak  = (pq_oetf(1000.f) - src_black) / (src_peak - src_black),
     };
+}
+
+/* The HDR frames without primaries are assumed to be BT.2020 */
+static int get_hdr_primaries(int primaries)
+{
+    if (primaries == NMD_COL_PRI_UNSPECIFIED ||
+        primaries == NMD_COL_PRI_RESERVED0 ||
+        primaries == NMD_COL_PRI_RESERVED)
+        return NMD_COL_PRI_BT2020;
+    return primaries;
+}
+
+static struct hdr_block get_hdr_params(const struct hwconv *hwconv, const struct color_info *info)
+{
+    const int primaries = get_hdr_primaries(info->primaries);
+    struct hdr_block params = {
+        .primaries = ngli_colorconv_get_primaries_color_matrix(primaries, NMD_COL_PRI_BT2020),
+    };
+    if (hwconv->type == HWCONV_TYPE_PQ)
+        params.eetf = get_eetf_params(info);
+    return params;
+}
+
+/* Size of the parameters of the conversion: the EETF ranges are PQ only */
+static size_t get_hdr_params_size(const struct hwconv *hwconv)
+{
+    return hwconv->type == HWCONV_TYPE_PQ ? sizeof(struct hdr_block) : offsetof(struct hdr_block, eetf);
 }
 
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
@@ -136,35 +175,37 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         {.name = "tex", .type = NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO, .stage = NGPU_PROGRAM_STAGE_FRAG},
     };
 
+    const int transfer = src_params->color_info.transfer;
     const char *vert_base = hwconv_vert;
     const char *frag_base = hwconv_frag;
     hwconv->type = HWCONV_TYPE_DEFAULT;
-
-    const struct color_info *src_color_info = &src_params->color_info;
-    if (src_color_info->space == NMD_COL_SPC_BT2020_NCL) {
-        if (src_color_info->transfer == NMD_COL_TRC_ARIB_STD_B67) { // HLG
-            frag_base = hdr_hlg2sdr_frag;
-            hwconv->type = HWCONV_TYPE_HLG;
-        } else if (src_color_info->transfer == NMD_COL_TRC_SMPTE2084)  { // PQ
-            frag_base = hdr_pq2sdr_frag;
-            hwconv->type = HWCONV_TYPE_PQ;
-        }
+    if (transfer == NMD_COL_TRC_ARIB_STD_B67) {
+        frag_base = hdr_hlg2sdr_frag;
+        hwconv->type = HWCONV_TYPE_HLG;
+    } else if (transfer == NMD_COL_TRC_SMPTE2084) {
+        frag_base = hdr_pq2sdr_frag;
+        hwconv->type = HWCONV_TYPE_PQ;
     }
 
     const char *block_name = NULL;
     ngpu_block_desc_init(gpu_ctx, &hwconv->block_desc, NGPU_BLOCK_LAYOUT_STD140);
-    if (hwconv->type == HWCONV_TYPE_PQ) {
-        static const struct ngpu_block_field fields[] = {
-            {.name = "src_black", .type = NGPU_TYPE_F32},
-            {.name = "src_peak",  .type = NGPU_TYPE_F32},
-            {.name = "dst_black", .type = NGPU_TYPE_F32},
-            {.name = "dst_peak",  .type = NGPU_TYPE_F32},
-        };
-        ret = ngpu_block_desc_add_fields(&hwconv->block_desc, fields, NGLI_ARRAY_NB(fields));
+    if (hwconv->type == HWCONV_TYPE_HLG || hwconv->type == HWCONV_TYPE_PQ) {
+        ret = ngpu_block_desc_add_field(&hwconv->block_desc, "primaries", NGPU_TYPE_MAT4, 0);
         if (ret < 0)
             return ret;
-        ngli_assert(ngpu_block_desc_get_size(&hwconv->block_desc, 0) == sizeof(struct eetf_block));
-        block_name = "eetf";
+        if (hwconv->type == HWCONV_TYPE_PQ) {
+            static const struct ngpu_block_field fields[] = {
+                {.name = "src_black", .type = NGPU_TYPE_F32},
+                {.name = "src_peak",  .type = NGPU_TYPE_F32},
+                {.name = "dst_black", .type = NGPU_TYPE_F32},
+                {.name = "dst_peak",  .type = NGPU_TYPE_F32},
+            };
+            ret = ngpu_block_desc_add_fields(&hwconv->block_desc, fields, NGLI_ARRAY_NB(fields));
+            if (ret < 0)
+                return ret;
+        }
+        ngli_assert(ngpu_block_desc_get_size(&hwconv->block_desc, 0) == get_hdr_params_size(hwconv));
+        block_name = "hdr_params";
     }
 
     struct ngpu_pgcraft_block block = {
@@ -228,10 +269,11 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
 static void push_params(struct hwconv *hwconv, const struct ngli_image *image)
 {
     struct ngl_ctx *ctx = hwconv->ctx;
-    const struct eetf_block eetf = get_eetf_params(&ngli_image_get_params(image)->color_info);
-    const size_t offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &eetf, sizeof(eetf));
+    const struct hdr_block params = get_hdr_params(hwconv, &ngli_image_get_params(image)->color_info);
+    const size_t size = get_hdr_params_size(hwconv);
+    const size_t offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &params, size);
     struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
-    ngli_pipeline_update_buffer(hwconv->pipeline, hwconv->block_index, buffer, offset, sizeof(eetf));
+    ngli_pipeline_update_buffer(hwconv->pipeline, hwconv->block_index, buffer, offset, size);
 }
 
 int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct ngli_image *image)

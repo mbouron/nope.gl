@@ -39,6 +39,7 @@ vec3 hlg_ootf(vec3 x)
 void main()
 {
     vec4 hdr = ngl_texvideo(tex, tex_coord);
-    vec3 sdr = bt2020_to_bt709(tonemap(hlg_ootf(hlg_eotf(hdr.rgb))));
+    vec3 scene = max((hdr_params.primaries * vec4(hlg_eotf(hdr.rgb), 0.0)).rgb, 0.0);
+    vec3 sdr = bt2020_to_bt709(tonemap(hlg_ootf(scene)));
     ngl_out_color = vec4(sdr, hdr.a);
 }

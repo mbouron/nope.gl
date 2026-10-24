@@ -59,9 +59,9 @@ float pq_oetf(float x)
 float pq_eetf(float x)
 {
     /* Step 1 (the signal above the source peak is clipped) */
-    float e1 = clamp(ngli_linear(eetf.src_black, eetf.src_peak, x), 0.0, 1.0);
-    float min_lum = eetf.dst_black;
-    float max_lum = eetf.dst_peak;
+    float e1 = clamp(ngli_linear(hdr_params.src_black, hdr_params.src_peak, x), 0.0, 1.0);
+    float min_lum = hdr_params.dst_black;
+    float max_lum = hdr_params.dst_peak;
 
     /* Step 2 */
     float ks = 1.5 * max_lum - 0.5; /* knee start (roll off beginning) */
@@ -90,7 +90,7 @@ float pq_eetf(float x)
      * display black and white luminances, Lb and Lw, to obtain the target
      * display PQ values.
      */
-    float e4 = mix(eetf.src_black, eetf.src_peak, e3);
+    float e4 = mix(hdr_params.src_black, hdr_params.src_peak, e3);
     return e4;
 }
 
@@ -98,8 +98,12 @@ void main()
 {
     vec4 hdr = ngl_texvideo(tex, tex_coord);
 
-    /* Linearize the PQ signal and ensure it is in the [0,10000] range */
+    /*
+     * Linearize the PQ signal, convert its primaries to BT.2020, and ensure it
+     * is in the [0,10000] range.
+     */
     vec3 rgb_linear = pq_eotf3(hdr.rgb);
+    rgb_linear = (hdr_params.primaries * vec4(rgb_linear, 0.0)).rgb;
     rgb_linear = clamp(rgb_linear, 0.0, 10000.0);
 
     /*

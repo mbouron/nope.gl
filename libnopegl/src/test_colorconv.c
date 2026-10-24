@@ -126,6 +126,52 @@ static int check_reference_levels(const struct color_info *cinfo, int depth)
     return fail;
 }
 
+static const struct {
+    int src;
+    const char *name;
+    float matrix[3][3];
+} to_bt2020[] = {
+    {NMD_COL_PRI_BT709, "bt709", {
+        {0.627404f, 0.329283f, 0.043313f},
+        {0.069097f, 0.919540f, 0.011362f},
+        {0.016391f, 0.088013f, 0.895595f},
+    }},
+    {NMD_COL_PRI_SMPTE432, "display-p3", {
+        { 0.753833f, 0.198597f, 0.047570f},
+        { 0.045744f, 0.941777f, 0.012479f},
+        {-0.001210f, 0.017601f, 0.983609f},
+    }},
+    {NMD_COL_PRI_BT2020, "bt2020", {
+        {1.f, 0.f, 0.f},
+        {0.f, 1.f, 0.f},
+        {0.f, 0.f, 1.f},
+    }},
+};
+
+static int check_primaries_matrices(void)
+{
+    int fail = 0;
+    for (size_t i = 0; i < NGLI_ARRAY_NB(to_bt2020); i++) {
+        const struct ngli_mat4 mat = ngli_colorconv_get_primaries_color_matrix(to_bt2020[i].src, NMD_COL_PRI_BT2020);
+        printf("%s to bt2020:\n" NGLI_FMT_MAT4 "\n\n", to_bt2020[i].name, NGLI_ARG_MAT4(mat.m));
+        for (int c = 0; c < 3; c++) {
+            NGLI_ALIGNED_VEC(src) = {0};
+            NGLI_ALIGNED_VEC(dst);
+            src[c] = 1.f;
+            ngli_mat4_mul_vec4(dst, mat.m, src);
+            for (int r = 0; r < 3; r++) {
+                const float v = dst[r];
+                if (fabsf(v - to_bt2020[i].matrix[r][c]) > 1e-4f) {
+                    printf(">>>> %s to bt2020 [%d][%d]: %g instead of %g <<<<\n",
+                           to_bt2020[i].name, r, c, v, to_bt2020[i].matrix[r][c]);
+                    fail++;
+                }
+            }
+        }
+    }
+    return fail;
+}
+
 int main(void)
 {
     int fail = 0;
@@ -146,5 +192,6 @@ int main(void)
                 fail += check_reference_levels(&cinfo, depths[d]);
         }
     }
+    fail += check_primaries_matrices();
     return fail;
 }
