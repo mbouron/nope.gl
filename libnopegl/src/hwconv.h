@@ -29,14 +29,23 @@
 
 struct ngl_ctx;
 
+enum hwconv_type {
+    HWCONV_TYPE_DEFAULT,
+    HWCONV_TYPE_HLG,
+    HWCONV_TYPE_PQ,
+};
+
 struct hwconv {
     struct ngl_ctx *ctx;
     struct ngli_image_params src_params;
+    enum hwconv_type type;
 
     struct ngpu_rendertarget *rt;
     struct ngpu_pgcraft *crafter;
     struct ngli_pipeline *pipeline;
     struct image_resource *input_image;
+    struct ngpu_block_desc block_desc;
+    int32_t block_index; // conversion parameters (PQ), -1 if none
 };
 
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,

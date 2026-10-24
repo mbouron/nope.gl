@@ -37,6 +37,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `libnopemd` preserves audio filter state across loop repetitions, reducing
   decoding bursts and audio playback stalls caused by refilling filter buffers
   at each loop boundary
+- The PQ->SDR conversion now use the HDR static metadata to map the luminance
+  range
 
 ### Fixed
 - Incorrect `ColorStats` histograms with OpenGL ES on Mali GPUs
