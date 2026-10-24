@@ -31,7 +31,7 @@ const float gcb = luma_coeff.b / luma_coeff.g;
 /* BT.2446-1-2021 method A */
 vec3 tonemap(vec3 x)
 {
-    vec3 xp = pow(x, vec3(1.0 / 2.4));
+    vec3 xp = pow(max(x, 0.0), vec3(1.0 / 2.4));
     float y_hdr = dot(luma_coeff, xp);
 
     /* Step 1: convert signal to perceptually linear space */
@@ -48,9 +48,9 @@ vec3 tonemap(vec3 x)
 
     /*
      * Colour correction, on the unscaled colour differences R' - Y' and
-     * B' - Y'
+     * B' - Y' (black has none)
      */
-    float scale = y_sdr / (1.1 * y_hdr);
+    float scale = y_hdr > 0.0 ? y_sdr / (1.1 * y_hdr) : 0.0;
     float cb_tmo = scale * (xp.b - y_hdr);
     float cr_tmo = scale * (xp.r - y_hdr);
     float y_tmo = y_sdr - max(0.1 * cr_tmo / cr_scale, 0.0);
