@@ -63,6 +63,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   (e.g. Display P3, BT.601, BT.2020 SDR)
 - Incorrect colors when displaying media with a bit-depth other than 8-bit
   (e.g. 10-bit, 12-bit, 16-bit)
+- Incorrect colors when displaying HDR media due to the final BT.2020->BT.709
+  conversion being applied on the encoded signal instead of the linear one
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added
