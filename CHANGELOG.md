@@ -65,6 +65,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   (e.g. 10-bit, 12-bit, 16-bit)
 - Incorrect colors when displaying HDR media due to the final BT.2020->BT.709
   conversion being applied on the encoded signal instead of the linear one
+- Incorrect colors when displaying HDR media due to the luma correction applied
+  on the unnormalized color difference in our BT.2446 method A implementation
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added

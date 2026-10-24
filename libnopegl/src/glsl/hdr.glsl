@@ -20,6 +20,7 @@
  */
 
 const vec3 luma_coeff = vec3(0.2627, 0.6780, 0.0593); // luma weights for BT.2020
+const float cr_scale = 2.0 * (1.0 - luma_coeff.r); // C'r = (R' - Y') / cr_scale
 const float l_hdr = 1000.0;
 const float l_sdr = 100.0;
 const float p_hdr = 1.0 + 32.0 * pow(l_hdr / 10000.0, 1.0 / 2.4);
@@ -45,11 +46,14 @@ vec3 tonemap(vec3 x)
     /* Step 3: convert back to gamma domain */
     float y_sdr = (pow(p_sdr, yc) - 1.0) / (p_sdr - 1.0);
 
-    /* Colour correction */
+    /*
+     * Colour correction, on the unscaled colour differences R' - Y' and
+     * B' - Y'
+     */
     float scale = y_sdr / (1.1 * y_hdr);
     float cb_tmo = scale * (xp.b - y_hdr);
     float cr_tmo = scale * (xp.r - y_hdr);
-    float y_tmo = y_sdr - max(0.1 * cr_tmo, 0.0);
+    float y_tmo = y_sdr - max(0.1 * cr_tmo / cr_scale, 0.0);
 
     /* Convert from Y'Cb'Cr' to R'G'B' (still in BT.2020) */
     float cg_tmo = -(gcr * cr_tmo + gcb * cb_tmo);
