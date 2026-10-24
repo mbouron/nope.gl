@@ -34,6 +34,7 @@ extern const struct param_choices ngli_colorconv_colorspace_choices;
 
 struct ngli_mat4 ngli_colorconv_get_ycbcr_to_rgb_color_matrix(const struct color_info *info, int depth, float scale);
 struct ngli_mat4 ngli_colorconv_get_mapping_color_matrix(const struct color_info *info, int dst_primaries);
+struct ngli_mat4 ngli_colorconv_get_primaries_color_matrix(int src_primaries, int dst_primaries);
 
 void ngli_colorconv_srgb2linear(float *dst, const float *srgb);
 void ngli_colorconv_hsl2linear(float *dst, const float *hsl);

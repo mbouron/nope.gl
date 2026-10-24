@@ -367,6 +367,11 @@ static struct ngli_mat4 get_mapping_color_matrix(int src_primaries, int dst_prim
     return mapping_color_matrix;
 }
 
+struct ngli_mat4 ngli_colorconv_get_primaries_color_matrix(int src_primaries, int dst_primaries)
+{
+    return get_mapping_color_matrix(src_primaries, dst_primaries);
+}
+
 struct ngli_mat4 ngli_colorconv_get_mapping_color_matrix(const struct color_info *info, int dst_primaries)
 {
     static const struct ngli_mat4 identity = {.m = NGLI_MAT4_IDENTITY};

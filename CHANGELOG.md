@@ -39,6 +39,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   at each loop boundary
 - The PQ->SDR conversion now use the HDR static metadata to map the luminance
   range
+- HDR->SDR tonemapping is no longer limited to BT.2020 (NCL) content
 
 ### Fixed
 - Incorrect `ColorStats` histograms with OpenGL ES on Mali GPUs

@@ -45,7 +45,7 @@ struct hwconv {
     struct ngli_pipeline *pipeline;
     struct image_resource *input_image;
     struct ngpu_block_desc block_desc;
-    int32_t block_index; // conversion parameters (PQ), -1 if none
+    int32_t block_index; // conversion parameters (HLG, PQ), -1 if none
 };
 
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
