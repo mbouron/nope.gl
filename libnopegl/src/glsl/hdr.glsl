@@ -56,11 +56,17 @@ vec3 tonemap(vec3 x)
     return y_tmo + vec3(cr_tmo, cg_tmo, cb_tmo);
 }
 
+/*
+ * BT.2020 to BT.709 conversion of an SDR R'G'B' signal, in linear light (BT.1886
+ * gamma), the colors outside of BT.709 being clipped, ITU-R BT.2087
+ */
 vec3 bt2020_to_bt709(vec3 x)
 {
     const mat3 bt2020_to_bt709 = mat3(
          1.660491,   -0.12455047, -0.01815076,
         -0.58764114,  1.1328999,  -0.1005789,
         -0.07284986, -0.00834942,  1.11872966);
-    return bt2020_to_bt709 * x;
+    vec3 lin = pow(max(x, 0.0), vec3(2.4));
+    lin = clamp(bt2020_to_bt709 * lin, 0.0, 1.0);
+    return pow(lin, vec3(1.0 / 2.4));
 }
