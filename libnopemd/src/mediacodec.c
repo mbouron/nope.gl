@@ -27,6 +27,7 @@
 #include <libavutil/intreadwrite.h>
 #include <libavutil/log.h>
 #include <libavutil/macros.h>
+#include <libavutil/mastering_display_metadata.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/mem.h>
 #include <media/NdkImage.h>
@@ -191,6 +192,8 @@ struct nmdi_mediacodec {
     enum AVColorPrimaries color_primaries;
     enum AVColorTransferCharacteristic color_trc;
     enum AVColorSpace colorspace;
+    AVMasteringDisplayMetadata mastering;
+    AVContentLightMetadata light_level;
 
     int sample_rate;
     int nb_channels;
@@ -563,6 +566,13 @@ static void reset_format(struct nmdi_mediacodec *s)
     s->color_trc = par->color_trc;
     s->colorspace = par->color_space;
 
+    /* HDR static metadata of the container, if any */
+    const AVPacketSideData *sd = av_packet_side_data_get(par->coded_side_data, par->nb_coded_side_data,
+                                                         AV_PKT_DATA_MASTERING_DISPLAY_METADATA);
+    s->mastering = sd ? *(const AVMasteringDisplayMetadata *)sd->data : (AVMasteringDisplayMetadata){0};
+    sd = av_packet_side_data_get(par->coded_side_data, par->nb_coded_side_data, AV_PKT_DATA_CONTENT_LIGHT_LEVEL);
+    s->light_level = sd ? *(const AVContentLightMetadata *)sd->data : (AVContentLightMetadata){0};
+
     s->sample_rate = par->sample_rate;
     s->nb_channels = par->ch_layout.nb_channels;
     s->sample_fmt = AV_SAMPLE_FMT_S16;
@@ -596,6 +606,52 @@ static void update_color(struct nmdi_mediacodec *s, AMediaFormat *format)
         case 7: s->color_trc = AVCOL_TRC_ARIB_STD_B67; break;
         }
     }
+}
+
+/*
+ * HDR static metadata of the bitstream (MediaFormat.KEY_HDR_STATIC_INFO): CTA-861.3
+ * static metadata descriptor type 1, 25 bytes in little-endian order
+ */
+static void update_hdr_static_info(struct nmdi_mediacodec *s, AMediaFormat *format)
+{
+    void *data;
+    size_t size;
+    if (!AMediaFormat_getBuffer(format, AMEDIAFORMAT_KEY_HDR_STATIC_INFO, &data, &size) || size < 25)
+        return;
+    const uint8_t *info = data;
+    if (info[0] != 0)
+        return;
+
+    /* Display primaries and white point (bytes 1-16) are not used */
+    const uint16_t max_luminance = AV_RL16(info + 17); // cd/m²
+    const uint16_t min_luminance = AV_RL16(info + 19); // 0.0001 cd/m²
+    if (max_luminance) {
+        s->mastering.max_luminance = av_make_q(max_luminance, 1);
+        s->mastering.min_luminance = av_make_q(min_luminance, 10000);
+        s->mastering.has_luminance = 1;
+    }
+    const uint16_t max_cll = AV_RL16(info + 21);
+    if (max_cll) {
+        s->light_level.MaxCLL = max_cll;
+        s->light_level.MaxFALL = AV_RL16(info + 23);
+    }
+}
+
+static int set_hdr_metadata(struct nmdi_mediacodec *s, AVFrame *frame)
+{
+    if (s->mastering.has_luminance || s->mastering.has_primaries) {
+        AVMasteringDisplayMetadata *mastering = av_mastering_display_metadata_create_side_data(frame);
+        if (!mastering)
+            return AVERROR(ENOMEM);
+        *mastering = s->mastering;
+    }
+    if (s->light_level.MaxCLL || s->light_level.MaxFALL) {
+        AVContentLightMetadata *light_level = av_content_light_metadata_create_side_data(frame);
+        if (!light_level)
+            return AVERROR(ENOMEM);
+        *light_level = s->light_level;
+    }
+    return 0;
 }
 
 static void update_audio_format(struct nmdi_mediacodec *s, AMediaFormat *format)
@@ -646,6 +702,7 @@ static void update_format(struct nmdi_mediacodec *s)
     }
 
     update_color(s, format);
+    update_hdr_static_info(s, format);
     AMediaFormat_delete(format);
 }
 
@@ -1230,6 +1287,10 @@ static int output_video(struct nmdi_mediacodec *s, size_t index, const AMediaCod
     frame->color_primaries = s->color_primaries;
     frame->color_trc = s->color_trc;
     frame->colorspace = s->colorspace;
+
+    ret = set_hdr_metadata(s, frame);
+    if (ret < 0)
+        return ret;
 
     set_output(s, entry.pts);
     return 0;

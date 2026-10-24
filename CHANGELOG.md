@@ -18,6 +18,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `nmd_set_time_range()` to change the playback range without reopening the media
 - `ngl_set_loop_range()` to prepare resources and media frames before playback
   loops back
+- `libnopemd` now exposes the media HDR static metadata and ICC profile
 
 ### Removed
 - OpenGL/ES backend support on macOS, iOS and Windows

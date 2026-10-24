@@ -21,6 +21,7 @@
 #ifndef NOPE_MEDIA_H
 #define NOPE_MEDIA_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -199,6 +200,11 @@ struct nmd_frame {
     int color_range;    // video color range (any of NMD_COL_RNG_*)
     int color_primaries;// video color primaries (any of NMD_COL_PRI_*)
     int color_trc;      // video color transfer (any of NMD_COL_TRC_*)
+    float mastering_min_luminance;  // HDR mastering display minimum luminance in cd/m² (0 if unknown)
+    float mastering_max_luminance;  // HDR mastering display maximum luminance in cd/m² (0 if unknown)
+    float max_cll;                  // HDR maximum content light level in cd/m² (0 if unknown)
+    const uint8_t *icc_profile;     // ICC profile of the colors (NULL if none), valid until the frame is released
+    size_t icc_profile_size;        // size of the ICC profile in bytes
 };
 
 struct nmd_info {
