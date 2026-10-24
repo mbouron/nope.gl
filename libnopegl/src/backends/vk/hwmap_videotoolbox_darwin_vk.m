@@ -48,6 +48,8 @@ struct format_desc {
     struct {
         enum ngpu_format format;
     } planes[2];
+    int depth;
+    float color_scale;
 };
 
 static MTLPixelFormat vt_get_mtl_format(enum ngpu_format format)
@@ -69,6 +71,8 @@ static int vt_get_format_desc(OSType format, struct format_desc *desc)
         desc->layout = NGLI_IMAGE_LAYOUT_DEFAULT;
         desc->nb_planes = 1;
         desc->planes[0].format = NGPU_FORMAT_B8G8R8A8_UNORM;
+        desc->depth = 8;
+        desc->color_scale = 1.f;
         break;
     case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
     case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
@@ -76,13 +80,18 @@ static int vt_get_format_desc(OSType format, struct format_desc *desc)
         desc->nb_planes = 2;
         desc->planes[0].format = NGPU_FORMAT_R8_UNORM;
         desc->planes[1].format = NGPU_FORMAT_R8G8_UNORM;
+        desc->depth = 8;
+        desc->color_scale = 1.f;
         break;
     case kCVPixelFormatType_420YpCbCr10BiPlanarFullRange:
     case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange:
+        /* The 10 bits are the most significant ones */
         desc->layout = NGLI_IMAGE_LAYOUT_NV12;
         desc->nb_planes = 2;
         desc->planes[0].format = NGPU_FORMAT_R16_UNORM;
         desc->planes[1].format = NGPU_FORMAT_R16G16_UNORM;
+        desc->depth = 10;
+        desc->color_scale = 65535.f / (float)(1023 << 6);
         break;
     default:
         LOG(ERROR, "unsupported pixel format %d", format);
@@ -165,7 +174,8 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, str
     }
 
     const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
-    ngli_image_color_cache_update(&vt->color_cache, vt->format_desc.layout, &color_info, 1.f);
+    ngli_image_color_cache_update(&vt->color_cache, vt->format_desc.layout, &color_info,
+                                  vt->format_desc.depth, vt->format_desc.color_scale);
 
     const struct ngli_image_params image_params = {
         .ts                   = (float)frame->ts,
@@ -174,7 +184,7 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, str
         .width                = (uint32_t)frame->width,
         .height               = (uint32_t)frame->height,
         .layout               = vt->format_desc.layout,
-        .color_scale          = 1.f,
+        .color_scale          = vt->format_desc.color_scale,
         .color_info           = color_info,
         .color_matrix         = vt->color_cache.color_matrix,
         .mapping_color_matrix = vt->color_cache.mapping_color_matrix,

@@ -37,6 +37,7 @@
 #include <ngpu/ngpu.h>
 #include "nopegl/nopegl.h"
 #include "utils/utils.h"
+#include "vaapi_ctx.h"
 
 struct hwmap_vaapi {
     struct ngli_image_color_cache color_cache;
@@ -168,15 +169,18 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct 
             return ret;
     }
 
+    int depth;
+    float color_scale;
+    ngli_vaapi_get_depth(vaapi->surface_descriptor.fourcc, &depth, &color_scale);
     const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
-    ngli_image_color_cache_update(&vaapi->color_cache, NGLI_IMAGE_LAYOUT_NV12, &color_info, 1.f);
+    ngli_image_color_cache_update(&vaapi->color_cache, NGLI_IMAGE_LAYOUT_NV12, &color_info, depth, color_scale);
 
     const struct ngli_image_params image_params = {
         .width                = (uint32_t)frame->width,
         .height               = (uint32_t)frame->height,
         .layout               = NGLI_IMAGE_LAYOUT_NV12,
         .planes               = {vaapi->planes[0], vaapi->planes[1]},
-        .color_scale          = 1.f,
+        .color_scale          = color_scale,
         .color_info           = color_info,
         .color_matrix         = vaapi->color_cache.color_matrix,
         .mapping_color_matrix = vaapi->color_cache.mapping_color_matrix,

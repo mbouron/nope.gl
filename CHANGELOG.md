@@ -61,6 +61,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `libnopemd` hang when a loop pass produced no frame
 - Incorrect colors when displaying media with RGB primaries other than BT.709
   (e.g. Display P3, BT.601, BT.2020 SDR)
+- Incorrect colors when displaying media with a bit-depth other than 8-bit
+  (e.g. 10-bit, 12-bit, 16-bit)
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added

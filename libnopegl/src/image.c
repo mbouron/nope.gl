@@ -67,9 +67,9 @@ static const struct ngli_image empty_image = {
 };
 
 bool ngli_image_color_cache_update(struct ngli_image_color_cache *s, enum ngli_image_layout layout,
-                                  const struct color_info *color_info, float color_scale)
+                                  const struct color_info *color_info, int depth, float color_scale)
 {
-    if (s->initialized && s->layout == layout && s->color_scale == color_scale &&
+    if (s->initialized && s->layout == layout && s->depth == depth && s->color_scale == color_scale &&
         s->color_info.space == color_info->space &&
         s->color_info.range == color_info->range &&
         s->color_info.primaries == color_info->primaries &&
@@ -78,10 +78,11 @@ bool ngli_image_color_cache_update(struct ngli_image_color_cache *s, enum ngli_i
 
     s->layout = layout;
     s->color_info = *color_info;
+    s->depth = depth;
     s->color_scale = color_scale;
     s->color_matrix = empty_image.params.color_matrix;
     if (layout == NGLI_IMAGE_LAYOUT_NV12 || layout == NGLI_IMAGE_LAYOUT_YUV)
-        s->color_matrix = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(color_info, color_scale);
+        s->color_matrix = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(color_info, depth, color_scale);
     s->mapping_color_matrix = layout == NGLI_IMAGE_LAYOUT_NONE ? (struct ngli_mat4){0}
         : ngli_colorconv_get_mapping_color_matrix(color_info, NMD_COL_PRI_BT709);
     s->initialized = true;

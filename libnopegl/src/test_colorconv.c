@@ -22,8 +22,10 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "image.h"
 #include "colorconv.h"
+#include "image.h"
+#include "math_utils.h"
+#include "utils/utils.h"
 
 static const struct {
     int val;
@@ -97,6 +99,33 @@ static int compare_matrices(const float *a, const float *b)
     return fail ? -fail : 0;
 }
 
+static int check_reference_levels(const struct color_info *cinfo, int depth)
+{
+    const float max = (float)((1 << depth) - 1);
+    const int limited = cinfo->range != NMD_COL_RNG_FULL;
+    const float shift = (float)(1 << (depth - 8));
+    const float black = limited ? 16.f * shift : 0.f;
+    const float white = limited ? 235.f * shift : max;
+    const float neutral = limited ? 128.f * shift : (float)(1 << (depth - 1));
+    const float gray = (black + white) / 2.f;
+    const float expected[][2] = {{black, 0.f}, {white, 1.f}, {gray, .5f}};
+
+    const struct ngli_mat4 mat = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(cinfo, depth, 1.f);
+    int fail = 0;
+    for (size_t i = 0; i < NGLI_ARRAY_NB(expected); i++) {
+        NGLI_ALIGNED_VEC(ycbcr) = {expected[i][0] / max, neutral / max, neutral / max, 1.f};
+        NGLI_ALIGNED_VEC(rgb);
+        ngli_mat4_mul_vec4(rgb, mat.m, ycbcr);
+        for (int c = 0; c < 3; c++) {
+            if (fabsf(rgb[c] - expected[i][1]) > 1e-5f) {
+                printf(">>>> %d-bit code value %g: %g instead of %g <<<<\n", depth, expected[i][0], rgb[c], expected[i][1]);
+                fail++;
+            }
+        }
+    }
+    return fail;
+}
+
 int main(void)
 {
     int fail = 0;
@@ -106,12 +135,15 @@ int main(void)
         cinfo.range = ranges[r].val;
         for (size_t s = 0; s < NGLI_ARRAY_NB(spaces); s++) {
             cinfo.space = spaces[s].val;
-            const struct ngli_mat4 mat = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(&cinfo, 1.f);
+            const struct ngli_mat4 mat = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(&cinfo, 8, 1.f);
             printf("%s %s:\n" NGLI_FMT_MAT4 "\n\n", spaces[s].name, ranges[r].name, NGLI_ARG_MAT4(mat.m));
             if (compare_matrices(mat.m, expected_colormatrices[r][s]) < 0) {
                 printf(">>>> DIFF IS TOO HIGH <<<<\n\n");
                 fail++;
             }
+            static const int depths[] = {8, 10, 16};
+            for (size_t d = 0; d < NGLI_ARRAY_NB(depths); d++)
+                fail += check_reference_levels(&cinfo, depths[d]);
         }
     }
     return fail;
