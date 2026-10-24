@@ -1038,7 +1038,7 @@ static void inject_texvideo_helpers(struct ngpu_pgcraft *s, struct bstr *b, enum
                             "        color = texture(%s, coords);\n"
                             "        break;\n"
                             "    }\n"
-                            "    color *= %s_mapping_color_matrix;\n", name, name);
+                            "    color = %s_mapping_color_matrix * color;\n", name, name);
 
         if (texture->clamp_video)
             ngpu_bstr_print(b, "    color = clamp(color, 0.0, 1.0);\n");

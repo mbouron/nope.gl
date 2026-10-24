@@ -307,21 +307,21 @@ static void get_rgb2xyz_matrix(float *dst, const struct raw_primaries *prim)
 
     // S = XYZ^-1 * W
     for (int i = 0; i < 3; i++) {
-        tmp.m[0 + i] = X[i];
-        tmp.m[4 + i] = 1;
-        tmp.m[8 + i] = Z[i];
+        tmp.m[4 * i + 0] = X[i];
+        tmp.m[4 * i + 1] = 1;
+        tmp.m[4 * i + 2] = Z[i];
     }
 
     ngli_mat4_inverse(tmp.m, tmp.m);
 
     for (int i = 0; i < 3; i++)
-        S[i] = tmp.m[4 * i + 0] * X[3] + tmp.m[4 * i + 1] * 1 + tmp.m[4 * i + 2] * Z[3];
+        S[i] = tmp.m[0 + i] * X[3] + tmp.m[4 + i] * 1 + tmp.m[8 + i] * Z[3];
 
     // M = [Sc * XYZc]
     for (int i = 0; i < 3; i++) {
-        tmp.m[0 + i] = S[i] * X[i];
-        tmp.m[4 + i] = S[i] * 1;
-        tmp.m[8 + i] = S[i] * Z[i];
+        tmp.m[4 * i + 0] = S[i] * X[i];
+        tmp.m[4 * i + 1] = S[i] * 1;
+        tmp.m[4 * i + 2] = S[i] * Z[i];
     }
 
     memcpy(dst, tmp.m, sizeof(tmp.m));
