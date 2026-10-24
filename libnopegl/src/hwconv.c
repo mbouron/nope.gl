@@ -21,6 +21,8 @@
  * under the License.
  */
 
+#include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "hwconv.h"
@@ -42,6 +44,43 @@ static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
     {.name = "tex_coord", .type = NGPU_TYPE_VEC2},
 };
 
+/* PQ signal ranges of the EETF, see hdr_pq2sdr.frag */
+struct eetf_block {
+    float src_black;
+    float src_peak;
+    float dst_black;
+    float dst_peak;
+};
+
+/* PQ inverse EOTF (luminance in cd/m² → non-linear signal), ITU-R BT.2100 */
+static float pq_oetf(float luminance)
+{
+    const double m1 = 0.1593017578125;
+    const double m2 = 78.84375;
+    const double c1 = 0.8359375;
+    const double c2 = 18.8515625;
+    const double c3 = 18.6875;
+    const double ym = pow(luminance / 10000.0, m1);
+    return (float)pow((c1 + c2 * ym) / (1.0 + c3 * ym), m2);
+}
+
+/*
+ * The source range is the one of the mastering display and content light
+ * level (the entire PQ range if unknown), the target range is the HLG one
+ */
+static struct eetf_block get_eetf_params(const struct color_info *info)
+{
+    const bool has_range = info->max_luminance > info->min_luminance && info->min_luminance >= 0.f;
+    const float src_black = pq_oetf(has_range ? info->min_luminance : 0.f);
+    const float src_peak = pq_oetf(has_range ? info->max_luminance : 10000.f);
+    return (struct eetf_block){
+        .src_black = src_black,
+        .src_peak  = src_peak,
+        .dst_black = (pq_oetf(0.f) - src_black) / (src_peak - src_black),
+        .dst_peak  = (pq_oetf(1000.f) - src_black) / (src_peak - src_black),
+    };
+}
+
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
                      const struct ngli_image *dst_image,
                      const struct ngli_image_params *src_params)
@@ -49,6 +88,7 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
     hwconv->ctx = ctx;
     hwconv->src_params = *src_params;
+    hwconv->block_index = -1;
     hwconv->input_image = ngli_image_resource_create();
     if (!hwconv->input_image)
         return NGL_ERROR_MEMORY;
@@ -98,15 +138,42 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
 
     const char *vert_base = hwconv_vert;
     const char *frag_base = hwconv_frag;
+    hwconv->type = HWCONV_TYPE_DEFAULT;
 
     const struct color_info *src_color_info = &src_params->color_info;
     if (src_color_info->space == NMD_COL_SPC_BT2020_NCL) {
         if (src_color_info->transfer == NMD_COL_TRC_ARIB_STD_B67) { // HLG
             frag_base = hdr_hlg2sdr_frag;
+            hwconv->type = HWCONV_TYPE_HLG;
         } else if (src_color_info->transfer == NMD_COL_TRC_SMPTE2084)  { // PQ
             frag_base = hdr_pq2sdr_frag;
+            hwconv->type = HWCONV_TYPE_PQ;
         }
     }
+
+    const char *block_name = NULL;
+    ngpu_block_desc_init(gpu_ctx, &hwconv->block_desc, NGPU_BLOCK_LAYOUT_STD140);
+    if (hwconv->type == HWCONV_TYPE_PQ) {
+        static const struct ngpu_block_field fields[] = {
+            {.name = "src_black", .type = NGPU_TYPE_F32},
+            {.name = "src_peak",  .type = NGPU_TYPE_F32},
+            {.name = "dst_black", .type = NGPU_TYPE_F32},
+            {.name = "dst_peak",  .type = NGPU_TYPE_F32},
+        };
+        ret = ngpu_block_desc_add_fields(&hwconv->block_desc, fields, NGLI_ARRAY_NB(fields));
+        if (ret < 0)
+            return ret;
+        ngli_assert(ngpu_block_desc_get_size(&hwconv->block_desc, 0) == sizeof(struct eetf_block));
+        block_name = "eetf";
+    }
+
+    struct ngpu_pgcraft_block block = {
+        .type  = NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        .stage = NGPU_PROGRAM_STAGE_FRAG,
+        .block = &hwconv->block_desc,
+    };
+    if (block_name)
+        snprintf(block.name, sizeof(block.name), "%s", block_name);
 
     const struct ngpu_pgcraft_params crafter_params = {
         .program_label    = "nopegl/hwconv",
@@ -114,6 +181,8 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         .frag_base        = frag_base,
         .textures         = textures,
         .nb_textures      = NGLI_ARRAY_NB(textures),
+        .blocks           = &block,
+        .nb_blocks        = block_name ? 1 : 0,
         .vert_out_vars    = vert_out_vars,
         .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
     };
@@ -125,6 +194,9 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     ret = ngpu_pgcraft_craft(hwconv->crafter, &crafter_params);
     if (ret < 0)
         return ret;
+
+    if (block_name)
+        hwconv->block_index = ngpu_pgcraft_get_block_index(hwconv->crafter, block_name, NGPU_PROGRAM_STAGE_FRAG);
 
     hwconv->pipeline = ngli_pipeline_create(gpu_ctx);
     if (!hwconv->pipeline)
@@ -153,6 +225,15 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
     return 0;
 }
 
+static void push_params(struct hwconv *hwconv, const struct ngli_image *image)
+{
+    struct ngl_ctx *ctx = hwconv->ctx;
+    const struct eetf_block eetf = get_eetf_params(&ngli_image_get_params(image)->color_info);
+    const size_t offset = ngpu_staging_buffer_push(ctx->current_staging_buffer, &eetf, sizeof(eetf));
+    struct ngpu_buffer *buffer = ngpu_staging_buffer_get_buffer(ctx->current_staging_buffer);
+    ngli_pipeline_update_buffer(hwconv->pipeline, hwconv->block_index, buffer, offset, sizeof(eetf));
+}
+
 int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct ngli_image *image)
 {
     const struct pipeline_execution execution = {.staging = hwconv->ctx->current_staging_buffer};
@@ -163,6 +244,9 @@ int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct ngli_image *im
 
     struct ngpu_rendertarget *rt = hwconv->rt;
     struct ngli_pipeline *pipeline = hwconv->pipeline;
+
+    if (hwconv->block_index >= 0)
+        push_params(hwconv, image);
 
     ngpu_ctx_begin_render_pass(gpu_ctx, rt);
 
@@ -184,6 +268,7 @@ void ngli_hwconv_reset(struct hwconv *hwconv)
     ngli_pipeline_freep(&hwconv->pipeline);
     ngpu_pgcraft_freep(&hwconv->crafter);
     ngpu_rendertarget_freep(&hwconv->rt);
+    ngpu_block_desc_reset(&hwconv->block_desc);
 
     ngli_image_resource_unrefp(&hwconv->input_image);
     memset(hwconv, 0, sizeof(*hwconv));

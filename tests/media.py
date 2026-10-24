@@ -21,12 +21,15 @@
 #
 
 import textwrap
+from pathlib import Path
 
 import pynopegl as ngl
 from pynopegl_utils.misc import load_media
 from pynopegl_utils.tests.cmp_render import test_render
 from pynopegl_utils.toolbox.colors import COLORS
 from pynopegl_utils.toolbox.grid import autogrid_simple
+
+_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 
 def _get_time_scene(cfg: ngl.SceneCfg):
@@ -101,6 +104,20 @@ def media_clamp(cfg: ngl.SceneCfg):
     media = ngl.Media(m0.filename)
     texture = ngl.Texture2D(data_src=media, clamp_video=True, min_filter="nearest", mag_filter="nearest")
     return ngl.DrawTexture(texture)
+
+
+# HDR to SDR conversion: PQ with the mastering display and content light level
+# of a 1000 cd/m² content (top-left), PQ without metadata of a 4000 cd/m²
+# content (top-right), HLG (bottom-left)
+@test_render(keyframes=1, tolerance=1)
+@ngl.scene(width=256, height=256)
+def media_hdr(cfg: ngl.SceneCfg):
+    draws = []
+    for name in ("hdr-pq-1000.mp4", "hdr-pq.mp4", "hdr-hlg.mp4"):
+        media = ngl.Media((_ASSETS_DIR / name).as_posix())
+        texture = ngl.Texture2D(data_src=media, min_filter="nearest", mag_filter="nearest")
+        draws.append(ngl.DrawTexture(texture))
+    return autogrid_simple(draws)
 
 
 @test_render(keyframes=5, tolerance=1)

@@ -327,6 +327,7 @@ foreach backend : backends
     'clamp',
     'exposed_time',
     'flat_remap',
+    'hdr',
     'phases_display',
     'queue',
     'timeranges_rtt',

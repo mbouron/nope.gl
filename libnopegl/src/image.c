@@ -33,11 +33,18 @@
 
 struct color_info ngli_color_info_from_nopemd_frame(const struct nmd_frame *frame)
 {
+    /* The peak of the content (MaxCLL) cannot exceed the one of the mastering display */
+    float max_luminance = frame->mastering_max_luminance;
+    if (frame->max_cll > 0.f)
+        max_luminance = max_luminance > 0.f ? NGLI_MIN(frame->max_cll, max_luminance) : frame->max_cll;
+
     return (struct color_info){
-        .space     = frame->color_space,
-        .range     = frame->color_range,
-        .primaries = frame->color_primaries,
-        .transfer  = frame->color_trc,
+        .space         = frame->color_space,
+        .range         = frame->color_range,
+        .primaries     = frame->color_primaries,
+        .transfer      = frame->color_trc,
+        .min_luminance = frame->mastering_min_luminance,
+        .max_luminance = max_luminance,
     };
 }
 

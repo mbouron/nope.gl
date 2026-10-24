@@ -55,31 +55,13 @@ float pq_oetf(float x)
     return pow((pq_c1 + pq_c2 * Ym) / (1.0 + pq_c3 * Ym), pq_m2);
 }
 
-/*
- * Entire PQ encoding luminance range. Could be refined if mastering display
- * Lb/Lw are known.
- */
-const float Lb = 0.0;       /* minimum black luminance */
-const float Lw = 10000.0;   /* peak white luminance */
-
-/*
- * Target HLG luminance range.
- */
-const float Lmin = 0.0;
-const float Lmax = 1000.0;
-
 /* EETF (non-linear PQ signal → non-linear PQ signal), ITU-R BT.2408-5 annex 5 */
 float pq_eetf(float x)
 {
-    /* Step 1 */
-    float v_min = pq_oetf(Lb);
-    float v_max = pq_oetf(Lw);
-    float e1 = ngli_linear(v_min, v_max, x);
-
-    float l_min = pq_oetf(Lmin);
-    float l_max = pq_oetf(Lmax);
-    float min_lum = ngli_linear(v_min, v_max, l_min);
-    float max_lum = ngli_linear(v_min, v_max, l_max);
+    /* Step 1 (the signal above the source peak is clipped) */
+    float e1 = clamp(ngli_linear(eetf.src_black, eetf.src_peak, x), 0.0, 1.0);
+    float min_lum = eetf.dst_black;
+    float max_lum = eetf.dst_peak;
 
     /* Step 2 */
     float ks = 1.5 * max_lum - 0.5; /* knee start (roll off beginning) */
@@ -108,7 +90,7 @@ float pq_eetf(float x)
      * display black and white luminances, Lb and Lw, to obtain the target
      * display PQ values.
      */
-    float e4 = mix(v_min, v_max, e3);
+    float e4 = mix(eetf.src_black, eetf.src_peak, e3);
     return e4;
 }
 
@@ -121,8 +103,8 @@ void main()
     rgb_linear = clamp(rgb_linear, 0.0, 10000.0);
 
     /*
-     * Apply the EETF with the maxRGB method to map the PQ signal with a peak
-     * luminance of 10000 cd/m² to 1000 cd/m² (HLG), ITU-R BT.2408-5 annex 5
+     * Apply the EETF with the maxRGB method to map the PQ signal from the peak
+     * luminance of the source to 1000 cd/m² (HLG), ITU-R BT.2408-5 annex 5
      */
     float m1 = max(rgb_linear.r, max(rgb_linear.g, rgb_linear.b));
     float m2 = pq_eotf(pq_eetf(pq_oetf(m1)));

@@ -34,6 +34,8 @@
     .range     = NMD_COL_RNG_UNSPECIFIED,      \
     .primaries = NMD_COL_PRI_UNSPECIFIED,      \
     .transfer  = NMD_COL_TRC_UNSPECIFIED,      \
+    .min_luminance = 0.f,                      \
+    .max_luminance = 0.f,                      \
 }                                              \
 
 struct color_info {
@@ -41,6 +43,8 @@ struct color_info {
     int range;
     int primaries;
     int transfer;
+    float min_luminance; // HDR source black in cd/m², 0 if unknown
+    float max_luminance; // HDR source peak in cd/m², 0 if unknown
 };
 
 struct color_info ngli_color_info_from_nopemd_frame(const struct nmd_frame *frame);
