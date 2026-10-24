@@ -27,6 +27,7 @@
 #include <libavformat/avformat.h>
 #include <libavutil/avassert.h>
 #include <libavutil/avstring.h>
+#include <libavutil/mastering_display_metadata.h>
 #include <libavutil/opt.h>
 #include <libavutil/rational.h>
 #include <libavutil/time.h>
@@ -434,6 +435,30 @@ static const int col_spc_map[] = {
 
 NMDI_STATIC_ASSERT(col_spc_map, FF_ARRAY_ELEMS(col_spc_map) < 32);
 
+static void set_color_metadata(struct nmd_frame *frame, const AVFrame *avframe)
+{
+    const AVFrameSideData *sd = av_frame_get_side_data(avframe, AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
+    if (sd) {
+        const AVMasteringDisplayMetadata *metadata = (const AVMasteringDisplayMetadata *)sd->data;
+        if (metadata->has_luminance) {
+            frame->mastering_min_luminance = (float)av_q2d(metadata->min_luminance);
+            frame->mastering_max_luminance = (float)av_q2d(metadata->max_luminance);
+        }
+    }
+
+    sd = av_frame_get_side_data(avframe, AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
+    if (sd) {
+        const AVContentLightMetadata *metadata = (const AVContentLightMetadata *)sd->data;
+        frame->max_cll = (float)metadata->MaxCLL;
+    }
+
+    sd = av_frame_get_side_data(avframe, AV_FRAME_DATA_ICC_PROFILE);
+    if (sd && sd->size) {
+        frame->icc_profile = sd->data;
+        frame->icc_profile_size = sd->size;
+    }
+}
+
 static int get_nmd_col_spc(int avcol_spc)
 {
     if (avcol_spc < 0 || avcol_spc >= FF_ARRAY_ELEMS(col_spc_map))
@@ -602,6 +627,7 @@ static int ret_frame(struct nmd_ctx *s, AVFrame *avframe, int status, struct nmd
     frame->color_range     = get_nmd_col_rng(avframe->color_range);
     frame->color_primaries = get_nmd_col_pri(avframe->color_primaries);
     frame->color_trc       = get_nmd_col_trc(avframe->color_trc);
+    set_color_metadata(frame, avframe);
     if (o->avselect == NMD_SELECT_VIDEO) {
         if (avframe->format == AV_PIX_FMT_VIDEOTOOLBOX ||
             avframe->format == AV_PIX_FMT_VAAPI        ||
