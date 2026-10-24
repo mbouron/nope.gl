@@ -32,6 +32,7 @@
 #include <wayland-client.h>
 #endif
 
+#include <stdint.h>
 #include <va/va.h>
 
 struct ngpu_ctx;
@@ -49,5 +50,6 @@ struct vaapi_ctx {
 
 int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s);
 void ngli_vaapi_ctx_reset(struct vaapi_ctx *vaapi_ctx);
+void ngli_vaapi_get_depth(uint32_t fourcc, int *depth, float *scale);
 
 #endif

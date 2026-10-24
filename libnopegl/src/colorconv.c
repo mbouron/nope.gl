@@ -111,25 +111,33 @@ static const struct k_constants {
 
 NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(k_constants_infos) == COLORMATRIX_NB, "colormatrix size");
 
-static const struct range_info {
-    float y, uv, y_off;
-} range_infos[] = {
-    {255, 255, 0},
-    {219, 224, 16},
+struct range_info {
+    float max, y, uv, y_off, uv_off;
 };
 
-struct ngli_mat4 ngli_colorconv_get_ycbcr_to_rgb_color_matrix(const struct color_info *info, float scale)
+static struct range_info get_range_info(int video_range, int depth)
+{
+    const float max = (float)((1 << depth) - 1);
+    if (!video_range)
+        return (struct range_info){max, max, max, 0.f, (float)(1 << (depth - 1))};
+    const float scale = (float)(1 << (depth - 8));
+    return (struct range_info){max, 219.f * scale, 224.f * scale, 16.f * scale, 128.f * scale};
+}
+
+struct ngli_mat4 ngli_colorconv_get_ycbcr_to_rgb_color_matrix(const struct color_info *info, int depth, float scale)
 {
     const int colormatrix = get_colormatrix_from_nopemd(info->space);
     const int video_range = info->range != NMD_COL_RNG_FULL;
-    const struct range_info range = range_infos[video_range];
+    const struct range_info range = get_range_info(video_range, depth);
     const struct k_constants k = k_constants_infos[colormatrix];
 
-    const float y_factor = 255 / range.y;
+    const float max      = range.max;
+    const float y_factor = max / range.y;
     const float r_scale  = 2 * (1.f - k.r) / range.uv;
     const float b_scale  = 2 * (1.f - k.b) / range.uv;
     const float g_scale  = 2 / (k.g * range.uv);
     const float y_off    = -range.y_off / range.y;
+    const float uv_off   = range.uv_off;
 
     return (struct ngli_mat4){.m = {
         /* Y factor */
@@ -140,20 +148,20 @@ struct ngli_mat4 ngli_colorconv_get_ycbcr_to_rgb_color_matrix(const struct color
 
         /* Cb factor */
         [ 4 /* R */] = 0,
-        [ 5 /* G */] = -255 * g_scale * scale * k.b * (1 - k.b),
-        [ 6 /* B */] =  255 * b_scale * scale,
+        [ 5 /* G */] = -max * g_scale * scale * k.b * (1 - k.b),
+        [ 6 /* B */] =  max * b_scale * scale,
         [ 7 /* A */] = 0,
 
         /* Cr factor */
-        [ 8 /* R */] =  255 * r_scale * scale,
-        [ 9 /* G */] = -255 * g_scale * scale * k.r * (1 - k.r),
+        [ 8 /* R */] =  max * r_scale * scale,
+        [ 9 /* G */] = -max * g_scale * scale * k.r * (1 - k.r),
         [10 /* B */] = 0,
         [11 /* A */] = 0,
 
         /* Offset */
-        [12 /* R */] = y_off - 128 * r_scale,
-        [13 /* G */] = y_off + 128 * g_scale * (k.b * (1 - k.b) + k.r * (1 - k.r)),
-        [14 /* B */] = y_off - 128 * b_scale,
+        [12 /* R */] = y_off - uv_off * r_scale,
+        [13 /* G */] = y_off + uv_off * g_scale * (k.b * (1 - k.b) + k.r * (1 - k.r)),
+        [14 /* B */] = y_off - uv_off * b_scale,
         [15 /* A */] = 1,
     }};
 }

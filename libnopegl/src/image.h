@@ -81,13 +81,14 @@ struct ngli_image_color_cache {
     bool initialized;
     enum ngli_image_layout layout;
     struct color_info color_info;
+    int depth;
     float color_scale;
     struct ngli_mat4 color_matrix;
     struct ngli_mat4 mapping_color_matrix;
 };
 
 bool ngli_image_color_cache_update(struct ngli_image_color_cache *s, enum ngli_image_layout layout,
-                                  const struct color_info *color_info, float color_scale);
+                                  const struct color_info *color_info, int depth, float color_scale);
 
 struct ngli_image;
 

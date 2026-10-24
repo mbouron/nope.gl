@@ -261,7 +261,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngl
         return ret;
     mc->texture = ahb_texture.texture;
 
-    ngli_image_color_cache_update(&mc->color_cache, NGLI_IMAGE_LAYOUT_DEFAULT, &color_info, 1.f);
+    ngli_image_color_cache_update(&mc->color_cache, NGLI_IMAGE_LAYOUT_DEFAULT, &color_info, 8, 1.f);
 
     const struct ngli_image_params image_params = {
         .width                = width,

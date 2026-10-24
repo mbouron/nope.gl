@@ -266,7 +266,7 @@ static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct
     const float color_scale = (float)dst_max / (float)src_max;
 
     const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
-    ngli_image_color_cache_update(&common->color_cache, desc->layout, &color_info, color_scale);
+    ngli_image_color_cache_update(&common->color_cache, desc->layout, &color_info, desc->depth, color_scale);
 
     const struct ngli_image_params image_params = {
         .width                = (uint32_t)frame->width,

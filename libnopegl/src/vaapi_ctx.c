@@ -111,3 +111,25 @@ void ngli_vaapi_ctx_reset(struct vaapi_ctx *s)
 #endif
     memset(s, 0, sizeof(*s));
 }
+
+/*
+ * Bit depth of the Y'CbCr samples of a surface, and scale normalizing them to
+ * their maximum code value (P010 holds its 10 bits in the most significant ones)
+ */
+void ngli_vaapi_get_depth(uint32_t fourcc, int *depth, float *scale)
+{
+    switch (fourcc) {
+    case VA_FOURCC_P010:
+        *depth = 10;
+        *scale = 65535.f / (float)(1023 << 6);
+        break;
+    case VA_FOURCC_P016:
+        *depth = 16;
+        *scale = 1.f;
+        break;
+    default:
+        *depth = 8;
+        *scale = 1.f;
+        break;
+    }
+}
