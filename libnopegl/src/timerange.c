@@ -109,6 +109,16 @@ bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool
 
     ngli_timerange_filter_prefetch(child_range, &s->range, s->render_time);
 
+    /*
+     * Reset the once state when playback leaves the range so the child can be
+     * updated again on return, even if it stayed prefetched.
+     *
+     * We do this during visits because a parent can skip updates outside its
+     * own range.
+     */
+    if (!is_active || !ngli_timerange_contains(&child_range->update, t))
+        s->updated = 0;
+
     return is_active;
 }
 

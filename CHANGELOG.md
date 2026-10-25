@@ -40,6 +40,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   the stream
 - `libnopemd` MediaCodec decoders falling back on software when concurrent
   starts exceed the hardware budget, even when there is room for some of them
+- `TimeRangeFilter` and `TimeRangeFilter2D` once ranges (`render_time`) not
+  updating their child on reentry
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added

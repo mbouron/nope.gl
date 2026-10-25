@@ -270,6 +270,57 @@ def api_timerange_inverted(width=16, height=16):
     test_timerange(canvas, shader, white)
 
 
+def api_timerange_once_reentry(width=16, height=16):
+    """
+    Once ranges update their child after playback leaves the range and returns,
+    even if the child stayed prefetched.
+    """
+    black = (0, 0, 0, 255)
+    red = (255, 0, 0, 255)
+
+    root = ngl.Group(children=[])
+    scene = ngl.Scene.from_params(root, duration=4)
+
+    capture_buffer = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    ret = ctx.configure(
+        ngl.Config(
+            offscreen=True,
+            width=width,
+            height=height,
+            backend=_backend,
+            capture_buffer=capture_buffer,
+        ),
+    )
+    assert ret == 0
+    assert ctx.set_scene(scene) == 0
+
+    def output_color(t: float):
+        assert ctx.draw(t) == 0
+        offset = ((height // 2) * width + width // 2) * 4
+        return tuple(capture_buffer[offset : offset + 4])
+
+    def test_once(node: ngl.Node):
+        assert root.add_children(node) == 0
+        assert output_color(1.2) == red
+        assert output_color(1.4) == black
+        # Seek before the range and return while the child stays prefetched
+        assert output_color(0.5) == black
+        assert output_color(1.2) == red
+        # Seek past the range and return after the child is released
+        assert output_color(2.5) == black
+        assert output_color(1.2) == red
+        assert root.remove_children(node) == 0
+
+    test_once(
+        ngl.TimeRangeFilter(ngl.DrawColor(color=(1.0, 0.0, 0.0)), start=1, end=2, render_time=1.5, prefetch_time=2)
+    )
+
+    rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
+    trf2d = ngl.TimeRangeFilter2D(rect, start=1, end=2, render_time=1.5, prefetch_time=2)
+    test_once(ngl.Canvas2D(width=width, height=height, children=[trf2d]))
+
+
 def api_backend():
     ctx = ngl.Context()
     fake_backend_cls = namedtuple("FakeBackend", "value")
