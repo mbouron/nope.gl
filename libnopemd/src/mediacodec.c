@@ -666,12 +666,16 @@ static int configure_codec(struct nmdi_mediacodec *s)
 
     media_status_t status = AMediaCodec_configure(s->codec, format, s->window, NULL, 0);
     AMediaFormat_delete(format);
+    if (status == AMEDIACODEC_ERROR_INSUFFICIENT_RESOURCE)
+        return AVERROR(EBUSY);
     if (status != AMEDIA_OK) {
         LOG(s, WARNING, "unable to configure the %s decoder: %s (%d)", s->codec_name, get_status_str(status), status);
         return AVERROR_DECODER_NOT_FOUND;
     }
 
     status = AMediaCodec_start(s->codec);
+    if (status == AMEDIACODEC_ERROR_INSUFFICIENT_RESOURCE)
+        return AVERROR(EBUSY);
     if (status != AMEDIA_OK) {
         LOG(s, WARNING, "unable to start the %s decoder: %s (%d)", s->codec_name, get_status_str(status), status);
         return AVERROR_DECODER_NOT_FOUND;
@@ -691,7 +695,8 @@ static void delete_codec(struct nmdi_mediacodec *s)
     s->input_index = -1;
 }
 
-static int create_codec(struct nmdi_mediacodec *s, const char *name)
+/* Return AVERROR(EBUSY) if the codec is refused for insufficient resources */
+static int init_codec(struct nmdi_mediacodec *s, const char *name)
 {
     av_assert0(!s->codec);
 
@@ -734,6 +739,27 @@ static int create_codec(struct nmdi_mediacodec *s, const char *name)
 
     LOG(s, DEBUG, "%s MediaCodec decoder opened", s->codec_name);
     return 0;
+}
+
+static pthread_rwlock_t start_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+static int create_codec(struct nmdi_mediacodec *s, const char *name)
+{
+    pthread_rwlock_rdlock(&start_lock);
+    int ret = init_codec(s, name);
+    pthread_rwlock_unlock(&start_lock);
+    if (ret != AVERROR(EBUSY))
+        return ret;
+
+    LOG(s, VERBOSE, "the %s decoder is refused for insufficient resources, retrying alone", s->codec_name);
+    pthread_rwlock_wrlock(&start_lock);
+    ret = init_codec(s, name);
+    pthread_rwlock_unlock(&start_lock);
+    if (ret == AVERROR(EBUSY)) {
+        LOG(s, WARNING, "unable to start the %s decoder: insufficient resources", s->codec_name);
+        return AVERROR_DECODER_NOT_FOUND;
+    }
+    return ret;
 }
 
 static int open_codec(struct nmdi_mediacodec *s)
