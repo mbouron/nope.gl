@@ -14,6 +14,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `libnopemd` builtin MediaCodec decoder with failure recovery and software
   fallback
 - `nmd_set_seek_callback()` to receive the seek events of a `libnopemd` player
+- `nmd_set_loop_range()` to prepare frames for the next loop repetition in advance
 
 ### Removed
 - OpenGL/ES backend support on macOS, iOS and Windows

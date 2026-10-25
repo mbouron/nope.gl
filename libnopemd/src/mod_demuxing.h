@@ -25,6 +25,7 @@
 #include <libavformat/avformat.h>
 #include <libavutil/threadmessage.h>
 
+#include "loop.h"
 #include "opts.h"
 
 struct demuxing_ctx *nmdi_demuxing_alloc(void);
@@ -34,11 +35,13 @@ int nmdi_demuxing_init(void *log_ctx,
                        AVThreadMessageQueue *src_queue,
                        AVThreadMessageQueue *pkt_queue,
                        const char *filename,
+                       struct nmdi_loop *loop,
                        const struct nmdi_opts *opts);
 
 int64_t nmdi_demuxing_probe_duration(const struct demuxing_ctx *ctx);
 double nmdi_demuxing_probe_rotation(const struct demuxing_ctx *ctx);
 const AVStream *nmdi_demuxing_get_stream(const struct demuxing_ctx *ctx);
+const struct nmdi_pass_timeline *nmdi_demuxing_get_pass_timeline(const struct demuxing_ctx *ctx);
 int nmdi_demuxing_is_image(const struct demuxing_ctx *ctx);
 
 void nmdi_demuxing_run(struct demuxing_ctx *ctx);

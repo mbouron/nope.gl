@@ -29,6 +29,7 @@ enum msg_type {
     MSG_START,
     MSG_STOP,
     MSG_SYNC,
+    MSG_LOOP,
     NB_MSG
 };
 

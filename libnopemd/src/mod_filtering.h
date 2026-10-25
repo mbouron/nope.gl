@@ -24,6 +24,7 @@
 #include <libavcodec/avcodec.h>
 #include <libavutil/threadmessage.h>
 
+#include "loop.h"
 #include "opts.h"
 
 struct filtering_ctx *nmdi_filtering_alloc(void);
@@ -35,6 +36,7 @@ int nmdi_filtering_init(void *log_ctx,
                         const AVStream *stream,
                         const AVCodecContext *avctx,
                         double media_rotation,
+                        struct nmdi_loop *loop,
                         const struct nmdi_opts *o);
 
 void nmdi_filtering_run(struct filtering_ctx *ctx);

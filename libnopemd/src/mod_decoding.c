@@ -18,6 +18,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <string.h>
+
 #include <libavutil/pixdesc.h>
 #include <libavutil/opt.h>
 #include <libavutil/channel_layout.h>
@@ -25,6 +27,7 @@
 #include "mod_decoding.h"
 #include "decoders.h"
 #include "internal.h"
+#include "loop.h"
 #include "msg.h"
 #include "log.h"
 
@@ -57,6 +60,14 @@ struct decoding_ctx {
     AVRational st_timebase;
     AVFrame *tmp_frame;
     int64_t seek_request;
+
+    struct nmdi_pass_timeline timeline;
+    struct nmdi_loop *loop;
+    struct nmdi_pass_msg *passes;   // retained pass descriptions, ordered by pass number
+    size_t nb_passes;               // number of retained descriptions in `passes`
+    size_t passes_size;             // allocated capacity of `passes`, in descriptions
+    int looping;                    // a pass description was received since startup or the last seek
+    int64_t pass;                   // current pass number, advanced when one of its frames is decoded
 };
 
 struct decoding_ctx *nmdi_decoding_alloc(void)
@@ -83,6 +94,8 @@ int nmdi_decoding_init(void *log_ctx,
                        AVThreadMessageQueue *frames_queue,
                        int is_image,
                        const AVStream *stream,
+                       const struct nmdi_pass_timeline *timeline,
+                       struct nmdi_loop *loop,
                        const struct nmdi_opts *opts)
 {
     int ret;
@@ -95,6 +108,8 @@ int nmdi_decoding_init(void *log_ctx,
     ctx->pkt_queue = pkt_queue;
     ctx->frames_queue = frames_queue;
     ctx->is_image = is_image;
+    ctx->timeline = *timeline;
+    ctx->loop = loop;
 
     const struct decoder *decs[3];
     int nb_decs = 0;
@@ -179,16 +194,105 @@ static int queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
 static int queue_cached_frame(struct decoding_ctx *ctx)
 {
     int ret;
-    const int64_t cached_ts = get_best_effort_ts(ctx->tmp_frame);
-    TRACE(ctx, "got a cached frame (t=%s) to push", av_ts2timestr(cached_ts, &ctx->st_timebase));
+    TRACE(ctx, "got a cached frame (t=%s) to push", av_ts2timestr(ctx->tmp_frame->pts, &ctx->st_timebase));
     AVFrame *prev_frame = ctx->tmp_frame;
     ctx->tmp_frame = NULL;
-    prev_frame->pts = cached_ts;
     ret = queue_frame(ctx, prev_frame);
     if (ret < 0) {
         av_frame_free(&prev_frame);
         return ret;
     }
+    return 0;
+}
+
+static void reset_passes(struct decoding_ctx *ctx)
+{
+    ctx->nb_passes = 0;
+    ctx->looping = 0;
+    ctx->pass = 0;
+}
+
+/* Output buffered frames before clearing the decoder state for the next pass. */
+static int drain_decoder(struct decoding_ctx *ctx)
+{
+    int ret;
+    do {
+        ret = nmdi_decoder_push_packet(ctx->decoder, NULL);
+    } while (ret == 0 || ret == AVERROR(EAGAIN));
+    if (ret != AVERROR_EOF)
+        return ret;
+    nmdi_decoder_flush(ctx->decoder);
+    return 0;
+}
+
+static int update_pass(struct decoding_ctx *ctx, const struct nmdi_pass_msg *msg)
+{
+    ctx->looping = 1;
+
+    struct nmdi_pass_msg *last = ctx->nb_passes ? &ctx->passes[ctx->nb_passes - 1] : NULL;
+    if (last && last->pass == msg->pass) {
+        last->end = msg->end;
+        return 0;
+    }
+
+    if (ctx->nb_passes == ctx->passes_size) {
+        const size_t size = FFMAX(ctx->passes_size * 2, 16);
+        struct nmdi_pass_msg *passes = av_realloc_array(ctx->passes, size, sizeof(*passes));
+        if (!passes)
+            return AVERROR(ENOMEM);
+        ctx->passes = passes;
+        ctx->passes_size = size;
+    }
+    ctx->passes[ctx->nb_passes++] = *msg;
+    return 0;
+}
+
+/*
+ * Decoder output is ordered by pass, so earlier passes can be released.
+ */
+static const struct nmdi_pass_msg *get_pass(struct decoding_ctx *ctx, int64_t pass)
+{
+    size_t i = 0;
+    while (i < ctx->nb_passes && ctx->passes[i].pass < pass)
+        i++;
+    if (i == ctx->nb_passes || ctx->passes[i].pass != pass)
+        return NULL;
+    if (i) {
+        ctx->nb_passes -= i;
+        memmove(ctx->passes, ctx->passes + i, ctx->nb_passes * sizeof(*ctx->passes));
+    }
+    return &ctx->passes[0];
+}
+
+/*
+ * Remove the pass offset to recover the media timestamp, and attach the pass
+ * number to the frame. Return 1 to drop frames from unknown passes or at or
+ * after their pass end; return 0 to keep the frame.
+ */
+static int set_frame_pass(struct decoding_ctx *ctx, AVFrame *frame, int64_t *tsp)
+{
+    const int64_t pass = nmdi_pass_from_timestamp(&ctx->timeline, *tsp);
+    const struct nmdi_pass_msg *pass_msg = pass >= ctx->pass ? get_pass(ctx, pass) : NULL;
+    if (!pass_msg) {
+        LOG(ctx, WARNING, "dropping a frame of the loop pass %" PRId64 " in pass %" PRId64, pass, ctx->pass);
+        return 1;
+    }
+
+    const int64_t ts = *tsp - pass * ctx->timeline.stride;
+    if (ts >= pass_msg->end) {
+        TRACE(ctx, "frame ts:%s past the end of the loop", av_ts2timestr(ts, &ctx->st_timebase));
+        nmdi_loop_drop_frame(ctx->loop, pass_msg->seek_rev, pass, ts);
+        return 1;
+    }
+
+    if (pass > ctx->pass) {
+        TRACE(ctx, "start of the loop pass %" PRId64, pass);
+        ctx->pass = pass;
+        ctx->seek_request = pass_msg->start;
+    }
+
+    frame->opaque = (void *)(intptr_t)pass;
+    *tsp = ts;
     return 0;
 }
 
@@ -206,8 +310,26 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
         return AVERROR_EOF;
     }
 
-    const int64_t ts = get_best_effort_ts(frame);
+    int64_t ts = get_best_effort_ts(frame);
     TRACE(ctx, "processing frame with ts=%s", av_ts2timestr(ts, &ctx->st_timebase));
+
+    const int64_t prev_pass = ctx->pass;
+    if (ctx->looping) {
+        ret = set_frame_pass(ctx, frame, &ts);
+        if (ret) {
+            av_frame_free(&frame);
+            return 0;
+        }
+    }
+
+    /* Emit the previous pass's cached frame before processing the next pass. */
+    if (ctx->pass != prev_pass && ctx->tmp_frame) {
+        ret = queue_cached_frame(ctx);
+        if (ret < 0)
+            return ret;
+    }
+
+    frame->pts = ts;
 
     if (ctx->seek_request != AV_NOPTS_VALUE && ts < ctx->seek_request) {
         TRACE(ctx, "frame ts:%s (%"PRId64"), skipping because before %s (%"PRId64")",
@@ -215,10 +337,14 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
               av_ts2timestr(ctx->seek_request, &ctx->st_timebase), ctx->seek_request);
         av_frame_free(&ctx->tmp_frame);
         ctx->tmp_frame = frame;
+        /* Display this cached frame from the loop start, trimming its duration accordingly. */
+        if (ctx->pass) {
+            if (frame->duration > 0)
+                frame->duration = FFMAX(ts + frame->duration - ctx->seek_request, 0);
+            frame->pts = ctx->seek_request;
+        }
         return 0;
     }
-
-    frame->pts = ts;
 
     if (ctx->tmp_frame) {
         if (ctx->seek_request != AV_NOPTS_VALUE && ts == ctx->seek_request) {
@@ -229,7 +355,8 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
                 return ret;
         }
     } else {
-        if (ctx->seek_request != AV_NOPTS_VALUE && ctx->seek_request > 0 && frame->pts > ctx->seek_request) {
+        if (ctx->seek_request != AV_NOPTS_VALUE && (ctx->seek_request > 0 || ctx->pass) &&
+            frame->pts > ctx->seek_request) {
             TRACE(ctx, "first frame obtained is after requested time, fixup its ts from %s to %s",
                   av_ts2timestr(frame->pts, &ctx->st_timebase),
                   av_ts2timestr(ctx->seek_request, &ctx->st_timebase));
@@ -249,6 +376,7 @@ void nmdi_decoding_run(struct decoding_ctx *ctx)
     TRACE(ctx, "decoding packets from %p into %p", ctx->pkt_queue, ctx->frames_queue);
 
     ctx->seek_request = AV_NOPTS_VALUE;
+    reset_passes(ctx);
 
     for (;;) {
         AVPacket *pkt;
@@ -281,6 +409,7 @@ void nmdi_decoding_run(struct decoding_ctx *ctx)
             /* Mark the seek request so async_queue_frame() can do its
              * "filtering" work. */
             ctx->seek_request = av_rescale_q(seek_ts, AV_TIME_BASE_Q, ctx->st_timebase);
+            reset_passes(ctx);
 
             /* Forward seek message */
             ret = av_thread_message_queue_send(ctx->frames_queue, &msg, 0);
@@ -289,6 +418,21 @@ void nmdi_decoding_run(struct decoding_ctx *ctx)
                 break;
             }
 
+            continue;
+        }
+
+        if (msg.type == MSG_LOOP) {
+            const struct nmdi_pass_msg *pass_msg = msg.data;
+            ret = 0;
+            if (pass_msg->reset) {
+                TRACE(ctx, "reset the decoder for the loop pass %" PRId64, pass_msg->pass);
+                ret = drain_decoder(ctx);
+            }
+            if (ret >= 0)
+                ret = update_pass(ctx, pass_msg);
+            nmdi_msg_free_data(&msg);
+            if (ret < 0)
+                break;
             continue;
         }
 
@@ -333,5 +477,6 @@ void nmdi_decoding_free(struct decoding_ctx **ctxp)
     if (!ctx)
         return;
     nmdi_decoder_free(&ctx->decoder);
+    av_freep(&ctx->passes);
     av_freep(ctxp);
 }
