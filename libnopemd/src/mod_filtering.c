@@ -73,6 +73,9 @@ struct filtering_ctx {
 
     AVFilterGraph *filter_graph;
     struct frame_info frame_info;
+    struct nmdi_loop *loop;
+    intptr_t pass;                          // pass number of the frames in the graph
+    int pass_has_frame;                     // at least one filtered frame was sent for this pass
 
     AVFilterContext *buffersink_ctx;        // sink of the graph (from where we pull)
     AVFilterContext *buffersrc_ctx;         // source of the graph (where we push)
@@ -354,11 +357,13 @@ int nmdi_filtering_init(void *log_ctx,
                         const AVStream *stream,
                         const AVCodecContext *avctx,
                         double media_rotation,
+                        struct nmdi_loop *loop,
                         const struct nmdi_opts *o)
 {
     ctx->log_ctx = log_ctx;
     ctx->in_queue  = in_queue;
     ctx->out_queue = out_queue;
+    ctx->loop = loop;
     ctx->sw_pix_fmt = o->sw_pix_fmt;
     ctx->max_pixels = o->max_pixels;
     ctx->audio_texture = o->audio_texture;
@@ -423,7 +428,8 @@ static int send_frame(struct filtering_ctx *ctx, AVFrame *frame)
     if (ret < 0) {
         if (ret != AVERROR_EOF && ret != AVERROR_EXIT)
             LOG(ctx, ERROR, "unable to send frame: %s", av_err2str(ret));
-    }
+    } else
+        ctx->pass_has_frame = 1;
 
     return ret;
 }
@@ -479,6 +485,8 @@ static int pull_frame(struct filtering_ctx *ctx, AVFrame *outframe)
         av_frame_move_ref(outframe, audio_texture_frame);
         av_free(audio_texture_frame);
     }
+
+    outframe->opaque = (void *)ctx->pass;
 
     return 0;
 }
@@ -537,6 +545,8 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
 
     // we want to force the reconstruction of the filtergraph
     reset_frame_info(&ctx->frame_info);
+    ctx->pass = 0;
+    ctx->pass_has_frame = 0;
 
     for (;;) {
         AVFrame *frame;
@@ -554,6 +564,8 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             TRACE(ctx, "message is a seek, destroy filtergraph and forward message to out queue");
             avfilter_graph_free(&ctx->filter_graph);
             reset_frame_info(&ctx->frame_info);
+            ctx->pass = 0;
+            ctx->pass_has_frame = 0;
             av_thread_message_flush(ctx->out_queue);
             ret = av_thread_message_queue_send(ctx->out_queue, &msg, 0);
             if (ret < 0) {
@@ -570,6 +582,39 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
               ctx->codecpar->codec_type == AVMEDIA_TYPE_VIDEO ? av_get_pix_fmt_name(frame->format)
                                                               : av_get_sample_fmt_name(frame->format),
               av_ts2timestr(frame->pts, &ctx->st_timebase));
+
+        /*
+         * User filters and audio filters can buffer frames and state. Drain
+         * them and rebuild the graph before feeding the next repetition,
+         * whose timestamps start over. Plain video conversion can reuse its
+         * graph because it has no buffered frames.
+         */
+        if ((intptr_t)frame->opaque != ctx->pass) {
+            if (ctx->filters || ctx->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
+                ret = flush_frames(ctx);
+                if (ret < 0 && ret != AVERROR_EOF) {
+                    av_frame_free(&frame);
+                    break;
+                }
+                avfilter_graph_free(&ctx->filter_graph);
+                reset_frame_info(&ctx->frame_info);
+            }
+            /*
+             * A seek can skip all output in pass 0. Only stop after a full
+             * repetition produces no frames, or we could discard a valid loop.
+             */
+            if (ctx->pass && !ctx->pass_has_frame) {
+                const int end = nmdi_loop_end_empty_pass(ctx->loop, ctx->pass);
+                if (end) {
+                    LOG(ctx, WARNING, "No filtered frame in the loop range, ending playback");
+                    av_frame_free(&frame);
+                    ret = AVERROR_EOF;
+                    break;
+                }
+            }
+            ctx->pass = (intptr_t)frame->opaque;
+            ctx->pass_has_frame = 0;
+        }
 
         /* lazy filtergraph configuration, see AVBufferSrcParameters for exhaustive list of frame properties */
         struct frame_info *frame_info = &ctx->frame_info;

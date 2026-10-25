@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <float.h> /* for DBL_MAX */
+#include <math.h>
 
 #include <libavcodec/avcodec.h>
 #include <libavfilter/avfilter.h>
@@ -57,17 +58,25 @@ struct nmd_ctx {
     AVFrame *cached_frame;
 
     /*
-     * Media time targeted by the last seek, from nmd_seek() or
-     * nmd_get_frame(), in AV_TIME_BASE_Q units. Reset to AV_NOPTS_VALUE by
-     * nmd_stop(), and when ret_frame() gets a frame, even one not returned
+     * Media time targeted by the last seek, from `nmd_seek()` or
+     * `nmd_get_frame()`, in `AV_TIME_BASE_Q` units. Reset to `AV_NOPTS_VALUE` by
+     * `nmd_stop()`, and when `ret_frame()` gets a frame, even one not returned
      * again to the caller.
      */
     int64_t seek_time64;
 
     AVRational st_timebase;                 // stream timebase
+    struct nmdi_pass_timeline pass_timeline;
 
-    /* All the following ts are expressed in st_timebase unit */
+    double loop_start;                     // loop range requested by the user, in seconds relative to `start_time`
+    double loop_end;
+    int64_t loop_start64;                   // loop range in media time, in microseconds; `AV_NOPTS_VALUE` without a loop
+    int64_t loop_end64;
+    int64_t loop_rev;                       // revision of the requested range (see `nmdi_loop`)
+
+    /* These timestamps include the pass offset, in stream ticks (see `get_frame_pos()`). */
     int64_t last_pushed_frame_ts;           // ts value of the latest pushed frame (it acts as a UID)
+    int64_t last_pushed_frame_pass;
     int64_t last_frame_poped_ts;
     int64_t first_ts;
     int64_t last_ts;
@@ -267,6 +276,8 @@ struct nmd_ctx *nmd_create(const char *filename)
     s->last_frame_poped_ts  = AV_NOPTS_VALUE;
     s->last_pushed_frame_ts = AV_NOPTS_VALUE;
     s->seek_time64          = AV_NOPTS_VALUE;
+    s->loop_start64         = AV_NOPTS_VALUE;
+    s->loop_end64           = AV_NOPTS_VALUE;
 
     av_assert0(!s->context_configured);
     return s;
@@ -297,6 +308,32 @@ static int64_t get_media_time(const struct nmdi_opts *o, int64_t t)
 {
     const int64_t mt = o->start_time64 + t;
     return o->end_time64 == AV_NOPTS_VALUE ? mt : FFMIN(mt, o->end_time64);
+}
+
+static void update_loop(struct nmd_ctx *s)
+{
+    const struct nmdi_opts *o = &s->opts;
+
+    int64_t start = AV_NOPTS_VALUE;
+    int64_t end = AV_NOPTS_VALUE;
+    if (s->loop_end > s->loop_start) {
+        start = get_media_time(o, TIME2INT64(s->loop_start));
+        end = o->start_time64 + TIME2INT64(s->loop_end);
+        /* Include the frame held at `end_time` when the requested loop extends beyond it. */
+        if (o->end_time64 != AV_NOPTS_VALUE && end > o->end_time64)
+            end = o->end_time64 + 1;
+        if (end <= start)
+            start = end = AV_NOPTS_VALUE;
+    }
+
+    if (start == s->loop_start64 && end == s->loop_end64)
+        return;
+
+    s->loop_start64 = start;
+    s->loop_end64 = end;
+
+    TRACE(s, "loop range: [%s,%s)", PTS2TIMESTR(s->loop_start64), PTS2TIMESTR(s->loop_end64));
+    s->loop_rev = nmdi_async_set_loop(s->actx, s->loop_start64, s->loop_end64);
 }
 
 static int set_context_fields(struct nmd_ctx *s)
@@ -348,6 +385,8 @@ static int set_context_fields(struct nmd_ctx *s)
     int ret = nmdi_async_init(s->actx, s->log_ctx, s->filename, &s->opts);
     if (ret < 0)
         return ret;
+
+    update_loop(s);
 
     s->context_configured = 1;
 
@@ -497,6 +536,21 @@ static int get_nmd_col_trc(int avcol_trc)
 #define MAX_ASYNC_OP_TIME (10/1000.)
 #define MAX_SYNC_OP_TIME  (1/60.)
 
+static int64_t get_frame_pass(const AVFrame *frame)
+{
+    return (intptr_t)frame->opaque;
+}
+
+/*
+ * Distinguish repeated frames internally: the frame at 2s in pass 1 must not
+ * count as the same returned frame as 2s in pass 0. Public frame timestamps
+ * keep their media time; only this internal position includes the pass offset.
+ */
+static int64_t get_frame_pos(const struct nmd_ctx *s, const AVFrame *frame)
+{
+    return frame->pts + get_frame_pass(frame) * s->pass_timeline.stride;
+}
+
 /* Return the frame only if different from previous one. We do not make a
  * simple pointer check because of the frame reference counting (and thus
  * pointer reuse, depending on many parameters)  */
@@ -512,7 +566,7 @@ static int ret_frame(struct nmd_ctx *s, AVFrame *avframe, int status, struct nmd
         goto end;
     }
 
-    const int64_t frame_ts = avframe->pts;
+    const int64_t frame_ts = get_frame_pos(s, avframe);
     s->seek_time64 = AV_NOPTS_VALUE;
 
     TRACE(s, "last_pushed_frame_ts:%s (%"PRId64") frame_ts:%s (%"PRId64")",
@@ -535,13 +589,15 @@ static int ret_frame(struct nmd_ctx *s, AVFrame *avframe, int status, struct nmd
     }
 
     s->last_pushed_frame_ts = frame_ts;
+    s->last_pushed_frame_pass = get_frame_pass(avframe);
+    nmdi_async_release_passes(s->actx, s->last_pushed_frame_pass);
 
     frame->internal = avframe;
     memcpy(frame->datap, avframe->data, sizeof(frame->datap));
     memcpy(frame->linesizep, avframe->linesize, sizeof(frame->linesizep));
-    frame->pts      = frame_ts;
-    frame->ms       = av_rescale_q(frame_ts, s->st_timebase, AV_TIME_BASE_Q);
-    frame->ts       = frame_ts * av_q2d(s->st_timebase);
+    frame->pts      = avframe->pts;
+    frame->ms       = av_rescale_q(avframe->pts, s->st_timebase, AV_TIME_BASE_Q);
+    frame->ts       = avframe->pts * av_q2d(s->st_timebase);
     frame->color_space     = get_nmd_col_spc(avframe->colorspace);
     frame->color_range     = get_nmd_col_rng(avframe->color_range);
     frame->color_primaries = get_nmd_col_pri(avframe->color_primaries);
@@ -556,18 +612,18 @@ static int ret_frame(struct nmd_ctx *s, AVFrame *avframe, int status, struct nmd
         frame->height  = avframe->height;
         frame->pix_fmt = nmdi_pix_fmts_ff2nmd(avframe->format);
         LOG(s, DEBUG, "return %dx%d video frame @ ts=%s",
-            avframe->width, avframe->height, av_ts2timestr(frame_ts, &s->st_timebase));
+            avframe->width, avframe->height, av_ts2timestr(avframe->pts, &s->st_timebase));
     } else if (o->avselect == NMD_SELECT_AUDIO && o->audio_texture) {
         frame->width   = avframe->width;
         frame->height  = avframe->height;
         frame->pix_fmt = NMD_SMPFMT_FLT;
         LOG(s, DEBUG, "return %dx%d audio tex frame @ ts=%s",
-            avframe->width, avframe->height, av_ts2timestr(frame_ts, &s->st_timebase));
+            avframe->width, avframe->height, av_ts2timestr(avframe->pts, &s->st_timebase));
     } else {
         frame->nb_samples = avframe->nb_samples;
         frame->pix_fmt = nmdi_smp_fmts_ff2nmd(avframe->format);
         LOG(s, DEBUG, "return %d samples audio frame @ ts=%s",
-            avframe->nb_samples, av_ts2timestr(frame_ts, &s->st_timebase));
+            avframe->nb_samples, av_ts2timestr(avframe->pts, &s->st_timebase));
     }
 
 end:
@@ -635,6 +691,8 @@ static int pop_frame(struct nmd_ctx *s, AVFrame **framep)
                 LOG(s, DEBUG, "store stream timebase %d/%d",
                     s->st_timebase.num, s->st_timebase.den);
                 av_assert0(s->st_timebase.den);
+                ret = nmdi_async_get_pass_timeline(s->actx, &s->pass_timeline);
+                av_assert0(ret >= 0);
             }
         }
 
@@ -646,7 +704,7 @@ static int pop_frame(struct nmd_ctx *s, AVFrame **framep)
     }
 
     if (frame) {
-        const int64_t ts = frame->pts;
+        const int64_t ts = get_frame_pos(s, frame);
         TRACE(s, "poped frame with ts=%s (%"PRId64")", av_ts2timestr(ts, &s->st_timebase), ts);
         s->last_frame_poped_ts = ts;
     } else {
@@ -730,6 +788,30 @@ end:
     return averror_to_nmd_err(ret);
 }
 
+int nmd_set_loop_range(struct nmd_ctx *s, double start, double end)
+{
+    START_FUNC("SET LOOP");
+
+    int ret = 0;
+    if (isnan(start) || isnan(end)) {
+        LOG(s, ERROR, "Invalid loop range [%g,%g)", start, end);
+        ret = AVERROR(EINVAL);
+        goto end;
+    }
+
+    /* Keep the times in microseconds far from overflowing */
+    const double max_time = (double)(INT64_MAX / 4 / AV_TIME_BASE);
+    s->loop_start = av_clipd(start, 0.0, max_time);
+    s->loop_end = av_clipd(end, 0.0, max_time);
+
+    if (s->context_configured)
+        update_loop(s);
+
+end:
+    END_FUNC(MAX_ASYNC_OP_TIME);
+    return averror_to_nmd_err(ret);
+}
+
 int nmd_start(struct nmd_ctx *s)
 {
     START_FUNC("START");
@@ -752,6 +834,107 @@ static inline int64_t stream_time(const struct nmd_ctx *s, int64_t t)
 {
     av_assert0(s->st_timebase.den);
     return av_rescale_q(t, AV_TIME_BASE_Q, s->st_timebase);
+}
+
+/*
+ * Exclusive loop end in the stream time base, without the pass offset.
+ * Limit it to the interval reserved for pass 0 to avoid overflow when the
+ * loop extends far beyond the media.
+ */
+static inline int64_t stream_loop_end(const struct nmd_ctx *s)
+{
+    av_assert0(s->st_timebase.den);
+    const int64_t timeline_end = s->pass_timeline.origin + s->pass_timeline.stride;
+    const int64_t end = FFMIN(s->loop_end64, av_rescale_q(timeline_end, s->st_timebase, AV_TIME_BASE_Q));
+    return nmdi_loop_stream_end(end, s->opts.end_time64, s->st_timebase);
+}
+
+/* Rounding must not move a request just before the loop end onto the excluded boundary. */
+static int64_t stream_request_time(const struct nmd_ctx *s, int64_t vt)
+{
+    const int64_t stt = stream_time(s, vt);
+    if (s->loop_end64 == AV_NOPTS_VALUE || !s->pass_timeline.stride || vt < s->loop_start64 || vt >= s->loop_end64)
+        return stt;
+    return FFMIN(stt, stream_loop_end(s) - 1);
+}
+
+/* Whether this pass ended under the current range. The next pass records the revision used at the wrap. */
+static int is_pass_end_current(const struct nmd_ctx *s, int64_t pass)
+{
+    return nmdi_async_get_pass_loop_rev(s->actx, pass + 1) == s->loop_rev;
+}
+
+/* Whether frames at the requested time were left out when this pass ended. */
+static int is_request_past_pass_end(const struct nmd_ctx *s, const AVFrame *candidate, int64_t stt)
+{
+    if (!candidate && s->last_pushed_frame_ts == AV_NOPTS_VALUE)
+        return 0;
+    const int64_t pass = candidate ? get_frame_pass(candidate) : s->last_pushed_frame_pass;
+    return stt >= nmdi_async_get_pass_end(s->actx, pass);
+}
+
+/*
+ * Measure how far playback must advance from the last returned frame to `vt`,
+ * and choose the pass that should supply it. During looping, a request earlier
+ * than that frame and inside the range belongs to the next repetition. Set
+ * `seekp` when the requested frame is no longer available in the queued passes.
+ */
+static int64_t get_distance(const struct nmd_ctx *s, int64_t vt, int64_t *passp, int *seekp)
+{
+    const int64_t pass = s->last_pushed_frame_pass;
+    const int64_t pts = s->last_pushed_frame_ts - pass * s->pass_timeline.stride;
+    const int64_t stt = stream_request_time(s, vt);
+
+    *passp = 0;
+    *seekp = 0;
+
+    /* Until a frame is returned, measure from the seek target. */
+    if (s->seek_time64 != AV_NOPTS_VALUE)
+        return stt - stream_time(s, s->seek_time64);
+
+    /* Starting playback beyond the loop end keeps normal forward playback. */
+    const int looping = s->loop_end64 != AV_NOPTS_VALUE && s->pass_timeline.stride &&
+                        (pass || pts < stream_loop_end(s));
+    if (!looping) {
+        *passp = pass;
+        return stt - pts;
+    }
+
+    /*
+     * A frame from a later pass means the current pass has finished. After a
+     * range change, that wrap may still reflect the old end, so check which
+     * range revision caused it before treating it as the current boundary.
+     */
+    const AVFrame *next = s->cached_frame;
+    const int pass_over = next && get_frame_pass(next) > pass;
+    const int pass_end_current = pass_over && is_pass_end_current(s, pass);
+
+    if (vt >= s->loop_end64) {
+        *seekp = 1;
+        return 0;
+    }
+
+    if (vt < s->loop_start64)
+        return stt - s->last_pushed_frame_ts;
+
+    /* A loop extending beyond the media holds its last frame until the caller wraps. */
+    const int64_t end = FFMIN(stream_loop_end(s), s->pass_timeline.end);
+    if (stt >= pts) {
+        *passp = pass;
+        if (pass_over) {
+            *seekp = is_request_past_pass_end(s, NULL, stt);
+            return 0;
+        }
+        return stt > end ? FFMAX(end - pts, 1) : stt - pts;
+    }
+
+    *passp = pass + 1;
+    if (pass_end_current)
+        return FFMAX(stt - next->pts, 0) + 1;
+
+    const int64_t diff = end - pts + stt - stream_time(s, s->loop_start64);
+    *seekp = diff <= 0;
+    return diff;
 }
 
 int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
@@ -777,6 +960,19 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
     const int64_t vt = get_media_time(o, t64);
     TRACE(s, "t=%s -> vt=%s", PTS2TIMESTR(t64), PTS2TIMESTR(vt));
 
+    /* Retry after a range change if the old range stopped playback with no filtered output. */
+    const int64_t ended_loop_rev = nmdi_async_get_ended_loop_rev(s->actx);
+    if (ended_loop_rev >= 0 && ended_loop_rev != s->loop_rev) {
+        LOG(s, DEBUG, "loop range changed after an empty pass, seek to %s", PTS2TIMESTR(vt));
+        av_frame_free(&s->cached_frame);
+        s->last_pushed_frame_ts = AV_NOPTS_VALUE;
+        s->last_ts = AV_NOPTS_VALUE;
+        ret = nmdi_async_seek(s->actx, vt);
+        if (ret < 0)
+            return ret_frame(s, NULL, ret, framep);
+        s->seek_time64 = vt;
+    }
+
     if (s->last_ts != AV_NOPTS_VALUE && stream_time(s, vt) >= s->last_ts &&
         s->last_pushed_frame_ts == s->last_ts) {
         TRACE(s, "requested the last frame again");
@@ -790,6 +986,8 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
     }
 
     AVFrame *candidate = NULL;
+    int64_t target_pass = 0;
+    int force_seek = 0;
 
     /*
      * Before returning the first frame after startup or nmd_seek(), pop a
@@ -817,8 +1015,9 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
 
         /* At this point we can assume the stream timebase is known because
          * pop_frame() was called. */
-        const int64_t stt = stream_time(s, vt);
+        const int64_t stt = stream_request_time(s, vt);
         diff = stt - candidate->pts;
+        target_pass = get_frame_pass(candidate);
 
         TRACE(s, "diff with candidate (t=%s): %s [%"PRId64"]",
               av_ts2timestr(candidate->pts, &s->st_timebase),
@@ -849,7 +1048,7 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
                 /* Warning: we must absolutely NOT save the timestamp of the
                  * candidate if the first time requested is not actually 0 */
                 if (t64 == 0)
-                    s->first_ts = candidate->pts;
+                    s->first_ts = get_frame_pos(s, candidate);
                 return ret_frame(s, candidate, pop_ret, framep);
             }
             /*
@@ -862,22 +1061,23 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
     } else {
         /* At this point we can assume the stream timebase is known because
          * a frame was already pushed. */
-        const int64_t stt = stream_time(s, vt);
-        diff = stt - s->last_pushed_frame_ts;
+        diff = get_distance(s, vt, &target_pass, &force_seek);
 
-        TRACE(s, "diff with latest frame (t=%s) returned: %s [%"PRId64"]",
+        TRACE(s, "diff with latest frame (t=%s) returned: %s [%"PRId64"] in loop pass %"PRId64,
               av_ts2timestr(s->last_pushed_frame_ts, &s->st_timebase),
               av_ts2timestr(diff, &s->st_timebase),
-              diff);
+              diff, target_pass);
     }
 
-    if (!diff)
+    if (!diff && !force_seek)
         return ret_frame(s, candidate, 0, framep);
 
     /* Check if a seek is needed */
     const int forward_seek = av_compare_ts(diff, s->st_timebase, o->dist_time_seek_trigger64, AV_TIME_BASE_Q) >= 0;
-    if (diff < 0 || forward_seek) {
-        if (diff < 0)
+    if (force_seek || diff < 0 || forward_seek) {
+        if (force_seek)
+            TRACE(s, "queued loop passes cannot supply the requested frame, seek");
+        else if (diff < 0)
             TRACE(s, "diff %s [%"PRId64"] < 0 request backward seek",
                   av_ts2timestr(diff, &s->st_timebase), diff);
         else
@@ -899,8 +1099,13 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
             av_frame_free(&candidate);
             return ret_frame(s, NULL, ret, framep);
         }
+        target_pass = 0;
         s->seek_time64 = vt;
     }
+
+    /* A backward request within the loop can advance to a later pass. */
+    const int next_pass = s->last_pushed_frame_ts != AV_NOPTS_VALUE && target_pass > s->last_pushed_frame_pass;
+    int seek_retried = 0;
 
     /* Consume frames until we get a frame as accurate as possible */
     for (;;) {
@@ -910,16 +1115,54 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
         AVFrame *next = NULL;
         const int pop_ret = pop_frame(s, &next);
         av_assert0(!s->cached_frame);
-        if (!next || pop_ret < 0) {
-            TRACE(s, "no more frame");
-            break;
-        }
 
         /* We must not use av_compare_ts() here, because it doesn't make the
          * comparison with the lowest timebase value. Instead, we need to lower
          * our timestamp precision to the stream one to get as accurate as
          * possible. */
-        const int64_t rescaled_vt = stream_time(s, vt);
+        const int64_t rescaled_vt = stream_request_time(s, vt);
+
+        /*
+         * Queued passes may still reflect an older range, or decoding may
+         * have stopped before the expected wrap. Seek to the requested time
+         * and retry once with the current range.
+         */
+        const int64_t pass = next ? get_frame_pass(next) : 0;
+        const int need_seek = !seek_retried &&
+            ((next_pass && !candidate &&
+              (!next || pop_ret < 0 ||
+               (pass < target_pass && next->pts >= stream_loop_end(s)) ||
+               (pass == target_pass && next->pts > rescaled_vt))) ||
+             (next && pass > target_pass && is_request_past_pass_end(s, candidate, rescaled_vt)));
+        if (need_seek) {
+            LOG(s, DEBUG, "queued loop passes cannot supply the frame at %s, seek", PTS2TIMESTR(vt));
+            av_frame_free(&next);
+            av_frame_free(&candidate);
+            ret = nmdi_async_seek(s->actx, vt);
+            if (ret < 0)
+                return ret_frame(s, NULL, ret, framep);
+            target_pass = 0;
+            seek_retried = 1;
+            s->seek_time64 = vt;
+            continue;
+        }
+
+        if (!next || pop_ret < 0) {
+            TRACE(s, "no more frame");
+            break;
+        }
+
+        if (pass < target_pass) {
+            TRACE(s, "skip frame %s of a previous loop pass", av_ts2timestr(next->pts, &s->st_timebase));
+            av_frame_free(&next);
+            continue;
+        }
+
+        if (pass > target_pass) {
+            TRACE(s, "cache frame %s of the next loop pass", av_ts2timestr(next->pts, &s->st_timebase));
+            s->cached_frame = next;
+            break;
+        }
 
         const int64_t next_duration = next->duration;
 
@@ -941,7 +1184,7 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
                 candidate = next;
                 TRACE(s, "we need to return a frame, select this future frame anyway");
                 if (t64 == 0)
-                    s->first_ts = candidate->pts;
+                    s->first_ts = get_frame_pos(s, candidate);
             } else {
                 s->cached_frame = next;
                 TRACE(s, "cache frame %s for next call", av_ts2timestr(next->pts, &s->st_timebase));
@@ -961,7 +1204,19 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
 
 int nmd_get_frame(struct nmd_ctx *s, double t, struct nmd_frame **framep)
 {
-    return nmd_get_frame_ms(s, TIME2INT64(t), framep);
+    int64_t t64 = TIME2INT64(t);
+
+    /*
+     * A time just below the exclusive loop end can round up to it in
+     * microseconds. Keep it inside the range, unless the whole range rounds
+     * to zero length and looping is therefore disabled.
+     */
+    const int64_t loop_start64 = TIME2INT64(s->loop_start);
+    const int64_t loop_end64 = TIME2INT64(s->loop_end);
+    if (loop_end64 > loop_start64 && t < s->loop_end && t64 >= loop_end64)
+        t64 = loop_end64 - 1;
+
+    return nmd_get_frame_ms(s, t64, framep);
 }
 
 int nmd_get_next_frame(struct nmd_ctx *s, struct nmd_frame **framep)

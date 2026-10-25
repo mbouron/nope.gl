@@ -30,6 +30,7 @@
 #include "internal.h"
 #include "async.h"
 #include "log.h"
+#include "loop.h"
 #include "pthread_compat.h"
 
 #include "mod_demuxing.h"
@@ -41,6 +42,7 @@ struct info_message {
     int64_t duration;
     int is_image;
     AVRational timebase;
+    struct nmdi_pass_timeline pass_timeline;
 };
 
 struct async_context {
@@ -82,6 +84,9 @@ struct async_context {
     int need_sync;
 
     int playing;
+
+    struct nmdi_loop loop;
+    int loop_initialized;
 };
 
 /* Send a message to the control input and fetch from the output until we get
@@ -174,6 +179,40 @@ int nmdi_async_fetch_info(struct async_context *actx, struct nmd_info *info)
     info->timebase[0] = actx->info.timebase.num;
     info->timebase[1] = actx->info.timebase.den;
     return 0;
+}
+
+int nmdi_async_get_pass_timeline(struct async_context *actx, struct nmdi_pass_timeline *timeline)
+{
+    int ret = fetch_mod_info(actx);
+    if (ret < 0)
+        return ret;
+    *timeline = actx->info.pass_timeline;
+    return 0;
+}
+
+int64_t nmdi_async_set_loop(struct async_context *actx, int64_t start, int64_t end)
+{
+    return nmdi_loop_set(&actx->loop, start, end);
+}
+
+int64_t nmdi_async_get_pass_loop_rev(struct async_context *actx, int64_t pass)
+{
+    return nmdi_loop_get_pass_loop_rev(&actx->loop, pass);
+}
+
+int64_t nmdi_async_get_pass_end(struct async_context *actx, int64_t pass)
+{
+    return nmdi_loop_get_pass_end(&actx->loop, pass);
+}
+
+int64_t nmdi_async_get_ended_loop_rev(struct async_context *actx)
+{
+    return nmdi_loop_get_ended_loop_rev(&actx->loop);
+}
+
+void nmdi_async_release_passes(struct async_context *actx, int64_t pass)
+{
+    nmdi_loop_release_passes(&actx->loop, pass);
 }
 
 int nmdi_async_pop_frame(struct async_context *actx, AVFrame **framep)
@@ -284,18 +323,21 @@ static int initialize_modules_once(struct async_context *actx,
     if ((ret = nmdi_demuxing_init(actx->log_ctx,
                                   actx->demuxer,
                                   actx->src_queue, actx->pkt_queue,
-                                  actx->filename, opts)) < 0 ||
+                                  actx->filename, &actx->loop, opts)) < 0 ||
         (ret = nmdi_decoding_init(actx->log_ctx,
                                   actx->decoder,
                                   actx->pkt_queue, actx->frames_queue,
                                   nmdi_demuxing_is_image(actx->demuxer),
-                                  nmdi_demuxing_get_stream(actx->demuxer), opts)) < 0 ||
+                                  nmdi_demuxing_get_stream(actx->demuxer),
+                                  nmdi_demuxing_get_pass_timeline(actx->demuxer),
+                                  &actx->loop, opts)) < 0 ||
         (ret = nmdi_filtering_init(actx->log_ctx,
                                    actx->filterer,
                                    actx->frames_queue, actx->sink_queue,
                                    nmdi_demuxing_get_stream(actx->demuxer),
                                    nmdi_decoding_get_avctx(actx->decoder),
-                                   nmdi_demuxing_probe_rotation(actx->demuxer), opts)) < 0)
+                                   nmdi_demuxing_probe_rotation(actx->demuxer),
+                                   &actx->loop, opts)) < 0)
         return ret;
 
     actx->modules_initialized = 1;
@@ -483,6 +525,7 @@ static int op_info(struct async_context *actx, struct message *msg)
         .duration = end_time,
         .is_image = is_image,
         .timebase = st->time_base,
+        .pass_timeline = *nmdi_demuxing_get_pass_timeline(actx->demuxer),
     };
 
     if (!info.timebase.num || !info.timebase.den) {
@@ -701,6 +744,11 @@ int nmdi_async_init(struct async_context *actx, void *log_ctx,
     actx->thread_stack_size = o->thread_stack_size;
     actx->request_seek = AV_NOPTS_VALUE;
 
+    ret = nmdi_loop_init(&actx->loop);
+    if (ret < 0)
+        return ret;
+    actx->loop_initialized = 1;
+
     TRACE(actx, "alloc modules queues");
     if ((ret = alloc_msg_queue(&actx->src_queue,    1))                 < 0 ||
         (ret = alloc_msg_queue(&actx->pkt_queue,    o->max_nb_packets)) < 0 ||
@@ -730,6 +778,7 @@ const char *nmdi_async_get_msg_type_string(enum msg_type type)
         [MSG_START]  = "start",
         [MSG_STOP]   = "stop",
         [MSG_SYNC]   = "sync",
+        [MSG_LOOP]   = "loop",
     };
     return s[type];
 }
@@ -771,6 +820,9 @@ void nmdi_async_free(struct async_context **actxp)
 
     av_thread_message_queue_free(&actx->ctl_in_queue);
     av_thread_message_queue_free(&actx->ctl_out_queue);
+
+    if (actx->loop_initialized)
+        nmdi_loop_uninit(&actx->loop);
 
     TRACE(actx, "free done");
 

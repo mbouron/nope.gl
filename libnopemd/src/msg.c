@@ -43,6 +43,7 @@ void nmdi_msg_free_data(void *arg)
     }
     case MSG_SEEK:
     case MSG_INFO:
+    case MSG_LOOP:
         av_freep(&msg->data);
         break;
     case MSG_START:

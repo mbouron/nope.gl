@@ -256,7 +256,8 @@ typedef void (*nmd_seek_callback_type)(void *arg, double t);
  *
  * The callback is called from the demuxing thread each time the player seeks
  * in the media, including the seeks it makes on its own, such as the seek to
- * the start_time option.
+ * the `start_time` option. Internal seeks used for looping (see
+ * `nmd_set_loop_range()`) do not trigger this callback.
  *
  * Like the options, the callback must be set before the first call to the
  * playback functions.
@@ -366,6 +367,32 @@ NMDAPI int nmd_stop(struct nmd_ctx *s);
  * Return 0 on success, a negative value on error.
  */
 NMDAPI int nmd_seek(struct nmd_ctx *s, double t);
+
+/**
+ * Set the loop range to `[start, end)`, with `start` included and `end`
+ * excluded. Times are in seconds, relative to the `start_time` option, as with
+ * `nmd_get_frame()`. An empty range (`end <= start`) disables looping.
+ *
+ * The caller controls the playback clock and wraps the times passed to
+ * `nmd_get_frame()`.
+ * For example, after setting [2s, 5s), request 2.0, 2.1, ..., 4.9, then 2.0
+ * again. The player prepares frames from the next repetition while the
+ * current one is still playing.
+ *
+ * During looping, a request earlier than the last returned frame and inside
+ * the range advances to the next repetition. Use `nmd_seek()` for an explicit
+ * change of playback position. The loop end may extend beyond the media;
+ * requests past the last frame keep showing it until the caller wraps.
+ *
+ * The range can be set before or during playback. After a change, the player
+ * uses queued frames when possible and seeks if the requested frame is no
+ * longer available. If filters remove every frame of a complete repetition,
+ * playback ends. Changing the range lets the next `nmd_get_frame()` call
+ * seek and try again.
+ *
+ * Return 0 on success, a negative value on error.
+ */
+NMDAPI int nmd_set_loop_range(struct nmd_ctx *s, double start, double end);
 
 /**
  * Get the next frame.

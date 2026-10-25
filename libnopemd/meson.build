@@ -94,6 +94,7 @@ lib_src = files(
   'src/decoder_ffmpeg.c',
   'src/decoders.c',
   'src/log.c',
+  'src/loop.c',
   'src/mod_decoding.c',
   'src/mod_demuxing.c',
   'src/mod_filtering.c',
@@ -187,6 +188,8 @@ if get_option('tests')
   h264_open_gop = files('tests/h264_open_gop.mp4')
   h264_offset = files('tests/h264_offset.mkv')
   h264_no_editlist = files('tests/h264_no_editlist.mp4')
+  h264_long_audio = files('tests/h264_long_audio.mp4')
+  h264_vfr = files('tests/h264_vfr.mkv')
   hevc = files('tests/hevc.mp4')
   hevc_open_gop = files('tests/hevc_open_gop.mp4')
   hevc_ts = files('tests/hevc.ts')
@@ -199,6 +202,8 @@ if get_option('tests')
     'high_refresh_rate',
     'image',
     'image_seek',
+    'loop',
+    'loop_filters',
     'misc_events',
     'microseconds',
     'next_frame',
@@ -208,7 +213,7 @@ if get_option('tests')
   ]
 
   # Tests sharing playback helpers
-  playback_tests = ['seek']
+  playback_tests = ['loop', 'loop_filters', 'seek']
 
   executables = {}
   foreach exe_name : exe_names
@@ -249,6 +254,18 @@ if get_option('tests')
     'High refresh rate':                  {'test': 'high_refresh_rate', 'args': [media]},
     'Image Seek':                         {'test': 'image_seek',        'args': [image]},
     'Image':                              {'test': 'image',             'args': [image]},
+    'Loop audio':                         {'test': 'loop',              'args': [media, 'audio']},
+    'Loop filters':                       {'test': 'loop_filters',      'args': [h264], 'timeout': 30},
+    'Loop H.264':                         {'test': 'loop',              'args': [h264, 'video']},
+    'Loop H.264 long audio':              {'test': 'loop',              'args': [h264_long_audio, 'video']},
+    'Loop H.264 no edit list':            {'test': 'loop',              'args': [h264_no_editlist, 'video']},
+    'Loop H.264 offset':                  {'test': 'loop',              'args': [h264_offset, 'video']},
+    'Loop H.264 open GOP':                {'test': 'loop',              'args': [h264_open_gop, 'video']},
+    'Loop H.264 VFR':                     {'test': 'loop',              'args': [h264_vfr, 'video']},
+    'Loop HEVC':                          {'test': 'loop',              'args': [hevc, 'video']},
+    'Loop HEVC MPEG-TS':                  {'test': 'loop',              'args': [hevc_ts, 'video']},
+    'Loop HEVC open GOP':                 {'test': 'loop',              'args': [hevc_open_gop, 'video']},
+    'Loop media':                         {'test': 'loop',              'args': [media, 'media']},
     'Microseconds':                       {'test': 'microseconds',      'args': [media]},
     'Misc events image':                  {'test': 'misc_events',       'args': [image]},
     'Misc events media':                  {'test': 'misc_events',       'args': [media]},
@@ -278,7 +295,7 @@ if get_option('tests')
         test_name += ' with packet duration'
         test_args += '1'
       endif
-      test(test_name, test_exe, args: test_args, timeout: 60*60)
+      test(test_name, test_exe, args: test_args, timeout: test_data.get('timeout', 60*60))
     endforeach
   endforeach
 endif

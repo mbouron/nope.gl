@@ -26,6 +26,7 @@
 #include <libavutil/frame.h>
 #include <libavutil/threadmessage.h>
 
+#include "loop.h"
 #include "opts.h"
 
 struct decoding_ctx *nmdi_decoding_alloc(void);
@@ -36,6 +37,8 @@ int nmdi_decoding_init(void *log_ctx,
                        AVThreadMessageQueue *frames_queue,
                        int is_image,
                        const AVStream *stream,
+                       const struct nmdi_pass_timeline *timeline,
+                       struct nmdi_loop *loop,
                        const struct nmdi_opts *opts);
 
 const AVCodecContext *nmdi_decoding_get_avctx(struct decoding_ctx *ctx);
