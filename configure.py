@@ -868,9 +868,10 @@ def _glslang_install(cfg):
 @_block(
     "nopemd-setup",
     {
-        "Android": [_ffmpeg_install],
-        "iOS": [_ffmpeg_install],
-        "Windows": [_pkgconf_install, _ffmpeg_install, _sdl3_install],
+        "Android": [_ffmpeg_install, _xxhash_install],
+        "iOS": [_ffmpeg_install, _xxhash_install],
+        "Local": [_xxhash_install],
+        "Windows": [_pkgconf_install, _ffmpeg_install, _sdl3_install, _xxhash_install],
     },
 )
 def _nopemd_setup(cfg):

@@ -1,0 +1,81 @@
+/*
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ *
+ * This file is available under the terms of either the Apache License,
+ * Version 2.0, or the GNU Lesser General Public License, version 2.1 or (at
+ * your option) any later version, at your option.
+ */
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <nopemd.h>
+
+#include "playback_utils.h"
+
+static int use_pkt_duration;
+
+static struct nmd_ctx *create_player(const char *filename)
+{
+    const struct pb_player_opts opts = {.use_pkt_duration = use_pkt_duration, .start_time = -1.0, .end_time = -1.0};
+    return pb_create_player(filename, &opts);
+}
+
+static int run_test(const char *filename, const char *name, int halfway)
+{
+    struct nmd_ctx *s = create_player(filename);
+    if (!s)
+        return -1;
+
+    nb_seeks = 0;
+    int nb_errors = 0;
+    for (int i = nb_refs - 1; i >= 0; i--) {
+        const double frame_time = pb_get_ref_time(i);
+        const double next_time = i < nb_refs - 1 ? pb_get_ref_time(i + 1) : frame_time;
+        const double t = halfway ? (frame_time + next_time) / 2.0 : frame_time;
+        struct nmd_frame *frame = NULL;
+        int ret = nmd_get_frame(s, t, &frame);
+        if (ret != NMD_RET_NEWFRAME) {
+            if (nb_errors++ < 10)
+                fprintf(stderr, "  t=%.4f: unexpected return %d\n", t, ret);
+            continue;
+        }
+        const uint64_t hash = pb_hash_frame(frame, 0);
+        if (hash != refs[i].hash && nb_errors++ < 10) {
+            const int got = pb_find_ref(hash);
+            fprintf(stderr, "  t=%.4f: got frame %d (ts=%.4f) instead of %d (ts=%.4f)\n",
+                    t, got, frame->ts, i, frame_time);
+        }
+        nmd_frame_releasep(&frame);
+    }
+    nmd_freep(&s);
+
+    /* Every request but the first seeks back */
+    const int seeks_ok = nb_seeks >= nb_refs - 1;
+    printf("%-10s %s: %d requests, %d errors, %d seeks\n", name, nb_errors || !seeks_ok ? "FAIL" : "OK",
+           nb_refs, nb_errors, nb_seeks);
+    return nb_errors || !seeks_ok ? -1 : 0;
+}
+
+int main(int ac, char **av)
+{
+    if (ac < 2) {
+        fprintf(stderr, "Usage: %s <media> [<use_pkt_duration>]\n", av[0]);
+        return -1;
+    }
+
+    const char *filename = av[1];
+    use_pkt_duration = ac > 2 ? atoi(av[2]) : 0;
+    if (pb_load_refs(filename, 0) < 0 || nb_refs < 2)
+        return -1;
+
+    int ret = 0;
+    if (run_test(filename, "frames", 0) < 0)
+        ret = -1;
+    if (run_test(filename, "halfway", 1) < 0)
+        ret = -1;
+    return ret;
+}

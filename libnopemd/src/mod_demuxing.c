@@ -30,6 +30,9 @@
 #include "log.h"
 #include "msg.h"
 
+#define MAX_SEEK_RETRIES 8
+#define MAX_SEEK_DROPS   4096
+
 struct demuxing_ctx {
     void *log_ctx;
     AVFormatContext *fmt_ctx;
@@ -41,6 +44,8 @@ struct demuxing_ctx {
     nmd_seek_callback_type seek_callback;
     void *seek_callback_arg;
     int64_t start_time64;
+    AVPacket *seek_pkt;             // key frame packet found by the last seek
+    int has_seek_pkt;
 };
 
 struct demuxing_ctx *nmdi_demuxing_alloc(void)
@@ -177,10 +182,14 @@ int nmdi_demuxing_init(void *log_ctx,
 
     av_dump_format(ctx->fmt_ctx, 0, filename, 0);
 
+    ctx->seek_pkt = av_packet_alloc();
+    if (!ctx->seek_pkt)
+        return AVERROR(ENOMEM);
+
     return 0;
 }
 
-static int pull_packet(struct demuxing_ctx *ctx, AVPacket *pkt)
+static int read_stream_packet(struct demuxing_ctx *ctx, AVPacket *pkt)
 {
     int ret;
     AVFormatContext *fmt_ctx = ctx->fmt_ctx;
@@ -203,6 +212,88 @@ static int pull_packet(struct demuxing_ctx *ctx, AVPacket *pkt)
 
     TRACE(ctx, "packet ret %s", av_err2str(ret));
     return ret;
+}
+
+static int pull_packet(struct demuxing_ctx *ctx, AVPacket *pkt)
+{
+    if (ctx->has_seek_pkt) {
+        av_packet_move_ref(pkt, ctx->seek_pkt);
+        ctx->has_seek_pkt = 0;
+        return 0;
+    }
+    return read_stream_packet(ctx, pkt);
+}
+
+/* Read up to the next key frame packet, AVERROR(EAGAIN) if none is flagged */
+static int read_key_packet(struct demuxing_ctx *ctx, AVPacket *pkt)
+{
+    for (int i = 0; i < MAX_SEEK_DROPS; i++) {
+        int ret = read_stream_packet(ctx, pkt);
+        if (ret < 0)
+            return ret;
+        if (pkt->flags & AV_PKT_FLAG_KEY)
+            return 0;
+        av_packet_unref(pkt);
+    }
+    return AVERROR(EAGAIN);
+}
+
+/*
+ * Seek to a key frame displayed at or before ts (AV_TIME_BASE).
+ *
+ * avformat_seek_file() may seek by DTS, so the key frame's PTS can be past the
+ * requested time (ts).
+ *
+ * The MPEG-TS demuxer also searches timestamps without checking key frame
+ * flags, and can land on packets the decoder cannot start from. Read up to the
+ * next key frame and seek further back if its PTS is past ts.
+ */
+static int seek(struct demuxing_ctx *ctx, int64_t ts)
+{
+    AVPacket *pkt = ctx->seek_pkt;
+    const AVRational tb = ctx->stream->time_base;
+    const int64_t target = av_rescale_q(ts, AV_TIME_BASE_Q, tb);
+    const int64_t first_pts = ctx->stream->start_time;
+    int64_t seek_ts = ts;
+    int64_t seek_offset = 0;
+
+    av_packet_unref(pkt);
+    ctx->has_seek_pkt = 0;
+
+    for (int i = 0; i <= MAX_SEEK_RETRIES; i++) {
+        int ret = avformat_seek_file(ctx->fmt_ctx, -1, INT64_MIN, seek_ts, seek_ts, 0);
+        if (ret < 0)
+            break;
+
+        ret = read_key_packet(ctx, pkt);
+        if (ret == AVERROR(EAGAIN))
+            break;
+        if (ret < 0 && ret != AVERROR_EOF)
+            return ret;
+
+        if (ret >= 0) {
+            const int64_t pts = pkt->pts != AV_NOPTS_VALUE ? pkt->pts : pkt->dts;
+            const int first = first_pts != AV_NOPTS_VALUE && pts != AV_NOPTS_VALUE && pts <= first_pts;
+            if (pts == AV_NOPTS_VALUE || pts <= target || first || i == MAX_SEEK_RETRIES) {
+                ctx->has_seek_pkt = 1;
+                return 0;
+            }
+        }
+
+        /* Seek further back if the demuxer keeps landing past the requested time. */
+        const int64_t key_ts = ret < 0 ? INT64_MAX : av_rescale_q(pkt->dts != AV_NOPTS_VALUE ? pkt->dts : pkt->pts, tb, AV_TIME_BASE_Q);
+        av_packet_unref(pkt);
+        if (key_ts > seek_ts) {
+            seek_offset = seek_offset ? seek_offset * 2 : AV_TIME_BASE / 2;
+            seek_ts -= seek_offset;
+        } else {
+            seek_ts = key_ts - 1;
+        }
+        TRACE(ctx, "no key frame displayed at ts=%s, seek back to ts=%s", PTS2TIMESTR(ts), PTS2TIMESTR(seek_ts));
+    }
+
+    LOG(ctx, WARNING, "No key frame found to start from at ts=%s", PTS2TIMESTR(ts));
+    return avformat_seek_file(ctx->fmt_ctx, -1, INT64_MIN, ts, ts, 0);
 }
 
 void nmdi_demuxing_run(struct demuxing_ctx *ctx)
@@ -230,7 +321,7 @@ void nmdi_demuxing_run(struct demuxing_ctx *ctx)
                  * this current thread will be at the (approximate) requested time */
                 const int64_t seek_to = *(int64_t *)msg.data;
                 LOG(ctx, INFO, "Seek in media at ts=%s", PTS2TIMESTR(seek_to));
-                ret = avformat_seek_file(ctx->fmt_ctx, -1, INT64_MIN, seek_to, seek_to, 0);
+                ret = seek(ctx, seek_to);
                 if (ret < 0) {
                     nmdi_msg_free_data(&msg);
                     break;
@@ -297,6 +388,7 @@ void nmdi_demuxing_free(struct demuxing_ctx **ctxp)
     struct demuxing_ctx *ctx = *ctxp;
     if (!ctx)
         return;
+    av_packet_free(&ctx->seek_pkt);
     avformat_close_input(&ctx->fmt_ctx);
     av_freep(ctxp);
 }
