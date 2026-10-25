@@ -37,6 +37,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   the current seek target
 - `libnopemd` keeping a stale frame when seeking before the first timestamp of
   the stream
+- `libnopemd` MediaCodec decoders falling back on software when concurrent
+  starts exceed the hardware budget, even when there is room for some of them
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added
