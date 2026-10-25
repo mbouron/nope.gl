@@ -33,6 +33,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - Incorrect `libnopemd` seeks within open GOPs and MPEG-TS streams
 - `libnopemd` not discarding pending seek requests on `nmd_stop()`, causing
   invalid frames to be returned when requesting frame at t=0
+- `libnopemd` returning incorrect frames for requested times that are before
+  the current seek target
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added

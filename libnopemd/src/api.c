@@ -56,6 +56,13 @@ struct nmd_ctx {
 
     AVFrame *cached_frame;
 
+    /*
+     * Media time targeted by the last nmd_seek(), in AV_TIME_BASE_Q units.
+     * Reset to AV_NOPTS_VALUE by nmd_stop(), and when ret_frame() returns a
+     * frame to the caller.
+     */
+    int64_t seek_time64;
+
     AVRational st_timebase;                 // stream timebase
 
     /* All the following ts are expressed in st_timebase unit */
@@ -258,6 +265,7 @@ struct nmd_ctx *nmd_create(const char *filename)
     s->first_ts             = AV_NOPTS_VALUE;
     s->last_frame_poped_ts  = AV_NOPTS_VALUE;
     s->last_pushed_frame_ts = AV_NOPTS_VALUE;
+    s->seek_time64          = AV_NOPTS_VALUE;
 
     av_assert0(!s->context_configured);
     return s;
@@ -525,6 +533,7 @@ static int ret_frame(struct nmd_ctx *s, AVFrame *avframe, int status, struct nmd
     }
 
     s->last_pushed_frame_ts = frame_ts;
+    s->seek_time64 = AV_NOPTS_VALUE;
 
     frame->internal = avframe;
     memcpy(frame->datap, avframe->data, sizeof(frame->datap));
@@ -693,7 +702,8 @@ int nmd_seek(struct nmd_ctx *s, double reqt)
         goto end;
 
     const struct nmdi_opts *o = &s->opts;
-    ret = nmdi_async_seek(s->actx, get_media_time(o, TIME2INT64(reqt)));
+    s->seek_time64 = get_media_time(o, TIME2INT64(reqt));
+    ret = nmdi_async_seek(s->actx, s->seek_time64);
 
 end:
     END_FUNC(MAX_ASYNC_OP_TIME);
@@ -706,6 +716,7 @@ int nmd_stop(struct nmd_ctx *s)
 
     av_frame_free(&s->cached_frame);
     s->last_pushed_frame_ts = AV_NOPTS_VALUE;
+    s->seek_time64 = AV_NOPTS_VALUE;
 
     int ret = configure_context(s);
     if (ret < 0)
@@ -779,7 +790,10 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
 
     AVFrame *candidate = NULL;
 
-    /* If no frame was ever pushed, we need to pop one */
+    /*
+     * Before returning the first frame after startup or nmd_seek(), pop a
+     * candidate to compare with the requested time.
+     */
     if (s->last_pushed_frame_ts == AV_NOPTS_VALUE) {
 
         /* If prefetch wasn't done (async not started), and we requested a time
@@ -809,18 +823,39 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
               av_ts2timestr(candidate->pts, &s->st_timebase),
               av_ts2timestr(diff, &s->st_timebase), diff);
 
-        /* No frame was ever pushed, but the timestamp of the first frame
-         * obtained is past the requested time. This should never happen if a
-         * seek happened (async module will fix the timestamp in the worst
-         * case), BUT it could happen in case the first timestamp of the video
-         * is actually not 0. In this case, we decide to return the frame
-         * anyway. */
+        /*
+         * The candidate is later than the requested time.
+         *
+         * This can happen when the requested time precedes the media's first
+         * timestamp. For example, a request for 0s should still return the
+         * first frame even if its timestamp is 0.1s.
+         *
+         * It also happens in the following scenario:
+         * - nmd_seek(s, 10);
+         * - nmd_start(s);
+         * - nmd_get_frame(s, 3, &frame);
+         *
+         * nmd_start() starts decoding from the 10s seek target, but the first
+         * frame request is for 3s. The candidate comes from the seek to 10s,
+         * so we must discard it and seek back to 3s to find the frame
+         * corresponding to the requested time.
+         *
+         * Only return the candidate here if there was no nmd_seek(), or if the
+         * requested time is at or after its target.
+         */
         if (diff < 0) {
-            /* Warning: we must absolutely NOT save the timestamp of the
-             * candidate if the first time requested is not actually 0 */
-            if (t64 == 0)
-                s->first_ts = candidate->pts;
-            return ret_frame(s, candidate, pop_ret, framep);
+            if (s->seek_time64 == AV_NOPTS_VALUE || vt >= s->seek_time64) {
+                /* Warning: we must absolutely NOT save the timestamp of the
+                 * candidate if the first time requested is not actually 0 */
+                if (t64 == 0)
+                    s->first_ts = candidate->pts;
+                return ret_frame(s, candidate, pop_ret, framep);
+            }
+            /*
+             * Discard the frame from the previous seek. diff is still negative,
+             * so the backward-seek path below will seek to the requested vt.
+             */
+            av_frame_free(&candidate);
         }
 
     } else {
