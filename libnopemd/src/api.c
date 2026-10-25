@@ -57,9 +57,10 @@ struct nmd_ctx {
     AVFrame *cached_frame;
 
     /*
-     * Media time targeted by the last nmd_seek(), in AV_TIME_BASE_Q units.
-     * Reset to AV_NOPTS_VALUE by nmd_stop(), and when ret_frame() returns a
-     * frame to the caller.
+     * Media time targeted by the last seek, from nmd_seek() or
+     * nmd_get_frame(), in AV_TIME_BASE_Q units. Reset to AV_NOPTS_VALUE by
+     * nmd_stop(), and when ret_frame() gets a frame, even one not returned
+     * again to the caller.
      */
     int64_t seek_time64;
 
@@ -512,6 +513,7 @@ static int ret_frame(struct nmd_ctx *s, AVFrame *avframe, int status, struct nmd
     }
 
     const int64_t frame_ts = avframe->pts;
+    s->seek_time64 = AV_NOPTS_VALUE;
 
     TRACE(s, "last_pushed_frame_ts:%s (%"PRId64") frame_ts:%s (%"PRId64")",
           av_ts2timestr(s->last_pushed_frame_ts, &s->st_timebase),
@@ -533,7 +535,6 @@ static int ret_frame(struct nmd_ctx *s, AVFrame *avframe, int status, struct nmd
     }
 
     s->last_pushed_frame_ts = frame_ts;
-    s->seek_time64 = AV_NOPTS_VALUE;
 
     frame->internal = avframe;
     memcpy(frame->datap, avframe->data, sizeof(frame->datap));
@@ -898,6 +899,7 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
             av_frame_free(&candidate);
             return ret_frame(s, NULL, ret, framep);
         }
+        s->seek_time64 = vt;
     }
 
     /* Consume frames until we get a frame as accurate as possible */
@@ -934,9 +936,12 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
         if (next->pts > rescaled_vt) {
             TRACE(s, "grabbed frame is in the future %s > %s",
                   av_ts2timestr(next->pts, &s->st_timebase), PTS2TIMESTR(vt));
-            if (!candidate && !next_is_cached_frame && s->last_pushed_frame_ts == AV_NOPTS_VALUE) {
+            const int first = s->last_pushed_frame_ts == AV_NOPTS_VALUE || s->seek_time64 != AV_NOPTS_VALUE;
+            if (!candidate && !next_is_cached_frame && first) {
                 candidate = next;
                 TRACE(s, "we need to return a frame, select this future frame anyway");
+                if (t64 == 0)
+                    s->first_ts = candidate->pts;
             } else {
                 s->cached_frame = next;
                 TRACE(s, "cache frame %s for next call", av_ts2timestr(next->pts, &s->st_timebase));
