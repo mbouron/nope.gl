@@ -1552,8 +1552,9 @@ def _is_active(ctx, t, label):
 
 def api_timerange_loop_prefetch(width=16, height=16):
     """
-    Time ranges in the loop are prefetched before playback returns to them.
-    Changes to the loop range also take effect while playback is paused.
+    Time ranges covering the loop start stay active. Other ranges in the loop
+    are prefetched before playback reaches them. Changes to the loop range
+    also take effect while playback is paused.
     """
     ctx = ngl.Context()
     ret = ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend))
@@ -1583,28 +1584,23 @@ def api_timerange_loop_prefetch(width=16, height=16):
     assert not _is_active(ctx, 3.8, "media_3d")
     assert not _is_active(ctx, 3.8, "media_2d")
 
-    # Looping over [0,4): prefetched over the last 0.5s before the loop comes
-    # back to their start (4s and 4.25s)
+    # media_3d stays active; media_2d prefetch starts at 4 + 0.25 - 0.5.
     assert ctx.set_loop_range(0, 4) == 0
-    assert not _is_active(ctx, 3.4, "media_3d")
-    assert _is_active(ctx, 3.6, "media_3d")
+    assert _is_active(ctx, 0.0, "media_3d")
+    assert _is_active(ctx, 2.0, "media_3d")
+    assert _is_active(ctx, 3.4, "media_3d")
+    assert not _is_active(ctx, 2.0, "media_2d")
     assert not _is_active(ctx, 3.6, "media_2d")
     assert _is_active(ctx, 3.8, "media_2d")
-
-    # And again from the start of the loop, as it plays
-    assert _is_active(ctx, 0.0, "media_3d")
-    assert not _is_active(ctx, 2.0, "media_3d")
 
     # At the loop end, both media nodes are inactive.
     assert not _is_active(ctx, 4.0, "media_3d")
     assert not _is_active(ctx, 4.0, "media_2d")
 
-    # Looping over [0.5,4): the loop comes back to both of them at its start
+    # Looping over [0.5,4): the loop starts with both of them
     assert ctx.set_loop_range(0.5, 4) == 0
-    assert not _is_active(ctx, 3.4, "media_3d")
-    assert not _is_active(ctx, 3.4, "media_2d")
-    assert _is_active(ctx, 3.6, "media_3d")
-    assert _is_active(ctx, 3.6, "media_2d")
+    assert _is_active(ctx, 3.4, "media_3d")
+    assert _is_active(ctx, 3.4, "media_2d")
 
     # Looping over [1,4): the loop never comes back to them
     assert ctx.set_loop_range(1, 4) == 0
@@ -1618,19 +1614,19 @@ def api_timerange_loop_prefetch(width=16, height=16):
     assert not _is_active(ctx, 0.1, "media_2d")
 
     # Change either end or disable the loop while playback is paused.
-    for start, end, active in (
-        (0, 4, True),
-        (0, 5, False),
-        (0, 4, True),
-        (1, 4, False),
-        (0.5, 4, True),
-        (0, 0, False),
-        (0, 4, True),
-        (4, 0, False),
+    for start, end, active_3d, active_2d in (
+        (0, 4, True, True),
+        (0, 5, True, False),
+        (0, 4, True, True),
+        (1, 4, False, False),
+        (0.5, 4, True, True),
+        (0, 0, False, False),
+        (0, 4, True, True),
+        (4, 0, False, False),
     ):
         assert ctx.set_loop_range(start, end) == 0
-        assert _is_active(ctx, 3.8, "media_3d") == active
-        assert _is_active(ctx, 3.8, "media_2d") == active
+        assert _is_active(ctx, 3.8, "media_3d") == active_3d
+        assert _is_active(ctx, 3.8, "media_2d") == active_2d
 
     assert ctx.set_loop_range(0, math.nan) < 0
     assert ctx.set_loop_range(math.nan, 4) < 0
@@ -1641,11 +1637,12 @@ def api_timerange_loop_prefetch(width=16, height=16):
 def api_media_loop_range(width=32, height=24):
     """
     Looping renders the same frames as seeking to the same scene times.
-    This includes time remapping, held frames and loop range changes.
+    This includes time remapping, held frames, loop range changes and media
+    updated only within a parent time range.
     """
     m0 = load_media("mire")
 
-    def get_ctx(keyframes, time_offset, loop_range):
+    def get_ctx(keyframes, time_offset, loop_range, range_start, range_end=-1):
         capture_buffer = bytearray(width * height * 4)
         ctx = ngl.Context()
         config = ngl.Config(offscreen=True, width=width, height=height, backend=_backend, capture_buffer=capture_buffer)
@@ -1656,7 +1653,10 @@ def api_media_loop_range(width=32, height=24):
             else None
         )
         texture = ngl.Texture2D(data_src=ngl.Media(m0.filename, time_anim=time_anim))
-        assert ctx.set_scene(ngl.Scene.from_params(ngl.DrawTexture(texture), duration=m0.duration)) == 0
+        node = ngl.DrawTexture(texture)
+        if range_start is not None:
+            node = ngl.TimeRangeFilter(node, start=range_start, end=range_end)
+        assert ctx.set_scene(ngl.Scene.from_params(node, duration=m0.duration)) == 0
         if loop_range is not None:
             assert ctx.set_loop_range(loop_range[0] / 30, loop_range[1] / 30) == 0
         return ctx, capture_buffer
@@ -1665,27 +1665,35 @@ def api_media_loop_range(width=32, height=24):
     remapped = ((2, 8), (12, 18))
     held_end = ((0, 0), (1, 1), (2, 1))
     held_middle = (*held_end, (3, 2))
+    interior_hold = ((0, 8), (1, 9), (2, 9), (3, 10))
+    rounded_hold = ((0, 8), (1, 8.99999), (2, 8.99999), (3, 10))
     # Loop ranges in 1/30s, played 2.5 times each. Key frames at 0 (IDR) and
     # 8.333 (CRA).
-    for keyframes, time_offset, loop_ranges in (
-        (None, 0, ((15, 45),)),
-        (None, 0, ((258, 282),)),
-        (None, 0, ((237, 264),)),
-        (remapped, 0, ((75, 99),)),
-        (None, 0, ((15, 45), (24, 36))),
-        (remapped, 0, ((75, 99), (69, 111))),
+    for keyframes, time_offset, loop_ranges, range_start in (
+        (None, 0, ((15, 45),), None),
+        (None, 0, ((258, 282),), None),
+        (None, 0, ((237, 264),), None),
+        (remapped, 0, ((75, 99),), None),
+        (None, 0, ((15, 45), (24, 36)), None),
+        (remapped, 0, ((75, 99), (69, 111)), None),
+        # The parent starts at 1s, so the decoder loop starts there too.
+        (None, 0, ((15, 75),), 1),
         # The held frame is needed before the scene loop ends, even though
         # its media time equals the mapped loop end.
-        (held_end, 0, ((0, 60),)),
-        (held_middle, 0, ((0, 45), (0, 90), (0, 60))),
-        (((0, 8), (1, 9), (2, 9)), 2, ((60, 120),)),
+        (held_end, 0, ((0, 60),), None),
+        (held_middle, 0, ((0, 45), (0, 90), (0, 60)), None),
+        (interior_hold, 0, ((0, 45), (0, 60), (0, 90)), None),
+        (((0, 8), (1, 9), (2, 9)), 2, ((60, 120),), None),
         # These media times round up to the frame at 1s. Extending the loop
         # by only one microsecond would still exclude it.
-        (((0, 0), (1, 0.99999), (2, 0.99999), (3, 2)), 0, ((0, 60),)),
-        (((0, 0.123456), (1, 0.99999), (2, 0.99999), (3, 2)), 0, ((0, 60),)),
+        (((0, 0), (1, 0.99999), (2, 0.99999), (3, 2)), 0, ((0, 60),), None),
+        (((0, 0.123456), (1, 0.99999), (2, 0.99999), (3, 2)), 0, ((0, 60),), None),
+        # Also cover a loop entirely within the hold, which does not advance
+        # the media time.
+        (rounded_hold, 0, ((0, 60), (30, 60)), None),
     ):
-        ctx_loop, capture_loop = get_ctx(keyframes, time_offset, loop_ranges[0])
-        ctx_ref, capture_ref = get_ctx(keyframes, time_offset, None)
+        ctx_loop, capture_loop = get_ctx(keyframes, time_offset, loop_ranges[0], range_start)
+        ctx_ref, capture_ref = get_ctx(keyframes, time_offset, None, range_start)
         k = loop_ranges[0][0]
         for i, (start, end) in enumerate(loop_ranges):
             if i:
@@ -1700,6 +1708,21 @@ def api_media_loop_range(width=32, height=24):
                 k += 1
         del ctx_loop
         del ctx_ref
+
+    # Requests just before the parent range ends can round up to the next
+    # frame. The decoder loop must keep that frame available on every pass.
+    for keyframes in (None, ((0, 8), (2, 10))):
+        for end in (0.99999, 1.0):
+            ctx_loop, capture_loop = get_ctx(keyframes, 0, (0, 60), 0, end)
+            ctx_ref, capture_ref = get_ctx(keyframes, 0, None, 0, end)
+            times = [k / 30 for k in range(30)] + [0.99998, end, 1.5]
+            for _ in range(3):
+                for t in times:
+                    assert ctx_loop.draw(t) == 0
+                    assert ctx_ref.draw(t) == 0
+                    assert capture_loop == capture_ref, f"parent range [0,{end}) at t={t}, keyframes={keyframes}"
+            del ctx_loop
+            del ctx_ref
 
 
 def api_media_missing(width=16, height=16):

@@ -65,9 +65,10 @@ class NGLContext {
 
     /**
      * Tells the context that playback loops from [end] back to [start], so
-     * resources are prefetched for the next pass. The caller wraps draw
-     * times. Both bounds must be finite. An [end] at or before [start]
-     * disables the loop range.
+     * resources needed at [start] stay active. Other resources used by the
+     * loop are prefetched for the next pass. The caller wraps draw times.
+     * Both bounds must be finite. An [end] at or before [start] disables the
+     * loop range.
      */
     fun setLoopRange(start: Double, end: Double): Int {
         return nativeSetLoopRange(nativePtr, start, end)

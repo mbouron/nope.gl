@@ -653,6 +653,7 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t, const struc
         node->visit_time = t;
         node->prefetch_time = -1.0;
         node->prefetch_delay = DBL_MAX;
+        node->update_range = (struct ngli_timerange){INFINITY, -INFINITY};
     } else {
         /*
          * This is not the first time we come across that node, so if it's
@@ -660,6 +661,14 @@ int ngli_node_visit(struct ngl_node *node, bool is_active, double t, const struc
          * get released.
          */
         node->is_active |= is_active;
+    }
+
+    if (is_active) {
+        struct ngli_timerange update = range->update;
+        if (range->render_time >= 0.0)
+            update.start = update.end = range->render_time;
+        node->update_range.start = NGLI_MIN(node->update_range.start, update.start);
+        node->update_range.end = NGLI_MAX(node->update_range.end, update.end);
     }
 
     double prefetch_time, prefetch_delay;

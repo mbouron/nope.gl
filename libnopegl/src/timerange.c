@@ -88,8 +88,9 @@ bool ngli_timerange_get_prefetch_time(const struct ngli_prefetch_range *range,
 }
 
 /*
- * Ranges reached by the loop are prefetched before playback returns to them,
- * accounting for the time left before the wrap.
+ * Keep ranges covering loop->start active to retain their resources across
+ * the wrap. Other ranges reached by the loop are prefetched before playback
+ * returns to them, accounting for the time left before the wrap.
  */
 bool ngli_timerange_is_active(const struct ngli_timerange *range, double t, double prefetch_time,
                               const struct ngli_timerange *loop)
@@ -101,6 +102,8 @@ bool ngli_timerange_is_active(const struct ngli_timerange *range, double t, doub
         return true;
     if (!looping || range->end <= loop->start)
         return false;
+    if (range->start <= loop->start && t >= loop->start)
+        return true;
     const double back_time = loop->end + (range->start > loop->start ? range->start - loop->start : 0.0);
     return t >= back_time - prefetch_time;
 }

@@ -249,75 +249,116 @@ static int get_media_time(struct ngl_node *node, double t, double *dst_time)
     return 0;
 }
 
-/* Whether time_anim covers t with at least two keyframes, or is unset */
-static bool is_time_mapped(const struct ngl_node *node, double t)
+/* Scene time after which the time remapping holds its final value */
+static double get_mapping_end(const struct ngl_node *node)
 {
     const struct media_opts *o = node->opts;
     if (!o->anim)
-        return true;
+        return INFINITY;
 
     const struct variable_opts *anim_o = o->anim->opts;
     if (anim_o->animkf.count < 2)
-        return false;
+        return -INFINITY;
 
     double times[2], values[2];
     ngli_animation_get_bounds(anim_o->animkf.data, anim_o->animkf.count,
                               NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
-    return t >= times[0] + anim_o->time_offset && t <= times[1] + anim_o->time_offset;
+    return times[1] + anim_o->time_offset;
+}
+
+/* Whether a keyframe before t already reaches the media time requested at t. */
+static bool mapping_holds_before(const struct ngl_node *node, double t, double media_time)
+{
+    const struct media_priv *s = node->priv_data;
+    const struct media_opts *o = node->opts;
+    if (!o->anim)
+        return false;
+
+    const struct variable_opts *anim_o = o->anim->opts;
+    size_t count = 0;
+    for (; count < anim_o->animkf.count; count++) {
+        const struct animkeyframe_opts *kf = anim_o->animkf.data[count]->opts;
+        /* Later keyframe times are sanitized to be at least this time. */
+        if (kf->time + anim_o->time_offset >= t)
+            break;
+    }
+    if (!count)
+        return false;
+
+    double times[2], values[2];
+    ngli_animation_get_bounds(anim_o->animkf.data, count,
+                              NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
+    return NGLI_MAX(0.0, values[1] - s->start_time) == media_time;
 }
 
 /*
- * Limit the player's loop to the configured media range with the loop option,
- * or the context loop mapped through time_anim when both bounds are covered.
+ * Map the context loop to media times, limited by the parent update range.
+ * With the loop option, use the configured media range instead.
  */
 static int get_loop_range(struct ngl_node *node, struct ngli_timerange *dst)
 {
     struct media_priv *s = node->priv_data;
     const struct media_opts *o = node->opts;
     const struct ngli_timerange *loop = &node->ctx->loop_range;
+    const struct ngli_timerange *update = &node->update_range;
     int ret;
+
+    /* Changes to time remapping invalidate this cache in media_invalidate(). */
+    const struct ngli_timerange inputs[] = {*loop, *update};
+    NGLI_STATIC_ASSERT(sizeof(inputs) == sizeof(s->loop_inputs), "loop inputs");
+    if (!memcmp(inputs, s->loop_inputs, sizeof(inputs))) {
+        *dst = s->next_loop_range;
+        return 0;
+    }
 
     struct ngli_timerange range = {0};
     if (o->loop) {
         range.end = s->end_time != -DBL_MAX ? s->end_time - s->start_time : INFINITY;
     } else if (loop->end > loop->start &&
-               is_time_mapped(node, loop->start) && is_time_mapped(node, loop->end)) {
-        ret = get_media_time(node, loop->start, &range.start);
+               NGLI_MAX(loop->start, update->start) < get_mapping_end(node)) {
+        ret = get_media_time(node, NGLI_MAX(loop->start, update->start), &range.start);
         if (ret < 0)
             return ret;
-        ret = get_media_time(node, loop->end, &range.end);
-        if (ret < 0)
-            return ret;
-
-        /*
-         * If a keyframe's time is before the scene loop end and its value maps
-         * to range.end, the animation holds that media time until the loop
-         * ends.
-         *
-         * The player excludes range.end when looping, so we need to extend
-         * range.end by one stream tick to keep the held frame inside the loop
-         * after timestamp rounding.
-         *
-         * The player also rounds times to microseconds, so we need to extend
-         * range.end by at least one microsecond to keep the extension from
-         * rounding to zero. Until the time base is known, leave the end open
-         * so prefetch does not discard the held frame.
-         */
-        if (o->anim) {
-            const struct variable_opts *anim_o = o->anim->opts;
-            for (size_t i = 0; i < anim_o->animkf.count; i++) {
-                const struct animkeyframe_opts *kf = anim_o->animkf.data[i]->opts;
-                if (kf->time + anim_o->time_offset >= loop->end)
-                    break;
-                if (kf->scalar - s->start_time >= range.end) {
-                    range.end = nextafter(range.end + NGLI_MAX(s->timebase, 1e-6), INFINITY);
-                    break;
-                }
+        const double loop_end = NGLI_MIN(loop->end, update->end);
+        if (loop_end > get_mapping_end(node)) {
+            /* Leave the end open to include the final mapped frame while playback holds it. */
+            range.end = INFINITY;
+        } else {
+            ret = get_media_time(node, loop_end, &range.end);
+            if (ret < 0)
+                return ret;
+            if (range.end > range.start && mapping_holds_before(node, loop_end, range.end)) {
+                /*
+                 * If a keyframe's time is before loop_end and its value maps
+                 * to range.end, the animation holds that media time until
+                 * loop_end.
+                 *
+                 * The player excludes range.end when looping, so we need to
+                 * extend range.end by one stream tick to keep the held frame
+                 * inside the loop after timestamp rounding.
+                 *
+                 * The player also rounds times to microseconds, so we need to
+                 * extend range.end by at least one microsecond to keep the
+                 * extension from rounding to zero. Until the time base is
+                 * known, leave the end open so prefetch does not discard the
+                 * held frame.
+                 */
+                range.end = nextafter(range.end + NGLI_MAX(s->timebase, 1e-6), INFINITY);
+            } else if (update->end < loop->end) {
+                /*
+                 * Rounding a request just before the parent range ends can
+                 * select a frame at or past range.end. Extend range.end as
+                 * for held frames so the player includes that frame.
+                 */
+                range.end = nextafter(range.end + NGLI_MAX(s->timebase, 1e-6), INFINITY);
             }
         }
+        if (range.end <= range.start)
+            range = (struct ngli_timerange){0};
     }
 
-    *dst = range;
+    memcpy(s->loop_inputs, inputs, sizeof(inputs));
+    *dst = s->next_loop_range = range;
     return 0;
 }
 
@@ -383,6 +424,7 @@ static int media_prefetch(struct ngl_node *node)
 
     s->timebase = INFINITY;
     s->loop_range = (struct ngli_timerange){NAN, NAN};
+    s->loop_inputs[0].start = NAN;
     struct ngli_timerange loop_range;
     ret = get_loop_range(node, &loop_range);
     if (ret < 0)
@@ -483,6 +525,7 @@ static int media_update(struct ngl_node *node, double t)
         struct nmd_info info;
         if (nmd_get_info(s->player, &info) == 0 && info.timebase[0] > 0 && info.timebase[1] > 0) {
             s->timebase = (double)info.timebase[0] / info.timebase[1];
+            s->loop_inputs[0].start = NAN;
             ret = get_loop_range(node, &loop_range);
             if (ret < 0)
                 return ret;
@@ -574,6 +617,8 @@ static int filename_changed(struct ngl_node *node)
 static void media_invalidate(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
+
+    s->loop_inputs[0].start = NAN;
 
     double start_time;
     double end_time;

@@ -1449,13 +1449,16 @@ NGL_API void ngl_frame_release(struct ngl_frame *f, struct ngpu_fence *fence);
  * The caller wraps the times passed to ngl_draw() and ngl_update(). Times at
  * or past end are treated as outside the loop.
  *
- * Ranges evaluated at playback time are prefetched before the loop returns
- * to them. Ranges starting at or past end are not prefetched while the loop
- * plays. Nested ranges under a fixed render_time use that time instead.
+ * Scene ranges evaluated at playback time keep their resources, including
+ * media decoders, throughout the loop if they cover start. Other ranges reached
+ * by the loop are prefetched before playback returns to them. Ranges starting
+ * at or past end are not prefetched while the loop plays. Nested ranges under
+ * a fixed render_time are evaluated at that time instead.
  *
- * Media players at both ends of the loop decode the next pass ahead. The
- * range applies to existing players immediately and is kept across scene
- * changes and reconfigurations.
+ * Media players use the loop range, limited by their parent ranges and mapped
+ * through time_anim, to prepare frames for the next pass. The loop range applies
+ * to existing players immediately and is kept across scene changes and
+ * reconfigurations.
  *
  * @param s      pointer to a nope.gl context
  * @param start  start time of the loop in seconds; must be finite

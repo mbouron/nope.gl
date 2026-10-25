@@ -257,6 +257,7 @@ struct ngl_node {
     double visit_time;
     double prefetch_time;
     double prefetch_delay;
+    struct ngli_timerange update_range; // bounds of times active parents can pass to update(), a single time for a once range
     double last_update_time;
     uint64_t traversal_id;
 
