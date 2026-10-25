@@ -178,8 +178,18 @@ endif
 #
 
 if get_option('tests')
+  xxhash_dep = dependency('libxxhash', version: '>= 0.8.3').partial_dependency(
+    includes: true, compile_args: true)
+
   media = files('tests/media.mkv')
   image = files('tests/image.jpg')
+  h264 = files('tests/h264.mp4')
+  h264_open_gop = files('tests/h264_open_gop.mp4')
+  h264_offset = files('tests/h264_offset.mkv')
+  h264_no_editlist = files('tests/h264_no_editlist.mp4')
+  hevc = files('tests/hevc.mp4')
+  hevc_open_gop = files('tests/hevc_open_gop.mp4')
+  hevc_ts = files('tests/hevc.ts')
 
   exe_names = [
     'audio',
@@ -193,15 +203,25 @@ if get_option('tests')
     'microseconds',
     'next_frame',
     'notavail_file',
+    'seek',
     'seek_after_eos',
   ]
 
+  # Tests sharing playback helpers
+  playback_tests = ['seek']
+
   executables = {}
   foreach exe_name : exe_names
+    sources = files('tests/test_@0@.c'.format(exe_name))
+    deps = lib_deps
+    if exe_name in playback_tests
+      sources += files('tests/playback_utils.c')
+      deps += xxhash_dep
+    endif
     exe = executable(
       'test_' + exe_name,
-      files('tests/test_@0@.c'.format(exe_name)),
-      dependencies: lib_deps,
+      sources,
+      dependencies: deps,
       link_with: libnopemd,
       install: false,
       # pkg-config extra cflags don't apply to local executables, so we have to
@@ -233,6 +253,13 @@ if get_option('tests')
     'Misc events image':                  {'test': 'misc_events',       'args': [image]},
     'Misc events media':                  {'test': 'misc_events',       'args': [media]},
     'Next frame':                         {'test': 'next_frame',        'args': [media]},
+    'Seek H.264':                         {'test': 'seek',              'args': [h264]},
+    'Seek H.264 no edit list':            {'test': 'seek',              'args': [h264_no_editlist]},
+    'Seek H.264 offset':                  {'test': 'seek',              'args': [h264_offset]},
+    'Seek H.264 open GOP':                {'test': 'seek',              'args': [h264_open_gop]},
+    'Seek HEVC':                          {'test': 'seek',              'args': [hevc]},
+    'Seek HEVC MPEG-TS':                  {'test': 'seek',              'args': [hevc_ts]},
+    'Seek HEVC open GOP':                 {'test': 'seek',              'args': [hevc_open_gop]},
     'Seek after EOS audio':               {'test': 'seek_after_eos',    'args': [media, 0b000.to_string()]},
     'Seek after EOS audio+end':           {'test': 'seek_after_eos',    'args': [media, 0b010.to_string()]},
     'Seek after EOS audio+end+start':     {'test': 'seek_after_eos',    'args': [media, 0b001.to_string()]},
