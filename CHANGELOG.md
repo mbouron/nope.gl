@@ -35,6 +35,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   invalid frames to be returned when requesting frame at t=0
 - `libnopemd` returning incorrect frames for requested times that are before
   the current seek target
+- `libnopemd` keeping a stale frame when seeking before the first timestamp of
+  the stream
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added

@@ -89,6 +89,38 @@ static int run_test_seek_ahead(const char *filename)
     return nb_errors ? -1 : 0;
 }
 
+static int run_test_seek_before_start(const char *filename)
+{
+    struct nmd_ctx *s = create_player(filename);
+    if (!s)
+        return -1;
+
+    int nb_errors = 0;
+    const int mid = nb_refs / 2;
+    const double mid_time = pb_get_ref_time(mid);
+    const double before_start = pb_get_ref_time(0) / 2.0;
+    const double times[] = {mid_time, 0.0, mid_time, before_start};
+    const int expected[] = {mid, 0, mid, 0};
+    for (size_t i = 0; i < sizeof(times) / sizeof(*times); i++) {
+        struct nmd_frame *frame = NULL;
+        int ret = nmd_get_frame(s, times[i], &frame);
+        if (ret != NMD_RET_NEWFRAME) {
+            if (nb_errors++ < 10)
+                fprintf(stderr, "  t=%.4f: unexpected return %d\n", times[i], ret);
+            continue;
+        }
+        const uint64_t hash = pb_hash_frame(frame, 0);
+        if (hash != refs[expected[i]].hash && nb_errors++ < 10)
+            fprintf(stderr, "  t=%.4f: got frame %d (ts=%.4f) instead of %d (ts=%.4f)\n",
+                    times[i], pb_find_ref(hash), frame->ts, expected[i], pb_get_ref_time(expected[i]));
+        nmd_frame_releasep(&frame);
+    }
+    nmd_freep(&s);
+
+    printf("%-10s %s: %d errors\n", "before start", nb_errors ? "FAIL" : "OK", nb_errors);
+    return nb_errors ? -1 : 0;
+}
+
 /*
  * A stop cancels a pending seek: the playback starts again from the start of
  * the media, without seeking
@@ -158,6 +190,8 @@ int main(int ac, char **av)
     if (run_test(filename, "halfway", 1) < 0)
         ret = -1;
     if (run_test_seek_ahead(filename) < 0)
+        ret = -1;
+    if (pb_get_ref_time(0) > 0.0 && run_test_seek_before_start(filename) < 0)
         ret = -1;
     if (run_test_stop_after_seek(filename, 1) < 0)
         ret = -1;
