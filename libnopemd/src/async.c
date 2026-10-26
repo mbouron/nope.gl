@@ -642,6 +642,8 @@ static void *control_thread(void *arg)
         case MSG_STOP:
             if (actx->playing)
                 op_stop(actx);
+            /* A seek can be pending even if playback has not started. */
+            actx->request_seek = AV_NOPTS_VALUE;
             break;
         case MSG_INFO:
             ret = op_info(actx, &msg);
