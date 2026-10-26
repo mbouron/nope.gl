@@ -335,7 +335,7 @@ NMDAPI int nmd_stop(struct nmd_ctx *s);
  * The function always returns immediately (the seek will be delayed and
  * executed in another thread).
  *
- * Note: the passed time is relative to the skip option.
+ * Note: the passed time is relative to the start_time option.
  *
  * Return 0 on success, a negative value on error.
  */
