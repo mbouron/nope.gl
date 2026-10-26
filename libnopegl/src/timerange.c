@@ -43,3 +43,47 @@ bool ngli_timerange_contains(const struct ngli_timerange *range, double t)
 {
     return t >= range->start && t < range->end;
 }
+
+void ngli_timerange_filter_init(struct ngli_timerange_filter *s, double start, double end,
+                                double render_time, double prefetch_time)
+{
+    s->range = ngli_timerange_sanitize(start, end);
+    s->render_time = render_time;
+    s->prefetch_time = prefetch_time;
+}
+
+bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool is_active, bool child_is_active)
+{
+    /*
+     * The life of the parent takes over the life of its children: if the
+     * parent is dead, the children are likely dead as well. However, a living
+     * children from a dead parent can be revealed by another living branch.
+     */
+    if (is_active) {
+        if (t < s->range.start - s->prefetch_time || t >= s->range.end)
+            is_active = false;
+
+        // If the child of the current once range is inactive, meaning
+        // it has been previously released, we need to force an update
+        // otherwise the child will stay uninitialized.
+        if (!child_is_active)
+            s->updated = 0;
+    }
+
+    return is_active;
+}
+
+bool ngli_timerange_filter_update(struct ngli_timerange_filter *s, double *t)
+{
+    if (!ngli_timerange_contains(&s->range, *t))
+        return false;
+
+    if (s->render_time >= 0.0) {
+        if (s->updated)
+            return false;
+        *t = s->render_time;
+        s->updated = 1;
+    }
+
+    return true;
+}
