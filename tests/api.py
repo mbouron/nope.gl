@@ -320,6 +320,26 @@ def api_timerange_once_reentry(width=16, height=16):
     trf2d = ngl.TimeRangeFilter2D(rect, start=1, end=2, render_time=1.5, prefetch_time=2)
     test_once(ngl.Canvas2D(width=width, height=height, children=[trf2d]))
 
+    # The child needs its resources when the parent's render_time is inside its
+    # range, even if scene time is outside.
+    for render_time in (0.5, 1, 2, 3):
+        expected = red if 1 <= render_time < 3 else black
+        child = ngl.TimeRangeFilter(ngl.DrawColor(color=(1.0, 0.0, 0.0)), start=1, end=3, prefetch_time=0)
+        parent = ngl.TimeRangeFilter(child, start=0, end=1, render_time=render_time)
+
+        rect = ngl.DrawRect2D(rect=(0, 0, width, height), fill=ngl.ColorPaint(color=(1.0, 0.0, 0.0, 1.0)))
+        child2d = ngl.TimeRangeFilter2D(rect, start=1, end=3, prefetch_time=0)
+        parent2d = ngl.TimeRangeFilter2D(child2d, start=0, end=1, render_time=render_time)
+        canvas = ngl.Canvas2D(width=width, height=height, children=[parent2d])
+
+        for node in (parent, canvas):
+            assert root.add_children(node) == 0
+            assert output_color(0.2) == expected
+            assert output_color(0.4) == black
+            assert output_color(1.2) == black
+            assert output_color(0.2) == expected
+            assert root.remove_children(node) == 0
+
 
 def api_backend():
     ctx = ngl.Context()
