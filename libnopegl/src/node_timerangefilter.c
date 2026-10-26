@@ -39,9 +39,8 @@ struct timerangefilter_opts {
 };
 
 struct timerangefilter_priv {
-    int updated;
+    struct ngli_timerange_filter range;
     int drawme;
-    struct ngli_timerange range;
 };
 
 static int update_params(struct ngl_node *node);
@@ -82,7 +81,7 @@ static int update_params(struct ngl_node *node)
     struct timerangefilter_priv *s = node->priv_data;
     const struct timerangefilter_opts *o = node->opts;
 
-    s->range = ngli_timerange_sanitize(o->start_time, o->end_time);
+    ngli_timerange_filter_init(&s->range, o->start_time, o->end_time, o->render_time, o->prefetch_time);
 
     /*
      * Ensure children are prefetched/released during the next draw if the
@@ -126,7 +125,7 @@ static int timerangefilter_init(struct ngl_node *node)
     struct timerangefilter_priv *s = node->priv_data;
     const struct timerangefilter_opts *o = node->opts;
 
-    s->range = ngli_timerange_sanitize(o->start_time, o->end_time);
+    ngli_timerange_filter_init(&s->range, o->start_time, o->end_time, o->render_time, o->prefetch_time);
 
     if (o->prefetch_time < 0) {
         LOG(ERROR, "prefetch time must be positive");
@@ -140,25 +139,9 @@ static int timerangefilter_visit(struct ngl_node *node, bool is_active, double t
 {
     struct timerangefilter_priv *s = node->priv_data;
     const struct timerangefilter_opts *o = node->opts;
-    struct ngl_node *child = o->child;
 
-    /*
-     * The life of the parent takes over the life of its children: if the
-     * parent is dead, the children are likely dead as well. However, a living
-     * children from a dead parent can be revealed by another living branch.
-     */
-    if (is_active) {
-        if (t < s->range.start - o->prefetch_time || t >= s->range.end)
-            is_active = false;
-
-        // If the child of the current once range is inactive, meaning
-        // it has been previously released, we need to force an update
-        // otherwise the child will stay uninitialized.
-        if (!child->is_active)
-            s->updated = 0;
-    }
-
-    return ngli_node_visit(child, is_active, t);
+    is_active = ngli_timerange_filter_visit(&s->range, t, is_active, o->child->is_active);
+    return ngli_node_visit(o->child, is_active, t);
 }
 
 static int timerangefilter_update(struct ngl_node *node, double t)
@@ -166,19 +149,9 @@ static int timerangefilter_update(struct ngl_node *node, double t)
     struct timerangefilter_priv *s = node->priv_data;
     const struct timerangefilter_opts *o = node->opts;
 
-    s->drawme = 0;
-
-    if (!ngli_timerange_contains(&s->range, t))
+    s->drawme = ngli_timerange_filter_update(&s->range, &t);
+    if (!s->drawme)
         return 0;
-
-    if (o->render_time >= 0.0) {
-        if (s->updated)
-            return 0;
-        t = o->render_time;
-        s->updated = 1;
-    }
-
-    s->drawme = 1;
 
     return ngli_node_update(o->child, t);
 }
