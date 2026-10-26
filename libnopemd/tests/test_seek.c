@@ -60,6 +60,57 @@ static int run_test(const char *filename, const char *name, int halfway)
     return nb_errors || !seeks_ok ? -1 : 0;
 }
 
+/*
+ * A stop cancels a pending seek: the playback starts again from the start of
+ * the media, without seeking
+ */
+static int run_test_stop_after_seek(const char *filename, int started)
+{
+    struct nmd_ctx *s = create_player(filename);
+    if (!s)
+        return -1;
+
+    int nb_errors = 0;
+    if (started) {
+        struct nmd_frame *frame = NULL;
+        nmd_get_frame(s, pb_get_ref_time(0), &frame);
+        nmd_frame_releasep(&frame);
+    }
+    const double seek_time = pb_get_ref_time(nb_refs - 1);
+    nmd_seek(s, seek_time);
+    nmd_stop(s);
+
+    nb_seeks = 0;
+    struct nmd_frame *frame = NULL;
+    int ret = nmd_get_frame(s, 0.0, &frame);
+    if (ret != NMD_RET_NEWFRAME) {
+        nb_errors++;
+        fprintf(stderr, "  t=0: unexpected return %d\n", ret);
+    } else {
+        const uint64_t hash = pb_hash_frame(frame, 0);
+        if (hash != refs[0].hash) {
+            nb_errors++;
+            fprintf(stderr, "  t=0: got frame %d (ts=%.4f) instead of 0 (ts=%.4f)\n",
+                    pb_find_ref(hash), frame->ts, pb_get_ref_time(0));
+        }
+        nmd_frame_releasep(&frame);
+    }
+    nmd_freep(&s);
+
+    /*
+     * The seek of a playing player can be reported after the stop: only count
+     * the seeks to an earlier time
+     */
+    int seeks = 0;
+    for (int i = 0; i < nb_seeks && i < MAX_SEEKS; i++)
+        if (!started || seek_times[i] < seek_time - 1e-3)
+            seeks++;
+
+    printf("%-10s %s: %d errors, %d seeks\n", started ? "stop" : "stop idle",
+           nb_errors || seeks ? "FAIL" : "OK", nb_errors, seeks);
+    return nb_errors || seeks ? -1 : 0;
+}
+
 int main(int ac, char **av)
 {
     if (ac < 2) {
@@ -76,6 +127,10 @@ int main(int ac, char **av)
     if (run_test(filename, "frames", 0) < 0)
         ret = -1;
     if (run_test(filename, "halfway", 1) < 0)
+        ret = -1;
+    if (run_test_stop_after_seek(filename, 1) < 0)
+        ret = -1;
+    if (run_test_stop_after_seek(filename, 0) < 0)
         ret = -1;
     return ret;
 }
