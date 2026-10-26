@@ -66,7 +66,7 @@ static struct prefetch_probe visit(uint32_t type, double t,
                                    struct range first, const struct range *second, bool nested)
 {
     struct ngl_ctx ctx = {0};
-    struct prefetch_probe probe = {0};
+    struct prefetch_probe probe = {.time = -1.0};
     struct ngl_node leaf = {
         .cls = &probe_class,
         .label = "prefetch_probe",
@@ -87,11 +87,10 @@ static struct prefetch_probe visit(uint32_t type, double t,
     ngli_assert(ngli_node_set_ctx(root, &ctx) == 0);
 
     ngli_assert(ngli_node_honor_release_prefetch(root, t) == 0);
-    ngli_assert(probe.count == 1);
     const struct prefetch_probe ret = probe;
     /* Advancing scene time must not call prefetch again while resources are ready. */
     ngli_assert(ngli_node_honor_release_prefetch(root, t + 0.01) == 0);
-    ngli_assert(probe.count == 1);
+    ngli_assert(probe.count == ret.count);
 
     ngli_ctx_release_resources(&ctx);
     ngli_darray_reset(&ctx.resource_nodes);
@@ -111,9 +110,9 @@ static void test_prefetch(uint32_t type, double t,
                           double expected)
 {
     const struct prefetch_probe probe = visit(type, t, first, second, nested);
+    ngli_assert(expected < 0.0 || probe.count == 1);
     ngli_assert(fabs(probe.time - expected) < 1e-9);
 }
-
 
 int main(void)
 {
