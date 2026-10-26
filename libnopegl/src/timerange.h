@@ -33,4 +33,16 @@ struct ngli_timerange {
 struct ngli_timerange ngli_timerange_sanitize(double start, double end);
 bool ngli_timerange_contains(const struct ngli_timerange *range, double t);
 
+struct ngli_timerange_filter {
+    struct ngli_timerange range;
+    double render_time;
+    double prefetch_time;
+    int updated;
+};
+
+void ngli_timerange_filter_init(struct ngli_timerange_filter *s, double start, double end,
+                                double render_time, double prefetch_time);
+bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool is_active, bool child_is_active);
+bool ngli_timerange_filter_update(struct ngli_timerange_filter *s, double *t);
+
 #endif
