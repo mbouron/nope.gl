@@ -97,12 +97,14 @@ bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool
      * children from a dead parent can be revealed by another living branch.
      */
     if (is_active) {
-        if (t < s->range.start - s->prefetch_time || t >= s->range.end)
-            is_active = false;
+        /* Use parent `render_time` if set */
+        const double render_time = child_range->render_time;
+        if (render_time >= 0.0)
+            is_active = ngli_timerange_contains(&s->range, render_time);
+        else
+            is_active = t >= s->range.start - s->prefetch_time && t < s->range.end;
 
-        // If the child of the current once range is inactive, meaning
-        // it has been previously released, we need to force an update
-        // otherwise the child will stay uninitialized.
+        /* A released child needs an update when prefetched again. */
         if (!child_is_active)
             s->updated = 0;
     }
