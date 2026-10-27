@@ -255,6 +255,7 @@ lib_src = files(
   'src/text.c',
   'src/text_builtin.c',
   'src/text_external.c',
+  'src/timerange.c',
   'src/transforms.c',
   'src/utils/bstr.c',
   'src/utils/conic.c',
