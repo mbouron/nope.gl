@@ -22,20 +22,6 @@
 #ifndef TIMERANGE_H
 #define TIMERANGE_H
 
-#include "log.h"
-
-static inline void ngli_timerange_sanitize(double start, double end, double *dst_start, double *dst_end)
-{
-    if (start < 0.0) {
-        LOG(DEBUG, "start time %g is negative, evaluated as 0", start);
-        start = 0.0;
-    }
-    if (end >= 0.0 && end < start) {
-        LOG(DEBUG, "end time %g is before start time %g, the range is empty", end, start);
-        end = start;
-    }
-    *dst_start = start;
-    *dst_end = end;
-}
+void ngli_timerange_sanitize(double start, double end, double *dst_start, double *dst_end);
 
 #endif
