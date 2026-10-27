@@ -50,6 +50,7 @@ struct log_ctx *nmdi_log_alloc(void)
     return ctx;
 }
 
+av_printf_format(6, 0)
 static void default_callback(void *arg, int level, const char *filename, int ln,
                              const char *fn, const char *fmt, va_list vl)
 {
