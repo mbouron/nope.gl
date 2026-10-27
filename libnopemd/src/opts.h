@@ -23,6 +23,8 @@
 
 #include <stdint.h>
 
+#include "nopemd.h"
+
 struct nmdi_opts {
     int avselect;                           // select audio or video
     double start_time;                      // see public header
@@ -43,6 +45,8 @@ struct nmdi_opts {
     char *vt_pix_fmt;                       // VideoToolbox pixel format in the CVPixelBufferRef
     int stream_idx;
     int use_pkt_duration;
+    nmd_seek_callback_type seek_callback;
+    void *seek_callback_arg;
 
     int64_t start_time64;
     int64_t end_time64;

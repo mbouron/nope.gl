@@ -13,6 +13,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   so other native modules can use the bundled headers and libraries
 - `libnopemd` builtin MediaCodec decoder with failure recovery and software
   fallback
+- `nmd_set_seek_callback()` to receive the seek events of a `libnopemd` player
 
 ### Removed
 - OpenGL/ES backend support on macOS, iOS and Windows

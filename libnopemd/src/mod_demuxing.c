@@ -38,6 +38,9 @@ struct demuxing_ctx {
     int is_image;
     AVThreadMessageQueue *src_queue;
     AVThreadMessageQueue *pkt_queue;
+    nmd_seek_callback_type seek_callback;
+    void *seek_callback_arg;
+    int64_t start_time64;
 };
 
 struct demuxing_ctx *nmdi_demuxing_alloc(void)
@@ -111,6 +114,9 @@ int nmdi_demuxing_init(void *log_ctx,
 
     ctx->src_queue = src_queue;
     ctx->pkt_queue = pkt_queue;
+    ctx->seek_callback = opts->seek_callback;
+    ctx->seek_callback_arg = opts->seek_callback_arg;
+    ctx->start_time64 = opts->start_time64;
 
     switch (opts->avselect) {
     case NMD_SELECT_VIDEO: media_type = AVMEDIA_TYPE_VIDEO; break;
@@ -228,6 +234,10 @@ void nmdi_demuxing_run(struct demuxing_ctx *ctx)
                 if (ret < 0) {
                     nmdi_msg_free_data(&msg);
                     break;
+                }
+                if (ctx->seek_callback) {
+                    const double t = (seek_to - ctx->start_time64) / (double)AV_TIME_BASE;
+                    ctx->seek_callback(ctx->seek_callback_arg, t);
                 }
             }
 
