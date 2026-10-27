@@ -193,6 +193,18 @@ void nmd_set_log_callback(struct nmd_ctx *s, void *arg, nmd_log_callback_type ca
     nmdi_log_set_callback(s->log_ctx, arg, callback);
 }
 
+int nmd_set_seek_callback(struct nmd_ctx *s, void *arg, nmd_seek_callback_type callback)
+{
+    if (s->context_configured) {
+        LOG(s, ERROR, "Context is already configured, can not set the seek callback");
+        return AVERROR(EINVAL);
+    }
+
+    s->opts.seek_callback = callback;
+    s->opts.seek_callback_arg = arg;
+    return 0;
+}
+
 struct nmd_ctx *nmd_create(const char *filename)
 {
     const struct {

@@ -244,6 +244,32 @@ typedef void (*nmd_log_callback_type)(void *arg, int level, const char *filename
 NMDAPI void nmd_set_log_callback(struct nmd_ctx *s, void *arg, nmd_log_callback_type callback);
 
 /**
+ * Type of the user seek callback
+ *
+ * @param arg  opaque user argument
+ * @param t    time of the seek in seconds, relative to the start_time option
+ */
+typedef void (*nmd_seek_callback_type)(void *arg, double t);
+
+/**
+ * Set user seek callback
+ *
+ * The callback is called from the demuxing thread each time the player seeks
+ * in the media, including the seeks it makes on its own, such as the seek to
+ * the start_time option.
+ *
+ * Like the options, the callback must be set before the first call to the
+ * playback functions.
+ *
+ * @param arg       opaque user argument to be sent back as first argument in
+ *                  the callback
+ * @param callback  custom user seek callback
+ *
+ * Return 0 on success, a negative value on error.
+ */
+NMDAPI int nmd_set_seek_callback(struct nmd_ctx *s, void *arg, nmd_seek_callback_type callback);
+
+/**
  * Set an option.
  *
  * Available options:
