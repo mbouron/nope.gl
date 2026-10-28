@@ -22,6 +22,15 @@
 #ifndef TIMERANGE_H
 #define TIMERANGE_H
 
-void ngli_timerange_sanitize(double start, double end, double *dst_start, double *dst_end);
+#include <stdbool.h>
+
+/* Time range [start, end), unbounded if end is INFINITY */
+struct ngli_timerange {
+    double start;
+    double end;
+};
+
+struct ngli_timerange ngli_timerange_sanitize(double start, double end);
+bool ngli_timerange_contains(const struct ngli_timerange *range, double t);
 
 #endif

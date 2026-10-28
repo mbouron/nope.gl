@@ -37,6 +37,7 @@
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
 #include "rtt.h"
+#include "timerange.h"
 #include "node_block.h"
 #include "node_mask.h"
 #include "node_texture.h"
@@ -1219,7 +1220,7 @@ static int effect2d_update(struct ngl_node *node, double t)
     s->active_program_index = 0;
     for (size_t i = 0; i < o->shaders.count; i++) {
         const struct effect2d_shader_info info = ngli_effect2d_shader_get_info(o->shaders.data[i]);
-        if (t >= info.start && (info.end < 0.0 || t < info.end)) {
+        if (ngli_timerange_contains(&info.range, t)) {
             s->active_program_index = i + 1;
             break;
         }

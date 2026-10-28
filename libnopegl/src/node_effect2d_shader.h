@@ -22,6 +22,8 @@
 #ifndef NODE_EFFECT2D_SHADER_H
 #define NODE_EFFECT2D_SHADER_H
 
+#include "timerange.h"
+
 struct hmap;
 struct ngl_node;
 
@@ -29,8 +31,7 @@ struct effect2d_shader_info {
     const char *glsl;
     struct hmap *resources;
     int premult;
-    double start;
-    double end;
+    struct ngli_timerange range;
 };
 
 struct effect2d_shader_info ngli_effect2d_shader_get_info(const struct ngl_node *node);
