@@ -160,8 +160,8 @@ struct effect2d_shader_info ngli_effect2d_shader_get_info(const struct ngl_node 
         .glsl  = o->glsl,
         .resources   = o->resources,
         .premult     = o->premult,
+        .range       = ngli_timerange_sanitize(o->start, o->end),
     };
-    ngli_timerange_sanitize(o->start, o->end, &info.start, &info.end);
     return info;
 }
 

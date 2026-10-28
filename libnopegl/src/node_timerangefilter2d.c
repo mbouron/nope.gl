@@ -41,8 +41,7 @@ struct timerangefilter2d_priv {
     struct ngli_node2d_info node2d_info;
     int updated;
     int drawme;
-    double start_time;
-    double end_time;
+    struct ngli_timerange range;
 };
 
 NGLI_STATIC_ASSERT(offsetof(struct timerangefilter2d_priv, node2d_info) == 0, "node2d_info must be first");
@@ -110,7 +109,7 @@ static int update_params(struct ngl_node *node)
     struct timerangefilter2d_priv *s = node->priv_data;
     const struct timerangefilter2d_opts *o = node->opts;
 
-    ngli_timerange_sanitize(o->start_time, o->end_time, &s->start_time, &s->end_time);
+    s->range = ngli_timerange_sanitize(o->start_time, o->end_time);
 
     /*
      * Ensure children are prefetched/released during the next draw if the
@@ -154,7 +153,7 @@ static int timerangefilter2d_init(struct ngl_node *node)
     struct timerangefilter2d_priv *s = node->priv_data;
     const struct timerangefilter2d_opts *o = node->opts;
 
-    ngli_timerange_sanitize(o->start_time, o->end_time, &s->start_time, &s->end_time);
+    s->range = ngli_timerange_sanitize(o->start_time, o->end_time);
 
     if (o->prefetch_time < 0) {
         LOG(ERROR, "prefetch time must be positive");
@@ -176,7 +175,7 @@ static int timerangefilter2d_visit(struct ngl_node *node, bool is_active, double
      * children from a dead parent can be revealed by another living branch.
      */
     if (is_active) {
-        if (t < s->start_time - o->prefetch_time || (s->end_time >= 0.0 && t >= s->end_time))
+        if (t < s->range.start - o->prefetch_time || t >= s->range.end)
             is_active = false;
 
         // If the child of the current once range is inactive, meaning
@@ -196,7 +195,7 @@ static int timerangefilter2d_update(struct ngl_node *node, double t)
 
     s->drawme = 0;
 
-    if (t < s->start_time || (s->end_time >= 0.0 && t >= s->end_time))
+    if (!ngli_timerange_contains(&s->range, t))
         return 0;
 
     if (o->render_time >= 0.0) {
