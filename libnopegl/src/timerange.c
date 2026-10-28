@@ -19,19 +19,27 @@
  * under the License.
  */
 
+#include <math.h>
+
 #include "log.h"
 #include "timerange.h"
 
-void ngli_timerange_sanitize(double start, double end, double *dst_start, double *dst_end)
+struct ngli_timerange ngli_timerange_sanitize(double start, double end)
 {
     if (start < 0.0) {
         LOG(DEBUG, "start time %g is negative, evaluated as 0", start);
         start = 0.0;
     }
-    if (end >= 0.0 && end < start) {
+    if (end < 0.0) {
+        end = INFINITY;
+    } else if (end < start) {
         LOG(DEBUG, "end time %g is before start time %g, the range is empty", end, start);
         end = start;
     }
-    *dst_start = start;
-    *dst_end = end;
+    return (struct ngli_timerange){start, end};
+}
+
+bool ngli_timerange_contains(const struct ngli_timerange *range, double t)
+{
+    return t >= range->start && t < range->end;
 }
