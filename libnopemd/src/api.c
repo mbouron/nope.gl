@@ -306,7 +306,7 @@ void nmd_freep(struct nmd_ctx **sp)
  */
 static int64_t get_media_time(const struct nmdi_opts *o, int64_t t)
 {
-    const int64_t mt = o->start_time64 + t;
+    const int64_t mt = av_sat_add64(o->start_time64, t);
     return o->end_time64 == AV_NOPTS_VALUE ? mt : FFMIN(mt, o->end_time64);
 }
 
@@ -318,7 +318,7 @@ static void update_loop(struct nmd_ctx *s)
     int64_t end = AV_NOPTS_VALUE;
     if (s->loop_end > s->loop_start) {
         start = get_media_time(o, TIME2INT64(s->loop_start));
-        end = o->start_time64 + TIME2INT64(s->loop_end);
+        end = av_sat_add64(o->start_time64, TIME2INT64(s->loop_end));
         /* Include the frame held at `end_time` when the requested loop extends beyond it. */
         if (o->end_time64 != AV_NOPTS_VALUE && end > o->end_time64)
             end = o->end_time64 + 1;
@@ -799,8 +799,30 @@ int nmd_set_loop_range(struct nmd_ctx *s, double start, double end)
         goto end;
     }
 
-    /* Keep the times in microseconds far from overflowing */
-    const double max_time = (double)(INT64_MAX / 4 / AV_TIME_BASE);
+    /*
+     * Clamp the loop boundaries here so TIME2INT64() can convert them safely
+     * to int64_t microseconds.
+     *
+     * TIME2INT64() does no range checking: it multiplies the input by
+     * AV_TIME_BASE in double precision, then calls llrint(), thus, we must
+     * ensure that the result of time * AV_TIME_BASE is less than 1 << 63 after
+     * floating-point rounding. 1 << 63 can be represented as a double but not
+     * as an int64_t.
+     *
+     * Round down INT64_MAX to whole seconds, leaving INT64_MAX % AV_TIME_BASE
+     * = 775807 microseconds below INT64_MAX. Then round the result while
+     * converting the value to double. This final step can add up to 1024 [1]
+     * microseconds, which is fine (as it is less than the headroom we picked
+     * earlier).
+     *
+     * [1] The 1024 bound is one step between adjacent doubles just below 2^63:
+     * 64-bit IEEE 754 doubles have 52 fraction bits, so values in [2^62, 2^63)
+     * are separated by 2^(62 - 52) = 1024 microseconds.
+     *
+     * Later additions of the start_time offset use saturation to avoid overflow.
+     */
+    const int64_t max_seconds = INT64_MAX / AV_TIME_BASE;
+    const double max_time = (double)max_seconds;
     s->loop_start = av_clipd(start, 0.0, max_time);
     s->loop_end = av_clipd(end, 0.0, max_time);
 
