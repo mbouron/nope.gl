@@ -255,6 +255,7 @@ lib_src = files(
   'src/text.c',
   'src/text_builtin.c',
   'src/text_external.c',
+  'src/timerange.c',
   'src/transforms.c',
   'src/utils/bstr.c',
   'src/utils/conic.c',
@@ -780,6 +781,12 @@ test_progs = {
   'Scene topology': {
     'exe': 'test_scene',
     'src': files('src/test_scene.c'),
+    'objects': libnopegl.extract_all_objects(recursive: true),
+    'c_args': lib_c_args,
+  },
+  'Prefetch timing': {
+    'exe': 'test_prefetch',
+    'src': files('src/test_prefetch.c'),
     'objects': libnopegl.extract_all_objects(recursive: true),
     'c_args': lib_c_args,
   },

@@ -353,6 +353,13 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeDraw(
     return ngl_draw(ctx, time, NULL);
 }
 
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeSetLoopRange(
+    JNIEnv *env, jclass type, jlong native_ptr, jdouble start, jdouble end)
+{
+    struct ngl_ctx *ctx = (struct ngl_ctx *)(uintptr_t)native_ptr;
+    return ngl_set_loop_range(ctx, start, end);
+}
+
 JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeUpdate(
     JNIEnv *env, jobject thiz, jlong native_ptr, jdouble time)
 {

@@ -21,6 +21,7 @@
  * under the License.
  */
 
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -1197,6 +1198,53 @@ int ngl_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
     }
 
     return s->api_impl->set_capture_buffer(s, capture_buffer);
+}
+
+static int set_loop_range_cb(struct ngl_ctx *s, void *arg)
+{
+    const struct ngli_timerange *range = arg;
+
+    s->loop_range = *range;
+
+    if (!s->scene)
+        return 0;
+
+    /* Update every node even if one rejects the range. */
+    int ret = 0;
+    for (size_t i = 0; i < s->scene->nodes.count; i++) {
+        struct ngl_node *node = s->scene->nodes.data[i];
+
+        /* Recheck node activity even if the next draw is at the same time. */
+        node->visit_time = -1.;
+
+        if (node->cls->set_loop_range) {
+            int node_ret = node->cls->set_loop_range(node);
+            if (node_ret < 0 && ret >= 0)
+                ret = node_ret;
+        }
+    }
+
+    return ret;
+}
+
+int ngl_set_loop_range(struct ngl_ctx *s, double start, double end)
+{
+    int ret = check_context_reentry(s, "ngl_set_loop_range()");
+    if (ret < 0)
+        return ret;
+
+    if (!isfinite(start) || !isfinite(end)) {
+        LOG(ERROR, "loop range must be finite, got [%g,%g)", start, end);
+        return NGL_ERROR_INVALID_ARG;
+    }
+
+    if (s->loop_range.start == start && s->loop_range.end == end)
+        return 0;
+
+    struct ngli_timerange range = {start, end};
+    if (!s->configured)
+        return set_loop_range_cb(s, &range);
+    return ngli_ctx_dispatch(s, set_loop_range_cb, &range);
 }
 
 int ngl_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)

@@ -28,6 +28,7 @@
 #include <stddef.h>
 #include <nopemd.h>
 
+#include "timerange.h"
 #include "utils/job_queue.h"
 
 struct duration_job {
@@ -46,6 +47,10 @@ struct media_priv {
     double start_time;
     double end_time;
     double duration;
+    double timebase;                        // stream tick in seconds, INFINITY until known
+    struct ngli_timerange loop_range;       // media time range the player loops over
+    struct ngli_timerange loop_inputs[2];    // context loop and parent update range used for the cached loop
+    struct ngli_timerange next_loop_range;   // cached player loop, invalid when loop_inputs[0].start is NAN
     struct duration_job duration_job;
     struct ngli_fence duration_fence;
     struct release_job release_job;

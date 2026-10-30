@@ -20,6 +20,13 @@ graph because of diamond shaped tree. A typical case is an active branch and an
 inactive branch sharing a common node; that leaf node must stay active even
 though one its parent is inactive.
 
+The visit also determines the timestamp each node should prepare for. Time
+filters pass down the times when their children can be updated, including any
+fixed `render_time`. For a node shared by several branches, the branch that
+needs it soonest determines the timestamp. This uses the delay until the
+update can happen, since a fixed `render_time` can request a frame from a
+different point in time.
+
 **Note**: if a branch is already inactive, the visitor is unlikely to follow it
 down, preventing a huge overhead on the tree with a large number of time range
 filtered branches.
@@ -32,9 +39,23 @@ every node previously visited by the first pass and execute a prefetch or a
 release according to how it's been flagged. Previously unvisited nodes (and
 their children) are ignored.
 
-For medias, prefetching typically means starting to open the file in advance so
-it's ready to playback immediately when its time arrive. Similarly, textures
-are allocated or released accordingly.
+For video, prefetching opens the file and starts decoding frames in advance.
+The player seeks to the first frame the scene is expected to need before
+starting the decoder. The timestamp chosen during the visit is mapped through
+`Media.time_anim` to find the seek target.
+
+For example, with no time remapping, a video visible during scene time
+`[3s, 5s)` can be prefetched when drawing at `2.5s`. The first frame needed is
+at `3s`, so prefetch seeks there before starting the decoder. Starting at `0s`
+would prepare frames that may be discarded when the video becomes visible.
+
+This initial seek applies when creating a player. A player whose resources
+are already ready keeps its position. Loops that need the file duration to
+calculate their seek target keep their initial position while the duration
+is requested in the background.
+
+Other resources, such as textures, are allocated during prefetch and freed
+during release.
 
 
 ## Update

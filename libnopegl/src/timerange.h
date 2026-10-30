@@ -22,20 +22,42 @@
 #ifndef TIMERANGE_H
 #define TIMERANGE_H
 
-#include "log.h"
+#include <stdbool.h>
 
-static inline void ngli_timerange_sanitize(double start, double end, double *dst_start, double *dst_end)
-{
-    if (start < 0.0) {
-        LOG(DEBUG, "start time %g is negative, evaluated as 0", start);
-        start = 0.0;
-    }
-    if (end >= 0.0 && end < start) {
-        LOG(DEBUG, "end time %g is before start time %g, the range is empty", end, start);
-        end = start;
-    }
-    *dst_start = start;
-    *dst_end = end;
-}
+/* Time range [start, end), unbounded if end is INFINITY */
+struct ngli_timerange {
+    double start;
+    double end;
+};
+
+struct ngli_timerange ngli_timerange_sanitize(double start, double end);
+bool ngli_timerange_contains(const struct ngli_timerange *range, double t);
+
+struct ngli_prefetch_range {
+    struct ngli_timerange update;
+    double render_time;
+};
+
+void ngli_timerange_filter_prefetch(struct ngli_prefetch_range *range, const struct ngli_timerange *filter_range,
+                                    double render_time);
+bool ngli_timerange_get_prefetch_time(const struct ngli_prefetch_range *range,
+                                     double t, const struct ngli_timerange *loop,
+                                     double *time, double *delay);
+bool ngli_timerange_is_active(const struct ngli_timerange *range, double t, double prefetch_time,
+                              const struct ngli_timerange *loop);
+
+struct ngli_timerange_filter {
+    struct ngli_timerange range;
+    double render_time;
+    double prefetch_time;
+    int updated;
+};
+
+void ngli_timerange_filter_init(struct ngli_timerange_filter *s, double start, double end,
+                                double render_time, double prefetch_time);
+bool ngli_timerange_filter_visit(struct ngli_timerange_filter *s, double t, bool is_active,
+                                 bool child_is_active, const struct ngli_timerange *loop,
+                                 struct ngli_prefetch_range *child_range);
+bool ngli_timerange_filter_update(struct ngli_timerange_filter *s, double *t);
 
 #endif
