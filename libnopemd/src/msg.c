@@ -49,6 +49,7 @@ void nmdi_msg_free_data(void *arg)
     case MSG_START:
     case MSG_STOP:
     case MSG_SYNC:
+    case MSG_PASS:
         break;
     default:
         av_assert0(0);

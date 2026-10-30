@@ -191,6 +191,30 @@ static int queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
     return ret;
 }
 
+/*
+ * The first decoded frame of a pass may precede the loop start. Signal the
+ * boundary now, after sending the previous pass's frames, so requests for
+ * that pass can return its last frame without waiting for a displayable
+ * frame from this pass.
+ */
+static int queue_pass_start(struct decoding_ctx *ctx)
+{
+    struct message msg = {
+        .type = MSG_PASS,
+        .data = (void *)(intptr_t)ctx->pass_number,
+    };
+
+    TRACE(ctx, "queue the start of the loop pass %" PRId64, ctx->pass_number);
+
+    int ret = av_thread_message_queue_send(ctx->frames_queue, &msg, 0);
+    if (ret < 0) {
+        if (ret != AVERROR_EOF && ret != AVERROR_EXIT)
+            LOG(ctx, ERROR, "Unable to push the start of a loop pass: %s", av_err2str(ret));
+        av_thread_message_queue_set_err_recv(ctx->frames_queue, ret);
+    }
+    return ret;
+}
+
 static int queue_cached_frame(struct decoding_ctx *ctx)
 {
     int ret;
@@ -325,6 +349,12 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
     /* Emit the previous pass's cached frame before processing the next pass. */
     if (ctx->pass_number != prev_pass && ctx->tmp_frame) {
         ret = queue_cached_frame(ctx);
+        if (ret < 0)
+            return ret;
+    }
+
+    if (ctx->pass_number != prev_pass) {
+        ret = queue_pass_start(ctx);
         if (ret < 0)
             return ret;
     }

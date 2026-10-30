@@ -30,6 +30,7 @@ enum msg_type {
     MSG_STOP,
     MSG_SYNC,
     MSG_LOOP,
+    MSG_PASS,   // a loop pass starts, after every frame of the earlier passes; `data` is its number
     NB_MSG
 };
 

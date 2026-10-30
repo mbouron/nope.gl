@@ -60,7 +60,27 @@ int nmdi_async_seek(struct async_context *actx, int64_t ts);
 /* Wait for pending control requests, then set *target to the seek time in microseconds, or AV_NOPTS_VALUE. */
 int nmdi_async_get_seek_target(struct async_context *actx, int64_t *target);
 
+#define NMDI_RET_END_OF_PASS 1
+
+/**
+ * Pop a frame or consume a pass-start notification from the output queue.
+ *
+ * Return 0 with a frame, NMDI_RET_END_OF_PASS with no frame when a pass-start
+ * notification is consumed, or a negative value on error. After a notification,
+ * earlier passes have no frames left, and nmdi_async_get_pass_number() returns
+ * the new pass number.
+ */
 int nmdi_async_pop_frame(struct async_context *actx, AVFrame **framep);
+
+/**
+ * Get the current pass number while consuming the output queue.
+ *
+ * Return the pass number from the latest start notification consumed by
+ * nmdi_async_pop_frame(), or 0 if none has been consumed since startup or
+ * the last seek or stop. The API may still be returning frames from an
+ * earlier pass.
+ */
+int64_t nmdi_async_get_pass_number(const struct async_context *actx);
 
 int nmdi_async_stop(struct async_context *actx);
 
