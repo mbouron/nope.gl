@@ -253,9 +253,9 @@ _EXTERNAL_DEPS = dict(
         sha256="fe4b8bad7afbbae75d61b2095c267c98f4ed04fe4a117680130ed253d2732efe",
     ),
     fribidi=dict(
-        version="1.0.16",
+        version="1.0.18",
         url="https://github.com/fribidi/fribidi/archive/refs/tags/v@VERSION@.tar.gz",
-        sha256="5a1d187a33daa58fcee2ad77f0eb9d136dd6fa4096239199ba31e850d397e8a8",
+        sha256="01f15887e32a9d84503121e2da031f166ac07ca8e0c350aef2dbbeaad0f75b1d",
     ),
     moltenvk_Darwin=dict(
         version="1.4.2",
