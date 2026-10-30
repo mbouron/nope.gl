@@ -65,6 +65,7 @@ foreach backend : backends
     'timerange_once_reentry',
     'timerange_loop_prefetch',
     'media_loop_range',
+    'media_remap_change',
     'media_missing',
     'paint_fill_and_stroke_shared',
     'paint_fill_and_stroke_resource_clash',

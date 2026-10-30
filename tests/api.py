@@ -1725,6 +1725,55 @@ def api_media_loop_range(width=32, height=24):
             del ctx_ref
 
 
+def api_media_remap_change(width=32, height=24):
+    """
+    Changing the time remapping of a playing media renders the frames of the
+    new remapping, as a media created with it does. This includes a change of
+    the part of the media played, which the player follows without being
+    opened again.
+    """
+    m0 = load_media("mire")
+
+    def get_ctx(keyframes, loop_range):
+        capture_buffer = bytearray(width * height * 4)
+        ctx = ngl.Context()
+        config = ngl.Config(offscreen=True, width=width, height=height, backend=_backend, capture_buffer=capture_buffer)
+        assert ctx.configure(config) == 0
+        kfs = [ngl.AnimKeyFrameFloat(t, value) for t, value in keyframes]
+        texture = ngl.Texture2D(data_src=ngl.Media(m0.filename, time_anim=ngl.AnimatedTime(kfs)))
+        assert ctx.set_scene(ngl.Scene.from_params(ngl.DrawTexture(texture), duration=m0.duration)) == 0
+        if loop_range is not None:
+            assert ctx.set_loop_range(*loop_range) == 0
+        return ctx, capture_buffer, kfs
+
+    initial = ((0, 8), (2, 10))
+    for keyframes, loop_range in (
+        # Another part of the media
+        (((0, 8.5), (2, 10.5)), None),
+        (((0, 8.5), (2, 10.5)), (0, 2)),
+        # The same part at other times
+        (((0.5, 8), (2.5, 10)), (0, 2.5)),
+        # The same media at the same times, the part played starting later
+        (((0.5, 8.5), (2.5, 10.5)), (0, 2.5)),
+        # Back to the start of the media
+        (((0, 0), (2, 2)), (0, 2)),
+    ):
+        ctx_live, capture_live, kfs = get_ctx(initial, loop_range)
+        ctx_ref, capture_ref, _ = get_ctx(keyframes, loop_range)
+        for k in range(15):
+            assert ctx_live.draw(k / 30) == 0
+        for kf, (t, value) in zip(kfs, keyframes):
+            assert kf.set_time(t) == 0
+            assert kf.set_value(value) == 0
+        for k in range(15, 75):
+            t = k / 30
+            assert ctx_live.draw(t) == 0
+            assert ctx_ref.draw(t) == 0
+            assert capture_live == capture_ref, f"remapped to {keyframes} at t={t}"
+        del ctx_live
+        del ctx_ref
+
+
 def api_media_missing(width=16, height=16):
     """
     A missing media file must not make ctx.draw() fail, whether the video is

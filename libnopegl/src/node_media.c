@@ -650,6 +650,7 @@ static int filename_changed(struct ngl_node *node)
 static void media_invalidate(struct ngl_node *node)
 {
     struct media_priv *s = node->priv_data;
+    const struct media_opts *o = node->opts;
 
     s->loop_inputs[0].start = NAN;
 
@@ -663,7 +664,22 @@ static void media_invalidate(struct ngl_node *node)
     if (start_time == s->start_time && end_time == s->end_time)
         return;
 
-    node->force_release_prefetch = true;
+    if (!s->player)
+        return;
+
+    if (o->loop && (end_time == -DBL_MAX) != (s->end_time == -DBL_MAX)) {
+        node->force_release_prefetch = true;
+        return;
+    }
+
+    const double start = start_time != -DBL_MAX ? start_time : 0.0;
+    const double end = end_time != -DBL_MAX ? end_time : -1.0;
+    if (nmd_set_time_range(s->player, start, end) < 0) {
+        node->force_release_prefetch = true;
+        return;
+    }
+    s->start_time = start_time;
+    s->end_time = end_time;
 }
 
 const struct node_class ngli_media_class = {
