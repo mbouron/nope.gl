@@ -835,6 +835,43 @@ end:
     return averror_to_nmd_err(ret);
 }
 
+int nmd_set_time_range(struct nmd_ctx *s, double start, double end)
+{
+    START_FUNC("SET TIME RANGE");
+
+    int ret = 0;
+    if (isnan(start) || isnan(end) || start < 0.0 || (end >= 0.0 && end < start)) {
+        LOG(s, ERROR, "Invalid time range [%g,%g]", start, end);
+        ret = AVERROR(EINVAL);
+        goto end;
+    }
+
+    struct nmdi_opts *o = &s->opts;
+    o->start_time = av_clipd(start, 0.0, max_time);
+    o->end_time = end < 0.0 ? -1.0 : av_clipd(end, 0.0, max_time);
+
+    if (!s->context_configured)
+        goto end;
+
+    const int64_t start64 = TIME2INT64(o->start_time);
+    const int64_t end64 = o->end_time < 0.0 ? AV_NOPTS_VALUE : TIME2INT64(o->end_time);
+    if (start64 == o->start_time64 && end64 == o->end_time64)
+        goto end;
+
+    TRACE(s, "time range: [%s,%s]", PTS2TIMESTR(start64), PTS2TIMESTR(end64));
+    o->start_time64 = start64;
+    o->end_time64 = end64;
+    nmdi_async_set_playback_range(s->actx, start64, end64);
+
+    s->first_ts = AV_NOPTS_VALUE;
+    s->last_ts = AV_NOPTS_VALUE;
+    update_loop(s);
+
+end:
+    END_FUNC(MAX_ASYNC_OP_TIME);
+    return averror_to_nmd_err(ret);
+}
+
 int nmd_start(struct nmd_ctx *s)
 {
     START_FUNC("START");
@@ -979,6 +1016,20 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
     const int64_t vt = get_media_time(o, t64);
     TRACE(s, "t=%s -> vt=%s", PTS2TIMESTR(t64), PTS2TIMESTR(vt));
 
+    /* Retry after a range change if the old range stopped playback */
+    const int64_t playback_stopped_at = nmdi_async_get_playback_stopped_at(s->actx);
+    if (playback_stopped_at != AV_NOPTS_VALUE && (o->end_time64 == AV_NOPTS_VALUE || o->end_time64 > playback_stopped_at)) {
+        LOG(s, DEBUG, "time range end moved past %s, seek to %s", PTS2TIMESTR(playback_stopped_at), PTS2TIMESTR(vt));
+        nmdi_async_clear_playback_stopped_at(s->actx);
+        av_frame_free(&s->cached_frame);
+        s->last_pushed_frame_ts = AV_NOPTS_VALUE;
+        s->last_ts = AV_NOPTS_VALUE;
+        ret = nmdi_async_seek(s->actx, vt);
+        if (ret < 0)
+            return ret_frame(s, NULL, ret, framep);
+        s->seek_time64 = vt;
+    }
+
     /* Retry after a range change if the old range stopped playback with no filtered output. */
     struct nmdi_pass empty_pass;
     if (nmdi_async_get_empty_pass(s->actx, &empty_pass) && empty_pass.loop_rev != s->loop_rev) {
@@ -1023,6 +1074,21 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
             TRACE(s, "no prefetch, but requested time (%s) beyond initial start_time (%s)",
                   PTS2TIMESTR(vt), PTS2TIMESTR(o->start_time64));
             nmdi_async_seek(s->actx, vt);
+        }
+
+        /*
+         * If prefetch was started with a different start_time, it may have issued a
+         * seek past the requested time.
+         */
+        int64_t seek_target;
+        ret = nmdi_async_get_seek_target(s->actx, &seek_target);
+        if (ret < 0)
+            return ret_frame(s, NULL, ret, framep);
+        if (seek_target != AV_NOPTS_VALUE && vt < seek_target) {
+            ret = nmdi_async_seek(s->actx, vt);
+            if (ret < 0)
+                return ret_frame(s, NULL, ret, framep);
+            s->seek_time64 = vt;
         }
 
         TRACE(s, "no frame ever pushed yet, pop a candidate");

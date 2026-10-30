@@ -60,10 +60,17 @@ int nmdi_pass_ends_after(const struct nmdi_pass *pass, int64_t ts);
 
 /*
  * Shared loop settings and pass information, protected by `lock`. The API sets
- * `loop_start` and `loop_end` in media time, in microseconds. The demuxer
- * records each pass it starts, and the decoder records frames dropped at
- * the pass end.
- * The API removes old passes as it returns frames from later passes.
+ * the playback range, `playback_start` and `playback_end`, in microseconds.
+ * This range can change during playback (see `nmd_set_time_range()`). The
+ * demuxer and filterer read it as needed. When filtering stops at the playback
+ * end, it records that boundary in `playback_stopped_at`, in microseconds.
+ * The recorded value is kept across range changes, so the API can resume
+ * playback if the end moves later. A seek or stop request clears it.
+ *
+ * The API sets `loop_start` and `loop_end` in media time, in microseconds.
+ * The demuxer records each pass it starts, and the decoder records frames
+ * dropped at the pass end. The API removes old passes as it returns frames
+ * from later passes.
  *
  * `loop_rev` advances when the requested range changes. Each pass remembers
  * the revision it started with, since queued frames may still belong to an
@@ -91,10 +98,13 @@ int nmdi_pass_ends_after(const struct nmdi_pass *pass, int64_t ts);
  */
 struct nmdi_loop {
     pthread_mutex_t lock;
+    int64_t playback_start;   // start of the part of the media played (`start_time`), in microseconds
+    int64_t playback_end;     // its end (`end_time`); `AV_NOPTS_VALUE` without one
+    int64_t playback_stopped_at; // playback end that stopped filtering, in microseconds; `AV_NOPTS_VALUE` if none
     int64_t loop_start;
-    int64_t loop_end;       // exclusive loop end; `AV_NOPTS_VALUE` when looping is disabled
-    int64_t loop_rev;       // revision of the requested range; incremented on each change
-    int64_t seek_rev;       // revision of pass numbering; incremented whenever it restarts at 0
+    int64_t loop_end;         // exclusive loop end; `AV_NOPTS_VALUE` when looping is disabled
+    int64_t loop_rev;         // revision of the requested range; incremented on each change
+    int64_t seek_rev;         // revision of pass numbering; incremented whenever it restarts at 0
     struct nmdi_pass empty_pass; // pass that stopped playback with no filtered frames; `loop_rev` is -1 if none
     struct nmdi_pass *passes; // consecutive passes still needed by the API
     size_t passes_count;      // number of retained passes
@@ -104,6 +114,12 @@ struct nmdi_loop {
 /* Loop state lifetime. */
 int nmdi_loop_init(struct nmdi_loop *s);
 void nmdi_loop_uninit(struct nmdi_loop *s);
+
+/* Playback range. */
+void nmdi_loop_set_playback_range(struct nmdi_loop *s, int64_t start, int64_t end);
+void nmdi_loop_get_playback_range(struct nmdi_loop *s, int64_t *start, int64_t *end);
+void nmdi_loop_set_playback_stopped_at(struct nmdi_loop *s, int64_t end);
+int64_t nmdi_loop_get_playback_stopped_at(struct nmdi_loop *s);
 
 /* Requested loop range. */
 int64_t nmdi_loop_set(struct nmdi_loop *s, int64_t start, int64_t end);

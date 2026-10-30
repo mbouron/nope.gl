@@ -211,6 +211,7 @@ if get_option('tests')
     'notavail_file',
     'seek',
     'seek_after_eos',
+    'time_range',
   ]
 
   # Tests sharing playback helpers
@@ -287,6 +288,7 @@ if get_option('tests')
     'Seek after EOS video+end':           {'test': 'seek_after_eos',    'args': [media, 0b110.to_string()]},
     'Seek after EOS video+end+start':     {'test': 'seek_after_eos',    'args': [media, 0b101.to_string()]},
     'Seek after EOS video+start':         {'test': 'seek_after_eos',    'args': [media, 0b111.to_string()]},
+    'Time range H.264':                   {'test': 'time_range',        'args': [h264]},
   }
 
   foreach use_pkt_duration : [0, 1]

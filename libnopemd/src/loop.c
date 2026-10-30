@@ -28,6 +28,9 @@ int nmdi_pass_ends_after(const struct nmdi_pass *pass, int64_t ts)
 
 int nmdi_loop_init(struct nmdi_loop *s)
 {
+    s->playback_start = 0;
+    s->playback_end = AV_NOPTS_VALUE;
+    s->playback_stopped_at = AV_NOPTS_VALUE;
     s->loop_start = AV_NOPTS_VALUE;
     s->loop_end = AV_NOPTS_VALUE;
     s->loop_rev = 0;
@@ -48,6 +51,37 @@ void nmdi_loop_uninit(struct nmdi_loop *s)
 {
     av_freep(&s->passes);
     pthread_mutex_destroy(&s->lock);
+}
+
+void nmdi_loop_set_playback_range(struct nmdi_loop *s, int64_t start, int64_t end)
+{
+    pthread_mutex_lock(&s->lock);
+    s->playback_start = start;
+    s->playback_end = end;
+    pthread_mutex_unlock(&s->lock);
+}
+
+void nmdi_loop_get_playback_range(struct nmdi_loop *s, int64_t *start, int64_t *end)
+{
+    pthread_mutex_lock(&s->lock);
+    *start = s->playback_start;
+    *end = s->playback_end;
+    pthread_mutex_unlock(&s->lock);
+}
+
+void nmdi_loop_set_playback_stopped_at(struct nmdi_loop *s, int64_t end)
+{
+    pthread_mutex_lock(&s->lock);
+    s->playback_stopped_at = end;
+    pthread_mutex_unlock(&s->lock);
+}
+
+int64_t nmdi_loop_get_playback_stopped_at(struct nmdi_loop *s)
+{
+    pthread_mutex_lock(&s->lock);
+    const int64_t end = s->playback_stopped_at;
+    pthread_mutex_unlock(&s->lock);
+    return end;
 }
 
 int64_t nmdi_loop_set(struct nmdi_loop *s, int64_t start, int64_t end)

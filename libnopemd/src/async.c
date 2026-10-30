@@ -39,7 +39,7 @@
 
 struct info_message {
     int width, height;
-    int64_t duration;
+    int64_t duration;   // probed duration, `AV_NOPTS_VALUE` if unknown
     int is_image;
     AVRational timebase;
     struct nmdi_pass_timeline pass_timeline;
@@ -75,6 +75,7 @@ struct async_context {
     int thread_stack_size;
 
     int64_t request_seek;
+    int64_t seek_target;    // latest accepted seek in media time, including the initial start_time seek
 
     struct info_message info;
     int has_info;
@@ -167,6 +168,16 @@ struct async_context *nmdi_async_alloc_context(void)
     return actx;
 }
 
+static int64_t get_duration(struct async_context *actx)
+{
+    int64_t playback_start, playback_end;
+    nmdi_loop_get_playback_range(&actx->loop, &playback_start, &playback_end);
+    const int64_t duration = actx->info.duration;
+    if (playback_end <= 0)
+        return duration == AV_NOPTS_VALUE ? 0 : duration;
+    return duration == AV_NOPTS_VALUE ? playback_end : FFMIN(duration, playback_end);
+}
+
 int nmdi_async_fetch_info(struct async_context *actx, struct nmd_info *info)
 {
     int ret = fetch_mod_info(actx);
@@ -174,11 +185,26 @@ int nmdi_async_fetch_info(struct async_context *actx, struct nmd_info *info)
         return ret;
     info->width    = actx->info.width;
     info->height   = actx->info.height;
-    info->duration = actx->info.duration * av_q2d(AV_TIME_BASE_Q);
+    info->duration = get_duration(actx) * av_q2d(AV_TIME_BASE_Q);
     info->is_image = actx->info.is_image;
     info->timebase[0] = actx->info.timebase.num;
     info->timebase[1] = actx->info.timebase.den;
     return 0;
+}
+
+void nmdi_async_set_playback_range(struct async_context *actx, int64_t start, int64_t end)
+{
+    nmdi_loop_set_playback_range(&actx->loop, start, end);
+}
+
+int64_t nmdi_async_get_playback_stopped_at(struct async_context *actx)
+{
+    return nmdi_loop_get_playback_stopped_at(&actx->loop);
+}
+
+void nmdi_async_clear_playback_stopped_at(struct async_context *actx)
+{
+    nmdi_loop_set_playback_stopped_at(&actx->loop, AV_NOPTS_VALUE);
 }
 
 int64_t nmdi_async_set_loop(struct async_context *actx, int64_t start, int64_t end)
@@ -253,9 +279,19 @@ static int create_seek_msg(struct message *msg, int64_t ts)
     return 0;
 }
 
+int nmdi_async_get_seek_target(struct async_context *actx, int64_t *target)
+{
+    int ret = sync_control_thread(actx);
+    if (ret < 0)
+        return ret;
+    *target = actx->seek_target;
+    return 0;
+}
+
 int nmdi_async_seek(struct async_context *actx, int64_t ts)
 {
     TRACE(actx, "--> send seek msg @ %s", PTS2TIMESTR(ts));
+    nmdi_loop_set_playback_stopped_at(&actx->loop, AV_NOPTS_VALUE);
     struct message msg;
     int ret = create_seek_msg(&msg, ts);
     if (ret < 0)
@@ -286,6 +322,7 @@ int nmdi_async_start(struct async_context *actx)
 int nmdi_async_stop(struct async_context *actx)
 {
     TRACE(actx, "--> send stop msg");
+    nmdi_loop_set_playback_stopped_at(&actx->loop, AV_NOPTS_VALUE);
     struct message msg = { .type = MSG_STOP };
     int ret = av_thread_message_queue_send(actx->ctl_in_queue, &msg, 0);
     if (ret < 0) {
@@ -431,18 +468,21 @@ static int op_start(struct async_context *actx)
         return ret;
     }
 
+    int64_t playback_start, playback_end;
+    nmdi_loop_get_playback_range(&actx->loop, &playback_start, &playback_end);
     if (actx->request_seek != AV_NOPTS_VALUE) {
         TRACE(actx, "request seek is set to %s", PTS2TIMESTR(actx->request_seek));
         seek_to = actx->request_seek;
-    } else if (o->start_time64) {
-        TRACE(actx, "start_time is set to %s", PTS2TIMESTR(actx->o->start_time64));
-        seek_to = o->start_time64;
+    } else if (playback_start) {
+        TRACE(actx, "playback start is set to %s", PTS2TIMESTR(playback_start));
+        seek_to = playback_start;
     }
 
     if (seek_to != AV_NOPTS_VALUE && !is_seek_possible(actx)) {
         LOG(actx, ERROR, "can not seek into media, ignoring seek");
         seek_to = AV_NOPTS_VALUE;
     }
+    actx->seek_target = seek_to;
 
     if (seek_to != AV_NOPTS_VALUE) {
         TRACE(actx, "seek to: %s", PTS2TIMESTR(seek_to));
@@ -500,24 +540,13 @@ static int op_info(struct async_context *actx, struct message *msg)
         return ret;
     }
 
-    int64_t end_time = o->end_time64 >= 0 ? o->end_time64 : AV_NOPTS_VALUE;
     const int64_t probe_duration = nmdi_demuxing_probe_duration(actx->demuxer);
-
-    av_assert0(AV_NOPTS_VALUE < 0);
-    if (probe_duration != AV_NOPTS_VALUE && (end_time <= 0 || probe_duration < end_time)) {
-        LOG(actx, INFO, "fix end_time from %f to %f",
-            end_time       * av_q2d(AV_TIME_BASE_Q),
-            probe_duration * av_q2d(AV_TIME_BASE_Q));
-        end_time = probe_duration;
-    }
-    if (end_time == AV_NOPTS_VALUE)
-        end_time = 0;
     const AVStream *st = nmdi_demuxing_get_stream(actx->demuxer);
     const int is_image = nmdi_demuxing_is_image(actx->demuxer);
     struct info_message info = {
         .width    = st->codecpar->width,
         .height   = st->codecpar->height,
-        .duration = end_time,
+        .duration = probe_duration,
         .is_image = is_image,
         .timebase = st->time_base,
         .pass_timeline = *nmdi_demuxing_get_pass_timeline(actx->demuxer),
@@ -595,6 +624,7 @@ static int op_seek(struct async_context *actx, struct message *seek_msg)
     }
 
     actx->request_seek = *(int64_t *)seek_msg->data;
+    actx->seek_target = actx->request_seek;
 
     if (!actx->playing) {
         nmdi_msg_free_data(seek_msg);
@@ -642,6 +672,7 @@ static void op_stop(struct async_context *actx)
     actx->modules_initialized = 0;
     actx->playing = 0;
     actx->request_seek = AV_NOPTS_VALUE;
+    actx->seek_target = AV_NOPTS_VALUE;
 }
 
 static void *control_thread(void *arg)
@@ -682,6 +713,7 @@ static void *control_thread(void *arg)
                 op_stop(actx);
             /* A seek can be pending even if playback has not started. */
             actx->request_seek = AV_NOPTS_VALUE;
+            actx->seek_target = AV_NOPTS_VALUE;
             break;
         case MSG_INFO:
             ret = op_info(actx, &msg);
@@ -738,11 +770,13 @@ int nmdi_async_init(struct async_context *actx, void *log_ctx,
     actx->o = o;
     actx->thread_stack_size = o->thread_stack_size;
     actx->request_seek = AV_NOPTS_VALUE;
+    actx->seek_target = AV_NOPTS_VALUE;
 
     ret = nmdi_loop_init(&actx->loop);
     if (ret < 0)
         return ret;
     actx->loop_initialized = 1;
+    nmdi_loop_set_playback_range(&actx->loop, o->start_time64, o->end_time64);
 
     TRACE(actx, "alloc modules queues");
     if ((ret = alloc_msg_queue(&actx->src_queue,    1))                 < 0 ||

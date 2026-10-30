@@ -65,7 +65,6 @@ struct filtering_ctx {
 
     AVCodecParameters *codecpar;
     char *filters;
-    int64_t max_pts;
     int sw_pix_fmt;
     int max_pixels;
     int audio_texture;
@@ -368,7 +367,6 @@ int nmdi_filtering_init(void *log_ctx,
     ctx->max_pixels = o->max_pixels;
     ctx->audio_texture = o->audio_texture;
     ctx->st_timebase = stream->time_base;
-    ctx->max_pts = o->end_time64 > 0 ? av_rescale_q(o->end_time64, AV_TIME_BASE_Q, ctx->st_timebase) : AV_NOPTS_VALUE;
 
     int ret = avcodec_parameters_from_context(ctx->codecpar, avctx);
     if (ret < 0)
@@ -515,6 +513,18 @@ static int pull_send_frame(struct filtering_ctx *ctx)
     return 0;
 }
 
+static int check_playback_end(struct filtering_ctx *ctx, const AVFrame *frame)
+{
+    int64_t playback_start, playback_end;
+    nmdi_loop_get_playback_range(ctx->loop, &playback_start, &playback_end);
+    if (playback_end <= 0)
+        return 0;
+    if (frame->pts <= av_rescale_q(playback_end, AV_TIME_BASE_Q, ctx->st_timebase))
+        return 0;
+    nmdi_loop_set_playback_stopped_at(ctx->loop, playback_end);
+    return 1;
+}
+
 static int flush_frames(struct filtering_ctx *ctx)
 {
     int ret;
@@ -640,7 +650,7 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             av_frame_free(&frame);
             TRACE(ctx, "frame ts is negative, skipping");
             continue;
-        } else if (ctx->max_pts != AV_NOPTS_VALUE && frame->pts > ctx->max_pts) {
+        } else if (check_playback_end(ctx, frame)) {
             av_frame_free(&frame);
             TRACE(ctx, "reached trim duration");
             ret = AVERROR_EXIT; // not EOF because we do not want to flush the frames
