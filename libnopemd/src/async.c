@@ -76,6 +76,7 @@ struct async_context {
 
     int64_t request_seek;
     int64_t seek_target;    // latest accepted seek in media time, including the initial start_time seek
+    int64_t pass_number;    // pass number from the latest MSG_PASS consumed from sink_queue; 0 if none
 
     struct info_message info;
     int has_info;
@@ -264,9 +265,19 @@ int nmdi_async_pop_frame(struct async_context *actx, AVFrame **framep)
         av_thread_message_queue_set_err_send(actx->sink_queue, ret);
         return ret;
     }
-    av_assert0(msg.type == MSG_FRAME);
-    *framep = msg.data;
-    return 0;
+    if (msg.type == MSG_FRAME) {
+        *framep = msg.data;
+        return 0;
+    }
+    av_assert0(msg.type == MSG_PASS);
+    actx->pass_number = (intptr_t)msg.data;
+    TRACE(actx, "loop pass %" PRId64 " starts", actx->pass_number);
+    return NMDI_RET_END_OF_PASS;
+}
+
+int64_t nmdi_async_get_pass_number(const struct async_context *actx)
+{
+    return actx->pass_number;
 }
 
 static int create_seek_msg(struct message *msg, int64_t ts)
@@ -292,6 +303,7 @@ int nmdi_async_seek(struct async_context *actx, int64_t ts)
 {
     TRACE(actx, "--> send seek msg @ %s", PTS2TIMESTR(ts));
     nmdi_loop_set_playback_stopped_at(&actx->loop, AV_NOPTS_VALUE);
+    actx->pass_number = 0;
     struct message msg;
     int ret = create_seek_msg(&msg, ts);
     if (ret < 0)
@@ -323,6 +335,7 @@ int nmdi_async_stop(struct async_context *actx)
 {
     TRACE(actx, "--> send stop msg");
     nmdi_loop_set_playback_stopped_at(&actx->loop, AV_NOPTS_VALUE);
+    actx->pass_number = 0;
     struct message msg = { .type = MSG_STOP };
     int ret = av_thread_message_queue_send(actx->ctl_in_queue, &msg, 0);
     if (ret < 0) {
@@ -808,6 +821,7 @@ const char *nmdi_async_get_msg_type_string(enum msg_type type)
         [MSG_STOP]   = "stop",
         [MSG_SYNC]   = "sync",
         [MSG_LOOP]   = "loop",
+        [MSG_PASS]   = "pass",
     };
     return s[type];
 }

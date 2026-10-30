@@ -248,6 +248,9 @@ static const struct test audio_tests[] = {
 
 static const struct test media_tests[] = {
     {"long gop",          -1, -1, 3.3,  5.1,  3.0, 6.0,  1},
+    /* Drain the last pass before jumping into the next one, on either side of the seek threshold. */
+    {"wrap near start",   -1, -1, 2.0, 10.0, 9.99, 0.1, 1, .seek_time = 10.0, .seek_target = 2.1},
+    {"skip after wrap",   -1, -1, 2.0, 10.0, 9.99, 0.1, 2, .seek_time = 10.0, .seek_target = 5.0},
 };
 
 /*

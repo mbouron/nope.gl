@@ -674,6 +674,8 @@ static int pop_frame(struct nmd_ctx *s, AVFrame **framep)
     int ret = 0;
     AVFrame *frame = NULL;
 
+    *framep = NULL;
+
     if (s->cached_frame) {
         TRACE(s, "we have a cached frame, pop this one");
         frame = s->cached_frame;
@@ -698,6 +700,8 @@ static int pop_frame(struct nmd_ctx *s, AVFrame **framep)
 
         if (s->st_timebase.den) {
             ret = nmdi_async_pop_frame(s->actx, &frame);
+            if (ret == NMDI_RET_END_OF_PASS)
+                return ret;
             if (ret < 0)
                 TRACE(s, "poped a message raising %s", av_err2str(ret));
         }
@@ -955,12 +959,12 @@ static int64_t get_distance(const struct nmd_ctx *s, int64_t vt, int64_t *passp,
     }
 
     /*
-     * A frame from a later pass means the current pass has finished. After a
+     * The start of a later pass means the current pass has finished. After a
      * range change, that wrap may still reflect the old end, so check which
      * range revision caused it before treating it as the current boundary.
      */
     const AVFrame *next = s->cached_frame;
-    const int end_of_pass = next && get_frame_pass(next) > pass_number;
+    const int end_of_pass = nmdi_async_get_pass_number(s->actx) > pass_number;
     const int wrapped_with_current_range = end_of_pass && wrap_uses_current_range(s, pass_number);
 
     if (vt >= s->loop_end64) {
@@ -985,8 +989,10 @@ static int64_t get_distance(const struct nmd_ctx *s, int64_t vt, int64_t *passp,
     }
 
     *passp = pass_number + 1;
-    if (wrapped_with_current_range)
-        return FFMAX(stt - next->pts, 0) + 1;
+    if (wrapped_with_current_range) {
+        const int64_t next_pts = next ? next->pts : stream_time(s, s->loop_start64);
+        return FFMAX(stt - next_pts, 0) + 1;
+    }
 
     const int64_t diff = end - pts + stt - stream_time(s, s->loop_start64);
     *seekp = diff <= 0;
@@ -1092,7 +1098,10 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
         }
 
         TRACE(s, "no frame ever pushed yet, pop a candidate");
-        const int pop_ret = pop_frame(s, &candidate);
+        int pop_ret;
+        do {
+            pop_ret = pop_frame(s, &candidate);
+        } while (pop_ret == NMDI_RET_END_OF_PASS);
         if (!candidate || pop_ret < 0) {
             TRACE(s, "can not get a single frame for this media");
             return ret_frame(s, NULL, pop_ret, framep);
@@ -1198,8 +1207,17 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
 
         TRACE(s, "grab another frame");
         AVFrame *next = NULL;
-        const int pop_ret = pop_frame(s, &next);
-        av_assert0(!s->cached_frame);
+        /* Leave frames of later passes queued or cached for the next request. */
+        const int64_t next_pass_number = s->cached_frame ? get_frame_pass(s->cached_frame)
+                                                       : nmdi_async_get_pass_number(s->actx);
+        const int end_of_pass = next_pass_number > target_pass;
+        int pop_ret = 0;
+        if (!end_of_pass) {
+            pop_ret = pop_frame(s, &next);
+            if (pop_ret == NMDI_RET_END_OF_PASS)
+                continue;
+        }
+        av_assert0(!s->cached_frame || end_of_pass);
 
         /* We must not use av_compare_ts() here, because it doesn't make the
          * comparison with the lowest timebase value. Instead, we need to lower
@@ -1215,11 +1233,11 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
          * already discarded at 5s.
          */
         const int64_t pass = next ? get_frame_pass(next) : 0;
-        int need_seek = !seek_retried && next_pass && !candidate &&
+        int need_seek = !seek_retried && next_pass && !candidate && !end_of_pass &&
             (!next || pop_ret < 0 ||
              (pass < target_pass && next->pts >= stream_loop_end(s)) ||
              (pass == target_pass && next->pts > rescaled_vt));
-        if (!seek_retried && !need_seek && next && pass > target_pass &&
+        if (!seek_retried && !need_seek && end_of_pass &&
             (candidate || s->last_pushed_frame_ts != AV_NOPTS_VALUE)) {
             const int64_t pass_number = candidate ? get_frame_pass(candidate) : s->last_pushed_frame_pass;
             struct nmdi_pass current_pass = {.end = AV_NOPTS_VALUE};
@@ -1230,6 +1248,7 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
             LOG(s, DEBUG, "queued loop passes cannot supply the frame at %s, seek", PTS2TIMESTR(vt));
             av_frame_free(&next);
             av_frame_free(&candidate);
+            av_frame_free(&s->cached_frame);
             ret = nmdi_async_seek(s->actx, vt);
             if (ret < 0)
                 return ret_frame(s, NULL, ret, framep);
@@ -1250,11 +1269,7 @@ int nmd_get_frame_ms(struct nmd_ctx *s, int64_t t64, struct nmd_frame **framep)
             continue;
         }
 
-        if (pass > target_pass) {
-            TRACE(s, "cache frame %s of the next loop pass", av_ts2timestr(next->pts, &s->st_timebase));
-            s->cached_frame = next;
-            break;
-        }
+        av_assert0(pass == target_pass);
 
         const int64_t next_duration = next->duration;
 
@@ -1330,7 +1345,9 @@ int nmd_get_next_frame(struct nmd_ctx *s, struct nmd_frame **framep)
     }
 
     AVFrame *frame = NULL;
-    ret = pop_frame(s, &frame);
+    do {
+        ret = pop_frame(s, &frame);
+    } while (ret == NMDI_RET_END_OF_PASS);
     if (!frame || ret < 0)
         return ret_frame(s, NULL, ret, framep);
 

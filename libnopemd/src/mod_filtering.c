@@ -525,6 +525,38 @@ static int check_playback_end(struct filtering_ctx *ctx, const AVFrame *frame)
     return 1;
 }
 
+static int flush_frames(struct filtering_ctx *ctx);
+
+/*
+ * User filters and audio filters can buffer frames and state. Drain them and
+ * rebuild the graph before feeding the next repetition, whose timestamps
+ * start over. Plain video conversion can reuse its graph because it has no
+ * buffered frames.
+ *
+ * Return AVERROR_EOF to end playback when the pass left had no frame.
+ */
+static int start_pass(struct filtering_ctx *ctx, intptr_t pass)
+{
+    if (ctx->filters || ctx->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
+        int ret = flush_frames(ctx);
+        if (ret < 0 && ret != AVERROR_EOF)
+            return ret;
+        avfilter_graph_free(&ctx->filter_graph);
+        reset_frame_info(&ctx->frame_info);
+    }
+    /*
+     * A seek can skip all output in pass 0. Only stop after a full
+     * repetition produces no frames, or we could discard a valid loop.
+     */
+    if (ctx->pass_number && !ctx->pass_has_frame && nmdi_loop_report_empty_pass(ctx->loop, ctx->pass_number)) {
+        LOG(ctx, WARNING, "No filtered frame in the loop range, ending playback");
+        return AVERROR_EOF;
+    }
+    ctx->pass_number = pass;
+    ctx->pass_has_frame = 0;
+    return 0;
+}
+
 static int flush_frames(struct filtering_ctx *ctx)
 {
     int ret;
@@ -585,6 +617,17 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             continue;
         }
 
+        /* Drain the previous pass before forwarding the boundary. */
+        if (msg.type == MSG_PASS) {
+            ret = start_pass(ctx, (intptr_t)msg.data);
+            if (ret < 0)
+                break;
+            ret = av_thread_message_queue_send(ctx->out_queue, &msg, 0);
+            if (ret < 0)
+                break;
+            continue;
+        }
+
         frame = msg.data;
 
         TRACE(ctx, "filtering %s %s frame @ ts=%s",
@@ -593,37 +636,12 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
                                                               : av_get_sample_fmt_name(frame->format),
               av_ts2timestr(frame->pts, &ctx->st_timebase));
 
-        /*
-         * User filters and audio filters can buffer frames and state. Drain
-         * them and rebuild the graph before feeding the next repetition,
-         * whose timestamps start over. Plain video conversion can reuse its
-         * graph because it has no buffered frames.
-         */
         if ((intptr_t)frame->opaque != ctx->pass_number) {
-            if (ctx->filters || ctx->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
-                ret = flush_frames(ctx);
-                if (ret < 0 && ret != AVERROR_EOF) {
-                    av_frame_free(&frame);
-                    break;
-                }
-                avfilter_graph_free(&ctx->filter_graph);
-                reset_frame_info(&ctx->frame_info);
+            ret = start_pass(ctx, (intptr_t)frame->opaque);
+            if (ret < 0) {
+                av_frame_free(&frame);
+                break;
             }
-            /*
-             * A seek can skip all output in pass 0. Only stop after a full
-             * repetition produces no frames, or we could discard a valid loop.
-             */
-            if (ctx->pass_number && !ctx->pass_has_frame) {
-                const int end = nmdi_loop_report_empty_pass(ctx->loop, ctx->pass_number);
-                if (end) {
-                    LOG(ctx, WARNING, "No filtered frame in the loop range, ending playback");
-                    av_frame_free(&frame);
-                    ret = AVERROR_EOF;
-                    break;
-                }
-            }
-            ctx->pass_number = (intptr_t)frame->opaque;
-            ctx->pass_has_frame = 0;
         }
 
         /* lazy filtergraph configuration, see AVBufferSrcParameters for exhaustive list of frame properties */
