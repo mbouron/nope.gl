@@ -48,12 +48,10 @@ struct demuxing_ctx {
     AVThreadMessageQueue *pkt_queue;
     nmd_seek_callback_type seek_callback;
     void *seek_callback_arg;
-    int64_t start_time64;
     AVPacket *seek_pkt;             // key frame packet found by the last seek
     int has_seek_pkt;
 
     struct nmdi_loop *loop;
-    int64_t end_time;               // `end_time` option in microseconds
     struct nmdi_pass_timeline timeline;
     int nal_length_size;            // H.264/HEVC NAL unit length size, 0 for Annex B
     int64_t seek_rev;               // revision of pass numbering, copied from the shared loop state
@@ -143,9 +141,7 @@ int nmdi_demuxing_init(void *log_ctx,
     ctx->pkt_queue = pkt_queue;
     ctx->seek_callback = opts->seek_callback;
     ctx->seek_callback_arg = opts->seek_callback_arg;
-    ctx->start_time64 = opts->start_time64;
     ctx->loop = loop;
-    ctx->end_time = opts->end_time64;
 
     switch (opts->avselect) {
     case NMD_SELECT_VIDEO: media_type = AVMEDIA_TYPE_VIDEO; break;
@@ -351,6 +347,8 @@ static void get_loop(struct demuxing_ctx *ctx, int64_t *start_us, int64_t *start
 
     int64_t loop_start, loop_end;
     nmdi_loop_get(ctx->loop, &loop_start, &loop_end, loop_rev);
+    int64_t playback_start, playback_end;
+    nmdi_loop_get_playback_range(ctx->loop, &playback_start, &playback_end);
 
     const struct nmdi_pass_timeline *timeline = &ctx->timeline;
     if (!timeline->stride || ctx->pass_number >= timeline->max_pass)
@@ -368,7 +366,7 @@ static void get_loop(struct demuxing_ctx *ctx, int64_t *start_us, int64_t *start
     const int64_t timeline_end = timeline->origin + timeline->stride;
     const int64_t timeline_end_us = av_rescale_q(timeline_end, tb, AV_TIME_BASE_Q);
     const int64_t loop_start_ts = av_rescale_q(FFMIN(loop_start, timeline_end_us), AV_TIME_BASE_Q, tb);
-    const int64_t loop_end_ts = FFMIN(nmdi_loop_stream_end(FFMIN(loop_end, timeline_end_us), ctx->end_time, tb), timeline_end);
+    const int64_t loop_end_ts = FFMIN(nmdi_loop_stream_end(FFMIN(loop_end, timeline_end_us), playback_end, tb), timeline_end);
     if (loop_end_ts <= loop_start_ts || ctx->pass_start >= loop_end_ts)
         return;
 
@@ -622,7 +620,9 @@ void nmdi_demuxing_run(struct demuxing_ctx *ctx)
                 }
                 reset_pass(ctx, av_rescale_q(seek_to, AV_TIME_BASE_Q, ctx->stream->time_base));
                 if (ctx->seek_callback) {
-                    const double t = (seek_to - ctx->start_time64) / (double)AV_TIME_BASE;
+                    int64_t playback_start, playback_end;
+                    nmdi_loop_get_playback_range(ctx->loop, &playback_start, &playback_end);
+                    const double t = (seek_to - playback_start) / (double)AV_TIME_BASE;
                     ctx->seek_callback(ctx->seek_callback_arg, t);
                 }
             }

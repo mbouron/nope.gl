@@ -42,6 +42,11 @@ int nmdi_async_start(struct async_context *actx);
 
 int nmdi_async_fetch_info(struct async_context *actx, struct nmd_info *info);
 
+/* Playback range. */
+void nmdi_async_set_playback_range(struct async_context *actx, int64_t start, int64_t end);
+int64_t nmdi_async_get_playback_stopped_at(struct async_context *actx);
+void nmdi_async_clear_playback_stopped_at(struct async_context *actx);
+
 /* Loop range and pass history. */
 int64_t nmdi_async_set_loop(struct async_context *actx, int64_t start, int64_t end);
 int nmdi_async_get_pass(struct async_context *actx, int64_t pass_number, struct nmdi_pass *dst);
@@ -52,6 +57,8 @@ int nmdi_async_get_empty_pass(struct async_context *actx, struct nmdi_pass *dst)
 int nmdi_async_get_pass_timeline(struct async_context *actx, struct nmdi_pass_timeline *timeline);
 
 int nmdi_async_seek(struct async_context *actx, int64_t ts);
+/* Wait for pending control requests, then set *target to the seek time in microseconds, or AV_NOPTS_VALUE. */
+int nmdi_async_get_seek_target(struct async_context *actx, int64_t *target);
 
 int nmdi_async_pop_frame(struct async_context *actx, AVFrame **framep);
 

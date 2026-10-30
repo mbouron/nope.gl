@@ -395,6 +395,26 @@ NMDAPI int nmd_seek(struct nmd_ctx *s, double t);
 NMDAPI int nmd_set_loop_range(struct nmd_ctx *s, double start, double end);
 
 /**
+ * Set the playback time range to `[start, end)`, as the `start_time` and
+ * `end_time` options do. Times are in seconds.
+ *
+ * Unlike the `start_time` and `end_time` options, this function can be called
+ * at any time, including during playback.
+ *
+ * The times passed afterwards to `nmd_get_frame()`, `nmd_seek()` and
+ * `nmd_set_loop_range()` are relative to the new `start`, and the duration
+ * is clipped to the new `end`.
+ *
+ * The range change preserves queued frames. Subsequent `nmd_get_frame()`
+ * calls reuse them when possible. If playback stopped at the previous
+ * `end` and the new one is later, the next call resumes playback from the
+ * requested time.
+ *
+ * Return 0 on success, a negative value on error.
+ */
+NMDAPI int nmd_set_time_range(struct nmd_ctx *s, double start, double end);
+
+/**
  * Get the next frame.
  *
  * The returned frame needs to be released using nmd_frame_releasep().
