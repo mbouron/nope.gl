@@ -31,6 +31,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   an `AVMediaCodecBuffer` and are released with `nmd_mc_frame_releasep()`
   (which replaces `nmd_mc_frame_render_and_releasep()`). Providing an output
   surface to the decoder through the `opaque` option is no longer supported.
+- `libnopemd` decodes AAC with the in-process platform decoder of Android 17
+   and later, without a call to the codec process for each buffer
 
 ### Fixed
 - Incorrect `ColorStats` histograms with OpenGL ES on Mali GPUs

@@ -18,6 +18,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <android/api-level.h>
 #include <android/hardware_buffer.h>
 #include <libavcodec/bsf.h>
 #include <libavutil/attributes.h>
@@ -71,7 +72,7 @@ static const struct mc_desc {
     {AV_CODEC_ID_VP8,    "video/x-vnd.on2.vp8", {"c2.android.vp8.decoder"}},
     {AV_CODEC_ID_VP9,    "video/x-vnd.on2.vp9", {"c2.android.vp9.decoder"}},
     {AV_CODEC_ID_AV1,    "video/av01",          {"c2.android.av1-dav1d.decoder", "c2.android.av1.decoder"}},
-    {AV_CODEC_ID_AAC,    "audio/mp4a-latm",     {"c2.android.aac.decoder"}},
+    {AV_CODEC_ID_AAC,    "audio/mp4a-latm",     {"c2.android.inproc.aac.decoder", "c2.android.aac.decoder"}},
     {AV_CODEC_ID_AMR_NB, "audio/3gpp",          {"c2.android.amrnb.decoder"}},
     {AV_CODEC_ID_AMR_WB, "audio/amr-wb",        {"c2.android.amrwb.decoder"}},
 };
@@ -83,6 +84,13 @@ static const struct mc_desc *get_desc(enum AVCodecID codec_id)
             return &descs[i];
 
     return NULL;
+}
+
+#define INPROC_MIN_API_LEVEL 37
+
+static bool is_decoder_available(const char *name)
+{
+    return !strstr(name, ".inproc.") || android_get_device_api_level() >= INPROC_MIN_API_LEVEL;
 }
 
 /* OMX names are aliases of the platform Codec2 decoders */
@@ -768,6 +776,8 @@ static int open_codec(struct nmdi_mediacodec *s)
         return create_codec(s, NULL);
 
     for (size_t i = 0; i < FF_ARRAY_ELEMS(s->desc->sw_names) && s->desc->sw_names[i]; i++) {
+        if (!is_decoder_available(s->desc->sw_names[i]))
+            continue;
         const int ret = create_codec(s, s->desc->sw_names[i]);
         if (ret != AVERROR_DECODER_NOT_FOUND)
             return ret;
