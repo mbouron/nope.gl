@@ -203,6 +203,7 @@ if get_option('tests')
     'image',
     'image_seek',
     'loop',
+    'loop_audio_filters',
     'loop_bounds',
     'loop_filters',
     'misc_events',
@@ -215,7 +216,7 @@ if get_option('tests')
   ]
 
   # Tests sharing playback helpers
-  playback_tests = ['loop', 'loop_filters', 'seek']
+  playback_tests = ['loop', 'loop_audio_filters', 'loop_filters', 'seek']
 
   executables = {}
   foreach exe_name : exe_names
@@ -257,6 +258,7 @@ if get_option('tests')
     'Image Seek':                         {'test': 'image_seek',        'args': [image]},
     'Image':                              {'test': 'image',             'args': [image]},
     'Loop audio':                         {'test': 'loop',              'args': [media, 'audio']},
+    'Loop audio filters':                 {'test': 'loop_audio_filters', 'args': [media]},
     'Loop bounds':                        {'test': 'loop_bounds',       'args': [media]},
     'Loop filters':                       {'test': 'loop_filters',      'args': [h264], 'timeout': 30},
     'Loop H.264':                         {'test': 'loop',              'args': [h264, 'video']},

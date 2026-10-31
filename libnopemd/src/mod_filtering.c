@@ -24,9 +24,11 @@
 #include <libavformat/avformat.h>
 #include <libavutil/avstring.h>
 #include <libavutil/channel_layout.h>
+#include <libavutil/fifo.h>
 #include <libavutil/frame.h>
 #include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/samplefmt.h>
 #include <libavutil/timestamp.h>
 #include <libavutil/tx.h>
 
@@ -57,6 +59,34 @@ static void reset_frame_info(struct frame_info *frame_info)
     av_channel_layout_uninit(&frame_info->channel_layout);
 }
 
+/*
+ * Track pass boundaries until buffered output reaches them.
+ * Sample indices count from the graph's first input sample.
+ */
+struct pass_marker {
+    int64_t pass_number;
+    int64_t sample_index;
+    int64_t sample_pts;
+    int64_t sample_pts_offset;
+    int forward;
+};
+
+struct filtering_io {
+    int64_t pass_number;
+    int64_t pts_offset;
+    int64_t end_pts;
+    int64_t sample_count;
+    int has_frame;
+};
+
+static void reset_filtering_io(struct filtering_io *io, int64_t pass_number)
+{
+    *io = (struct filtering_io){
+        .pass_number = pass_number,
+        .end_pts     = AV_NOPTS_VALUE,
+    };
+}
+
 struct filtering_ctx {
     void *log_ctx;
 
@@ -73,11 +103,19 @@ struct filtering_ctx {
     AVFilterGraph *filter_graph;
     struct frame_info frame_info;
     struct nmdi_loop *loop;
-    int64_t pass_number;                    // pass number of the frames in the graph
-    int pass_has_frame;                     // at least one filtered frame was sent for this pass
 
-    AVFilterContext *buffersink_ctx;        // sink of the graph (from where we pull)
-    AVFilterContext *buffersrc_ctx;         // source of the graph (where we push)
+    int continuous_audio;                  // preserve audio filter state across passes
+
+    /* Filters may still output an earlier pass while receiving the next ones. */
+    struct filtering_io in;
+    int64_t in_pending_pass_number;         // pass awaiting its first frame; -1 if none
+
+    AVFifo *pass_markers;                   // pass boundaries not yet reached by output
+
+    struct filtering_io out;
+
+    AVFilterContext *buffersink_ctx;        // graph output
+    AVFilterContext *buffersrc_ctx;         // graph input
     float *window_func_lut;                 // audio window function lookup table
     AVTXContext *avtx;
     av_tx_fn avtx_func;
@@ -394,6 +432,14 @@ int nmdi_filtering_init(void *log_ctx,
             return AVERROR(ENOMEM);
     }
 
+    /* Audio textures need whole FFT windows, so they keep a graph per pass. */
+    if (ctx->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && !ctx->audio_texture) {
+        ctx->continuous_audio = 1;
+        ctx->pass_markers = av_fifo_alloc2(4, sizeof(struct pass_marker), AV_FIFO_FLAG_AUTO_GROW);
+        if (!ctx->pass_markers)
+            return AVERROR(ENOMEM);
+    }
+
     if (o->filters) {
         ctx->filters = av_strdup(o->filters);
         if (!ctx->filters)
@@ -413,6 +459,17 @@ int nmdi_filtering_init(void *log_ctx,
     return 0;
 }
 
+/* End timestamp in the stream time base, or AV_NOPTS_VALUE if unknown. */
+static int64_t get_frame_end(const struct filtering_ctx *ctx, const AVFrame *frame)
+{
+    if (frame->pts == AV_NOPTS_VALUE)
+        return AV_NOPTS_VALUE;
+
+    if (frame->nb_samples > 0 && frame->sample_rate > 0)
+        return frame->pts + av_rescale_q(frame->nb_samples, (AVRational){1, frame->sample_rate}, ctx->st_timebase);
+    return frame->duration > 0 ? frame->pts + frame->duration : AV_NOPTS_VALUE;
+}
+
 static int send_frame(struct filtering_ctx *ctx, AVFrame *frame)
 {
     int ret;
@@ -420,14 +477,19 @@ static int send_frame(struct filtering_ctx *ctx, AVFrame *frame)
         .type = MSG_FRAME,
         .frame.frame = frame,
     };
+    int64_t end_pts = get_frame_end(ctx, frame);
+    if (end_pts != AV_NOPTS_VALUE)
+        end_pts += ctx->out.pts_offset;
 
     TRACE(ctx, "sending filtered frame to the sink");
     ret = av_thread_message_queue_send(ctx->out_queue, &msg, 0);
     if (ret < 0) {
         if (ret != AVERROR_EOF && ret != AVERROR_EXIT)
             LOG(ctx, ERROR, "unable to send frame: %s", av_err2str(ret));
-    } else
-        ctx->pass_has_frame = 1;
+    } else {
+        ctx->out.has_frame = 1;
+        ctx->out.end_pts = FFMAX(ctx->out.end_pts, end_pts);
+    }
 
     return ret;
 }
@@ -442,6 +504,11 @@ static int push_frame(struct filtering_ctx *ctx, AVFrame *inframe)
     if (ret < 0) {
         LOG(ctx, ERROR, "unable to push frame into filtergraph: %s", av_err2str(ret));
         return ret;
+    }
+
+    if (inframe) {
+        ctx->in.has_frame = 1;
+        ctx->in.end_pts = FFMAX(ctx->in.end_pts, get_frame_end(ctx, inframe));
     }
 
     return 0;
@@ -484,9 +551,104 @@ static int pull_frame(struct filtering_ctx *ctx, AVFrame *outframe)
         av_free(audio_texture_frame);
     }
 
-    outframe->opaque = (void *)(intptr_t)ctx->pass_number;
+    outframe->opaque = (void *)(intptr_t)ctx->out.pass_number;
 
     return 0;
+}
+
+static AVFrame *copy_samples(const struct filtering_ctx *ctx, const AVFrame *src, int offset, int nb_samples)
+{
+    AVFrame *dst = av_frame_alloc();
+    if (!dst)
+        return NULL;
+    dst->format = src->format;
+    dst->sample_rate = src->sample_rate;
+    dst->nb_samples = nb_samples;
+    if (av_channel_layout_copy(&dst->ch_layout, &src->ch_layout) < 0 ||
+        av_frame_get_buffer(dst, 0) < 0 ||
+        av_frame_copy_props(dst, src) < 0) {
+        av_frame_free(&dst);
+        return NULL;
+    }
+    av_samples_copy(dst->extended_data, src->extended_data, 0, offset, nb_samples,
+                    src->ch_layout.nb_channels, src->format);
+    const AVRational sample_tb = {1, src->sample_rate};
+    dst->pts = src->pts + av_rescale_q(offset, sample_tb, ctx->st_timebase);
+    dst->duration = av_rescale_q(nb_samples, sample_tb, ctx->st_timebase);
+    return dst;
+}
+
+static int enter_pass(struct filtering_ctx *ctx, const struct pass_marker *marker)
+{
+    ctx->out.pass_number = marker->pass_number;
+    ctx->out.has_frame = 0;
+    ctx->out.pts_offset = marker->sample_pts_offset;
+    if (!marker->forward)
+        return 0;
+    struct message msg = {
+        .type = MSG_PASS,
+        .pass.number = marker->pass_number,
+    };
+    return av_thread_message_queue_send(ctx->out_queue, &msg, 0);
+}
+
+/*
+ * Filters can return a frame spanning several passes. Split it at each pass
+ * boundary and restore the media timestamps.
+ *
+ * Count samples because the stream time base may be coarser than one sample.
+ * Filters must preserve sample count, adjusted for the output sample rate.
+ */
+static int send_audio_frame(struct filtering_ctx *ctx, AVFrame *frame)
+{
+    struct pass_marker marker;
+    while (av_fifo_peek(ctx->pass_markers, &marker, 1, 0) >= 0) {
+        const int64_t start_sample = av_rescale(marker.sample_index, frame->sample_rate, ctx->frame_info.sample_rate);
+        const int64_t nb_samples = start_sample - ctx->out.sample_count;
+        if (nb_samples >= frame->nb_samples)
+            break;
+
+        if (nb_samples > 0) {
+            AVFrame *head = copy_samples(ctx, frame, 0, nb_samples);
+            AVFrame *tail = copy_samples(ctx, frame, nb_samples, frame->nb_samples - nb_samples);
+            if (!head || !tail) {
+                av_frame_free(&head);
+                av_frame_free(&tail);
+                return AVERROR(ENOMEM);
+            }
+            head->pts -= ctx->out.pts_offset;
+            head->opaque = (void *)(intptr_t)ctx->out.pass_number;
+            int ret = send_frame(ctx, head);
+            if (ret < 0) {
+                av_frame_free(&head);
+                av_frame_free(&tail);
+                return ret;
+            }
+            ctx->out.sample_count += nb_samples;
+            tail->pts = marker.sample_pts;
+            av_frame_unref(frame);
+            av_frame_move_ref(frame, tail);
+            av_frame_free(&tail);
+        }
+
+        av_fifo_drain2(ctx->pass_markers, 1);
+        if (ctx->out.pass_number && !ctx->out.has_frame && nmdi_loop_report_empty_pass(ctx->loop, ctx->out.pass_number)) {
+            LOG(ctx, WARNING, "No filtered frame in the loop range, ending playback");
+            avfilter_graph_free(&ctx->filter_graph);
+            return AVERROR_EOF;
+        }
+        int ret = enter_pass(ctx, &marker);
+        if (ret < 0)
+            return ret;
+    }
+
+    frame->pts -= ctx->out.pts_offset;
+    frame->opaque = (void *)(intptr_t)ctx->out.pass_number;
+    const int64_t nb_samples = frame->nb_samples;
+    const int ret = send_frame(ctx, frame);
+    if (ret >= 0)
+        ctx->out.sample_count += nb_samples;
+    return ret;
 }
 
 static int pull_send_frame(struct filtering_ctx *ctx)
@@ -504,7 +666,7 @@ static int pull_send_frame(struct filtering_ctx *ctx)
         return ret;
     }
 
-    ret = send_frame(ctx, filtered_frame);
+    ret = ctx->continuous_audio ? send_audio_frame(ctx, filtered_frame) : send_frame(ctx, filtered_frame);
     if (ret < 0) {
         av_frame_free(&filtered_frame);
         return ret;
@@ -527,14 +689,6 @@ static int check_playback_end(struct filtering_ctx *ctx, const AVFrame *frame)
 
 static int flush_frames(struct filtering_ctx *ctx);
 
-/*
- * User filters and audio filters can buffer frames and state. Drain them and
- * rebuild the graph before feeding the next repetition, whose timestamps
- * start over. Plain video conversion can reuse its graph because it has no
- * buffered frames.
- *
- * Return AVERROR_EOF to end playback when the pass left had no frame.
- */
 static int start_pass(struct filtering_ctx *ctx, int64_t pass)
 {
     if (ctx->filters || ctx->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
@@ -544,16 +698,13 @@ static int start_pass(struct filtering_ctx *ctx, int64_t pass)
         avfilter_graph_free(&ctx->filter_graph);
         reset_frame_info(&ctx->frame_info);
     }
-    /*
-     * A seek can skip all output in pass 0. Only stop after a full
-     * repetition produces no frames, or we could discard a valid loop.
-     */
-    if (ctx->pass_number && !ctx->pass_has_frame && nmdi_loop_report_empty_pass(ctx->loop, ctx->pass_number)) {
+    /* Pass 0 can be empty after a seek; only stop after an empty full pass. */
+    if (ctx->out.pass_number && !ctx->out.has_frame && nmdi_loop_report_empty_pass(ctx->loop, ctx->out.pass_number)) {
         LOG(ctx, WARNING, "No filtered frame in the loop range, ending playback");
         return AVERROR_EOF;
     }
-    ctx->pass_number = pass;
-    ctx->pass_has_frame = 0;
+    reset_filtering_io(&ctx->in, pass);
+    reset_filtering_io(&ctx->out, pass);
     return 0;
 }
 
@@ -578,6 +729,102 @@ static int flush_frames(struct filtering_ctx *ctx)
     return ret;
 }
 
+static void reset_audio_timeline(struct filtering_ctx *ctx)
+{
+    reset_filtering_io(&ctx->in, ctx->out.pass_number);
+    ctx->in_pending_pass_number = -1;
+    ctx->out.pts_offset = 0;
+    ctx->out.end_pts = AV_NOPTS_VALUE;
+    ctx->out.sample_count = 0;
+    av_fifo_reset2(ctx->pass_markers);
+}
+
+static int start_audio_pass(struct filtering_ctx *ctx, int64_t pass, int64_t offset, int forward)
+{
+    const struct pass_marker marker = {
+        .pass_number       = pass,
+        .sample_index      = ctx->in.sample_count,
+        .sample_pts        = ctx->in.end_pts,
+        .sample_pts_offset = offset,
+        .forward           = forward,
+    };
+    ctx->in.pass_number = pass;
+    ctx->in.pts_offset = offset;
+    ctx->in.has_frame = 0;
+    return av_fifo_write(ctx->pass_markers, &marker, 1);
+}
+
+static int announce_audio_pass(struct filtering_ctx *ctx, int64_t pass)
+{
+    if (ctx->in_pending_pass_number >= 0) {
+        int ret = start_audio_pass(ctx, ctx->in_pending_pass_number, ctx->in.pts_offset, 1);
+        if (ret < 0)
+            return ret;
+    }
+    ctx->in_pending_pass_number = pass;
+    return 0;
+}
+
+static int forward_audio_passes(struct filtering_ctx *ctx, int announced)
+{
+    if (announced && ctx->in_pending_pass_number >= 0) {
+        int ret = start_audio_pass(ctx, ctx->in_pending_pass_number, ctx->in.pts_offset, 1);
+        if (ret < 0)
+            return ret;
+        ctx->in_pending_pass_number = -1;
+    }
+    struct pass_marker marker;
+    while (av_fifo_read(ctx->pass_markers, &marker, 1) >= 0) {
+        int ret = enter_pass(ctx, &marker);
+        if (ret < 0)
+            return ret;
+    }
+    return 0;
+}
+
+/*
+ * Keep the audio graph across passes to avoid refilling filter buffers at
+ * every loop boundary, which can stall playback.
+ *
+ * Offset input timestamps so each pass follows the previous one in the graph.
+ * send_audio_frame() splits output at pass boundaries and restores media time.
+ *
+ *   media      |----[==== loop ====)----|
+ *   pushed     |pass 0 ---------------)[pass 1 ------------)[pass 2 ------- ...
+ *   offset      0                       in.end_pts - frame->pts
+ */
+static int push_audio_frame(struct filtering_ctx *ctx, AVFrame *frame)
+{
+    int ret = 0;
+    const int64_t pass = (intptr_t)frame->opaque;
+    if (pass != ctx->in.pass_number) {
+        if (ctx->in_pending_pass_number >= 0 && ctx->in_pending_pass_number != pass)
+            ret = start_audio_pass(ctx, ctx->in_pending_pass_number, ctx->in.pts_offset, 1);
+        if (ret >= 0) {
+            const int64_t offset = ctx->in.end_pts == AV_NOPTS_VALUE ? 0 : ctx->in.end_pts - frame->pts;
+            ret = start_audio_pass(ctx, pass, offset, ctx->in_pending_pass_number == pass);
+        }
+        ctx->in_pending_pass_number = -1;
+        if (ret < 0) {
+            av_frame_free(&frame);
+            return ret;
+        }
+    }
+
+    frame->pts += ctx->in.pts_offset;
+    ctx->in.sample_count += frame->nb_samples;
+
+    ret = push_frame(ctx, frame);
+    av_frame_free(&frame);
+    if (ret < 0)
+        return ret;
+
+    do {
+        ret = pull_send_frame(ctx);
+    } while (ret >= 0);
+    return ret == AVERROR(EAGAIN) ? 0 : ret;
+}
+
 void nmdi_filtering_run(struct filtering_ctx *ctx)
 {
     int ret;
@@ -585,10 +832,12 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
 
     TRACE(ctx, "filtering packets from %p into %p", ctx->in_queue, ctx->out_queue);
 
-    // we want to force the reconstruction of the filtergraph
+    /* Rebuild the graph for the first frame after a restart. */
     reset_frame_info(&ctx->frame_info);
-    ctx->pass_number = 0;
-    ctx->pass_has_frame = 0;
+    reset_filtering_io(&ctx->in, 0);
+    reset_filtering_io(&ctx->out, 0);
+    if (ctx->continuous_audio)
+        reset_audio_timeline(ctx);
 
     for (;;) {
         AVFrame *frame;
@@ -606,8 +855,10 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             TRACE(ctx, "message is a seek, destroy filtergraph and forward message to out queue");
             avfilter_graph_free(&ctx->filter_graph);
             reset_frame_info(&ctx->frame_info);
-            ctx->pass_number = 0;
-            ctx->pass_has_frame = 0;
+            reset_filtering_io(&ctx->in, 0);
+            reset_filtering_io(&ctx->out, 0);
+            if (ctx->continuous_audio)
+                reset_audio_timeline(ctx);
             av_thread_message_flush(ctx->out_queue);
             ret = av_thread_message_queue_send(ctx->out_queue, &msg, 0);
             if (ret < 0)
@@ -615,7 +866,14 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             continue;
         }
 
-        /* Drain the previous pass before forwarding the boundary. */
+        if (msg.type == MSG_PASS && ctx->continuous_audio) {
+            ret = announce_audio_pass(ctx, msg.pass.number);
+            if (ret < 0)
+                break;
+            continue;
+        }
+
+        /* The boundary must follow all frames from the previous pass. */
         if (msg.type == MSG_PASS) {
             ret = start_pass(ctx, msg.pass.number);
             if (ret < 0)
@@ -634,7 +892,7 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
                                                               : av_get_sample_fmt_name(frame->format),
               av_ts2timestr(frame->pts, &ctx->st_timebase));
 
-        if ((intptr_t)frame->opaque != ctx->pass_number) {
+        if (!ctx->continuous_audio && (intptr_t)frame->opaque != ctx->out.pass_number) {
             ret = start_pass(ctx, (intptr_t)frame->opaque);
             if (ret < 0) {
                 av_frame_free(&frame);
@@ -642,7 +900,6 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             }
         }
 
-        /* lazy filtergraph configuration, see AVBufferSrcParameters for exhaustive list of frame properties */
         struct frame_info *frame_info = &ctx->frame_info;
         if (frame_info->format != frame->format ||
             frame_info->width != frame->width ||
@@ -658,6 +915,15 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             ret = setup_filtergraph(ctx);
             if (ret < 0)
                 break;
+
+            if (ctx->continuous_audio) {
+                ret = forward_audio_passes(ctx, 0);
+                if (ret < 0)
+                    break;
+                const int64_t in_pending_pass_number = ctx->in_pending_pass_number;
+                reset_audio_timeline(ctx);
+                ctx->in_pending_pass_number = in_pending_pass_number;
+            }
         }
 
         // TODO: replace with a trim filter in libavfilter (check if hw accelerated
@@ -669,16 +935,22 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
         } else if (check_playback_end(ctx, frame)) {
             av_frame_free(&frame);
             TRACE(ctx, "reached trim duration");
-            ret = AVERROR_EXIT; // not EOF because we do not want to flush the frames
+            ret = AVERROR_EXIT; // skip draining at the playback end
             break;
         }
 
-        if (!ctx->filter_graph) {
+        if (ctx->continuous_audio && ctx->filter_graph) {
+            ret = push_audio_frame(ctx, frame);
+            if (ret < 0)
+                break;
+        } else if (!ctx->filter_graph) {
             ret = send_frame(ctx, frame);
             if (ret < 0) {
                 av_frame_free(&frame);
                 break;
             }
+            ctx->in.has_frame = 1;
+            ctx->in.end_pts = ctx->out.end_pts;
         } else {
             ret = push_frame(ctx, frame);
             av_frame_free(&frame);
@@ -691,9 +963,14 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
         }
     }
 
-    /* Fetch remaining frames */
-    if (ret == AVERROR_EOF)
+    if (ret == AVERROR_EOF) {
         ret = flush_frames(ctx);
+        if (ctx->continuous_audio && ret == AVERROR_EOF) {
+            const int err = forward_audio_passes(ctx, 1);
+            if (err < 0)
+                ret = err;
+        }
+    }
 
     if (ret < 0 && ret != AVERROR_EOF) {
         in_err = out_err = ret;
@@ -722,6 +999,7 @@ void nmdi_filtering_free(struct filtering_ctx **fp)
         av_tx_uninit(&ctx->avtx);
     }
     avfilter_graph_free(&ctx->filter_graph);
+    av_fifo_freep2(&ctx->pass_markers);
     avcodec_parameters_free(&ctx->codecpar);
     av_freep(&ctx->filters);
     reset_frame_info(&ctx->frame_info);

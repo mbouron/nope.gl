@@ -33,6 +33,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   surface to the decoder through the `opaque` option is no longer supported.
 - `libnopemd` decodes AAC with the in-process platform decoder of Android 17
    and later, without a call to the codec process for each buffer
+- `libnopemd` preserves audio filter state across loop repetitions, reducing
+  decoding bursts and audio playback stalls caused by refilling filter buffers
+  at each loop boundary
 
 ### Fixed
 - Incorrect `ColorStats` histograms with OpenGL ES on Mali GPUs
