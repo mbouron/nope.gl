@@ -13,7 +13,7 @@ on:
 jobs:
   android-build:
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -27,20 +27,8 @@ jobs:
         sudo apt -y update
         sudo apt -y install ninja-build nasm
 
-    - name: Build
-      run: |
-        ./configure.py --buildtype debug --debug-opts gl vk --host Android --host-arch ${{ matrix.arch }}
-        make -f Makefile.Android.${{ matrix.arch }}
-        . venv/bin/ngli-activate
-        meson test -C builddir/Android/${{ matrix.arch }}/libnopegl
-
-  android-binding:
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v4
-
     - name: Setup Java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: 17
@@ -49,6 +37,37 @@ jobs:
       uses: android-actions/setup-android@v3
       with:
         packages: platform-tools
+
+    - name: Install NDK
+      run: sdkmanager --install "ndk;28.1.13356709"
+
+    - name: Build
+      run: |
+        ./configure.py --buildtype debug --debug-opts gl vk --host Android --host-arch ${{ matrix.arch }}
+        make -f Makefile.Android.${{ matrix.arch }}
+        . venv/bin/ngli-activate
+        meson test -C builddir/Android/${{ matrix.arch }}/libnopegl
+      env:
+        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/28.1.13356709
+
+  android-binding:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: 17
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        packages: platform-tools
+
+    - name: Install NDK
+      run: sdkmanager --install "ndk;28.1.13356709"
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
@@ -63,3 +82,5 @@ jobs:
     - name: Build
       run: |
         android/build.sh
+      env:
+        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/28.1.13356709
