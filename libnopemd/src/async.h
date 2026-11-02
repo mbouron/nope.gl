@@ -42,13 +42,14 @@ int nmdi_async_start(struct async_context *actx);
 
 int nmdi_async_fetch_info(struct async_context *actx, struct nmd_info *info);
 
-int nmdi_async_get_pass_timeline(struct async_context *actx, struct nmdi_pass_timeline *timeline);
-
+/* Loop range and pass history. */
 int64_t nmdi_async_set_loop(struct async_context *actx, int64_t start, int64_t end);
-int64_t nmdi_async_get_pass_loop_rev(struct async_context *actx, int64_t pass);
-int64_t nmdi_async_get_pass_end(struct async_context *actx, int64_t pass);
-int64_t nmdi_async_get_ended_loop_rev(struct async_context *actx);
-void nmdi_async_release_passes(struct async_context *actx, int64_t pass);
+int nmdi_async_get_pass(struct async_context *actx, int64_t pass_number, struct nmdi_pass *dst);
+void nmdi_async_release_pass_history(struct async_context *actx, int64_t pass_number);
+
+int nmdi_async_get_empty_pass(struct async_context *actx, struct nmdi_pass *dst);
+
+int nmdi_async_get_pass_timeline(struct async_context *actx, struct nmdi_pass_timeline *timeline);
 
 int nmdi_async_seek(struct async_context *actx, int64_t ts);
 

@@ -57,7 +57,7 @@ struct demuxing_ctx {
     struct nmdi_pass_timeline timeline;
     int nal_length_size;            // H.264/HEVC NAL unit length size, 0 for Annex B
     int64_t seek_rev;               // revision of pass numbering, copied from the shared loop state
-    int64_t pass;                   // loop pass of the packets read
+    int64_t pass_number;            // loop pass number of the packets read
     int64_t pass_start;             // requested start of the pass, in stream ticks without the pass offset
     int64_t pass_end;               // exclusive end sent for the pass, in stream ticks; `INT64_MAX` if none
     int pass_pending;               // send the pass description before its first packet
@@ -331,7 +331,7 @@ static int seek(struct demuxing_ctx *ctx, int64_t ts)
 
 static void reset_pass(struct demuxing_ctx *ctx, int64_t start)
 {
-    ctx->pass = 0;
+    ctx->pass_number = 0;
     ctx->pass_start = start;
     ctx->pass_end = INT64_MAX;
     ctx->pass_pending = 0;
@@ -353,7 +353,7 @@ static void get_loop(struct demuxing_ctx *ctx, int64_t *start_us, int64_t *start
     nmdi_loop_get(ctx->loop, &loop_start, &loop_end, loop_rev);
 
     const struct nmdi_pass_timeline *timeline = &ctx->timeline;
-    if (!timeline->stride || ctx->pass >= timeline->max_pass)
+    if (!timeline->stride || ctx->pass_number >= timeline->max_pass)
         return;
 
     if (loop_end == AV_NOPTS_VALUE)
@@ -383,11 +383,11 @@ static int send_pass(struct demuxing_ctx *ctx, int64_t start, int64_t end, int r
     if (!pass_msg)
         return AVERROR(ENOMEM);
     *pass_msg = (struct nmdi_pass_msg){
-        .seek_rev = ctx->seek_rev,
-        .pass     = ctx->pass,
-        .start    = start,
-        .end      = end,
-        .reset    = reset,
+        .seek_rev    = ctx->seek_rev,
+        .pass_number = ctx->pass_number,
+        .start       = start,
+        .end         = end,
+        .reset       = reset,
     };
 
     struct message msg = {.type = MSG_LOOP, .data = pass_msg};
@@ -428,11 +428,11 @@ static int start_next_pass(struct demuxing_ctx *ctx, int64_t start_us, int64_t s
         return ret;
     }
 
-    ctx->pass++;
+    ctx->pass_number++;
     ctx->pass_start = start;
     ctx->pass_pending = 1;
     ctx->pass_has_candidate_packet = 0;
-    return nmdi_loop_start_pass(ctx->loop, ctx->pass, loop_rev, prev_end);
+    return nmdi_loop_start_pass(ctx->loop, ctx->pass_number, loop_rev, prev_end);
 }
 
 /* Type of the first VCL NAL unit of an H.264 or HEVC packet, -1 if none */
@@ -577,8 +577,8 @@ static int read_packet(struct demuxing_ctx *ctx, AVPacket *pkt)
                 return ret;
         }
 
-        if (ctx->pass) {
-            const int64_t offset = ctx->pass * ctx->timeline.stride;
+        if (ctx->pass_number) {
+            const int64_t offset = ctx->pass_number * ctx->timeline.stride;
             if (pkt->pts != AV_NOPTS_VALUE)
                 pkt->pts += offset;
             if (pkt->dts != AV_NOPTS_VALUE)

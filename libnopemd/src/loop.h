@@ -32,24 +32,38 @@
  *   pass 1           [--------------------)
  *   pass 2           [--------------------)  ...
  *
- * Each record keeps the range revision and cutoff timestamps for one pass,
+ * Each pass keeps its range revision and cutoff timestamps,
  * so the API can check whether queued frames still cover a request after a
  * range change. The `end` and `drop` timestamps use the stream time base,
  * without the pass offset described in `nmdi_pass_timeline`.
  */
-struct nmdi_pass_record {
-    int64_t pass;     // pass number since startup or the most recent regular seek
+struct nmdi_pass {
+    int64_t number;   // pass number since startup or the most recent regular seek
     int64_t loop_rev; // revision of the loop range used to start this pass; -1 for pass 0
-    // Decode timestamp of the first packet not sent: `AV_NOPTS_VALUE` until the pass ends, `INT64_MAX` at EOF.
-    int64_t end;
+    int64_t end;      // decode timestamp of the first packet not sent; `AV_NOPTS_VALUE` if unknown, `INT64_MAX` at EOF
     int64_t drop;     // earliest presentation timestamp dropped at or after the pass end; `INT64_MAX` if none
 };
 
+/**
+ * Check whether a pass ends after a timestamp.
+ *
+ * For a completed pass, the effective end is the earlier of the first packet
+ * not sent and the earliest frame dropped. If the end is unknown, or the pass
+ * reached EOF without dropped frames, use INT64_MAX.
+ *
+ * @param pass  pass information
+ * @param ts    timestamp in the stream time base, without the pass offset
+ *
+ * @return 1 if ts is strictly before the effective end, 0 otherwise
+ */
+int nmdi_pass_ends_after(const struct nmdi_pass *pass, int64_t ts);
+
 /*
- * Shared loop settings and pass records, protected by `lock`. The API sets
- * `start` and `end` in media time, in microseconds. The demuxer records each
- * pass it starts, and the decoder records frames dropped at the pass end.
- * The API removes old records as it returns frames from later passes.
+ * Shared loop settings and pass information, protected by `lock`. The API sets
+ * `loop_start` and `loop_end` in media time, in microseconds. The demuxer
+ * records each pass it starts, and the decoder records frames dropped at
+ * the pass end.
+ * The API removes old passes as it returns frames from later passes.
  *
  * `loop_rev` advances when the requested range changes. Each pass remembers
  * the revision it started with, since queued frames may still belong to an
@@ -57,12 +71,13 @@ struct nmdi_pass_record {
  *
  * `seek_rev` advances when pass numbering restarts at 0, at startup or after
  * a regular seek. The decoder can still report dropped frames from before
- * the seek; their old revision prevents them from changing the new records.
+ * the seek; their old revision prevents them from changing the new passes.
  * An internal loop seek only advances the pass number.
  *
- * `ended_loop_rev` records the range revision that stopped playback because
- * a full pass produced no filtered frames. If the range changes, the API
- * seeks on the next frame request to try again with the new range.
+ * `empty_pass` keeps a snapshot of the full pass that stopped playback with
+ * no filtered frames. It survives removal of old passes and is cleared when
+ * pass numbering resets. If the range changes, the API compares its revision
+ * with the snapshot and seeks on the next frame request to try again.
  *
  * Several passes can be queued ahead of the frame currently being shown:
  *
@@ -72,32 +87,52 @@ struct nmdi_pass_record {
  *   `passes`  [ 4 | 5 | 6 | 7 ]
  *               ^           ^
  *               |           `nmdi_loop_start_pass()` at each wrap
- *               `nmdi_loop_release_passes()` as frames are shown
+ *               `nmdi_loop_release_pass_history()` as frames are shown
  */
 struct nmdi_loop {
     pthread_mutex_t lock;
-    int64_t start;
-    int64_t end;            // exclusive loop end; `AV_NOPTS_VALUE` when looping is disabled
+    int64_t loop_start;
+    int64_t loop_end;       // exclusive loop end; `AV_NOPTS_VALUE` when looping is disabled
     int64_t loop_rev;       // revision of the requested range; incremented on each change
     int64_t seek_rev;       // revision of pass numbering; incremented whenever it restarts at 0
-    int64_t ended_loop_rev; // range revision that produced a full pass with no filtered frames; -1 if none
-    struct nmdi_pass_record *passes; // consecutive passes still needed by the API
-    size_t nb_passes;                // number of retained records in `passes`
-    size_t passes_size;              // allocated capacity of `passes`, in records
+    struct nmdi_pass empty_pass; // pass that stopped playback with no filtered frames; `loop_rev` is -1 if none
+    struct nmdi_pass *passes; // consecutive passes still needed by the API
+    size_t passes_count;      // number of retained passes
+    size_t passes_capacity;   // allocated capacity of `passes`, in entries
 };
 
+/* Loop state lifetime. */
 int nmdi_loop_init(struct nmdi_loop *s);
+void nmdi_loop_uninit(struct nmdi_loop *s);
+
+/* Requested loop range. */
 int64_t nmdi_loop_set(struct nmdi_loop *s, int64_t start, int64_t end);
 void nmdi_loop_get(struct nmdi_loop *s, int64_t *start, int64_t *end, int64_t *loop_rev);
+int64_t nmdi_loop_stream_end(int64_t end, int64_t end_time, AVRational time_base);
+
+/* Pass history. */
 int64_t nmdi_loop_reset_passes(struct nmdi_loop *s);
-int nmdi_loop_start_pass(struct nmdi_loop *s, int64_t pass, int64_t loop_rev, int64_t prev_end);
-void nmdi_loop_drop_frame(struct nmdi_loop *s, int64_t seek_rev, int64_t pass, int64_t ts);
-int64_t nmdi_loop_get_pass_loop_rev(struct nmdi_loop *s, int64_t pass);
-int64_t nmdi_loop_get_pass_end(struct nmdi_loop *s, int64_t pass);
-int nmdi_loop_end_empty_pass(struct nmdi_loop *s, int64_t pass);
-int64_t nmdi_loop_get_ended_loop_rev(struct nmdi_loop *s);
-void nmdi_loop_release_passes(struct nmdi_loop *s, int64_t pass);
-void nmdi_loop_uninit(struct nmdi_loop *s);
+int nmdi_loop_start_pass(struct nmdi_loop *s, int64_t pass_number, int64_t loop_rev, int64_t prev_end);
+void nmdi_loop_drop_frame(struct nmdi_loop *s, int64_t seek_rev, int64_t pass_number, int64_t ts);
+int nmdi_loop_get_pass(struct nmdi_loop *s, int64_t pass_number, struct nmdi_pass *dst);
+void nmdi_loop_release_pass_history(struct nmdi_loop *s, int64_t pass_number);
+
+/* Empty-pass reporting. */
+int nmdi_loop_report_empty_pass(struct nmdi_loop *s, int64_t pass_number);
+
+/**
+ * Get the pass that stopped playback with no filtered frames.
+ *
+ * Copy the snapshot recorded when the empty pass was reported. If the pass
+ * was no longer retained, the snapshot uses the reported number and current
+ * loop revision, with end set to AV_NOPTS_VALUE and drop to INT64_MAX.
+ *
+ * @param s    loop state
+ * @param dst  destination for the pass snapshot; unchanged if none is recorded
+ *
+ * @return 1 if a snapshot was copied, 0 otherwise
+ */
+int nmdi_loop_get_empty_pass(struct nmdi_loop *s, struct nmdi_pass *dst);
 
 /*
  * Give each pass its own interval of timestamps through the decoder. The
@@ -123,8 +158,6 @@ struct nmdi_pass_timeline {
     int64_t end;      // probed end of the media
 };
 
-int64_t nmdi_loop_stream_end(int64_t end, int64_t end_time, AVRational time_base);
-
 void nmdi_pass_timeline_init(struct nmdi_pass_timeline *s, const AVStream *st, int64_t duration);
 int64_t nmdi_pass_from_timestamp(const struct nmdi_pass_timeline *s, int64_t ts);
 
@@ -138,10 +171,10 @@ int64_t nmdi_pass_from_timestamp(const struct nmdi_pass_timeline *s, int64_t ts)
  * subsequent packets.
  */
 struct nmdi_pass_msg {
-    int64_t seek_rev; // revision of pass numbering when this message was sent
-    int64_t pass;     // pass number within `seek_rev`
-    int64_t start;    // requested playback start for this pass; `AV_NOPTS_VALUE` if unset
-    int64_t end;      // discard frames at or after this timestamp; `INT64_MAX` if no cutoff
+    int64_t seek_rev;    // revision of pass numbering when this message was sent
+    int64_t pass_number; // pass number within `seek_rev`
+    int64_t start;       // requested playback start for this pass; `AV_NOPTS_VALUE` if unset
+    int64_t end;         // discard frames at or after this timestamp; `INT64_MAX` if no cutoff
     int reset;
 };
 
