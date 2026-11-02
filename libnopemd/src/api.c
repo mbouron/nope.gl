@@ -788,6 +788,31 @@ end:
     return averror_to_nmd_err(ret);
 }
 
+/*
+ * Clamp time boundaries to max_time so TIME2INT64() can convert them safely to
+ * int64_t microseconds.
+ *
+ * TIME2INT64() does no range checking: it multiplies the input by
+ * AV_TIME_BASE in double precision, then calls llrint(), thus, we must
+ * ensure that the result of time * AV_TIME_BASE is less than 1 << 63 after
+ * floating-point rounding. 1 << 63 can be represented as a double but not
+ * as an int64_t.
+ *
+ * Round down INT64_MAX to whole seconds, leaving INT64_MAX % AV_TIME_BASE
+ * = 775807 microseconds below INT64_MAX. Then round the result while
+ * converting the value to double. This final step can add up to 1024 [1]
+ * microseconds, which is fine (as it is less than the headroom we picked
+ * earlier).
+ *
+ * [1] The 1024 bound is one step between adjacent doubles just below 2^63:
+ * 64-bit IEEE 754 doubles have 52 fraction bits, so values in [2^62, 2^63)
+ * are separated by 2^(62 - 52) = 1024 microseconds.
+ *
+ * Later additions of the start_time offset use saturation to avoid overflow.
+ */
+static constexpr int64_t max_seconds = INT64_MAX / AV_TIME_BASE;
+static constexpr double max_time = (double)max_seconds;
+
 int nmd_set_loop_range(struct nmd_ctx *s, double start, double end)
 {
     START_FUNC("SET LOOP");
@@ -799,30 +824,6 @@ int nmd_set_loop_range(struct nmd_ctx *s, double start, double end)
         goto end;
     }
 
-    /*
-     * Clamp the loop boundaries here so TIME2INT64() can convert them safely
-     * to int64_t microseconds.
-     *
-     * TIME2INT64() does no range checking: it multiplies the input by
-     * AV_TIME_BASE in double precision, then calls llrint(), thus, we must
-     * ensure that the result of time * AV_TIME_BASE is less than 1 << 63 after
-     * floating-point rounding. 1 << 63 can be represented as a double but not
-     * as an int64_t.
-     *
-     * Round down INT64_MAX to whole seconds, leaving INT64_MAX % AV_TIME_BASE
-     * = 775807 microseconds below INT64_MAX. Then round the result while
-     * converting the value to double. This final step can add up to 1024 [1]
-     * microseconds, which is fine (as it is less than the headroom we picked
-     * earlier).
-     *
-     * [1] The 1024 bound is one step between adjacent doubles just below 2^63:
-     * 64-bit IEEE 754 doubles have 52 fraction bits, so values in [2^62, 2^63)
-     * are separated by 2^(62 - 52) = 1024 microseconds.
-     *
-     * Later additions of the start_time offset use saturation to avoid overflow.
-     */
-    const int64_t max_seconds = INT64_MAX / AV_TIME_BASE;
-    const double max_time = (double)max_seconds;
     s->loop_start = av_clipd(start, 0.0, max_time);
     s->loop_end = av_clipd(end, 0.0, max_time);
 
