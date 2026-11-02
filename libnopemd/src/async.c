@@ -181,6 +181,26 @@ int nmdi_async_fetch_info(struct async_context *actx, struct nmd_info *info)
     return 0;
 }
 
+int64_t nmdi_async_set_loop(struct async_context *actx, int64_t start, int64_t end)
+{
+    return nmdi_loop_set(&actx->loop, start, end);
+}
+
+int nmdi_async_get_pass(struct async_context *actx, int64_t pass_number, struct nmdi_pass *dst)
+{
+    return nmdi_loop_get_pass(&actx->loop, pass_number, dst);
+}
+
+void nmdi_async_release_pass_history(struct async_context *actx, int64_t pass_number)
+{
+    nmdi_loop_release_pass_history(&actx->loop, pass_number);
+}
+
+int nmdi_async_get_empty_pass(struct async_context *actx, struct nmdi_pass *dst)
+{
+    return nmdi_loop_get_empty_pass(&actx->loop, dst);
+}
+
 int nmdi_async_get_pass_timeline(struct async_context *actx, struct nmdi_pass_timeline *timeline)
 {
     int ret = fetch_mod_info(actx);
@@ -188,31 +208,6 @@ int nmdi_async_get_pass_timeline(struct async_context *actx, struct nmdi_pass_ti
         return ret;
     *timeline = actx->info.pass_timeline;
     return 0;
-}
-
-int64_t nmdi_async_set_loop(struct async_context *actx, int64_t start, int64_t end)
-{
-    return nmdi_loop_set(&actx->loop, start, end);
-}
-
-int64_t nmdi_async_get_pass_loop_rev(struct async_context *actx, int64_t pass)
-{
-    return nmdi_loop_get_pass_loop_rev(&actx->loop, pass);
-}
-
-int64_t nmdi_async_get_pass_end(struct async_context *actx, int64_t pass)
-{
-    return nmdi_loop_get_pass_end(&actx->loop, pass);
-}
-
-int64_t nmdi_async_get_ended_loop_rev(struct async_context *actx)
-{
-    return nmdi_loop_get_ended_loop_rev(&actx->loop);
-}
-
-void nmdi_async_release_passes(struct async_context *actx, int64_t pass)
-{
-    nmdi_loop_release_passes(&actx->loop, pass);
 }
 
 int nmdi_async_pop_frame(struct async_context *actx, AVFrame **framep)

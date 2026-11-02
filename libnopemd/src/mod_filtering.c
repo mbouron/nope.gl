@@ -74,7 +74,7 @@ struct filtering_ctx {
     AVFilterGraph *filter_graph;
     struct frame_info frame_info;
     struct nmdi_loop *loop;
-    intptr_t pass;                          // pass number of the frames in the graph
+    intptr_t pass_number;                   // pass number of the frames in the graph
     int pass_has_frame;                     // at least one filtered frame was sent for this pass
 
     AVFilterContext *buffersink_ctx;        // sink of the graph (from where we pull)
@@ -486,7 +486,7 @@ static int pull_frame(struct filtering_ctx *ctx, AVFrame *outframe)
         av_free(audio_texture_frame);
     }
 
-    outframe->opaque = (void *)ctx->pass;
+    outframe->opaque = (void *)ctx->pass_number;
 
     return 0;
 }
@@ -545,7 +545,7 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
 
     // we want to force the reconstruction of the filtergraph
     reset_frame_info(&ctx->frame_info);
-    ctx->pass = 0;
+    ctx->pass_number = 0;
     ctx->pass_has_frame = 0;
 
     for (;;) {
@@ -564,7 +564,7 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             TRACE(ctx, "message is a seek, destroy filtergraph and forward message to out queue");
             avfilter_graph_free(&ctx->filter_graph);
             reset_frame_info(&ctx->frame_info);
-            ctx->pass = 0;
+            ctx->pass_number = 0;
             ctx->pass_has_frame = 0;
             av_thread_message_flush(ctx->out_queue);
             ret = av_thread_message_queue_send(ctx->out_queue, &msg, 0);
@@ -589,7 +589,7 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
          * whose timestamps start over. Plain video conversion can reuse its
          * graph because it has no buffered frames.
          */
-        if ((intptr_t)frame->opaque != ctx->pass) {
+        if ((intptr_t)frame->opaque != ctx->pass_number) {
             if (ctx->filters || ctx->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
                 ret = flush_frames(ctx);
                 if (ret < 0 && ret != AVERROR_EOF) {
@@ -603,8 +603,8 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
              * A seek can skip all output in pass 0. Only stop after a full
              * repetition produces no frames, or we could discard a valid loop.
              */
-            if (ctx->pass && !ctx->pass_has_frame) {
-                const int end = nmdi_loop_end_empty_pass(ctx->loop, ctx->pass);
+            if (ctx->pass_number && !ctx->pass_has_frame) {
+                const int end = nmdi_loop_report_empty_pass(ctx->loop, ctx->pass_number);
                 if (end) {
                     LOG(ctx, WARNING, "No filtered frame in the loop range, ending playback");
                     av_frame_free(&frame);
@@ -612,7 +612,7 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
                     break;
                 }
             }
-            ctx->pass = (intptr_t)frame->opaque;
+            ctx->pass_number = (intptr_t)frame->opaque;
             ctx->pass_has_frame = 0;
         }
 
