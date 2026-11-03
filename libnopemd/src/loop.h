@@ -178,16 +178,16 @@ void nmdi_pass_timeline_init(struct nmdi_pass_timeline *s, const AVStream *st, i
 int64_t nmdi_pass_from_timestamp(const struct nmdi_pass_timeline *s, int64_t ts);
 
 /*
- * Message sent by the demuxer to the decoder before a pass's first packet,
- * or to update the current pass's end. The decoder retains these messages
- * while frames from their passes may still arrive.
+ * Information about a decoding pass. The demuxer sends it before the pass's
+ * first packet, or to update its end. The decoder retains this information
+ * while frames from the pass may still arrive.
  *
  * `start` and `end` use the stream time base without a pass offset. If `reset`
  * is set, output buffered frames and flush decoder state before accepting
  * subsequent packets.
  */
-struct nmdi_pass_msg {
-    int64_t seek_rev;    // revision of pass numbering when this message was sent
+struct nmdi_pass_info {
+    int64_t seek_rev;    // revision of pass numbering for this pass
     int64_t pass_number; // pass number within `seek_rev`
     int64_t start;       // requested playback start for this pass; `AV_NOPTS_VALUE` if unset
     int64_t end;         // discard frames at or after this timestamp; `INT64_MAX` if no cutoff

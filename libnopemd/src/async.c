@@ -37,14 +37,6 @@
 #include "mod_decoding.h"
 #include "mod_filtering.h"
 
-struct info_message {
-    int width, height;
-    int64_t duration;   // probed duration, `AV_NOPTS_VALUE` if unknown
-    int is_image;
-    AVRational timebase;
-    struct nmdi_pass_timeline pass_timeline;
-};
-
 struct async_context {
     void *log_ctx;
     const char *filename;
@@ -78,7 +70,8 @@ struct async_context {
     int64_t seek_target;    // latest accepted seek in media time, including the initial start_time seek
     int64_t pass_number;    // pass number from the latest MSG_PASS consumed from sink_queue; 0 if none
 
-    struct info_message info;
+    struct media_info info;
+    struct nmdi_pass_timeline pass_timeline;
     int has_info;
 
     int modules_initialized;
@@ -129,7 +122,6 @@ static int sync_control_thread(struct async_context *actx)
         int ret = send_wait_ctl_message(actx, &sync_msg);
         if (ret < 0)
             return ret;
-        av_assert0(!sync_msg.data);
         actx->need_sync = 0;
     } else {
         TRACE(actx, "no need to sync");
@@ -152,11 +144,11 @@ static int fetch_mod_info(struct async_context *actx)
     if (ret < 0)
         return ret;
     av_assert0(msg.type == MSG_INFO);
-    memcpy(&actx->info, msg.data, sizeof(actx->info));
+    actx->info = msg.info.info;
+    actx->pass_timeline = msg.info.pass_timeline;
     TRACE(actx, "info fetched: %dx%d duration=%s",
           actx->info.width, actx->info.height,
           PTS2TIMESTR(actx->info.duration));
-    nmdi_msg_free_data(&msg);
     actx->has_info = 1;
     return 0;
 }
@@ -233,7 +225,7 @@ int nmdi_async_get_pass_timeline(struct async_context *actx, struct nmdi_pass_ti
     int ret = fetch_mod_info(actx);
     if (ret < 0)
         return ret;
-    *timeline = actx->info.pass_timeline;
+    *timeline = actx->pass_timeline;
     return 0;
 }
 
@@ -266,11 +258,11 @@ int nmdi_async_pop_frame(struct async_context *actx, AVFrame **framep)
         return ret;
     }
     if (msg.type == MSG_FRAME) {
-        *framep = msg.data;
+        *framep = msg.frame.frame;
         return 0;
     }
     av_assert0(msg.type == MSG_PASS);
-    actx->pass_number = (intptr_t)msg.data;
+    actx->pass_number = msg.pass.number;
     TRACE(actx, "loop pass %" PRId64 " starts", actx->pass_number);
     return NMDI_RET_END_OF_PASS;
 }
@@ -278,16 +270,6 @@ int nmdi_async_pop_frame(struct async_context *actx, AVFrame **framep)
 int64_t nmdi_async_get_pass_number(const struct async_context *actx)
 {
     return actx->pass_number;
-}
-
-static int create_seek_msg(struct message *msg, int64_t ts)
-{
-    msg->type = MSG_SEEK;
-    msg->data = av_malloc(sizeof(ts));
-    if (!msg->data)
-        return AVERROR(ENOMEM);
-    *(int64_t *)msg->data = ts;
-    return 0;
 }
 
 int nmdi_async_get_seek_target(struct async_context *actx, int64_t *target)
@@ -304,14 +286,13 @@ int nmdi_async_seek(struct async_context *actx, int64_t ts)
     TRACE(actx, "--> send seek msg @ %s", PTS2TIMESTR(ts));
     nmdi_loop_set_playback_stopped_at(&actx->loop, AV_NOPTS_VALUE);
     actx->pass_number = 0;
-    struct message msg;
-    int ret = create_seek_msg(&msg, ts);
-    if (ret < 0)
-        return ret;
-    ret = av_thread_message_queue_send(actx->ctl_in_queue, &msg, 0);
+    struct message msg = {
+        .type = MSG_SEEK,
+        .seek.ts = ts,
+    };
+    int ret = av_thread_message_queue_send(actx->ctl_in_queue, &msg, 0);
     if (ret < 0) {
         av_thread_message_queue_set_err_recv(actx->ctl_in_queue, ret);
-        av_freep(&msg.data);
         return ret;
     }
     actx->need_sync = 1;
@@ -500,16 +481,16 @@ static int op_start(struct async_context *actx)
     if (seek_to != AV_NOPTS_VALUE) {
         TRACE(actx, "seek to: %s", PTS2TIMESTR(seek_to));
 
-        ret = create_seek_msg(&msg, seek_to);
-        if (ret < 0)
-            return ret;
+        msg = (struct message){
+            .type = MSG_SEEK,
+            .seek.ts = seek_to,
+        };
 
         // Queue a seek request which we will pull out after the demuxer is started
         ret = av_thread_message_queue_send(actx->src_queue, &msg, 0);
         if (ret < 0) {
             LOG(actx, ERROR, "Unable to queue a seek message to the demuxer, shouldn't happen!");
             av_thread_message_queue_set_err_recv(actx->src_queue, ret);
-            nmdi_msg_free_data(&msg);
             return ret;
         }
     }
@@ -556,13 +537,12 @@ static int op_info(struct async_context *actx, struct message *msg)
     const int64_t probe_duration = nmdi_demuxing_probe_duration(actx->demuxer);
     const AVStream *st = nmdi_demuxing_get_stream(actx->demuxer);
     const int is_image = nmdi_demuxing_is_image(actx->demuxer);
-    struct info_message info = {
+    struct media_info info = {
         .width    = st->codecpar->width,
         .height   = st->codecpar->height,
         .duration = probe_duration,
         .is_image = is_image,
         .timebase = st->time_base,
-        .pass_timeline = *nmdi_demuxing_get_pass_timeline(actx->demuxer),
     };
 
     if (!info.timebase.num || !info.timebase.den) {
@@ -571,9 +551,8 @@ static int op_info(struct async_context *actx, struct message *msg)
         info.timebase = av_make_q(1, 1);
     }
 
-    msg->data = av_memdup(&info, sizeof(info));
-    if (!msg->data)
-        return AVERROR(ENOMEM);
+    msg->info.info = info;
+    msg->info.pass_timeline = *nmdi_demuxing_get_pass_timeline(actx->demuxer);
 
     return 0;
 }
@@ -626,30 +605,25 @@ static int op_seek(struct async_context *actx, struct message *seek_msg)
     int ret = initialize_modules_once(actx, o);
     if (ret < 0) {
         LOG(actx, ERROR, "initializing modules failed with %s", av_err2str(ret));
-        nmdi_msg_free_data(seek_msg);
         return ret;
     }
 
     if (!is_seek_possible(actx)) {
         TRACE(actx, "can not seek into media, ignoring seek");
-        nmdi_msg_free_data(seek_msg);
         return 0;
     }
 
-    actx->request_seek = *(int64_t *)seek_msg->data;
+    actx->request_seek = seek_msg->seek.ts;
     actx->seek_target = actx->request_seek;
 
-    if (!actx->playing) {
-        nmdi_msg_free_data(seek_msg);
+    if (!actx->playing)
         return 0;
-    }
 
     ret = av_thread_message_queue_send(actx->src_queue, seek_msg, 0);
     if (ret < 0) {
         /* If this errors out, it means the modules ended by themselves (no
          * stop requested by the user), so we delay the seek, reset the workers
          * and start them again */
-        nmdi_msg_free_data(seek_msg);
         kill_join_reset_workers(actx);
         return op_start(actx);
     }

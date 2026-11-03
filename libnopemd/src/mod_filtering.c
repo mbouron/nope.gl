@@ -73,7 +73,7 @@ struct filtering_ctx {
     AVFilterGraph *filter_graph;
     struct frame_info frame_info;
     struct nmdi_loop *loop;
-    intptr_t pass_number;                   // pass number of the frames in the graph
+    int64_t pass_number;                    // pass number of the frames in the graph
     int pass_has_frame;                     // at least one filtered frame was sent for this pass
 
     AVFilterContext *buffersink_ctx;        // sink of the graph (from where we pull)
@@ -418,7 +418,7 @@ static int send_frame(struct filtering_ctx *ctx, AVFrame *frame)
     int ret;
     struct message msg = {
         .type = MSG_FRAME,
-        .data = frame,
+        .frame.frame = frame,
     };
 
     TRACE(ctx, "sending filtered frame to the sink");
@@ -484,7 +484,7 @@ static int pull_frame(struct filtering_ctx *ctx, AVFrame *outframe)
         av_free(audio_texture_frame);
     }
 
-    outframe->opaque = (void *)ctx->pass_number;
+    outframe->opaque = (void *)(intptr_t)ctx->pass_number;
 
     return 0;
 }
@@ -535,7 +535,7 @@ static int flush_frames(struct filtering_ctx *ctx);
  *
  * Return AVERROR_EOF to end playback when the pass left had no frame.
  */
-static int start_pass(struct filtering_ctx *ctx, intptr_t pass)
+static int start_pass(struct filtering_ctx *ctx, int64_t pass)
 {
     if (ctx->filters || ctx->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
         int ret = flush_frames(ctx);
@@ -610,16 +610,14 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             ctx->pass_has_frame = 0;
             av_thread_message_flush(ctx->out_queue);
             ret = av_thread_message_queue_send(ctx->out_queue, &msg, 0);
-            if (ret < 0) {
-                nmdi_msg_free_data(&msg);
+            if (ret < 0)
                 break;
-            }
             continue;
         }
 
         /* Drain the previous pass before forwarding the boundary. */
         if (msg.type == MSG_PASS) {
-            ret = start_pass(ctx, (intptr_t)msg.data);
+            ret = start_pass(ctx, msg.pass.number);
             if (ret < 0)
                 break;
             ret = av_thread_message_queue_send(ctx->out_queue, &msg, 0);
@@ -628,7 +626,7 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             continue;
         }
 
-        frame = msg.data;
+        frame = msg.frame.frame;
 
         TRACE(ctx, "filtering %s %s frame @ ts=%s",
               av_get_media_type_string(ctx->codecpar->codec_type),

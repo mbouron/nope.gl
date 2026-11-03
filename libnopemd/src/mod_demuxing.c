@@ -377,23 +377,20 @@ static void get_loop(struct demuxing_ctx *ctx, int64_t *start_us, int64_t *start
 
 static int send_pass(struct demuxing_ctx *ctx, int64_t start, int64_t end, int reset)
 {
-    struct nmdi_pass_msg *pass_msg = av_malloc(sizeof(*pass_msg));
-    if (!pass_msg)
-        return AVERROR(ENOMEM);
-    *pass_msg = (struct nmdi_pass_msg){
-        .seek_rev    = ctx->seek_rev,
-        .pass_number = ctx->pass_number,
-        .start       = start,
-        .end         = end,
-        .reset       = reset,
+    struct message msg = {
+        .type = MSG_LOOP,
+        .loop.info = {
+            .seek_rev    = ctx->seek_rev,
+            .pass_number = ctx->pass_number,
+            .start       = start,
+            .end         = end,
+            .reset       = reset,
+        },
     };
 
-    struct message msg = {.type = MSG_LOOP, .data = pass_msg};
     int ret = av_thread_message_queue_send(ctx->pkt_queue, &msg, 0);
-    if (ret < 0) {
-        nmdi_msg_free_data(&msg);
+    if (ret < 0)
         return ret;
-    }
     ctx->pass_end = end;
     ctx->pass_pending = 0;
     return 0;
@@ -611,13 +608,11 @@ void nmdi_demuxing_run(struct demuxing_ctx *ctx)
 
                 /* do actual seek so the following packet that will be pulled in
                  * this current thread will be at the (approximate) requested time */
-                const int64_t seek_to = *(int64_t *)msg.data;
+                const int64_t seek_to = msg.seek.ts;
                 LOG(ctx, INFO, "Seek in media at ts=%s", PTS2TIMESTR(seek_to));
                 ret = seek(ctx, seek_to);
-                if (ret < 0) {
-                    nmdi_msg_free_data(&msg);
+                if (ret < 0)
                     break;
-                }
                 reset_pass(ctx, av_rescale_q(seek_to, AV_TIME_BASE_Q, ctx->stream->time_base));
                 if (ctx->seek_callback) {
                     int64_t playback_start, playback_end;
@@ -649,8 +644,10 @@ void nmdi_demuxing_run(struct demuxing_ctx *ctx)
 
         TRACE(ctx, "pulled a packet of size %d, sending to decoder", pkt->size);
 
-        msg.type = MSG_PACKET;
-        msg.data = pkt;
+        msg = (struct message){
+            .type = MSG_PACKET,
+            .packet.packet = pkt,
+        };
 
         ret = av_thread_message_queue_send(ctx->pkt_queue, &msg, 0);
         TRACE(ctx, "sent packet to decoder, ret=%s", av_err2str(ret));

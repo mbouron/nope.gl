@@ -22,6 +22,7 @@
 #define NOPE_MEDIA_INTERNAL_H
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <libavcodec/version.h>
 #include <libavutil/pixfmt.h>
@@ -40,6 +41,13 @@
 #ifndef HAVE_VAAPI_HWACCEL
 #define HAVE_VAAPI_HWACCEL 0
 #endif
+
+struct media_info {
+    int width, height;
+    int64_t duration;   // probed duration, `AV_NOPTS_VALUE` if unknown
+    int is_image;
+    AVRational timebase;
+};
 
 enum AVPixelFormat nmdi_pix_fmts_nmd2ff(enum nmd_pixel_format pix_fmt);
 enum nmd_pixel_format nmdi_pix_fmts_ff2nmd(enum AVPixelFormat pix_fmt);
