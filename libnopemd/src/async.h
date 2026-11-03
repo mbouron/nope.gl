@@ -31,8 +31,6 @@
 
 const char *nmdi_async_get_msg_type_string(enum msg_type type);
 
-void nmdi_msg_free_data(void *arg);
-
 struct async_context *nmdi_async_alloc_context(void);
 
 int nmdi_async_init(struct async_context *actx, void *log_ctx,

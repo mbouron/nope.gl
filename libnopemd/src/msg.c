@@ -29,23 +29,15 @@ void nmdi_msg_free_data(void *arg)
     struct message *msg = arg;
 
     switch (msg->type) {
-    case MSG_FRAME: {
-        AVFrame *frame = msg->data;
-        av_frame_free(&frame);
-        msg->data = NULL;
+    case MSG_FRAME:
+        av_frame_free(&msg->frame.frame);
         break;
-    }
-    case MSG_PACKET: {
-        AVPacket *pkt = msg->data;
-        av_packet_free(&pkt);
-        msg->data = NULL;
+    case MSG_PACKET:
+        av_packet_free(&msg->packet.packet);
         break;
-    }
     case MSG_SEEK:
     case MSG_INFO:
     case MSG_LOOP:
-        av_freep(&msg->data);
-        break;
     case MSG_START:
     case MSG_STOP:
     case MSG_SYNC:
