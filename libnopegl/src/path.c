@@ -213,7 +213,11 @@ static const char *load_coords(float *dst, const char *s, size_t n)
 {
     for (size_t i = 0; i < n; i++) {
         s = strip_separators(s);
-        dst[i] = strtof(s, (char **)&s);
+        char *end;
+        dst[i] = strtof(s, &end);
+        if (end == s) // missing coordinate
+            return NULL;
+        s = end;
     }
     return s;
 }
@@ -267,7 +271,7 @@ int ngli_path_add_svg_path(struct path *s, const char *str)
 
         float coords[3 * 2]; // maximum number of coordinates (bezier cubic)
         const char *p = cmd_get_coords(coords, str, lcmd);
-        if (!p || p == str) // bail out in case of error or if the pointer didn't advance
+        if (!p)
             return NGL_ERROR_INVALID_DATA;
         str = p;
 

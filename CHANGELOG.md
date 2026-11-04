@@ -54,6 +54,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   closing a sub-path without segments
 - Infinite loop when parsing an SVG path containing a close command with
   arguments
+- SVG path commands with missing coordinates being accepted
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added
