@@ -922,12 +922,17 @@ int ngli_hud_init(struct hud *s)
         },
     };
 
-    const struct ngpu_pgcraft_attribute attributes[] = {
+    const struct ngpu_pgcraft_vertex_buffer_layout vertex_buffer_layouts[] = {
         {
-            .name     = "coords",
-            .type     = NGPU_TYPE_VEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * sizeof(float),
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "coords",
+                    .type     = NGPU_TYPE_VEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(float),
         },
     };
 
@@ -939,17 +944,17 @@ int ngli_hud_init(struct hud *s)
     graphics_state.blend_dst_factor_a = NGPU_BLEND_FACTOR_ONE;
 
     const struct ngpu_pgcraft_params crafter_params = {
-        .program_label    = "nopegl/hud",
-        .vert_base        = vertex_data,
-        .frag_base        = fragment_data,
-        .blocks           = blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(blocks),
-        .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
-        .attributes       = attributes,
-        .nb_attributes    = NGLI_ARRAY_NB(attributes),
-        .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .program_label            = "nopegl/hud",
+        .vert_base                = vertex_data,
+        .frag_base                = fragment_data,
+        .blocks                   = blocks,
+        .nb_blocks                = NGLI_ARRAY_NB(blocks),
+        .textures                 = textures,
+        .nb_textures              = NGLI_ARRAY_NB(textures),
+        .vertex_buffer_layouts    = vertex_buffer_layouts,
+        .nb_vertex_buffer_layouts = NGLI_ARRAY_NB(vertex_buffer_layouts),
+        .vert_out_vars            = vert_out_vars,
+        .nb_vert_out_vars         = NGLI_ARRAY_NB(vert_out_vars),
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);

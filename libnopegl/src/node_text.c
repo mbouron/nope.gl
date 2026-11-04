@@ -583,12 +583,17 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
         },
     };
 
-    const struct ngpu_pgcraft_attribute attributes[] = {
+    const struct ngpu_pgcraft_vertex_buffer_layout vertex_buffer_layouts[] = {
         {
-            .name     = "position",
-            .type     = NGPU_TYPE_VEC2,
-            .format   = NGPU_FORMAT_R32G32_SFLOAT,
-            .stride   = 2 * sizeof(float),
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "position",
+                    .type     = NGPU_TYPE_VEC2,
+                    .format   = NGPU_FORMAT_R32G32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 2 * sizeof(float),
         },
     };
 
@@ -601,13 +606,13 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
     state.blend_dst_factor_a = NGPU_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
     const struct ngpu_pgcraft_params crafter_params = {
-        .program_label    = "nopegl/text-bg",
-        .vert_base        = text_bg_vert,
-        .frag_base        = text_bg_frag,
-        .blocks           = blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(blocks),
-        .attributes       = attributes,
-        .nb_attributes    = NGLI_ARRAY_NB(attributes),
+        .program_label            = "nopegl/text-bg",
+        .vert_base                = text_bg_vert,
+        .frag_base                = text_bg_frag,
+        .blocks                   = blocks,
+        .nb_blocks                = NGLI_ARRAY_NB(blocks),
+        .vertex_buffer_layouts    = vertex_buffer_layouts,
+        .nb_vertex_buffer_layouts = NGLI_ARRAY_NB(vertex_buffer_layouts),
     };
 
     int ret = init_subdesc(node, &desc->common, &state, rendertarget_layout, &crafter_params);
@@ -664,79 +669,150 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
         },
     };
 
-    const struct ngpu_pgcraft_attribute attributes[] = {
+    const struct ngpu_pgcraft_vertex_buffer_layout vertex_buffer_layouts[] = {
         {
-            .name     = "vertices",
-            .type     = NGPU_TYPE_VEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "atlas_coords",
-            .type     = NGPU_TYPE_VEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "texcoord_bounds",
-            .type     = NGPU_TYPE_VEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "frag_banding",
-            .type     = NGPU_TYPE_VEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "frag_glyph_data",
-            .type     = NGPU_TYPE_IVEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SINT,
-            .stride   = 4 * sizeof(int32_t),
-            .rate     = 1,
-        }, {
-            .name     = "frag_dist_scale",
-            .type     = NGPU_TYPE_F32,
-            .format   = NGPU_FORMAT_R32_SFLOAT,
-            .stride   = sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "user_transform",
-            .type     = NGPU_TYPE_MAT4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * 4 * sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "frag_color",
-            .type     = NGPU_TYPE_VEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "frag_outline",
-            .type     = NGPU_TYPE_VEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "frag_glow",
-            .type     = NGPU_TYPE_VEC4,
-            .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride   = 4 * sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "frag_blur",
-            .type     = NGPU_TYPE_F32,
-            .format   = NGPU_FORMAT_R32_SFLOAT,
-            .stride   = sizeof(float),
-            .rate     = 1,
-        }, {
-            .name     = "frag_outline_pos",
-            .type     = NGPU_TYPE_F32,
-            .format   = NGPU_FORMAT_R32_SFLOAT,
-            .stride   = sizeof(float),
-            .rate     = 1,
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "vertices",
+                    .type     = NGPU_TYPE_VEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "atlas_coords",
+                    .type     = NGPU_TYPE_VEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "texcoord_bounds",
+                    .type     = NGPU_TYPE_VEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "frag_banding",
+                    .type     = NGPU_TYPE_VEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "frag_glyph_data",
+                    .type     = NGPU_TYPE_IVEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SINT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(int32_t),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "frag_dist_scale",
+                    .type     = NGPU_TYPE_F32,
+                    .format   = NGPU_FORMAT_R32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "user_transform",
+                    .type     = NGPU_TYPE_MAT4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * 4 * sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "frag_color",
+                    .type     = NGPU_TYPE_VEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "frag_outline",
+                    .type     = NGPU_TYPE_VEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "frag_glow",
+                    .type     = NGPU_TYPE_VEC4,
+                    .format   = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = 4 * sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "frag_blur",
+                    .type     = NGPU_TYPE_F32,
+                    .format   = NGPU_FORMAT_R32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = sizeof(float),
+            .rate = 1,
+        },
+        {
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name     = "frag_outline_pos",
+                    .type     = NGPU_TYPE_F32,
+                    .format   = NGPU_FORMAT_R32_SFLOAT,
+                },
+            },
+            .nb_attributes = 1,
+            .stride = sizeof(float),
+            .rate = 1,
         },
     };
 
@@ -761,17 +837,17 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
     };
 
     const struct ngpu_pgcraft_params crafter_params = {
-        .program_label    = "nopegl/text-fg",
-        .vert_base        = text_slug_vert,
-        .frag_base        = text_slug_frag,
-        .blocks           = blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(blocks),
-        .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
-        .attributes       = attributes,
-        .nb_attributes    = NGLI_ARRAY_NB(attributes),
-        .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .program_label            = "nopegl/text-fg",
+        .vert_base                = text_slug_vert,
+        .frag_base                = text_slug_frag,
+        .blocks                   = blocks,
+        .nb_blocks                = NGLI_ARRAY_NB(blocks),
+        .textures                 = textures,
+        .nb_textures              = NGLI_ARRAY_NB(textures),
+        .vertex_buffer_layouts    = vertex_buffer_layouts,
+        .nb_vertex_buffer_layouts = NGLI_ARRAY_NB(vertex_buffer_layouts),
+        .vert_out_vars            = vert_out_vars,
+        .nb_vert_out_vars         = NGLI_ARRAY_NB(vert_out_vars),
     };
 
     int ret = init_subdesc(node, &desc->common, &state, rendertarget_layout, &crafter_params);

@@ -764,8 +764,8 @@ struct ngpu_vertex_attribute {
 struct ngpu_vertex_buffer_layout {
     struct ngpu_vertex_attribute attributes[NGPU_MAX_ATTRIBUTES_PER_BUFFER];
     size_t nb_attributes;
-    uint32_t rate;
     size_t stride;
+    uint32_t rate;
 };
 
 struct ngpu_vertex_state {
@@ -1091,8 +1091,13 @@ struct ngpu_pgcraft_attribute {
     enum ngpu_type type;
     enum ngpu_precision precision;
     enum ngpu_format format;
-    size_t stride;
     size_t offset;
+};
+
+struct ngpu_pgcraft_vertex_buffer_layout {
+    const struct ngpu_pgcraft_attribute *attributes;
+    size_t nb_attributes;
+    size_t stride;
     uint32_t rate;
 };
 
@@ -1152,8 +1157,9 @@ struct ngpu_pgcraft_params {
     size_t nb_textures;
     const struct ngpu_pgcraft_block *blocks;
     size_t nb_blocks;
-    const struct ngpu_pgcraft_attribute *attributes;
-    size_t nb_attributes;
+    /* Array indices are vertex buffer binding indices. */
+    const struct ngpu_pgcraft_vertex_buffer_layout *vertex_buffer_layouts;
+    size_t nb_vertex_buffer_layouts;
 
     const struct ngpu_pgcraft_iovar *vert_out_vars;
     size_t nb_vert_out_vars;

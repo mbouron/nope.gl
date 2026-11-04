@@ -61,7 +61,7 @@ struct pgcraft_symbol {
 struct pgcraft_pipeline_info {
     NGPU_DARRAY(struct ngpu_bindgroup_layout_entry) textures;
     NGPU_DARRAY(struct ngpu_bindgroup_layout_entry) buffers;
-    NGPU_DARRAY(struct ngpu_vertex_buffer_layout) vertex_buffers;
+    NGPU_DARRAY(struct ngpu_vertex_buffer_layout) vertex_buffer_layouts;
 };
 
 struct ngpu_pgcraft {
@@ -613,10 +613,16 @@ static uint32_t get_location_count(enum ngpu_type type)
 }
 
 static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
-                            const struct ngpu_pgcraft_attribute *attribute)
+                            const struct ngpu_pgcraft_attribute *attribute,
+                            struct ngpu_vertex_buffer_layout *vertex_buffer_layout)
 {
     const char *type = get_glsl_type(attribute->type);
     const uint32_t attribute_count = get_location_count(attribute->type);
+
+    if (attribute_count > NGPU_MAX_ATTRIBUTES_PER_BUFFER - vertex_buffer_layout->nb_attributes) {
+        LOG(ERROR, "too many attributes in vertex buffer");
+        return NGPU_ERROR_LIMIT_EXCEEDED;
+    }
 
     const uint32_t base_location = s->next_in_locations[NGPU_PROGRAM_STAGE_VERT];
     s->next_in_locations[NGPU_PROGRAM_STAGE_VERT] += attribute_count;
@@ -628,11 +634,6 @@ static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
     const char *precision = get_precision_qualifier(s, attribute->type, attribute->precision, "highp");
     ngpu_bstr_printf(b, "in %s %s %s;\n", precision, type, attribute->name);
 
-    struct ngpu_vertex_buffer_layout vertex_buffer = {
-        .stride = attribute->stride,
-        .rate = attribute->rate,
-    };
-
     const size_t attribute_offset = ngpu_format_get_bytes_per_pixel(attribute->format);
     for (uint32_t i = 0; i < attribute_count; i++) {
         struct pgcraft_symbol sym = {0};
@@ -640,8 +641,7 @@ static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
         if (ngpu_darray_try_push(&s->symbols, sym) < 0)
             return NGPU_ERROR_MEMORY;
 
-        ngpu_assert(vertex_buffer.nb_attributes < NGPU_MAX_ATTRIBUTES_PER_BUFFER);
-        vertex_buffer.attributes[vertex_buffer.nb_attributes++] = (struct ngpu_vertex_attribute) {
+        vertex_buffer_layout->attributes[vertex_buffer_layout->nb_attributes++] = (struct ngpu_vertex_attribute) {
             .id = s->symbols.count - 1,
             .location = base_location + i,
             .format = attribute->format,
@@ -649,19 +649,25 @@ static int inject_attribute(struct ngpu_pgcraft *s, struct bstr *b,
         };
     }
 
-    if (ngpu_darray_try_push(&s->pipeline_info.vertex_buffers, vertex_buffer) < 0)
-        return NGPU_ERROR_MEMORY;
-
     return 0;
 }
 
 static int inject_attributes(struct ngpu_pgcraft *s, struct bstr *b,
                              const struct ngpu_pgcraft_params *params)
 {
-    for (size_t i = 0; i < params->nb_attributes; i++) {
-        int ret = inject_attribute(s, b, &params->attributes[i]);
-        if (ret < 0)
-            return ret;
+    for (size_t i = 0; i < params->nb_vertex_buffer_layouts; i++) {
+        const struct ngpu_pgcraft_vertex_buffer_layout *buffer = &params->vertex_buffer_layouts[i];
+        struct ngpu_vertex_buffer_layout layout = {
+            .stride = buffer->stride,
+            .rate = buffer->rate,
+        };
+        for (size_t j = 0; j < buffer->nb_attributes; j++) {
+            int ret = inject_attribute(s, b, &buffer->attributes[j], &layout);
+            if (ret < 0)
+                return ret;
+        }
+        if (ngpu_darray_try_push(&s->pipeline_info.vertex_buffer_layouts, layout) < 0)
+            return NGPU_ERROR_MEMORY;
     }
     return 0;
 }
@@ -1363,15 +1369,15 @@ struct ngpu_program *ngpu_pgcraft_get_program(const struct ngpu_pgcraft *s)
 struct ngpu_vertex_state ngpu_pgcraft_get_vertex_state(const struct ngpu_pgcraft *s)
 {
     return (const struct ngpu_vertex_state) {
-        .buffers    = s->pipeline_info.vertex_buffers.data,
-        .nb_buffers = s->pipeline_info.vertex_buffers.count,
+        .buffers    = s->pipeline_info.vertex_buffer_layouts.data,
+        .nb_buffers = s->pipeline_info.vertex_buffer_layouts.count,
     };
 }
 
 int32_t ngpu_pgcraft_get_vertex_buffer_index(const struct ngpu_pgcraft *s, const char *name)
 {
-    for (int32_t i = 0; i < (int32_t)s->pipeline_info.vertex_buffers.count; i++) {
-        struct ngpu_vertex_buffer_layout *layout = &s->pipeline_info.vertex_buffers.data[i];
+    for (int32_t i = 0; i < (int32_t)s->pipeline_info.vertex_buffer_layouts.count; i++) {
+        struct ngpu_vertex_buffer_layout *layout = &s->pipeline_info.vertex_buffer_layouts.data[i];
         for (size_t j = 0; j < layout->nb_attributes; j++) {
             struct ngpu_vertex_attribute *attribute = &layout->attributes[j];
             const char *attribute_name = ngpu_pgcraft_get_symbol_name(s, attribute->id);
@@ -1415,7 +1421,7 @@ void ngpu_pgcraft_freep(struct ngpu_pgcraft **sp)
 
     ngpu_darray_reset(&s->pipeline_info.textures);
     ngpu_darray_reset(&s->pipeline_info.buffers);
-    ngpu_darray_reset(&s->pipeline_info.vertex_buffers);
+    ngpu_darray_reset(&s->pipeline_info.vertex_buffer_layouts);
 
     ngpu_freep(sp);
 }

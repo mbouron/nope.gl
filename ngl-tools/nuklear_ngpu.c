@@ -277,25 +277,28 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
         return NGPU_ERROR_MEMORY;
 
     /* Pgcraft setup. */
-    const struct ngpu_pgcraft_attribute attributes[] = {
+    const struct ngpu_pgcraft_vertex_buffer_layout vertex_buffer_layouts[] = {
         {
-            .name   = "position",
-            .type   = NGPU_TYPE_VEC2,
-            .format = NGPU_FORMAT_R32G32_SFLOAT,
+            .attributes = (const struct ngpu_pgcraft_attribute[]) {
+                {
+                    .name   = "position",
+                    .type   = NGPU_TYPE_VEC2,
+                    .format = NGPU_FORMAT_R32G32_SFLOAT,
+                    .offset = offsetof(struct nk_ngpu_vertex, position),
+                }, {
+                    .name   = "texcoord",
+                    .type   = NGPU_TYPE_VEC2,
+                    .format = NGPU_FORMAT_R32G32_SFLOAT,
+                    .offset = offsetof(struct nk_ngpu_vertex, uv),
+                }, {
+                    .name   = "color",
+                    .type   = NGPU_TYPE_VEC4,
+                    .format = NGPU_FORMAT_R32G32B32A32_SFLOAT,
+                    .offset = offsetof(struct nk_ngpu_vertex, col),
+                },
+            },
+            .nb_attributes = 3,
             .stride = sizeof(struct nk_ngpu_vertex),
-            .offset = offsetof(struct nk_ngpu_vertex, position),
-        }, {
-            .name   = "texcoord",
-            .type   = NGPU_TYPE_VEC2,
-            .format = NGPU_FORMAT_R32G32_SFLOAT,
-            .stride = sizeof(struct nk_ngpu_vertex),
-            .offset = offsetof(struct nk_ngpu_vertex, uv),
-        }, {
-            .name   = "color",
-            .type   = NGPU_TYPE_VEC4,
-            .format = NGPU_FORMAT_R32G32B32A32_SFLOAT,
-            .stride = sizeof(struct nk_ngpu_vertex),
-            .offset = offsetof(struct nk_ngpu_vertex, col),
         },
     };
 
@@ -324,18 +327,18 @@ static int init_pipeline(struct nk_ngpu_ctx *s)
     };
 
     const struct ngpu_pgcraft_params crafter_params = {
-        .program_label    = "nuklear",
-        .vert_base        = nk_vert,
-        .frag_base        = nk_frag,
-        .attributes       = attributes,
-        .nb_attributes    = 3,
-        .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = 2,
-        .textures         = textures,
-        .nb_textures      = 1,
-        .blocks           = blocks,
-        .nb_blocks        = 1,
-        .nb_frag_output   = 1,
+        .program_label            = "nuklear",
+        .vert_base                = nk_vert,
+        .frag_base                = nk_frag,
+        .vertex_buffer_layouts    = vertex_buffer_layouts,
+        .nb_vertex_buffer_layouts = 1,
+        .vert_out_vars            = vert_out_vars,
+        .nb_vert_out_vars         = 2,
+        .textures                 = textures,
+        .nb_textures              = 1,
+        .blocks                   = blocks,
+        .nb_blocks                = 1,
+        .nb_frag_output           = 1,
     };
 
     s->crafter = ngpu_pgcraft_create(s->gpu_ctx);
@@ -554,13 +557,7 @@ void nk_ngpu_render(struct nk_ngpu_ctx *s, uint32_t width, uint32_t height)
     ngpu_ctx_set_pipeline(s->gpu_ctx, s->pipeline);
     ngpu_ctx_set_bindgroup(s->gpu_ctx, s->bindgroup, NULL, 0);
 
-    /* Bind all vertex buffer slots (all attributes share the same vbo). */
-    static const char *attr_names[] = {"position", "texcoord", "color"};
-    for (size_t i = 0; i < 3; i++) {
-        const int32_t vb_index = ngpu_pgcraft_get_vertex_buffer_index(s->crafter, attr_names[i]);
-        if (vb_index >= 0)
-            ngpu_ctx_set_vertex_buffer(s->gpu_ctx, (uint32_t)vb_index, s->vbo);
-    }
+    ngpu_ctx_set_vertex_buffer(s->gpu_ctx, 0, s->vbo);
 
     /* Viewport spans the full framebuffer (also resets it after viewer_blit_draw). */
     const struct ngpu_viewport full_vp = {.x = 0, .y = 0, .width = (float)width, .height = (float)height};
