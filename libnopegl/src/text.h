@@ -30,10 +30,6 @@
 #include "slug.h"
 #include "utils/darray.h"
 
-#define NGLI_I32_TO_I26D6(x) ((x) * (1 << 6))     // convert i32 to 26.6 fixed point
-#define NGLI_I26D6_TO_F32(x) ((float)(x) / 64.f)  // convert 26.6 fixed point to f32
-#define NGLI_I26D6_TO_I32_TRUNCATED(x) ((x) >> 6) // convert 26.6 fixed point to i32 (truncated/rounded down)
-
 enum writing_mode {
     NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB,
     NGLI_TEXT_WRITING_MODE_VERTICAL_RL,
@@ -69,9 +65,10 @@ enum {
 
 /* Exposed by text drivers  */
 struct char_info_internal {
-    int32_t x, y, w, h; // pixels canvas coordinates encoded in 26.6 fixed point
+    double x, y, w, h; // pixel canvas coordinates, kept in double precision until GPU geometry conversion
     struct ngli_aabb atlas_coords; // atlas coordinates (distmap path)
     float scale[2]; // geometry scaling factors
+    float dist_scale; // outline coordinates to em units for effects
     uint32_t tags; // combination of NGLI_TEXT_CHAR_TAG_*
     struct slug_glyph_data slug; // slug rendering data
 };
@@ -81,6 +78,7 @@ struct char_info {
     struct ngli_aabb geom;  // vertices
     struct ngli_aabb atlas_coords; // texture position (used by distmap path)
     float real_dim[2];      // real dimension (without distance field padding)
+    float dist_scale; // outline coordinates to em units for effects
     struct slug_glyph_data slug; // slug rendering data
 };
 
@@ -135,6 +133,7 @@ struct text_data_pointers {
     float *texcoord_bounds; // vec4[] (em-space bounding box per char)
     float *band_transforms; // vec4[] (band scale+offset per char)
     int32_t *glyph_data;    // ivec4[] (glyph_loc, band_max per char)
+    float *dist_scales;     // f32[] (outline coordinates to em units per char)
 
     // effects
     float *transform; // mat4[]
@@ -155,8 +154,8 @@ struct text {
     struct text_config config;
 
     /* public */
-    int32_t width;
-    int32_t height;
+    double width;
+    double height;
     struct ngli_char_info_darray chars;
     struct ngpu_texture *atlas_texture;
     struct texture_resource *curve_texture;

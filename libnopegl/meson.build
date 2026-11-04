@@ -334,11 +334,10 @@ lib_src += host_cfg.get('src', [])
 #
 
 opt_text_libs = get_option('text-libraries')
-dep_harfbuzz = dependency('harfbuzz', required: opt_text_libs)
-dep_freetype = dependency('freetype2', required: opt_text_libs)
+dep_harfbuzz = dependency('harfbuzz', version: '>= 11.2.0', required: opt_text_libs)
 dep_fribidi  = dependency('fribidi', required: opt_text_libs)
-if dep_harfbuzz.found() and dep_freetype.found() and dep_fribidi.found()
-  lib_deps += [dep_harfbuzz, dep_freetype, dep_fribidi]
+if dep_harfbuzz.found() and dep_fribidi.found()
+  lib_deps += [dep_harfbuzz, dep_fribidi]
   conf_data.set10('HAVE_TEXT_LIBRARIES', true)
 else
   conf_data.set10('HAVE_TEXT_LIBRARIES', false)

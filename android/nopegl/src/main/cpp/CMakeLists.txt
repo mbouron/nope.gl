@@ -29,7 +29,6 @@ set(NGL_LIBS
         avutil
         avdevice
         png16
-        freetype
         fribidi
         harfbuzz
         lcms2

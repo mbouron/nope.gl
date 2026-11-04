@@ -21,6 +21,7 @@
  * under the License.
  */
 
+#include <float.h>
 #include <string.h>
 
 #include "box.h"
@@ -42,33 +43,33 @@ extern const struct text_cls ngli_text_external;
 
 struct box_stats {
     enum writing_mode writing_mode;
-    NGLI_DARRAY(int32_t) linelens;  // length of each line (not necessarily horizontal)
-    int32_t max_linelen;            // maximum value in the linelens array
-    int32_t linemin, linemax;       // current line min/max
-    int32_t xmin, xmax;             // current box min/max on x-axis
-    int32_t ymin, ymax;             // current box min/max on y-axis
+    NGLI_DARRAY(double) linelens; // length of each line (not necessarily horizontal)
+    double max_linelen;          // maximum value in the linelens array
+    double linemin, linemax;     // current line min/max
+    double xmin, xmax;           // current box min/max on x-axis
+    double ymin, ymax;           // current box min/max on y-axis
 };
 
 static void box_stats_init(struct box_stats *s, enum writing_mode writing_mode)
 {
     s->writing_mode = writing_mode;
-    s->max_linelen = INT32_MIN;
-    s->linemin = s->xmin = s->ymin = INT32_MAX;
-    s->linemax = s->xmax = s->ymax = INT32_MIN;
+    s->max_linelen = -DBL_MAX;
+    s->linemin = s->xmin = s->ymin = DBL_MAX;
+    s->linemax = s->xmax = s->ymax = -DBL_MAX;
 }
 
 static int box_stats_register_eol(struct box_stats *s)
 {
-    const int32_t len = s->linemax == INT32_MIN ? 0 : s->linemax - s->linemin;
+    const double len = s->linemax == -DBL_MAX ? 0.0 : s->linemax - s->linemin;
     if (ngli_darray_try_push(&s->linelens, len) < 0)
         return NGL_ERROR_MEMORY;
     s->max_linelen = NGLI_MAX(s->max_linelen, len);
-    s->linemin = INT32_MAX;
-    s->linemax = INT32_MIN;
+    s->linemin = DBL_MAX;
+    s->linemax = -DBL_MAX;
     return 0;
 }
 
-static void box_stats_register_chr(struct box_stats *s, int32_t x, int32_t y, int32_t w, int32_t h)
+static void box_stats_register_chr(struct box_stats *s, double x, double y, double w, double h)
 {
     if (s->writing_mode == NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB) {
         s->linemin = NGLI_MIN(s->linemin, x);
@@ -173,7 +174,8 @@ static struct text_data_pointers get_chr_data_pointers(float *base, size_t nb_ch
     ptrs.texcoord_bounds = ptrs.atlas_coords     + nb_chars * 4;
     ptrs.band_transforms = ptrs.texcoord_bounds  + nb_chars * 4;
     ptrs.glyph_data      = (int32_t *)(ptrs.band_transforms + nb_chars * 4);
-    ptrs.transform       = (float *)(ptrs.glyph_data + nb_chars * 4);
+    ptrs.dist_scales     = (float *)(ptrs.glyph_data + nb_chars * 4);
+    ptrs.transform       = ptrs.dist_scales      + nb_chars;
     ptrs.color           = ptrs.transform        + nb_chars * 4 * 4;
     ptrs.outline         = ptrs.color            + nb_chars * 4;
     ptrs.glow            = ptrs.outline          + nb_chars * 4;
@@ -188,6 +190,7 @@ struct default_data {
     float texcoord_bounds[4];
     float band_transform[4];
     int32_t glyph_data[4];
+    float dist_scale;
     float transform[4 * 4];
     float color[4];
     float outline[4];
@@ -205,15 +208,15 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
     const int32_t ar32[2] = {ctx->scene->params.width, ctx->scene->params.height};
     const float ar = ar32[1] ? (float)ar32[0] / (float)ar32[1] : 1.f;
     const float box_ratio = ar * box.w / box.h;
-    const float text_ratio = (float)s->width / (float)s->height;
+    const float text_ratio = (float)(s->width / s->height);
 
     /* Apply aspect ratio and font scaling */
     float width  = box.w * s->config.font_scale;
     float height = box.h * s->config.font_scale;
     float ratio_w, ratio_h;
     if (s->config.scale_mode == NGLI_TEXT_SCALE_MODE_FIXED) {
-        const float tw = (float)s->width / (float)ctx->viewport.width;
-        const float th = (float)s->height / (float)ctx->viewport.height;
+        const float tw = (float)(s->width / ctx->viewport.width);
+        const float th = (float)(s->height / ctx->viewport.height);
         ratio_w = tw / box.w;
         ratio_h = th / box.h;
     } else {
@@ -287,6 +290,7 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
         memcpy(ptrs.band_transforms + 4 * n, chr->slug.band_transform, sizeof(chr->slug.band_transform));
         memcpy(ptrs.glyph_data + 4 * n, chr->slug.glyph_loc, sizeof(chr->slug.glyph_loc));
         memcpy(ptrs.glyph_data + 4 * n + 2, chr->slug.band_max, sizeof(chr->slug.band_max));
+        ptrs.dist_scales[n] = chr->dist_scale;
     }
 }
 
@@ -613,13 +617,13 @@ int ngli_text_set_string(struct text *s, const char *str)
         goto end;
     }
 
-    const int32_t padding = NGLI_I32_TO_I26D6(s->config.padding);
-    s->width  = NGLI_I26D6_TO_I32_TRUNCATED(stats.xmax - stats.xmin + 2 * padding);
-    s->height = NGLI_I26D6_TO_I32_TRUNCATED(stats.ymax - stats.ymin + 2 * padding);
+    const double padding = s->config.padding;
+    s->width  = stats.xmax - stats.xmin + 2.0 * padding;
+    s->height = stats.ymax - stats.ymin + 2.0 * padding;
 
     /* Honor layout */
     int32_t line = 0;
-    const int32_t *linelens = stats.linelens.data;
+    const double *linelens = stats.linelens.data;
     for (size_t i = 0; i < s->chars_internal.count; i++) {
         struct char_info_internal *chr = &s->chars_internal.data[i];
 
@@ -637,12 +641,12 @@ int ngli_text_set_string(struct text *s, const char *str)
         chr->y += padding;
 
         /* Honor the alignment setting for each line */
-        const int32_t space = stats.max_linelen - linelens[line];
+        const double space = stats.max_linelen - linelens[line];
         if (s->config.writing_mode == NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB) {
-            if      (s->config.halign == NGLI_TEXT_HALIGN_CENTER) chr->x += space / 2;
+            if      (s->config.halign == NGLI_TEXT_HALIGN_CENTER) chr->x += space / 2.0;
             else if (s->config.halign == NGLI_TEXT_HALIGN_RIGHT)  chr->x += space;
         } else {
-            if      (s->config.valign == NGLI_TEXT_VALIGN_CENTER) chr->y -= space / 2;
+            if      (s->config.valign == NGLI_TEXT_VALIGN_CENTER) chr->y -= space / 2.0;
             else if (s->config.valign == NGLI_TEXT_VALIGN_BOTTOM) chr->y -= space;
         }
     }
@@ -655,25 +659,25 @@ int ngli_text_set_string(struct text *s, const char *str)
             continue;
 
         /* Honor requested geometry scaling (anchor is at the center of the quad) */
-        const float x = NGLI_I26D6_TO_F32(chr_internal->x);
-        const float y = NGLI_I26D6_TO_F32(chr_internal->y);
-        const float w = NGLI_I26D6_TO_F32(chr_internal->w);
-        const float h = NGLI_I26D6_TO_F32(chr_internal->h);
-        const float nw = w * chr_internal->scale[0];
-        const float nh = h * chr_internal->scale[1];
-        const float bx = x + (w - nw) / 2.f;
-        const float by = y + (h - nh) / 2.f;
-        const struct ngli_aabb geom = {bx, by, bx + nw, by + nh};
+        const double x = chr_internal->x;
+        const double y = chr_internal->y;
+        const double w = chr_internal->w;
+        const double h = chr_internal->h;
+        const double nw = w * chr_internal->scale[0];
+        const double nh = h * chr_internal->scale[1];
+        const double bx = x + (w - nw) / 2.0;
+        const double by = y + (h - nh) / 2.0;
 
         const struct char_info chr = {
             .geom = {
-                .x0 = geom.x0 / (float)s->width,
-                .y0 = geom.y0 / (float)s->height,
-                .x1 = geom.x1 / (float)s->width,
-                .y1 = geom.y1 / (float)s->height,
+                .x0 = (float)(bx / s->width),
+                .y0 = (float)(by / s->height),
+                .x1 = (float)((bx + nw) / s->width),
+                .y1 = (float)((by + nh) / s->height),
             },
             .atlas_coords = chr_internal->atlas_coords,
-            .real_dim  = {w / (float)s->width, h / (float)s->height},
+            .real_dim  = {(float)(w / s->width), (float)(h / s->height)},
+            .dist_scale = chr_internal->dist_scale,
             .slug = chr_internal->slug,
         };
 

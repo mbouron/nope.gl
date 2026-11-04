@@ -313,11 +313,12 @@ static int text_builtin_set_string(struct text *text, const char *str, struct ng
         const struct slug_glyph_data *glyph_data = &s->atlas->slug_data[(uint8_t)str[i]];
 
         const struct char_info_internal chr = {
-            .x = NGLI_I32_TO_I26D6(s->chr_w * col),
-            .y = NGLI_I32_TO_I26D6(s->chr_h * (text_rows - row - 1)),
-            .w = NGLI_I32_TO_I26D6(s->chr_w),
-            .h = NGLI_I32_TO_I26D6(s->chr_h),
+            .x = (double)s->chr_w * col,
+            .y = (double)s->chr_h * (text_rows - row - 1),
+            .w = s->chr_w,
+            .h = s->chr_h,
             .scale = {1.f, 1.f},
+            .dist_scale = 72.f / ((float)text->config.pt_size * (float)text->config.dpi),
             .tags = NGLI_TEXT_CHAR_TAG_GLYPH,
             .slug = *glyph_data,
         };

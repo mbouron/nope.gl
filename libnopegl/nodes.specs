@@ -3605,7 +3605,7 @@
           "name": "path",
           "type": "str",
           "flags": ["nonull", "filepath"],
-          "desc": "path to the font file"
+          "desc": "path to a scalable OpenType or TrueType font file"
         },
         {
           "name": "index",

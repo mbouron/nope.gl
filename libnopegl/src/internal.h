@@ -38,11 +38,6 @@
 struct nmd_frame;
 #endif
 
-#if HAVE_TEXT_LIBRARIES
-#include <ft2build.h>
-#include FT_OUTLINE_H
-#endif
-
 #include "aabb.h"
 #include "hud.h"
 #include "math_utils.h"
@@ -152,9 +147,6 @@ struct ngl_ctx {
     struct ngli_node_darray resource_nodes;
 
     struct hmap *text_builtin_atlasses; // struct text_builtin_atlas
-#if HAVE_TEXT_LIBRARIES
-    FT_Library ft_library;
-#endif
 
 #if defined(HAVE_VAAPI)
     struct vaapi_ctx vaapi_ctx;
