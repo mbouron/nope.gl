@@ -163,43 +163,10 @@ void ngli_text_release(struct text *s)
 /* Apply the new defaults to the user exposed data */
 static void reset_chars_data_to_defaults(struct text *s)
 {
-    memcpy(s->chars_data, s->chars_data_default, s->chars_copy_size);
+    memcpy(s->chars_data, s->chars_data_default, s->chars.count * sizeof(*s->chars_data));
 }
 
-static struct text_data_pointers get_chr_data_pointers(float *base, size_t nb_chars)
-{
-    struct text_data_pointers ptrs = {0};
-    ptrs.vertices        = base;
-    ptrs.atlas_coords    = ptrs.vertices        + nb_chars * 4;
-    ptrs.texcoord_bounds = ptrs.atlas_coords     + nb_chars * 4;
-    ptrs.band_transforms = ptrs.texcoord_bounds  + nb_chars * 4;
-    ptrs.glyph_data      = (int32_t *)(ptrs.band_transforms + nb_chars * 4);
-    ptrs.dist_scales     = (float *)(ptrs.glyph_data + nb_chars * 4);
-    ptrs.transform       = ptrs.dist_scales      + nb_chars;
-    ptrs.color           = ptrs.transform        + nb_chars * 4 * 4;
-    ptrs.outline         = ptrs.color            + nb_chars * 4;
-    ptrs.glow            = ptrs.outline          + nb_chars * 4;
-    ptrs.blur            = ptrs.glow             + nb_chars * 4;
-    ptrs.outline_pos     = ptrs.blur             + nb_chars;
-    return ptrs;
-}
-
-struct default_data {
-    float pos_size[4];
-    float atlas_coords[4];
-    float texcoord_bounds[4];
-    float band_transform[4];
-    int32_t glyph_data[4];
-    float dist_scale;
-    float transform[4 * 4];
-    float color[4];
-    float outline[4];
-    float glow[4];
-    float blur;
-    float outline_pos;
-};
-
-static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
+static void set_geometry_data(struct text *s, struct text_char_data *chars_data)
 {
     struct ngl_ctx *ctx = s->ctx;
 
@@ -268,37 +235,25 @@ static void set_geometry_data(struct text *s, struct text_data_pointers ptrs)
         const float pad_x = em_w > 0.f ? effect_pad * (chr_x1 - chr_x0) / em_w : 0.f;
         const float pad_y = em_h > 0.f ? effect_pad * (chr_y1 - chr_y0) / em_h : 0.f;
 
+        struct text_char_data *data = &chars_data[n];
         const float vertices[] = {chr_x0 - pad_x, chr_y0 - pad_y, chr_x1 + pad_x, chr_y1 + pad_y};
-        memcpy(ptrs.vertices + 4 * n, vertices, sizeof(vertices));
-    }
+        memcpy(data->vertices, vertices, sizeof(vertices));
 
-    /* register atlas identifier */
-    for (size_t n = 0; n < s->chars.count; n++) {
-        const struct char_info *chr = &s->chars.data[n];
-        memcpy(ptrs.atlas_coords + 4 * n, (const float *)&chr->atlas_coords, sizeof(chr->atlas_coords));
-    }
-
-    /* slug per-instance data (texcoord bounds dilated to match vertex padding) */
-    for (size_t n = 0; n < s->chars.count; n++) {
-        const struct char_info *chr = &s->chars.data[n];
-        const float *eb = chr->slug.em_bounds;
-        const float em_w = eb[2] - eb[0];
-        const float em_h = eb[3] - eb[1];
-        const float effect_pad = EFFECT_PAD_RATIO * NGLI_MAX(em_w, em_h);
+        /* Dilate texcoord bounds to match the vertex padding. */
         const float tc_bounds[] = {eb[0] - effect_pad, eb[1] - effect_pad, eb[2] + effect_pad, eb[3] + effect_pad};
-        memcpy(ptrs.texcoord_bounds + 4 * n, tc_bounds, sizeof(tc_bounds));
-        memcpy(ptrs.band_transforms + 4 * n, chr->slug.band_transform, sizeof(chr->slug.band_transform));
-        memcpy(ptrs.glyph_data + 4 * n, chr->slug.glyph_loc, sizeof(chr->slug.glyph_loc));
-        memcpy(ptrs.glyph_data + 4 * n + 2, chr->slug.band_max, sizeof(chr->slug.band_max));
-        ptrs.dist_scales[n] = chr->dist_scale;
+        memcpy(data->texcoord_bounds, tc_bounds, sizeof(tc_bounds));
+        memcpy(data->band_transform, chr->slug.band_transform, sizeof(data->band_transform));
+        memcpy(data->glyph_data, chr->slug.glyph_loc, sizeof(chr->slug.glyph_loc));
+        memcpy(data->glyph_data + 2, chr->slug.band_max, sizeof(chr->slug.band_max));
+        data->dist_scale = chr->dist_scale;
     }
 }
 
-/* Fill default buffers (1 row per character) with the default data. */
-static void fill_default_data_buffers(struct text *s, size_t nb_chars)
+/* Fill the character records with their default data. */
+static void fill_default_data(struct text *s, size_t nb_chars)
 {
     /* Default data for each character */
-    const struct default_data default_data = {
+    const struct text_char_data default_data = {
         .transform = NGLI_MAT4_IDENTITY,
         .color     = {NGLI_ARG_VEC3(s->config.defaults.color), s->config.defaults.opacity},
         .outline   = {1.f, .7f, 0.f, 0.f},
@@ -307,17 +262,10 @@ static void fill_default_data_buffers(struct text *s, size_t nb_chars)
         .outline_pos = 1.f,
     };
 
-    const struct text_data_pointers defaults_ptr = get_chr_data_pointers(s->chars_data_default, nb_chars);
+    for (size_t i = 0; i < nb_chars; i++)
+        s->chars_data_default[i] = default_data;
 
-    set_geometry_data(s, defaults_ptr);
-
-    // Loop is repeated to make memory accesses contiguous.
-    for (size_t i = 0; i < nb_chars; i++) memcpy(defaults_ptr.transform + i * 4 * 4, default_data.transform, sizeof(default_data.transform));
-    for (size_t i = 0; i < nb_chars; i++) memcpy(defaults_ptr.color     + i * 4,     default_data.color,     sizeof(default_data.color));
-    for (size_t i = 0; i < nb_chars; i++) memcpy(defaults_ptr.outline   + i * 4,     default_data.outline,   sizeof(default_data.outline));
-    for (size_t i = 0; i < nb_chars; i++) memcpy(defaults_ptr.glow      + i * 4,     default_data.glow,      sizeof(default_data.glow));
-    for (size_t i = 0; i < nb_chars; i++) memcpy(defaults_ptr.blur      + i,         &default_data.blur,     sizeof(default_data.blur));
-    for (size_t i = 0; i < nb_chars; i++) memcpy(defaults_ptr.outline_pos + i,       &default_data.outline_pos, sizeof(default_data.outline_pos));
+    set_geometry_data(s, s->chars_data_default);
 }
 
 void ngli_text_update_effects_defaults(struct text *s, const struct text_effects_defaults *defaults)
@@ -326,7 +274,7 @@ void ngli_text_update_effects_defaults(struct text *s, const struct text_effects
 
     const size_t nb_chars = s->chars.count;
     if (nb_chars)
-        fill_default_data_buffers(s, nb_chars);
+        fill_default_data(s, nb_chars);
 }
 
 void ngli_text_refresh_geometry_data(struct text *s)
@@ -335,11 +283,7 @@ void ngli_text_refresh_geometry_data(struct text *s)
     if (!nb_chars)
         return;
 
-    const struct text_data_pointers defaults_ptr = get_chr_data_pointers(s->chars_data_default, nb_chars);
-    set_geometry_data(s, defaults_ptr);
-
-    for (size_t i = 0; i < nb_chars; i++) memcpy(s->data_ptrs.vertices,     defaults_ptr.vertices,     nb_chars * 4 * sizeof(float));
-    for (size_t i = 0; i < nb_chars; i++) memcpy(s->data_ptrs.atlas_coords, defaults_ptr.atlas_coords, nb_chars * 4 * sizeof(float));
+    set_geometry_data(s, s->chars_data_default);
 }
 
 static int set_value_from_node(float *dst, struct ngl_node *node, double t)
@@ -583,8 +527,6 @@ static void destroy_effects_data(struct text *s)
     ngli_freep(&s->chars_data_default);
     s->chars_data = NULL; // allocation is shared with chars_data_default
     s->chars_data_size = 0;
-
-    memset(&s->data_ptrs, 0, sizeof(s->data_ptrs)); // user may still be reading them
 }
 
 static size_t next_pow2(size_t x)
@@ -697,7 +639,7 @@ int ngli_text_set_string(struct text *s, const char *str)
      */
     const size_t nb_chars = s->chars.count;
     const size_t alloc_count = next_pow2(nb_chars);
-    const size_t needed_size = alloc_count * sizeof(struct default_data);
+    const size_t needed_size = alloc_count * sizeof(*s->chars_data);
     if (s->chars_data_size != needed_size) {
         /*
          * The x2 is because we duplicate the data for the defaults,
@@ -706,19 +648,12 @@ int ngli_text_set_string(struct text *s, const char *str)
          * first for a more predictible read/write memory access in
          * reset_chars_data_to_defaults()
          */
-        float *new_chars_data_default = ngli_try_realloc(s->chars_data_default, 2, needed_size);
+        struct text_char_data *new_chars_data_default = ngli_try_realloc(s->chars_data_default, 2, needed_size);
         if (!new_chars_data_default)
             return NGL_ERROR_MEMORY;
         s->chars_data_default = new_chars_data_default;
         s->chars_data_size = needed_size;
-        s->chars_data = (void *)((uint8_t *)s->chars_data_default + s->chars_data_size);
-    }
-
-    const size_t copy_size = nb_chars * sizeof(struct default_data);
-    if (copy_size != s->chars_copy_size) {
-        /* We don't need to copy the rounded size, only the actual number of characters */
-        s->chars_copy_size = copy_size;
-        s->data_ptrs = get_chr_data_pointers(s->chars_data, nb_chars);
+        s->chars_data = s->chars_data_default + alloc_count;
     }
 
     /*
@@ -726,7 +661,7 @@ int ngli_text_set_string(struct text *s, const char *str)
      * updated, even if the number of characters didn't change (for example
      * because they might be different characters with different dimensions)
      */
-    fill_default_data_buffers(s, nb_chars);
+    fill_default_data(s, nb_chars);
 
     reset_chars_data_to_defaults(s);
 
@@ -788,18 +723,19 @@ int ngli_text_set_time(struct text *s, double t)
             const double next_t = prev_t + duration;
             const double target_t = NGLI_LINEAR_NORM(prev_t, next_t, effect_t);
 
-            const struct ngli_aabb chr_aabb = {NGLI_ARG_VEC4(s->data_ptrs.vertices + c * 4)};
+            struct text_char_data *data = &s->chars_data[c];
+            const struct ngli_aabb chr_aabb = {NGLI_ARG_VEC4(data->vertices)};
             const struct char_info *chr = &s->chars.data[i];
 
-            if ((ret = set_transform( s->data_ptrs.transform  + c * 4 * 4, effect_opts, s->config.box, chr_aabb, chr,                   target_t)) < 0 ||
-                (ret = set_vec3_value(s->data_ptrs.color      + c * 4,     effect_opts->color_node,         effect_opts->color,         target_t)) < 0 ||
-                (ret = set_f32_value( s->data_ptrs.color      + c * 4 + 3, effect_opts->opacity_node,       effect_opts->opacity,       target_t)) < 0 ||
-                (ret = set_vec3_value(s->data_ptrs.outline    + c * 4,     effect_opts->outline_color_node, effect_opts->outline_color, target_t)) < 0 ||
-                (ret = set_f32_value( s->data_ptrs.outline    + c * 4 + 3, effect_opts->outline_node,       effect_opts->outline,       target_t)) < 0 ||
-                (ret = set_vec3_value(s->data_ptrs.glow       + c * 4,     effect_opts->glow_color_node,    effect_opts->glow_color,    target_t)) < 0 ||
-                (ret = set_f32_value( s->data_ptrs.glow       + c * 4 + 3, effect_opts->glow_node,          effect_opts->glow,          target_t)) < 0 ||
-                (ret = set_f32_value( s->data_ptrs.blur       + c,         effect_opts->blur_node,          effect_opts->blur,          target_t)) < 0 ||
-                (ret = set_f32_value( s->data_ptrs.outline_pos + c,        effect_opts->outline_pos_node,   effect_opts->outline_pos,   target_t)) < 0)
+            if ((ret = set_transform( data->transform,   effect_opts, s->config.box, chr_aabb, chr,                   target_t)) < 0 ||
+                (ret = set_vec3_value(data->color,       effect_opts->color_node,         effect_opts->color,         target_t)) < 0 ||
+                (ret = set_f32_value(&data->color[3],    effect_opts->opacity_node,       effect_opts->opacity,       target_t)) < 0 ||
+                (ret = set_vec3_value(data->outline,     effect_opts->outline_color_node, effect_opts->outline_color, target_t)) < 0 ||
+                (ret = set_f32_value(&data->outline[3],  effect_opts->outline_node,       effect_opts->outline,       target_t)) < 0 ||
+                (ret = set_vec3_value(data->glow,        effect_opts->glow_color_node,    effect_opts->glow_color,    target_t)) < 0 ||
+                (ret = set_f32_value(&data->glow[3],     effect_opts->glow_node,          effect_opts->glow,          target_t)) < 0 ||
+                (ret = set_f32_value(&data->blur,        effect_opts->blur_node,          effect_opts->blur,          target_t)) < 0 ||
+                (ret = set_f32_value(&data->outline_pos, effect_opts->outline_pos_node,   effect_opts->outline_pos,   target_t)) < 0)
                 return ret;
         }
     }
