@@ -17,9 +17,15 @@
 
 #include "loop.h"
 
-/* Reserve an hour on each side of the reported media range for timestamps outside it. */
+/* Allow for timestamps outside the reported media range. */
 #define PASS_MARGIN (3600LL * AV_TIME_BASE)
 
+/*
+ * Return 1 if ts is strictly before the effective pass end, 0 otherwise.
+ * The effective end is the earlier of end and drop. Use INT64_MAX if end is
+ * unknown or the pass reached EOF without dropped frames.
+ * ts uses the stream time base, without the pass offset.
+ */
 int nmdi_pass_ends_after(const struct nmdi_pass *pass, int64_t ts)
 {
     const int64_t end = pass->end != AV_NOPTS_VALUE ? FFMIN(pass->end, pass->drop) : INT64_MAX;
@@ -104,10 +110,10 @@ void nmdi_loop_get(struct nmdi_loop *s, int64_t *start, int64_t *end, int64_t *l
 }
 
 /*
- * Convert the exclusive loop end from microseconds to stream ticks, rounding
- * up so frames before the end remain eligible. If the loop extends beyond
- * the `end_time` option, include the frame normal playback would hold there:
- * place the cutoff one tick after the rounded `end_time`.
+ * Convert the exclusive loop end from microseconds to stream ticks.
+ * Round up to keep frames before the end. If the loop extends beyond
+ * `end_time`, use one tick after the rounded `end_time` to include the frame
+ * normally displayed there.
  */
 int64_t nmdi_loop_stream_end(int64_t end, int64_t end_time, AVRational time_base)
 {
@@ -143,19 +149,19 @@ static struct nmdi_pass *find_pass(struct nmdi_loop *s, int64_t pass_number)
     return pass->number == pass_number ? pass : NULL;
 }
 
-/* Restart pass numbering; advancing `seek_rev` distinguishes old and new pass 0. */
+/* Reset pass numbering and advance `seek_rev` to distinguish old and new passes. */
 int64_t nmdi_loop_reset_passes(struct nmdi_loop *s)
 {
     pthread_mutex_lock(&s->lock);
     s->passes_count = 0;
-    add_pass(s, 0, -1); // within the initial allocation
+    add_pass(s, 0, -1); // the initial allocation always has room for pass 0
     s->empty_pass = (struct nmdi_pass){.loop_rev = -1};
     const int64_t seek_rev = ++s->seek_rev;
     pthread_mutex_unlock(&s->lock);
     return seek_rev;
 }
 
-/* Record where the previous pass stopped supplying packets, then start the next pass. */
+/* Record the previous pass's packet cutoff and start the next pass. */
 int nmdi_loop_start_pass(struct nmdi_loop *s, int64_t pass_number, int64_t loop_rev, int64_t prev_end)
 {
     pthread_mutex_lock(&s->lock);
@@ -168,9 +174,8 @@ int nmdi_loop_start_pass(struct nmdi_loop *s, int64_t pass_number, int64_t loop_
 }
 
 /*
- * Remember the earliest frame timestamp discarded at or after the pass end.
- * Only accept reports from the current `seek_rev`, so work from before a seek
- * cannot change the new sequence of passes.
+ * Track the earliest dropped frame to know which requests this pass can cover.
+ * Ignore reports from before the latest seek.
  */
 void nmdi_loop_drop_frame(struct nmdi_loop *s, int64_t seek_rev, int64_t pass_number, int64_t ts)
 {
@@ -181,10 +186,7 @@ void nmdi_loop_drop_frame(struct nmdi_loop *s, int64_t seek_rev, int64_t pass_nu
     pthread_mutex_unlock(&s->lock);
 }
 
-/*
- * Copy a pass while holding the lock. Return 1 if found, or 0 without changing
- * dst if the pass is not retained.
- */
+/* Copy the pass if retained. Return 1 on success, or 0 without changing dst. */
 int nmdi_loop_get_pass(struct nmdi_loop *s, int64_t pass_number, struct nmdi_pass *dst)
 {
     pthread_mutex_lock(&s->lock);
@@ -196,7 +198,7 @@ int nmdi_loop_get_pass(struct nmdi_loop *s, int64_t pass_number, struct nmdi_pas
     return found;
 }
 
-/* Discard pass history strictly before `pass_number`, keeping that pass and all later ones. */
+/* Release passes before `pass_number`. */
 void nmdi_loop_release_pass_history(struct nmdi_loop *s, int64_t pass_number)
 {
     pthread_mutex_lock(&s->lock);
@@ -211,10 +213,9 @@ void nmdi_loop_release_pass_history(struct nmdi_loop *s, int64_t pass_number)
 }
 
 /*
- * Record a full pass with no filtered output if its range revision is still
- * current. If the pass is no longer retained, assume the current revision.
- * Return 1 if the caller should report EOF, or 0 if a newer range may still
- * produce frames.
+ * If its loop range is still current, record the empty full pass and return 1
+ * to report EOF. Otherwise return 0, since the new range may produce frames.
+ * If its history was released, assume the current range.
  */
 int nmdi_loop_report_empty_pass(struct nmdi_loop *s, int64_t pass_number)
 {
@@ -233,6 +234,14 @@ int nmdi_loop_report_empty_pass(struct nmdi_loop *s, int64_t pass_number)
     return end;
 }
 
+/*
+ * Copy the pass that stopped playback with no filtered frames. Return 1 if
+ * found, or 0 without changing dst.
+ *
+ * If its history was released before it was reported, the snapshot uses the
+ * reported number and the loop revision at report time, with end set to
+ * AV_NOPTS_VALUE and drop to INT64_MAX.
+ */
 int nmdi_loop_get_empty_pass(struct nmdi_loop *s, struct nmdi_pass *dst)
 {
     pthread_mutex_lock(&s->lock);
@@ -257,7 +266,7 @@ void nmdi_pass_timeline_init(struct nmdi_pass_timeline *s, const AVStream *st, i
     s->stride = length + 2 * margin;
     s->end = start + length;
 
-    /* Keep the offset timestamps far from overflowing, in microseconds as well */
+    /* Leave room for timestamp arithmetic in stream ticks and microseconds. */
     const int64_t stride_us = av_rescale_q_rnd(s->stride, st->time_base, AV_TIME_BASE_Q, AV_ROUND_UP);
     s->max_pass = INT64_MAX / 4 / FFMAX(FFMAX(s->stride, stride_us), 1);
 }

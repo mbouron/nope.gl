@@ -19,72 +19,44 @@
 
 /*
  * A pass is one traversal of the media up to the loop end. Pass 0 starts at
- * startup or at the most recent seek target, which can be outside the range.
- * Later passes start at the loop start. A regular seek restarts numbering at
- * 0; an internal loop seek advances to the next pass.
- *
- * The demuxer starts the next pass while decoded frames from the previous
- * pass are still queued. If the restart packet cannot safely continue the
- * decoder's input, the decoder outputs its buffered frames and resets first.
+ * the initial playback position or the latest seek target, which can be
+ * outside the loop range. Later passes start at the loop start. A regular
+ * seek resets pass numbering; a loop seek advances to the next pass.
  *
  *   media    |-------[======= loop =======)-------|
  *   pass 0      seek ---------------------)
  *   pass 1           [--------------------)
  *   pass 2           [--------------------)  ...
  *
- * Each pass keeps its range revision and cutoff timestamps,
- * so the API can check whether queued frames still cover a request after a
- * range change. The `end` and `drop` timestamps use the stream time base,
- * without the pass offset described in `nmdi_pass_timeline`.
+ * Keep the loop range revision and cutoff timestamps so the API can check
+ * whether queued frames still cover a request after a range change.
+ * `end` and `drop` use the stream time base, without the pass offset.
  */
 struct nmdi_pass {
-    int64_t number;   // pass number since startup or the most recent regular seek
-    int64_t loop_rev; // revision of the loop range used to start this pass; -1 for pass 0
-    int64_t end;      // decode timestamp of the first packet not sent; `AV_NOPTS_VALUE` if unknown, `INT64_MAX` at EOF
-    int64_t drop;     // earliest presentation timestamp dropped at or after the pass end; `INT64_MAX` if none
+    int64_t number;   // pass number; 0 at startup and after a regular seek
+    int64_t loop_rev; // loop range revision at pass start; -1 for pass 0
+    int64_t end;      // DTS of the first packet not sent; `AV_NOPTS_VALUE` if unknown, `INT64_MAX` at EOF
+    int64_t drop;     // earliest PTS dropped at or after the pass end; `INT64_MAX` if none
 };
 
-/**
- * Check whether a pass ends after a timestamp.
- *
- * For a completed pass, the effective end is the earlier of the first packet
- * not sent and the earliest frame dropped. If the end is unknown, or the pass
- * reached EOF without dropped frames, use INT64_MAX.
- *
- * @param pass  pass information
- * @param ts    timestamp in the stream time base, without the pass offset
- *
- * @return 1 if ts is strictly before the effective end, 0 otherwise
- */
 int nmdi_pass_ends_after(const struct nmdi_pass *pass, int64_t ts);
 
 /*
- * Shared loop settings and pass information, protected by `lock`. The API sets
- * the playback range, `playback_start` and `playback_end`, in microseconds.
- * This range can change during playback (see `nmd_set_time_range()`). The
- * demuxer and filterer read it as needed. When filtering stops at the playback
- * end, it records that boundary in `playback_stopped_at`, in microseconds.
- * The recorded value is kept across range changes, so the API can resume
- * playback if the end moves later. A seek or stop request clears it.
+ * Loop settings and pass history shared by the API, demuxer, decoder and
+ * filterer, protected by `lock`. Playback and loop bounds use media time,
+ * in microseconds. The playback range can change during playback (see
+ * `nmd_set_time_range()`).
  *
- * The API sets `loop_start` and `loop_end` in media time, in microseconds.
- * The demuxer records each pass it starts, and the decoder records frames
- * dropped at the pass end. The API removes old passes as it returns frames
- * from later passes.
+ * `loop_rev` identifies the requested loop range, since queued passes may
+ * still use an older range. `seek_rev` distinguishes passes before and after
+ * a regular seek, so late reports of dropped frames cannot affect new passes.
  *
- * `loop_rev` advances when the requested range changes. Each pass remembers
- * the revision it started with, since queued frames may still belong to an
- * older range.
+ * `playback_stopped_at` keeps the playback end that stopped filtering, so the
+ * API can resume if the end moves later. A seek or stop clears it.
  *
- * `seek_rev` advances when pass numbering restarts at 0, at startup or after
- * a regular seek. The decoder can still report dropped frames from before
- * the seek; their old revision prevents them from changing the new passes.
- * An internal loop seek only advances the pass number.
- *
- * `empty_pass` keeps a snapshot of the full pass that stopped playback with
- * no filtered frames. It survives removal of old passes and is cleared when
- * pass numbering resets. If the range changes, the API compares its revision
- * with the snapshot and seeks on the next frame request to try again.
+ * `empty_pass` keeps the full pass that stopped playback with no filtered
+ * frames, even after its history is released. The API retries on the next
+ * frame request if the loop range changes. Resetting pass numbering clears it.
  *
  * Several passes can be queued ahead of the frame currently being shown:
  *
@@ -98,20 +70,20 @@ int nmdi_pass_ends_after(const struct nmdi_pass *pass, int64_t ts);
  */
 struct nmdi_loop {
     pthread_mutex_t lock;
-    int64_t playback_start;   // start of the part of the media played (`start_time`), in microseconds
-    int64_t playback_end;     // its end (`end_time`); `AV_NOPTS_VALUE` without one
-    int64_t playback_stopped_at; // playback end that stopped filtering, in microseconds; `AV_NOPTS_VALUE` if none
+    int64_t playback_start;      // playback start (`start_time` option)
+    int64_t playback_end;        // playback end (`end_time` option); `AV_NOPTS_VALUE` if unset
+    int64_t playback_stopped_at; // playback end that stopped filtering; `AV_NOPTS_VALUE` if none
     int64_t loop_start;
-    int64_t loop_end;         // exclusive loop end; `AV_NOPTS_VALUE` when looping is disabled
-    int64_t loop_rev;         // revision of the requested range; incremented on each change
-    int64_t seek_rev;         // revision of pass numbering; incremented whenever it restarts at 0
+    int64_t loop_end;            // exclusive loop end; `AV_NOPTS_VALUE` disables looping
+    int64_t loop_rev;            // loop range revision; incremented on each update
+    int64_t seek_rev;            // revision of pass numbering; incremented on each reset
     struct nmdi_pass empty_pass; // pass that stopped playback with no filtered frames; `loop_rev` is -1 if none
-    struct nmdi_pass *passes; // consecutive passes still needed by the API
-    size_t passes_count;      // number of retained passes
-    size_t passes_capacity;   // allocated capacity of `passes`, in entries
+    struct nmdi_pass *passes;    // consecutive passes still needed by the API
+    size_t passes_count;
+    size_t passes_capacity;
 };
 
-/* Loop state lifetime. */
+/* Initialize before threads can access the state; uninitialize after they stop. */
 int nmdi_loop_init(struct nmdi_loop *s);
 void nmdi_loop_uninit(struct nmdi_loop *s);
 
@@ -135,32 +107,17 @@ void nmdi_loop_release_pass_history(struct nmdi_loop *s, int64_t pass_number);
 
 /* Empty-pass reporting. */
 int nmdi_loop_report_empty_pass(struct nmdi_loop *s, int64_t pass_number);
-
-/**
- * Get the pass that stopped playback with no filtered frames.
- *
- * Copy the snapshot recorded when the empty pass was reported. If the pass
- * was no longer retained, the snapshot uses the reported number and current
- * loop revision, with end set to AV_NOPTS_VALUE and drop to INT64_MAX.
- *
- * @param s    loop state
- * @param dst  destination for the pass snapshot; unchanged if none is recorded
- *
- * @return 1 if a snapshot was copied, 0 otherwise
- */
 int nmdi_loop_get_empty_pass(struct nmdi_loop *s, struct nmdi_pass *dst);
 
 /*
- * Give each pass its own interval of timestamps through the decoder. The
- * demuxer adds `p * stride` to the packet timestamps of pass `p`, placing each
- * repetition after the previous one. The decoder removes this offset from
- * output frames and attaches the pass number separately. Public frame
- * timestamps remain media timestamps.
+ * Identify each frame's pass from its timestamp. The demuxer adds
+ * `pass_number * stride` to packet timestamps to place each pass after the
+ * previous one. The decoder removes the offset and attaches the pass number
+ * to output frames, so public timestamps remain media timestamps.
  *
  * `origin`, `stride`, and `end` use the stream time base. `stride` covers the
- * whole media plus margins and stays the same when the loop range changes.
- * The margins allow for packet timestamps outside the reported duration.
- * `end` is the probed media end, independent of the requested loop range.
+ * whole media plus margins for timestamps outside the reported duration.
+ * The timeline stays the same when the loop range changes.
  *
  *   |<---------- pass 0 ---------->|<---------- pass 1 ---------->|
  *   | margin |   media    | margin | margin |   media    | margin |  ...
@@ -168,9 +125,9 @@ int nmdi_loop_get_empty_pass(struct nmdi_loop *s, struct nmdi_pass *dst);
  *   `origin` media start  `end`    `origin + stride`
  */
 struct nmdi_pass_timeline {
-    int64_t origin;   // start of the timestamp interval reserved for pass 0
-    int64_t stride;   // width of each pass interval; 0 if this timeline cannot be determined
-    int64_t max_pass; // limit on pass numbers to prevent timestamp overflow
+    int64_t origin;   // start of the interval reserved for pass 0
+    int64_t stride;   // width of each pass interval; 0 if the timeline is unknown
+    int64_t max_pass; // highest pass number allowed to avoid timestamp overflow
     int64_t end;      // probed end of the media
 };
 
@@ -178,18 +135,18 @@ void nmdi_pass_timeline_init(struct nmdi_pass_timeline *s, const AVStream *st, i
 int64_t nmdi_pass_from_timestamp(const struct nmdi_pass_timeline *s, int64_t ts);
 
 /*
- * Information about a decoding pass. The demuxer sends it before the pass's
- * first packet, or to update its end. The decoder retains this information
- * while frames from the pass may still arrive.
+ * The demuxer sends pass information before the pass's first packet, or to
+ * update its end. The decoder keeps it while frames from that pass may still
+ * arrive.
  *
- * `start` and `end` use the stream time base without a pass offset. If `reset`
- * is set, output buffered frames and flush decoder state before accepting
- * subsequent packets.
+ * `start` and `end` use the stream time base, without the pass offset.
+ * Set `reset` if the first packet cannot safely follow the previous pass:
+ * the decoder must output buffered frames and flush its state first.
  */
 struct nmdi_pass_info {
     int64_t seek_rev;    // revision of pass numbering for this pass
     int64_t pass_number; // pass number within `seek_rev`
-    int64_t start;       // requested playback start for this pass; `AV_NOPTS_VALUE` if unset
+    int64_t start;       // loop start for this pass; `AV_NOPTS_VALUE` if not looping
     int64_t end;         // discard frames at or after this timestamp; `INT64_MAX` if no cutoff
     int reset;
 };
