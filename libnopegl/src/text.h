@@ -123,25 +123,18 @@ struct text_cls {
     uint32_t flags; // combination of NGLI_TEXT_FLAG_*
 };
 
-/* Each field points to a contiguous data buffer (1 row per character) */
-struct text_data_pointers {
-    // geometry
-    float *vertices;     // vec4[]
-    float *atlas_coords; // vec4[]
-
-    // slug data
-    float *texcoord_bounds; // vec4[] (em-space bounding box per char)
-    float *band_transforms; // vec4[] (band scale+offset per char)
-    int32_t *glyph_data;    // ivec4[] (glyph_loc, band_max per char)
-    float *dist_scales;     // f32[] (outline coordinates to em units per char)
-
-    // effects
-    float *transform; // mat4[]
-    float *color;     // vec4[] (last component is opacity)
-    float *outline;   // vec4[] (vec3 color, f32 outline width)
-    float *outline_pos; // f32[]
-    float *glow;      // vec4[] (vec3 color, f32 glow amount)
-    float *blur;      // f32[]
+struct text_char_data {
+    float vertices[4];
+    float texcoord_bounds[4]; // em-space bounding box
+    float band_transform[4];  // band scale and offset
+    int32_t glyph_data[4];    // glyph_loc, band_max
+    float dist_scale;         // outline coordinates to em units
+    float transform[4 * 4];
+    float color[4];   // color and opacity
+    float outline[4]; // color and width
+    float glow[4];    // color and amount
+    float blur;
+    float outline_pos;
 };
 
 struct effect_segmentation {
@@ -160,14 +153,12 @@ struct text {
     struct ngpu_texture *atlas_texture;
     struct texture_resource *curve_texture;
     struct texture_resource *band_texture;
-    struct text_data_pointers data_ptrs; // set of effect data pointers (in chars_data)
+    struct text_char_data *chars_data;
 
     /* effects specific */
     struct effect_segmentation *effects;
-    float *chars_data_default; // default data buffer used to reset chars_data before every update
-    float *chars_data;         // data buffer exposed to the user (through data pointers)
+    struct text_char_data *chars_data_default; // used to reset chars_data before every update
     size_t chars_data_size;    // size of chars_data_default and chars_data
-    size_t chars_copy_size;    // actual size needed for copy
 
     struct ngli_char_info_internal_darray chars_internal;
 
