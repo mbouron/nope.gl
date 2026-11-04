@@ -86,6 +86,7 @@ struct pass {
     enum ngpu_primitive_topology topology;
     enum ngpu_pipeline_type pipeline_type;
     NGLI_DARRAY(struct ngpu_pgcraft_attribute) crafter_attributes;
+    NGLI_DARRAY(struct ngpu_pgcraft_vertex_buffer_layout) crafter_vertex_buffer_layouts;
     NGLI_DARRAY(struct ngpu_pgcraft_texture) crafter_textures;
     NGLI_DARRAY(struct ngpu_pgcraft_block) crafter_blocks;
     struct ngpu_pgcraft *crafter;

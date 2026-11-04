@@ -93,6 +93,8 @@ struct drawwaveform_priv {
     char *combined_fragment;
     struct ngpu_pgcraft_attribute position_attr;
     struct ngpu_pgcraft_attribute uvcoord_attr;
+    size_t position_stride;
+    size_t uvcoord_stride;
     uint32_t nb_vertices;
     enum ngpu_primitive_topology topology;
     struct geometry *geometry;
@@ -184,14 +186,14 @@ static int drawwaveform_init(struct ngl_node *node)
     snprintf(s->position_attr.name, sizeof(s->position_attr.name), "position");
     s->position_attr.type   = NGPU_TYPE_VEC3;
     s->position_attr.format = NGPU_FORMAT_R32G32B32_SFLOAT;
-    s->position_attr.stride = vertices_layout.stride;
     s->position_attr.offset = vertices_layout.offset;
+    s->position_stride = vertices_layout.stride;
 
     snprintf(s->uvcoord_attr.name, sizeof(s->uvcoord_attr.name), "uvcoord");
     s->uvcoord_attr.type   = NGPU_TYPE_VEC2;
     s->uvcoord_attr.format = NGPU_FORMAT_R32G32_SFLOAT;
-    s->uvcoord_attr.stride = uvcoords_layout.stride;
     s->uvcoord_attr.offset = uvcoords_layout.offset;
+    s->uvcoord_stride = uvcoords_layout.stride;
 
     s->nb_vertices = (uint32_t)vertices_layout.count;
     s->topology = s->geometry->topology;
@@ -281,21 +283,21 @@ static int drawwaveform_prepare(struct ngl_node *node,
         {.name = "uv", .type = NGPU_TYPE_VEC2},
     };
 
-    const struct ngpu_pgcraft_attribute attributes[] = {
-        s->position_attr,
-        s->uvcoord_attr,
+    const struct ngpu_pgcraft_vertex_buffer_layout vertex_buffer_layouts[] = {
+        {.attributes = &s->position_attr, .nb_attributes = 1, .stride = s->position_stride},
+        {.attributes = &s->uvcoord_attr,  .nb_attributes = 1, .stride = s->uvcoord_stride},
     };
 
     const struct ngpu_pgcraft_params crafter_params = {
-        .program_label    = "nopegl/drawwaveform",
-        .vert_base        = source_waveform_vert,
-        .frag_base        = s->combined_fragment,
-        .blocks           = blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(blocks),
-        .attributes       = attributes,
-        .nb_attributes    = NGLI_ARRAY_NB(attributes),
-        .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .program_label            = "nopegl/drawwaveform",
+        .vert_base                = source_waveform_vert,
+        .frag_base                = s->combined_fragment,
+        .blocks                   = blocks,
+        .nb_blocks                = NGLI_ARRAY_NB(blocks),
+        .vertex_buffer_layouts    = vertex_buffer_layouts,
+        .nb_vertex_buffer_layouts = NGLI_ARRAY_NB(vertex_buffer_layouts),
+        .vert_out_vars            = vert_out_vars,
+        .nb_vert_out_vars         = NGLI_ARRAY_NB(vert_out_vars),
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);

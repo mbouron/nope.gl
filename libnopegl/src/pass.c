@@ -234,7 +234,6 @@ static int register_attribute_from_layout(struct pass *s, const char *name,
     struct ngpu_pgcraft_attribute crafter_attribute = {
         .type   = layout->type,
         .format = layout->format,
-        .stride = layout->stride,
         .offset = layout->offset,
     };
     snprintf(crafter_attribute.name, sizeof(crafter_attribute.name), "%s", name);
@@ -249,6 +248,13 @@ static int register_attribute_from_layout(struct pass *s, const char *name,
     }
 
     if (ngli_darray_try_push(&s->crafter_attributes, crafter_attribute) < 0)
+        return NGL_ERROR_MEMORY;
+
+    const struct ngpu_pgcraft_vertex_buffer_layout vertex_buffer_layout = {
+        .nb_attributes = 1,
+        .stride = layout->stride,
+    };
+    if (ngli_darray_try_push(&s->crafter_vertex_buffer_layouts, vertex_buffer_layout) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -267,9 +273,7 @@ static int register_attribute(struct pass *s, const char *name, struct ngl_node 
     struct ngpu_pgcraft_attribute crafter_attribute = {
         .type   = attribute_priv->layout.type,
         .format = attribute_priv->layout.format,
-        .stride = attribute_priv->layout.stride,
         .offset = attribute_priv->layout.offset,
-        .rate   = rate,
     };
     snprintf(crafter_attribute.name, sizeof(crafter_attribute.name), "%s", name);
 
@@ -285,6 +289,14 @@ static int register_attribute(struct pass *s, const char *name, struct ngl_node 
     }
 
     if (ngli_darray_try_push(&s->crafter_attributes, crafter_attribute) < 0)
+        return NGL_ERROR_MEMORY;
+
+    const struct ngpu_pgcraft_vertex_buffer_layout vertex_buffer_layout = {
+        .nb_attributes = 1,
+        .stride = attribute_priv->layout.stride,
+        .rate = rate,
+    };
+    if (ngli_darray_try_push(&s->crafter_vertex_buffer_layouts, vertex_buffer_layout) < 0)
         return NGL_ERROR_MEMORY;
 
     return 0;
@@ -436,21 +448,25 @@ int ngli_pass_prepare(struct pass *s,
     if (!s->crafter)
         return NGL_ERROR_MEMORY;
 
+    /* Attribute storage is stable once registration is complete. */
+    for (size_t i = 0; i < s->crafter_vertex_buffer_layouts.count; i++)
+        s->crafter_vertex_buffer_layouts.data[i].attributes = &s->crafter_attributes.data[i];
+
     const struct ngpu_pgcraft_params crafter_params = {
-        .program_label     = s->params.program_label,
-        .vert_base         = s->params.vert_base,
-        .frag_base         = s->params.frag_base,
-        .comp_base         = s->params.comp_base,
-        .textures          = s->crafter_textures.data,
-        .nb_textures       = s->crafter_textures.count,
-        .attributes        = s->crafter_attributes.data,
-        .nb_attributes     = s->crafter_attributes.count,
-        .blocks            = s->crafter_blocks.data,
-        .nb_blocks         = s->crafter_blocks.count,
-        .vert_out_vars     = s->params.vert_out_vars,
-        .nb_vert_out_vars  = s->params.nb_vert_out_vars,
-        .nb_frag_output    = s->params.nb_frag_output,
-        .workgroup_size    = {NGLI_ARG_VEC3(s->params.workgroup_size)},
+        .program_label            = s->params.program_label,
+        .vert_base                = s->params.vert_base,
+        .frag_base                = s->params.frag_base,
+        .comp_base                = s->params.comp_base,
+        .textures                 = s->crafter_textures.data,
+        .nb_textures              = s->crafter_textures.count,
+        .vertex_buffer_layouts    = s->crafter_vertex_buffer_layouts.data,
+        .nb_vertex_buffer_layouts = s->crafter_vertex_buffer_layouts.count,
+        .blocks                   = s->crafter_blocks.data,
+        .nb_blocks                = s->crafter_blocks.count,
+        .vert_out_vars            = s->params.vert_out_vars,
+        .nb_vert_out_vars         = s->params.nb_vert_out_vars,
+        .nb_frag_output           = s->params.nb_frag_output,
+        .workgroup_size           = {NGLI_ARG_VEC3(s->params.workgroup_size)},
     };
 
     int ret = ngpu_pgcraft_craft(s->crafter, &crafter_params);
@@ -634,6 +650,7 @@ void ngli_pass_uninit(struct pass *s)
     ngpu_block_desc_reset(&s->user_comp_block);
     ngli_darray_reset(&s->user_data_ptrs);
     ngli_darray_reset(&s->crafter_attributes);
+    ngli_darray_reset(&s->crafter_vertex_buffer_layouts);
     ngli_darray_reset(&s->crafter_textures);
     ngli_darray_reset(&s->crafter_blocks);
 
