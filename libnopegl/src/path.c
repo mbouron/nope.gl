@@ -257,6 +257,7 @@ int ngli_path_add_svg_path(struct path *s, const char *str)
             ret = ngli_path_close(s);
             if (ret < 0)
                 return ret;
+            cmd = 0; // closepath takes no argument, so it cannot be repeated implicitly
             continue;
         }
 
