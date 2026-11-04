@@ -329,6 +329,9 @@ static int test_svg_parsing(void)
         {"M 0 0 L 1 0 Z M 2 2 L 3 2 z", 1},
         {"M 0 0 L 1 0 Z 1", 0},
         {"M 0 0 L 1 0 Z 1 1", 0},
+        {"M 0 0 L 1", 0},
+        {"M 0 0 V Z", 0},
+        {"M 0 0 C 1 1 2 2 3", 0},
     };
 
     int ret = 0;
