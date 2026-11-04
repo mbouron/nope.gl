@@ -913,13 +913,17 @@ void nmdi_filtering_run(struct filtering_ctx *ctx)
             av_channel_layout_copy(&frame_info->channel_layout, &frame->ch_layout);
 
             ret = setup_filtergraph(ctx);
-            if (ret < 0)
+            if (ret < 0) {
+                av_frame_free(&frame);
                 break;
+            }
 
             if (ctx->continuous_audio) {
                 ret = forward_audio_passes(ctx, 0);
-                if (ret < 0)
+                if (ret < 0) {
+                    av_frame_free(&frame);
                     break;
+                }
                 const int64_t in_pending_pass_number = ctx->in_pending_pass_number;
                 reset_audio_timeline(ctx);
                 ctx->in_pending_pass_number = in_pending_pass_number;

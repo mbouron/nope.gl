@@ -55,6 +55,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - Infinite loop when parsing an SVG path containing a close command with
   arguments
 - SVG path commands with missing coordinates being accepted
+- `libnopemd` memory leak when the filter graph failed to initialize
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added
