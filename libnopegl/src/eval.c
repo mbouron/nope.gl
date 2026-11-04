@@ -472,7 +472,7 @@ static int missing_argument(const struct token *token, int got)
  */
 static int check_operator_pop(struct token_darray *stack, const struct token *token)
 {
-    ngli_assert(token->nb_args >= 1 || token->nb_args <= 3);
+    ngli_assert(token->nb_args >= 1 && token->nb_args <= 3);
 
     for (int i = 0; i < token->nb_args; i++) {
         if (ngli_darray_is_empty(stack))
