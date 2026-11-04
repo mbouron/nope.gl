@@ -52,6 +52,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   updating their child on reentry
 - Assertion failure or unintended closing of the previous sub-path when
   closing a sub-path without segments
+- Infinite loop when parsing an SVG path containing a close command with
+  arguments
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added

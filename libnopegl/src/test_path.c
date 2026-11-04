@@ -320,12 +320,39 @@ end:
     return ret;
 }
 
+static int test_svg_parsing(void)
+{
+    static const struct {
+        const char *str;
+        int valid;
+    } tests[] = {
+        {"M 0 0 L 1 0 Z M 2 2 L 3 2 z", 1},
+        {"M 0 0 L 1 0 Z 1", 0},
+        {"M 0 0 L 1 0 Z 1 1", 0},
+    };
+
+    int ret = 0;
+    for (size_t i = 0; i < NGLI_ARRAY_NB(tests); i++) {
+        struct path *path = ngli_path_create();
+        if (!path)
+            return -1;
+        const int valid = ngli_path_add_svg_path(path, tests[i].str) >= 0;
+        if (valid != tests[i].valid) {
+            fprintf(stderr, "SVG path \"%s\": expected %s\n", tests[i].str, tests[i].valid ? "valid" : "invalid");
+            ret = -1;
+        }
+        ngli_path_freep(&path);
+    }
+    return ret;
+}
+
 int main(int ac, char **av)
 {
     if (test_bezier3_vec3() < 0 ||
         test_poly_bezier3() < 0 ||
         test_composition() < 0 ||
-        test_close_empty_subpath() < 0)
+        test_close_empty_subpath() < 0 ||
+        test_svg_parsing() < 0)
         return 1;
     return 0;
 }
