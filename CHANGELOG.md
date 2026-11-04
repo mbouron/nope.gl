@@ -58,6 +58,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `libnopemd` memory leak when the filter graph failed to initialize
 - `libnopemd` crash when the filter graph failed to initialize
 - `libnopemd` crash on audio texture allocation failure
+- `libnopemd` hang when a loop pass produced no frame
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added
