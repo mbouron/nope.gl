@@ -31,6 +31,7 @@
 #include "pipeline.h"
 #include "text.h"
 #include "utils/darray.h"
+#include "utils/memory.h"
 #include "utils/utils.h"
 
 /* GLSL fragments as string */
@@ -112,6 +113,7 @@ struct text_priv {
     /* characters */
     struct text *text_ctx;
     struct buffer_resource *characters;
+    struct text_char_data *uploaded_chars;
     size_t nb_chars;
 
     /* background box */
@@ -231,13 +233,22 @@ static int update_character_buffer(struct ngl_node *node)
     const size_t nb_chars = text->chars.count;
     if (!nb_chars) {
         ngli_buffer_resource_set(s->characters, NULL);
+        ngli_freep(&s->uploaded_chars);
         s->nb_chars = 0;
         return 0;
     }
 
     const size_t size = nb_chars * sizeof(*text->chars_data);
     struct ngpu_buffer *buffer = ngli_buffer_resource_get(s->characters);
+    if (buffer && s->nb_chars == nb_chars && !memcmp(s->uploaded_chars, text->chars_data, size))
+        return 0;
+
     if (!buffer || ngpu_buffer_get_size(buffer) < size) {
+        struct text_char_data *uploaded_chars = ngli_try_realloc(s->uploaded_chars, nb_chars, sizeof(*uploaded_chars));
+        if (!uploaded_chars)
+            return NGL_ERROR_MEMORY;
+        s->uploaded_chars = uploaded_chars;
+
         buffer = ngpu_buffer_create(node->ctx->gpu_ctx);
         if (!buffer)
             return NGL_ERROR_MEMORY;
@@ -251,9 +262,12 @@ static int update_character_buffer(struct ngl_node *node)
         buffer = ngli_buffer_resource_get(s->characters);
     }
 
+    /* A failed upload must not leave the cached records marked as valid. */
+    s->nb_chars = 0;
     int ret = ngpu_buffer_upload(buffer, text->chars_data, 0, size);
     if (ret < 0)
         return ret;
+    memcpy(s->uploaded_chars, text->chars_data, size);
     s->nb_chars = nb_chars;
     return 0;
 }
@@ -788,6 +802,7 @@ static void text_uninit(struct ngl_node *node)
 {
     struct text_priv *s = node->priv_data;
     ngli_buffer_resource_releasep(&s->characters);
+    ngli_freep(&s->uploaded_chars);
     ngli_buffer_resource_releasep(&s->bg_vertices);
     ngli_text_freep(&s->text_ctx);
 }
