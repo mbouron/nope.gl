@@ -547,6 +547,10 @@ static int pull_frame(struct filtering_ctx *ctx, AVFrame *outframe)
 
     if (do_audio_texture) {
         AVFrame *audio_texture_frame = get_audio_frame();
+        if (!audio_texture_frame) {
+            av_frame_free(&filtered_frame);
+            return AVERROR(ENOMEM);
+        }
         audio_frame_to_sound_texture(ctx, audio_texture_frame, filtered_frame);
         av_frame_free(&filtered_frame);
         av_frame_move_ref(outframe, audio_texture_frame);
