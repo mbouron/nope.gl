@@ -189,6 +189,10 @@ int ngli_path_bezier3_to(struct path *s, const float *ctl0, const float *ctl1, c
 
 int ngli_path_close(struct path *s)
 {
+    /* A sub-path without any segment has nothing to close */
+    if (ngli_darray_is_empty(&s->segments) || (s->segment_flags & NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN))
+        return 0;
+
     int ret = ngli_path_line_to(s, s->origin);
     if (ret < 0)
         return ret;

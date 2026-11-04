@@ -276,11 +276,56 @@ end:
     return ret;
 }
 
+/* Closing a sub-path without any segment must not affect the previous sub-path */
+static int test_close_empty_subpath(void)
+{
+    static const float points[][3] = {
+        {0.0f, 0.0f, 0.0f},
+        {1.0f, 0.0f, 0.0f},
+        {2.0f, 2.0f, 0.0f},
+    };
+
+    struct path *path = ngli_path_create();
+    if (!path)
+        return -1;
+
+    int ret = ngli_path_move_to(path, points[0]);
+    if (ret < 0)
+        goto end;
+    ret = ngli_path_close(path);
+    if (ret < 0)
+        goto end;
+    ret = ngli_path_line_to(path, points[1]);
+    if (ret < 0)
+        goto end;
+    ret = ngli_path_move_to(path, points[2]);
+    if (ret < 0)
+        goto end;
+    ret = ngli_path_close(path);
+    if (ret < 0)
+        goto end;
+    ret = ngli_path_finalize(path);
+    if (ret < 0)
+        goto end;
+
+    const struct ngli_path_segment_darray *segments = ngli_path_get_segments(path);
+    const uint32_t flags = segments->count ? segments->data[0].flags : 0;
+    if (segments->count != 1 || !(flags & NGLI_PATH_SEGMENT_FLAG_OPEN_END) || (flags & NGLI_PATH_SEGMENT_FLAG_CLOSING)) {
+        fprintf(stderr, "close empty sub-path: got %zu segments, flags 0x%x\n", segments->count, flags);
+        ret = -1;
+    }
+
+end:
+    ngli_path_freep(&path);
+    return ret;
+}
+
 int main(int ac, char **av)
 {
     if (test_bezier3_vec3() < 0 ||
         test_poly_bezier3() < 0 ||
-        test_composition() < 0)
+        test_composition() < 0 ||
+        test_close_empty_subpath() < 0)
         return 1;
     return 0;
 }
