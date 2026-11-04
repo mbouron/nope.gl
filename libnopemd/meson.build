@@ -193,6 +193,8 @@ if get_option('tests')
   hevc = files('tests/hevc.mp4')
   hevc_open_gop = files('tests/hevc_open_gop.mp4')
   hevc_ts = files('tests/hevc.ts')
+  hevc_undecodable = files('tests/hevc_undecodable.mp4')
+  hevc_open_gop_undecodable = files('tests/hevc_open_gop_undecodable.mp4')
 
   exe_names = [
     'audio',
@@ -206,6 +208,7 @@ if get_option('tests')
     'loop_audio_filters',
     'loop_bounds',
     'loop_filters',
+    'loop_undecodable',
     'misc_events',
     'microseconds',
     'next_frame',
@@ -216,7 +219,7 @@ if get_option('tests')
   ]
 
   # Tests sharing playback helpers
-  playback_tests = ['loop', 'loop_audio_filters', 'loop_filters', 'seek']
+  playback_tests = ['loop', 'loop_audio_filters', 'loop_filters', 'loop_undecodable', 'seek']
 
   executables = {}
   foreach exe_name : exe_names
@@ -271,6 +274,8 @@ if get_option('tests')
     'Loop HEVC MPEG-TS':                  {'test': 'loop',              'args': [hevc_ts, 'video']},
     'Loop HEVC open GOP':                 {'test': 'loop',              'args': [hevc_open_gop, 'video']},
     'Loop media':                         {'test': 'loop',              'args': [media, 'media']},
+    'Loop undecodable HEVC':              {'test': 'loop_undecodable',  'args': [hevc_undecodable], 'timeout': 30},
+    'Loop undecodable HEVC open GOP':     {'test': 'loop_undecodable',  'args': [hevc_open_gop_undecodable], 'timeout': 30},
     'Microseconds':                       {'test': 'microseconds',      'args': [media]},
     'Misc events image':                  {'test': 'misc_events',       'args': [image]},
     'Misc events media':                  {'test': 'misc_events',       'args': [media]},

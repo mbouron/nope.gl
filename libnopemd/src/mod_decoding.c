@@ -67,8 +67,16 @@ struct decoding_ctx {
     size_t passes_count;            // number of retained descriptions in `passes`
     size_t passes_capacity;         // allocated capacity of `passes`, in descriptions
     int looping;                    // a pass description was received since startup or the last seek
-    int64_t pass_number;            // current pass number, advanced when one of its frames is decoded
+    int64_t pass_number;            // latest pass with a decoded frame kept; 0 after startup or a seek
+    int nb_packets_without_frame;   // packets sent since keeping a timestamped frame or flushing the decoder
 };
+
+/*
+ * Allow for decoder delay (frame threads, reordering, hardware queues) before
+ * forcing a drain to check for an empty pass. This counts packets sent without
+ * keeping a timestamped frame, not packets still buffered by the decoder.
+ */
+#define MAX_DECODER_DELAY 64
 
 struct decoding_ctx *nmdi_decoding_alloc(void)
 {
@@ -246,7 +254,23 @@ static int drain_decoder(struct decoding_ctx *ctx)
     if (ret != AVERROR_EOF)
         return ret;
     nmdi_decoder_flush(ctx->decoder);
+    ctx->nb_packets_without_frame = 0;
     return 0;
+}
+
+/*
+ * Return the previous pass number if a new pass starts before any frame from
+ * that pass was kept, -1 otherwise. Its frames may still be buffered by the
+ * decoder. Exclude pass 0 because it can be empty after a seek.
+ */
+static int64_t get_pass_without_frame(const struct decoding_ctx *ctx, const struct nmdi_pass_info *info)
+{
+    if (!ctx->passes_count)
+        return -1;
+    const struct nmdi_pass_info *last = &ctx->passes[ctx->passes_count - 1];
+    if (last->pass_number == info->pass_number || last->pass_number <= ctx->pass_number)
+        return -1;
+    return last->pass_number;
 }
 
 static int update_pass(struct decoding_ctx *ctx, const struct nmdi_pass_info *info)
@@ -345,6 +369,9 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
             return 0;
         }
     }
+    /* A frame without a timestamp cannot be shown, so it does not count as output */
+    if (ts != AV_NOPTS_VALUE)
+        ctx->nb_packets_without_frame = 0;
 
     /* Emit the previous pass's cached frame before processing the next pass. */
     if (ctx->pass_number != prev_pass && ctx->tmp_frame) {
@@ -428,6 +455,7 @@ void nmdi_decoding_run(struct decoding_ctx *ctx)
              * can assume that the decoder will not called async_queue_frame()
              * until a new packet is pushed. */
             nmdi_decoder_flush(ctx->decoder);
+            ctx->nb_packets_without_frame = 0;
 
             av_frame_free(&ctx->tmp_frame);
 
@@ -451,10 +479,25 @@ void nmdi_decoding_run(struct decoding_ctx *ctx)
 
         if (msg.type == MSG_LOOP) {
             const struct nmdi_pass_info *pass_info = &msg.loop.info;
+            /*
+             * The filterer learns about a new pass from decoded frames. If a
+             * full pass has no output, allow for decoder delay before forcing
+             * a drain. Also check after a drain required by the next pass.
+             * End playback if the pass still has no frame and its loop range
+             * is still current.
+             */
+            const int64_t pass_without_frame = get_pass_without_frame(ctx, pass_info);
+            const int drain = pass_info->reset ||
+                              (pass_without_frame >= 0 && ctx->nb_packets_without_frame > MAX_DECODER_DELAY);
             ret = 0;
-            if (pass_info->reset) {
+            if (drain) {
                 TRACE(ctx, "reset the decoder for the loop pass %" PRId64, pass_info->pass_number);
                 ret = drain_decoder(ctx);
+            }
+            if (ret >= 0 && drain && pass_without_frame > ctx->pass_number &&
+                nmdi_loop_report_empty_pass(ctx->loop, pass_without_frame)) {
+                LOG(ctx, WARNING, "No decoded frame in the loop range, ending playback");
+                ret = AVERROR_EOF;
             }
             if (ret >= 0)
                 ret = update_pass(ctx, pass_info);
@@ -465,6 +508,7 @@ void nmdi_decoding_run(struct decoding_ctx *ctx)
 
         pkt = msg.packet.packet;
         TRACE(ctx, "got a packet of size %d, push it to decoder", pkt->size);
+        ctx->nb_packets_without_frame++;
         ret = nmdi_decoder_push_packet(ctx->decoder, pkt);
         av_packet_free(&pkt);
         if (ret < 0)

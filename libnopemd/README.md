@@ -53,9 +53,10 @@ frame keep showing that frame until the application wraps its clock.
 
 You can change the range during playback. The player uses queued frames when
 possible and seeks if the requested frame is no longer available.
-Call `nmd_set_loop_range(player, 0.0, 0.0)` to disable looping. If filters
-remove every frame of a complete repetition, playback ends. After a range
-change, the next `nmd_get_frame()` call seeks and tries again.
+Call `nmd_set_loop_range(player, 0.0, 0.0)` to disable looping. If no frame
+can be decoded for a complete repetition, or filters remove every frame,
+playback ends. Changing the range lets the next `nmd_get_frame()` call seek
+and try again.
 
 The demuxer seeks back to the range start in advance, while frames from the
 current repetition remain queued for playback. These internal loop seeks do

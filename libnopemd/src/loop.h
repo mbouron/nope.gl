@@ -54,9 +54,10 @@ int nmdi_pass_ends_after(const struct nmdi_pass *pass, int64_t ts);
  * `playback_stopped_at` keeps the playback end that stopped filtering, so the
  * API can resume if the end moves later. A seek or stop clears it.
  *
- * `empty_pass` keeps the full pass that stopped playback with no filtered
- * frames, even after its history is released. The API retries on the next
- * frame request if the loop range changes. Resetting pass numbering clears it.
+ * `empty_pass` keeps the full pass that stopped playback with no decoded or
+ * filtered frame, even after its history is released. The API retries on the
+ * next frame request if the loop range changes. Resetting pass numbering
+ * clears it.
  *
  * Several passes can be queued ahead of the frame currently being shown:
  *
@@ -77,7 +78,7 @@ struct nmdi_loop {
     int64_t loop_end;            // exclusive loop end; `AV_NOPTS_VALUE` disables looping
     int64_t loop_rev;            // loop range revision; incremented on each update
     int64_t seek_rev;            // revision of pass numbering; incremented on each reset
-    struct nmdi_pass empty_pass; // pass that stopped playback with no filtered frames; `loop_rev` is -1 if none
+    struct nmdi_pass empty_pass; // pass that stopped playback with no output; `loop_rev` is -1 if none
     struct nmdi_pass *passes;    // consecutive passes still needed by the API
     size_t passes_count;
     size_t passes_capacity;

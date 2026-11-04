@@ -235,12 +235,13 @@ int nmdi_loop_report_empty_pass(struct nmdi_loop *s, int64_t pass_number)
 }
 
 /*
- * Copy the pass that stopped playback with no filtered frames. Return 1 if
- * found, or 0 without changing dst.
+ * Copy the pass that stopped playback with no decoded or filtered frame.
  *
  * If its history was released before it was reported, the snapshot uses the
  * reported number and the loop revision at report time, with end set to
  * AV_NOPTS_VALUE and drop to INT64_MAX.
+ *
+ * Return 1 if found, 0 otherwise.
  */
 int nmdi_loop_get_empty_pass(struct nmdi_loop *s, struct nmdi_pass *dst)
 {
