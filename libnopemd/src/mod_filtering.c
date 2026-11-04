@@ -344,6 +344,8 @@ static int setup_filtergraph(struct filtering_ctx *ctx)
         goto end;
 
 end:
+    if (ret < 0)
+        avfilter_graph_free(&ctx->filter_graph);
     avfilter_inout_free(&inputs);
     avfilter_inout_free(&outputs);
     return ret;
