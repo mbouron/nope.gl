@@ -111,7 +111,6 @@ class NGLContext {
             System.loadLibrary("swresample")
             System.loadLibrary("swscale")
             System.loadLibrary("avfilter")
-            System.loadLibrary("png16")
             System.loadLibrary("fribidi")
             System.loadLibrary("harfbuzz")
             System.loadLibrary("nopemd")

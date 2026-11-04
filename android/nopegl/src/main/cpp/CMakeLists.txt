@@ -28,7 +28,6 @@ set(NGL_LIBS
         avcodec
         avutil
         avdevice
-        png16
         fribidi
         harfbuzz
         lcms2
