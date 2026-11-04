@@ -242,11 +242,6 @@ _EXTERNAL_DEPS = dict(
         url="https://renderdoc.org/stable/@VERSION@/renderdoc_@VERSION@.tar.gz",
         sha256="b0a7ee8ec78c4fa511eb44137380d99a748472e5fd24c877f8afcc860a172a42",
     ),
-    freetype=dict(
-        version="2-14-3",
-        url="https://github.com/freetype/freetype/archive/refs/tags/VER-@VERSION@.tar.gz",
-        sha256="dc49de6b01a266eef4876a4dd34d9842c475d3e28ff2eff63bd2fb760ab56261",
-    ),
     harfbuzz=dict(
         version="15.0.0",
         url="https://github.com/harfbuzz/harfbuzz/archive/refs/tags/@VERSION@.tar.gz",
@@ -285,7 +280,6 @@ def _get_external_deps(args):
         deps.append("boringssl")
         deps.append("lcms2")
         deps.append("ffmpeg")
-        deps.append("freetype")
         deps.append("harfbuzz")
         deps.append("fribidi")
     elif host == "Darwin":
@@ -295,14 +289,12 @@ def _get_external_deps(args):
         deps.append("lcms2")
         deps.append("ffmpeg")
         deps.append("moltenvk_iOS")
-        deps.append("freetype")
         deps.append("harfbuzz")
         deps.append("fribidi")
     elif host == "Windows":
         deps.append("pkgconf")
         deps.append("ffmpeg_Windows")
         deps.append("sdl3_Windows")
-        deps.append("freetype")
         deps.append("harfbuzz")
         deps.append("fribidi")
 
@@ -892,21 +884,10 @@ def _renderdoc_install(cfg):
     return [f"copy {renderdoc_dll} {cfg.bin_path}"]
 
 
-@_block("freetype-setup", {"Windows": [_pkgconf_install]})
-def _freetype_setup(cfg):
-    builddir = _get_builddir(cfg, "freetype")
-    return ["$(MESON_SETUP) " + _cmd_join(cfg.externals["freetype"], builddir)]
-
-
-@_block("freetype-install", [_freetype_setup])
-def _freetype_install(cfg):
-    return _meson_compile_install_cmd(cfg, "freetype")
-
-
-@_block("harfbuzz-setup", [_freetype_install])
+@_block("harfbuzz-setup", {"Windows": [_pkgconf_install]})
 def _harfbuzz_setup(cfg):
     builddir = _get_builddir(cfg, "harfbuzz")
-    return ["$(MESON_SETUP) -Dtests=disabled " + _cmd_join(cfg.externals["harfbuzz"], builddir)]
+    return ["$(MESON_SETUP) -Dtests=disabled -Dfreetype=disabled " + _cmd_join(cfg.externals["harfbuzz"], builddir)]
 
 
 @_block("harfbuzz-install", [_harfbuzz_setup])
@@ -1009,7 +990,6 @@ def _ngpu_install(cfg):
             _nopemd_install,
             _glslang_install,
             _xxhash_install,
-            _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
             _ngpu_install,
@@ -1026,7 +1006,6 @@ def _ngpu_install(cfg):
             _moltenvk_install,
             _glslang_install,
             _xxhash_install,
-            _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
             _ngpu_install,
@@ -1042,7 +1021,6 @@ def _ngpu_install(cfg):
             _sdl3_install,
             _glslang_install,
             _xxhash_install,
-            _freetype_install,
             _harfbuzz_install,
             _fribidi_install,
             _ngpu_install,

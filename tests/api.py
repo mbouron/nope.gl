@@ -30,6 +30,7 @@ import math
 import os
 import pprint
 import random
+import struct
 import tempfile
 import weakref
 from collections import namedtuple
@@ -1066,25 +1067,58 @@ def _api_text_live_change(width=320, height=240, font_faces=None):
     )
     assert ret == 0
 
+    fresh_ctx = ngl.Context()
+    fresh_capture = bytearray(width * height * 4)
+    assert (
+        fresh_ctx.configure(
+            ngl.Config(offscreen=True, width=width, height=height, backend=_backend, capture_buffer=fresh_capture)
+        )
+        == 0
+    )
+
     # An empty string forces the text node to deal with a pipeline with nul
     # attributes, this is what we exercise here, along with a varying up and
     # down number of characters
-    text_strings = ["foo", "", "foobar", "world", "hello\nworld", "\n\n", "last"]
+    text_strings = [
+        "Hello",
+        "Hello World",
+        "World",
+        "Hello World!",
+        "Greetings",
+        "Hello World! Greetings",
+        "foo",
+        "",
+        "foobar",
+        "world",
+        "hello\nworld",
+        "\n\n",
+        "last",
+    ]
 
     texts = [ngl.Text(font_faces=font_faces) for _ in range(4)]
     root = autogrid_simple(texts)
     scene = ngl.Scene.from_params(root)
     assert ctx.set_scene(scene) == 0
 
-    ctx.draw(0)
+    assert ctx.draw(0) == 0
     last_crc = zlib.crc32(capture_buffer)
     for i, s in enumerate(text_strings, 1):
         for text in texts:
             text.set_text(s)
-        ctx.draw(i)
+        assert ctx.draw(i) == 0
         crc = zlib.crc32(capture_buffer)
         assert crc != last_crc
         last_crc = crc
+
+        # Live edits can grow or reuse the glyph atlas. They must render just
+        # like a new scene with the same text and no previously cached glyphs.
+        fresh_scene = ngl.Scene.from_string(scene.serialize())
+        assert fresh_ctx.set_scene(fresh_scene) == 0
+        assert fresh_ctx.draw(i) == 0
+        assert capture_buffer == fresh_capture, s
+
+    assert ctx.set_scene(None) == 0
+    assert fresh_ctx.set_scene(None) == 0
 
 
 def api_text_live_change():
@@ -1094,6 +1128,172 @@ def api_text_live_change():
 def api_text_live_change_with_font():
     font_faces = Path(__file__).resolve().parent / "assets" / "fonts" / "Quicksand-Medium.ttf"
     return _api_text_live_change(font_faces=[ngl.FontFace(font_faces.as_posix())])
+
+
+def api_text_font_loading():
+    font = Path(__file__).resolve().parent / "assets" / "fonts" / "Quicksand-Medium.ttf"
+    ctx = ngl.Context()
+    assert ctx.configure(ngl.Config(offscreen=True, width=16, height=16, backend=_backend)) == 0
+
+    def set_font(path, index=0):
+        text = ngl.Text("Hello", font_faces=[ngl.FontFace(str(path), index=index)])
+        return ctx.set_scene(ngl.Scene.from_params(text))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        invalid = Path(tmp) / "invalid.ttf"
+        assert set_font(invalid) < 0  # missing file
+        for data in (b"", b"not a font", font.read_bytes()[:12]):
+            invalid.write_bytes(data)
+            assert set_font(invalid) < 0
+        assert set_font(font, index=1) < 0  # a single-face font has no face 1
+        assert set_font(font) == 0
+        assert ctx.draw(0) == 0
+        assert ctx.set_scene(None) == 0
+
+
+def api_text_font_scale():
+    """Equivalent point-size/DPI pairs preserve multiline layout and glyph geometry."""
+    font = Path(__file__).resolve().parent / "assets" / "fonts" / "Quicksand-Medium.ttf"
+    width, height = 320, 240
+    capture = bytearray(width * height * 4)
+    ctx = ngl.Context()
+    assert (
+        ctx.configure(ngl.Config(offscreen=True, width=width, height=height, backend=_backend, capture_buffer=capture))
+        == 0
+    )
+    for sizes in (((27, 96), (36, 72), (18, 144)), ((19, 96), (38, 48), (8, 228))):
+        images = []
+        for pt_size, dpi in sizes:
+            text = ngl.Text(
+                "Bézier\nHello world!",
+                font_faces=[ngl.FontFace(str(font))],
+                pt_size=pt_size,
+                dpi=dpi,
+                scale_mode="fixed",
+            )
+            assert ctx.set_scene(ngl.Scene.from_params(text)) == 0
+            assert ctx.draw(0) == 0
+            images.append(bytes(capture))
+        assert any(images[0][::4])  # actually drew glyphs
+        assert images[0] == images[1] == images[2]
+    assert ctx.set_scene(None) == 0
+
+
+def api_text_font_units():
+    """Auto-fit glyphs and effects are independent of the requested pixel size."""
+    font_dir = Path(__file__).resolve().parent / "assets" / "fonts"
+    fonts = [font_dir / name for name in ("Quicksand-Medium.ttf", "Cairo-SemiBold.ttf")]
+    capture = bytearray(320 * 240 * 4)
+    ctx = ngl.Context()
+    assert (
+        ctx.configure(ngl.Config(offscreen=True, width=320, height=240, backend=_backend, capture_buffer=capture)) == 0
+    )
+    for effect in (None, {"outline": 0.05}, {"blur": 0.05}, {"glow": 0.2}):
+        images = []
+        # Include outlines smaller than a pixel and a fractional pixel size.
+        for pt_size, dpi in ((1, 1), (12, 96), (37, 97), (144, 144)):
+            text = ngl.Text(
+                "AV ffi Bézier رَسْميّ",
+                font_faces=[ngl.FontFace(str(font)) for font in fonts],
+                pt_size=pt_size,
+                dpi=dpi,
+                padding=0,
+                font_scale=0.6,
+                effects=[ngl.TextEffect(**effect)] if effect else [],
+            )
+            assert ctx.set_scene(ngl.Scene.from_params(text)) == 0
+            assert ctx.draw(0) == 0
+            images.append(bytes(capture))
+        assert any(images[0][::4])
+        for image in images[1:]:
+            assert max(abs(a - b) for a, b in zip(images[0], image)) <= 1
+    assert ctx.set_scene(None) == 0
+
+
+def api_text_font_fallback_units():
+    """Fallback geometry and effects use the selected face's units per em."""
+    font_dir = Path(__file__).resolve().parent / "assets" / "fonts"
+    primary = bytearray((font_dir / "Quicksand-Medium.ttf").read_bytes())
+    # Give the primary font a different upem from the Arabic fallback (1000).
+    nb_tables = struct.unpack_from(">H", primary, 4)[0]
+    for i in range(nb_tables):
+        tag, _, offset, _ = struct.unpack_from(">4sIII", primary, 12 + i * 16)
+        if tag == b"head":
+            struct.pack_into(">H", primary, offset + 18, 2000)
+            struct.pack_into(">I", primary, offset + 8, 0)  # unused checksum adjustment
+            break
+    else:
+        assert False, "missing head table"
+
+    capture = bytearray(320 * 240 * 4)
+    ctx = ngl.Context()
+    assert (
+        ctx.configure(ngl.Config(offscreen=True, width=320, height=240, backend=_backend, capture_buffer=capture)) == 0
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "primary.ttf"
+        path.write_bytes(primary)
+        fallback = font_dir / "Cairo-SemiBold.ttf"
+        for effect in (None, {"outline": 0.05}, {"blur": 0.05}, {"glow": 0.2}):
+            images = []
+            for fonts in ([fallback], [path, fallback]):
+                text = ngl.Text(
+                    "رَسْميّ",
+                    font_faces=[ngl.FontFace(str(font)) for font in fonts],
+                    pt_size=37,
+                    dpi=97,
+                    scale_mode="fixed",
+                    effects=[ngl.TextEffect(**effect)] if effect else [],
+                )
+                assert ctx.set_scene(ngl.Scene.from_params(text)) == 0
+                assert ctx.draw(0) == 0
+                images.append(bytes(capture))
+            assert any(images[0][::4])
+            assert images[0] == images[1]
+        assert ctx.set_scene(None) == 0
+
+
+def api_text_font_collection():
+    """Selecting either face in a collection matches its standalone font."""
+    font_dir = Path(__file__).resolve().parent / "assets" / "fonts"
+    fonts = [font_dir / "Quicksand-Medium.ttf", font_dir / "Cairo-SemiBold.ttf"]
+
+    # Wrap the existing SFNT fonts in a TTC, relocating their table offsets.
+    collection = bytearray(struct.pack(">4s4I", b"ttcf", 0x10000, 2, 0, 0))
+    for i, font in enumerate(fonts):
+        collection.extend(b"\0" * (-len(collection) % 4))
+        offset = len(collection)
+        struct.pack_into(">I", collection, 12 + 4 * i, offset)
+        data = bytearray(font.read_bytes())
+        nb_tables = struct.unpack_from(">H", data, 4)[0]
+        for table in range(nb_tables):
+            pos = 12 + table * 16 + 8
+            table_offset = struct.unpack_from(">I", data, pos)[0]
+            struct.pack_into(">I", data, pos, table_offset + offset)
+            if data[pos - 8 : pos - 4] == b"head":
+                struct.pack_into(">I", data, table_offset + 8, 0)  # unused checksum adjustment in a TTC
+        collection.extend(data)
+
+    capture = bytearray(320 * 240 * 4)
+    ctx = ngl.Context()
+    assert (
+        ctx.configure(ngl.Config(offscreen=True, width=320, height=240, backend=_backend, capture_buffer=capture)) == 0
+    )
+
+    def render(path, index):
+        text = ngl.Text("Hello\nBézier", font_faces=[ngl.FontFace(str(path), index=index)])
+        assert ctx.set_scene(ngl.Scene.from_params(text)) == 0
+        assert ctx.draw(0) == 0
+        return bytes(capture)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "fonts.ttc"
+        path.write_bytes(collection)
+        images = [render(font, 0) for font in fonts]
+        assert images[0] != images[1]
+        for i, image in enumerate(images):
+            assert render(path, i) == image
+        assert ctx.set_scene(None) == 0
 
 
 def api_media_sharing_failure():

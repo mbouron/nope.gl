@@ -605,9 +605,6 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
     ngli_freep(&s->update_staging_buffers);
     s->current_staging_buffer = NULL;
     ngli_hmap_freep(&s->text_builtin_atlasses);
-#if HAVE_TEXT_LIBRARIES
-    FT_Done_FreeType(s->ft_library);
-#endif
     ngpu_ctx_freep(&s->gpu_ctx);
     ngli_config_reset(&s->config);
     backend_reset(&s->backend);
@@ -650,15 +647,6 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
         goto fail;
     }
     ngli_hmap_set_free_func(s->text_builtin_atlasses, ngli_free_text_builtin_atlas, NULL);
-
-#if HAVE_TEXT_LIBRARIES
-    FT_Error ft_error = FT_Init_FreeType(&s->ft_library);
-    if (ft_error) {
-        LOG(ERROR, "unable to initialize FreeType");
-        ret = NGL_ERROR_EXTERNAL;
-        goto fail;
-    }
-#endif
 
 #if defined(HAVE_VAAPI)
     ret = ngli_vaapi_ctx_init(s->gpu_ctx, &s->vaapi_ctx);

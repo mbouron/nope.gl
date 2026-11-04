@@ -22,11 +22,10 @@
 
 #include "config.h"
 
+#include <math.h>
+
 #if HAVE_TEXT_LIBRARIES
 #include <hb.h>
-#include <hb-ft.h>
-#include <ft2build.h>
-#include FT_OUTLINE_H
 #include <fribidi.h>
 #endif
 
@@ -43,74 +42,69 @@
 #include "utils/utils.h"
 
 #if HAVE_TEXT_LIBRARIES
-NGLI_DECLARE_DARRAY_WITH_NAME(ft_face_darray, FT_Face);
 NGLI_DECLARE_DARRAY_WITH_NAME(hb_font_darray, hb_font_t *);
 
 struct text_external {
-    struct ft_face_darray ft_faces; // FT_Face (hidden pointer)
     struct hb_font_darray hb_fonts; // hb_font_t*
+    double px_size;
     struct slug *slug;
     struct hmap *glyph_index; // persistent glyph cache across set_string calls
 };
+
+static int face_has_outlines(hb_face_t *face)
+{
+    const hb_tag_t tags[] = {
+        HB_TAG('g', 'l', 'y', 'f'),
+        HB_TAG('C', 'F', 'F', ' '),
+        HB_TAG('C', 'F', 'F', '2'),
+        HB_TAG('V', 'A', 'R', 'C'),
+        HB_TAG('G', 'L', 'Y', 'F'),
+    };
+    for (size_t i = 0; i < NGLI_ARRAY_NB(tags); i++) {
+        hb_blob_t *table = hb_face_reference_table(face, tags[i]);
+        const unsigned length = hb_blob_get_length(table);
+        hb_blob_destroy(table);
+        if (length)
+            return 1;
+    }
+    return 0;
+}
 
 static int load_font(struct text *text, const char *font_file, int32_t face_index)
 {
     struct text_external *s = text->priv_data;
 
     /* This limitation simplifies the UID computation in GLYPH_UID_STRING() */
-    if (s->ft_faces.count == 0xff) {
+    if (s->hb_fonts.count == 0xff) {
         LOG(ERROR, "maximum number of fonts reached (256)");
         return NGL_ERROR_LIMIT_EXCEEDED;
     }
 
-    FT_Face ft_face = NULL;
-    hb_font_t *hb_font = NULL;
-
-    FT_Error ft_error = FT_New_Face(text->ctx->ft_library, font_file, face_index, &ft_face);
-    if (ft_error) {
-        LOG(ERROR, "unable to initialize FreeType with font %s face %d", font_file, face_index);
+    hb_face_t *face = hb_face_create_from_file_or_fail(font_file, (unsigned)face_index);
+    if (!face) {
+        LOG(ERROR, "unable to load font %s face %d", font_file, face_index);
         return NGL_ERROR_EXTERNAL;
     }
 
-    if (!FT_IS_SCALABLE(ft_face)) {
-        LOG(ERROR, "only scalable faces are supported");
+    if (!hb_face_get_glyph_count(face) || !face_has_outlines(face)) {
+        LOG(ERROR, "only scalable OpenType faces are supported");
+        hb_face_destroy(face);
         return NGL_ERROR_UNSUPPORTED;
     }
 
-    if (ngli_darray_try_push(&s->ft_faces, ft_face) < 0) {
-        FT_Done_Face(ft_face);
+    hb_font_t *hb_font = hb_font_create(face);
+    hb_face_destroy(face);
+    if (hb_font == hb_font_get_empty())
         return NGL_ERROR_MEMORY;
-    }
 
-    const int32_t pt_size = text->config.pt_size;
-    const FT_F26Dot6 chr_w = NGLI_I32_TO_I26D6(pt_size); // nominal width in 26.6
-    const FT_F26Dot6 chr_h = NGLI_I32_TO_I26D6(pt_size); // nominal height in 26.6
-    const FT_UInt res = (FT_UInt)text->config.dpi; // resolution in dpi
-    ft_error = FT_Set_Char_Size(ft_face, chr_w, chr_h, res, res);
-    if (ft_error) {
-        LOG(ERROR, "unable to set char size to %d points in %u DPI", pt_size, res);
-        return NGL_ERROR_EXTERNAL;
-    }
+    /* Leave the scale at the default upem so shaping and outlines use design units. */
+    const unsigned ppem = (unsigned)round(s->px_size);
+    hb_font_set_ppem(hb_font, ppem, ppem);
+    hb_font_set_ptem(hb_font, (float)NGLI_MAX(text->config.pt_size, 1));
 
-    LOG(DEBUG, "loaded font family %s", ft_face->family_name);
-    if (ft_face->style_name)
-        LOG(DEBUG, "* style: %s", ft_face->style_name);
-    LOG(DEBUG, "* num glyphs: %ld", ft_face->num_glyphs);
-    LOG(DEBUG, "* bbox xmin:%ld xmax:%ld ymin:%ld ymax:%ld",
-        ft_face->bbox.xMin, ft_face->bbox.xMax,
-        ft_face->bbox.yMin, ft_face->bbox.yMax);
-    LOG(DEBUG, "* units_per_EM: %d ", ft_face->units_per_EM);
-    LOG(DEBUG, "* ascender:  %d ", ft_face->ascender);
-    LOG(DEBUG, "* descender: %d ", ft_face->descender);
-    LOG(DEBUG, "* height: %d ", ft_face->height);
-    LOG(DEBUG, "* max_advance_[width:%d height:%d]",
-        ft_face->max_advance_width, ft_face->max_advance_height);
-    LOG(DEBUG, "* underline_[position:%d thickness:%d]",
-        ft_face->underline_position, ft_face->underline_thickness);
-
-    hb_font = hb_ft_font_create(ft_face, NULL);
-    if (!hb_font)
-        return NGL_ERROR_MEMORY;
+    LOG(DEBUG, "loaded font %s face %d", font_file, face_index);
+    LOG(DEBUG, "* num glyphs: %u", hb_face_get_glyph_count(hb_font_get_face(hb_font)));
+    LOG(DEBUG, "* units_per_EM: %u", hb_face_get_upem(hb_font_get_face(hb_font)));
 
     if (ngli_darray_try_push(&s->hb_fonts, hb_font) < 0) {
         hb_font_destroy(hb_font);
@@ -118,12 +112,6 @@ static int load_font(struct text *text, const char *font_file, int32_t face_inde
     }
 
     return 0;
-}
-
-static void free_ft_face(void *user_arg, void *data)
-{
-    FT_Face *face = data;
-    FT_Done_Face(*face);
 }
 
 static void free_hb_font(void *user_arg, void *data)
@@ -138,8 +126,16 @@ static int text_external_init(struct text *text)
 {
     struct text_external *s = text->priv_data;
 
-    ngli_darray_set_free_func(&s->ft_faces, free_ft_face, NULL);
     ngli_darray_set_free_func(&s->hb_fonts, free_hb_font, NULL);
+
+    const int32_t pt_size = NGLI_MAX(text->config.pt_size, 1);
+    const int32_t dpi = text->config.dpi ? text->config.dpi : 72;
+    s->px_size = (double)pt_size * dpi / 72.0;
+    /* Keep the previous 16-bit ppem limit. */
+    if (s->px_size <= 0.0 || s->px_size > 65535.0) {
+        LOG(ERROR, "invalid font size %d points in %d DPI", pt_size, dpi);
+        return NGL_ERROR_INVALID_ARG;
+    }
 
     for (size_t i = 0; i < text->config.nb_font_faces; i++) {
         const struct ngl_node *face_node = text->config.font_faces[i];
@@ -193,8 +189,8 @@ static void text_external_release(struct text *text)
 
 struct glyph {
     int32_t slug_index; // index in the slug glyph array
-    int32_t width, height; // in 26.6
-    int32_t bearing_x, bearing_y; // in 26.6
+    hb_position_t width, height; // font design units
+    hb_position_t bearing_x, bearing_y; // font design units
 };
 
 static void free_glyph(void *user_arg, void *data)
@@ -245,65 +241,60 @@ NGLI_DECLARE_DARRAY_WITH_NAME(text_run_darray, struct text_run);
 
 struct outline_ctx {
     struct path *path;
-    FT_BBox cbox; // current glyph control box
+    hb_position_t x_min, y_min;
+    int ret;
 };
 
-struct vec3 { float x, y, z; };
-
-static struct vec3 vec3_from_ftvec2(const struct outline_ctx *s, const FT_Vector *v)
+static void move_to_cb(hb_draw_funcs_t *funcs, void *user, hb_draw_state_t *state,
+                       float x, float y, void *user_data)
 {
-    const struct vec3 ret = {
-        .x = NGLI_I26D6_TO_F32(v->x - s->cbox.xMin),
-        .y = NGLI_I26D6_TO_F32(v->y - s->cbox.yMin),
-    };
-    return ret;
+    struct outline_ctx *s = user;
+    if (s->ret < 0)
+        return;
+    const float to[3] = {x - (float)s->x_min, y - (float)s->y_min, 0.f};
+    s->ret = ngli_path_move_to(s->path, to);
 }
 
-static int move_to_cb(const FT_Vector *ftvec_to, void *user)
+static void line_to_cb(hb_draw_funcs_t *funcs, void *user, hb_draw_state_t *state,
+                       float x, float y, void *user_data)
 {
-    const struct outline_ctx *s = user;
-    const struct vec3 vec_to = vec3_from_ftvec2(s, ftvec_to);
-    const float to[3] = {vec_to.x, vec_to.y, vec_to.z};
-    return ngli_path_move_to(s->path, to);
+    struct outline_ctx *s = user;
+    if (s->ret < 0)
+        return;
+    const float to[3] = {x - (float)s->x_min, y - (float)s->y_min, 0.f};
+    s->ret = ngli_path_line_to(s->path, to);
 }
 
-static int line_to_cb(const FT_Vector *ftvec_to, void *user)
+static void quadratic_to_cb(hb_draw_funcs_t *funcs, void *user, hb_draw_state_t *state,
+                            float cx, float cy, float x, float y, void *user_data)
 {
-    const struct outline_ctx *s = user;
-    const struct vec3 vec_to = vec3_from_ftvec2(s, ftvec_to);
-    const float to[3] = {vec_to.x, vec_to.y, vec_to.z};
-    return ngli_path_line_to(s->path, to);
+    struct outline_ctx *s = user;
+    if (s->ret < 0)
+        return;
+    const float ctl[3] = {cx - (float)s->x_min, cy - (float)s->y_min, 0.f};
+    const float to[3]  = {x  - (float)s->x_min, y  - (float)s->y_min, 0.f};
+    s->ret = ngli_path_bezier2_to(s->path, ctl, to);
 }
 
-static int conic_to_cb(const FT_Vector *ftvec_ctl, const FT_Vector *ftvec_to, void *user)
+static void cubic_to_cb(hb_draw_funcs_t *funcs, void *user, hb_draw_state_t *state,
+                        float cx1, float cy1, float cx2, float cy2, float x, float y, void *user_data)
 {
-    const struct outline_ctx  *s = user;
-    const struct vec3 vec_ctl = vec3_from_ftvec2(s, ftvec_ctl);
-    const struct vec3 vec_to  = vec3_from_ftvec2(s, ftvec_to);
-    const float ctl[3] = {vec_ctl.x, vec_ctl.y, vec_ctl.z};
-    const float to[3]  = {vec_to.x,  vec_to.y,  vec_to.z};
-    return ngli_path_bezier2_to(s->path, ctl, to);
+    struct outline_ctx *s = user;
+    if (s->ret < 0)
+        return;
+    const float ctl1[3] = {cx1 - (float)s->x_min, cy1 - (float)s->y_min, 0.f};
+    const float ctl2[3] = {cx2 - (float)s->x_min, cy2 - (float)s->y_min, 0.f};
+    const float to[3]   = {x   - (float)s->x_min, y   - (float)s->y_min, 0.f};
+    s->ret = ngli_path_bezier3_to(s->path, ctl1, ctl2, to);
 }
 
-static int cubic_to_cb(const FT_Vector *ftvec_ctl1, const FT_Vector *ftvec_ctl2,
-                       const FT_Vector *ftvec_to, void *user)
+static void close_path_cb(hb_draw_funcs_t *funcs, void *user, hb_draw_state_t *state, void *user_data)
 {
-    const struct outline_ctx *s = user;
-    const struct vec3 vec_ctl1 = vec3_from_ftvec2(s, ftvec_ctl1);
-    const struct vec3 vec_ctl2 = vec3_from_ftvec2(s, ftvec_ctl2);
-    const struct vec3 vec_to   = vec3_from_ftvec2(s, ftvec_to);
-    const float ctl1[3] = {vec_ctl1.x, vec_ctl1.y, vec_ctl1.z};
-    const float ctl2[3] = {vec_ctl2.x, vec_ctl2.y, vec_ctl2.z};
-    const float to[3]   = {vec_to.x,   vec_to.y,   vec_to.z};
-    return ngli_path_bezier3_to(s->path, ctl1, ctl2, to);
+    struct outline_ctx *s = user;
+    if (s->ret < 0 || (state->current_x == state->path_start_x && state->current_y == state->path_start_y))
+        return;
+    s->ret = ngli_path_close(s->path);
 }
-
-static const FT_Outline_Funcs outline_funcs = {
-    .move_to  = move_to_cb,
-    .line_to  = line_to_cb,
-    .conic_to = conic_to_cb,
-    .cubic_to = cubic_to_cb,
-};
 
 static int build_glyph_index(struct text *text, struct hmap *glyph_index, const struct text_run_darray *runs_array)
 {
@@ -314,12 +305,24 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
     if (!path)
         return NGL_ERROR_MEMORY;
 
+    hb_draw_funcs_t *funcs = hb_draw_funcs_create();
+    if (funcs == hb_draw_funcs_get_empty()) {
+        ret = NGL_ERROR_MEMORY;
+        goto end;
+    }
+    hb_draw_funcs_set_move_to_func(funcs, move_to_cb, NULL, NULL);
+    hb_draw_funcs_set_line_to_func(funcs, line_to_cb, NULL, NULL);
+    hb_draw_funcs_set_quadratic_to_func(funcs, quadratic_to_cb, NULL, NULL);
+    hb_draw_funcs_set_cubic_to_func(funcs, cubic_to_cb, NULL, NULL);
+    hb_draw_funcs_set_close_path_func(funcs, close_path_cb, NULL, NULL);
+    hb_draw_funcs_make_immutable(funcs);
+
     for (size_t i = 0; i < runs_array->count; i++) {
         const struct text_run *run = &runs_array->data[i];
         if (run->face_id == SIZE_MAX)
             continue;
 
-        const FT_Face ft_face = s->ft_faces.data[run->face_id];
+        hb_font_t *font = s->hb_fonts.data[run->face_id];
         const size_t nb_glyphs = hb_buffer_get_length(run->buffer);
         const hb_glyph_info_t *glyph_infos = run->glyph_infos;
 
@@ -334,56 +337,48 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
             if (ngli_hmap_get_str(glyph_index, glyph_uid))
                 continue;
 
-            /*
-             * Harfbuzz seems to use NO_HINTING as well, so we may want to stay
-             * aligned with it.
-             */
-            FT_Error ft_error = FT_Load_Glyph(ft_face, glyph_id, FT_LOAD_DEFAULT | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING);
-            if (ft_error) {
-                /*
-                 * We do not use the "U+XXXX" notation in the format string
-                 * because it does not necessarily correspond to the Unicode
-                 * codepoint (we are post-shaping so this is a font specific
-                 * character code).
-                 */
-                LOG(ERROR, "unable to load glyph id %u", glyph_id);
+            hb_glyph_extents_t extents;
+            if (!hb_font_get_glyph_extents(font, glyph_id, &extents)) {
+                LOG(ERROR, "unable to get extents for glyph id %u", glyph_id);
                 ret = NGL_ERROR_EXTERNAL;
                 goto end;
             }
 
-            const FT_GlyphSlot slot = ft_face->glyph;
+            const hb_position_t shape_w = extents.width;
+            const hb_position_t shape_h = -extents.height;
+
+            // An empty space glyph doesn't need an outline
+            if (shape_w <= 0 || shape_h <= 0)
+                continue;
 
             ngli_path_clear(path);
 
-            FT_BBox cbox;
-            FT_Outline_Get_CBox(&slot->outline, &cbox);
-
-            const struct outline_ctx ft_ctx = {.path=path,.cbox=cbox};
-            FT_Outline_Decompose(&slot->outline, &outline_funcs, (void *)&ft_ctx);
+            struct outline_ctx outline = {
+                .path = path,
+                .x_min = extents.x_bearing,
+                .y_min = extents.y_bearing + extents.height,
+            };
+            const hb_bool_t drawn = hb_font_draw_glyph_or_fail(font, glyph_id, funcs, &outline);
+            ret = outline.ret;
+            if (ret < 0)
+                goto end;
+            if (!drawn) {
+                LOG(ERROR, "unable to load outline for glyph id %u", glyph_id);
+                ret = NGL_ERROR_EXTERNAL;
+                goto end;
+            }
 
             ret = ngli_path_finalize(path);
             if (ret < 0)
                 goto end;
 
-            const int32_t shape_w_26d6 = (int32_t)(cbox.xMax - cbox.xMin);
-            const int32_t shape_h_26d6 = (int32_t)(cbox.yMax - cbox.yMin);
-            const int32_t shape_w = NGLI_I26D6_TO_I32_TRUNCATED(shape_w_26d6);
-            const int32_t shape_h = NGLI_I26D6_TO_I32_TRUNCATED(shape_h_26d6);
-
-            // An empty space glyph doesn't need to be rasterized
-            if (shape_w <= 0 || shape_h <= 0)
-                continue;
-
-            const float glyph_w = NGLI_I26D6_TO_F32(shape_w_26d6);
-            const float glyph_h = NGLI_I26D6_TO_F32(shape_h_26d6);
-            const int slug_idx = ngli_slug_add_glyph(s->slug, path, NGLI_SLUG_FLAG_PATH_AUTO_CLOSE,
-                                                    glyph_w, glyph_h);
+            const int slug_idx = ngli_slug_add_glyph(s->slug, path, 0, (float)shape_w, (float)shape_h);
             if (slug_idx < 0) {
                 ret = slug_idx;
                 goto end;
             }
 
-            /* Save the rasterized glyph in the index */
+            /* Save the glyph in the index */
             struct glyph *glyph = create_glyph();
             if (!glyph) {
                 ret = NGL_ERROR_MEMORY;
@@ -391,10 +386,10 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
             }
 
             glyph->slug_index = slug_idx;
-            glyph->width     = shape_w_26d6;
-            glyph->height    = shape_h_26d6;
-            glyph->bearing_x = (int32_t)ft_ctx.cbox.xMin;
-            glyph->bearing_y = (int32_t)ft_ctx.cbox.yMin;
+            glyph->width     = shape_w;
+            glyph->height    = shape_h;
+            glyph->bearing_x = outline.x_min;
+            glyph->bearing_y = outline.y_min;
 
             ret = ngli_hmap_try_set_str(glyph_index, glyph_uid, glyph);
             if (ret < 0) {
@@ -405,6 +400,7 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
     }
 
 end:
+    hb_draw_funcs_destroy(funcs);
     ngli_path_freep(&path);
     return ret;
 }
@@ -487,12 +483,11 @@ static int append_run(struct text *text, struct text_run_darray *runs_array,
     return 0;
 }
 
-static size_t find_face_with_codepoint(const struct ft_face_darray *ft_faces_array, FriBidiChar ch, size_t prev_face_id)
+static size_t find_face_with_codepoint(const struct hb_font_darray *fonts, FriBidiChar ch)
 {
-    const FT_ULong charcode = (FT_ULong)ch;
-    const FT_Face *ft_faces = ft_faces_array->data;
-    for (size_t face_id = 0; face_id < ft_faces_array->count; face_id++)
-        if (FT_Get_Char_Index(ft_faces[face_id], charcode))
+    hb_codepoint_t glyph;
+    for (size_t face_id = 0; face_id < fonts->count; face_id++)
+        if (hb_font_get_nominal_glyph(fonts->data[face_id], ch, &glyph) && glyph)
             return face_id;
     return SIZE_MAX;
 }
@@ -509,13 +504,13 @@ static int split_into_runs(struct text *text, struct text_run_darray *runs_array
 
     ngli_assert(start < end);
 
-    size_t prev_face_id = find_face_with_codepoint(&s->ft_faces, str[start], 0);
+    size_t prev_face_id = find_face_with_codepoint(&s->hb_fonts, str[start]);
     size_t pos = start;
 
     for (;;) {
         size_t face_id;
         do {
-            face_id = find_face_with_codepoint(&s->ft_faces, str[pos], prev_face_id);
+            face_id = find_face_with_codepoint(&s->hb_fonts, str[pos]);
             if (face_id != prev_face_id)
                 break;
             pos++;
@@ -717,10 +712,19 @@ end:
     return ret;
 }
 
-// XXX is this a reasonable thing to use for vertical text as well?
-// See also the also the max_advance field
-// The value is using 26.6 encoding
-#define GET_LINE_ADVANCE(face_id) ((int32_t)(ft_faces[face_id]->size->metrics.height))
+static double get_font_scale(const struct text_external *s, hb_font_t *font)
+{
+    return s->px_size / hb_face_get_upem(hb_font_get_face(font));
+}
+
+static double get_line_advance(hb_font_t *font, double scale)
+{
+    hb_font_extents_t extents;
+    hb_font_get_extents_for_direction(font, HB_DIRECTION_LTR, &extents);
+    /* Preserve whole-pixel line spacing, also used for vertical text. */
+    const double height = (double)extents.ascender - extents.descender + extents.line_gap;
+    return round(height * scale);
+}
 
 static int register_chars(struct text *text, const char *str, struct ngli_char_info_internal_darray *chars_dst,
                           const struct text_run_darray *runs_array, const struct hmap *glyph_index)
@@ -729,20 +733,23 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
 
     const int32_t adv_sign = text->config.writing_mode == NGLI_TEXT_WRITING_MODE_VERTICAL_LR ? 1 : -1;
 
-    ngli_assert(s->ft_faces.count > 0);
-    const FT_Face *ft_faces = s->ft_faces.data;
+    ngli_assert(s->hb_fonts.count > 0);
+    hb_font_t * const *fonts = s->hb_fonts.data;
 
-    hb_position_t x_cur = 0, y_cur = 0;
-    int32_t line_advance = GET_LINE_ADVANCE(0);
+    const double default_line_advance = get_line_advance(fonts[0], get_font_scale(s, fonts[0]));
+    double x_cur = 0.0, y_cur = 0.0;
+    double line_advance = default_line_advance;
 
     for (size_t i = 0; i < runs_array->count; i++) {
         const struct text_run *run = &runs_array->data[i];
         const size_t len = hb_buffer_get_length(run->buffer);
         const hb_direction_t direction = hb_buffer_get_direction(run->buffer);
+        hb_font_t *font = fonts[run->face_id != SIZE_MAX ? run->face_id : 0];
+        const double scale = get_font_scale(s, font);
 
         /* Update line advance in case there was a font change in the middle of the line */
         if (run->face_id != SIZE_MAX) {
-            const int32_t run_line_advance = GET_LINE_ADVANCE(run->face_id);
+            const double run_line_advance = get_line_advance(font, scale);
             line_advance = NGLI_MAX(line_advance, run_line_advance);
         }
 
@@ -761,7 +768,7 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
                 }
 
                 /* Reset line advance to its default value */
-                line_advance = GET_LINE_ADVANCE(0);
+                line_advance = default_line_advance;
 
                 /* We assume the linebreak is never displayable */
                 if (ngli_darray_try_push(chars_dst, chr) < 0)
@@ -777,20 +784,21 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
             const struct glyph *glyph = ngli_hmap_get_str(glyph_index, glyph_uid);
             if (glyph) {
                 chr.tags |= NGLI_TEXT_CHAR_TAG_GLYPH;
-                chr.x = x_cur + glyph->bearing_x + pos->x_offset;
-                chr.y = y_cur + glyph->bearing_y + pos->y_offset;
-                chr.w = glyph->width;
-                chr.h = glyph->height;
+                chr.x = x_cur + scale * ((double)glyph->bearing_x + pos->x_offset);
+                chr.y = y_cur + scale * ((double)glyph->bearing_y + pos->y_offset);
+                chr.w = scale * glyph->width;
+                chr.h = scale * glyph->height;
                 chr.scale[0] = 1.f;
                 chr.scale[1] = 1.f;
+                chr.dist_scale = 1.f / (float)hb_face_get_upem(hb_font_get_face(font));
                 ngli_slug_get_glyph_data(s->slug, glyph->slug_index, &chr.slug);
             }
 
             if (ngli_darray_try_push(chars_dst, chr) < 0)
                 return NGL_ERROR_MEMORY;
 
-            x_cur += pos->x_advance;
-            y_cur += pos->y_advance;
+            x_cur += scale * pos->x_advance;
+            y_cur += scale * pos->y_advance;
         }
     }
     return 0;
@@ -835,7 +843,6 @@ static void text_external_reset(struct text *text)
 
     ngli_hmap_freep(&s->glyph_index);
     ngli_darray_reset(&s->hb_fonts);
-    ngli_darray_reset(&s->ft_faces);
     ngli_slug_freep(&s->slug);
 }
 

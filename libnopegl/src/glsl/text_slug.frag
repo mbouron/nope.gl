@@ -95,36 +95,32 @@ uint CalcRootCode(float y1, float y2, float y3)
     return ((0x2E74U >> shift) & 0x0101U);
 }
 
-vec2 SolveHorizPoly(vec4 p12, vec2 p3)
+vec2 SolveHorizPoly(vec2 a, vec2 b, vec2 p1)
 {
-    vec2 a = p12.xy - p12.zw * 2.0 + p3;
-    vec2 b = p12.xy - p12.zw;
     float ra = 1.0 / a.y;
     float rb = 0.5 / b.y;
 
-    float d = sqrt(max(b.y * b.y - a.y * p12.y, 0.0));
+    float d = sqrt(max(b.y * b.y - a.y * p1.y, 0.0));
     float t1 = (b.y - d) * ra;
     float t2 = (b.y + d) * ra;
 
-    if (abs(a.y) < 1.0 / 65536.0) { t1 = p12.y * rb; t2 = t1; }
+    if (abs(a.y) < 1.0 / 65536.0) { t1 = p1.y * rb; t2 = t1; }
 
-    return vec2((a.x * t1 - b.x * 2.0) * t1 + p12.x, (a.x * t2 - b.x * 2.0) * t2 + p12.x);
+    return vec2((a.x * t1 - b.x * 2.0) * t1 + p1.x, (a.x * t2 - b.x * 2.0) * t2 + p1.x);
 }
 
-vec2 SolveVertPoly(vec4 p12, vec2 p3)
+vec2 SolveVertPoly(vec2 a, vec2 b, vec2 p1)
 {
-    vec2 a = p12.xy - p12.zw * 2.0 + p3;
-    vec2 b = p12.xy - p12.zw;
     float ra = 1.0 / a.x;
     float rb = 0.5 / b.x;
 
-    float d = sqrt(max(b.x * b.x - a.x * p12.x, 0.0));
+    float d = sqrt(max(b.x * b.x - a.x * p1.x, 0.0));
     float t1 = (b.x - d) * ra;
     float t2 = (b.x + d) * ra;
 
-    if (abs(a.x) < 1.0 / 65536.0) { t1 = p12.x * rb; t2 = t1; }
+    if (abs(a.x) < 1.0 / 65536.0) { t1 = p1.x * rb; t2 = t1; }
 
-    return vec2((a.y * t1 - b.y * 2.0) * t1 + p12.y, (a.y * t2 - b.y * 2.0) * t2 + p12.y);
+    return vec2((a.y * t1 - b.y * 2.0) * t1 + p1.y, (a.y * t2 - b.y * 2.0) * t2 + p1.y);
 }
 
 ivec2 CalcBandLoc(ivec2 glyphLoc, int offset)
@@ -181,15 +177,20 @@ vec2 SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData, bool need
         vec4 clocData = texelFetch(band_tex, ivec2(hbandLoc.x + curveIndex, hbandLoc.y), 0);
         ivec2 curveLoc = ivec2(clocData.xy);
 
-        vec4 p12 = texelFetch(curve_tex, curveLoc, 0) - vec4(renderCoord, renderCoord);
-        vec2 p3 = texelFetch(curve_tex, ivec2(curveLoc.x + 1, curveLoc.y), 0).xy - renderCoord;
+        vec4 q12 = texelFetch(curve_tex, curveLoc, 0);
+        vec2 q3 = texelFetch(curve_tex, ivec2(curveLoc.x + 1, curveLoc.y), 0).xy;
+        vec4 p12 = q12 - vec4(renderCoord, renderCoord);
+        vec2 p3 = q3 - renderCoord;
 
         if (max(max(p12.x, p12.z), p3.x) * pixelsPerEm.x < -0.5) break;
 
         uint code = CalcRootCode(p12.y, p12.w, p3.y);
         if (code != 0U)
         {
-            vec2 r = SolveHorizPoly(p12, p3) * pixelsPerEm.x;
+            /* Form coefficients before translation so straight edges stay linear. */
+            vec2 a = q12.xy - q12.zw * 2.0 + q3;
+            vec2 b = q12.xy - q12.zw;
+            vec2 r = SolveHorizPoly(a, b, p12.xy) * pixelsPerEm.x;
 
             if ((code & 1U) != 0U)
             {
@@ -218,15 +219,19 @@ vec2 SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData, bool need
         vec4 clocData = texelFetch(band_tex, ivec2(vbandLoc.x + curveIndex, vbandLoc.y), 0);
         ivec2 curveLoc = ivec2(clocData.xy);
 
-        vec4 p12 = texelFetch(curve_tex, curveLoc, 0) - vec4(renderCoord, renderCoord);
-        vec2 p3 = texelFetch(curve_tex, ivec2(curveLoc.x + 1, curveLoc.y), 0).xy - renderCoord;
+        vec4 q12 = texelFetch(curve_tex, curveLoc, 0);
+        vec2 q3 = texelFetch(curve_tex, ivec2(curveLoc.x + 1, curveLoc.y), 0).xy;
+        vec4 p12 = q12 - vec4(renderCoord, renderCoord);
+        vec2 p3 = q3 - renderCoord;
 
         if (max(max(p12.y, p12.w), p3.y) * pixelsPerEm.y < -0.5) break;
 
         uint code = CalcRootCode(p12.x, p12.z, p3.x);
         if (code != 0U)
         {
-            vec2 r = SolveVertPoly(p12, p3) * pixelsPerEm.y;
+            vec2 a = q12.xy - q12.zw * 2.0 + q3;
+            vec2 b = q12.xy - q12.zw;
+            vec2 r = SolveVertPoly(a, b, p12.xy) * pixelsPerEm.y;
 
             if ((code & 1U) != 0U)
             {

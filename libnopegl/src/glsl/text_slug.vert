@@ -34,6 +34,7 @@ void main()
     /* Pass through per-instance data */
     banding = frag_banding;
     glyph = frag_glyph_data;
+    dist_scale = frag_dist_scale;
     color = frag_color;
     outline = frag_outline;
     glow = frag_glow;

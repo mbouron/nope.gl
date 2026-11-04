@@ -133,7 +133,14 @@ foreach backend : backends
     'param_get',
   ]
   if has_text_libraries
-    tests_api += 'text_live_change_with_font'
+    tests_api += [
+      'text_live_change_with_font',
+      'text_font_loading',
+      'text_font_scale',
+      'text_font_units',
+      'text_font_fallback_units',
+      'text_font_collection',
+    ]
   endif
 
   tests_blending = [
