@@ -26,6 +26,14 @@ jobs:
       run: |
         brew install meson nasm jq pkg-config
 
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/iOS/${{ matrix.arch }}/*.tar*
+          external/iOS/${{ matrix.arch }}/*.zip
+        key: externals-ios-${{ matrix.arch }}-${{ hashFiles('configure.py') }}
+
     - name: Build
       run: |
         ./configure.py --buildtype debug --debug-opts gl vk --host iOS --host-arch ${{ matrix.arch }}

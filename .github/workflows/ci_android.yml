@@ -41,6 +41,14 @@ jobs:
     - name: Install NDK
       run: sdkmanager --install "ndk;28.1.13356709"
 
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/Android/${{ matrix.arch }}/*.tar*
+          external/Android/${{ matrix.arch }}/*.zip
+        key: externals-android-build-${{ matrix.arch }}-${{ hashFiles('configure.py') }}
+
     - name: Build
       run: |
         ./configure.py --buildtype debug --debug-opts gl vk --host Android --host-arch ${{ matrix.arch }}
@@ -78,6 +86,14 @@ jobs:
       run: |
         sudo apt -y update
         sudo apt -y install ninja-build nasm
+
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/Android/*/*.tar*
+          external/Android/*/*.zip
+        key: externals-android-binding-${{ hashFiles('configure.py') }}
 
     - name: Build
       run: |

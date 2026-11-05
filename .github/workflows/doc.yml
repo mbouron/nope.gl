@@ -44,6 +44,14 @@ jobs:
         sudo apt -y install libharfbuzz-dev libfribidi-dev
         sudo apt -y install graphviz
 
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/*.tar*
+          external/*.zip
+        key: externals-linux-${{ hashFiles('configure.py') }}
+
     - name: Build (main)
       run: |
         ./configure.py --buildtype debug --debug-opts gl vk

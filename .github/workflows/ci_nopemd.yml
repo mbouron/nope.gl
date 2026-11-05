@@ -27,6 +27,14 @@ jobs:
         sudo apt -y install libva-dev python3-venv valgrind
         sudo apt -y install libavcodec-dev libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev libswscale-dev libswresample-dev
 
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/*.tar*
+          external/*.zip
+        key: externals-linux-${{ hashFiles('configure.py') }}
+
     - name: Build
       run: |
         ./configure.py --buildtype debug
@@ -58,6 +66,14 @@ jobs:
     - name: Install dependencies
       run: |
         brew install python3 pkg-config ffmpeg
+
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/*.tar*
+          external/*.zip
+        key: externals-macos-${{ hashFiles('configure.py') }}
 
     - name: Build
       run: |
@@ -97,6 +113,14 @@ jobs:
         # Prevents random "SSL: CERTIFICATE_VERIFY_FAILED" error with urllib HTTPS calls
         pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-ca-certificates
 
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/*.tar*
+          external/*.zip
+        key: externals-mingw-${{ hashFiles('configure.py') }}
+
     - name: Build
       run: |
         ./configure.py
@@ -127,6 +151,14 @@ jobs:
     - uses: actions/setup-python@v4
       with:
         python-version: '3.13.5'
+
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/*.tar*
+          external/*.zip
+        key: externals-windows-${{ hashFiles('configure.py') }}
 
     - name: Build
       run: |

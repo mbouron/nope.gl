@@ -38,6 +38,14 @@ jobs:
         mkdir cov-analysis-linux64
         tar xzf cov-analysis-linux64.tar.gz --strip 1 -C cov-analysis-linux64
 
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/*.tar*
+          external/*.zip
+        key: externals-linux-renderdoc-${{ hashFiles('configure.py') }}
+
     - name: Build
       run: |
         export PATH="$(pwd)/cov-analysis-linux64/bin:$PATH"

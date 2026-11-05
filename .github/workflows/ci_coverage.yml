@@ -20,6 +20,14 @@ jobs:
         sudo apt -y install ffmpeg libavcodec-dev libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev libswscale-dev libswresample-dev
         sudo apt -y install libharfbuzz-dev libfribidi-dev
 
+    - name: Cache external archives
+      uses: actions/cache@v4
+      with:
+        path: |
+          external/*.tar*
+          external/*.zip
+        key: externals-linux-${{ hashFiles('configure.py') }}
+
     - name: Run tests
       run: |
         ./configure.py --buildtype debug --coverage --debug-opts gl vk

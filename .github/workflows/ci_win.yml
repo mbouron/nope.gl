@@ -49,6 +49,14 @@ jobs:
           update: true
           install: mingw-w64-ucrt-x86_64-mesa
 
+      - name: Cache external archives
+        uses: actions/cache@v4
+        with:
+          path: |
+            external/*.tar*
+            external/*.zip
+          key: externals-windows-renderdoc-${{ hashFiles('configure.py') }}
+
       - name: Build (${{matrix.build_backend}})
         run: |
           $Env:VULKAN_SDK = "C:/VulkanSDK/${{env.VULKAN_SDK_VERSION}}"

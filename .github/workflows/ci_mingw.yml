@@ -35,6 +35,14 @@ jobs:
           # Prevents random "SSL: CERTIFICATE_VERIFY_FAILED" error with urllib HTTPS calls
           pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-ca-certificates
 
+      - name: Cache external archives
+        uses: actions/cache@v4
+        with:
+          path: |
+            external/*.tar*
+            external/*.zip
+          key: externals-mingw-${{ hashFiles('configure.py') }}
+
       - name: Build
         run: |
           ./configure.py
