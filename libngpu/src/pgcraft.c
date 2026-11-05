@@ -349,10 +349,20 @@ static enum ngpu_program_stage get_texture_field_stage(const struct ngpu_pgcraft
     return texture->stage;
 }
 
+static bool is_uint_plane(const struct ngpu_pgcraft_texture *texture, enum ngpu_type field_type)
+{
+    return texture->uint_planes && field_type == NGPU_TYPE_SAMPLER_2D;
+}
+
 static int prepare_texture_infos(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *params, int graphics)
 {
     for (size_t i = 0; i < params->nb_textures; i++) {
         const struct ngpu_pgcraft_texture *texture = &params->textures[i];
+
+        if (texture->uint_planes && texture->type != NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO) {
+            LOG(ERROR, "integer planes are only supported by video textures");
+            return NGPU_ERROR_INVALID_ARG;
+        }
 
         if (ngpu_darray_try_push(&s->textures, params->textures[i]) < 0)
             return NGPU_ERROR_MEMORY;
@@ -450,6 +460,10 @@ static int inject_texture(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_text
 
             const char *type = get_glsl_type(field_type);
             const char *precision = get_precision_qualifier(s, field_type, texture->precision, "lowp");
+            if (is_uint_plane(texture, field_type)) {
+                prefix = "u";
+                precision = get_precision_qualifier(s, field_type, NGPU_PRECISION_HIGH, "");
+            }
             ngpu_bstr_printf(b, "uniform %s %s%s %s;\n", precision, prefix, type, name);
 
             if (ngpu_darray_try_push(&s->pipeline_info.textures, layout_entry) < 0)
@@ -996,11 +1010,58 @@ static int craft_comp(struct ngpu_pgcraft *s, const struct ngpu_pgcraft_params *
     return 0;
 }
 
+static const char *get_texture_uint_helper(const struct ngpu_pgcraft_texture *texture)
+{
+    switch (texture->uint_planes_filter) {
+    case NGPU_FILTER_NEAREST: return "ngli_texture_uint_nearest";
+    case NGPU_FILTER_LINEAR:  return "ngli_texture_uint_linear";
+    default:
+        ngpu_assert(0);
+    }
+}
+
+static void inject_texture_uint_helpers(struct ngpu_pgcraft *s, struct bstr *b, enum ngpu_program_stage stage)
+{
+    bool has_nearest = false;
+    bool has_linear = false;
+    ngpu_darray_foreach(texture, &s->textures) {
+        if (!texture->uint_planes || texture->no_metadata || get_texture_field_stage(texture) != stage)
+            continue;
+        has_nearest |= texture->uint_planes_filter == NGPU_FILTER_NEAREST;
+        has_linear  |= texture->uint_planes_filter == NGPU_FILTER_LINEAR;
+    }
+
+    const char *precision = get_precision_qualifier(s, NGPU_TYPE_SAMPLER_2D, NGPU_PRECISION_HIGH, "");
+    if (has_nearest)
+        ngpu_bstr_printf(b, "vec4 ngli_texture_uint_nearest(%s usampler2D plane, vec2 coords)\n"
+                            "{\n"
+                            "    ivec2 size = textureSize(plane, 0);\n"
+                            "    ivec2 p = clamp(ivec2(floor(coords * vec2(size))), ivec2(0), size - 1);\n"
+                            "    return vec4(texelFetch(plane, p, 0));\n"
+                            "}\n", precision);
+    if (has_linear)
+        ngpu_bstr_printf(b, "vec4 ngli_texture_uint_linear(%s usampler2D plane, vec2 coords)\n"
+                            "{\n"
+                            "    ivec2 size = textureSize(plane, 0);\n"
+                            "    vec2 pos = coords * vec2(size) - 0.5;\n"
+                            "    vec2 f = fract(pos);\n"
+                            "    ivec2 p0 = clamp(ivec2(floor(pos)), ivec2(0), size - 1);\n"
+                            "    ivec2 p1 = clamp(ivec2(floor(pos)) + 1, ivec2(0), size - 1);\n"
+                            "    vec4 c00 = vec4(texelFetch(plane, p0, 0));\n"
+                            "    vec4 c10 = vec4(texelFetch(plane, ivec2(p1.x, p0.y), 0));\n"
+                            "    vec4 c01 = vec4(texelFetch(plane, ivec2(p0.x, p1.y), 0));\n"
+                            "    vec4 c11 = vec4(texelFetch(plane, p1, 0));\n"
+                            "    return mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);\n"
+                            "}\n", precision);
+}
+
 /* Evaluate coordinates once and avoid duplicating nested ngl_texvideo() calls. */
 static void inject_texvideo_helpers(struct ngpu_pgcraft *s, struct bstr *b, enum ngpu_program_stage stage)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     const struct ngpu_ctx_params *gpu_ctx_params = &gpu_ctx->params;
+
+    inject_texture_uint_helpers(s, b, stage);
 
     ngpu_darray_foreach(texture, &s->textures) {
         if (texture->type != NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO || texture->no_metadata ||
@@ -1008,6 +1069,7 @@ static void inject_texvideo_helpers(struct ngpu_pgcraft *s, struct bstr *b, enum
             continue;
 
         const char *name = texture->name;
+        const char *sample = texture->uint_planes ? get_texture_uint_helper(texture) : "texture";
         ngpu_bstr_printf(b, "vec4 ngli_texvideo_%s(vec2 coords)\n"
                            "{\n"
                            "    vec4 color;\n"
@@ -1023,22 +1085,22 @@ static void inject_texvideo_helpers(struct ngpu_pgcraft *s, struct bstr *b, enum
 
         ngpu_bstr_printf(b, "    case %d:\n"
                             "        color = %s_color_matrix * vec4(\n"
-                            "            texture(%s, coords).r,\n"
-                            "            texture(%s_1, coords).rg, 1.0);\n"
+                            "            %s(%s, coords).r,\n"
+                            "            %s(%s_1, coords).rg, 1.0);\n"
                             "        break;\n",
-                         NGPU_IMAGE_LAYOUT_NV12, name, name, name);
+                         NGPU_IMAGE_LAYOUT_NV12, name, sample, name, sample, name);
         ngpu_bstr_printf(b, "    case %d:\n"
                             "        color = %s_color_matrix * vec4(\n"
-                            "            texture(%s, coords).r,\n"
-                            "            texture(%s_1, coords).r,\n"
-                            "            texture(%s_2, coords).r, 1.0);\n"
+                            "            %s(%s, coords).r,\n"
+                            "            %s(%s_1, coords).r,\n"
+                            "            %s(%s_2, coords).r, 1.0);\n"
                             "        break;\n",
-                         NGPU_IMAGE_LAYOUT_YUV, name, name, name, name);
+                         NGPU_IMAGE_LAYOUT_YUV, name, sample, name, sample, name, sample, name);
         ngpu_bstr_printf(b, "    default:\n"
-                            "        color = texture(%s, coords);\n"
+                            "        color = %s(%s, coords);\n"
                             "        break;\n"
                             "    }\n"
-                            "    color = %s_mapping_color_matrix * color;\n", name, name);
+                            "    color = %s_mapping_color_matrix * color;\n", sample, name, name);
 
         if (texture->clamp_video)
             ngpu_bstr_print(b, "    color = clamp(color, 0.0, 1.0);\n");

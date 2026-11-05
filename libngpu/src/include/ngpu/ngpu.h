@@ -1075,6 +1075,17 @@ struct ngpu_pgcraft_texture {
      * metadata uniforms.
      */
     bool no_metadata;
+    /*
+     * When set, video planes are unsigned integer textures (e.g. R16_UINT).
+     * Filtering and normalization are done in the shader and abstracted by
+     * ngl_texvideo().
+     *
+     * The normalization relies on the color_matrix of the texture info block,
+     * which must include the scaling factors converting the integer range to
+     * [0, 1].
+     */
+    bool uint_planes;
+    enum ngpu_filter uint_planes_filter;
 };
 
 struct ngpu_pgcraft_block {
