@@ -40,6 +40,7 @@ struct hwmap_common {
     int32_t height;
     size_t nb_planes;
     struct ngpu_texture *planes[4];
+    bool uint_planes;
 };
 
 static const struct format_desc {
@@ -51,6 +52,7 @@ static const struct format_desc {
     int log2_chroma_height;
     int format_depth;
     enum ngpu_format formats[4];
+    enum ngpu_format uint_formats[4];
 } format_descs[] = {
     [NMD_PIXFMT_RGBA] = {
         .layout = NGLI_IMAGE_LAYOUT_DEFAULT,
@@ -124,6 +126,8 @@ static const struct format_desc {
         .format_depth = 16,
         .formats[0] = NGPU_FORMAT_R16_UNORM,
         .formats[1] = NGPU_FORMAT_R16G16_UNORM,
+        .uint_formats[0] = NGPU_FORMAT_R16_UINT,
+        .uint_formats[1] = NGPU_FORMAT_R16G16_UINT,
     },
     [NMD_PIXFMT_YUV420P10LE] = {
         .layout = NGLI_IMAGE_LAYOUT_YUV,
@@ -135,6 +139,9 @@ static const struct format_desc {
         .formats[0] = NGPU_FORMAT_R16_UNORM,
         .formats[1] = NGPU_FORMAT_R16_UNORM,
         .formats[2] = NGPU_FORMAT_R16_UNORM,
+        .uint_formats[0] = NGPU_FORMAT_R16_UINT,
+        .uint_formats[1] = NGPU_FORMAT_R16_UINT,
+        .uint_formats[2] = NGPU_FORMAT_R16_UINT,
     },
     [NMD_PIXFMT_YUV422P10LE] = {
         .layout = NGLI_IMAGE_LAYOUT_YUV,
@@ -146,6 +153,9 @@ static const struct format_desc {
         .formats[0] = NGPU_FORMAT_R16_UNORM,
         .formats[1] = NGPU_FORMAT_R16_UNORM,
         .formats[2] = NGPU_FORMAT_R16_UNORM,
+        .uint_formats[0] = NGPU_FORMAT_R16_UINT,
+        .uint_formats[1] = NGPU_FORMAT_R16_UINT,
+        .uint_formats[2] = NGPU_FORMAT_R16_UINT,
     },
     [NMD_PIXFMT_YUV444P10LE] = {
         .layout = NGLI_IMAGE_LAYOUT_YUV,
@@ -157,6 +167,9 @@ static const struct format_desc {
         .formats[0] = NGPU_FORMAT_R16_UNORM,
         .formats[1] = NGPU_FORMAT_R16_UNORM,
         .formats[2] = NGPU_FORMAT_R16_UNORM,
+        .uint_formats[0] = NGPU_FORMAT_R16_UINT,
+        .uint_formats[1] = NGPU_FORMAT_R16_UINT,
+        .uint_formats[2] = NGPU_FORMAT_R16_UINT,
     },
 };
 
@@ -186,6 +199,24 @@ static bool support_direct_rendering(struct hwmap *hwmap, const struct format_de
     return direct_rendering;
 }
 
+static bool are_plane_formats_supported(struct hwmap *hwmap, const struct format_desc *desc)
+{
+    struct ngpu_ctx *gpu_ctx = hwmap->ctx->gpu_ctx;
+    const struct hwmap_params *params = &hwmap->params;
+
+    uint32_t required = NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+    if (params->texture_min_filter != NGPU_FILTER_NEAREST ||
+        params->texture_mag_filter != NGPU_FILTER_NEAREST)
+        required |= NGPU_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+
+    for (size_t i = 0; i < desc->nb_planes; i++) {
+        const uint32_t features = ngpu_ctx_get_format_features(gpu_ctx, desc->formats[i]);
+        if (!NGLI_HAS_ALL_FLAGS(features, required))
+            return false;
+    }
+    return true;
+}
+
 static int common_init(struct hwmap *hwmap, struct nmd_frame *frame)
 {
     struct ngl_ctx *ctx = hwmap->ctx;
@@ -204,17 +235,28 @@ static int common_init(struct hwmap *hwmap, struct nmd_frame *frame)
     common->height = frame->height;
     common->nb_planes = desc->nb_planes;
 
+    /*
+     * If 16-bit normalized textures are not supported (e.g. OpenGL ES 3.0,
+     * WebGL 2), fallback on unsigned integer textures.
+     */
+    if (!are_plane_formats_supported(hwmap, desc))
+        common->uint_planes = desc->uint_formats[0] != NGPU_FORMAT_UNDEFINED;
+
+    const enum ngpu_format *formats = common->uint_planes ? desc->uint_formats : desc->formats;
+    const enum ngpu_filter min_filter = common->uint_planes ? NGPU_FILTER_NEAREST : params->texture_min_filter;
+    const enum ngpu_filter mag_filter = common->uint_planes ? NGPU_FILTER_NEAREST : params->texture_mag_filter;
+
     for (size_t i = 0; i < common->nb_planes; i++) {
         const uint32_t width =  (uint32_t)(i == 0 ? frame->width : NGLI_CEIL_RSHIFT(frame->width, desc->log2_chroma_width));
         const uint32_t height = (uint32_t)(i == 0 ? frame->height : NGLI_CEIL_RSHIFT(frame->height, desc->log2_chroma_height));
 
         const struct ngpu_texture_params plane_params = {
             .type          = NGPU_TEXTURE_TYPE_2D,
-            .format        = desc->formats[i],
+            .format        = formats[i],
             .width         = width,
             .height        = height,
-            .min_filter    = params->texture_min_filter,
-            .mag_filter    = params->texture_mag_filter,
+            .min_filter    = min_filter,
+            .mag_filter    = mag_filter,
             .mipmap_filter = desc->layout == NGLI_IMAGE_LAYOUT_DEFAULT ? params->texture_mipmap_filter : NGPU_MIPMAP_FILTER_NONE,
             .wrap_s        = params->texture_wrap_s,
             .wrap_t        = params->texture_wrap_t,
@@ -230,7 +272,7 @@ static int common_init(struct hwmap *hwmap, struct nmd_frame *frame)
             return ret;
     }
 
-    hwmap->require_hwconv = !support_direct_rendering(hwmap, desc);
+    hwmap->require_hwconv = common->uint_planes || !support_direct_rendering(hwmap, desc);
 
     return 0;
 }
@@ -262,7 +304,7 @@ static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct
 
     const struct format_desc *desc = common->desc;
     const int src_max = ((1 << desc->depth) - 1) << desc->shift;
-    const int dst_max = (1 << desc->format_depth) - 1;
+    const int dst_max = common->uint_planes ? 1 : (1 << desc->format_depth) - 1;
     const float color_scale = (float)dst_max / (float)src_max;
 
     const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);

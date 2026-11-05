@@ -120,6 +120,16 @@ static size_t get_hdr_params_size(const struct hwconv *hwconv)
     return hwconv->type == HWCONV_TYPE_PQ ? sizeof(struct hdr_block) : offsetof(struct hdr_block, eetf);
 }
 
+/* Unsigned integer planes are mapped without 16-bit normalized textures, see hwmap_common.c */
+static bool has_uint_planes(const struct ngli_image_params *params)
+{
+    if (params->layout != NGLI_IMAGE_LAYOUT_NV12 &&
+        params->layout != NGLI_IMAGE_LAYOUT_YUV)
+        return false;
+    const struct ngpu_texture_params *plane_params = ngpu_texture_get_params(params->planes[0]);
+    return plane_params->format == NGPU_FORMAT_R16_UINT;
+}
+
 int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
                      const struct ngli_image *dst_image,
                      const struct ngli_image_params *src_params)
@@ -171,8 +181,15 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         return NGL_ERROR_UNSUPPORTED;
     }
 
+    /* Integer planes are filtered like the converted texture */
     struct ngpu_pgcraft_texture textures[] = {
-        {.name = "tex", .type = NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO, .stage = NGPU_PROGRAM_STAGE_FRAG},
+        {
+            .name               = "tex",
+            .type               = NGPU_PGCRAFT_TEXTURE_TYPE_VIDEO,
+            .stage              = NGPU_PROGRAM_STAGE_FRAG,
+            .uint_planes        = has_uint_planes(src_params),
+            .uint_planes_filter = texture_params->mag_filter,
+        },
     };
 
     const int transfer = src_params->color_info.transfer;

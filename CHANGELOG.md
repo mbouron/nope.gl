@@ -73,6 +73,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
   on the unnormalized color difference in our BT.2446 method A implementation
 - Incorrect colors when displaying HDR media due to out of range pixel values
   not being handled
+- Media with a bit-depth other than 8-bit failing to display on OpenGLES 3.0
+  and WebGL2 (due to lack of 16-bit normalized textures support)
 
 ## [2026.5 / libnopegl 0.17.0][2026.5] - 2026-10-18
 ### Added
