@@ -8,6 +8,8 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+
+## [2026.6 / libnopegl 0.18.0][2026.6] - 2026-11-06
 ### Added
 - The Android package exports FFmpeg and nope.media through Prefab (`nopegl`),
   so other native modules can use the bundled headers and libraries
@@ -715,3 +717,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 [2026.3]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.3
 [2026.4]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.4
 [2026.5]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.5
+[2026.6]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.6
