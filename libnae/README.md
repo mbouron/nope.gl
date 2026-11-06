@@ -143,6 +143,12 @@ output and converts non-finite output samples to silence. A plan replacement is
 memory-safe but is not inherently click-free: fader ramps handle gain changes;
 arbitrary routing transitions need host-defined fades or crossfades.
 
+`nae_fader_create()` follows volume keyframes over the project frames: from
+each keyframe's frame, a linear ramp from the previous keyframe's volume (unity
+before the first) over its length, then that volume. Keyframes are snapshotted
+by the next commit, as source ranges are, so automation edits are as safe as
+graph edits.
+
 ## Decoding, underruns and seeks
 
 Create one `nae_media` per simultaneous playback cursor. It owns one nope.media

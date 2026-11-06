@@ -21,15 +21,24 @@ struct nae_node {
     bool initialized;
 };
 
+/* The keyframes of a fader, as set or as snapshotted by a commit */
+struct keyframes {
+    struct nae_keyframe *items;
+    uint32_t count;
+};
+
 struct step {
     struct nae_node *node;
     const float **inputs;
     float *output;
     void *user;
+    /* Snapshots of the node's parameters, owned by the plan */
     struct nae_source source;
+    struct keyframes keyframes;
 };
 
 static int source_process(void *user, const struct nae_process *p);
+static int fader_process(void *user, const struct nae_process *p);
 
 struct plan {
     struct step *steps;
@@ -59,6 +68,7 @@ static void free_plan(struct plan *p)
     for (uint32_t i = 0; i < p->nb_steps; i++) {
         nae_node_unrefp(&p->steps[i].node);
         free(p->steps[i].inputs);
+        free(p->steps[i].keyframes.items);
     }
     free(p->steps);
     free(p->buffers);
@@ -200,6 +210,17 @@ int nae_engine_commit(struct nae_engine *s, const struct nae_route *routes,
         if (step->node->processor.process == source_process) {
             step->source = *(const struct nae_source *)step->user;
             step->user = &step->source;
+        } else if (step->node->processor.process == fader_process) {
+            const struct keyframes *set = step->user;
+            step->keyframes.items = alloc_array(set->count + 1, sizeof(*set->items));
+            if (!step->keyframes.items) {
+                ret = NAE_ERROR_MEMORY;
+                goto end;
+            }
+            if (set->count)
+                memcpy(step->keyframes.items, set->items, set->count * sizeof(*set->items));
+            step->keyframes.count = set->count;
+            step->user = &step->keyframes;
         }
         step->output = p->buffers + i * samples;
         const uint32_t n = step->node->processor.nb_inputs;
@@ -458,4 +479,87 @@ int nae_mix_create(struct nae_engine *s, uint32_t nb_inputs, struct nae_node **n
 {
     const struct nae_processor processor = {.nb_inputs = nb_inputs, .process = mix_process};
     return nae_node_create(s, &processor, node);
+}
+
+static void fader_destroy(void *user)
+{
+    struct keyframes *set = user;
+    free(set->items);
+    free(set);
+}
+
+/* Volume at `frame`, `next` being the count of keyframes at or before it */
+static float fader_volume(const struct keyframes *set, int64_t frame, uint32_t next)
+{
+    if (!next)
+        return 1.f;
+    const struct nae_keyframe *k = &set->items[next - 1];
+    if (frame >= k->frame + k->length)
+        return k->volume;
+    const float from = next > 1 ? set->items[next - 2].volume : 1.f;
+    return from + (k->volume - from) * (float)((double)(frame - k->frame) / (double)k->length);
+}
+
+static int fader_process(void *user, const struct nae_process *p)
+{
+    const struct keyframes *set = user;
+    /* The keyframes at or before the first frame */
+    uint32_t lo = 0, hi = set->count;
+    while (lo < hi) {
+        const uint32_t mid = lo + (hi - lo) / 2;
+        if (set->items[mid].frame <= p->frame)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    uint32_t next = lo;
+    for (uint32_t i = 0; i < p->frames; i++) {
+        const int64_t frame = p->frame + i;
+        while (next < set->count && set->items[next].frame <= frame)
+            next++;
+        const float volume = fader_volume(set, frame, next);
+        for (uint32_t c = 0; c < p->channels; c++) {
+            const size_t index = (size_t)i * p->channels + c;
+            p->output[index] = p->inputs[0][index] * volume;
+        }
+    }
+    return NAE_OK;
+}
+
+int nae_fader_create(struct nae_engine *s, struct nae_node **node)
+{
+    struct keyframes *set = calloc(1, sizeof(*set));
+    if (!set)
+        return NAE_ERROR_MEMORY;
+    const struct nae_processor processor = {
+        .nb_inputs = 1, .user = set, .process = fader_process, .destroy = fader_destroy,
+    };
+    int ret = nae_node_create(s, &processor, node);
+    if (ret < 0)
+        free(set);
+    return ret;
+}
+
+int nae_fader_set_keyframes(struct nae_node *node, const struct nae_keyframe *keyframes, uint32_t count)
+{
+    if (!node || node->processor.process != fader_process || (count && !keyframes) || count > 65536)
+        return NAE_ERROR_INVALID;
+    for (uint32_t i = 0; i < count; i++) {
+        const struct nae_keyframe *k = &keyframes[i];
+        if (k->frame < 0 || k->length < 0 || k->frame > INT64_MAX - k->length ||
+            !isfinite(k->volume) || k->volume < 0 || (i && k->frame < keyframes[i - 1].frame))
+            return NAE_ERROR_INVALID;
+    }
+    struct nae_keyframe *items = NULL;
+    if (count) {
+        items = alloc_array(count, sizeof(*items));
+        if (!items)
+            return NAE_ERROR_MEMORY;
+        memcpy(items, keyframes, count * sizeof(*items));
+    }
+    struct keyframes *set = node->processor.user;
+    free(set->items);
+    set->items = items;
+    set->count = count;
+    return NAE_OK;
 }

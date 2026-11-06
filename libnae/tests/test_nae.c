@@ -138,11 +138,64 @@ static void test_validation(void)
     nae_engine_freep(&e); /* Also frees an unadopted plan. */
 }
 
+static int ones(void *user, const struct nae_process *p)
+{
+    (void)user;
+    for (uint32_t i = 0; i < p->frames * p->channels; i++)
+        p->output[i] = 1;
+    return NAE_OK;
+}
+
+static void test_fader(void)
+{
+    struct nae_engine *e = NULL;
+    const struct nae_config c = {48000, 2, 16};
+    assert(nae_engine_create(&c, &e) == NAE_OK);
+    struct nae_node *one = NULL, *fader = NULL;
+    const struct nae_processor p = {.process = ones};
+    assert(nae_node_create(e, &p, &one) == NAE_OK);
+    assert(nae_fader_create(e, &fader) == NAE_OK);
+    uint32_t in[] = {0};
+    const struct nae_route r[] = {{one, NULL}, {fader, in}};
+    assert(nae_engine_commit(e, r, 2, 1) == NAE_OK);
+    float out[2 * 40];
+    assert(nae_engine_render(e, 0, 40, out) == NAE_OK);
+    for (int i = 0; i < 80; i++) close_to(out[i], 1);
+    const struct nae_keyframe k[] = {{10, 0, 0.5f}, {20, 10, 1.5f}, {35, 2, 0}};
+    assert(nae_fader_set_keyframes(fader, k, 3) == NAE_OK);
+    /* Snapshotted by the next commit */
+    assert(nae_engine_render(e, 0, 40, out) == NAE_OK);
+    close_to(out[30], 1);
+    assert(nae_engine_commit(e, r, 2, 1) == NAE_OK);
+    assert(nae_engine_render(e, 0, 40, out) == NAE_OK);
+    for (int i = 0; i < 40; i++) {
+        float v = i < 10 ? 1 : i < 20 ? 0.5f : i < 30 ? 0.5f + (float)(i - 20) / 10 : i < 35 ? 1.5f : i < 37 ? 1.5f * (1 - (float)(i - 35) / 2) : 0;
+        close_to(out[2 * i], v);
+        close_to(out[2 * i + 1], v);
+    }
+    /* From any frame, as after a seek */
+    assert(nae_engine_render(e, 25, 1, out) == NAE_OK);
+    close_to(out[0], 1);
+    const struct nae_keyframe unsorted[] = {{10, 0, 1}, {5, 0, 1}};
+    assert(nae_fader_set_keyframes(fader, unsorted, 2) == NAE_ERROR_INVALID);
+    const struct nae_keyframe negative[] = {{10, 0, -1}};
+    assert(nae_fader_set_keyframes(fader, negative, 1) == NAE_ERROR_INVALID);
+    assert(nae_fader_set_keyframes(one, k, 1) == NAE_ERROR_INVALID);
+    assert(nae_fader_set_keyframes(fader, NULL, 0) == NAE_OK);
+    assert(nae_engine_commit(e, r, 2, 1) == NAE_OK);
+    assert(nae_engine_render(e, 30, 1, out) == NAE_OK);
+    close_to(out[0], 1);
+    nae_node_unrefp(&one);
+    nae_node_unrefp(&fader);
+    nae_engine_freep(&e);
+}
+
 int main(void)
 {
     test_mix_edit();
     test_schedule();
     test_validation();
+    test_fader();
     puts("nae core: OK");
     return 0;
 }

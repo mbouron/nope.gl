@@ -120,6 +120,22 @@ NAE_API int nae_mix_create(struct nae_engine *engine, uint32_t nb_inputs, struct
 /* Atomic target update, adopted at the next processing block. The ramp
  * continues across blocks and graph replacements. Gains must be finite >=0. */
 NAE_API int nae_gain_set(struct nae_node *node, float gain);
+/* A volume automation point: from `frame`, the volume goes linearly from
+ * the previous point's (1 before the first point) to `volume` over `length`
+ * frames, then stays there. */
+struct nae_keyframe {
+    int64_t frame;
+    int64_t length;
+    float volume;
+};
+
+/* A fader follows its keyframes over the project frames (none: unity). */
+NAE_API int nae_fader_create(struct nae_engine *engine, struct nae_node **node);
+/* Control-thread edit, snapshotted by the next successful commit, as source
+ * ranges are. Keyframes are copied; frames must not decrease, lengths and
+ * volumes must be finite >=0. At most 65536 keyframes. */
+NAE_API int nae_fader_set_keyframes(struct nae_node *node, const struct nae_keyframe *keyframes,
+                                   uint32_t nb_keyframes);
 NAE_API void nae_node_unrefp(struct nae_node **node);
 
 #ifdef __cplusplus
