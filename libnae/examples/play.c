@@ -27,6 +27,7 @@ int main(int argc, char **argv)
     }
     struct nae_engine *engine = NULL;
     struct nae_sink *sink = NULL;
+    struct nae_transport *transport = NULL;
     struct nae_media *media[MAX_TRACKS] = {0};
     struct nae_node *nodes[2 * MAX_TRACKS + 2] = {0};
     struct nae_route routes[2 * MAX_TRACKS + 2] = {0};
@@ -57,13 +58,22 @@ int main(int argc, char **argv)
     routes[2 * count + 1] = (struct nae_route){nodes[2 * count + 1], &master_input};
     ret = nae_engine_commit(engine, routes, (uint32_t)(2 * count + 2), (uint32_t)(2 * count + 1));
     if (ret != NAE_OK) goto end;
+    const struct nae_transport_config transport_config = {
+        .declick_frames = config.sample_rate / 200, .ready_timeout_frames = config.sample_rate / 4,
+    };
+    ret = nae_transport_create(engine, &transport_config, &transport);
+    if (ret < 0) goto end;
+    ret = nae_transport_set_duration(transport, length);
+    if (ret < 0) goto end;
+    sink_config.transport = transport;
     ret = nae_sink_create(engine, &sink_config, &sink);
     if (ret < 0) goto end;
     signal(SIGINT, interrupt_handler);
     ret = nae_sink_start(sink);
     if (ret < 0) goto end;
-    /* The media decode on threads of their own: wait for the longest to play */
-    for (int64_t waited = 0; !interrupted && waited < length * 1000 / config.sample_rate + 200; waited += 10) {
+    nae_transport_play(transport);
+    /* The media decode on threads of their own; the transport stops at the end */
+    while (!interrupted && nae_transport_is_playing(transport)) {
         if (nae_sink_status(sink) != NAE_OK) {
             ret = NAE_ERROR_IO;
             goto end;
@@ -75,6 +85,7 @@ int main(int argc, char **argv)
     ret = NAE_OK;
 end:
     nae_sink_freep(&sink);
+    nae_transport_freep(&transport);
     for (unsigned i = 0; i < 2 * MAX_TRACKS + 2; i++) nae_node_unrefp(&nodes[i]);
     nae_engine_freep(&engine);
     for (unsigned i = 0; i < MAX_TRACKS; i++) nae_media_unrefp(&media[i]);

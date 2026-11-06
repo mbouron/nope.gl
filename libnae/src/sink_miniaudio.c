@@ -1,15 +1,23 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#define _POSIX_C_SOURCE 200809L  /* clock_gettime() */
 #include <limits.h>
 #include <math.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 #include <miniaudio/miniaudio.h>
 #include "nae/miniaudio.h"
 
 struct nae_sink {
     struct nae_engine *engine;
+    struct nae_transport *transport;
+    int64_t latency;              /* nanoseconds */
     ma_context context;
     ma_device device;
     bool context_ready, device_ready, started;
@@ -23,6 +31,19 @@ static void data_callback(ma_device *device, void *output, const void *input, ma
     (void)input;
     struct nae_sink *s = device->pUserData;
     const struct nae_config *c = nae_engine_get_config(s->engine);
+    if (s->transport) {
+        const int ret = nae_transport_render(s->transport, nae_sink_now() + s->latency, frames, output);
+        if (ret != NAE_OK) {
+            uint32_t n = atomic_load_explicit(&s->underruns, memory_order_relaxed);
+            atomic_store_explicit(&s->underruns, n + 1, memory_order_relaxed);
+            if (ret < 0)
+                atomic_store_explicit(&s->status, ret, memory_order_relaxed);
+        }
+        float *pcm = output;
+        for (size_t i = 0; i < (size_t)frames * c->channels; i++)
+            pcm[i] = isfinite(pcm[i]) ? fmaxf(-1.f, fminf(1.f, pcm[i])) : 0.f;
+        return;
+    }
     int ret = nae_engine_render(s->engine, s->cursor, frames, output);
     if (ret != NAE_OK) {
         /* This counter has a single writer, so no retrying RMW is needed. */
@@ -63,6 +84,7 @@ int nae_sink_create(struct nae_engine *engine, const struct nae_sink_config *con
     if (!s)
         return NAE_ERROR_MEMORY;
     s->engine = engine;
+    s->transport = config ? config->transport : NULL;
     atomic_init(&s->underruns, 0);
     atomic_init(&s->status, NAE_OK);
     if (!atomic_is_lock_free(&s->underruns) || !atomic_is_lock_free(&s->status)) {
@@ -79,6 +101,8 @@ int nae_sink_create(struct nae_engine *engine, const struct nae_sink_config *con
     d.playback.channels = c->channels;
     d.sampleRate = c->sample_rate;
     d.performanceProfile = ma_performance_profile_low_latency;
+    if (config && config->period_ms)
+        d.periodSizeInMilliseconds = config->period_ms;
     d.aaudio.usage = ma_aaudio_usage_media;
     d.aaudio.contentType = ma_aaudio_content_type_movie;
     d.dataCallback = data_callback;
@@ -87,6 +111,10 @@ int nae_sink_create(struct nae_engine *engine, const struct nae_sink_config *con
     if (ma_device_init(&s->context, &d, &s->device) != MA_SUCCESS)
         goto fail;
     s->device_ready = true;
+    /* The buffering of the device: what the backends tell of their latency */
+    const ma_uint32 rate = s->device.playback.internalSampleRate ? s->device.playback.internalSampleRate : c->sample_rate;
+    s->latency = (int64_t)s->device.playback.internalPeriodSizeInFrames * s->device.playback.internalPeriods *
+                 1000000000 / rate;
     *sink = s;
     return NAE_OK;
 fail:
@@ -120,7 +148,7 @@ int nae_sink_stop(struct nae_sink *s)
 
 int nae_sink_seek(struct nae_sink *s, int64_t frame)
 {
-    if (!s || s->started || frame < 0)
+    if (!s || s->started || s->transport || frame < 0)
         return NAE_ERROR_INVALID;
     s->cursor = frame;
     return NAE_OK;
@@ -147,4 +175,23 @@ void nae_sink_freep(struct nae_sink **sp)
         ma_context_uninit(&s->context);
     free(s);
     *sp = NULL;
+}
+
+int64_t nae_sink_latency(const struct nae_sink *s)
+{
+    return s ? s->latency : 0;
+}
+
+int64_t nae_sink_now(void)
+{
+#if defined(_WIN32)
+    LARGE_INTEGER count, frequency;
+    QueryPerformanceCounter(&count);
+    QueryPerformanceFrequency(&frequency);
+    return (int64_t)((double)count.QuadPart * 1e9 / (double)frequency.QuadPart);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+#endif
 }

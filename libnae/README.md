@@ -209,7 +209,12 @@ Past the end of the media a source plays silence (`NAE_EOF`) without asking
 the decoder again. For offline rendering, a blocking media has the reads wait
 for their data, so an export is complete and deterministic.
 
-The sink exposes source underrun counts and device-stop/error status. It does
+The sink plays a transport when given one: the device then runs on while
+paused, rendering silence, so a seek still reaches the sources at once, and
+each callback times the transport's clock with the time its first frame is
+heard (now plus the latency of the device's buffering, in `nae_sink_now()`'s
+monotonic time base, Android's `System.nanoTime()`). The sink exposes source
+underrun counts and device-stop/error status. It does
 not repair device disconnects. The host owns device recreation and
 Android audio-focus/lifecycle handling.
 
