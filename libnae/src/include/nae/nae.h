@@ -204,6 +204,12 @@ NAE_API int nae_transport_get_clock(const struct nae_transport *transport, struc
 /* The frame heard at `time`, extrapolated from the clock while playing */
 NAE_API int64_t nae_clock_position_at(const struct nae_clock *clock, int64_t time);
 
+/* Render thread, or the control thread while nothing renders (the device
+ * stopped): applies what is pending (the graph committed, a seek) and
+ * positions the sources, without rendering. The output restarts from
+ * silence, with the processors' history reset as after a jump. */
+NAE_API void nae_transport_sync(struct nae_transport *transport);
+
 /* Render thread: fills `frames` frames, moving the position on. `time` is
  * when the first one is heard, in the host's nanoseconds (0 if unknown):
  * the times of the renders are smoothed into the clock. */

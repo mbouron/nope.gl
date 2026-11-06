@@ -273,10 +273,10 @@ static void source_seek(const struct nae_source *s, int64_t frame, int wrap)
 }
 
 /* A node rendered from `frame` after rendering elsewhere, or never */
-static void jump(struct step *step, int64_t frame, int wrap)
+static void jump(struct step *step, int64_t frame, int wrap, int force)
 {
     struct nae_node *node = step->node;
-    if (node->initialized && node->next_frame == frame)
+    if (node->initialized && node->next_frame == frame && !force)
         return;
     if (node->processor.process == source_process)
         source_seek(&step->source, frame, wrap && node->initialized);
@@ -285,36 +285,38 @@ static void jump(struct step *step, int64_t frame, int wrap)
     node->initialized = true;
 }
 
-void nae_engine_prepare(struct nae_engine *s, int64_t frame, int wrap)
+void nae_engine_prepare(struct nae_engine *s, int64_t frame, int wrap, int force)
 {
     adopt_pending(s);
     struct plan *p = s->active;
     for (uint32_t i = 0; p && i < p->nb_steps; i++) {
-        jump(&p->steps[i], frame, wrap);
+        jump(&p->steps[i], frame, wrap, force);
         p->steps[i].node->next_frame = frame;
     }
 }
 
 int nae_engine_render(struct nae_engine *s, int64_t first, uint32_t frames, float *output)
 {
-    return nae_engine_render_jump(s, first, frames, output, 0);
+    return nae_engine_render_jump(s, first, frames, output, 0, 1);
 }
 
-int nae_engine_render_jump(struct nae_engine *s, int64_t first, uint32_t frames, float *output, int wrap)
+int nae_engine_render_jump(struct nae_engine *s, int64_t first, uint32_t frames, float *output, int wrap,
+                           int adopt)
 {
     if (!s || first < 0 || first > INT64_MAX - frames || (frames && !output) ||
         (size_t)frames > SIZE_MAX / sizeof(float) / s->config.channels)
         return NAE_ERROR_INVALID;
     int result = NAE_OK;
     while (frames) {
-        adopt_pending(s);
+        if (adopt)
+            adopt_pending(s);
         const uint32_t n = frames < s->config.block_frames ? frames : s->config.block_frames;
         const size_t bytes = (size_t)n * s->config.channels * sizeof(float);
         struct plan *p = s->active;
         for (uint32_t i = 0; p && i < p->nb_steps; i++) {
             struct step *step = &p->steps[i];
             struct nae_node *node = step->node;
-            jump(step, first, wrap);
+            jump(step, first, wrap, 0);
             const struct nae_process process = {
                 .frame = first, .frames = n,
                 .channels = s->config.channels, .sample_rate = s->config.sample_rate,

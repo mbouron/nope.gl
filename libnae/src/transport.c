@@ -295,6 +295,28 @@ static void ramp(struct nae_transport *t, float *output, uint32_t frames, float 
     }
 }
 
+void nae_transport_sync(struct nae_transport *t)
+{
+    if (!t)
+        return;
+    /* Nothing rendered meanwhile: restarting from silence */
+    t->gain = t->target = 0.f;
+    t->ramp_left = 0;
+    const uint64_t seek = atomic_load_explicit(&t->seek, memory_order_acquire);
+    const uint16_t number = (uint16_t)(seek >> FRAME_BITS);
+    if (number != t->seek_seen) {
+        const int64_t duration = atomic_load(&t->duration);
+        const int64_t frame = (int64_t)(seek & FRAME_MASK);
+        t->position = frame < duration ? frame : duration;
+        t->seek_seen = number;
+        t->holding = false;
+        t->wrap_next = false;
+        atomic_store_explicit(&t->position_done, t->position, memory_order_relaxed);
+        atomic_store_explicit(&t->seek_done, number, memory_order_release);
+    }
+    nae_engine_prepare(t->engine, t->position, 0, 1);
+}
+
 int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames, float *output)
 {
     if (!t || (frames && !output))
@@ -329,21 +351,25 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
             t->holding = false;
             t->wrap_next = false;
             pending = false;
-            nae_engine_prepare(t->engine, t->position, 0);
+            nae_engine_prepare(t->engine, t->position, 0, 0);
             clock_position = t->position;
             clock_offset = done;
         }
 
         const int playing = atomic_load(&t->playing);
-        if (!playing && silent(t))
+        if (!playing && silent(t)) {
+            /* Paused: the commits are adopted all the same, their new nodes
+             * positioned where the playback resumes */
+            nae_engine_prepare(t->engine, t->position, 0, 0);
             break;
+        }
 
         if (t->position >= end) {
             if (!looping) {
                 /* The end: back to the start, stopped */
                 t->position = 0;
                 atomic_store(&t->playing, 0);
-                nae_engine_prepare(t->engine, 0, 0);
+                nae_engine_prepare(t->engine, 0, 0, 0);
                 clock_position = 0;
                 clock_offset = done;
                 clock_moving = false;
@@ -353,9 +379,11 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
                 /* The sources go round the loop while it holds still */
                 t->holding = true;
                 t->hold_left = hold;
-                nae_engine_prepare(t->engine, start, 1);
+                nae_engine_prepare(t->engine, start, 1, 0);
             }
             if (t->holding) {
+                /* Likewise while holding still, the new nodes at the start */
+                nae_engine_prepare(t->engine, start, 1, 0);
                 if (t->hold_left > hold)
                     t->hold_left = hold;
                 const int64_t count = t->hold_left < frames - done ? t->hold_left : frames - done;
@@ -400,7 +428,10 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
             t->waiting = false;
 
         float *dst = output + (size_t)done * t->channels;
-        const int ret = nae_engine_render_jump(t->engine, t->position, (uint32_t)block, dst, t->wrap_next);
+        /* Fading out into a pause, the graph faded is the one playing: an
+         * edit made meanwhile, as an editor pauses for, is adopted once silent */
+        const int ret = nae_engine_render_jump(t->engine, t->position, (uint32_t)block, dst, t->wrap_next,
+                                               playing || silent(t));
         t->wrap_next = false;
         if (ret < 0)
             result = ret;

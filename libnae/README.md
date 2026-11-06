@@ -170,6 +170,10 @@ loop going round is flagged as a wrap, so a source decoding the loop ahead (the
 nope.media adapter does) moves onto its next pass rather than seek. A seek
 while paused, a hold at the end of a pass, and the end of the project position
 the sources at once, for them to get their data before playback goes on.
+Paused or holding still, the renders adopt the commits all the same, their new
+sources positioned there: an edit never waits for playback to go on. Fading out
+into a pause, they adopt none: an editor pausing for its edits is not heard
+cutting its tracks.
 
 Each render publishes a clock: the project frame heard at a host time, the
 times of the renders smoothed by a delay-locked loop so the callbacks' jitter

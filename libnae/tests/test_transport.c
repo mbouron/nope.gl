@@ -79,14 +79,14 @@ static void test_play_to_end(void)
     struct numbers n = {0};
     struct setup s = setup(&n, 1000, 100, 0, 0);
     float out[80];
-    /* Not playing: silence, nothing read */
+    /* Not playing: silence, nothing read, the source positioned for its data to be there on play */
     assert(nae_transport_render(s.transport, 0, 8, out) == NAE_OK);
     for (int i = 0; i < 8; i++) close_to(out[i], 0);
-    assert(n.seeks == 0);
+    assert(n.seeks == 1 && n.last_seek == 1000 && n.wraps == 0);
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 40, out) == NAE_OK);
     for (int i = 0; i < 40; i++) close_to(out[i], (float)(1000 + i));
-    assert(n.seeks == 1 && n.last_seek == 1000 && n.wraps == 0); /* positioned before the first read */
+    assert(n.seeks == 1); /* not positioned twice */
     assert(nae_transport_get_position(s.transport) == 40);
     /* The end: back to the start, stopped, the source positioned there */
     assert(nae_transport_render(s.transport, 0, 80, out) == NAE_OK);
@@ -126,6 +126,12 @@ static void test_seek(void)
     assert(nae_transport_render(s.transport, 0, 4, out) == NAE_OK);
     for (int i = 0; i < 4; i++) close_to(out[i], (float)(1030 + i));
     assert(n.seeks == seeks + 1); /* no second seek */
+    /* Nothing rendering: the control thread applies the seek itself */
+    assert(nae_transport_seek(s.transport, 70) == NAE_OK);
+    nae_transport_sync(s.transport);
+    assert(n.last_seek == 1070 && nae_transport_get_position(s.transport) == 70);
+    assert(nae_transport_render(s.transport, 0, 4, out) == NAE_OK);
+    for (int i = 0; i < 4; i++) close_to(out[i], (float)(1070 + i));
     assert(nae_transport_seek(s.transport, -1) == NAE_ERROR_INVALID);
     assert(nae_transport_seek(s.transport, INT64_C(1) << 48) == NAE_ERROR_INVALID);
     teardown(&s);
@@ -215,6 +221,24 @@ static void test_declick(void)
     for (int i = 0; i < 6; i++) close_to(out[i], 1);
     check_ramp_out(out + 6);
     check_ramp_in(out + 14, 16);
+    /* Edited as it pauses: the fade out plays the graph it started on, the
+     * edit adopted once silent, and playing fades the new graph in */
+    struct numbers m = {.value = 2};
+    const struct nae_source source = {
+        .user = &m, .read = numbers_read, .seek = numbers_seek, .timeline_start = 0, .duration = 100,
+    };
+    struct nae_node *other = NULL;
+    assert(nae_source_create(s.engine, &source, &other) == NAE_OK);
+    const struct nae_route to_other = {other, NULL};
+    nae_transport_pause(s.transport);
+    assert(nae_engine_commit(s.engine, &to_other, 1, 0) == NAE_OK);
+    assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
+    check_ramp_out(out);
+    for (int i = 8; i < 16; i++) close_to(out[i], 0);
+    nae_transport_play(s.transport);
+    assert(nae_transport_render(s.transport, 0, 8, out) == NAE_OK);
+    for (int i = 0; i < 8; i++) close_to(out[i], 2.f * (float)(i + 1) / 8);
+    nae_node_unrefp(&other);
     teardown(&s);
 }
 
@@ -277,6 +301,46 @@ static void test_clock(void)
     teardown(&s);
 }
 
+/* Paused or holding still, the renders adopt the commits all the same: the
+ * control thread commits again without waiting for the playback to resume */
+static void test_commit_while_silent(void)
+{
+    struct numbers n = {0}, m = {.value = 1};
+    struct setup s = setup(&n, 1000, 100, 0, 0);
+    const struct nae_source source = {
+        .user = &m, .read = numbers_read, .seek = numbers_seek, .timeline_start = 0, .duration = 100,
+    };
+    struct nae_node *other = NULL;
+    assert(nae_source_create(s.engine, &source, &other) == NAE_OK);
+    const struct nae_route to_other = {other, NULL}, to_source = {s.source, NULL};
+    float out[16];
+    nae_transport_play(s.transport);
+    assert(nae_transport_render(s.transport, 0, 10, out) == NAE_OK);
+    nae_transport_pause(s.transport);
+    assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
+    assert(nae_engine_commit(s.engine, &to_other, 1, 0) == NAE_OK);
+    assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
+    for (int i = 0; i < 16; i++) close_to(out[i], 0);
+    assert(m.seeks == 1 && m.last_seek == 10); /* the new node where the playback resumes */
+    assert(nae_engine_commit(s.engine, &to_source, 1, 0) == NAE_OK);
+    assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
+    nae_transport_play(s.transport);
+    assert(nae_transport_render(s.transport, 0, 4, out) == NAE_OK);
+    for (int i = 0; i < 4; i++) close_to(out[i], (float)(1010 + i));
+    assert(n.seeks == 1); /* went on from where it was */
+    /* Holding still at the end of a loop */
+    nae_transport_set_looping(s.transport, 1);
+    assert(nae_transport_set_loop_range(s.transport, 0, 20) == NAE_OK);
+    assert(nae_transport_set_loop_hold(s.transport, 1000) == NAE_OK);
+    assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
+    for (int i = 6; i < 16; i++) close_to(out[i], 0);
+    assert(nae_engine_commit(s.engine, &to_other, 1, 0) == NAE_OK);
+    assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
+    assert(nae_engine_commit(s.engine, &to_source, 1, 0) == NAE_OK);
+    nae_node_unrefp(&other);
+    teardown(&s);
+}
+
 int main(void)
 {
     test_play_to_end();
@@ -285,6 +349,7 @@ int main(void)
     test_declick();
     test_waiting();
     test_clock();
+    test_commit_while_silent();
     puts("nae transport: OK");
     return 0;
 }
