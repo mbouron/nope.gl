@@ -182,6 +182,7 @@ val prefabModules = mapOf(
     "nae" to PrefabModule(listOf("nae/nae.h")),
     "nae-nopemd" to PrefabModule(listOf("nae/nopemd.h"), listOf("nae", "nopemd"), stl = "c++_shared"),
     "nae-miniaudio" to PrefabModule(listOf("nae/miniaudio.h"), listOf("nae")),
+    "nae-player" to PrefabModule(listOf("nae/player.h"), listOf("nae", "nae-nopemd", "nae-miniaudio"), stl = "c++_shared"),
 )
 
 // Keep in sync with _ANDROID_VERSION in configure.py.
