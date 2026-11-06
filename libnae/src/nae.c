@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "nae/nae.h"
+#include "internal.h"
 
 #define MAX_NODES 4096u
 #define MAX_INPUTS 64u
@@ -249,31 +250,71 @@ end:
     return ret;
 }
 
+static void adopt_pending(struct nae_engine *s)
+{
+    struct plan *pending = atomic_load_explicit(&s->pending, memory_order_acquire);
+    if (pending) {
+        s->retired = s->active;
+        s->active = pending;
+        atomic_store_explicit(&s->pending, NULL, memory_order_relaxed);
+        atomic_store_explicit(&s->busy, 0, memory_order_release);
+    }
+}
+
+/* Moves the source of a step to the frame of its media read from `frame` of the project */
+static void source_seek(const struct nae_source *s, int64_t frame, int wrap)
+{
+    if (!s->seek)
+        return;
+    int64_t offset = frame > s->timeline_start ? frame - s->timeline_start : 0;
+    if (offset > s->duration)
+        offset = s->duration;
+    s->seek(s->user, s->source_start + offset, wrap);
+}
+
+/* A node rendered from `frame` after rendering elsewhere, or never */
+static void jump(struct step *step, int64_t frame, int wrap)
+{
+    struct nae_node *node = step->node;
+    if (node->initialized && node->next_frame == frame)
+        return;
+    if (node->processor.process == source_process)
+        source_seek(&step->source, frame, wrap && node->initialized);
+    else if (node->processor.reset)
+        node->processor.reset(node->processor.user, frame);
+    node->initialized = true;
+}
+
+void nae_engine_prepare(struct nae_engine *s, int64_t frame, int wrap)
+{
+    adopt_pending(s);
+    struct plan *p = s->active;
+    for (uint32_t i = 0; p && i < p->nb_steps; i++) {
+        jump(&p->steps[i], frame, wrap);
+        p->steps[i].node->next_frame = frame;
+    }
+}
+
 int nae_engine_render(struct nae_engine *s, int64_t first, uint32_t frames, float *output)
+{
+    return nae_engine_render_jump(s, first, frames, output, 0);
+}
+
+int nae_engine_render_jump(struct nae_engine *s, int64_t first, uint32_t frames, float *output, int wrap)
 {
     if (!s || first < 0 || first > INT64_MAX - frames || (frames && !output) ||
         (size_t)frames > SIZE_MAX / sizeof(float) / s->config.channels)
         return NAE_ERROR_INVALID;
     int result = NAE_OK;
     while (frames) {
-        struct plan *pending = atomic_load_explicit(&s->pending, memory_order_acquire);
-        if (pending) {
-            s->retired = s->active;
-            s->active = pending;
-            atomic_store_explicit(&s->pending, NULL, memory_order_relaxed);
-            atomic_store_explicit(&s->busy, 0, memory_order_release);
-        }
+        adopt_pending(s);
         const uint32_t n = frames < s->config.block_frames ? frames : s->config.block_frames;
         const size_t bytes = (size_t)n * s->config.channels * sizeof(float);
         struct plan *p = s->active;
         for (uint32_t i = 0; p && i < p->nb_steps; i++) {
             struct step *step = &p->steps[i];
             struct nae_node *node = step->node;
-            if (!node->initialized || node->next_frame != first) {
-                if (node->processor.reset)
-                    node->processor.reset(node->processor.user, first);
-                node->initialized = true;
-            }
+            jump(step, first, wrap);
             const struct nae_process process = {
                 .frame = first, .frames = n,
                 .channels = s->config.channels, .sample_rate = s->config.sample_rate,
@@ -296,6 +337,7 @@ int nae_engine_render(struct nae_engine *s, int64_t first, uint32_t frames, floa
             memset(output, 0, bytes);
         first += n;
         frames -= n;
+        wrap = 0;
         output += (size_t)n * s->config.channels;
     }
     return result;

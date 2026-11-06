@@ -69,6 +69,12 @@ struct nae_source {
      * for unavailable data, EOF for exhausted data, or a negative error.
      * This function runs on the render thread: no allocation or waiting. */
     int (*read)(void *user, int64_t frame, uint32_t frames, float *output);
+    /* Optional, render thread, wait-free: the renderer jumped, and reads next
+     * from the source frame `frame` (the start of the range before it, its end
+     * after it). `wrap` is nonzero when a loop goes round, which a source
+     * decoding the loop ahead can follow without seeking. Also called before
+     * the first read. */
+    void (*seek)(void *user, int64_t frame, int wrap);
     void (*destroy)(void *user);
     int64_t timeline_start;
     int64_t source_start;
@@ -120,6 +126,7 @@ NAE_API int nae_mix_create(struct nae_engine *engine, uint32_t nb_inputs, struct
 /* Atomic target update, adopted at the next processing block. The ramp
  * continues across blocks and graph replacements. Gains must be finite >=0. */
 NAE_API int nae_gain_set(struct nae_node *node, float gain);
+
 /* A volume automation point: from `frame`, the volume goes linearly from
  * the previous point's (1 before the first point) to `volume` over `length`
  * frames, then stays there. */
@@ -137,6 +144,71 @@ NAE_API int nae_fader_create(struct nae_engine *engine, struct nae_node **node);
 NAE_API int nae_fader_set_keyframes(struct nae_node *node, const struct nae_keyframe *keyframes,
                                    uint32_t nb_keyframes);
 NAE_API void nae_node_unrefp(struct nae_node **node);
+
+/*
+ * Transport: plays the engine's project over [0, duration), or over a loop
+ * range, from the render thread, which calls nae_transport_render() in place
+ * of nae_engine_render().
+ *
+ * Every jump (seek, loop going round, play, pause, end) is taken through a
+ * short ramp to silence and back, so the step between two unrelated
+ * waveforms is never heard: a seek is adopted once the output is silent,
+ * a loop pass fades out before its end, and after a jump the output fades
+ * back in once every source playing has its data, or after a timeout.
+ *
+ * The control functions are wait-free and applied by the next render. A
+ * seek while paused, or the end of the project, positions the sources at
+ * once, for them to have their data when playback goes on.
+ */
+struct nae_transport;
+
+struct nae_transport_config {
+    uint32_t declick_frames;        /* length of the ramps, 0 for none (offline rendering) */
+    uint32_t ready_timeout_frames;  /* longest silence waiting for the sources after a jump */
+};
+
+NAE_API int nae_transport_create(struct nae_engine *engine, const struct nae_transport_config *config,
+                                struct nae_transport **transport);
+/* The renderer must be stopped */
+NAE_API void nae_transport_freep(struct nae_transport **transport);
+
+NAE_API void nae_transport_play(struct nae_transport *transport);
+NAE_API void nae_transport_pause(struct nae_transport *transport);
+/* Nonzero while playing; the transport stops at the end of the project when not looping */
+NAE_API int nae_transport_is_playing(const struct nae_transport *transport);
+/* The frame to play from, cut to the duration, at most 2^48-1 */
+NAE_API int nae_transport_seek(struct nae_transport *transport, int64_t frame);
+NAE_API int nae_transport_set_duration(struct nae_transport *transport, int64_t frames);
+NAE_API int64_t nae_transport_get_duration(const struct nae_transport *transport);
+/* Looping, playback reaching the end goes on from the start of the loop range */
+NAE_API void nae_transport_set_looping(struct nae_transport *transport, int looping);
+NAE_API int nae_transport_is_looping(const struct nae_transport *transport);
+/* [start, end), cut to the duration; an empty range loops over the whole
+ * duration. A position before the range plays on until its end. */
+NAE_API int nae_transport_set_loop_range(struct nae_transport *transport, int64_t start, int64_t end);
+/* Silence played at the end of each pass, the position staying at the end */
+NAE_API int nae_transport_set_loop_hold(struct nae_transport *transport, int64_t frames);
+/* The frame rendered next, or the frame of a seek not applied yet */
+NAE_API int64_t nae_transport_get_position(const struct nae_transport *transport);
+
+/* The project frame heard at a time, in the host's nanoseconds */
+struct nae_clock {
+    int64_t position;
+    int64_t time;
+    uint32_t sample_rate;
+    int playing;
+};
+
+/* A coherent snapshot of the last render, wait-free; AGAIN if none yet */
+NAE_API int nae_transport_get_clock(const struct nae_transport *transport, struct nae_clock *clock);
+/* The frame heard at `time`, extrapolated from the clock while playing */
+NAE_API int64_t nae_clock_position_at(const struct nae_clock *clock, int64_t time);
+
+/* Render thread: fills `frames` frames, moving the position on. `time` is
+ * when the first one is heard, in the host's nanoseconds (0 if unknown):
+ * the times of the renders are smoothed into the clock. */
+NAE_API int nae_transport_render(struct nae_transport *transport, int64_t time,
+                                uint32_t frames, float *output);
 
 #ifdef __cplusplus
 }

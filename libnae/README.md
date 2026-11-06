@@ -149,6 +149,34 @@ before the first) over its length, then that volume. Keyframes are snapshotted
 by the next commit, as source ranges are, so automation edits are as safe as
 graph edits.
 
+## Transport
+
+`nae_transport` plays the project from the render thread: the device callback
+calls `nae_transport_render()` instead of `nae_engine_render()`. Play, pause,
+seek, duration, looping, the loop range and the hold at the end of each pass
+are set from the control thread, wait-free, and applied by the next render.
+Without looping, playback stops at the end of the project and goes back to
+its start.
+
+Every jump is declicked: a seek is adopted once the output has faded to
+silence, a loop pass fades out into its end and back in from its start, and
+pause and play fade. After a jump the output stays silent until the sources
+playing have their data (a render answering other than `NAE_AGAIN`), or until
+the ready timeout, while the position goes on: a slow source costs a few
+milliseconds of silence, never a desync. Offline rendering uses no ramps.
+
+Sources follow the jumps through their optional `seek` callback, called on the
+render thread with the source frame read next, and before the first read. A
+loop going round is flagged as a wrap, so a source decoding the loop ahead (the
+nope.media adapter does) moves onto its next pass rather than seek. A seek
+while paused, a hold at the end of a pass, and the end of the project position
+the sources at once, for them to get their data before playback goes on.
+
+Each render publishes a clock: the project frame heard at a host time, the
+times of the renders smoothed by a delay-locked loop so the callbacks' jitter
+does not reach it. `nae_clock_position_at()` extrapolates it, for a video
+renderer to draw the frame heard at its vsync.
+
 ## Decoding, underruns and seeks
 
 Create one `nae_media` per simultaneous playback cursor. It owns one nope.media

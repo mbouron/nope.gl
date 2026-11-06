@@ -14,7 +14,7 @@ api_args = get_option('default_library') == 'static' ? ['-DNAE_STATIC'] : []
 build_args = api_args + ['-DNAE_BUILD']
 add_project_arguments(cc.get_supported_arguments(['-Werror=missing-prototypes', '-Werror=vla']), language: 'c')
 
-libnae = library('nae', 'src/nae.c', include_directories: inc, dependencies: math_dep,
+libnae = library('nae', 'src/nae.c', 'src/transport.c', include_directories: inc, dependencies: math_dep,
                  c_args: build_args, install: true, version: meson.project_version(),
                  gnu_symbol_visibility: 'hidden', install_rpath: install_rpath)
 nae_dep = declare_dependency(link_with: libnae, include_directories: inc, compile_args: api_args)
@@ -78,6 +78,8 @@ if get_option('tests')
   test_args = cc.get_supported_arguments(['-UNDEBUG'])
   test_core = executable('test_nae', 'tests/test_nae.c', dependencies: [nae_dep, math_dep], c_args: test_args)
   test('nae core', test_core)
+  test_transport = executable('test_transport', 'tests/test_transport.c', dependencies: [nae_dep, math_dep], c_args: test_args)
+  test('nae transport', test_transport)
   if host_machine.system() != 'windows' and cc.has_header('pthread.h')
     test_threads = executable('test_threads', 'tests/test_threads.c',
       dependencies: [nae_dep, dependency('threads')], c_args: test_args)
