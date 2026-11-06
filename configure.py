@@ -184,6 +184,13 @@ _ROOTDIR = op.abspath(op.dirname(__file__))
 _SYSTEM = "MinGW" if sysconfig.get_platform().startswith("mingw") else platform.system()
 _RENDERDOC_ID = f"renderdoc_{_SYSTEM}"
 _EXTERNAL_DEPS = dict(
+    miniaudio=dict(
+        version="0.11.26",
+        url="https://codeload.github.com/mackron/miniaudio/tar.gz/refs/tags/@VERSION@",
+        dst_file="miniaudio-@VERSION@.tar.gz",
+        sha256="838ba55a21c9142adf7b76bdc4351e5cd8b7ae128f46b25ec25f94ae9969c600",
+        patches=["0001-fix-pkg-config-library-paths.patch"],
+    ),
     boringssl=dict(
         version="059585c",
         url="https://codeload.github.com/google/boringssl/zip/@VERSION@",
@@ -275,6 +282,7 @@ def _get_external_deps(args):
     deps = [
         "glslang",
         "xxhash",
+        "miniaudio",
     ]
 
     host, _ = _get_host(args)
@@ -892,6 +900,63 @@ def _nopemd_install(cfg):
     return _meson_compile_install_cmd(cfg, "libnopemd")
 
 
+@_block("miniaudio-setup")
+def _miniaudio_setup(cfg):
+    args = [
+        "cmake", "-GNinja",
+        "-DCMAKE_BUILD_TYPE=" + ("Debug" if cfg.args.buildtype == "debug" else "Release"),
+        f"-DCMAKE_INSTALL_PREFIX={cfg.prefix}",
+        "-DCMAKE_INSTALL_LIBDIR=lib",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+        "-DCMAKE_C_VISIBILITY_PRESET=hidden",
+        "-DMINIAUDIO_NO_EXTRA_NODES=ON",
+        "-DMINIAUDIO_NO_LIBVORBIS=ON",
+        "-DMINIAUDIO_NO_LIBOPUS=ON",
+        "-DMINIAUDIO_NO_DECODING=ON",
+        "-DMINIAUDIO_NO_ENCODING=ON",
+        "-DMINIAUDIO_NO_RESOURCE_MANAGER=ON",
+        "-DMINIAUDIO_NO_NODE_GRAPH=ON",
+        "-DMINIAUDIO_NO_ENGINE=ON",
+        "-S", cfg.externals["miniaudio"],
+        "-B", _get_builddir(cfg, "miniaudio"),
+    ]
+    if cfg.host == "Android":
+        args += [
+            f"-DCMAKE_TOOLCHAIN_FILE={cfg.android_cmake_toolchain}",
+            "-DANDROID_STL=c++_shared",
+            f"-DANDROID_PLATFORM=android-{_ANDROID_VERSION}",
+            f"-DANDROID_ABI={cfg.android_abi}",
+        ]
+    elif cfg.host == "iOS":
+        args += ["-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=iphoneos",
+                 f"-DCMAKE_OSX_ARCHITECTURES={cfg.ios_abi}"]
+    elif cfg.host == "Windows":
+        args += ["-DCMAKE_C_COMPILER=clang-cl", "-DCMAKE_CXX_COMPILER=clang-cl"]
+    return [_cmd_join(*args)]
+
+
+@_block("miniaudio-install", [_miniaudio_setup])
+def _miniaudio_install(cfg):
+    builddir = _get_builddir(cfg, "miniaudio")
+    return [_cmd_join("cmake", "--build", builddir), _cmd_join("cmake", "--install", builddir)]
+
+
+@_block("nae-setup", [_nopemd_install, _miniaudio_install])
+def _nae_setup(cfg):
+    opts = ["-Drpath=true", "-Dnopemd=enabled", "-Dminiaudio=enabled"]
+    if cfg.args.sanitize:
+        opts += [f"-Db_sanitize={cfg.args.sanitize}"]
+    if cfg.host == "Windows":
+        opts += _get_clang_cl_meson_opts(cfg)
+    return ["$(MESON_SETUP) " + _cmd_join(*opts, "libnae", _get_builddir(cfg, "libnae"))]
+
+
+@_block("nae-install", [_nae_setup])
+def _nae_install(cfg):
+    return _meson_compile_install_cmd(cfg, "libnae")
+
+
 @_block("renderdoc-install")
 def _renderdoc_install(cfg):
     renderdoc_dll = op.join(cfg.externals[_RENDERDOC_ID], "renderdoc.dll")
@@ -1001,7 +1066,7 @@ def _ngpu_install(cfg):
     "nopegl-setup",
     {
         "Android": [
-            _nopemd_install,
+            _nae_install,
             _glslang_install,
             _xxhash_install,
             _harfbuzz_install,
@@ -1009,14 +1074,14 @@ def _ngpu_install(cfg):
             _ngpu_install,
         ],
         "Darwin": [
-            _nopemd_install,
+            _nae_install,
             _glslang_install,
             _xxhash_install,
             _moltenvk_install,
             _ngpu_install,
         ],
         "iOS": [
-            _nopemd_install,
+            _nae_install,
             _moltenvk_install,
             _glslang_install,
             _xxhash_install,
@@ -1025,13 +1090,13 @@ def _ngpu_install(cfg):
             _ngpu_install,
         ],
         "Local": [
-            _nopemd_install,
+            _nae_install,
             _glslang_install,
             _xxhash_install,
             _ngpu_install,
         ],
         "Windows": [
-            _nopemd_install,
+            _nae_install,
             _sdl3_install,
             _glslang_install,
             _xxhash_install,
@@ -1173,9 +1238,9 @@ def _nopegl_updateglwrappers(cfg):
 @_block(
     "all",
     {
-        "Local": [_ngl_tools_install, _pynopegl_utils_install],
-        "Android": [_nopegl_install],
-        "iOS": [_nopegl_install],
+        "Local": [_ngl_tools_install, _pynopegl_utils_install, _nae_install],
+        "Android": [_nopegl_install, _nae_install],
+        "iOS": [_nopegl_install, _nae_install],
     },
 )
 def _all(cfg):
@@ -1201,6 +1266,11 @@ def _nopemd_tests(cfg):
 @_block("nopegl-tests", [_nopegl_install])
 def _nopegl_tests(cfg):
     return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "libnopegl"))]
+
+
+@_block("nae-tests", [_nae_install])
+def _nae_tests(cfg):
+    return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "libnae"))]
 
 
 def _rm(f):
@@ -1229,7 +1299,7 @@ def _clean_py(cfg):
 
 @_block("clean", [_clean_py])
 def _clean(cfg):
-    deps = ["doc", "libnopemd", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
+    deps = ["doc", "libnopemd", "libnopegl", "libnae", "ngl-tools", "tests"] + list(cfg.externals.keys())
     return [_rd(_get_builddir(cfg, dep)) for dep in deps]
 
 
@@ -1249,7 +1319,7 @@ def _coverage_xml(cfg):
     return _coverage(cfg, "xml")
 
 
-@_block("tests", [_nopemd_tests, _nopegl_tests, _tests_setup])
+@_block("tests", [_nopemd_tests, _nopegl_tests, _nae_tests, _tests_setup])
 def _tests(cfg):
     return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "tests"))]
 

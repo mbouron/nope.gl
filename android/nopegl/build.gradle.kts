@@ -179,6 +179,9 @@ val prefabModules = mapOf(
     "avfilter" to PrefabModule(listOf("libavfilter"), listOf("avutil", "swscale", "swresample")),
     "avdevice" to PrefabModule(listOf("libavdevice"), listOf("avformat", "avcodec", "avutil"), stl = "c++_shared"),
     "nopemd" to PrefabModule(listOf("nopemd.h"), stl = "c++_shared"),
+    "nae" to PrefabModule(listOf("nae/nae.h")),
+    "nae-nopemd" to PrefabModule(listOf("nae/nopemd.h"), listOf("nae", "nopemd"), stl = "c++_shared"),
+    "nae-miniaudio" to PrefabModule(listOf("nae/miniaudio.h"), listOf("nae")),
 )
 
 // Keep in sync with _ANDROID_VERSION in configure.py.

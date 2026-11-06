@@ -21,6 +21,9 @@ set(NGL_LIBS
         nopegl
         ngpu
         nopemd
+        nae
+        nae-nopemd
+        nae-miniaudio
         avfilter
         swresample
         swscale

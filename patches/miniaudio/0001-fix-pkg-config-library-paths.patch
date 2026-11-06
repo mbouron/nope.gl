@@ -1,0 +1,14 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -909,2 +909,9 @@
+-list(TRANSFORM COMMON_LINK_LIBRARIES PREPEND "-l")
+-string(JOIN " " MINIAUDIO_PC_LIBS_PRIVATE ${COMMON_LINK_LIBRARIES})
++# find_library() returns absolute paths. pkg-config needs portable -l names,
++# not -l/absolute/path/libm.so (nor build-machine paths in cross packages).
++set(MINIAUDIO_PC_LIBRARIES)
++foreach(LIBRARY IN LISTS COMMON_LINK_LIBRARIES)
++    get_filename_component(LIBRARY_NAME "${LIBRARY}" NAME_WE)
++    string(REGEX REPLACE "^lib" "" LIBRARY_NAME "${LIBRARY_NAME}")
++    list(APPEND MINIAUDIO_PC_LIBRARIES "-l${LIBRARY_NAME}")
++endforeach()
++string(JOIN " " MINIAUDIO_PC_LIBS_PRIVATE ${MINIAUDIO_PC_LIBRARIES})

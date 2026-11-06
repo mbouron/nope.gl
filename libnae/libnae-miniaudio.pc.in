@@ -1,0 +1,12 @@
+prefix=@PREFIX@
+libdir=@LIBDIR@
+includedir=@INCLUDEDIR@
+
+Name: libnae-miniaudio
+Description: miniaudio device sink for nae
+Version: @VERSION@
+Requires: libnae
+Requires.private: @PRIVATE_REQUIRES@
+Libs: -L${libdir} -lnae-miniaudio
+Libs.private: @PRIVATE_LIBS@
+Cflags: -I${includedir} @API_FLAGS@

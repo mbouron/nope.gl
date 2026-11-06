@@ -1,0 +1,5 @@
+option('nopemd', type: 'feature', value: 'auto', description: 'Buffered nope.media source adapter')
+option('miniaudio', type: 'feature', value: 'auto', description: 'Device sink using separately built miniaudio')
+option('tests', type: 'boolean', value: true)
+option('examples', type: 'boolean', value: true)
+option('rpath', type: 'boolean', value: false)
