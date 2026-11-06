@@ -20,14 +20,14 @@ jobs:
         arch: [aarch64]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install dependencies
       run: |
         brew install meson nasm jq pkg-config
 
     - name: Cache external archives
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           external/iOS/${{ matrix.arch }}/*.tar*

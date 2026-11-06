@@ -18,7 +18,7 @@ jobs:
         shell: msys2 {0}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: msys2/setup-msys2@v2
         with:
@@ -36,7 +36,7 @@ jobs:
           pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-ca-certificates
 
       - name: Cache external archives
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             external/*.tar*
@@ -74,14 +74,14 @@ jobs:
 
       - name: Upload Logs
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mingw logs vulkan
           path: builddir/tests/meson-logs/testlog.txt
 
       - name: Upload Report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mingw report vulkan
           path: builddir/tests/report
