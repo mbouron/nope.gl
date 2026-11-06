@@ -222,6 +222,26 @@ underrun counts and device-stop/error status. It does
 not repair device disconnects. The host owns device recreation and
 Android audio-focus/lifecycle handling.
 
+## Player
+
+`nae-player` (`nae/player.h`) plays tracks of media files laid on a project,
+as an editor plays the audio of its timeline: each track plays a part of its
+media (`start`, `trim`, `duration`) through its fader (volume keyframes from
+the start of the track) and volume, mixed under a master volume. Tracks are
+added, moved, faded and removed while playing: each edit is a commit of the
+graph, adopted by the next callback. Play, pause, seek, the duration,
+looping, the loop range and its hold go to the transport, and the loop range
+to the media of the tracks, which decode the part of it they play ahead.
+
+It plays on the default device, a headless one, a host's rendering thread
+(`NAE_PLAYER_HOST`), or offline, where `nae_player_record()` writes the
+project to a 16-bit or float WAV file. The player also reports the position
+heard at a time, and the underruns and decoder statistics of its tracks.
+
+The control functions are serialized and none waits for the audio thread;
+its test counts the context switches of a thread rendering in real time
+while the control thread edits, seeks and loops, and requires none.
+
 ## Validation and expansion
 
 Tests cover clip boundaries and trims, graph ordering/fan-out, cycle rejection,

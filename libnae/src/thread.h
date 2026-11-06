@@ -9,6 +9,7 @@
  */
 
 #include <limits.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -55,6 +56,13 @@ static inline void nae_thread_join(nae_thread thread)
 
 static inline void nae_thread_set_name(const char *name) { (void)name; }
 
+typedef SRWLOCK nae_mutex;
+static inline void nae_mutex_init(nae_mutex *mutex) { InitializeSRWLock(mutex); }
+static inline void nae_mutex_destroy(nae_mutex *mutex) { (void)mutex; }
+static inline void nae_mutex_lock(nae_mutex *mutex) { AcquireSRWLockExclusive(mutex); }
+static inline void nae_mutex_unlock(nae_mutex *mutex) { ReleaseSRWLockExclusive(mutex); }
+static inline bool nae_mutex_trylock(nae_mutex *mutex) { return TryAcquireSRWLockExclusive(mutex); }
+
 static inline int nae_sem_init(nae_sem *sem)
 {
     *sem = CreateSemaphoreA(NULL, 0, LONG_MAX, NULL);
@@ -80,11 +88,18 @@ static inline void nae_thread_join(nae_thread thread)
     pthread_join(thread, NULL);
 }
 
+typedef pthread_mutex_t nae_mutex;
+static inline void nae_mutex_init(nae_mutex *mutex) { pthread_mutex_init(mutex, NULL); }
+static inline void nae_mutex_destroy(nae_mutex *mutex) { pthread_mutex_destroy(mutex); }
+static inline void nae_mutex_lock(nae_mutex *mutex) { pthread_mutex_lock(mutex); }
+static inline void nae_mutex_unlock(nae_mutex *mutex) { pthread_mutex_unlock(mutex); }
+static inline bool nae_mutex_trylock(nae_mutex *mutex) { return pthread_mutex_trylock(mutex) == 0; }
+
 static inline void nae_thread_set_name(const char *name)
 {
 #if defined(__APPLE__)
     pthread_setname_np(name);
-#elif defined(__linux__) || defined(__ANDROID__)
+#elif defined(__ANDROID__) || (defined(__linux__) && defined(_GNU_SOURCE))
     pthread_setname_np(pthread_self(), name);
 #else
     (void)name;

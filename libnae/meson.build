@@ -73,6 +73,19 @@ if miniaudio_dep.found()
   install_headers('src/include/nae/miniaudio.h', subdir: 'nae')
 endif
 
+if nopemd_dep.found() and miniaudio_dep.found()
+  libnae_player = library('nae-player', 'src/player.c',
+    dependencies: [nae_nopemd_dep, nae_miniaudio_dep, math_dep, dependency('threads')],
+    c_args: api_args + ['-DNAE_PLAYER_BUILD'],
+    install: true, version: meson.project_version(), gnu_symbol_visibility: 'hidden',
+    install_rpath: install_rpath)
+  nae_player_dep = declare_dependency(link_with: libnae_player,
+    dependencies: [nae_nopemd_dep, nae_miniaudio_dep])
+  pkg.generate(libnae_player, name: 'libnae-player', requires: ['libnae', 'libnae-nopemd', 'libnae-miniaudio'],
+               description: 'Player of tracks of media files for nae', extra_cflags: api_args)
+  install_headers('src/include/nae/player.h', subdir: 'nae')
+endif
+
 if get_option('tests')
   # Tests use assert for their checks, including in release configurations.
   test_args = cc.get_supported_arguments(['-UNDEBUG'])
@@ -100,6 +113,13 @@ if get_option('tests')
         dependencies: [nae_nopemd_dep, math_dep, dependency('threads')], c_args: test_args)
       test('nae concurrent PCM', test_media_threads, args: [fixture[2]], timeout: 120)
     endif
+  endif
+  # The player test counts the context switches of its rendering thread (RUSAGE_THREAD)
+  if nopemd_dep.found() and miniaudio_dep.found() and host_machine.system() == 'linux'
+    player_test_args = test_args + (cc.has_header('valgrind/valgrind.h') ? ['-DHAVE_VALGRIND_H=1'] : [])
+    test_player = executable('test_player', 'tests/test_player.c',
+      dependencies: [nae_player_dep, math_dep, dependency('threads')], c_args: player_test_args)
+    test('nae player', test_player, args: [fixture[0], fixture[2], meson.current_build_dir()], timeout: 120)
   endif
   if miniaudio_dep.found()
     test_sink = executable('test_sink', 'tests/test_sink.c', dependencies: nae_miniaudio_dep, c_args: test_args)
