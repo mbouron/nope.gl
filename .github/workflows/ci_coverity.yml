@@ -13,7 +13,7 @@ jobs:
 
     if: ${{ github.repository_owner == 'mbouron' }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install dependencies
       run: |
@@ -39,7 +39,7 @@ jobs:
         tar xzf cov-analysis-linux64.tar.gz --strip 1 -C cov-analysis-linux64
 
     - name: Cache external archives
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           external/*.tar*

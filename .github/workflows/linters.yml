@@ -12,8 +12,8 @@ jobs:
     name: isort
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: isort/isort-action@v1.1.0
+      - uses: actions/checkout@v7
+      - uses: isort/isort-action@v1.1.1
         with:
           isort-version: "8.0.1"
           configuration: "--check --diff"
@@ -22,7 +22,7 @@ jobs:
     name: black
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: psf/black@stable
         with:
           options: "--check --diff"

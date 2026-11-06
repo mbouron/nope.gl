@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-26.04
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install dependencies
       run: |
@@ -21,7 +21,7 @@ jobs:
         sudo apt -y install libharfbuzz-dev libfribidi-dev
 
     - name: Cache external archives
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           external/*.tar*
@@ -36,8 +36,13 @@ jobs:
         meson test -C builddir/tests --timeout-multiplier=3
     - name: Get coverage
       run: |
-        make coverage-xml
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1
+        set -o pipefail
+        make coverage-html | tee coverage.log
+        echo '### Coverage' >> "$GITHUB_STEP_SUMMARY"
+        sed -nE 's/^(lines|functions|branches): /- \1: /p' coverage.log >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v7
       with:
-        file: builddir/libnopegl/meson-logs/coverage.xml
+        name: coverage report
+        path: builddir/libnopegl/meson-logs/coveragereport
