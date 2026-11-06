@@ -24,7 +24,7 @@ install_headers('src/include/nae/nae.h', subdir: 'nae')
 nopemd_dep = dependency('libnopemd', required: get_option('nopemd'))
 if nopemd_dep.found()
   libnae_nopemd = library('nae-nopemd', 'src/source_nopemd.c',
-    dependencies: [nae_dep, nopemd_dep, math_dep], c_args: api_args + ['-DNAE_NOPEMD_BUILD'],
+    dependencies: [nae_dep, nopemd_dep, math_dep, dependency('threads')], c_args: api_args + ['-DNAE_NOPEMD_BUILD'],
     install: true, version: meson.project_version(), gnu_symbol_visibility: 'hidden',
     install_rpath: install_rpath)
   nae_nopemd_dep = declare_dependency(link_with: libnae_nopemd, dependencies: nae_dep)
@@ -87,15 +87,18 @@ if get_option('tests')
   endif
   if nopemd_dep.found()
     python = import('python').find_installation()
-    fixture = custom_target('audio fixture', output: ['fixture.wav', 'fixture_44100.wav'],
-      command: [python, files('tests/make_audio.py'), '@OUTPUT0@', '@OUTPUT1@'])
+    fixture = custom_target('audio fixture',
+      output: ['fixture.wav', 'fixture_44100.wav', 'fixture_index.wav', 'fixture_mono.wav'],
+      command: [python, files('tests/make_audio.py'), '@OUTPUT0@', '@OUTPUT1@', '@OUTPUT2@', '@OUTPUT3@'])
     test_media = executable('test_media', 'tests/test_media.c',
       dependencies: [nae_nopemd_dep, math_dep], c_args: test_args)
-    test('nae nope.media', test_media, args: [fixture], timeout: 30)
+    # An AAC media of nope.media's tests (8 kHz mono, its first frame 128 ms)
+    aac_fixture = files('../libnopemd/tests/h264_long_audio.mp4')
+    test('nae nope.media', test_media, args: [fixture, aac_fixture], timeout: 30)
     if host_machine.system() != 'windows' and cc.has_header('pthread.h')
       test_media_threads = executable('test_media_threads', 'tests/test_media_threads.c',
         dependencies: [nae_nopemd_dep, math_dep, dependency('threads')], c_args: test_args)
-      test('nae concurrent PCM', test_media_threads, args: [fixture[0]], timeout: 30)
+      test('nae concurrent PCM', test_media_threads, args: [fixture[2]], timeout: 120)
     endif
   endif
   if miniaudio_dep.found()

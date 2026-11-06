@@ -60,9 +60,8 @@ builddir/nae/nae-play --null first.wav second.wav
 ```
 
 `--null` uses miniaudio's headless device; omit it for actual playback. The player
-mixes files from time zero, supplies one fader per track plus a master fader, and
-pumps decoders on its main thread. Production hosts can use their existing
-worker pool with at most one simultaneous pump job per media instance.
+mixes files from time zero, with one gain per track plus a master gain; each
+media decodes on a thread of its own.
 
 The native Android build installs all three libraries. The AAR's CMake imports
 and Prefab modules expose `nopegl::nae`, `nopegl::nae-nopemd`, and
@@ -180,39 +179,39 @@ renderer to draw the frame heard at its vsync.
 ## Decoding, underruns and seeks
 
 Create one `nae_media` per simultaneous playback cursor. It owns one nope.media
-context and a fixed, power-of-two queue of PCM blocks. The adapter selects raw
-stereo float audio and requests conversion to the engine rate using
-`aresample`. It never calls nope.media or frees decoded frames from the renderer.
+context, which a thread of its own decodes ahead of the renderer (250 ms), in
+stereo float at the engine rate (optionally loudness-normalized). The renderer
+never waits for it, takes no lock and frees nothing: the decoded chunks reach
+it through a lock-free queue, and go back to the decoding thread to be
+released.
 
-`nae_media_pump()` publishes at most one queue block per call, returning
-`NAE_AGAIN` if full. It may block decoding a frame. After EOF it stays at EOF
-until explicitly sought, avoiding nope.media's automatic restart on a subsequent
-`get_next_frame()` call. The feeder and audio callback may run concurrently.
-The callback snapshots queue occupancy so its work remains bounded even while
-the feeder publishes more PCM.
+Audio not decoded in time plays as silence (the source read answers
+`NAE_AGAIN`), and the audio then late is skipped: a media stays in time. A
+read from another position than the one read next, as the transport's seeks
+do through the source `seek` callback, is a request the decoding thread serves
+while the renderer goes on: the chunks decoded for an earlier request are
+dropped. A request is decoded ahead even while its source is not read, as when
+paused, scrubbing or before its range starts: the audio queued for the
+positions left goes back at once. Chunk timestamps off by less than 2 ms from
+the previous chunk's end are taken as contiguous, so imprecise timestamps leave
+no hole.
 
-Missing data is silent and yields `NAE_AGAIN` from rendering. Other tracks keep
-playing. Queued PCM carries source positions: late data is skipped rather than
-played late. Decode failures are reported by the pump and propagated by the
-source once its queued data has been consumed.
+`nae_media_set_loop()` has nope.media go round a range of the media ahead of
+the renderer. The decoding thread numbers the passes, and the source moves
+onto the next one when the transport wraps: going round a loop never seeks.
+Audio decoded past the end of the loop before nope.media knew of it is
+dropped, for it not to take the room of the next pass. A short media, read to
+its end as soon as it is opened, goes round a loop set afterwards all the same.
+A source positioned at the end of its loop, as one past the end of its range
+is, is decoded from the start of the loop, for the pass the transport wraps to.
 
-Seeking a media source currently requires a **quiescent feeder and renderer**:
-
-1. Stop the sink (which waits for callbacks), and stop/join pending pump jobs.
-2. Seek each active media instance to its required source position.
-3. Prefill its queue, and set the stopped sink's project position.
-4. Restart feeding and playback.
-
-Do not reset queues or call `nae_media_seek()` while either side is active.
-An asynchronous generation-based seek protocol can be added later. For export,
-prefill before each small render request and treat unexpected missing data as
-an error; do not retry a partially processed block with stateful effects.
-Independent playback/export runs need separate engines and processor state.
+Past the end of the media a source plays silence (`NAE_EOF`) without asking
+the decoder again. For offline rendering, a blocking media has the reads wait
+for their data, so an export is complete and deterministic.
 
 The sink exposes source underrun counts and device-stop/error status. It does
-not expose an audible presentation clock or automatically repair device
-disconnects. The host owns device recreation and Android audio-focus/lifecycle
-handling. The example's fixed drain allowance is not an A/V synchronization API.
+not repair device disconnects. The host owns device recreation and
+Android audio-focus/lifecycle handling.
 
 ## Validation and expansion
 

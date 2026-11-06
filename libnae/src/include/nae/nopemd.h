@@ -21,25 +21,45 @@ extern "C" {
 
 struct nae_media;
 
-/* Stereo engine required. queue_blocks >=2, with one engine block per slot.
- * Opening/decoding may block in pump() and seek(), on a feeder/control thread.
- * Use a separate media instance for each simultaneous playback cursor. */
+struct nae_media_params {
+    int64_t start;      /* source frame decoded from until the first read */
+    int normalize;      /* level the loudness of the media */
+    int blocking;       /* reads wait for their data rather than play silence: offline rendering */
+};
+
+/*
+ * A media decoded by nope.media on a thread of its own, ahead of the reads,
+ * in stereo at the rate of the engine (which must be stereo). The renderer
+ * never waits for it (unless blocking), takes no lock and frees nothing:
+ * audio not decoded in time plays as silence, and the audio then late is
+ * skipped for the media to stay in time.
+ *
+ * Seeks are requests the decoding thread serves while the renderer goes on,
+ * and a loop range has the decoder go round it ahead of the renderer, which
+ * moves onto the next pass of the loop when going round without seeking.
+ */
 NAE_NOPEMD_API int nae_media_create(struct nae_engine *engine, const char *filename,
-                            uint32_t queue_blocks, struct nae_media **media);
+                                    const struct nae_media_params *params, struct nae_media **media);
+/* Frames of the media at the engine rate, 0 if unknown */
+NAE_NOPEMD_API int64_t nae_media_get_length(const struct nae_media *media);
 /* At most one source node per media instance. The node retains the media. */
 NAE_NOPEMD_API int nae_media_source(struct nae_media *media, int64_t timeline_start,
-                            int64_t source_start, int64_t duration, struct nae_node **node);
-/* Publish at most one PCM block. May block in nope.media; never call on the
- * render thread. AGAIN: queue full, EOF: latched until seek, negative: error.
- * One producer may pump concurrently with rendering. */
-NAE_NOPEMD_API int nae_media_pump(struct nae_media *media);
-/* Available queued slots (not a readiness guarantee for a particular range). */
-NAE_NOPEMD_API uint32_t nae_media_queued(const struct nae_media *media);
-/* Both pump and rendering MUST be quiescent during seek. This resets the
- * queue, seeks the decoder, and permits prefill before restarting the sink.
- * source_frame uses the same coordinates as nae_source.source_start. */
-NAE_NOPEMD_API int nae_media_seek(struct nae_media *media, int64_t source_frame);
-/* Stop/join the producer before releasing its caller-owned reference. */
+                                    int64_t source_start, int64_t duration, struct nae_node **node);
+/* The source frames [start, end) to decode round, an empty range for none;
+ * from any thread. The renderer going round a loop of the project should
+ * have its media loop over the part they play of it. */
+NAE_NOPEMD_API int nae_media_set_loop(struct nae_media *media, int64_t start, int64_t end);
+
+struct nae_media_stats {
+    int64_t silent_frames;   /* played as silence, the audio not there in time */
+    int64_t skipped_frames;  /* decoded too late, skipped */
+    int64_t requests;        /* positions asked of the decoder, seeks included */
+    int64_t errors;          /* failures of nope.media */
+};
+
+/* From any thread */
+NAE_NOPEMD_API void nae_media_get_stats(const struct nae_media *media, struct nae_media_stats *stats);
+/* The decoding thread stops with the last reference */
 NAE_NOPEMD_API void nae_media_unrefp(struct nae_media **media);
 
 #ifdef __cplusplus

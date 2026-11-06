@@ -31,12 +31,12 @@ int main(int argc, char **argv)
     struct nae_node *nodes[2 * MAX_TRACKS + 2] = {0};
     struct nae_route routes[2 * MAX_TRACKS + 2] = {0};
     uint32_t gain_inputs[MAX_TRACKS], mix_inputs[MAX_TRACKS], master_input;
-    int terminal[MAX_TRACKS] = {0};
+    int64_t length = 0;
     const struct nae_config config = {48000, 2, 256};
     int ret = nae_engine_create(&config, &engine);
     if (ret < 0) goto end;
     for (int i = 0; i < count; i++) {
-        ret = nae_media_create(engine, argv[arg + i], 64, &media[i]);
+        ret = nae_media_create(engine, argv[arg + i], NULL, &media[i]);
         if (ret < 0) goto end;
         ret = nae_media_source(media[i], 0, 0, INT64_MAX, &nodes[2 * i]);
         if (ret < 0) goto end;
@@ -46,9 +46,7 @@ int main(int argc, char **argv)
         mix_inputs[i] = (uint32_t)(2 * i + 1);
         routes[2 * i] = (struct nae_route){nodes[2 * i], NULL};
         routes[2 * i + 1] = (struct nae_route){nodes[2 * i + 1], &gain_inputs[i]};
-        while ((ret = nae_media_pump(media[i])) == NAE_OK) {}
-        if (ret < 0) goto end;
-        if (ret == NAE_EOF) terminal[i] = ret;
+        if (nae_media_get_length(media[i]) > length) length = nae_media_get_length(media[i]);
     }
     ret = nae_mix_create(engine, (uint32_t)count, &nodes[2 * count]);
     if (ret < 0) goto end;
@@ -64,29 +62,14 @@ int main(int argc, char **argv)
     signal(SIGINT, interrupt_handler);
     ret = nae_sink_start(sink);
     if (ret < 0) goto end;
-    /* The main thread is the feeder in this small example. An NLE can submit
-     * pump jobs to its worker pool, with at most one job per media instance. */
-    while (!interrupted) {
-        int done = 0;
-        for (int i = 0; i < count; i++) {
-            if (!terminal[i]) {
-                ret = nae_media_pump(media[i]);
-                if (ret < 0) goto end;
-                if (ret == NAE_EOF) terminal[i] = ret;
-            }
-            done += terminal[i] && !nae_media_queued(media[i]);
-        }
-        if (done == count) {
-            /* Example-only drain allowance; production hosts use device timing. */
-            wait_ms(200);
-            break;
-        }
+    /* The media decode on threads of their own: wait for the longest to play */
+    for (int64_t waited = 0; !interrupted && waited < length * 1000 / config.sample_rate + 200; waited += 10) {
         if (nae_sink_status(sink) != NAE_OK) {
             ret = NAE_ERROR_IO;
             goto end;
         }
         nae_engine_collect(engine);
-        wait_ms(1);
+        wait_ms(10);
     }
     fprintf(stderr, "source underrun callbacks: %u\n", nae_sink_underruns(sink));
     ret = NAE_OK;
