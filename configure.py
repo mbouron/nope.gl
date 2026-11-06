@@ -37,6 +37,8 @@ import subprocess
 import sysconfig
 import tarfile
 import textwrap
+import time
+import urllib.error
 import urllib.request
 import venv
 import zipfile
@@ -366,6 +368,18 @@ def _get_external_dir(args):
         return op.join(_ROOTDIR, "external", host, host_arch)
 
 
+def _download(url, dst_path):
+    for attempt in range(5):
+        try:
+            urllib.request.urlretrieve(url, dst_path)
+            return
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if attempt == 4:
+                raise
+            logging.warning("download failed for %s: %s; retrying", url, e)
+            time.sleep(2**attempt)
+
+
 def _download_extract(args, dep_item):
     logging.basicConfig(level="INFO")  # Needed for every process on Windows
 
@@ -383,7 +397,7 @@ def _download_extract(args, dep_item):
     # Download
     if not op.exists(dst_path) or not _file_chk(dst_path, chksum):
         logging.info("downloading %s to %s", url, dst_file)
-        urllib.request.urlretrieve(url, dst_path)
+        _download(url, dst_path)
         assert _file_chk(dst_path, chksum)
 
     # Extract
