@@ -341,12 +341,33 @@ static void test_commit_while_silent(void)
     teardown(&s);
 }
 
+static void test_short_declick(void)
+{
+    const int64_t lengths[] = {1, 2, 120, 240};
+    for (unsigned i = 0; i < sizeof(lengths) / sizeof(*lengths); i++) {
+        struct numbers n = {.value = 1};
+        struct setup s = setup(&n, 0, lengths[i], 240, 0);
+        nae_transport_set_looping(s.transport, 1);
+        nae_transport_play(s.transport);
+        float output[480];
+        assert(nae_transport_render(s.transport, 0, 480, output) == NAE_OK);
+        unsigned audible = 0;
+        for (unsigned j = 0; j < 480; j++) {
+            assert(output[j] >= 0.f && output[j] <= 1.f);
+            audible += output[j] > 0.f;
+        }
+        assert(audible > 0);
+        teardown(&s);
+    }
+}
+
 int main(void)
 {
     test_play_to_end();
     test_seek();
     test_loop();
     test_declick();
+    test_short_declick();
     test_waiting();
     test_clock();
     test_commit_while_silent();

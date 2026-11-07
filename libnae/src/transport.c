@@ -272,17 +272,17 @@ static void play_range(const struct nae_transport *t, int looping, int64_t durat
 }
 
 /* The output is silent, or would be at once, without ramps */
-static bool silent(const struct nae_transport *t)
+static bool silent(const struct nae_transport *t, uint32_t declick)
 {
-    return t->gain == 0.f || !t->declick;
+    return t->gain == 0.f || !declick;
 }
 
 /* Ramps the output gain to `target` over the declick length, applying it */
-static void ramp(struct nae_transport *t, float *output, uint32_t frames, float target)
+static void ramp(struct nae_transport *t, float *output, uint32_t frames, float target, uint32_t declick)
 {
     if (target != t->target) {
         t->target = target;
-        t->ramp_left = (uint32_t)ceilf(fabsf(target - t->gain) * (float)t->declick);
+        t->ramp_left = (uint32_t)ceilf(fabsf(target - t->gain) * (float)declick);
     }
     if (!t->ramp_left) {
         t->gain = target;
@@ -333,6 +333,9 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
     const int64_t hold = atomic_load(&t->loop_hold);
     int64_t start, end;
     play_range(t, looping, duration, &start, &end);
+    /* Leave room for both ramps, including in short loops. */
+    const uint32_t declick = end - start < 2 * (int64_t)t->declick
+                           ? (uint32_t)((end - start) / 2) : t->declick;
 
     /* What the clock tells: the position played from an offset in the output */
     int64_t clock_position = t->position;
@@ -346,7 +349,7 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
         const uint16_t number = (uint16_t)(seek >> FRAME_BITS);
         bool pending = number != t->seek_seen;
         /* A seek is taken once silent, for the jump not to be heard */
-        if (pending && silent(t)) {
+        if (pending && silent(t, declick)) {
             const int64_t frame = (int64_t)(seek & FRAME_MASK);
             t->position = frame < duration ? frame : duration;
             t->seek_seen = number;
@@ -362,7 +365,7 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
         }
 
         const int playing = atomic_load(&t->playing);
-        if (!playing && silent(t)) {
+        if (!playing && silent(t, declick)) {
             /* Paused: the commits are adopted all the same, their new nodes
              * positioned where the playback resumes */
             nae_engine_prepare(t->engine, t->position, 0, 0);
@@ -423,11 +426,11 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
         if (block > to_end)
             block = to_end;
         /* Stopping where the ramp into the end of the range starts */
-        if (to_end > t->declick && block > to_end - t->declick)
-            block = to_end - t->declick;
+        if (to_end > declick && block > to_end - declick)
+            block = to_end - declick;
         /* Ramping or waiting: short enough to follow within a ramp */
-        if (t->declick && block > t->declick && (t->ramp_left || t->waiting || pending || !playing))
-            block = t->declick;
+        if (declick && block > declick && (t->ramp_left || t->waiting || pending || !playing))
+            block = declick;
 
         if (t->waiting && t->waited >= t->ready_timeout)
             t->waiting = false;
@@ -436,7 +439,7 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
         /* Fading out into a pause, the graph faded is the one playing: an
          * edit made meanwhile, as an editor pauses for, is adopted once silent */
         const int ret = nae_engine_render_jump(t->engine, t->position, (uint32_t)block, dst, t->wrap_next,
-                                               playing || silent(t));
+                                               playing || silent(t, declick));
         t->wrap_next = false;
         if (ret < 0)
             result = ret;
@@ -449,8 +452,8 @@ int nae_transport_render(struct nae_transport *t, int64_t time, uint32_t frames,
                 t->waited += block;
         }
 
-        const bool fading_out = t->declick && to_end <= t->declick;
-        ramp(t, dst, (uint32_t)block, playing && !pending && !t->waiting && !fading_out ? 1.f : 0.f);
+        const bool fading_out = declick && to_end <= declick;
+        ramp(t, dst, (uint32_t)block, playing && !pending && !t->waiting && !fading_out ? 1.f : 0.f, declick);
         if (!clock_moving) {
             clock_position = t->position;
             clock_offset = done;

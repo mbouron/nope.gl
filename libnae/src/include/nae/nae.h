@@ -163,7 +163,7 @@ NAE_API void nae_node_unrefp(struct nae_node **node);
 struct nae_transport;
 
 struct nae_transport_config {
-    uint32_t declick_frames;        /* length of the ramps, 0 for none (offline rendering) */
+    uint32_t declick_frames;        /* ramp length, limited to half the playback range; 0 disables ramps */
     uint32_t ready_timeout_frames;  /* longest silence waiting for the sources after a jump */
 };
 
