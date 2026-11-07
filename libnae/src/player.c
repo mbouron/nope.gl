@@ -19,7 +19,7 @@
 #define DECLICK_MS 5          /* ramps around the jumps of the transport */
 #define READY_TIMEOUT_MS 250  /* longest silence waiting for the tracks after a jump */
 #define VOLUME_RAMP_MS 5      /* volume changes */
-#define COMMIT_TRIES 2000     /* of a millisecond, waiting for the previous commit to be adopted */
+#define MAX_TRACKS 64
 #define RECORD_FRAMES 4096
 
 struct nae_track {
@@ -83,7 +83,7 @@ static bool rendering(const struct nae_player *p)
 }
 
 /* Lays the tracks, each through its fader and volume, into the mix under the master volume */
-static int commit(struct nae_player *p)
+static int commit(struct nae_player *p, const struct nae_track *original, const struct nae_track *replacement)
 {
     const uint32_t n = p->nb_tracks;
     const uint32_t count = 3 * n + 2;
@@ -96,7 +96,7 @@ static int commit(struct nae_player *p)
     uint32_t *fader_inputs = inputs, *gain_inputs = inputs + n, *mix_inputs = inputs + 2 * n;
     uint32_t *master_input = inputs + 3 * n;
     for (uint32_t i = 0; i < n; i++) {
-        const struct nae_track *t = p->tracks[i];
+        const struct nae_track *t = p->tracks[i] == original ? replacement : p->tracks[i];
         fader_inputs[i] = 3 * i;
         gain_inputs[i] = 3 * i + 1;
         mix_inputs[i] = 3 * i + 2;
@@ -107,16 +107,7 @@ static int commit(struct nae_player *p)
     *master_input = 3 * n;
     routes[3 * n] = (struct nae_route){mix, mix_inputs};
     routes[3 * n + 1] = (struct nae_route){p->master, master_input};
-    for (int i = 0; i < COMMIT_TRIES; i++) {
-        ret = nae_engine_commit(p->engine, routes, count, 3 * n + 1);
-        if (ret != NAE_AGAIN)
-            break;
-        /* The previous commit not adopted yet */
-        if (rendering(p))
-            sleep_ms(1);
-        else
-            nae_transport_sync(p->transport);
-    }
+    ret = nae_engine_commit(p->engine, routes, count, 3 * n + 1);
     if (ret == NAE_OK && !rendering(p))
         nae_transport_sync(p->transport);
 end:
@@ -249,7 +240,7 @@ int nae_player_create(const struct nae_player_config *config, struct nae_player 
         if (ret < 0)
             goto fail;
     }
-    ret = commit(p);
+    ret = commit(p, NULL, NULL);
     if (ret < 0)
         goto fail;
     *player = p;
@@ -291,6 +282,10 @@ int nae_player_add_track(struct nae_player *p, const struct nae_track_params *pa
         !isfinite(params->volume) || params->volume < 0)
         return NAE_ERROR_INVALID;
     nae_mutex_lock(&p->lock);
+    if (p->nb_tracks == MAX_TRACKS) {
+        nae_mutex_unlock(&p->lock);
+        return NAE_ERROR_UNSUPPORTED;
+    }
     struct nae_track *t = calloc(1, sizeof(*t));
     int ret = t ? NAE_OK : NAE_ERROR_MEMORY;
     if (ret < 0)
@@ -330,12 +325,12 @@ int nae_player_add_track(struct nae_player *p, const struct nae_track_params *pa
         p->capacity = capacity;
     }
     p->tracks[p->nb_tracks++] = t;
-    update_loop(p, t);
-    ret = commit(p);
-    if (ret < 0) {
+    ret = commit(p, NULL, NULL);
+    if (ret != NAE_OK) {
         p->nb_tracks--;
         goto end;
     }
+    update_loop(p, t);
     *track = t;
     t = NULL;
 end:
@@ -358,11 +353,26 @@ int nae_player_set_track_timings(struct nae_player *p, struct nae_track *t, int6
     if (!p || !t)
         return NAE_ERROR_INVALID;
     nae_mutex_lock(&p->lock);
-    int ret = owns(p, t) ? set_timings(t, start, trim, duration) : NAE_ERROR_INVALID;
+    int ret = NAE_ERROR_INVALID;
+    if (!owns(p, t))
+        goto end;
+
+    struct nae_track edited = *t;
+    edited.fader = NULL;
+    ret = nae_fader_create(p->engine, &edited.fader);
+    if (ret == NAE_OK)
+        ret = set_timings(&edited, start, trim, duration);
+    if (ret == NAE_OK)
+        ret = commit(p, t, &edited);
     if (ret == NAE_OK) {
+        nae_node_unrefp(&t->fader);
+        *t = edited;
         update_loop(p, t);
-        ret = commit(p);
+    } else {
+        nae_source_set_range(t->source, t->start, t->trim, t->duration);
+        nae_node_unrefp(&edited.fader);
     }
+end:
     nae_mutex_unlock(&p->lock);
     return ret;
 }
@@ -383,30 +393,36 @@ int nae_player_set_track_fader(struct nae_player *p, struct nae_track *t, const 
     if (!p || !t || (count && !keyframes) || count > 65536)
         return NAE_ERROR_INVALID;
     nae_mutex_lock(&p->lock);
-    int ret = owns(p, t) ? NAE_OK : NAE_ERROR_INVALID;
-    struct nae_keyframe *copy = NULL;
-    if (ret == NAE_OK && count) {
-        copy = calloc(count, sizeof(*copy));
-        if (!copy)
+    int ret = NAE_ERROR_INVALID;
+    if (!owns(p, t))
+        goto end;
+
+    struct nae_track edited = *t;
+    edited.fader = NULL;
+    edited.keyframes = NULL;
+    edited.nb_keyframes = count;
+    if (count) {
+        edited.keyframes = calloc(count, sizeof(*edited.keyframes));
+        if (!edited.keyframes) {
             ret = NAE_ERROR_MEMORY;
-        else
-            memcpy(copy, keyframes, count * sizeof(*copy));
-    }
-    if (ret == NAE_OK) {
-        struct nae_keyframe *previous = t->keyframes;
-        const uint32_t previous_count = t->nb_keyframes;
-        t->keyframes = copy;
-        t->nb_keyframes = count;
-        ret = set_fader(t);
-        if (ret < 0) {
-            t->keyframes = previous;
-            t->nb_keyframes = previous_count;
-            free(copy);
-        } else {
-            free(previous);
-            ret = commit(p);
+            goto end;
         }
+        memcpy(edited.keyframes, keyframes, count * sizeof(*keyframes));
     }
+    ret = nae_fader_create(p->engine, &edited.fader);
+    if (ret == NAE_OK)
+        ret = set_fader(&edited);
+    if (ret == NAE_OK)
+        ret = commit(p, t, &edited);
+    if (ret == NAE_OK) {
+        nae_node_unrefp(&t->fader);
+        free(t->keyframes);
+        *t = edited;
+    } else {
+        nae_node_unrefp(&edited.fader);
+        free(edited.keyframes);
+    }
+end:
     nae_mutex_unlock(&p->lock);
     return ret;
 }
@@ -433,8 +449,14 @@ int nae_player_remove_track(struct nae_player *p, struct nae_track **tp)
         memmove(&p->tracks[i], &p->tracks[i + 1], (p->nb_tracks - i - 1) * sizeof(*p->tracks));
         p->nb_tracks--;
         /* The plans keep its nodes until the renderer is done with them */
-        ret = commit(p);
-        free_track(tp);
+        ret = commit(p, NULL, NULL);
+        if (ret == NAE_OK) {
+            free_track(tp);
+        } else {
+            memmove(&p->tracks[i + 1], &p->tracks[i], (p->nb_tracks - i) * sizeof(*p->tracks));
+            p->tracks[i] = *tp;
+            p->nb_tracks++;
+        }
         break;
     }
     nae_mutex_unlock(&p->lock);
@@ -448,9 +470,13 @@ int nae_player_clear_tracks(struct nae_player *p)
     nae_mutex_lock(&p->lock);
     const uint32_t n = p->nb_tracks;
     p->nb_tracks = 0;
-    const int ret = commit(p);
-    for (uint32_t i = 0; i < n; i++)
-        free_track(&p->tracks[i]);
+    const int ret = commit(p, NULL, NULL);
+    if (ret == NAE_OK) {
+        for (uint32_t i = 0; i < n; i++)
+            free_track(&p->tracks[i]);
+    } else {
+        p->nb_tracks = n;
+    }
     nae_mutex_unlock(&p->lock);
     return ret;
 }

@@ -30,6 +30,13 @@
 #define THREAD_SANITIZER 0
 #endif
 
+#define CHECK_EDIT(call) do {                         \
+    int edit_ret;                                    \
+    while ((edit_ret = (call)) == NAE_AGAIN)           \
+        wait_ms(1);                                  \
+    assert(edit_ret == NAE_OK);                       \
+} while (0)
+
 static const char *fixture, *fixture_index, *output_dir;
 
 static void close_to(float a, float b)
@@ -222,7 +229,7 @@ static void test_never_waits(void)
     struct nae_track *tracks[9] = {0};
     for (int i = 0; i < 4; i++) {
         const struct nae_track_params params = {.filename = fixture_index, .start = 6000 * i, .duration = -1, .volume = 0.25f};
-        assert(nae_player_add_track(p, &params, &tracks[i]) == NAE_OK);
+        CHECK_EDIT(nae_player_add_track(p, &params, &tracks[i]));
     }
     struct renderer r = {.player = p};
     pthread_t thread;
@@ -246,16 +253,16 @@ static void test_never_waits(void)
         } else if (what == 3) {
             const int slot = 4 + (int)((seed >> 8) % 5);
             if (tracks[slot]) {
-                assert(nae_player_remove_track(p, &tracks[slot]) == NAE_OK);
+                CHECK_EDIT(nae_player_remove_track(p, &tracks[slot]));
             } else {
                 const struct nae_track_params params = {.filename = fixture_index, .start = frame, .trim = 1000, .duration = 24000, .volume = 0.25f, .normalize = slot % 2};
-                assert(nae_player_add_track(p, &params, &tracks[slot]) == NAE_OK);
+                CHECK_EDIT(nae_player_add_track(p, &params, &tracks[slot]));
             }
         } else if (what == 4) {
             const struct nae_keyframe keyframes[] = {{0, 0, 0.5f}, {(int64_t)(seed % 20000), 4800, 0.1f}};
-            assert(nae_player_set_track_fader(p, tracks[seed % 4], keyframes, 2) == NAE_OK);
+            CHECK_EDIT(nae_player_set_track_fader(p, tracks[seed % 4], keyframes, 2));
         } else if (what == 5) {
-            assert(nae_player_set_track_timings(p, tracks[seed % 4], frame, (seed >> 3) % 20000, 20000) == NAE_OK);
+            CHECK_EDIT(nae_player_set_track_timings(p, tracks[seed % 4], frame, (seed >> 3) % 20000, 20000));
         } else if (what == 6) {
             assert(nae_player_set_track_volume(p, tracks[seed % 4], (float)(seed % 100) / 100) == NAE_OK);
             assert(nae_player_set_volume(p, 0.5f + (float)(seed % 50) / 100) == NAE_OK);
@@ -294,7 +301,7 @@ static void test_edits_while_paused(void)
     assert(nae_player_set_duration(p, 48000) == NAE_OK);
     const struct nae_track_params params = {.filename = fixture_index, .duration = -1, .volume = 1};
     struct nae_track *tracks[4] = {0};
-    assert(nae_player_add_track(p, &params, &tracks[0]) == NAE_OK);
+    CHECK_EDIT(nae_player_add_track(p, &params, &tracks[0]));
     struct renderer r = {.player = p};
     pthread_t thread;
     assert(nae_player_start_rendering(p) == NAE_OK);
@@ -305,10 +312,10 @@ static void test_edits_while_paused(void)
     wait_ms(100);
     const int64_t start = now_ns();
     for (int i = 1; i < 4; i++)
-        assert(nae_player_add_track(p, &params, &tracks[i]) == NAE_OK);
+        CHECK_EDIT(nae_player_add_track(p, &params, &tracks[i]));
     const struct nae_keyframe keyframe = {0, 0, 1};
     for (int i = 0; i < 4; i++)
-        assert(nae_player_set_track_fader(p, tracks[i], &keyframe, 1) == NAE_OK);
+        CHECK_EDIT(nae_player_set_track_fader(p, tracks[i], &keyframe, 1));
     /* A render or so each, rather than the 2 s a commit gives up after */
     assert(now_ns() - start < 1000000000);
     atomic_store(&r.peak, 0);
@@ -409,6 +416,57 @@ static void test_time_limits(void)
     nae_player_freep(&p);
 }
 
+static void test_pending_edits(void)
+{
+    struct nae_player *p = NULL;
+    const struct nae_player_config config = {.mode = NAE_PLAYER_HOST};
+    assert(nae_player_create(&config, &p) == NAE_OK);
+    assert(nae_player_set_duration(p, 48000) == NAE_OK);
+    struct nae_track *track = NULL;
+    const struct nae_track_params params = {.filename = fixture_index, .duration = -1, .volume = 1};
+    assert(nae_player_add_track(p, &params, &track) == NAE_OK);
+    const struct nae_keyframe unity = {.volume = 1};
+    const struct nae_keyframe mute = {.volume = 0};
+
+    assert(nae_player_start_rendering(p) == NAE_OK);
+    assert(nae_player_set_track_fader(p, track, &unity, 1) == NAE_OK);
+    assert(nae_player_set_track_timings(p, track, 1000, 2000, 100) == NAE_AGAIN);
+    assert(nae_track_get_duration(track) == 48000);
+    assert(nae_player_set_track_fader(p, track, &mute, 1) == NAE_AGAIN);
+    struct nae_track *other = NULL;
+    assert(nae_player_add_track(p, &params, &other) == NAE_AGAIN);
+    assert(!other);
+    struct nae_track *saved = track;
+    assert(nae_player_remove_track(p, &track) == NAE_AGAIN);
+    assert(track == saved);
+    assert(nae_player_clear_tracks(p) == NAE_AGAIN);
+    assert(nae_player_set_track_volume(p, track, 1) == NAE_OK);
+
+    float output[2 * 256];
+    assert(nae_player_render(p, 0, 1, output) == NAE_OK);
+    assert(nae_player_stop_rendering(p) == NAE_OK);
+    struct nae_track_params silent_params = params;
+    silent_params.volume = 0;
+    assert(nae_player_add_track(p, &silent_params, &other) == NAE_OK);
+    assert(nae_player_start_rendering(p) == NAE_OK);
+    assert(nae_player_play(p) == NAE_OK);
+    int heard = 0;
+    for (int i = 0; i < 64; i++) {
+        const int ret = nae_player_render(p, 0, 256, output);
+        assert(ret >= 0);
+        if (ret == NAE_OK) {
+            assert(index_of(output + 2 * 255) == 256 * i + 255);
+            heard = 1;
+            break;
+        }
+        wait_ms(1);
+    }
+    assert(heard);
+    assert(nae_player_stop_rendering(p) == NAE_OK);
+    assert(nae_player_remove_track(p, &track) == NAE_OK && !track);
+    nae_player_freep(&p);
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 4);
@@ -416,6 +474,7 @@ int main(int argc, char **argv)
     fixture_index = argv[2];
     output_dir = argv[3];
     test_time_limits();
+    test_pending_edits();
     test_record();
     test_mix();
     test_never_waits();

@@ -26,9 +26,10 @@ extern "C" {
  * mixed under a master volume. Built on an engine, a transport, the
  * nope.media sources and the miniaudio sink.
  *
- * All the functions are for the control thread; they are serialized, and
- * none waits for the audio thread, but a commit waits for the previous
- * one to be adopted (a callback).
+ * Control calls must be serialized. Track edits return NAE_AGAIN if a
+ * previous edit is pending; retry after rendering has adopted it. Failed
+ * edits leave the player unchanged. Opening media and stopping an owned
+ * device may block.
  */
 
 struct nae_player;
@@ -62,7 +63,8 @@ struct nae_track_params {
     int normalize;           /* level the loudness of the media */
 };
 
-/* The track is the player's, until removed */
+/* At most 64 tracks. The player owns each track until removal succeeds.
+ * On failure, including NAE_AGAIN, *track is NULL. */
 NAE_PLAYER_API int nae_player_add_track(struct nae_player *player, const struct nae_track_params *params,
                                         struct nae_track **track);
 NAE_PLAYER_API int nae_player_set_track_timings(struct nae_player *player, struct nae_track *track,
