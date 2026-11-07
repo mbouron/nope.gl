@@ -226,6 +226,7 @@ static void test_never_waits(void)
     }
     struct renderer r = {.player = p};
     pthread_t thread;
+    assert(nae_player_start_rendering(p) == NAE_OK);
     assert(!pthread_create(&thread, NULL, run_renderer, &r));
     assert(nae_player_play(p) == NAE_OK);
     unsigned seed = 7;
@@ -267,6 +268,7 @@ static void test_never_waits(void)
     }
     atomic_store(&r.stop, 1);
     assert(!pthread_join(thread, NULL));
+    assert(nae_player_stop_rendering(p) == NAE_OK);
     struct nae_player_stats stats;
     nae_player_get_stats(p, &stats);
     printf("never waits: %" PRId64 " renders, %" PRId64 " waits, longest %.3f ms, %" PRId64 " audible, %" PRId64 " requests, %" PRId64 " frames silent\n",
@@ -295,6 +297,7 @@ static void test_edits_while_paused(void)
     assert(nae_player_add_track(p, &params, &tracks[0]) == NAE_OK);
     struct renderer r = {.player = p};
     pthread_t thread;
+    assert(nae_player_start_rendering(p) == NAE_OK);
     assert(!pthread_create(&thread, NULL, run_renderer, &r));
     assert(nae_player_play(p) == NAE_OK);
     wait_ms(100);
@@ -315,6 +318,35 @@ static void test_edits_while_paused(void)
     assert(atomic_load(&r.peak) > 2 * 0x4000);
     atomic_store(&r.stop, 1);
     assert(!pthread_join(thread, NULL));
+    assert(nae_player_stop_rendering(p) == NAE_OK);
+    nae_player_freep(&p);
+}
+
+static void test_host_stop(void)
+{
+    struct nae_player *p = NULL;
+    const struct nae_player_config config = {.mode = NAE_PLAYER_HOST};
+    assert(nae_player_create(&config, &p) == NAE_OK);
+    assert(nae_player_set_duration(p, 480000) == NAE_OK);
+    float output[2];
+    assert(nae_player_render(p, 0, 1, output) == NAE_ERROR_INVALID);
+
+    struct renderer r = {.player = p};
+    pthread_t thread;
+    assert(nae_player_start_rendering(p) == NAE_OK);
+    assert(!pthread_create(&thread, NULL, run_renderer, &r));
+    while (!atomic_load(&r.renders))
+        wait_ms(1);
+    for (unsigned i = 0; i < 200; i++) {
+        assert(nae_player_play(p) == NAE_OK);
+        assert(nae_player_stop(p) == NAE_OK);
+        wait_ms(1);
+    }
+    atomic_store(&r.stop, 1);
+    assert(!pthread_join(thread, NULL));
+    assert(nae_player_stop_rendering(p) == NAE_OK);
+    assert(nae_player_get_position(p) == 0);
+    assert(nae_player_render(p, 0, 1, output) == NAE_ERROR_INVALID);
     nae_player_freep(&p);
 }
 
@@ -359,6 +391,7 @@ int main(int argc, char **argv)
     test_mix();
     test_never_waits();
     test_edits_while_paused();
+    test_host_stop();
     test_device();
     puts("nae player: OK");
     return 0;

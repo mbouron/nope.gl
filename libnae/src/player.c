@@ -43,7 +43,7 @@ struct nae_player {
     struct nae_transport *transport;
     struct nae_sink *sink;
     bool sink_started;
-    _Atomic bool host_rendering;  /* NAE_PLAYER_HOST: the host renders, since its first render */
+    _Atomic bool host_rendering;
     /* The counts of the tracks at the last nae_player_get_stats() that could read them */
     _Atomic int64_t silent_frames;
     _Atomic int64_t skipped_frames;
@@ -485,7 +485,8 @@ int nae_player_stop(struct nae_player *p)
         ret = nae_sink_stop(p->sink);
         p->sink_started = false;
     }
-    nae_transport_sync(p->transport);
+    if (!rendering(p))
+        nae_transport_sync(p->transport);
     nae_mutex_unlock(&p->lock);
     return ret;
 }
@@ -595,12 +596,37 @@ float nae_player_get_volume(const struct nae_player *p)
     return p ? p->volume : 0.f;
 }
 
+int nae_player_start_rendering(struct nae_player *p)
+{
+    if (!p || p->mode != NAE_PLAYER_HOST)
+        return NAE_ERROR_INVALID;
+    nae_mutex_lock(&p->lock);
+    if (!atomic_load_explicit(&p->host_rendering, memory_order_relaxed)) {
+        nae_transport_sync(p->transport);
+        atomic_store_explicit(&p->host_rendering, true, memory_order_release);
+    }
+    nae_mutex_unlock(&p->lock);
+    return NAE_OK;
+}
+
+int nae_player_stop_rendering(struct nae_player *p)
+{
+    if (!p || p->mode != NAE_PLAYER_HOST)
+        return NAE_ERROR_INVALID;
+    nae_mutex_lock(&p->lock);
+    atomic_store_explicit(&p->host_rendering, false, memory_order_release);
+    nae_transport_sync(p->transport);
+    nae_engine_collect(p->engine);
+    nae_mutex_unlock(&p->lock);
+    return NAE_OK;
+}
+
 int nae_player_render(struct nae_player *p, int64_t time, uint32_t frames, float *output)
 {
     if (!p || p->sink)
         return NAE_ERROR_INVALID;
-    if (p->mode == NAE_PLAYER_HOST && !atomic_load_explicit(&p->host_rendering, memory_order_relaxed))
-        atomic_store_explicit(&p->host_rendering, true, memory_order_release);
+    if (p->mode == NAE_PLAYER_HOST && !atomic_load_explicit(&p->host_rendering, memory_order_acquire))
+        return NAE_ERROR_INVALID;
     return nae_transport_render(p->transport, time, frames, output);
 }
 

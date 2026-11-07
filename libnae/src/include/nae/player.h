@@ -37,7 +37,7 @@ struct nae_track;
 enum nae_player_mode {
     NAE_PLAYER_DEVICE,       /* plays on the default audio output */
     NAE_PLAYER_NULL_DEVICE,  /* plays on a headless device, in real time */
-    NAE_PLAYER_HOST,         /* the host renders in real time with nae_player_render(), on and on once started */
+    NAE_PLAYER_HOST,         /* the host supplies the rendering thread */
     NAE_PLAYER_OFFLINE,      /* the host renders as fast as it can, every read waiting for its data */
 };
 
@@ -48,6 +48,7 @@ struct nae_player_config {
 };
 
 NAE_PLAYER_API int nae_player_create(const struct nae_player_config *config, struct nae_player **player);
+/* Stop and join host rendering before releasing the player. */
 NAE_PLAYER_API void nae_player_freep(struct nae_player **player);
 NAE_PLAYER_API uint32_t nae_player_get_sample_rate(const struct nae_player *player);
 
@@ -79,7 +80,7 @@ NAE_PLAYER_API int nae_player_clear_tracks(struct nae_player *player);
 
 NAE_PLAYER_API int nae_player_play(struct nae_player *player);
 NAE_PLAYER_API int nae_player_pause(struct nae_player *player);
-/* Pauses, back to the start, the device stopped */
+/* Pauses and seeks to the start. Stops an owned device; host rendering continues. */
 NAE_PLAYER_API int nae_player_stop(struct nae_player *player);
 NAE_PLAYER_API int nae_player_is_playing(const struct nae_player *player);
 NAE_PLAYER_API int nae_player_seek(struct nae_player *player, int64_t frame);
@@ -97,6 +98,11 @@ NAE_PLAYER_API int nae_player_set_loop_range(struct nae_player *player, int64_t 
 NAE_PLAYER_API int nae_player_set_loop_hold(struct nae_player *player, int64_t frames);
 NAE_PLAYER_API int nae_player_set_volume(struct nae_player *player, float volume);
 NAE_PLAYER_API float nae_player_get_volume(const struct nae_player *player);
+
+/* NAE_PLAYER_HOST: call before starting the rendering thread. */
+NAE_PLAYER_API int nae_player_start_rendering(struct nae_player *player);
+/* Call after stopping and joining the rendering thread. Applies pending edits. */
+NAE_PLAYER_API int nae_player_stop_rendering(struct nae_player *player);
 
 /* NAE_PLAYER_HOST and NAE_PLAYER_OFFLINE: renders `frames` stereo frames
  * from the position, on the thread rendering the player (one at a time).
