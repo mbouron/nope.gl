@@ -2,17 +2,19 @@
 #ifndef NAE_SPSC_H
 #define NAE_SPSC_H
 
-#include <stdalign.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* A lock-free queue of fixed-size elements, for one producer and one consumer thread */
 struct spsc {
-    alignas(64) _Atomic size_t head;  /* elements read, moved by the consumer */
-    alignas(64) _Atomic size_t tail;  /* elements written, moved by the producer */
+    _Atomic size_t head;  /* consumer */
+    /* Separate the counters without requiring an over-aligned allocation. */
+    unsigned char padding[64 - sizeof(_Atomic size_t)];
+    _Atomic size_t tail;  /* producer */
     size_t mask;
     size_t element_size;
     unsigned char *data;
@@ -21,16 +23,25 @@ struct spsc {
 /* Room for at least `capacity` elements, rounded up to a power of two */
 static inline int spsc_init(struct spsc *q, size_t capacity, size_t element_size)
 {
+    if (!capacity || !element_size)
+        return -1;
     size_t size = 1;
-    while (size < capacity)
+    while (size < capacity) {
+        if (size > SIZE_MAX / 2)
+            return -1;
         size <<= 1;
+    }
+    if (size > SIZE_MAX / element_size)
+        return -1;
+    atomic_init(&q->head, 0);
+    atomic_init(&q->tail, 0);
+    if (!atomic_is_lock_free(&q->head) || !atomic_is_lock_free(&q->tail))
+        return -1;
     q->data = calloc(size, element_size);
     if (!q->data)
         return -1;
     q->mask = size - 1;
     q->element_size = element_size;
-    atomic_init(&q->head, 0);
-    atomic_init(&q->tail, 0);
     return 0;
 }
 

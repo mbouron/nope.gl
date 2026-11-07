@@ -89,6 +89,8 @@ endif
 if get_option('tests')
   # Tests use assert for their checks, including in release configurations.
   test_args = cc.get_supported_arguments(['-UNDEBUG'])
+  test_spsc = executable('test_spsc', 'tests/test_spsc.c', c_args: test_args)
+  test('nae SPSC', test_spsc)
   test_core = executable('test_nae', 'tests/test_nae.c', dependencies: [nae_dep, math_dep], c_args: test_args)
   test('nae core', test_core)
   test_transport = executable('test_transport', 'tests/test_transport.c', dependencies: [nae_dep, math_dep], c_args: test_args)
