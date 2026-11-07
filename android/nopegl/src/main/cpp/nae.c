@@ -182,7 +182,8 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeGetPosition(JNI
 JNIEXPORT jlong JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeGetPositionAt(JNIEnv *env, jclass clazz,
                                                                                jlong ptr, jlong time)
 {
-    return nae_player_get_position_at(PLAYER(ptr), time);
+    int64_t position;
+    return nae_player_get_position_at(PLAYER(ptr), time, &position) == NAE_OK ? position : -1;
 }
 
 JNIEXPORT jlong JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeNow(JNIEnv *env, jclass clazz)

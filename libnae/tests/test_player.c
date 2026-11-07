@@ -276,6 +276,11 @@ static void test_never_waits(void)
             assert(nae_player_play(p) == NAE_OK);
         }
         wait_ms(25);
+        int64_t heard;
+        const int clock_ret = nae_player_get_position_at(p, now_ns(), &heard);
+        assert(clock_ret == NAE_OK || clock_ret == NAE_AGAIN);
+        if (clock_ret == NAE_OK)
+            assert(heard >= 0 && heard <= 96000);
     }
     atomic_store(&r.stop, 1);
     assert(!pthread_join(thread, NULL));
@@ -377,8 +382,14 @@ static void test_device(void)
     wait_ms(300);
     const int64_t position = nae_player_get_position(p);
     assert(position > 4800 + 48 * 200 && position < 4800 + 48 * 400);
-    const int64_t heard = nae_player_get_position_at(p, nae_sink_now());
-    assert(heard <= position && heard > position - 48 * 100);
+    int64_t heard = -1;
+    for (int i = 0; i < 100; i++) {
+        if (nae_player_get_position_at(p, nae_sink_now(), &heard) == NAE_OK)
+            break;
+        wait_ms(1);
+    }
+    const int64_t rendered = nae_player_get_position(p);
+    assert(heard >= 0 && heard <= rendered && heard > rendered - 48 * 100);
     /* To the end, stopped at its start */
     wait_ms(1000);
     assert(!nae_player_is_playing(p) && nae_player_get_position(p) == 0);

@@ -293,7 +293,7 @@ static void test_clock(void)
     }
     assert(max_error < 1000000);
     assert(nae_clock_position_at(&clock, clock.time + 5000000) == clock.position + 240);
-    assert(nae_clock_position_at(&clock, clock.time - 5000000) == clock.position);
+    assert(nae_clock_position_at(&clock, clock.time - 5000000) == clock.position - 240);
     nae_transport_pause(s.transport);
     assert(nae_transport_render(s.transport, start + INT64_C(2000000000), 480, out) == NAE_OK);
     assert(nae_transport_get_clock(s.transport, &clock) == NAE_OK);
@@ -341,6 +341,70 @@ static void test_commit_while_silent(void)
     teardown(&s);
 }
 
+static void check_position_at(struct nae_transport *transport, int64_t time, int64_t expected)
+{
+    int64_t position = -1;
+    assert(nae_transport_get_position_at(transport, time, &position) == NAE_OK);
+    assert(position == expected);
+}
+
+static void test_clock_history(void)
+{
+    struct numbers n = {.value = 1};
+    struct setup s = setup(&n, 0, 4800, 0, 0);
+    float output[960];
+    int64_t position = -1;
+    assert(nae_transport_get_position_at(s.transport, 1000000000, &position) == NAE_AGAIN);
+    assert(position == -1);
+    nae_transport_play(s.transport);
+    assert(nae_transport_render(s.transport, 1000000000, 480, output) == NAE_OK);
+    assert(nae_transport_render(s.transport, 1010000000, 480, output) == NAE_OK);
+    check_position_at(s.transport, 1005000000, 240);
+    assert(nae_transport_seek(s.transport, 2400) == NAE_OK);
+    assert(nae_transport_render(s.transport, 1020000000, 480, output) == NAE_OK);
+    check_position_at(s.transport, 1015000000, 720);
+    check_position_at(s.transport, 1025000000, 2640);
+    nae_transport_pause(s.transport);
+    assert(nae_transport_render(s.transport, 1030000000, 480, output) == NAE_OK);
+    check_position_at(s.transport, 1025000000, 2640);
+    check_position_at(s.transport, 1035000000, 2880);
+    assert(nae_transport_render(s.transport, 1040000000, 0, NULL) == NAE_OK);
+    check_position_at(s.transport, 1035000000, 2880);
+    teardown(&s);
+
+    s = setup(&n, 0, 960, 0, 0);
+    nae_transport_set_looping(s.transport, 1);
+    assert(nae_transport_set_loop_range(s.transport, 240, 720) == NAE_OK);
+    nae_transport_play(s.transport);
+    assert(nae_transport_render(s.transport, 1000000000, 480, output) == NAE_OK);
+    assert(nae_transport_render(s.transport, 1010000000, 480, output) == NAE_OK);
+    check_position_at(s.transport, 1012500000, 600);
+    check_position_at(s.transport, 1017500000, 360);
+    assert(nae_transport_set_loop_hold(s.transport, 240) == NAE_OK);
+    assert(nae_transport_render(s.transport, 1020000000, 960, output) == NAE_OK);
+    check_position_at(s.transport, 1022500000, 600);
+    check_position_at(s.transport, 1027500000, 720);
+    check_position_at(s.transport, 1032500000, 360);
+    for (int i = 0; i < 300; i++)
+        assert(nae_transport_render(s.transport, 1040000000 + (int64_t)i * 10000000, 480, output) == NAE_OK);
+    assert(nae_transport_get_position_at(s.transport, 1000000000, &position) == NAE_AGAIN);
+    assert(position == -1);
+    teardown(&s);
+
+    s = setup(&n, 0, 720, 0, 0);
+    nae_transport_play(s.transport);
+    assert(nae_transport_render(s.transport, 1000000000, 960, output) == NAE_OK);
+    check_position_at(s.transport, 1010000000, 480);
+    check_position_at(s.transport, 1017500000, 0);
+    teardown(&s);
+
+    struct nae_clock clock = {.position = INT64_MAX - 1, .time = INT64_MIN, .sample_rate = 768000, .playing = 1};
+    assert(nae_clock_position_at(&clock, INT64_MAX) == INT64_MAX);
+    clock.position = 0;
+    clock.time = INT64_MAX;
+    assert(nae_clock_position_at(&clock, INT64_MIN) == 0);
+}
+
 static void test_short_declick(void)
 {
     const int64_t lengths[] = {1, 2, 120, 240};
@@ -370,6 +434,7 @@ int main(void)
     test_short_declick();
     test_waiting();
     test_clock();
+    test_clock_history();
     test_commit_while_silent();
     puts("nae transport: OK");
     return 0;

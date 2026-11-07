@@ -88,8 +88,9 @@ NAE_PLAYER_API int nae_player_is_playing(const struct nae_player *player);
 NAE_PLAYER_API int nae_player_seek(struct nae_player *player, int64_t frame);
 /* The frame rendered next, or the frame of a seek not applied yet */
 NAE_PLAYER_API int64_t nae_player_get_position(const struct nae_player *player);
-/* The frame heard at a time of nae_sink_now() (playing on a device), or the position */
-NAE_PLAYER_API int64_t nae_player_get_position_at(const struct nae_player *player, int64_t time);
+/* Audible position in the sink/host time base, or the position while stopped.
+ * AGAIN if the clock history is unavailable; *position is unchanged. */
+NAE_PLAYER_API int nae_player_get_position_at(const struct nae_player *player, int64_t time, int64_t *position);
 NAE_PLAYER_API int nae_player_set_duration(struct nae_player *player, int64_t frames);
 NAE_PLAYER_API int64_t nae_player_get_duration(const struct nae_player *player);
 NAE_PLAYER_API int nae_player_set_looping(struct nae_player *player, int looping);

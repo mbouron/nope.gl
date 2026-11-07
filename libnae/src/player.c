@@ -553,14 +553,15 @@ int64_t nae_player_get_position(const struct nae_player *p)
     return p ? nae_transport_get_position(p->transport) : 0;
 }
 
-int64_t nae_player_get_position_at(const struct nae_player *p, int64_t time)
+int nae_player_get_position_at(const struct nae_player *p, int64_t time, int64_t *position)
 {
-    if (!p)
-        return 0;
-    struct nae_clock clock;
-    if (!p->sink_started || nae_transport_get_clock(p->transport, &clock) != NAE_OK)
-        return nae_transport_get_position(p->transport);
-    return nae_clock_position_at(&clock, time);
+    if (!p || !position)
+        return NAE_ERROR_INVALID;
+    if (!rendering(p)) {
+        *position = nae_transport_get_position(p->transport);
+        return NAE_OK;
+    }
+    return nae_transport_get_position_at(p->transport, time, position);
 }
 
 int nae_player_set_duration(struct nae_player *p, int64_t frames)

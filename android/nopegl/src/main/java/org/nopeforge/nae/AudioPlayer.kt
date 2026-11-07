@@ -148,9 +148,10 @@ class AudioPlayer(
     /**
      * The time of the project heard at [nanoTime], in the time base of System.nanoTime(), as for a
      * Choreographer frame: the latency of the output accounted for, and the jitter of its callbacks
-     * smoothed out. The position when not playing on an output.
+     * smoothed out. The position while stopped, or null if the clock history is unavailable.
      */
-    fun getPositionAt(nanoTime: Long): Duration = nativeGetPositionAt(ptr(), nanoTime).toDuration()
+    fun getPositionAt(nanoTime: Long): Duration? =
+        nativeGetPositionAt(ptr(), nanoTime).takeIf { it >= 0 }?.toDuration()
 
     var duration: Duration
         get() = nativeGetDuration(ptr()).toDuration()

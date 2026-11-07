@@ -200,10 +200,16 @@ struct nae_clock {
     int playing;
 };
 
-/* A coherent snapshot of the last render, wait-free; AGAIN if none yet */
+/* A coherent snapshot of the last rendered segment; AGAIN if unavailable. */
 NAE_API int nae_transport_get_clock(const struct nae_transport *transport, struct nae_clock *clock);
-/* The frame heard at `time`, extrapolated from the clock while playing */
+/* Extrapolates within continuous playback, before or after the clock time.
+ * Use transport_get_position_at() across seeks, loops and pauses. */
 NAE_API int64_t nae_clock_position_at(const struct nae_clock *clock, int64_t time);
+/* Uses the last 256 rendered segments, including buffered jumps and holds.
+ * Clamps beyond the last rendered frame. AGAIN if the history is unavailable
+ * or too old; leaves *position unchanged on failure. */
+NAE_API int nae_transport_get_position_at(const struct nae_transport *transport, int64_t time,
+                                         int64_t *position);
 
 /* Render thread, or the control thread while nothing renders (the device
  * stopped): applies what is pending (the graph committed, a seek) and
