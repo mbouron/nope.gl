@@ -6,7 +6,10 @@
 #include <string.h>
 #include "nae/nae.h"
 
-struct signal { int calls, resets, destroyed; float value; };
+struct signal {
+    int calls, resets, destroyed;
+    float value;
+};
 
 static int constant(void *user, const struct nae_process *p)
 {
@@ -57,18 +60,25 @@ static void test_mix_edit(void)
     assert(nae_engine_commit(e, routes, 4, 0) == NAE_AGAIN);
     float out[22];
     assert(nae_engine_render(e, 0, 3, out) == NAE_OK);
-    for (int i = 0; i < 6; i++) close_to(out[i], 1.5f);
+    for (int i = 0; i < 6; i++)
+        close_to(out[i], 1.5f);
     assert(a.calls == 1 && b.calls == 0); /* Reachability and fan-out. */
     assert(nae_gain_set(gain, 1) == NAE_OK);
     assert(nae_engine_render(e, 3, 2, out) == NAE_OK);
-    close_to(out[0], 1.625f); close_to(out[2], 1.75f);
+    close_to(out[0], 1.625f);
+    close_to(out[2], 1.75f);
     /* Preserve a half-completed fader ramp across a topology replacement. */
     mix_inputs[1] = 3;
     assert(nae_engine_commit(e, routes, 4, 0) == NAE_OK);
-    nae_node_unrefp(&na); nae_node_unrefp(&nb); nae_node_unrefp(&gain); nae_node_unrefp(&mix);
+    nae_node_unrefp(&na);
+    nae_node_unrefp(&nb);
+    nae_node_unrefp(&gain);
+    nae_node_unrefp(&mix);
     assert(nae_engine_render(e, 5, 11, out) == NAE_OK);
-    close_to(out[0], 2.875f); close_to(out[2], 3);
-    for (int i = 4; i < 22; i++) close_to(out[i], 3);
+    close_to(out[0], 2.875f);
+    close_to(out[2], 3);
+    for (int i = 4; i < 22; i++)
+        close_to(out[i], 3);
     assert(a.resets == 1 && b.resets == 1);
     assert(nae_engine_collect(e) == NAE_OK);
     assert(a.destroyed == 0 && b.destroyed == 0);
@@ -86,7 +96,8 @@ static void test_mix_edit(void)
 static int sample_numbers(void *user, int64_t first, uint32_t frames, float *out)
 {
     (void)user;
-    for (uint32_t i = 0; i < frames; i++) out[i] = (float)(first + i);
+    for (uint32_t i = 0; i < frames; i++)
+        out[i] = (float)(first + i);
     return NAE_OK;
 }
 
@@ -110,7 +121,8 @@ static void test_schedule(void)
     assert(!memcmp(out, expected, sizeof(out)));
     assert(nae_engine_commit(e, &r, 1, 0) == NAE_OK);
     assert(nae_engine_render(e, 0, 11, out) == NAE_OK);
-    for (unsigned i = 0; i < 11; i++) close_to(out[i], (float)(21 + i));
+    for (unsigned i = 0; i < 11; i++)
+        close_to(out[i], (float)(21 + i));
     nae_node_unrefp(&n);
     nae_engine_freep(&e);
 }
@@ -134,7 +146,8 @@ static void test_validation(void)
     assert(nae_engine_commit(e, r, 2, 0) == NAE_ERROR_INVALID); /* Same instance twice. */
     r[1].node = b;
     assert(nae_engine_commit(e, r, 2, 1) == NAE_OK);
-    nae_node_unrefp(&a); nae_node_unrefp(&b);
+    nae_node_unrefp(&a);
+    nae_node_unrefp(&b);
     nae_engine_freep(&e); /* Also frees an unadopted plan. */
 }
 
@@ -160,7 +173,8 @@ static void test_fader(void)
     assert(nae_engine_commit(e, r, 2, 1) == NAE_OK);
     float out[2 * 40];
     assert(nae_engine_render(e, 0, 40, out) == NAE_OK);
-    for (int i = 0; i < 80; i++) close_to(out[i], 1);
+    for (int i = 0; i < 80; i++)
+        close_to(out[i], 1);
     const struct nae_keyframe k[] = {{10, 0, 0.5f}, {20, 10, 1.5f}, {35, 2, 0}};
     assert(nae_fader_set_keyframes(fader, k, 3) == NAE_OK);
     /* Snapshotted by the next commit */

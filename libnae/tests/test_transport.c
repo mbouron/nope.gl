@@ -81,17 +81,21 @@ static void test_play_to_end(void)
     float out[80];
     /* Not playing: silence, nothing read, the source positioned for its data to be there on play */
     assert(nae_transport_render(s.transport, 0, 8, out) == NAE_OK);
-    for (int i = 0; i < 8; i++) close_to(out[i], 0);
+    for (int i = 0; i < 8; i++)
+        close_to(out[i], 0);
     assert(n.seeks == 1 && n.last_seek == 1000 && n.wraps == 0);
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 40, out) == NAE_OK);
-    for (int i = 0; i < 40; i++) close_to(out[i], (float)(1000 + i));
+    for (int i = 0; i < 40; i++)
+        close_to(out[i], (float)(1000 + i));
     assert(n.seeks == 1); /* not positioned twice */
     assert(nae_transport_get_position(s.transport) == 40);
     /* The end: back to the start, stopped, the source positioned there */
     assert(nae_transport_render(s.transport, 0, 80, out) == NAE_OK);
-    for (int i = 0; i < 60; i++) close_to(out[i], (float)(1040 + i));
-    for (int i = 60; i < 80; i++) close_to(out[i], 0);
+    for (int i = 0; i < 60; i++)
+        close_to(out[i], (float)(1040 + i));
+    for (int i = 60; i < 80; i++)
+        close_to(out[i], 0);
     assert(!nae_transport_is_playing(s.transport));
     assert(nae_transport_get_position(s.transport) == 0);
     assert(n.seeks == 2 && n.last_seek == 1000);
@@ -108,7 +112,8 @@ static void test_seek(void)
     assert(nae_transport_seek(s.transport, 50) == NAE_OK);
     assert(nae_transport_get_position(s.transport) == 50); /* before the renderer applies it */
     assert(nae_transport_render(s.transport, 0, 10, out) == NAE_OK);
-    for (int i = 0; i < 10; i++) close_to(out[i], (float)(1050 + i));
+    for (int i = 0; i < 10; i++)
+        close_to(out[i], (float)(1050 + i));
     assert(n.last_seek == 1050 && n.wraps == 0);
     assert(nae_transport_get_position(s.transport) == 60);
     /* Past the duration: cut to it */
@@ -119,19 +124,22 @@ static void test_seek(void)
     assert(nae_transport_seek(s.transport, 30) == NAE_OK);
     const int seeks = n.seeks;
     assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
-    for (int i = 0; i < 16; i++) close_to(out[i], 0);
+    for (int i = 0; i < 16; i++)
+        close_to(out[i], 0);
     assert(n.seeks == seeks + 1 && n.last_seek == 1030);
     assert(nae_transport_get_position(s.transport) == 30);
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 4, out) == NAE_OK);
-    for (int i = 0; i < 4; i++) close_to(out[i], (float)(1030 + i));
+    for (int i = 0; i < 4; i++)
+        close_to(out[i], (float)(1030 + i));
     assert(n.seeks == seeks + 1); /* no second seek */
     /* Nothing rendering: the control thread applies the seek itself */
     assert(nae_transport_seek(s.transport, 70) == NAE_OK);
     nae_transport_sync(s.transport);
     assert(n.last_seek == 1070 && nae_transport_get_position(s.transport) == 70);
     assert(nae_transport_render(s.transport, 0, 4, out) == NAE_OK);
-    for (int i = 0; i < 4; i++) close_to(out[i], (float)(1070 + i));
+    for (int i = 0; i < 4; i++)
+        close_to(out[i], (float)(1070 + i));
     assert(nae_transport_seek(s.transport, -1) == NAE_ERROR_INVALID);
     assert(nae_transport_seek(s.transport, INT64_C(1) << 48) == NAE_ERROR_INVALID);
     teardown(&s);
@@ -147,25 +155,32 @@ static void test_loop(void)
     nae_transport_play(s.transport);
     /* Before the range, playback goes on to its end, then round it */
     assert(nae_transport_render(s.transport, 0, 70, out) == NAE_OK);
-    for (int i = 0; i < 60; i++) close_to(out[i], (float)(1000 + i));
-    for (int i = 60; i < 70; i++) close_to(out[i], (float)(1020 + i - 60));
+    for (int i = 0; i < 60; i++)
+        close_to(out[i], (float)(1000 + i));
+    for (int i = 60; i < 70; i++)
+        close_to(out[i], (float)(1020 + i - 60));
     assert(n.wraps == 1 && n.last_seek == 1020);
     assert(nae_transport_get_position(s.transport) == 30);
     /* Holding still at the end: silence, the position at the end, the source going round meanwhile */
     assert(nae_transport_set_loop_hold(s.transport, 10) == NAE_OK);
     assert(nae_transport_render(s.transport, 0, 35, out) == NAE_OK);
-    for (int i = 0; i < 30; i++) close_to(out[i], (float)(1030 + i));
-    for (int i = 30; i < 35; i++) close_to(out[i], 0);
+    for (int i = 0; i < 30; i++)
+        close_to(out[i], (float)(1030 + i));
+    for (int i = 30; i < 35; i++)
+        close_to(out[i], 0);
     assert(nae_transport_get_position(s.transport) == 60);
     assert(n.wraps == 2 && n.last_seek == 1020);
     assert(nae_transport_render(s.transport, 0, 10, out) == NAE_OK);
-    for (int i = 0; i < 5; i++) close_to(out[i], 0);
-    for (int i = 5; i < 10; i++) close_to(out[i], (float)(1020 + i - 5));
+    for (int i = 0; i < 5; i++)
+        close_to(out[i], 0);
+    for (int i = 5; i < 10; i++)
+        close_to(out[i], (float)(1020 + i - 5));
     assert(n.wraps == 2); /* went round once */
     /* Not looping: the whole duration, to its end */
     nae_transport_set_looping(s.transport, 0);
     assert(nae_transport_render(s.transport, 0, 80, out) == NAE_OK);
-    for (int i = 0; i < 75; i++) close_to(out[i], (float)(1025 + i));
+    for (int i = 0; i < 75; i++)
+        close_to(out[i], (float)(1025 + i));
     assert(!nae_transport_is_playing(s.transport));
     /* A loop range past the duration loops over the whole duration */
     nae_transport_set_looping(s.transport, 1);
@@ -174,20 +189,24 @@ static void test_loop(void)
     assert(nae_transport_seek(s.transport, 90) == NAE_OK);
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 20, out) == NAE_OK);
-    for (int i = 0; i < 10; i++) close_to(out[i], (float)(1090 + i));
-    for (int i = 10; i < 20; i++) close_to(out[i], (float)(1000 + i - 10));
+    for (int i = 0; i < 10; i++)
+        close_to(out[i], (float)(1090 + i));
+    for (int i = 10; i < 20; i++)
+        close_to(out[i], (float)(1000 + i - 10));
     teardown(&s);
 }
 
 /* Gain k/8 after k frames of an 8-frame ramp from silence */
 static void check_ramp_in(const float *out, int count)
 {
-    for (int i = 0; i < count; i++) close_to(out[i], i < 8 ? (float)(i + 1) / 8 : 1);
+    for (int i = 0; i < count; i++)
+        close_to(out[i], i < 8 ? (float)(i + 1) / 8 : 1);
 }
 
 static void check_ramp_out(const float *out)
 {
-    for (int i = 0; i < 8; i++) close_to(out[i], (float)(7 - i) / 8);
+    for (int i = 0; i < 8; i++)
+        close_to(out[i], (float)(7 - i) / 8);
 }
 
 static void test_declick(void)
@@ -209,7 +228,8 @@ static void test_declick(void)
     nae_transport_pause(s.transport);
     assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
     check_ramp_out(out);
-    for (int i = 8; i < 16; i++) close_to(out[i], 0);
+    for (int i = 8; i < 16; i++)
+        close_to(out[i], 0);
     assert(nae_transport_get_position(s.transport) == 74);
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 8, out) == NAE_OK);
@@ -218,7 +238,8 @@ static void test_declick(void)
     nae_transport_set_looping(s.transport, 1);
     assert(nae_transport_set_loop_range(s.transport, 0, 96) == NAE_OK);
     assert(nae_transport_render(s.transport, 0, 30, out) == NAE_OK); /* 82..95, then 0..15 */
-    for (int i = 0; i < 6; i++) close_to(out[i], 1);
+    for (int i = 0; i < 6; i++)
+        close_to(out[i], 1);
     check_ramp_out(out + 6);
     check_ramp_in(out + 14, 16);
     /* Edited as it pauses: the fade out plays the graph it started on, the
@@ -234,10 +255,12 @@ static void test_declick(void)
     assert(nae_engine_commit(s.engine, &to_other, 1, 0) == NAE_OK);
     assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
     check_ramp_out(out);
-    for (int i = 8; i < 16; i++) close_to(out[i], 0);
+    for (int i = 8; i < 16; i++)
+        close_to(out[i], 0);
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 8, out) == NAE_OK);
-    for (int i = 0; i < 8; i++) close_to(out[i], 2.f * (float)(i + 1) / 8);
+    for (int i = 0; i < 8; i++)
+        close_to(out[i], 2.f * (float)(i + 1) / 8);
     nae_node_unrefp(&other);
     teardown(&s);
 }
@@ -250,22 +273,27 @@ static void test_waiting(void)
     float out[32];
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 12, out) == NAE_AGAIN);
-    for (int i = 0; i < 12; i++) close_to(out[i], 0);
+    for (int i = 0; i < 12; i++)
+        close_to(out[i], 0);
     assert(nae_transport_render(s.transport, 0, 8, out) == NAE_OK);
-    for (int i = 0; i < 8; i++) close_to(out[i], i < 4 ? (float)(i + 1) / 4 : 1);
+    for (int i = 0; i < 8; i++)
+        close_to(out[i], i < 4 ? (float)(i + 1) / 4 : 1);
     assert(nae_transport_get_position(s.transport) == 20); /* the position went on meanwhile */
     /* Playing, a source missing its data does not silence the others */
     n.again = 1;
     assert(nae_transport_render(s.transport, 0, 4, out) == NAE_AGAIN);
-    for (int i = 0; i < 4; i++) close_to(out[i], 1);
+    for (int i = 0; i < 4; i++)
+        close_to(out[i], 1);
     teardown(&s);
     /* A source never ready: the output comes back after the timeout */
     struct numbers late = {.value = 1, .again = 1000};
     s = setup(&late, 0, 1000, 4, 12);
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 20, out) == NAE_AGAIN);
-    for (int i = 0; i < 12; i++) close_to(out[i], 0);
-    for (int i = 12; i < 20; i++) close_to(out[i], i < 16 ? (float)(i - 11) / 4 : 1);
+    for (int i = 0; i < 12; i++)
+        close_to(out[i], 0);
+    for (int i = 12; i < 20; i++)
+        close_to(out[i], i < 16 ? (float)(i - 11) / 4 : 1);
     teardown(&s);
 }
 
@@ -320,20 +348,23 @@ static void test_commit_while_silent(void)
     assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
     assert(nae_engine_commit(s.engine, &to_other, 1, 0) == NAE_OK);
     assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
-    for (int i = 0; i < 16; i++) close_to(out[i], 0);
+    for (int i = 0; i < 16; i++)
+        close_to(out[i], 0);
     assert(m.seeks == 1 && m.last_seek == 10); /* the new node where the playback resumes */
     assert(nae_engine_commit(s.engine, &to_source, 1, 0) == NAE_OK);
     assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
     nae_transport_play(s.transport);
     assert(nae_transport_render(s.transport, 0, 4, out) == NAE_OK);
-    for (int i = 0; i < 4; i++) close_to(out[i], (float)(1010 + i));
+    for (int i = 0; i < 4; i++)
+        close_to(out[i], (float)(1010 + i));
     assert(n.seeks == 1); /* went on from where it was */
     /* Holding still at the end of a loop */
     nae_transport_set_looping(s.transport, 1);
     assert(nae_transport_set_loop_range(s.transport, 0, 20) == NAE_OK);
     assert(nae_transport_set_loop_hold(s.transport, 1000) == NAE_OK);
     assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
-    for (int i = 6; i < 16; i++) close_to(out[i], 0);
+    for (int i = 6; i < 16; i++)
+        close_to(out[i], 0);
     assert(nae_engine_commit(s.engine, &to_other, 1, 0) == NAE_OK);
     assert(nae_transport_render(s.transport, 0, 16, out) == NAE_OK);
     assert(nae_engine_commit(s.engine, &to_source, 1, 0) == NAE_OK);

@@ -3,7 +3,10 @@
 #define NAE_EXAMPLE_WAIT_H
 #ifdef _WIN32
 #include <windows.h>
-static void wait_ms(unsigned ms) { Sleep(ms); }
+static void wait_ms(unsigned ms)
+{
+    Sleep(ms);
+}
 #else
 #include <errno.h>
 #include <time.h>

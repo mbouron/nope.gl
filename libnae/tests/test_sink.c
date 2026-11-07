@@ -114,7 +114,8 @@ int main(void)
     assert(nae_engine_commit(e, &route, 1, 0) == NAE_OK);
     assert(nae_sink_create(e, &sink_config, &sink) == NAE_OK);
     assert(nae_sink_start(sink) == NAE_OK);
-    for (unsigned i = 0; i < 100 && !atomic_load(&calls); i++) wait_ms(10);
+    for (unsigned i = 0; i < 100 && !atomic_load(&calls); i++)
+        wait_ms(10);
     assert(nae_sink_stop(sink) == NAE_OK);
     unsigned stopped_calls = atomic_load(&calls);
     assert(stopped_calls > 0 && nae_sink_underruns(sink) == 0);

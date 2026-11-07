@@ -54,14 +54,37 @@ static inline void nae_thread_join(nae_thread thread)
     CloseHandle(thread);
 }
 
-static inline void nae_thread_set_name(const char *name) { (void)name; }
+static inline void nae_thread_set_name(const char *name)
+{
+    (void)name;
+}
 
 typedef SRWLOCK nae_mutex;
-static inline void nae_mutex_init(nae_mutex *mutex) { InitializeSRWLock(mutex); }
-static inline void nae_mutex_destroy(nae_mutex *mutex) { (void)mutex; }
-static inline void nae_mutex_lock(nae_mutex *mutex) { AcquireSRWLockExclusive(mutex); }
-static inline void nae_mutex_unlock(nae_mutex *mutex) { ReleaseSRWLockExclusive(mutex); }
-static inline bool nae_mutex_trylock(nae_mutex *mutex) { return TryAcquireSRWLockExclusive(mutex); }
+
+static inline void nae_mutex_init(nae_mutex *mutex)
+{
+    InitializeSRWLock(mutex);
+}
+
+static inline void nae_mutex_destroy(nae_mutex *mutex)
+{
+    (void)mutex;
+}
+
+static inline void nae_mutex_lock(nae_mutex *mutex)
+{
+    AcquireSRWLockExclusive(mutex);
+}
+
+static inline void nae_mutex_unlock(nae_mutex *mutex)
+{
+    ReleaseSRWLockExclusive(mutex);
+}
+
+static inline bool nae_mutex_trylock(nae_mutex *mutex)
+{
+    return TryAcquireSRWLockExclusive(mutex);
+}
 
 static inline int nae_sem_init(nae_sem *sem)
 {
@@ -69,9 +92,20 @@ static inline int nae_sem_init(nae_sem *sem)
     return *sem ? 0 : -1;
 }
 
-static inline void nae_sem_destroy(nae_sem *sem) { CloseHandle(*sem); }
-static inline void nae_sem_post(nae_sem *sem) { ReleaseSemaphore(*sem, 1, NULL); }
-static inline void nae_sem_wait(nae_sem *sem) { WaitForSingleObject(*sem, INFINITE); }
+static inline void nae_sem_destroy(nae_sem *sem)
+{
+    CloseHandle(*sem);
+}
+
+static inline void nae_sem_post(nae_sem *sem)
+{
+    ReleaseSemaphore(*sem, 1, NULL);
+}
+
+static inline void nae_sem_wait(nae_sem *sem)
+{
+    WaitForSingleObject(*sem, INFINITE);
+}
 
 #else
 #include <pthread.h>
@@ -89,11 +123,31 @@ static inline void nae_thread_join(nae_thread thread)
 }
 
 typedef pthread_mutex_t nae_mutex;
-static inline void nae_mutex_init(nae_mutex *mutex) { pthread_mutex_init(mutex, NULL); }
-static inline void nae_mutex_destroy(nae_mutex *mutex) { pthread_mutex_destroy(mutex); }
-static inline void nae_mutex_lock(nae_mutex *mutex) { pthread_mutex_lock(mutex); }
-static inline void nae_mutex_unlock(nae_mutex *mutex) { pthread_mutex_unlock(mutex); }
-static inline bool nae_mutex_trylock(nae_mutex *mutex) { return pthread_mutex_trylock(mutex) == 0; }
+
+static inline void nae_mutex_init(nae_mutex *mutex)
+{
+    pthread_mutex_init(mutex, NULL);
+}
+
+static inline void nae_mutex_destroy(nae_mutex *mutex)
+{
+    pthread_mutex_destroy(mutex);
+}
+
+static inline void nae_mutex_lock(nae_mutex *mutex)
+{
+    pthread_mutex_lock(mutex);
+}
+
+static inline void nae_mutex_unlock(nae_mutex *mutex)
+{
+    pthread_mutex_unlock(mutex);
+}
+
+static inline bool nae_mutex_trylock(nae_mutex *mutex)
+{
+    return pthread_mutex_trylock(mutex) == 0;
+}
 
 static inline void nae_thread_set_name(const char *name)
 {
@@ -117,9 +171,20 @@ static inline int nae_sem_init(nae_sem *sem)
     return *sem ? 0 : -1;
 }
 
-static inline void nae_sem_destroy(nae_sem *sem) { dispatch_release(*sem); }
-static inline void nae_sem_post(nae_sem *sem) { dispatch_semaphore_signal(*sem); }
-static inline void nae_sem_wait(nae_sem *sem) { dispatch_semaphore_wait(*sem, DISPATCH_TIME_FOREVER); }
+static inline void nae_sem_destroy(nae_sem *sem)
+{
+    dispatch_release(*sem);
+}
+
+static inline void nae_sem_post(nae_sem *sem)
+{
+    dispatch_semaphore_signal(*sem);
+}
+
+static inline void nae_sem_wait(nae_sem *sem)
+{
+    dispatch_semaphore_wait(*sem, DISPATCH_TIME_FOREVER);
+}
 
 #else
 #include <errno.h>
@@ -127,9 +192,20 @@ static inline void nae_sem_wait(nae_sem *sem) { dispatch_semaphore_wait(*sem, DI
 
 typedef sem_t nae_sem;
 
-static inline int nae_sem_init(nae_sem *sem) { return sem_init(sem, 0, 0); }
-static inline void nae_sem_destroy(nae_sem *sem) { sem_destroy(sem); }
-static inline void nae_sem_post(nae_sem *sem) { sem_post(sem); }
+static inline int nae_sem_init(nae_sem *sem)
+{
+    return sem_init(sem, 0, 0);
+}
+
+static inline void nae_sem_destroy(nae_sem *sem)
+{
+    sem_destroy(sem);
+}
+
+static inline void nae_sem_post(nae_sem *sem)
+{
+    sem_post(sem);
+}
 
 static inline void nae_sem_wait(nae_sem *sem)
 {

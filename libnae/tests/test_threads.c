@@ -6,13 +6,22 @@
 #include <stdlib.h>
 #include "nae/nae.h"
 
-struct state { struct nae_engine *engine; _Atomic int stop; pthread_t control; unsigned destroyed; };
-struct source { struct state *owner; float value; };
+struct state {
+    struct nae_engine *engine;
+    _Atomic int stop;
+    pthread_t control;
+    unsigned destroyed;
+};
+struct source {
+    struct state *owner;
+    float value;
+};
 
 static int process(void *user, const struct nae_process *p)
 {
     const struct source *s = user;
-    for (unsigned i = 0; i < p->frames * p->channels; i++) p->output[i] = s->value;
+    for (unsigned i = 0; i < p->frames * p->channels; i++)
+        p->output[i] = s->value;
     return NAE_OK;
 }
 
@@ -31,7 +40,8 @@ static void *render(void *user)
     float out[514];
     while (!atomic_load(&s->stop)) {
         assert(nae_engine_render(s->engine, frame, 257, out) == NAE_OK);
-        for (unsigned i = 0; i < 514; i++) assert(out[i] >= 0 && out[i] <= 2);
+        for (unsigned i = 0; i < 514; i++)
+            assert(out[i] >= 0 && out[i] <= 2);
         frame += 257;
     }
     return NULL;
@@ -59,7 +69,8 @@ int main(void)
         int ret;
         do {
             ret = nae_engine_commit(s.engine, routes, 2, 1);
-            if (ret == NAE_AGAIN) sched_yield();
+            if (ret == NAE_AGAIN)
+                sched_yield();
         } while (ret == NAE_AGAIN);
         assert(ret == NAE_OK);
         assert(nae_gain_set(gain, (i & 1) ? 0.25f : 1.f) == NAE_OK);

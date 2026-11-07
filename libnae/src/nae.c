@@ -134,7 +134,9 @@ int nae_engine_collect(struct nae_engine *s)
 }
 
 /* Iterative depth-first traversal: O(nodes + input edges), no recursion. */
-struct visit { uint32_t index, input; };
+struct visit {
+    uint32_t index, input;
+};
 
 int nae_engine_commit(struct nae_engine *s, const struct nae_route *routes,
                       uint32_t count, uint32_t output)

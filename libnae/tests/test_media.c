@@ -91,7 +91,8 @@ static void test_read_and_seek(void)
     assert(stats_of(&m).requests == 0);
     for (int64_t frame = 4224; frame < 6400; frame += 64)
         assert(nae_engine_render(m.engine, frame, 64, out) == NAE_OK);
-    for (unsigned i = 0; i < 128; i++) close_to(out[i], 0);
+    for (unsigned i = 0; i < 128; i++)
+        close_to(out[i], 0);
     assert(stats_of(&m).requests == 0);
     /* A jump back: a seek inside a chunk of the decoder, sample-exact */
     assert(nae_engine_render(m.engine, 17, 17, out) == NAE_OK);
@@ -307,7 +308,8 @@ static void test_resample(void)
             int64_t index = frame + i;
             /* Ignore the resampler's edge transients. A one-sample drift
              * in the body is much larger than this quantization tolerance. */
-            if (index < 100 || (index >= 4700 && index < 4800)) continue;
+            if (index < 100 || (index >= 4700 && index < 4800))
+                continue;
             float expected = index < 4800 ? (float)(6000. / 32768. * sin(2 * 3.141592653589793 * 1000 * (double)index / 48000)) : 0.f;
             assert(fabsf(out[2 * i] - expected) < 0.0001f);
             assert(fabsf(out[2 * i + 1] + expected) < 0.0001f);
