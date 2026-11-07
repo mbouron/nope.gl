@@ -116,8 +116,7 @@ if get_option('tests')
       test('nae concurrent PCM', test_media_threads, args: [fixture[2]], timeout: 120)
     endif
   endif
-  # The player test counts the context switches of its rendering thread (RUSAGE_THREAD)
-  if nopemd_dep.found() and miniaudio_dep.found() and host_machine.system() == 'linux'
+  if nopemd_dep.found() and miniaudio_dep.found() and host_machine.system() != 'windows' and cc.has_header('pthread.h')
     player_test_args = test_args + (cc.has_header('valgrind/valgrind.h') ? ['-DHAVE_VALGRIND_H=1'] : [])
     test_player = executable('test_player', 'tests/test_player.c',
       dependencies: [nae_player_dep, math_dep, dependency('threads')], c_args: player_test_args)

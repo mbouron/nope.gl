@@ -180,14 +180,18 @@ static void *run_renderer(void *arg)
     float out[2 * 480];
     int64_t next = now_ns();
     while (!atomic_load(&r->stop)) {
+#ifdef RUSAGE_THREAD
         struct rusage before, after;
         getrusage(RUSAGE_THREAD, &before);
+#endif
         const int64_t start = now_ns();
         assert(nae_player_render(r->player, start, 480, out) >= 0);
         const int64_t spent = now_ns() - start;
+#ifdef RUSAGE_THREAD
         getrusage(RUSAGE_THREAD, &after);
         if (after.ru_minflt == before.ru_minflt && after.ru_majflt == before.ru_majflt)
             atomic_fetch_add(&r->waits, after.ru_nvcsw - before.ru_nvcsw);
+#endif
         if (spent > atomic_load(&r->max_ns))
             atomic_store(&r->max_ns, spent);
         for (int i = 0; i < 960; i++)
@@ -270,8 +274,10 @@ static void test_never_waits(void)
            stats.requests, stats.silent_frames);
     assert(stats.errors == 0 && atomic_load(&r.audible) > 0);
     /* Threads switch out of their own accord under Valgrind and TSan, which serialize them */
+#ifdef RUSAGE_THREAD
     if (!RUNNING_ON_VALGRIND && !THREAD_SANITIZER)
         assert(atomic_load(&r.waits) == 0);
+#endif
     nae_player_freep(&p);
 }
 
