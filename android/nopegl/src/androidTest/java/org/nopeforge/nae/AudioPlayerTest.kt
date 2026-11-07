@@ -114,4 +114,15 @@ class AudioPlayerTest {
             assertThrows(IllegalArgumentException::class.java) { player.seek(Duration.INFINITE) }
         }
     }
+
+    @Test
+    fun invalidVolumeIsRejected() {
+        AudioPlayer(AudioPlayer.Mode.Offline).use { player ->
+            player.volume = 0.5f
+            for (volume in listOf(-1f, Float.NaN, Float.POSITIVE_INFINITY)) {
+                assertThrows(IllegalArgumentException::class.java) { player.volume = volume }
+                assertEquals(0.5f, player.volume, 0f)
+            }
+        }
+    }
 }

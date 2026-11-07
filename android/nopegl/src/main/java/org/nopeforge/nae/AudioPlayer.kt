@@ -233,7 +233,7 @@ class AudioPlayer(
     var volume: Float
         get() = nativeGetVolume(ptr())
         set(value) {
-            nativeSetVolume(ptr(), value)
+            require(nativeSetVolume(ptr(), value) == OK) { "The volume must be finite and nonnegative" }
         }
 
     /** [Mode.Offline]: writes the project, from its start to its duration, to a WAV file */
