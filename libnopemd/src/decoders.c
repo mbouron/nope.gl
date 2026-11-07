@@ -59,6 +59,15 @@ int nmdi_decoder_init(void *log_ctx,
     avcodec_parameters_to_context(ctx->avctx, stream->codecpar);
     ctx->st_timebase = stream->time_base;
 
+    /*
+     * Set a default channel layout if it is unspecified, so filters that rely
+     * on it can operate properly. This notably allows the dynaudnorm filter to
+     * work with WAV files.
+     */
+    AVChannelLayout *ch_layout = &ctx->avctx->ch_layout;
+    if (ch_layout->order == AV_CHANNEL_ORDER_UNSPEC)
+        av_channel_layout_default(ch_layout, ch_layout->nb_channels);
+
     ret = dec->init(ctx, opts);
     if (ret < 0) {
         if (dec->uninit)

@@ -8,6 +8,9 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+### Fixed
+- `libnopemd` filters such as `dynaudnorm` not working with media (WAVE, AIFF)
+  that do not specify their channel layout
 
 ## [2026.6 / libnopegl 0.18.0][2026.6] - 2026-11-06
 ### Added
