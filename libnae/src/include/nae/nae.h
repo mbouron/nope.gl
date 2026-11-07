@@ -22,7 +22,7 @@ extern "C" {
 
 enum {
     NAE_OK = 0,
-    NAE_AGAIN = 1,       /* Missing PCM, queue full, or a pending plan. */
+    NAE_AGAIN = 1,       /* Missing PCM/history, queue full, or a pending plan. */
     NAE_EOF = 2,
     NAE_ERROR_INVALID = -1,
     NAE_ERROR_MEMORY = -2,

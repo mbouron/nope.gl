@@ -20,16 +20,12 @@ extern "C" {
 #endif
 
 /*
- * A player of tracks of media files laid on a project, as an editor plays
- * the audio of its timeline: each track plays a part of its media from a
- * frame of the project, through its fader (volume keyframes) and volume,
- * mixed under a master volume. Built on an engine, a transport, the
- * nope.media sources and the miniaudio sink.
+ * Media tracks on a timeline, mixed through track faders and a master gain.
  *
  * Control calls must be serialized. Track edits return NAE_AGAIN if a
  * previous edit is pending; retry after rendering has adopted it. Failed
- * edits leave the player unchanged. Opening media and stopping an owned
- * device may block.
+ * edits leave the player unchanged. Media opening, recording, device stop
+ * and decoder teardown may block.
  */
 
 struct nae_player;
@@ -124,14 +120,13 @@ NAE_PLAYER_API int nae_player_record(struct nae_player *player, const char *file
 
 struct nae_player_stats {
     uint32_t underruns;      /* device callbacks with audio missing */
-    int64_t silent_frames;   /* of the tracks, played as silence, the audio not there in time */
-    int64_t skipped_frames;  /* of the tracks, decoded too late */
-    int64_t requests;        /* positions asked of the decoders, seeks included */
-    int64_t errors;          /* failures of nope.media or of the device */
+    int64_t silent_frames;   /* unavailable media frames replaced with silence */
+    int64_t skipped_frames;  /* media frames decoded too late */
+    int64_t requests;        /* decoder position requests, including seeks */
+    int64_t errors;          /* decoder errors plus the current device error */
 };
 
-/* From any thread, never waiting: while the player is edited, the counts of
- * the tracks are those of the last call */
+/* From any thread. Returns cached track counts while an edit holds the lock. */
 NAE_PLAYER_API void nae_player_get_stats(const struct nae_player *player, struct nae_player_stats *stats);
 
 #ifdef __cplusplus

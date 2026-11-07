@@ -60,7 +60,7 @@ class AudioPlayer(
 
     data class TrackResult(val status: Int, val track: Track?)
 
-    /** A point of the volume automation of a track: from [start], the volume goes linearly to [volume] over [length] */
+    /** Ramps from the previous volume to [volume] over [length], starting at [start]. */
     data class Keyframe(val start: Duration, val volume: Float, val length: Duration = Duration.ZERO)
 
     data class Stats(
@@ -105,8 +105,8 @@ class AudioPlayer(
         (this / sampleRate).seconds + ((this % sampleRate) * 1_000_000_000 / sampleRate).nanoseconds
 
     /**
-     * Lays a track of the media at [path] from [start] of the project, playing it from [trim] for
-     * [duration] (the rest of the media if null). The result contains a track only on [OK].
+     * Plays [path] at project time [start], from media time [trim], for [duration]
+     * (the remaining media if null). The result contains a track only on [OK].
      */
     @Synchronized
     fun addTrack(
@@ -174,11 +174,11 @@ class AudioPlayer(
     @Synchronized
     fun play(): Int = nativePlay(ptr())
 
-    /** The output runs on, silent: playing again restarts nothing, and seeks reach the tracks at once */
+    /** Pauses playback while the output keeps running and applying seeks. */
     @Synchronized
     fun pause(): Int = nativePause(ptr())
 
-    /** Pauses, back to the start, the audio output stopped */
+    /** Stops the output and returns to the project start. */
     @Synchronized
     fun stop(): Int = nativeStop(ptr())
 
@@ -189,15 +189,15 @@ class AudioPlayer(
     @Synchronized
     fun seek(position: Duration): Int = nativeSeek(ptr(), position.toFrames().coerceAtLeast(0))
 
-    /** The time rendered next, or of a seek not applied yet */
+    /** The next render position, or a pending seek position. */
     @get:Synchronized
     val position: Duration
         get() = nativeGetPosition(ptr()).toDuration()
 
     /**
-     * The time of the project heard at [nanoTime], in the time base of System.nanoTime(), as for a
-     * Choreographer frame: the latency of the output accounted for, and the jitter of its callbacks
-     * smoothed out. The position while stopped, or null if the clock history is unavailable.
+     * Audible project time at [nanoTime], in the time base of System.nanoTime().
+     * Accounts for estimated output latency and smooths callback timing.
+     * Returns [position] while stopped, or null if clock history is unavailable.
      */
     @Synchronized
     fun getPositionAt(nanoTime: Long): Duration? =
@@ -224,7 +224,7 @@ class AudioPlayer(
     fun setLoopRange(start: Duration, end: Duration): Int =
         nativeSetLoopRange(ptr(), start.toFrames().coerceAtLeast(0), end.toFrames().coerceAtLeast(0))
 
-    /** Silence at the end of each pass of the loop, the position staying at its end */
+    /** Silence after each loop pass, with the position held at its end. */
     @Synchronized
     fun setLoopHold(hold: Duration): Int = nativeSetLoopHold(ptr(), hold.toFrames().coerceAtLeast(0))
 
