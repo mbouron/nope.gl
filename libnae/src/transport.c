@@ -249,7 +249,8 @@ int64_t nae_clock_position_at(const struct nae_clock *clock, int64_t time)
         return 0;
     if (!clock->playing)
         return clock->position;
-    const long double position = clock->position + ((long double)time - clock->time) * clock->sample_rate / 1e9L;
+    const long double position = (long double)clock->position +
+                                 ((long double)time - (long double)clock->time) * clock->sample_rate / 1e9L;
     if (position <= 0)
         return 0;
     if (position >= 0x1p63L)
@@ -332,7 +333,7 @@ static int64_t clamp_time(long double time)
 
 static int64_t clock_time_at(const struct clock_writer *writer, uint32_t offset)
 {
-    return writer->time ? clamp_time(writer->time + (long double)offset * writer->period) : 0;
+    return writer->time ? clamp_time((long double)writer->time + (long double)offset * writer->period) : 0;
 }
 
 static void start_clock_write(struct nae_transport *t, const struct clock_writer *writer)

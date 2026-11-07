@@ -18,7 +18,7 @@ static int numbers_read(void *user, int64_t frame, uint32_t frames, float *out)
 {
     struct numbers *n = user;
     for (uint32_t i = 0; i < frames; i++)
-        out[i] = n->value ? n->value : (float)(frame + i);
+        out[i] = n->value != 0.f ? n->value : (float)(frame + i);
     if (n->again > 0) {
         n->again--;
         return NAE_AGAIN;

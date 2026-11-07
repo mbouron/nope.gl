@@ -12,7 +12,25 @@ pkg = import('pkgconfig')
 install_rpath = get_option('rpath') ? get_option('prefix') / get_option('libdir') : ''
 api_args = get_option('default_library') == 'static' ? ['-DNAE_STATIC'] : []
 build_args = api_args + ['-DNAE_BUILD']
-add_project_arguments(cc.get_supported_arguments(['-Werror=missing-prototypes', '-Werror=vla']), language: 'c')
+project_args = cc.get_supported_arguments([
+  '-Wshadow',
+  '-Werror=missing-prototypes',
+  '-Werror=pointer-arith',
+  '-Werror=vla',
+  '-Wformat=2',
+  '-Wformat-signedness',
+  '-Wignored-qualifiers',
+  '-Wimplicit-fallthrough',
+  '-Wlogical-op',
+  '-Wundef',
+  '-Wconversion',
+  '-Wcast-function-type',
+  '-Wcast-function-type-strict',
+])
+if cc.get_id() == 'clang-cl'
+  project_args += ['-Wno-format-signedness', '-Wno-sign-conversion']
+endif
+add_project_arguments(project_args, language: 'c')
 
 libnae = library('nae', 'src/nae.c', 'src/transport.c', include_directories: inc, dependencies: math_dep,
                  c_args: build_args, install: true, version: meson.project_version(),

@@ -200,7 +200,7 @@ static void test_paused_seeks(void)
     for (int i = 0; i < 20; i++) {
         assert(nae_transport_render(t, 0, 480, out) == NAE_OK);
         for (unsigned f = 0; f < 480; f++)
-            assert(index_of(out + 2 * f) == 30000 + 480 * i + f);
+            assert(index_of(out + 2 * f) == 30000 + 480 * i + (int)f);
         wait_ms(10);
     }
     assert(stats_of(&m).silent_frames == 0);

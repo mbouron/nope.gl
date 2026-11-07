@@ -288,7 +288,7 @@ static void test_never_waits(void)
     struct nae_player_stats stats;
     nae_player_get_stats(p, &stats);
     printf("never waits: %" PRId64 " renders, %" PRId64 " waits, longest %.3f ms, %" PRId64 " audible, %" PRId64 " requests, %" PRId64 " frames silent\n",
-           atomic_load(&r.renders), atomic_load(&r.waits), atomic_load(&r.max_ns) / 1e6, atomic_load(&r.audible),
+           atomic_load(&r.renders), atomic_load(&r.waits), (double)atomic_load(&r.max_ns) / 1e6, atomic_load(&r.audible),
            stats.requests, stats.silent_frames);
     assert(stats.errors == 0 && atomic_load(&r.audible) > 0);
     /* Threads switch out of their own accord under Valgrind and TSan, which serialize them */

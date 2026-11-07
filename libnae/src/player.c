@@ -720,7 +720,7 @@ int nae_player_record(struct nae_player *p, const char *filename, enum nae_recor
         ret = NAE_ERROR_IO;
     if (ret < 0)
         goto end;
-    write_wav_header(f, format, p->sample_rate, (uint32_t)(duration * 2 * sample_size));
+    write_wav_header(f, format, p->sample_rate, (uint32_t)((uint64_t)duration * 2 * sample_size));
     nae_transport_set_looping(p->transport, 0);
     for (uint32_t i = 0; i < p->nb_tracks; i++)
         nae_media_set_loop(p->tracks[i]->media, 0, 0);
