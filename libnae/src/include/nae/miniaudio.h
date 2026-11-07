@@ -25,7 +25,7 @@ struct nae_sink_config {
     int null_device;
     /* Played by the device when set, rather than the engine from a cursor:
      * the device can then run on while paused, and each callback times the
-     * transport's clock. Must outlive the sink. */
+     * transport's clock. Must belong to the engine and outlive the sink. */
     struct nae_transport *transport;
     /* Duration of the device periods, 0 for the backend's default */
     uint32_t period_ms;

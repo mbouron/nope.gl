@@ -75,7 +75,7 @@ int nae_sink_create(struct nae_engine *engine, const struct nae_sink_config *con
         return NAE_ERROR_INVALID;
     *sink = NULL;
     const struct nae_config *c = nae_engine_get_config(engine);
-    if (!c)
+    if (!c || (config && config->transport && nae_transport_get_engine(config->transport) != engine))
         return NAE_ERROR_INVALID;
     /* Refuse mismatched shared-library/header versions before passing structs. */
     if (strcmp(ma_version_string(), MA_VERSION_STRING))

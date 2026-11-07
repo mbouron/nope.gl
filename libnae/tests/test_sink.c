@@ -75,6 +75,30 @@ static void test_transport(void)
     nae_engine_freep(&e);
 }
 
+static void test_foreign_transport(void)
+{
+    struct nae_engine *mono = NULL;
+    struct nae_engine *stereo = NULL;
+    const struct nae_config mono_config = {48000, 1, 256};
+    const struct nae_config stereo_config = {48000, 2, 256};
+    assert(nae_engine_create(&mono_config, &mono) == NAE_OK);
+    assert(nae_engine_create(&stereo_config, &stereo) == NAE_OK);
+
+    struct nae_transport *transport = NULL;
+    const struct nae_transport_config transport_config = {0};
+    assert(nae_transport_create(stereo, &transport_config, &transport) == NAE_OK);
+    assert(nae_transport_get_engine(transport) == stereo);
+
+    struct nae_sink *sink = NULL;
+    const struct nae_sink_config sink_config = {.null_device = 1, .transport = transport};
+    assert(nae_sink_create(mono, &sink_config, &sink) == NAE_ERROR_INVALID);
+    assert(!sink);
+
+    nae_transport_freep(&transport);
+    nae_engine_freep(&mono);
+    nae_engine_freep(&stereo);
+}
+
 int main(void)
 {
     _Atomic unsigned calls = 0;
@@ -103,5 +127,6 @@ int main(void)
     nae_node_unrefp(&n);
     nae_engine_freep(&e);
     test_transport();
+    test_foreign_transport();
     return 0;
 }

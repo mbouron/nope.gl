@@ -169,6 +169,7 @@ struct nae_transport_config {
 
 NAE_API int nae_transport_create(struct nae_engine *engine, const struct nae_transport_config *config,
                                 struct nae_transport **transport);
+NAE_API struct nae_engine *nae_transport_get_engine(const struct nae_transport *transport);
 /* The renderer must be stopped */
 NAE_API void nae_transport_freep(struct nae_transport **transport);
 

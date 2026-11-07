@@ -99,6 +99,11 @@ int nae_transport_create(struct nae_engine *engine, const struct nae_transport_c
     return NAE_OK;
 }
 
+struct nae_engine *nae_transport_get_engine(const struct nae_transport *t)
+{
+    return t ? t->engine : NULL;
+}
+
 void nae_transport_freep(struct nae_transport **tp)
 {
     if (!tp || !*tp)
