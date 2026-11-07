@@ -2,6 +2,7 @@
 #define _GNU_SOURCE  /* nanosleep(), pthread_setname_np() with glibc */
 #include <math.h>
 #include <stdatomic.h>
+#include <stdckdint.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -164,7 +165,10 @@ static int set_fader(struct nae_track *t)
         return NAE_ERROR_MEMORY;
     for (uint32_t i = 0; i < t->nb_keyframes; i++) {
         keyframes[i] = t->keyframes[i];
-        keyframes[i].frame += t->start;
+        if (ckd_add(&keyframes[i].frame, keyframes[i].frame, t->start)) {
+            free(keyframes);
+            return NAE_ERROR_INVALID;
+        }
     }
     const int ret = nae_fader_set_keyframes(t->fader, keyframes, t->nb_keyframes);
     free(keyframes);
@@ -175,8 +179,10 @@ static int set_timings(struct nae_track *t, int64_t start, int64_t trim, int64_t
 {
     if (start < 0 || trim < 0)
         return NAE_ERROR_INVALID;
-    if (duration < 0 || (t->length && trim + duration > t->length))
+    if (duration < 0 || (t->length && (trim >= t->length || duration > t->length - trim)))
         duration = t->length > trim ? t->length - trim : 0;
+    if (start > INT64_MAX - duration || trim > INT64_MAX - duration)
+        return NAE_ERROR_INVALID;
     t->start = start;
     t->trim = trim;
     t->duration = duration;
@@ -203,7 +209,7 @@ int nae_player_create(const struct nae_player_config *config, struct nae_player 
     if (!player)
         return NAE_ERROR_INVALID;
     *player = NULL;
-    if (!config || config->mode > NAE_PLAYER_OFFLINE)
+    if (!config || config->mode < NAE_PLAYER_DEVICE || config->mode > NAE_PLAYER_OFFLINE)
         return NAE_ERROR_INVALID;
     struct nae_player *p = calloc(1, sizeof(*p));
     if (!p)
@@ -291,8 +297,16 @@ int nae_player_add_track(struct nae_player *p, const struct nae_track_params *pa
         goto end;
     /* Decoding from where the track plays from at the position, ahead of its first read */
     const int64_t position = nae_transport_get_position(p->transport);
+    int64_t offset = position > params->start ? position - params->start : 0;
+    if (params->duration >= 0 && offset > params->duration)
+        offset = params->duration;
+    int64_t decode_start;
+    if (ckd_add(&decode_start, params->trim, offset)) {
+        ret = NAE_ERROR_INVALID;
+        goto end;
+    }
     const struct nae_media_params media_params = {
-        .start = params->trim + (position > params->start ? position - params->start : 0),
+        .start = decode_start,
         .normalize = params->normalize,
         .blocking = p->mode == NAE_PLAYER_OFFLINE,
     };
@@ -366,7 +380,7 @@ int nae_player_set_track_volume(struct nae_player *p, struct nae_track *t, float
 int nae_player_set_track_fader(struct nae_player *p, struct nae_track *t, const struct nae_keyframe *keyframes,
                                uint32_t count)
 {
-    if (!p || !t || (count && !keyframes))
+    if (!p || !t || (count && !keyframes) || count > 65536)
         return NAE_ERROR_INVALID;
     nae_mutex_lock(&p->lock);
     int ret = owns(p, t) ? NAE_OK : NAE_ERROR_INVALID;
@@ -661,19 +675,22 @@ static void write_wav_header(FILE *f, enum nae_record_format format, uint32_t ra
 
 int nae_player_record(struct nae_player *p, const char *filename, enum nae_record_format format)
 {
-    if (!p || !filename || p->mode != NAE_PLAYER_OFFLINE || format > NAE_RECORD_F32)
+    if (!p || !filename || p->mode != NAE_PLAYER_OFFLINE ||
+        format < NAE_RECORD_S16 || format > NAE_RECORD_F32)
         return NAE_ERROR_INVALID;
     nae_mutex_lock(&p->lock);
     const int64_t duration = nae_transport_get_duration(p->transport);
     const size_t sample_size = format == NAE_RECORD_S16 ? 2 : 4;
+    if ((uint64_t)duration > (UINT32_MAX - 36) / (2 * sample_size)) {
+        nae_mutex_unlock(&p->lock);
+        return NAE_ERROR_UNSUPPORTED;
+    }
     float *frames = calloc(RECORD_FRAMES * 2, sizeof(*frames));
     int16_t *s16 = calloc(RECORD_FRAMES * 2, sizeof(*s16));
     FILE *f = fopen(filename, "wb");
     int ret = frames && s16 ? NAE_OK : NAE_ERROR_MEMORY;
     if (ret == NAE_OK && !f)
         ret = NAE_ERROR_IO;
-    if (ret == NAE_OK && (uint64_t)duration * 2 * sample_size > UINT32_MAX - 36)
-        ret = NAE_ERROR_UNSUPPORTED;
     if (ret < 0)
         goto end;
     write_wav_header(f, format, p->sample_rate, (uint32_t)(duration * 2 * sample_size));

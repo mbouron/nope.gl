@@ -381,12 +381,41 @@ static void test_device(void)
     nae_player_freep(&p);
 }
 
+static void test_time_limits(void)
+{
+    struct nae_player *p = offline_player(48000);
+    struct nae_track *t = NULL;
+    const struct nae_track_params params = {.filename = fixture_index, .duration = -1, .volume = 1};
+    assert(nae_player_add_track(p, &params, &t) == NAE_OK);
+    assert(nae_player_set_track_timings(p, t, 0, INT64_MAX, 100) == NAE_OK);
+    assert(nae_track_get_duration(t) == 0);
+    assert(nae_player_set_track_timings(p, t, INT64_MAX, 0, 100) == NAE_ERROR_INVALID);
+    assert(nae_player_set_track_timings(p, t, 100, 0, 100) == NAE_OK);
+    const struct nae_keyframe keyframe = {.frame = INT64_MAX, .volume = 1};
+    assert(nae_player_set_track_fader(p, t, &keyframe, 1) == NAE_ERROR_INVALID);
+    assert(nae_player_set_track_fader(p, t, &keyframe, UINT32_MAX) == NAE_ERROR_INVALID);
+
+    char path[4096];
+    snprintf(path, sizeof(path), "%s/too_large.wav", output_dir);
+    FILE *file = fopen(path, "wb");
+    assert(file && fputs("keep", file) >= 0 && fclose(file) == 0);
+    assert(nae_player_set_duration(p, INT64_MAX) == NAE_OK);
+    assert(nae_player_record(p, path, NAE_RECORD_F32) == NAE_ERROR_UNSUPPORTED);
+    file = fopen(path, "rb");
+    char data[4];
+    assert(file && fread(data, 1, 4, file) == 4 && !memcmp(data, "keep", 4));
+    fclose(file);
+    remove(path);
+    nae_player_freep(&p);
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 4);
     fixture = argv[1];
     fixture_index = argv[2];
     output_dir = argv[3];
+    test_time_limits();
     test_record();
     test_mix();
     test_never_waits();

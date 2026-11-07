@@ -2,6 +2,7 @@
 #define _GNU_SOURCE  /* pthread_setname_np() with glibc */
 #include <math.h>
 #include <stdatomic.h>
+#include <stdckdint.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -135,9 +136,16 @@ static int decoder_next(struct nae_media *m, struct chunk *chunk)
         return -1;
     }
     const int64_t us = frame->ms > 0 ? frame->ms : 0;
+    int64_t position;
+    const int64_t fraction = (us % 1000000 * m->sample_rate + 500000) / 1000000;
+    if (ckd_mul(&position, us / 1000000, m->sample_rate) ||
+        ckd_add(&position, position, fraction) || position > INT64_MAX - frame->nb_samples) {
+        nmd_frame_releasep(&frame);
+        return -1;
+    }
     *chunk = (struct chunk){
         .samples = (const float *)frame->datap[0],
-        .position = (us * m->sample_rate + 500000) / 1000000,
+        .position = position,
         .nb_frames = (uint32_t)frame->nb_samples,
         .frame = frame,
     };
