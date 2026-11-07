@@ -51,9 +51,8 @@ struct nae_player {
     _Atomic int64_t requests;
     _Atomic int64_t errors;
     struct nae_node *master;
-    struct nae_track **tracks;
+    struct nae_track *tracks[MAX_TRACKS];
     uint32_t nb_tracks;
-    uint32_t capacity;
     float volume;
     int64_t duration;
     int looping;
@@ -259,7 +258,6 @@ void nae_player_freep(struct nae_player **pp)
     nae_sink_freep(&p->sink);
     for (uint32_t i = 0; i < p->nb_tracks; i++)
         free_track(&p->tracks[i]);
-    free(p->tracks);
     nae_node_unrefp(&p->master);
     nae_engine_freep(&p->engine);
     nae_transport_freep(&p->transport);
@@ -314,16 +312,6 @@ int nae_player_add_track(struct nae_player *p, const struct nae_track_params *pa
         (ret = nae_gain_create(p->engine, params->volume, (uint32_t)frames_in(p, VOLUME_RAMP_MS), &t->gain)) < 0 ||
         (ret = set_timings(t, params->start, params->trim, params->duration)) < 0)
         goto end;
-    if (p->nb_tracks == p->capacity) {
-        const uint32_t capacity = p->capacity ? 2 * p->capacity : 16;
-        struct nae_track **tracks = realloc(p->tracks, capacity * sizeof(*tracks));
-        if (!tracks) {
-            ret = NAE_ERROR_MEMORY;
-            goto end;
-        }
-        p->tracks = tracks;
-        p->capacity = capacity;
-    }
     p->tracks[p->nb_tracks++] = t;
     ret = commit(p, NULL, NULL);
     if (ret != NAE_OK) {
