@@ -367,6 +367,19 @@ static void test_normalize(void)
     close_media(&m);
 }
 
+static void test_open_error(void)
+{
+    struct nae_engine *engine = NULL;
+    const struct nae_config config = {48000, 2, 256};
+    assert(nae_engine_create(&config, &engine) == NAE_OK);
+    char filename[4096];
+    snprintf(filename, sizeof(filename), "%s/missing.wav", fixture);
+    struct nae_media *media = NULL;
+    assert(nae_media_create(engine, filename, NULL, &media) == NAE_ERROR_IO);
+    assert(!media);
+    nae_engine_freep(&engine);
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 6);
@@ -375,6 +388,7 @@ int main(int argc, char **argv)
     fixture_index = argv[3];
     fixture_mono = argv[4];
     fixture_aac = argv[5];
+    test_open_error();
     test_read_and_seek();
     test_loop();
     test_short_loop(0);

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #define _GNU_SOURCE  /* pthread_setname_np() with glibc */
+#include <math.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -56,7 +57,7 @@ struct chunk {
 struct block {
     uint32_t request;        /* number of the request the decoder had served when it got the chunk */
     uint32_t pass;           /* pass of the loop since that request */
-    bool end;                /* the end of the media, without a chunk */
+    int status;              /* NAE_OK for PCM, NAE_EOF or an error otherwise */
     struct chunk chunk;
 };
 
@@ -97,7 +98,7 @@ struct nae_media {
     struct block block;      /* being read */
     int64_t block_read;      /* frames read from it */
     int64_t dropped;         /* frames of the previous passes dropped since going round the loop */
-    bool at_end;
+    int end_status;
 
     _Atomic int64_t silent_frames;
     _Atomic int64_t skipped_frames;
@@ -150,7 +151,7 @@ static void release_chunk(struct chunk *chunk)
 
 static void release_block(struct block *block)
 {
-    if (!block->end)
+    if (block->status == NAE_OK)
         release_chunk(&block->chunk);
 }
 
@@ -207,7 +208,7 @@ static void push_block(struct decoder *d, const struct block *block)
     /* Room: fewer blocks are out than the queue holds */
     spsc_push(&m->blocks, block);
     d->outstanding++;
-    if (!block->end)
+    if (block->status == NAE_OK)
         d->queued += block->chunk.nb_frames;
     if (m->blocking)
         nae_sem_post(&m->queued);
@@ -287,7 +288,7 @@ static void *run_decoder(void *arg)
     while (!atomic_load(&m->stop)) {
         struct block block;
         while (spsc_pop(&m->released, &block)) {
-            if (!block.end && block.request == d.served)
+            if (block.status == NAE_OK && block.request == d.served)
                 d.queued -= block.chunk.nb_frames;
             release_block(&block);
             d.outstanding--;
@@ -377,7 +378,7 @@ static void *run_decoder(void *arg)
         if (ret != 0) {
             count_error(m, ret);
             push_held(&d);
-            push_block(&d, &(struct block){.request = d.served, .pass = d.pass, .end = true});
+            push_block(&d, &(struct block){.request = d.served, .pass = d.pass, .status = ret < 0 ? NAE_ERROR_IO : NAE_EOF});
             at_end = true;
             continue;
         }
@@ -434,7 +435,7 @@ static void request(struct nae_media *m)
         give_back(m, &block);
     m->number++;
     m->pass = 0;
-    m->at_end = false;
+    m->end_status = NAE_OK;
     publish_request(m, m->number, cursor_of(m));
     nae_sem_post(&m->wake);
     atomic_fetch_add_explicit(&m->requests, 1, memory_order_relaxed);
@@ -459,7 +460,7 @@ static bool take_block(struct nae_media *m)
         }
         /* The rest of a pass the reader went round the loop from */
         if (block.pass < m->pass) {
-            if (!block.end)
+            if (block.status == NAE_OK)
                 m->dropped += block.chunk.nb_frames;
             give_back(m, &block);
             /* Not going round the loop, as when it is set for the media late */
@@ -498,7 +499,7 @@ static int media_read(void *user, int64_t frame, uint32_t frames, float *output)
     int64_t cursor = frame;
     int64_t done = 0;
     bool silent = false;
-    while (done < frames && !m->at_end) {
+    while (done < frames && !m->end_status) {
         if (!m->has_block)
             move_cursor(m, cursor); /* asking for the audio from the cursor if the queue cannot provide it */
         if (!m->has_block && !take_block(m)) {
@@ -515,8 +516,8 @@ static int media_read(void *user, int64_t frame, uint32_t frames, float *output)
         }
 
         const struct block *block = &m->block;
-        if (block->end) {
-            m->at_end = true;
+        if (block->status != NAE_OK) {
+            m->end_status = block->status;
             drop_block(m);
             break;
         }
@@ -559,7 +560,9 @@ static int media_read(void *user, int64_t frame, uint32_t frames, float *output)
     }
 
     /* Past the end of the media the cursor goes on, the reads being silent */
-    move_cursor(m, m->at_end ? frame + frames : cursor);
+    move_cursor(m, m->end_status ? frame + frames : cursor);
+    if (m->end_status < 0)
+        return m->end_status;
     if (silent)
         return NAE_AGAIN;
     return done < frames ? NAE_EOF : NAE_OK;
@@ -574,10 +577,10 @@ static void media_seek(void *user, int64_t frame, int wrap)
         move_cursor(m, frame);
         m->pass++;
         m->dropped = 0;
-        m->at_end = false;
+        m->end_status = NAE_OK;
         return;
     }
-    if (frame == cursor_of(m) && !m->at_end)
+    if (frame == cursor_of(m) && !m->end_status)
         return;
     move_cursor(m, frame);
     request(m);
@@ -658,12 +661,20 @@ int nae_media_create(struct nae_engine *engine, const char *filename,
         nae_media_unrefp(&m);
         return NAE_ERROR_IO;
     }
-    if (params->start)
-        count_error(m, nmd_seek(m->decoder, seconds(m, params->start)));
-    nmd_start(m->decoder);
     struct nmd_info info;
-    if (nmd_get_info(m->decoder, &info) == 0 && info.duration > 0)
-        m->length = (int64_t)(info.duration * m->sample_rate + 0.5); /* microseconds, rounded */
+    if ((params->start && nmd_seek(m->decoder, seconds(m, params->start)) < 0) ||
+        nmd_start(m->decoder) < 0 || nmd_get_info(m->decoder, &info) < 0) {
+        nae_media_unrefp(&m);
+        return NAE_ERROR_IO;
+    }
+    if (info.duration > 0) {
+        const double length = round(info.duration * m->sample_rate);
+        if (!isfinite(length) || length >= 0x1p63) {
+            nae_media_unrefp(&m);
+            return NAE_ERROR_UNSUPPORTED;
+        }
+        m->length = (int64_t)length;
+    }
 
     /* From now on, nope.media is used by the decoding thread only */
     if (nae_thread_create(&m->thread, run_decoder, m) < 0) {
