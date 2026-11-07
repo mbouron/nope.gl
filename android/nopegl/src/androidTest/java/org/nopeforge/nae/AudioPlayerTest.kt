@@ -31,6 +31,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 
 @RunWith(AndroidJUnit4::class)
 class AudioPlayerTest {
@@ -98,6 +100,18 @@ class AudioPlayerTest {
             val result = player.addTrack(File(file, "missing.wav").absolutePath)
             assertEquals(AudioPlayer.ERROR_IO, result.status)
             assertNull(result.track)
+        }
+    }
+
+    @Test
+    fun largeDurationsPreserveTheirValue() {
+        AudioPlayer(AudioPlayer.Mode.Offline).use { player ->
+            val duration = 10000.days
+            player.duration = duration
+            assertEquals(duration, player.duration)
+            assertEquals(AudioPlayer.OK, player.seek(duration))
+            assertEquals(duration, player.position)
+            assertThrows(IllegalArgumentException::class.java) { player.seek(Duration.INFINITE) }
         }
     }
 }

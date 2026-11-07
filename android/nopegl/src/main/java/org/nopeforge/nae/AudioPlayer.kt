@@ -23,7 +23,8 @@ package org.nopeforge.nae
 
 import java.io.File
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Plays media tracks on a timeline. Calls are serialized on this instance;
@@ -93,9 +94,15 @@ class AudioPlayer(
         tracks.clear()
     }
 
-    private fun Duration.toFrames(): Long = inWholeMicroseconds * sampleRate / 1_000_000
+    private fun Duration.toFrames(): Long {
+        require(isFinite()) { "The duration must be finite" }
+        val seconds = inWholeSeconds
+        val remainder = (this - seconds.seconds).inWholeNanoseconds
+        return Math.addExact(Math.multiplyExact(seconds, sampleRate.toLong()), remainder * sampleRate / 1_000_000_000)
+    }
 
-    private fun Long.toDuration(): Duration = (this * 1_000_000 / sampleRate).microseconds
+    private fun Long.toDuration(): Duration =
+        (this / sampleRate).seconds + ((this % sampleRate) * 1_000_000_000 / sampleRate).nanoseconds
 
     /**
      * Lays a track of the media at [path] from [start] of the project, playing it from [trim] for
