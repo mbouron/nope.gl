@@ -139,7 +139,7 @@ static void update_loop(const struct nae_player *p, struct nae_track *t)
     if (!p->looping || last <= first)
         nae_media_set_loop(t->media, 0, 0);
     else
-        nae_media_set_loop(t->media, t->trim + first - t->start, t->trim + last - t->start);
+        nae_media_set_loop(t->media, t->trim + (first - t->start), t->trim + (last - t->start));
 }
 
 static void update_loops(const struct nae_player *p)

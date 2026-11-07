@@ -422,6 +422,8 @@ static void test_time_limits(void)
     FILE *file = fopen(path, "wb");
     assert(file && fputs("keep", file) >= 0 && fclose(file) == 0);
     assert(nae_player_set_duration(p, INT64_MAX) == NAE_OK);
+    assert(nae_player_set_track_timings(p, t, INT64_MAX - 100, 100, 100) == NAE_OK);
+    assert(nae_player_set_looping(p, 1) == NAE_OK);
     assert(nae_player_record(p, path, NAE_RECORD_F32) == NAE_ERROR_UNSUPPORTED);
     file = fopen(path, "rb");
     char data[4];
