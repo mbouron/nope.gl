@@ -56,14 +56,21 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeGetSampleRate(JN
     return (jint)nae_player_get_sample_rate(PLAYER(ptr));
 }
 
-JNIEXPORT jlong JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeAddTrack(JNIEnv *env, jclass clazz, jlong ptr,
+JNIEXPORT jint JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeAddTrack(JNIEnv *env, jclass clazz, jlong ptr,
                                                                           jstring path, jlong start, jlong trim,
                                                                           jlong duration, jfloat volume,
-                                                                          jboolean normalize)
+                                                                          jboolean normalize,
+                                                                          jlongArray output)
 {
+    if ((*env)->GetArrayLength(env, output) != 1)
+        return NAE_ERROR_INVALID;
+    const jlong empty = 0;
+    (*env)->SetLongArrayRegion(env, output, 0, 1, &empty);
+    if ((*env)->ExceptionCheck(env))
+        return NAE_ERROR_MEMORY;
     const char *filename = (*env)->GetStringUTFChars(env, path, 0);
     if (!filename)
-        return 0;
+        return NAE_ERROR_MEMORY;
     const struct nae_track_params params = {
         .filename = filename,
         .start = start,
@@ -75,7 +82,11 @@ JNIEXPORT jlong JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeAddTrack(JNIEnv
     struct nae_track *track = NULL;
     const int ret = nae_player_add_track(PLAYER(ptr), &params, &track);
     (*env)->ReleaseStringUTFChars(env, path, filename);
-    return ret < 0 ? 0 : (jlong)(uintptr_t)track;
+    if (ret == NAE_OK) {
+        const jlong pointer = (jlong)(uintptr_t)track;
+        (*env)->SetLongArrayRegion(env, output, 0, 1, &pointer);
+    }
+    return ret;
 }
 
 JNIEXPORT jint JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeSetTrackTimings(JNIEnv *env, jclass clazz,
@@ -100,9 +111,9 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nae_AudioPlayer_nativeSetTrackFader(JN
                                                                               jfloatArray volumes)
 {
     const jsize count = (*env)->GetArrayLength(env, frames);
-    if ((*env)->GetArrayLength(env, lengths) != count || (*env)->GetArrayLength(env, volumes) != count)
+    if (count > 65536 || (*env)->GetArrayLength(env, lengths) != count || (*env)->GetArrayLength(env, volumes) != count)
         return NAE_ERROR_INVALID;
-    struct nae_keyframe *keyframes = calloc(count + 1, sizeof(*keyframes));
+    struct nae_keyframe *keyframes = calloc((size_t)count + 1, sizeof(*keyframes));
     if (!keyframes)
         return NAE_ERROR_MEMORY;
     jlong *f = (*env)->GetLongArrayElements(env, frames, NULL);

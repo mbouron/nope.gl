@@ -26,15 +26,11 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 
 /**
- * A player of tracks of media files laid on a project, as an editor plays
- * the audio of its timeline (nae's player, see nae/player.h).
+ * Plays media tracks on a timeline. Calls are serialized on this instance;
+ * opening media, recording and stopping the output may block.
  *
- * Each track plays a part of its media from a time of the project, through
- * its fader and volume, mixed under a master volume. Tracks can be added,
- * moved, faded and removed while playing, and the playback can loop over a
- * range with a hold at its end. None of the functions waits for the audio
- * thread. NGLContext.init() must have been called, for nope.media to open
- * content URIs.
+ * Track edits return [AGAIN] while another edit is pending. Retry the edit
+ * after a callback has adopted it. Initialize NGLContext before using content URIs.
  */
 class AudioPlayer(
     mode: Mode = Mode.Playback,
@@ -59,7 +55,9 @@ class AudioPlayer(
     }
 
     /** A track of the player, until removed */
-    class Track internal constructor(internal val pointer: Long)
+    class Track internal constructor(internal val owner: AudioPlayer, internal var pointer: Long)
+
+    data class TrackResult(val status: Int, val track: Track?)
 
     /** A point of the volume automation of a track: from [start], the volume goes linearly to [volume] over [length] */
     data class Keyframe(val start: Duration, val volume: Float, val length: Duration = Duration.ZERO)
@@ -73,6 +71,7 @@ class AudioPlayer(
     )
 
     private var nativePtr: Long = nativeCreate(mode.nativeId, sampleRate, periodMs)
+    private val tracks = mutableSetOf<Track>()
 
     init {
         if (nativePtr == 0L) throw IllegalStateException("Failed to create the audio player")
@@ -82,14 +81,27 @@ class AudioPlayer(
 
     private fun ptr(): Long = nativePtr.also { check(it != 0L) { "The audio player is released" } }
 
+    private fun trackPtr(track: Track): Long {
+        ptr()
+        require(track.owner === this) { "The track belongs to another player" }
+        check(track.pointer != 0L) { "The track is removed" }
+        return track.pointer
+    }
+
+    private fun invalidateTracks() {
+        tracks.forEach { it.pointer = 0L }
+        tracks.clear()
+    }
+
     private fun Duration.toFrames(): Long = inWholeMicroseconds * sampleRate / 1_000_000
 
     private fun Long.toDuration(): Duration = (this * 1_000_000 / sampleRate).microseconds
 
     /**
      * Lays a track of the media at [path] from [start] of the project, playing it from [trim] for
-     * [duration] (the rest of the media if null). Null if the media could not be opened.
+     * [duration] (the rest of the media if null). The result contains a track only on [OK].
      */
+    @Synchronized
     fun addTrack(
         path: String,
         start: Duration = Duration.ZERO,
@@ -97,51 +109,81 @@ class AudioPlayer(
         duration: Duration? = null,
         volume: Float = 1f,
         normalize: Boolean = false,
-    ): Track? {
-        val track = nativeAddTrack(
-            ptr(), path, start.toFrames(), trim.toFrames(), duration?.toFrames() ?: -1, volume, normalize,
+    ): TrackResult {
+        val output = LongArray(1)
+        val status = nativeAddTrack(
+            ptr(), path, start.toFrames(), trim.toFrames(), duration?.toFrames() ?: -1, volume, normalize, output,
         )
-        return if (track == 0L) null else Track(track)
+        if (status != OK)
+            return TrackResult(status, null)
+        val track = Track(this, output[0])
+        tracks.add(track)
+        return TrackResult(OK, track)
     }
 
+    @Synchronized
     fun setTrackTimings(track: Track, start: Duration, trim: Duration, duration: Duration?): Int =
-        nativeSetTrackTimings(ptr(), track.pointer, start.toFrames(), trim.toFrames(), duration?.toFrames() ?: -1)
+        nativeSetTrackTimings(ptr(), trackPtr(track), start.toFrames(), trim.toFrames(), duration?.toFrames() ?: -1)
 
-    fun setTrackVolume(track: Track, volume: Float): Int = nativeSetTrackVolume(ptr(), track.pointer, volume)
+    @Synchronized
+    fun setTrackVolume(track: Track, volume: Float): Int = nativeSetTrackVolume(ptr(), trackPtr(track), volume)
 
     /** Keyframes from the start of the track */
+    @Synchronized
     fun setTrackFader(track: Track, keyframes: List<Keyframe>): Int = nativeSetTrackFader(
         ptr(),
-        track.pointer,
+        trackPtr(track),
         keyframes.map { it.start.toFrames() }.toLongArray(),
         keyframes.map { it.length.toFrames() }.toLongArray(),
         keyframes.map { it.volume }.toFloatArray(),
     )
 
     /** The length of the media of a track, zero if unknown */
-    fun getTrackLength(track: Track): Duration = nativeGetTrackLength(track.pointer).toDuration()
+    @Synchronized
+    fun getTrackLength(track: Track): Duration = nativeGetTrackLength(trackPtr(track)).toDuration()
 
     /** The time a track plays */
-    fun getTrackDuration(track: Track): Duration = nativeGetTrackDuration(track.pointer).toDuration()
+    @Synchronized
+    fun getTrackDuration(track: Track): Duration = nativeGetTrackDuration(trackPtr(track)).toDuration()
 
-    fun removeTrack(track: Track): Int = nativeRemoveTrack(ptr(), track.pointer)
+    @Synchronized
+    fun removeTrack(track: Track): Int {
+        val status = nativeRemoveTrack(ptr(), trackPtr(track))
+        if (status == OK) {
+            track.pointer = 0L
+            tracks.remove(track)
+        }
+        return status
+    }
 
-    fun clearTracks(): Int = nativeClearTracks(ptr())
+    @Synchronized
+    fun clearTracks(): Int {
+        val status = nativeClearTracks(ptr())
+        if (status == OK)
+            invalidateTracks()
+        return status
+    }
 
+    @Synchronized
     fun play(): Int = nativePlay(ptr())
 
     /** The output runs on, silent: playing again restarts nothing, and seeks reach the tracks at once */
+    @Synchronized
     fun pause(): Int = nativePause(ptr())
 
     /** Pauses, back to the start, the audio output stopped */
+    @Synchronized
     fun stop(): Int = nativeStop(ptr())
 
+    @get:Synchronized
     val isPlaying: Boolean
         get() = nativeIsPlaying(ptr())
 
+    @Synchronized
     fun seek(position: Duration): Int = nativeSeek(ptr(), position.toFrames().coerceAtLeast(0))
 
     /** The time rendered next, or of a seek not applied yet */
+    @get:Synchronized
     val position: Duration
         get() = nativeGetPosition(ptr()).toDuration()
 
@@ -150,15 +192,20 @@ class AudioPlayer(
      * Choreographer frame: the latency of the output accounted for, and the jitter of its callbacks
      * smoothed out. The position while stopped, or null if the clock history is unavailable.
      */
+    @Synchronized
     fun getPositionAt(nanoTime: Long): Duration? =
         nativeGetPositionAt(ptr(), nanoTime).takeIf { it >= 0 }?.toDuration()
 
+    @get:Synchronized
+    @set:Synchronized
     var duration: Duration
         get() = nativeGetDuration(ptr()).toDuration()
         set(value) {
             nativeSetDuration(ptr(), value.toFrames().coerceAtLeast(0))
         }
 
+    @get:Synchronized
+    @set:Synchronized
     var isLooping: Boolean
         get() = nativeIsLooping(ptr())
         set(value) {
@@ -166,12 +213,16 @@ class AudioPlayer(
         }
 
     /** The range looped over, [start, end); an empty range loops over the whole duration */
+    @Synchronized
     fun setLoopRange(start: Duration, end: Duration): Int =
         nativeSetLoopRange(ptr(), start.toFrames().coerceAtLeast(0), end.toFrames().coerceAtLeast(0))
 
     /** Silence at the end of each pass of the loop, the position staying at its end */
+    @Synchronized
     fun setLoopHold(hold: Duration): Int = nativeSetLoopHold(ptr(), hold.toFrames().coerceAtLeast(0))
 
+    @get:Synchronized
+    @set:Synchronized
     var volume: Float
         get() = nativeGetVolume(ptr())
         set(value) {
@@ -179,9 +230,11 @@ class AudioPlayer(
         }
 
     /** [Mode.Offline]: writes the project, from its start to its duration, to a WAV file */
+    @Synchronized
     fun record(file: File, format: RecordFormat = RecordFormat.S16): Int =
         nativeRecord(ptr(), file.absolutePath, format.nativeId)
 
+    @get:Synchronized
     val stats: Stats
         get() {
             val values = LongArray(5)
@@ -189,16 +242,25 @@ class AudioPlayer(
             return Stats(values[0], values[1], values[2], values[3], values[4])
         }
 
+    @Synchronized
     fun release() {
         if (nativePtr != 0L) {
             nativeRelease(nativePtr)
             nativePtr = 0L
+            invalidateTracks()
         }
     }
 
     override fun close() = release()
 
     companion object {
+        const val OK = 0
+        const val AGAIN = 1
+        const val ERROR_INVALID = -1
+        const val ERROR_MEMORY = -2
+        const val ERROR_UNSUPPORTED = -3
+        const val ERROR_IO = -4
+
         /** The time base of [getPositionAt], that of System.nanoTime() */
         @JvmStatic
         fun now(): Long = nativeNow()
@@ -229,7 +291,8 @@ class AudioPlayer(
         @JvmStatic private external fun nativeGetSampleRate(ptr: Long): Int
         @JvmStatic private external fun nativeAddTrack(
             ptr: Long, path: String, start: Long, trim: Long, duration: Long, volume: Float, normalize: Boolean,
-        ): Long
+            track: LongArray,
+        ): Int
         @JvmStatic private external fun nativeSetTrackTimings(ptr: Long, track: Long, start: Long, trim: Long, duration: Long): Int
         @JvmStatic private external fun nativeSetTrackVolume(ptr: Long, track: Long, volume: Float): Int
         @JvmStatic private external fun nativeSetTrackFader(
