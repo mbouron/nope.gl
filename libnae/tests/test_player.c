@@ -102,7 +102,11 @@ static void test_record(void)
     /* Moved and cut while laid: the rest of the media from its trim */
     assert(nae_player_set_track_timings(p, t, 500, 40000, -1) == NAE_OK);
     assert(nae_track_get_duration(t) == 8000);
+    assert(nae_player_set_loop_range(p, 2000, 4000) == NAE_OK);
+    assert(nae_player_set_loop_hold(p, 2400) == NAE_OK);
+    assert(nae_player_set_looping(p, 1) == NAE_OK);
     assert(nae_player_record(p, path, NAE_RECORD_F32) == NAE_OK);
+    assert(nae_player_is_looping(p));
     frames = read_wav(path, &n);
     for (int64_t i = 0; i < n; i++)
         assert(index_of(frames + 2 * i) == (i >= 500 && i < 8500 ? 40000 + i - 500 : -1));

@@ -720,14 +720,19 @@ int nae_player_record(struct nae_player *p, const char *filename, enum nae_recor
     if (ret < 0)
         goto end;
     write_wav_header(f, format, p->sample_rate, (uint32_t)(duration * 2 * sample_size));
+    nae_transport_set_looping(p->transport, 0);
+    for (uint32_t i = 0; i < p->nb_tracks; i++)
+        nae_media_set_loop(p->tracks[i]->media, 0, 0);
     nae_transport_seek(p->transport, 0);
     nae_transport_sync(p->transport);
     nae_transport_play(p->transport);
     for (int64_t written = 0; written < duration && ret >= 0;) {
         const uint32_t n = duration - written < RECORD_FRAMES ? (uint32_t)(duration - written) : RECORD_FRAMES;
         const int render = nae_transport_render(p->transport, 0, n, frames);
-        if (render < 0)
+        if (render < 0) {
             ret = render;
+            break;
+        }
         if (format == NAE_RECORD_S16) {
             for (uint32_t i = 0; i < 2 * n; i++) {
                 const float x = isfinite(frames[i]) ? fmaxf(-1.f, fminf(1.f, frames[i])) : 0.f;
@@ -741,6 +746,8 @@ int nae_player_record(struct nae_player *p, const char *filename, enum nae_recor
         written += n;
     }
     nae_transport_pause(p->transport);
+    nae_transport_set_looping(p->transport, p->looping);
+    update_loops(p);
 end:
     if (f && fclose(f) && ret >= 0)
         ret = NAE_ERROR_IO;

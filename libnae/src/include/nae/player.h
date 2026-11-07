@@ -116,7 +116,8 @@ enum nae_record_format {
     NAE_RECORD_F32,
 };
 
-/* NAE_PLAYER_OFFLINE: writes [0, duration) of the project to a WAV file */
+/* NAE_PLAYER_OFFLINE: writes [0, duration) to a WAV file, ignoring preview
+ * looping and holds. Restores the loop settings and leaves playback paused. */
 NAE_PLAYER_API int nae_player_record(struct nae_player *player, const char *filename,
                                      enum nae_record_format format);
 
