@@ -33,8 +33,9 @@
 #include <va/va_wayland.h>
 #endif
 
-#include "log.h"
 #include <nopegpu/nopegpu.h>
+
+#include "log.h"
 #include "utils/utils.h"
 #include "vaapi_ctx.h"
 

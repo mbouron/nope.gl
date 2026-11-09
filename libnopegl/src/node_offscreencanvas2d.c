@@ -22,11 +22,12 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "internal.h"
 #include "node2d.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "node_texture.h"
 #include "node_textureview.h"
 #include "nopegl/nopegl.h"

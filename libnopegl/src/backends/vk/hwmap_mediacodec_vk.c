@@ -28,14 +28,15 @@
 #include <android/hardware_buffer.h>
 #include <media/NdkImage.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "android_imagereader.h"
 #include "hwmap.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
-#include "nopegpu/nopegpu_vulkan.h"
 #include "nopegl/nopegl.h"
+#include "nopegpu/nopegpu_vulkan.h"
 #include "utils/darray.h"
 
 /* Match the Android BufferQueue limit so every decoder buffer can be cached */

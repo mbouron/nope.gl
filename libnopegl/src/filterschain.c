@@ -21,8 +21,9 @@
  * under the License.
  */
 
-#include "filterschain.h"
 #include <nopegpu/nopegpu.h>
+
+#include "filterschain.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"

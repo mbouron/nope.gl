@@ -21,11 +21,12 @@
 
 #include <stddef.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "internal.h"
 #include "node_io.h"
 #include "node_program.h"
 #include "nopegl/nopegl.h"
-#include <nopegpu/nopegpu.h>
 #include "utils/darray.h"
 
 #define IO_NODES (const uint32_t[]){NGL_NODE_IOINT,        \

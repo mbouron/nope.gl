@@ -23,8 +23,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal.h"
 #include <nopegpu/nopegpu.h>
+
+#include "internal.h"
 #include "rtt.h"
 #include "utils/memory.h"
 

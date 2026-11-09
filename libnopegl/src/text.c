@@ -24,11 +24,12 @@
 #include <float.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "box.h"
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "node_text.h"
 #include "node_texteffect.h"
 #include "node_uniform.h"

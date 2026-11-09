@@ -23,10 +23,11 @@
 #include <string.h>
 #include <nopemedia/nopemedia.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "colorconv.h"
 #include "image.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "utils/memory.h"
 #include "utils/refcount.h"
 #include "utils/utils.h"

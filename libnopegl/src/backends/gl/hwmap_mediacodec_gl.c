@@ -28,13 +28,14 @@
 #include <android/hardware_buffer_jni.h>
 #include <media/NdkImage.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "android_imagereader.h"
 #include "hwmap.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "utils/darray.h"
 

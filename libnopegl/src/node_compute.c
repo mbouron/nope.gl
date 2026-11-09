@@ -24,9 +24,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_program.h"
 #include "nopegl/nopegl.h"
 #include "pass.h"

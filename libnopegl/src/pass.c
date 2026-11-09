@@ -26,13 +26,14 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "geometry.h"
 #include "graphics_state.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "node_block.h"
 #include "node_buffer.h"
 #include "node_resourceprops.h"
@@ -41,7 +42,6 @@
 #include "nopegl/nopegl.h"
 #include "pass.h"
 #include "pipeline.h"
-#include <nopegpu/nopegpu.h>
 #include "utils/darray.h"
 #include "utils/hmap.h"
 #include "utils/utils.h"

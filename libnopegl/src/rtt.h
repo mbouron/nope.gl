@@ -25,8 +25,9 @@
 
 #include <stdint.h>
 
-#include "image.h"
 #include <nopegpu/nopegpu.h>
+
+#include "image.h"
 
 struct ngl_ctx;
 struct rtt_ctx;

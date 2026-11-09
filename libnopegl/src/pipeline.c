@@ -21,9 +21,10 @@
 
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "image.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
 #include "utils/memory.h"

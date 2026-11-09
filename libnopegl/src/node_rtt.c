@@ -23,9 +23,10 @@
 
 #include <stddef.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_texture.h"
 #include "node_textureview.h"
 #include "nopegl/nopegl.h"

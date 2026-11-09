@@ -29,8 +29,9 @@
 #include <unistd.h>
 #endif
 
-#include "log.h"
 #include <nopegpu/nopegpu.h>
+
+#include "log.h"
 #include "utils/error.h"
 #include "utils/memory.h"
 

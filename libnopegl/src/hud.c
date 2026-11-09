@@ -39,12 +39,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "drawutils.h"
 #include "hud.h"
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
 #include "utils/memory.h"

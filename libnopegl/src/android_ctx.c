@@ -20,6 +20,8 @@
  * under the License.
  */
 
+#include <nopegpu/nopegpu.h>
+
 #include "config.h"
 
 #include <dlfcn.h>
@@ -30,7 +32,6 @@
 #include "android_ctx.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "utils/utils.h"
 
 

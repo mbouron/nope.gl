@@ -23,10 +23,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "eval.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "utils/hmap.h"

@@ -26,9 +26,10 @@
 #include <stdint.h>
 #include <nopemedia/nopemedia.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "hwconv.h"
 #include "image.h"
-#include <nopegpu/nopegpu.h>
 
 #define HWMAP_FLAG_FRAME_OWNER (1U << 0)
 

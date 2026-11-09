@@ -26,14 +26,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "colorconv.h"
 #include "hwconv.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "pipeline.h"
-#include <nopegpu/nopegpu.h>
 #include "utils/utils.h"
 
 /* GLSL fragments as string */

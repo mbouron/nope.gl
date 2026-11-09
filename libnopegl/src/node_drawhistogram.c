@@ -25,6 +25,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "scope.h"
 #include "filterschain.h"
 #include "geometry.h"
@@ -32,7 +34,6 @@
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_block.h"
 #include "pipeline.h"
 #include "utils/darray.h"

@@ -25,11 +25,12 @@
 #include <string.h>
 #include <nopemedia/nopemedia.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "config.h"
 #include "hwmap.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "utils/memory.h"
 

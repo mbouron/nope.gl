@@ -19,8 +19,9 @@
  * under the License.
  */
 
-#include "precision.h"
 #include <nopegpu/nopegpu.h>
+
+#include "precision.h"
 
 const struct param_choices ngli_precision_choices = {
     .name = "precision",

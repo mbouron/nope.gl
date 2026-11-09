@@ -22,10 +22,11 @@
 #include <math.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "atlas.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
