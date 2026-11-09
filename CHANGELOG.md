@@ -8,6 +8,11 @@ for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
+
+### Changed
+- `libnopemd` headers are now located in the nopemd sub directory. Users
+  must now use `#include <nopemd/nopemd.h>` instead of `#include <nopemd.h>`
+
 ### Fixed
 - `libnopemd` filters such as `dynaudnorm` not working with media (WAVE, AIFF)
   that do not specify their channel layout

@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 static const struct test {
     const char *name;

@@ -5,7 +5,7 @@
 #include <math.h>
 #include <SDL.h>
 
-#include "nopemd.h"
+#include "nopemd/nopemd.h"
 
 struct player {
     struct nmd_ctx *nmd_ctx;

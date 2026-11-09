@@ -32,7 +32,7 @@
 #include <libavutil/timestamp.h>
 #include <libavutil/tx.h>
 
-#include "nopemd.h"
+#include "nopemd/nopemd.h"
 #include "internal.h"
 #include "mod_filtering.h"
 #include "log.h"

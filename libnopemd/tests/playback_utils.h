@@ -14,7 +14,7 @@
 #include <stdatomic.h>
 #include <stdint.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #define MAX_FRAMES 8192
 #define MAX_SEEKS 8192

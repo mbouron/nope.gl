@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 /*
  * A player whose time range changes during playback returns the frames a

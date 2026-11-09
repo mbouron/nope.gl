@@ -31,7 +31,7 @@
 #include <android/native_window_jni.h>
 #include <media/NdkImage.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 #include <ngpu/ngpu.h>
 
 #define CHECK(cond) do {                                                                                 \

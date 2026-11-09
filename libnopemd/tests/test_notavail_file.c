@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 static const char *fake_filename = "/i/do/not/exist";
 

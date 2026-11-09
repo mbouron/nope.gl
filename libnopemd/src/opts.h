@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#include "nopemd.h"
+#include "nopemd/nopemd.h"
 
 struct nmdi_opts {
     int avselect;                           // select audio or video

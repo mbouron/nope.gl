@@ -20,7 +20,7 @@
 
 #define _GNU_SOURCE // pthread_setname_np on Linux
 
-#include "nopemd.h"
+#include "nopemd/nopemd.h"
 #include "internal.h"
 #include "pthread_compat.h"
 

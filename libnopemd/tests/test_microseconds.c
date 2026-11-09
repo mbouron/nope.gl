@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 int main(int ac, char **av)
 {

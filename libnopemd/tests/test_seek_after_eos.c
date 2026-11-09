@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #define FLAG_SKIP          (1<<0)
 #define FLAG_END_TIME      (1<<1)

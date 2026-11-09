@@ -24,7 +24,7 @@
 #define IMAGE_H
 
 #include <stdbool.h>
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #include <ngpu/ngpu.h>
 #include "utils/utils.h"
