@@ -24,7 +24,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 
 #include "hwconv.h"
 #include "image.h"

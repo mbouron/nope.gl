@@ -71,7 +71,7 @@ tool_deps = [
   dependency('libnopegl'),
 ]
 ngpu_dep = dependency('libngpu')
-nopemd_dep = dependency('libnopemd', version: '>= 12.0.0')  # for media probing
+nopemedia_dep = dependency('libnopemedia', version: '>= 12.0.0')  # for media probing
 threads_dep = dependency('threads', required: false)
 avcodec_dep = dependency('libavcodec', required: false)
 avformat_dep = dependency('libavformat', required: false)
@@ -108,7 +108,7 @@ endif
 tools_specs = {
   'ngl-player': {
     'src': files('ngl-player.c', 'player.c', 'opts.c') + wsi_src,
-    'deps': wsi_deps + [nopemd_dep],
+    'deps': wsi_deps + [nopemedia_dep],
   },
   'ngl-probe': {
     'src': files('ngl-probe.c', 'opts.c'),

@@ -178,7 +178,7 @@ val prefabModules = mapOf(
     "avformat" to PrefabModule(listOf("libavformat"), listOf("avcodec", "avutil"), stl = "c++_shared"),
     "avfilter" to PrefabModule(listOf("libavfilter"), listOf("avutil", "swscale", "swresample")),
     "avdevice" to PrefabModule(listOf("libavdevice"), listOf("avformat", "avcodec", "avutil"), stl = "c++_shared"),
-    "nopemd" to PrefabModule(listOf("nopemd.h"), stl = "c++_shared"),
+    "nopemedia" to PrefabModule(listOf("nopemedia"), stl = "c++_shared"),
 )
 
 // Keep in sync with _ANDROID_VERSION in configure.py.

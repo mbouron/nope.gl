@@ -23,7 +23,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 #include <vulkan/vulkan.h>
 #include <android/hardware_buffer.h>
 #include <media/NdkImage.h>
@@ -232,7 +232,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngl
     const float ts = (float)frame->ts;
     const uint32_t width = (uint32_t)frame->width;
     const uint32_t height = (uint32_t)frame->height;
-    const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
+    const struct color_info color_info = ngli_color_info_from_nmd_frame(frame);
     const AImage *image = (const AImage *)frame->datap[0];
 
     int ret = release_image(hwmap);

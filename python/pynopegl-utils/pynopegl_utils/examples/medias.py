@@ -52,7 +52,7 @@ def time_remapping(cfg: ngl.SceneCfg):
     ]
 
     m = ngl.Media(m0.filename, time_anim=ngl.AnimatedTime(media_animkf))
-    m.set_nopemd_min_level("verbose")
+    m.set_nmd_min_level("verbose")
     t = ngl.Texture2D(data_src=m)
     r = ngl.DrawTexture(t)
 

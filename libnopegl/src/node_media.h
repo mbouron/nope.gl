@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 
 #include "timerange.h"
 #include "utils/job_queue.h"

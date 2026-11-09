@@ -672,7 +672,7 @@
         "desc": "low"
       }
     ],
-    "nopemd_log_level": [
+    "nmd_log_level": [
       {
         "name": "verbose",
         "desc": "verbose messages"
@@ -694,7 +694,7 @@
         "desc": "error messages"
       }
     ],
-    "nopemd_hwaccel": [
+    "nmd_hwaccel": [
       {
         "name": "disabled",
         "desc": "disable hardware acceleration"
@@ -4279,10 +4279,10 @@
           "desc": "path to input media file"
         },
         {
-          "name": "nopemd_min_level",
+          "name": "nmd_min_level",
           "type": "select",
           "default": "warning",
-          "choices": "nopemd_log_level",
+          "choices": "nmd_log_level",
           "flags": [],
           "desc": "nope.media min logging level"
         },
@@ -4339,7 +4339,7 @@
           "name": "hwaccel",
           "type": "select",
           "default": "auto",
-          "choices": "nopemd_hwaccel",
+          "choices": "nmd_hwaccel",
           "flags": [],
           "desc": "hardware acceleration"
         },

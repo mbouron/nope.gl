@@ -22,11 +22,11 @@ and API can change at any time.
 ## 📜 License
 
 `nope.gl` is licensed under the Apache License, Version 2.0, except
-`libnopemd`. Read the [LICENSE][license] and [NOTICE][notice] files for
+`libnopemedia`. Read the [LICENSE][license] and [NOTICE][notice] files for
 details.
 
-`libnopemd` is licensed under the GNU Lesser General Public License, version
-2.1 or later. Read its [LICENSE][libnopemd_license] file for details.
+`libnopemedia` is licensed under the GNU Lesser General Public License, version
+2.1 or later. Read its [LICENSE][libnopemedia_license] file for details.
 
 `ngl-tools` is licensed under the Apache License, Version 2.0. It also bundles
 the following third-party components:
@@ -38,7 +38,7 @@ the following third-party components:
 
 [license]: /LICENSE
 [notice]: /NOTICE
-[libnopemd_license]: /libnopemd/LICENSE
+[libnopemedia_license]: /libnopemedia/LICENSE
 [nuklear]: https://github.com/Immediate-Mode-UI/Nuklear
 [inter]: https://github.com/rsms/inter
 [ofl]: /ngl-tools/fonts/OFL.txt

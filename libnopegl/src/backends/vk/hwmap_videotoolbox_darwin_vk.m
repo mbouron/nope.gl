@@ -23,7 +23,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 
 #include <CoreVideo/CoreVideo.h>
 #if defined(TARGET_DARWIN)
@@ -173,7 +173,7 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, str
         CFRelease(texture_ref);
     }
 
-    const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
+    const struct color_info color_info = ngli_color_info_from_nmd_frame(frame);
     ngli_image_color_cache_update(&vt->color_cache, vt->format_desc.layout, &color_info,
                                   vt->format_desc.depth, vt->format_desc.color_scale);
 

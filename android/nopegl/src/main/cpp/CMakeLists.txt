@@ -12,7 +12,7 @@ project("nopegl_native")
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
         nopegl.c
-        nopemd.c
+        nopemedia.c
 )
 
 include_directories(${NGL_HEADER_PATH})
@@ -20,7 +20,7 @@ include_directories(${NGL_HEADER_PATH})
 set(NGL_LIBS
         nopegl
         ngpu
-        nopemd
+        nopemedia
         avfilter
         swresample
         swscale

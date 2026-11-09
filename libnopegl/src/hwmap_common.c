@@ -23,7 +23,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 
 #include "hwmap.h"
 #include "image.h"
@@ -307,7 +307,7 @@ static int common_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct
     const int dst_max = common->uint_planes ? 1 : (1 << desc->format_depth) - 1;
     const float color_scale = (float)dst_max / (float)src_max;
 
-    const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
+    const struct color_info color_info = ngli_color_info_from_nmd_frame(frame);
     ngli_image_color_cache_update(&common->color_cache, desc->layout, &color_info, desc->depth, color_scale);
 
     const struct ngli_image_params image_params = {

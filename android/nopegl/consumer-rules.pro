@@ -51,7 +51,7 @@
 -keepclassmembers class org.nopeforge.nopegl.NGLScene { *; }
 -keep class org.nopeforge.nopegl.NGLScene$Companion { *; }
 -keepclassmembers class org.nopeforge.nopegl.NGLScene$Companion { *; }
--keep class org.nopeforge.nopemd.Player { *; }
--keepclassmembers class org.nopeforge.nopemd.Player { *; }
--keep class org.nopeforge.nopemd.Player$Companion { *; }
--keepclassmembers class org.nopeforge.nopemd.Player$Companion { *; }
+-keep class org.nopeforge.nopemedia.Player { *; }
+-keepclassmembers class org.nopeforge.nopemedia.Player { *; }
+-keep class org.nopeforge.nopemedia.Player$Companion { *; }
+-keepclassmembers class org.nopeforge.nopemedia.Player$Companion { *; }

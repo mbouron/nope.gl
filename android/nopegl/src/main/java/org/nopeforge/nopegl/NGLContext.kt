@@ -113,7 +113,7 @@ class NGLContext {
             System.loadLibrary("avfilter")
             System.loadLibrary("fribidi")
             System.loadLibrary("harfbuzz")
-            System.loadLibrary("nopemd")
+            System.loadLibrary("nopemedia")
             System.loadLibrary("ngpu")
             System.loadLibrary("nopegl")
             System.loadLibrary("nopegl_native")

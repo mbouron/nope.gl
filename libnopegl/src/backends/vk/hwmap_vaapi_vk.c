@@ -23,7 +23,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 
 #include <va/va.h>
 #include <va/va_drmcommon.h>
@@ -218,7 +218,7 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct 
     int depth;
     float color_scale;
     ngli_vaapi_get_depth(vaapi->surface_descriptor.fourcc, &depth, &color_scale);
-    const struct color_info color_info = ngli_color_info_from_nopemd_frame(frame);
+    const struct color_info color_info = ngli_color_info_from_nmd_frame(frame);
     ngli_image_color_cache_update(&vaapi->color_cache, NGLI_IMAGE_LAYOUT_NV12, &color_info, depth, color_scale);
 
     const struct ngli_image_params image_params = {
