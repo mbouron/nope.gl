@@ -70,7 +70,7 @@ tool_deps = [
   cc.find_library('m', required: false),
   dependency('libnopegl'),
 ]
-ngpu_dep = dependency('libngpu')
+nopegpu_dep = dependency('libnopegpu')
 nopemedia_dep = dependency('libnopemedia', version: '>= 12.0.0')  # for media probing
 threads_dep = dependency('threads', required: false)
 avcodec_dep = dependency('libavcodec', required: false)
@@ -140,7 +140,7 @@ tools_specs = {
       'viewer_hooks.c',
       'opts.c'
     ) + wsi_src,
-    'deps': wsi_deps + [ngpu_dep, python_dep, threads_dep, avcodec_dep, avformat_dep, avutil_dep, swscale_dep],
+    'deps': wsi_deps + [nopegpu_dep, python_dep, threads_dep, avcodec_dep, avformat_dep, avutil_dep, swscale_dep],
     'c_args': ['-DNGL_TOOLS_DATADIR="@0@"'.format(get_option('prefix') / get_option('datadir') / 'ngl-tools')],
   },
 }

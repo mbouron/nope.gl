@@ -37,7 +37,7 @@
 #include "node2d.h"
 #include "log.h"
 #include "math_utils.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "nopegl/nopegl_opengl.h"
 #include "utils/darray.h"
@@ -54,7 +54,7 @@
 #endif
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
-#include "ngpu/ngpu_opengl.h"
+#include "nopegpu/nopegpu_opengl.h"
 #endif
 
 #if defined(HAVE_VAAPI)

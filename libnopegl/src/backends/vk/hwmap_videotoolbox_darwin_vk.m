@@ -38,8 +38,8 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <ngpu/ngpu.h>
-#include "ngpu/ngpu_vulkan.h"
+#include <nopegpu/nopegpu.h>
+#include "nopegpu/nopegpu_vulkan.h"
 #include "nopegl/nopegl.h"
 
 struct format_desc {

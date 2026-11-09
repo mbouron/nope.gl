@@ -32,7 +32,7 @@
 #include "utils/memory.h"
 #include "nopegl/nopegl.h"
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 const uint32_t ngli_paint_node_types[] = {
     NGL_NODE_COLORPAINT,

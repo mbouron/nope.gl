@@ -27,7 +27,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "node_buffer.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"

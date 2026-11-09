@@ -31,9 +31,9 @@
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "pipeline.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "utils/utils.h"
 
 /* GLSL fragments as string */

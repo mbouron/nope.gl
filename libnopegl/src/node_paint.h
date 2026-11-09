@@ -24,7 +24,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "utils/darray.h"
 
 struct bstr;

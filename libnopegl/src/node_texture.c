@@ -26,7 +26,7 @@
 #include <string.h>
 #include <nopemedia/nopemedia.h>
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #include "hwmap.h"
 #include "image.h"

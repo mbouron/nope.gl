@@ -30,7 +30,7 @@
 #endif
 
 #include "log.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "utils/error.h"
 #include "utils/memory.h"
 

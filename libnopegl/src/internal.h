@@ -43,7 +43,7 @@ struct nmd_frame;
 #include "math_utils.h"
 #include "node2d.h"
 #include "node_graph.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "slug.h"
 #include "nopegl/nopegl.h"
 #include "params.h"

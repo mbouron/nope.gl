@@ -23,7 +23,7 @@
 #include <stddef.h>
 
 #include "internal.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "utils/utils.h"

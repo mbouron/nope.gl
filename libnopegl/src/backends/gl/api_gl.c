@@ -22,7 +22,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include "ngpu/ngpu_opengl.h"
+#include "nopegpu/nopegpu_opengl.h"
 
 static int gl_ctx_begin(struct ngl_ctx *s)
 {

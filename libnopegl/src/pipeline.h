@@ -22,7 +22,7 @@
 #ifndef PIPELINE_H
 #define PIPELINE_H
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #include "resource.h"
 

@@ -22,7 +22,7 @@
  */
 
 #include "filterschain.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"

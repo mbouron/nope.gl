@@ -27,7 +27,7 @@
 
 #include "image.h"
 #include "resource.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "params.h"
 

@@ -1,0 +1,636 @@
+#
+# Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
+# Copyright 2023 Nope Forge
+# Copyright 2020-2022 GoPro Inc.
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+project(
+  'libnopegpu',
+  'c',
+   default_options: ['c_std=c23,c2x'],
+   license: 'Apache',
+   meson_version: '>= 1.4.0',
+   version: files('VERSION'),
+)
+
+conf_data = configuration_data()
+version_array = meson.project_version().split('.')
+conf_data.set('version_major', version_array[0])
+conf_data.set('version_minor', version_array[1])
+conf_data.set('version_micro', version_array[2])
+
+host_system = host_machine.system()
+cpu_family = host_machine.cpu_family()
+cc = meson.get_compiler('c')
+
+# meson currently (0.56.0) doesn't distinguish between macOS and iOS (the
+# "darwin" identifier is shared), so we need to test explicitly.
+# We are also checking for IPHONE and not IOS but since the latter is actually
+# more specific (doesn't include tvOS and watchOS) we may want to consider
+# switching to it at some point.
+# See https://github.com/mesonbuild/meson/issues/7944 for more information
+iphone_check = '''#include <TargetConditionals.h>
+#if !TARGET_OS_IPHONE
+#error not iphone
+#endif'''
+if host_system == 'darwin' and cc.compiles(iphone_check, name: 'iPhone target')
+  host_system = 'iphone'
+endif
+
+conf_data.set10('HAVE_USELOCALE', cc.has_function('uselocale', prefix: '''
+#define _POSIX_C_SOURCE 200809L
+#include <locale.h>
+#ifdef __APPLE__
+# include <xlocale.h>
+#endif
+'''))
+
+mandatory_builtins = [
+  '__builtin_clz',
+]
+foreach builtin : mandatory_builtins
+  if not cc.has_function(builtin)
+    error('Builtin @0@ is not available'.format(builtin))
+  endif
+endforeach
+
+install_rpath = get_option('rpath') ? get_option('prefix') / get_option('libdir') : ''
+
+debug_opts = get_option('debug_opts')
+conf_data.set10('TARGET_' + host_system.to_upper(), true)
+conf_data.set10('ARCH_' + cpu_family.to_upper(), true)
+conf_data.set10('DEBUG_GL', 'gl' in debug_opts)
+conf_data.set10('DEBUG_VK', 'vk' in debug_opts)
+conf_data.set10('DEBUG_GPU_CAPTURE', 'gpu_capture' in debug_opts)
+
+if host_system == 'windows'
+  if cc.get_id() == 'msvc'
+    error('MSVC cl.exe is not supported, use clang-cl instead')
+  elif cc.get_id() == 'clang-cl'
+    add_project_arguments(['-D_CRT_SECURE_NO_WARNINGS'], language: 'c')
+  else
+    conf_data.set10('TARGET_MINGW_W64', true)
+    add_project_arguments(['-D__USE_MINGW_ANSI_STDIO=1'], language: 'c')
+  endif
+endif
+
+# This trim prefix is used to make __FILE__ starts from the source dir with
+# out-of-tree builds.
+# Adjusted from https://github.com/mesonbuild/meson/issues/7485
+trim_prefix = run_command([
+  find_program('python3'), '-c', 'import sys,os;print(os.path.relpath(*sys.argv[1:3]))',
+  meson.current_source_dir(),
+  meson.project_build_root(),
+], check: true).stdout().strip()
+
+project_args = cc.get_supported_arguments([
+  '-Wshadow',
+  '-Werror=missing-prototypes',
+  '-Werror=pointer-arith',
+  '-Werror=vla',
+  '-Wformat=2',
+  '-Wformat-signedness',
+  '-Wignored-qualifiers',
+  '-Wimplicit-fallthrough',
+  '-Wlogical-op',
+  '-Wundef',
+  '-Wconversion',
+  '-fmacro-prefix-map=@0@/='.format(trim_prefix),
+  '-fno-math-errno',
+  '-Wcast-function-type',
+  '-Wcast-function-type-strict',
+])
+if cc.get_id() == 'clang-cl'
+  project_args += ['-Wno-format-signedness', '-Wno-sign-conversion']
+endif
+add_project_arguments(project_args, language: 'c')
+
+# Also apply to local generator targets such as gen_specs
+# See https://github.com/mesonbuild/meson/issues/7940
+add_project_arguments(project_args, language: 'c', native: true)
+
+inc_dir = include_directories(
+  'src',
+  'src/include',
+)
+
+#
+# Library main configuration
+#
+
+lib_version = '0.0.0'
+lib_src = files(
+  'src/bindgroup.c',
+  'src/bindgroup_cache.c',
+  'src/block_desc.c',
+  'src/buffer.c',
+  'src/ctx.c',
+  'src/format.c',
+  'src/pipeline.c',
+  'src/program.c',
+  'src/pgcache.c',
+  'src/pgcraft.c',
+  'src/rendertarget.c',
+  'src/staging_buffer.c',
+  'src/texture.c',
+  'src/type.c',
+  'src/utils/bstr.c',
+  'src/utils/crc32.c',
+  'src/utils/darray.c',
+  'src/utils/hmap.c',
+  'src/utils/log.c',
+  'src/utils/memory.c',
+  'src/utils/refcount.c',
+  'src/utils/string.c',
+  'src/utils/thread.c',
+  'src/utils/time.c',
+)
+
+hosts_cfg = {
+  'linux': {
+    'deps': ['x11'],
+  },
+  'darwin': {
+    'frameworks': ['CoreFoundation', 'AppKit'],
+  },
+  'android': {
+    'libs': ['android'],
+  },
+  'iphone': {
+    'frameworks': ['Foundation', 'UIKit'],
+  },
+}
+
+lib_deps = [
+  cc.find_library('m', required: false),
+  dependency('threads'),
+  dependency('libxxhash', version: '>= 0.8.3').partial_dependency(
+    includes: true, compile_args: true),
+]
+
+host_cfg = hosts_cfg.get(host_system, {})
+foreach dep : host_cfg.get('deps', [])
+  lib_deps += dependency(dep)
+endforeach
+foreach dep : host_cfg.get('libs', [])
+  lib_deps += cc.find_library(dep)
+endforeach
+if 'frameworks' in host_cfg
+  lib_deps += dependency('appleframeworks', modules: host_cfg.get('frameworks'))
+endif
+lib_src += host_cfg.get('src', [])
+
+
+#
+# VAAPI dependency
+#
+
+libva_version = '>= 1.1.0'
+vaapi_enabled = false
+
+opt_wayland = get_option('wayland')
+dep_wayland_client = dependency('wayland-client', required: opt_wayland)
+dep_wayland_egl    = dependency('wayland-egl',    required: opt_wayland)
+if dep_wayland_client.found() and dep_wayland_egl.found()
+  lib_deps += [dep_wayland_client, dep_wayland_egl]
+  conf_data.set10('HAVE_WAYLAND', true)
+endif
+
+opt_vaapi_x11 = get_option('vaapi-x11')
+dep_libva_x11 = dependency('libva-x11', version: libva_version, required: opt_vaapi_x11)
+dep_libva_x11_drm = dependency('libva-drm', version: libva_version, required: opt_vaapi_x11)
+if dep_libva_x11.found() and dep_libva_x11_drm.found()
+  vaapi_enabled = true
+  lib_deps += [dep_libva_x11, dep_libva_x11_drm]
+  conf_data.set10('HAVE_VAAPI_X11', true)
+endif
+
+opt_vaapi_wayland = get_option('vaapi-wayland')
+dep_libva_wayland = dependency('libva-wayland', version: libva_version, required: opt_vaapi_wayland)
+dep_libva_wayland_drm = dependency('libva-drm', version: libva_version, required: opt_vaapi_wayland)
+if dep_libva_wayland.found() and dep_libva_wayland_drm.found()
+  vaapi_enabled = true
+  lib_deps += [dep_libva_wayland, dep_libva_wayland_drm]
+  conf_data.set10('HAVE_VAAPI_WAYLAND', true)
+endif
+
+if vaapi_enabled
+  conf_data.set10('HAVE_VAAPI', true)
+endif
+
+
+#
+# GPU Capture Options
+#
+
+if 'gpu_capture' in debug_opts
+  renderdoc_dir = get_option('renderdoc_dir')
+  renderdoc_include_dir = ''
+  if host_system == 'windows'
+    renderdoc_include_dir = renderdoc_dir
+  else
+    renderdoc_include_dir = renderdoc_dir / 'include'
+  endif
+  if cc.has_header(renderdoc_include_dir / 'renderdoc_app.h', required: true)
+    lib_src += files('src/capture_renderdoc.c')
+    lib_deps += declare_dependency(include_directories: renderdoc_include_dir)
+    lib_deps += cc.find_library('dl', required: host_system == 'linux')
+  endif
+endif
+
+
+#
+# Graphic backend dependencies
+#
+
+gbackends_cfg = {
+  'gl': {
+    'src': files(
+      'src/opengl/cmd_buffer_gl.c',
+      'src/opengl/fence_gl.c',
+      'src/opengl/glcontext.c',
+      'src/opengl/glstate.c',
+      'src/opengl/bindgroup_gl.c',
+      'src/opengl/buffer_gl.c',
+      'src/opengl/ctx_gl.c',
+      'src/opengl/format_gl.c',
+      'src/opengl/pipeline_gl.c',
+      'src/opengl/program_gl.c',
+      'src/opengl/program_gl_utils.c',
+      'src/opengl/rendertarget_gl.c',
+      'src/opengl/texture_gl.c',
+    ),
+    'cfg': 'BACKEND_GL',
+    'hosts_cfg': {
+      'linux': {
+        'src': files('src/opengl/glcontext_egl.c'),
+        'cfg': 'HAVE_GLPLATFORM_EGL',
+        'deps': ['gl', 'egl'],
+      },
+    },
+  },
+  'gles': {
+    'src': files(
+      'src/opengl/cmd_buffer_gl.c',
+      'src/opengl/fence_gl.c',
+      'src/opengl/format_gl.c',
+      'src/opengl/glcontext.c',
+      'src/opengl/glstate.c',
+      'src/opengl/bindgroup_gl.c',
+      'src/opengl/buffer_gl.c',
+      'src/opengl/ctx_gl.c',
+      'src/opengl/pipeline_gl.c',
+      'src/opengl/program_gl.c',
+      'src/opengl/program_gl_utils.c',
+      'src/opengl/rendertarget_gl.c',
+      'src/opengl/texture_gl.c',
+    ),
+    'cfg': 'BACKEND_GLES',
+    'hosts_cfg': {
+      'linux': {
+        'src': files('src/opengl/glcontext_egl.c'),
+        'cfg': 'HAVE_GLPLATFORM_EGL',
+        'deps': ['gl', 'egl'],
+      },
+      'android': {
+        'src': files('src/opengl/glcontext_egl.c'),
+        'cfg': 'HAVE_GLPLATFORM_EGL',
+        'libs': ['EGL'],
+      },
+    },
+  },
+  'vk': {
+    'src': files(
+      'src/vulkan/cmd_buffer_vk.c',
+      'src/vulkan/glslang_utils.c',
+      'src/vulkan/bindgroup_vk.c',
+      'src/vulkan/buffer_vk.c',
+      'src/vulkan/ctx_vk.c',
+      'src/vulkan/fence_vk.c',
+      'src/vulkan/format_vk.c',
+      'src/vulkan/pipeline_vk.c',
+      'src/vulkan/program_vk.c',
+      'src/vulkan/rendertarget_vk.c',
+      'src/vulkan/texture_vk.c',
+      'src/vulkan/vkcontext.c',
+      'src/vulkan/vkutils.c',
+      'src/vulkan/ycbcr_sampler_vk.c',
+    ),
+    'cfg': 'BACKEND_VK',
+    'hosts_cfg': {
+      'linux': {
+        'deps': ['vulkan', 'glslang'],
+      },
+      'darwin': {
+        'src': files(
+          'src/vulkan/wsi_apple.m',
+        ),
+        'deps': ['glslang'],
+        'libs': ['MoltenVK'],
+        'frameworks': ['Metal', 'QuartzCore', 'CoreGraphics', 'IOKit', 'IOSurface'],
+      },
+      'android': {
+        'deps': ['vulkan', 'glslang'],
+      },
+      'iphone': {
+        'src': files(
+          'src/vulkan/wsi_apple.m',
+        ),
+        'deps': ['glslang'],
+        'libs': ['MoltenVK'],
+        'frameworks': ['Metal', 'QuartzCore', 'CoreGraphics', 'IOSurface'],
+      },
+      'windows': {
+        'deps': ['vulkan', 'glslang'],
+      },
+    },
+  },
+}
+
+if host_system in ['darwin', 'iphone']
+  add_languages('objc')
+endif
+
+# Additional search paths for find_library
+extra_library_dirs = get_option('extra_library_dirs')
+extra_include_dirs = get_option('extra_include_dirs')
+
+foreach gbackend_name, gbackend_cfg : gbackends_cfg
+  opt_gbackend = get_option('gbackend-' + gbackend_name)
+  if opt_gbackend.disabled()
+    continue
+  endif
+  hosts_backend_cfg = gbackend_cfg.get('hosts_cfg')
+  if host_system not in hosts_backend_cfg
+    continue
+  endif
+  host_backend_cfg = hosts_backend_cfg.get(host_system)
+  gbackend_deps = []
+  # Vulkan is loaded dynamically via dlopen at runtime by default. With
+  # -Dvulkan-static=enabled, libvulkan is linked at build time instead.
+  opt_vulkan_static = get_option('vulkan-static')
+  gbackend_vulkan_static = opt_vulkan_static.enabled()
+  foreach dep : host_backend_cfg.get('deps', [])
+    if dep == 'glslang'
+      add_languages('cpp')
+      cxx = meson.get_compiler('cpp')
+      # The following list declares the glslang libraries that we need to check
+      # and link against in the right order (to allow static linking). Some
+      # libraries are marked as non-required because they might be present or
+      # not depending on the build of glslang.
+      glslang_libs = [
+        {'name': 'glslang',                         'required': true},
+        {'name': 'glslang-default-resource-limits', 'required': true},
+        {'name': 'SPIRV-Tools-opt',                 'required': false},
+        {'name': 'SPIRV-Tools',                     'required': false},
+      ]
+      foreach lib : glslang_libs
+        libname = lib.get('name')
+        # Only require the library if the backend is explicitly enabled by the
+        # user. This makes meson bail out early if the required library can not
+        # be found.
+        required = lib.get('required') and opt_gbackend.enabled()
+        dep = cxx.find_library(libname, required: required, dirs: extra_library_dirs)
+        # Add the dependency if the library is marked as required or if it has
+        # been found so the backend can be disabled later on.
+        if lib.get('required') or dep.found()
+          gbackend_deps += dep
+        endif
+      endforeach
+      glslang_header = 'glslang/build_info.h'
+      glslang_include_dirs = include_directories(extra_include_dirs)
+      if cxx.has_header(glslang_header, include_directories: glslang_include_dirs)
+        glslang_ver_array = []
+        foreach comp : ['MAJOR', 'MINOR', 'PATCH']
+          glslang_ver_array += cxx.get_define(
+            'GLSLANG_VERSION_' + comp,
+            prefix: '#include <' + glslang_header + '>',
+            include_directories: glslang_include_dirs,
+          )
+        endforeach
+        glslang_ver = '.'.join(glslang_ver_array)
+        glslang_min_ver = '>= 15.3.0'
+        if glslang_ver.version_compare(glslang_min_ver)
+          gbackend_deps += declare_dependency(include_directories: glslang_include_dirs)
+        else
+          if opt_gbackend.enabled()
+            error('detected glslang version @0@ is too old, must be @1@'.format(
+                  glslang_ver, glslang_min_ver))
+          else
+            gbackend_deps += disabler()
+          endif
+        endif
+      else
+        if opt_gbackend.enabled()
+          error('glslang header not found')
+        else
+          gbackend_deps += disabler()
+        endif
+      endif
+    elif dep == 'vulkan'
+      # Default: load Vulkan dynamically via dlopen(libvulkan) at runtime,
+      # only the headers are required at compile time. With -Dvulkan-static=
+      # enabled, link against libvulkan instead.
+      vulkan_dep = dependency('vulkan', required: opt_gbackend)
+      if vulkan_dep.found()
+        if gbackend_vulkan_static
+          gbackend_deps += vulkan_dep
+        else
+          gbackend_deps += declare_dependency(
+            dependencies: vulkan_dep.partial_dependency(includes: true, compile_args: true),
+            compile_args: ['-DVK_NO_PROTOTYPES'],
+          )
+        endif
+      else
+        gbackend_deps += disabler()
+      endif
+    else
+      gbackend_deps += dependency(dep, required: opt_gbackend)
+    endif
+  endforeach
+  foreach lib : host_backend_cfg.get('libs', [])
+    # We need to call find_library() twice because specifying the dirs
+    # parameter inhibits system library detection.
+    # See: https://github.com/mesonbuild/meson/issues/10120
+    dep = cc.find_library(lib, required: false)
+    if not dep.found()
+      dep = cc.find_library(lib, required: opt_gbackend, dirs: extra_library_dirs)
+      if dep.found()
+        gbackend_deps += declare_dependency(include_directories: extra_include_dirs)
+      endif
+    endif
+    gbackend_deps += dep
+  endforeach
+  if 'frameworks' in host_backend_cfg
+    gbackend_deps += dependency('appleframeworks', modules: host_backend_cfg.get('frameworks'), required: opt_gbackend)
+  endif
+
+  all_dep_found = true
+  foreach dep : gbackend_deps
+    all_dep_found = all_dep_found and dep.found()
+  endforeach
+  message('backend: @0@ enabled: @1@'.format(gbackend_name, all_dep_found.to_string()))
+  if all_dep_found
+
+    lib_src += gbackend_cfg.get('src')
+    lib_src += host_backend_cfg.get('src', [])
+    lib_deps += gbackend_deps
+    conf_data.set10(gbackend_cfg.get('cfg'), true)
+    if 'cfg' in host_backend_cfg
+      conf_data.set10(host_backend_cfg.get('cfg'), true)
+    endif
+    if gbackend_name == 'vk'
+      conf_data.set10('NGPU_VULKAN_STATIC', gbackend_vulkan_static)
+    endif
+  endif
+endforeach
+
+
+#
+# Library
+#
+
+configure_file(output: 'config.h', configuration: conf_data)
+
+lib_c_args = []
+if get_option('default_library') == 'shared'
+  lib_c_args += '-DBUILD_NGPU_SHARED_LIB'
+else
+  lib_c_args += '-DUSE_NGPU_STATIC_LIB'
+endif
+
+
+# Create ngpu version data for rc
+ngpu_version_cdata = configuration_data()
+ngpu_version_cdata.set('NGPU_COPYRIGHT', 'Copyright Nope Forge')
+ngpu_version_cdata.set('NGPU_MAJOR_VERSION', version_array[0])
+ngpu_version_cdata.set('NGPU_MINOR_VERSION', version_array[1])
+ngpu_version_cdata.set('NGPU_MICRO_VERSION', version_array[2])
+ngpu_version_cdata.set('NGPU_VERSION', meson.project_version())
+
+# Add properties information with a rc file for the DLL under Windows
+if cc.get_id() == 'clang-cl'
+  ngpu_rc = configure_file(
+    input: 'nopegpu.rc.in',
+    output: 'nopegpu.rc',
+    configuration: ngpu_version_cdata,
+  )
+  lib_src += import('windows').compile_resources(ngpu_rc)
+endif
+
+libnopegpu = library(
+  'nopegpu',
+  lib_src,
+  dependencies: lib_deps,
+  install: true,
+  install_rpath: install_rpath,
+  version: meson.project_version(),
+  c_args: lib_c_args,
+  gnu_symbol_visibility: 'hidden',
+  include_directories: inc_dir,
+)
+subdir('src/include/nopegpu')
+
+pkg = import('pkgconfig')
+pkg_extra_cflags = []
+
+if get_option('default_library') == 'static'
+  pkg_extra_cflags += '-DUSE_NGPU_STATIC_LIB'
+endif
+
+pkg.generate(
+  libnopegpu,
+  name: 'libnopegpu',  # not specifying the name would fallback on "nopegpu.pc" instead of "libnopegpu.pc"
+  description: 'NGPU API',
+  extra_cflags: pkg_extra_cflags,
+  variables: ['datarootdir=${prefix}/share'],
+)
+
+
+#
+# Tests
+#
+
+if get_option('tests')
+  test_utils_src = files(
+    'src/utils/darray.c',
+    'src/utils/memory.c',
+  )
+  test_progs = {
+    'Shader interface limits': {
+      'exe': 'test_pgcraft',
+      'src': files('src/test_pgcraft.c'),
+      'objects': libnopegpu.extract_all_objects(recursive: true),
+      'c_args': lib_c_args,
+    },
+    'Dynamic array': {
+      'exe': 'test_darray',
+      'src': files('src/test_darray.c') + test_utils_src,
+    },
+  }
+  foreach test_key, test_data : test_progs
+    exe = executable(
+      test_data.get('exe'),
+      test_data.get('src'),
+      objects: test_data.get('objects', []),
+      c_args: test_data.get('c_args', []),
+      dependencies: lib_deps,
+      build_by_default: false,
+      install: false,
+      include_directories: inc_dir,
+    )
+    test(test_key, exe, args: test_data.get('args', []))
+  endforeach
+endif
+
+
+#
+# OpenGL specifications
+#
+ 
+copyfile = find_program('scripts/copyfile.py')
+
+gl_xml = custom_target(
+  'gl.xml',
+  command: [find_program('curl'), 'https://raw.githubusercontent.com/KhronosGroup/OpenGL-Registry/master/xml/gl.xml', '-o', '@OUTPUT@'],
+  capture: false,
+  output: 'gl.xml',
+)
+gl_generated_files = custom_target(
+  'gl_generated_files',
+  command: [find_program('scripts/gen-gl-wrappers.py'), '@INPUT@', '@OUTPUT@'],
+  capture: false,
+  input: gl_xml,
+  output: ['glfunctions.h'],
+)
+run_target(
+  'updateglwrappers',
+  command: [
+    copyfile,
+    # FIXME: In 0.56.0, we get "WARNING: custom_target 'gl_generated_files' has
+    # more than one output!  Using the first one.", so we need to do this
+    # instead of just using gl_generated_files. It also requires the "depends:"
+    # entry below.
+    # See https://github.com/mesonbuild/meson/issues/7891 for more information
+    gl_generated_files[0].full_path(),
+    meson.current_source_dir() / 'src/opengl'
+  ],
+  depends: gl_generated_files,
+)

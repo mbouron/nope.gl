@@ -921,7 +921,7 @@ def _fribidi_install(cfg):
 
 
 @_block(
-    "ngpu-setup",
+    "nopegpu-setup",
     {
         "Android": [
             _glslang_install,
@@ -947,24 +947,24 @@ def _fribidi_install(cfg):
         ],
     },
 )
-def _ngpu_setup(cfg):
-    ngpu_opts = []
+def _nopegpu_setup(cfg):
+    nopegpu_opts = []
     if cfg.args.debug_opts:
         debug_opts = ",".join(cfg.args.debug_opts)
-        ngpu_opts += [f"-Ddebug_opts={debug_opts}"]
+        nopegpu_opts += [f"-Ddebug_opts={debug_opts}"]
 
     if cfg.args.sanitize:
-        ngpu_opts += [f"-Db_sanitize={cfg.args.sanitize}"]
+        nopegpu_opts += [f"-Db_sanitize={cfg.args.sanitize}"]
 
     if "gpu_capture" in cfg.args.debug_opts:
         renderdoc_dir = cfg.externals[_RENDERDOC_ID]
-        ngpu_opts += [f"-Drenderdoc_dir={renderdoc_dir}"]
+        nopegpu_opts += [f"-Drenderdoc_dir={renderdoc_dir}"]
 
     if cfg.host in ("Darwin", "iOS"):
-        ngpu_opts += ["-Dvulkan-static=enabled"]
+        nopegpu_opts += ["-Dvulkan-static=enabled"]
 
     if cfg.host == "Windows":
-        ngpu_opts += _get_clang_cl_meson_opts(cfg)
+        nopegpu_opts += _get_clang_cl_meson_opts(cfg)
 
     extra_library_dirs = []
     extra_include_dirs = []
@@ -983,18 +983,18 @@ def _ngpu_setup(cfg):
 
     if extra_library_dirs:
         opts = ",".join(extra_library_dirs)
-        ngpu_opts += [f"-Dextra_library_dirs={opts}"]
+        nopegpu_opts += [f"-Dextra_library_dirs={opts}"]
 
     if extra_include_dirs:
         opts = ",".join(extra_include_dirs)
-        ngpu_opts += [f"-Dextra_include_dirs={opts}"]
+        nopegpu_opts += [f"-Dextra_include_dirs={opts}"]
 
-    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(*ngpu_opts, "libngpu", _get_builddir(cfg, "libngpu"))]
+    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(*nopegpu_opts, "libnopegpu", _get_builddir(cfg, "libnopegpu"))]
 
 
-@_block("ngpu-install", [_ngpu_setup])
-def _ngpu_install(cfg):
-    return _meson_compile_install_cmd(cfg, "libngpu")
+@_block("nopegpu-install", [_nopegpu_setup])
+def _nopegpu_install(cfg):
+    return _meson_compile_install_cmd(cfg, "libnopegpu")
 
 
 @_block(
@@ -1006,14 +1006,14 @@ def _ngpu_install(cfg):
             _xxhash_install,
             _harfbuzz_install,
             _fribidi_install,
-            _ngpu_install,
+            _nopegpu_install,
         ],
         "Darwin": [
             _nopemedia_install,
             _glslang_install,
             _xxhash_install,
             _moltenvk_install,
-            _ngpu_install,
+            _nopegpu_install,
         ],
         "iOS": [
             _nopemedia_install,
@@ -1022,13 +1022,13 @@ def _ngpu_install(cfg):
             _xxhash_install,
             _harfbuzz_install,
             _fribidi_install,
-            _ngpu_install,
+            _nopegpu_install,
         ],
         "Local": [
             _nopemedia_install,
             _glslang_install,
             _xxhash_install,
-            _ngpu_install,
+            _nopegpu_install,
         ],
         "Windows": [
             _nopemedia_install,
@@ -1037,7 +1037,7 @@ def _ngpu_install(cfg):
             _xxhash_install,
             _harfbuzz_install,
             _fribidi_install,
-            _ngpu_install,
+            _nopegpu_install,
         ],
     },
 )
@@ -1147,9 +1147,9 @@ def _nopegl_run_target_cmd(cfg, target):
     return ["$(MESON) " + _cmd_join("compile", "-C", _get_builddir(cfg, "libnopegl"), target)]
 
 
-@_block("ngpu-updateglwrappers", [_ngpu_setup])
-def _ngpu_updateglwrappers(cfg):
-    return ["$(MESON) " + _cmd_join("compile", "-C", _get_builddir(cfg, "libngpu"), "updateglwrappers")]
+@_block("nopegpu-updateglwrappers", [_nopegpu_setup])
+def _nopegpu_updateglwrappers(cfg):
+    return ["$(MESON) " + _cmd_join("compile", "-C", _get_builddir(cfg, "libnopegpu"), "updateglwrappers")]
 
 
 @_block("nopegl-updatedoc", [_nopegl_install])
@@ -1229,7 +1229,7 @@ def _clean_py(cfg):
 
 @_block("clean", [_clean_py])
 def _clean(cfg):
-    deps = ["doc", "libngpu", "libnopemedia", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
+    deps = ["doc", "libnopegpu", "libnopemedia", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
     return [_rd(_get_builddir(cfg, dep)) for dep in deps]
 
 
@@ -1612,7 +1612,7 @@ def _run():
     if _is_local(cfg.host):
         blocks += [
             _tests,
-            _ngpu_updateglwrappers,
+            _nopegpu_updateglwrappers,
             _nopegl_updatedoc,
             _nopegl_updatespecs,
             _nopegl_updateglsllexer,

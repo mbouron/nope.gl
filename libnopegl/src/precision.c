@@ -20,7 +20,7 @@
  */
 
 #include "precision.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 const struct param_choices ngli_precision_choices = {
     .name = "precision",

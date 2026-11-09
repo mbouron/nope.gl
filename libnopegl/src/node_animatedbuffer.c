@@ -28,7 +28,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "node_animkeyframe.h"
 #include "node_buffer.h"
 #include "nopegl/nopegl.h"

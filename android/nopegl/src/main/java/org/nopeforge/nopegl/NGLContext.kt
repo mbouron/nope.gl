@@ -114,7 +114,7 @@ class NGLContext {
             System.loadLibrary("fribidi")
             System.loadLibrary("harfbuzz")
             System.loadLibrary("nopemedia")
-            System.loadLibrary("ngpu")
+            System.loadLibrary("nopegpu")
             System.loadLibrary("nopegl")
             System.loadLibrary("nopegl_native")
         }
