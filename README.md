@@ -4,6 +4,13 @@
 It is designed to run on both desktop (Linux, OSX, Windows) and mobile (Android,
 iOS).
 
+It is composed of the following libraries:
+
+- `libnopegpu`: a GPU abstraction layer (OpenGL, OpenGL ES, Vulkan)
+- `libnopemedia`: a media playback library (based on FFmpeg)
+- `libnopegl`: a scene graph engine that uses both `libnopegpu` and
+  `libnopemedia`
+
 **Warning:** note that `nope.gl` is still highly experimental. This means the ABI
 and API can change at any time.
 
@@ -26,7 +33,9 @@ and API can change at any time.
 details.
 
 `libnopemedia` is licensed under the GNU Lesser General Public License, version
-2.1 or later. Read its [LICENSE][libnopemedia_license] file for details.
+2.1 or later. Read its [LICENSE][libnopemedia_license] file for details. Some of
+its files are dual-licensed under the Apache License, Version 2.0, or the GNU
+Lesser General Public License, version 2.1 or later.
 
 `ngl-tools` is licensed under the Apache License, Version 2.0. It also bundles
 the following third-party components:
