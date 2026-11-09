@@ -4,7 +4,7 @@ The `nope.gl` project is split in several parts:
 
 - `libnopegl`: the core of the project, an `OpenGL` engine in `C`, containing
   all the nodes.
-- `libnopemd`: the media (video, audio and images) playback library used by
+- `libnopemedia`: the media (video, audio and images) playback library used by
   `libnopegl`, licensed under the LGPL 2.1 or later (formerly the `nope.media`
   project).
 - `ngl-tools`: a set of various program tools using `libnopegl`.
@@ -16,10 +16,10 @@ The `nope.gl` project is split in several parts:
 ## Dependencies
 
 - `libnopegl` requires a standard C toolchain and [meson build system][meson].
-  It also depends on `libnopemd` for media (video and images) playback.
+  It also depends on `libnopemedia` for media (video and images) playback.
   [Graphviz][graphviz] is optional but can be used to render and preview graphs
   obtained from the API.
-- `libnopemd` requires a standard C toolchain, [meson build system][meson] and
+- `libnopemedia` requires a standard C toolchain, [meson build system][meson] and
   [FFmpeg][ffmpeg].
 - `ngl-tools` needs [SDL3][sdl3] and `libnopegl` installed.
 - `pynopegl` needs [Python][python] and [Cython][cython], and `libnopegl`
@@ -30,7 +30,7 @@ The `nope.gl` project is split in several parts:
 ```{mermaid}
 graph
     libnopegl(libnopegl)
-    libnopemd(libnopemd)
+    libnopemedia(libnopemedia)
     ngl_tools(ngl-tools)
     pynopegl(pynopegl)
     pynopegl_utils(pynopegl-utils)
@@ -42,8 +42,8 @@ graph
     numpy[NumPy]
     jinja[Jinja]
 
-    libnopemd --> ffmpeg
-    libnopegl --> libnopemd
+    libnopemedia --> ffmpeg
+    libnopegl --> libnopemedia
     ngl_tools --> sdl3
     ngl_tools --> libnopegl
     ngl_tools -. ngl-python .-> python
@@ -60,7 +60,7 @@ graph
 
     classDef ngldep fill:#add8e6,color:#222
     classDef extdep fill:#c0c0c0,color:#222
-    class libnopegl,libnopemd,ngl_tools,pynopegl,pynopegl_utils ngldep
+    class libnopegl,libnopemedia,ngl_tools,pynopegl,pynopegl_utils ngldep
     class ffmpeg,sdl3,python,cython,graphviz,pyside6,watchdog,numpy,jinja extdep
 ```
 

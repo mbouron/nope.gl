@@ -21,7 +21,7 @@
  */
 
 #include <string.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 
 #include "colorconv.h"
 #include "image.h"
@@ -31,7 +31,7 @@
 #include "utils/refcount.h"
 #include "utils/utils.h"
 
-struct color_info ngli_color_info_from_nopemd_frame(const struct nmd_frame *frame)
+struct color_info ngli_color_info_from_nmd_frame(const struct nmd_frame *frame)
 {
     /* The peak of the content (MaxCLL) cannot exceed the one of the mastering display */
     float max_luminance = frame->mastering_max_luminance;

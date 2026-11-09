@@ -39,7 +39,7 @@ enum {
 
 #define DEFAULT_COLORMATRIX COLORMATRIX_BT709
 
-static const char * nopemd_col_spc_str[] = {
+static const char * nmd_col_spc_str[] = {
     [NMD_COL_SPC_RGB]                = "rgb",
     [NMD_COL_SPC_BT709]              = "bt709",
     [NMD_COL_SPC_UNSPECIFIED]        = "unspecified",
@@ -69,9 +69,9 @@ NGLI_STATIC_ASSERT(COLORMATRIX_UNDEFINED == 0, "undefined colormatrix is 0");
 
 static const char *get_col_spc_str(int color_space)
 {
-    if (color_space < 0 || color_space >= NGLI_ARRAY_NB(nopemd_col_spc_str))
+    if (color_space < 0 || color_space >= NGLI_ARRAY_NB(nmd_col_spc_str))
         return NULL;
-    return nopemd_col_spc_str[color_space];
+    return nmd_col_spc_str[color_space];
 }
 
 static int unsupported_colormatrix(int color_space)
@@ -84,7 +84,7 @@ static int unsupported_colormatrix(int color_space)
     return DEFAULT_COLORMATRIX;
 }
 
-static int get_colormatrix_from_nopemd(int color_space)
+static int get_colormatrix_from_nmd(int color_space)
 {
     if (color_space == NMD_COL_SPC_UNSPECIFIED) {
         LOG(DEBUG, "media colormatrix unspecified, fallback on default matrix");
@@ -126,7 +126,7 @@ static struct range_info get_range_info(int video_range, int depth)
 
 struct ngli_mat4 ngli_colorconv_get_ycbcr_to_rgb_color_matrix(const struct color_info *info, int depth, float scale)
 {
-    const int colormatrix = get_colormatrix_from_nopemd(info->space);
+    const int colormatrix = get_colormatrix_from_nmd(info->space);
     const int video_range = info->range != NMD_COL_RNG_FULL;
     const struct range_info range = get_range_info(video_range, depth);
     const struct k_constants k = k_constants_infos[colormatrix];

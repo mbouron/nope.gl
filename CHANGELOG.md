@@ -12,6 +12,9 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 ### Changed
 - `libnopemd` headers are now located in the nopemd sub directory. Users
   must now use `#include <nopemd/nopemd.h>` instead of `#include <nopemd.h>`
+- `libnopemd` is renamed to `libnopemedia` which includes: the library,
+  pkg-config package, headers (`#include <nopemedia/nopemedia.h>`), node
+  parameters and Android package
 
 ### Fixed
 - `libnopemd` filters such as `dynaudnorm` not working with media (WAVE, AIFF)

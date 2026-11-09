@@ -24,7 +24,7 @@
 #define IMAGE_H
 
 #include <stdbool.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 
 #include <ngpu/ngpu.h>
 #include "utils/utils.h"
@@ -47,7 +47,7 @@ struct color_info {
     float max_luminance; // HDR source peak in cd/m², 0 if unknown
 };
 
-struct color_info ngli_color_info_from_nopemd_frame(const struct nmd_frame *frame);
+struct color_info ngli_color_info_from_nmd_frame(const struct nmd_frame *frame);
 
 enum ngli_image_layout {
     NGLI_IMAGE_LAYOUT_NONE           = NGPU_IMAGE_LAYOUT_NONE,

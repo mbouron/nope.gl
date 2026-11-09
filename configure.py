@@ -872,7 +872,7 @@ def _glslang_install(cfg):
 
 
 @_block(
-    "nopemd-setup",
+    "nopemedia-setup",
     {
         "Android": [_ffmpeg_install, _xxhash_install],
         "iOS": [_ffmpeg_install, _xxhash_install],
@@ -880,16 +880,16 @@ def _glslang_install(cfg):
         "Windows": [_pkgconf_install, _ffmpeg_install, _sdl3_install, _xxhash_install],
     },
 )
-def _nopemd_setup(cfg):
+def _nopemedia_setup(cfg):
     opts = []
     if cfg.host == "Windows":
         opts += _get_clang_cl_meson_opts(cfg)
-    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(*opts, "libnopemd", _get_builddir(cfg, "libnopemd"))]
+    return ["$(MESON_SETUP) -Drpath=true " + _cmd_join(*opts, "libnopemedia", _get_builddir(cfg, "libnopemedia"))]
 
 
-@_block("nopemd-install", [_nopemd_setup])
-def _nopemd_install(cfg):
-    return _meson_compile_install_cmd(cfg, "libnopemd")
+@_block("nopemedia-install", [_nopemedia_setup])
+def _nopemedia_install(cfg):
+    return _meson_compile_install_cmd(cfg, "libnopemedia")
 
 
 @_block("renderdoc-install")
@@ -1001,7 +1001,7 @@ def _ngpu_install(cfg):
     "nopegl-setup",
     {
         "Android": [
-            _nopemd_install,
+            _nopemedia_install,
             _glslang_install,
             _xxhash_install,
             _harfbuzz_install,
@@ -1009,14 +1009,14 @@ def _ngpu_install(cfg):
             _ngpu_install,
         ],
         "Darwin": [
-            _nopemd_install,
+            _nopemedia_install,
             _glslang_install,
             _xxhash_install,
             _moltenvk_install,
             _ngpu_install,
         ],
         "iOS": [
-            _nopemd_install,
+            _nopemedia_install,
             _moltenvk_install,
             _glslang_install,
             _xxhash_install,
@@ -1025,13 +1025,13 @@ def _ngpu_install(cfg):
             _ngpu_install,
         ],
         "Local": [
-            _nopemd_install,
+            _nopemedia_install,
             _glslang_install,
             _xxhash_install,
             _ngpu_install,
         ],
         "Windows": [
-            _nopemd_install,
+            _nopemedia_install,
             _sdl3_install,
             _glslang_install,
             _xxhash_install,
@@ -1193,9 +1193,9 @@ def _tests_setup(cfg):
     return ["$(MESON) setup --backend=ninja " + _cmd_join("tests", _get_builddir(cfg, "tests"))]
 
 
-@_block("nopemd-tests", [_nopemd_install])
-def _nopemd_tests(cfg):
-    return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "libnopemd"))]
+@_block("nopemedia-tests", [_nopemedia_install])
+def _nopemedia_tests(cfg):
+    return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "libnopemedia"))]
 
 
 @_block("nopegl-tests", [_nopegl_install])
@@ -1229,7 +1229,7 @@ def _clean_py(cfg):
 
 @_block("clean", [_clean_py])
 def _clean(cfg):
-    deps = ["doc", "libnopemd", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
+    deps = ["doc", "libnopemedia", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
     return [_rd(_get_builddir(cfg, dep)) for dep in deps]
 
 
@@ -1249,7 +1249,7 @@ def _coverage_xml(cfg):
     return _coverage(cfg, "xml")
 
 
-@_block("tests", [_nopemd_tests, _nopegl_tests, _tests_setup])
+@_block("tests", [_nopemedia_tests, _nopegl_tests, _tests_setup])
 def _tests(cfg):
     return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "tests"))]
 

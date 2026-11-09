@@ -25,7 +25,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <nopemd/nopemd.h>
+#include <nopemedia/nopemedia.h>
 
 #include "config.h"
 
@@ -40,7 +40,7 @@
 
 struct media_opts {
     const char *filename;
-    int nopemd_min_level;
+    int nmd_min_level;
     struct ngl_node *anim;
     int audio_tex;
     int32_t max_nb_packets;
@@ -54,8 +54,8 @@ struct media_opts {
     int loop;
 };
 
-static const struct param_choices nopemd_log_level_choices = {
-    .name = "nopemd_log_level",
+static const struct param_choices nmd_log_level_choices = {
+    .name = "nmd_log_level",
     .consts = {
         {"verbose", NMD_LOG_VERBOSE, .desc=NGLI_DOCSTRING("verbose messages")},
         {"debug",   NMD_LOG_DEBUG,   .desc=NGLI_DOCSTRING("debugging messages")},
@@ -69,8 +69,8 @@ static const struct param_choices nopemd_log_level_choices = {
 #define HWACCEL_DISABLED 0
 #define HWACCEL_AUTO     1
 
-static const struct param_choices nopemd_hwaccel_choices = {
-    .name = "nopemd_hwaccel",
+static const struct param_choices nmd_hwaccel_choices = {
+    .name = "nmd_hwaccel",
     .consts = {
         {"disabled", HWACCEL_DISABLED, .desc=NGLI_DOCSTRING("disable hardware acceleration")},
         {"auto",     HWACCEL_AUTO,     .desc=NGLI_DOCSTRING("enable hardware acceleration if available")},
@@ -86,9 +86,9 @@ static const struct node_param media_params[] = {
                  .flags=NGLI_PARAM_FLAG_NON_NULL | NGLI_PARAM_FLAG_FILEPATH | NGLI_PARAM_FLAG_ALLOW_LIVE_CHANGE,
                  .update_func=filename_changed,
                  .desc=NGLI_DOCSTRING("path to input media file")},
-    {"nopemd_min_level", NGLI_PARAM_TYPE_SELECT, OFFSET(nopemd_min_level), {.i32=NMD_LOG_WARNING},
-                         .choices=&nopemd_log_level_choices,
-                         .desc=NGLI_DOCSTRING("nope.media min logging level")},
+    {"nmd_min_level", NGLI_PARAM_TYPE_SELECT, OFFSET(nmd_min_level), {.i32=NMD_LOG_WARNING},
+                      .choices=&nmd_log_level_choices,
+                      .desc=NGLI_DOCSTRING("nope.media min logging level")},
     {"time_anim", NGLI_PARAM_TYPE_NODE, OFFSET(anim),
                   .node_types=(const uint32_t[]){NGL_NODE_ANIMATEDTIME, NGLI_NODE_NONE},
                   .desc=NGLI_DOCSTRING("time remapping animation (must use a `linear` interpolation)")},
@@ -105,7 +105,7 @@ static const struct node_param media_params[] = {
     {"stream_idx",     NGLI_PARAM_TYPE_I32, OFFSET(stream_idx),     {.i32=-1},
                        .desc=NGLI_DOCSTRING("force a stream number instead of picking the \"best\" one")},
     {"hwaccel",        NGLI_PARAM_TYPE_SELECT, OFFSET(hwaccel),     {.i32=HWACCEL_AUTO},
-                       .choices=&nopemd_hwaccel_choices,
+                       .choices=&nmd_hwaccel_choices,
                        .desc=NGLI_DOCSTRING("hardware acceleration")},
     {"filters",        NGLI_PARAM_TYPE_STR, OFFSET(filters),
                        .desc=NGLI_DOCSTRING("filters to apply on the media (nope.media/libavfilter)")},
@@ -125,14 +125,14 @@ static const enum ngl_log_level log_levels[] = {
 };
 
 ngli_printf_format(6, 0)
-static void callback_nopemd_log(void *arg, int level, const char *filename, int ln,
-                                const char *fn, const char *fmt, va_list vl)
+static void callback_nmd_log(void *arg, int level, const char *filename, int ln,
+                             const char *fn, const char *fmt, va_list vl)
 {
     if (level < 0 || level >= NGLI_ARRAY_NB(log_levels))
         return;
 
     const struct media_opts *o = arg;
-    if (level < o->nopemd_min_level)
+    if (level < o->nmd_min_level)
         return;
 
     char logline[128];
@@ -437,7 +437,7 @@ static int media_prefetch(struct ngl_node *node)
     if (!s->player)
         return NGL_ERROR_MEMORY;
 
-    nmd_set_log_callback(s->player, node->opts, callback_nopemd_log);
+    nmd_set_log_callback(s->player, node->opts, callback_nmd_log);
 
     get_start_end_time(node, &s->start_time, &s->end_time);
 
