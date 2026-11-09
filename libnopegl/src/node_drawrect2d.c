@@ -29,7 +29,7 @@
 #include "node2d.h"
 #include "math_utils.h"
 #include "log.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "node_block.h"
 #include "node_paint.h"
 #include "node_stroke2d.h"

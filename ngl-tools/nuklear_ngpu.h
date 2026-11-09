@@ -22,7 +22,7 @@
 #ifndef NUKLEAR_NGPU_H
 #define NUKLEAR_NGPU_H
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_DEFAULT_ALLOCATOR

@@ -28,7 +28,7 @@
 
 #include <SDL3/SDL.h>
 #include <nopegl/nopegl.h>
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #include "viewer_blit.h"
 #include "viewer_export.h"

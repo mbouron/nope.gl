@@ -25,7 +25,7 @@
 #include "internal.h"
 #include "node2d.h"
 #include "math_utils.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "utils/darray.h"
 #include "utils/utils.h"

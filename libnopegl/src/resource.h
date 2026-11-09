@@ -22,7 +22,7 @@
 #ifndef RESOURCE_H
 #define RESOURCE_H
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 struct ngli_image;
 struct buffer_resource;

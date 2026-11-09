@@ -31,7 +31,7 @@
 
 #include "internal.h"
 #include "log.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "node_block.h"
 #include "node_buffer.h"
 #include "nopegl/nopegl.h"

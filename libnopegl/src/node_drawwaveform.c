@@ -32,7 +32,7 @@
 #include "image.h"
 #include "internal.h"
 #include "log.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "node_block.h"
 #include "pipeline.h"
 #include "utils/darray.h"

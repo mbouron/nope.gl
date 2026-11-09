@@ -23,7 +23,7 @@
 #define NODE_MASK_H
 
 #include <stddef.h>
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "params.h"
 #include "utils/darray.h"
 

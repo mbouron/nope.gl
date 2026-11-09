@@ -32,11 +32,11 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/utils.h"

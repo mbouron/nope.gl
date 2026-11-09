@@ -23,7 +23,7 @@
 #ifndef BLEND_MODE_H
 #define BLEND_MODE_H
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 enum ngli_blend_mode {
     NGLI_BLEND_MODE_DISABLED,

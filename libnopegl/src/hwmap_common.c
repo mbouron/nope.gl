@@ -30,7 +30,7 @@
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 
 struct hwmap_common {

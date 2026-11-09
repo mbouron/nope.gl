@@ -26,7 +26,7 @@
 
 #include "box.h"
 #include "internal.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "params.h"
 #include "pipeline.h"
 #include "text.h"

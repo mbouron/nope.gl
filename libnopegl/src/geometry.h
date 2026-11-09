@@ -26,7 +26,7 @@
 
 #include "buffer_layout.h"
 #include "resource.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 struct ngpu_ctx;
 

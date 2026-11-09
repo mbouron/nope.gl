@@ -22,7 +22,7 @@
 #ifndef SHADER2D_H
 #define SHADER2D_H
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "utils/darray.h"
 
 #define NGLI_SHADER2D_NAME_LEN 64

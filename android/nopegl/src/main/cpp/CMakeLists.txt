@@ -19,7 +19,7 @@ include_directories(${NGL_HEADER_PATH})
 
 set(NGL_LIBS
         nopegl
-        ngpu
+        nopegpu
         nopemedia
         avfilter
         swresample

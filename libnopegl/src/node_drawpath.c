@@ -28,12 +28,12 @@
 #include "box.h"
 #include "distmap.h"
 #include "internal.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "utils/utils.h"
 
 /* GLSL fragments as string */

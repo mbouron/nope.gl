@@ -25,7 +25,7 @@
 
 #include <stdint.h>
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #include "graphics_state.h"
 #include "utils/darray.h"

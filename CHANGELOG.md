@@ -15,6 +15,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 - `libnopemd` is renamed to `libnopemedia` which includes: the library,
   pkg-config package, headers (`#include <nopemedia/nopemedia.h>`), node
   parameters and Android package
+- `libngpu` is renamed to `libnopegpu` which includes: the library,
+  pkg-config package and headers (`#include <nopegpu/nopegpu.h>`)
 
 ### Fixed
 - `libnopemd` filters such as `dynaudnorm` not working with media (WAVE, AIFF)

@@ -21,7 +21,7 @@
 
 #include <stddef.h>
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #include "config.h"
 #include "internal.h"

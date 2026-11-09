@@ -29,7 +29,7 @@
 #include "hwmap.h"
 #include "internal.h"
 #include "log.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "utils/memory.h"
 

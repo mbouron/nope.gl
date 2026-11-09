@@ -27,7 +27,7 @@
 #include "animation.h"
 #include "internal.h"
 #include "math_utils.h"
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 #include "node_animkeyframe.h"
 #include "node_uniform.h"
 #include "node_velocity.h"

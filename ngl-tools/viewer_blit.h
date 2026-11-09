@@ -22,7 +22,7 @@
 #ifndef VIEWER_BLIT_H
 #define VIEWER_BLIT_H
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 struct blit_ctx;
 

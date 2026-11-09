@@ -22,7 +22,7 @@
 #ifndef GRAPHICS_STATE_H
 #define GRAPHICS_STATE_H
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #include "blend_mode.h"
 

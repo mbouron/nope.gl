@@ -22,7 +22,7 @@
 #include <math.h>
 #include <string.h>
 
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #include "internal.h"
 #include "log.h"

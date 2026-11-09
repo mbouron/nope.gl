@@ -32,7 +32,7 @@
 #include <media/NdkImage.h>
 
 #include <nopemedia/nopemedia.h>
-#include <ngpu/ngpu.h>
+#include <nopegpu/nopegpu.h>
 
 #define CHECK(cond) do {                                                                                 \
     if (!(cond)) {                                                                                       \
