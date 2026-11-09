@@ -254,7 +254,7 @@ def gen(gl_xml, func_file):
         #include <stdbool.h>
         #include <stddef.h>
 
-        #include "ngpu/opengl/glincludes.h"
+        #include "opengl/glincludes.h"
         """)
 
     footer = textwrap.dedent("""
