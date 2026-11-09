@@ -1147,6 +1147,11 @@ def _nopegl_run_target_cmd(cfg, target):
     return ["$(MESON) " + _cmd_join("compile", "-C", _get_builddir(cfg, "libnopegl"), target)]
 
 
+@_block("ngpu-updateglwrappers", [_ngpu_setup])
+def _ngpu_updateglwrappers(cfg):
+    return ["$(MESON) " + _cmd_join("compile", "-C", _get_builddir(cfg, "libngpu"), "updateglwrappers")]
+
+
 @_block("nopegl-updatedoc", [_nopegl_install])
 def _nopegl_updatedoc(cfg):
     gen_doc = op.join("scripts", "gen-doc.py")
@@ -1163,11 +1168,6 @@ def _nopegl_updatespecs(cfg):
 @_block("nopegl-updateglsllexer", [_nopegl_install])
 def _nopegl_updateglsllexer(cfg):
     return _nopegl_run_target_cmd(cfg, "updateglsllexer")
-
-
-@_block("nopegl-updateglwrappers", [_nopegl_install])
-def _nopegl_updateglwrappers(cfg):
-    return _nopegl_run_target_cmd(cfg, "updateglwrappers")
 
 
 @_block(
@@ -1612,10 +1612,10 @@ def _run():
     if _is_local(cfg.host):
         blocks += [
             _tests,
+            _ngpu_updateglwrappers,
             _nopegl_updatedoc,
             _nopegl_updatespecs,
             _nopegl_updateglsllexer,
-            _nopegl_updateglwrappers,
             _ngl_tools_install_nosetup,
             _htmldoc,
         ]
