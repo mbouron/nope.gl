@@ -23,7 +23,7 @@
 
 #include <libavutil/log.h>
 
-#include "nopemd.h"
+#include "nopemd/nopemd.h"
 
 #ifndef ENABLE_DBG
 # define ENABLE_DBG 0

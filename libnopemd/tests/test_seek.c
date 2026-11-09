@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #include "playback_utils.h"
 

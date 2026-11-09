@@ -50,7 +50,7 @@
 #include <poll.h>
 #include <unistd.h>
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 #endif
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)

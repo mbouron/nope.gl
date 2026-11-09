@@ -27,7 +27,7 @@
 #endif
 
 #include <nopegl/nopegl.h>
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #include "common.h"
 #include "opts.h"

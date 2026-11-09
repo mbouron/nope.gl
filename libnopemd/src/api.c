@@ -34,7 +34,7 @@
 #include <libavutil/pixfmt.h>
 #include <libavutil/pixdesc.h>
 
-#include "nopemd.h"
+#include "nopemd/nopemd.h"
 #include "async.h"
 #include "log.h"
 #include "internal.h"

@@ -30,7 +30,7 @@
 #include <libavutil/samplefmt.h>
 #include <libavutil/timestamp.h>
 
-#include "nopemd.h"
+#include "nopemd/nopemd.h"
 
 #ifdef __ANDROID__
 #define HAVE_MEDIACODEC_HWACCEL 1

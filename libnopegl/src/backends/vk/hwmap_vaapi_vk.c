@@ -23,7 +23,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #include <va/va.h>
 #include <va/va_drmcommon.h>

@@ -21,7 +21,7 @@
  */
 
 #include <string.h>
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #include "colorconv.h"
 #include "image.h"

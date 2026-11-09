@@ -88,6 +88,11 @@ endif
 # Library
 #
 
+inc_dir = include_directories(
+  'src',
+  'src/include',
+)
+
 lib_src = files(
   'src/api.c',
   'src/async.c',
@@ -125,17 +130,9 @@ libnopemd = library(
   version: meson.project_version(),
   c_args: lib_c_args,
   gnu_symbol_visibility: 'hidden',
+  include_directories: inc_dir,
 )
-
-lib_header = configure_file(
-  input: files('src/nopemd.h.in'),
-  output: 'nopemd.h',
-  configuration: conf_data
-)
-install_headers(lib_header)
-if get_option('cpp-header')
-  install_headers(files('src/nopemd.hpp'))
-endif
+subdir('src/include/nopemd')
 
 pkg = import('pkgconfig')
 pkg_extra_cflags = []
@@ -167,6 +164,7 @@ if player_deps_found
     'nope-media',
     files('src/nope-media.c'),
     dependencies: player_deps,
+    include_directories: inc_dir,
     link_with: libnopemd,
     install: true,
     install_rpath: install_rpath,
@@ -233,6 +231,7 @@ if get_option('tests')
       'test_' + exe_name,
       sources,
       dependencies: deps,
+      include_directories: inc_dir,
       link_with: libnopemd,
       install: false,
       # pkg-config extra cflags don't apply to local executables, so we have to

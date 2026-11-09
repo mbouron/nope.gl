@@ -2,7 +2,7 @@
 #include <libavutil/common.h>
 #include <float.h> // for DBL_MAX
 
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #define BITS_PER_ACTION 4
 

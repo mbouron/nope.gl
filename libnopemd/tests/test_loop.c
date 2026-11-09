@@ -25,7 +25,7 @@
 #include <string.h>
 
 #include <libavutil/time.h>
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #include "playback_utils.h"
 

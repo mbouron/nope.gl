@@ -24,7 +24,7 @@
 #include <stdint.h>
 #include <libavutil/frame.h>
 
-#include "nopemd.h"
+#include "nopemd/nopemd.h"
 #include "loop.h"
 #include "opts.h"
 #include "msg.h"

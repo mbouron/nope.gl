@@ -23,7 +23,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <nopemd.h>
+#include <nopemd/nopemd.h>
 
 #include "hwmap.h"
 #include "image.h"
