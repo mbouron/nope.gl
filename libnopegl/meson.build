@@ -78,7 +78,6 @@ conf_data.set10('TARGET_' + host_system.to_upper(), true)
 conf_data.set10('ARCH_' + cpu_family.to_upper(), true)
 conf_data.set10('DEBUG_GL', 'gl' in debug_opts)
 conf_data.set10('DEBUG_VK', 'vk' in debug_opts)
-conf_data.set10('DEBUG_MEM', 'mem' in debug_opts)
 conf_data.set10('DEBUG_GPU_CAPTURE', 'gpu_capture' in debug_opts)
 
 if host_system == 'windows'

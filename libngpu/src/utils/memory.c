@@ -29,59 +29,18 @@
 #include "memory.h"
 #include "utils.h"
 
-#if DEBUG_MEM
-static int failure_requested(void)
-{
-    static int alloc_counter;
-
-    const char *mem_politic = getenv("NGPU_MEM_ALLOC_FAIL");
-    if (!mem_politic)
-        return 0;
-    if (!strcmp(mem_politic, "count")) {
-        alloc_counter++;
-        fprintf(stderr, "MEMCOUNTER: %d\n", alloc_counter);
-        return 0;
-    }
-    char *endptr = NULL;
-    long int n = strtol(mem_politic, &endptr, 0);
-    int should_fail = 0;
-    const int r = rand();
-    if (endptr && *endptr == '%') {
-        should_fail = r % 100 < n;
-    } else if (alloc_counter == n) {
-        should_fail = 1;
-    }
-    if (should_fail)
-        fprintf(stderr, "WARNING: next alloc (%d) will fail\n", alloc_counter);
-    alloc_counter++;
-    return should_fail;
-}
-#else
-static inline int failure_requested(void)
-{
-    return 0;
-}
-#endif
-
 void *ngpu_try_malloc(size_t size)
 {
-    if (failure_requested())
-        return NULL;
     return malloc(size);
 }
 
 void *ngpu_try_calloc(size_t n, size_t size)
 {
-    if (failure_requested())
-        return NULL;
     return calloc(n, size);
 }
 
 void *ngpu_try_malloc_aligned(size_t alignment, size_t size)
 {
-    if (failure_requested())
-        return NULL;
-
 #ifdef _WIN32
     return _aligned_malloc(size, alignment);
 #else
@@ -91,8 +50,6 @@ void *ngpu_try_malloc_aligned(size_t alignment, size_t size)
 
 void *ngpu_try_realloc(void *ptr, size_t n, size_t size)
 {
-    if (failure_requested())
-        return NULL;
     size_t bytes;
     if (ckd_mul(&bytes, n, size))
         return NULL;

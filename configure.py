@@ -1565,7 +1565,7 @@ def _run():
         "--debug-opts",
         nargs="+",
         default=[],
-        choices=("gl", "vk", "mem", "gpu_capture"),
+        choices=("gl", "vk", "gpu_capture"),
         help="Debug options",
     )
     parser.add_argument("--build-backend", choices=("ninja", "vs"), default="ninja", help="Build backend to use")
