@@ -1229,7 +1229,7 @@ def _clean_py(cfg):
 
 @_block("clean", [_clean_py])
 def _clean(cfg):
-    deps = ["doc", "libnopemedia", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
+    deps = ["doc", "libngpu", "libnopemedia", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
     return [_rd(_get_builddir(cfg, dep)) for dep in deps]
 
 
