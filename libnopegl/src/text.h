@@ -23,8 +23,9 @@
 #ifndef TEXT_H
 #define TEXT_H
 
-#include "box.h"
 #include <nopegpu/nopegpu.h>
+
+#include "box.h"
 #include "nopegl/nopegl.h"
 #include "resource.h"
 #include "slug.h"

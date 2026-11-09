@@ -38,12 +38,13 @@
 struct nmd_frame;
 #endif
 
+#include <nopegpu/nopegpu.h>
+
 #include "aabb.h"
 #include "hud.h"
 #include "math_utils.h"
 #include "node2d.h"
 #include "node_graph.h"
-#include <nopegpu/nopegpu.h>
 #include "slug.h"
 #include "nopegl/nopegl.h"
 #include "params.h"

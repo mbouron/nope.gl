@@ -21,12 +21,13 @@
 
 #include <stddef.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "internal.h"
 #include "node_io.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "precision.h"
-#include <nopegpu/nopegpu.h>
 #include "utils/string.h"
 
 #define OFFSET(x) offsetof(struct io_opts, x)

@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include <nopegpu/nopegpu.h>
+
 #include "resource.h"
 
 struct ngl_node;

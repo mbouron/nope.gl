@@ -25,9 +25,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "image.h"
 #include "resource.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "params.h"
 

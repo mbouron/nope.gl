@@ -25,12 +25,13 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "filterschain.h"
 #include "geometry.h"
 #include "graphics_state.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_block.h"
 #include "node_texture.h"
 #include "pipeline.h"

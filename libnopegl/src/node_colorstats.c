@@ -21,9 +21,10 @@
  * under the License.
  */
 
+#include <nopegpu/nopegpu.h>
+
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_block.h"
 #include "node_texture.h"
 #include "nopegl/nopegl.h"

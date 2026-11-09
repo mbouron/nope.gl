@@ -23,10 +23,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "geometry.h"
 #include "internal.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "utils/utils.h"
 

@@ -22,8 +22,9 @@
 #include <math.h>
 #include <stddef.h>
 
-#include "internal.h"
 #include <nopegpu/nopegpu.h>
+
+#include "internal.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "utils/utils.h"

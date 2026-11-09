@@ -24,9 +24,10 @@
 
 #include <stdint.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "buffer_layout.h"
 #include "resource.h"
-#include <nopegpu/nopegpu.h>
 
 struct ngpu_ctx;
 

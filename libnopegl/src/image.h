@@ -27,6 +27,7 @@
 #include <nopemedia/nopemedia.h>
 
 #include <nopegpu/nopegpu.h>
+
 #include "utils/utils.h"
 
 #define NGLI_COLOR_INFO_DEFAULTS {             \

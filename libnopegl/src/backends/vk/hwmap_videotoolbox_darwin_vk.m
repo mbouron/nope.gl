@@ -33,14 +33,15 @@
 #endif
 #include <Metal/Metal.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "hwmap.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
-#include "nopegpu/nopegpu_vulkan.h"
 #include "nopegl/nopegl.h"
+#include "nopegpu/nopegpu_vulkan.h"
 
 struct format_desc {
     enum ngli_image_layout layout;

@@ -27,6 +27,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "config.h"
 #include "ngl_config.h"
 #include "utils/error.h"
@@ -37,7 +39,6 @@
 #include "node2d.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "nopegl/nopegl_opengl.h"
 #include "utils/darray.h"

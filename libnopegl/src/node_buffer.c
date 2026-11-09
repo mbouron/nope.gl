@@ -29,9 +29,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_block.h"
 #include "node_buffer.h"
 #include "nopegl/nopegl.h"

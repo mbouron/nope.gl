@@ -23,6 +23,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "aabb.h"
 #include "blend_mode.h"
 #include "image.h"
@@ -30,7 +32,6 @@
 #include "log.h"
 #include "node2d.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "node_effect2d_shader.h"
 #include "shader2d.h"
 #include "node_uniform.h"

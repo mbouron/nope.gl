@@ -25,10 +25,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <nopegpu/nopegpu.h> // for NGPU_ID_LEN
+
 #include "eval.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h> // for NGPU_ID_LEN
 #include "nopegl/nopegl.h"
 #include "utils/darray.h"
 #include "utils/memory.h"

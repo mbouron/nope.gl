@@ -25,10 +25,11 @@
 #include <string.h>
 #include <stdint.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "geometry.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_buffer.h"
 #include "nopegl/nopegl.h"
 

@@ -24,16 +24,16 @@
 #include <string.h>
 #include <math.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "blend_mode.h"
 #include "box.h"
 #include "distmap.h"
 #include "internal.h"
-#include <nopegpu/nopegpu.h>
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline.h"
-#include <nopegpu/nopegpu.h>
 #include "utils/utils.h"
 
 /* GLSL fragments as string */

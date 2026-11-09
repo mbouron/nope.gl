@@ -23,14 +23,14 @@
 
 #include <stddef.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "filterschain.h"
 #include "internal.h"
 #include "log.h"
-#include <nopegpu/nopegpu.h>
 #include "node_colorkey.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include <nopegpu/nopegpu.h>
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/memory.h"

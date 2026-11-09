@@ -31,12 +31,13 @@
 
 #include <string.h>
 
+#include <nopegpu/nopegpu.h>
+
 #include "hwmap.h"
 #include "image.h"
 #include "internal.h"
 #include "log.h"
 #include "math_utils.h"
-#include <nopegpu/nopegpu.h>
 #include "nopegl/nopegl.h"
 #include "utils/utils.h"
 #include "vaapi_ctx.h"
