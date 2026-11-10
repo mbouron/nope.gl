@@ -329,7 +329,9 @@ reader with RF64 support.
 
 Effect implementations live in `src/effect/`. Each supplies a
 `struct nau_effect_class` and is registered in `effect.c`. The shared code
-handles parameter targets, ramps and configuration snapshots.
+handles parameter targets, ramps and configuration snapshots. The tests check
+every effect type: its description, and that its output depends neither on
+how the renders are split nor on where its track is.
 
 The private exporter in `src/export/export.h` accepts arbitrary chunks of
 interleaved stereo float, converts them to the encoder's sample format and
@@ -337,3 +339,27 @@ buffers complete encoder frames. Input and output share the sample rate.
 `nau_player_export()` configures it for WAV with PCM encoding and automatic
 RF64 support. Closing the exporter drains the encoder, finalizes the file
 and frees its resources, including after a failed open.
+
+### Running tests
+
+From the `libnopeaudio` directory, run `meson test -C builddir -v`. From the
+repository root, `make nopeaudio-tests` builds and runs them in the configured
+environment. The test programs are in the build directory.
+
+### Validation
+
+The tests cover the graph, the ramps, every effect type, the effect chains,
+the block boundaries, seeks, short loops, late clock queries, concurrent
+edits, decoding, the queue between threads, the error paths, the export and
+the null device. ASan/UBSan and TSan use separate Meson builds.
+
+On Linux, the player tests also check the voluntary context switches of the
+render thread. This measures neither the callback deadlines nor the latency of
+the hardware.
+
+The Oboe tests exercise its failures on desktops, against a mock of its API.
+The SDL tests use its dummy driver.
+
+The WAV tests cover PCM samples and file lifecycle; the generic exporter
+tests also exercise FLAC in FLAC/Matroska and AAC in MP4 when supported by
+the FFmpeg build.

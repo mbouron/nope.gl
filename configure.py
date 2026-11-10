@@ -1314,6 +1314,11 @@ def _nopegl_tests(cfg):
     return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "libnopegl"))]
 
 
+@_block("nopeaudio-tests", [_nopeaudio_install])
+def _nopeaudio_tests(cfg):
+    return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "libnopeaudio"))]
+
+
 def _rm(f):
     return f"(if exist {f} del /q {f})" if _SYSTEM == "Windows" else f"$(RM) {f}"
 
@@ -1362,7 +1367,7 @@ def _coverage_xml(cfg):
     return _coverage(cfg, "xml")
 
 
-@_block("tests", [_nopemedia_tests, _nopegl_tests, _tests_setup])
+@_block("tests", [_nopemedia_tests, _nopegl_tests, _nopeaudio_tests, _tests_setup])
 def _tests(cfg):
     return ["$(MESON) " + _cmd_join("test", "-C", _get_builddir(cfg, "tests"))]
 

@@ -142,7 +142,8 @@ void nau_sink_null_freep(struct nau_sink_null **sp)
     nau_freep(sp);
 }
 
-#if NAU_DEFAULT_SINK_NULL
+/* Backend tests can build the null thread alongside their own device backend. */
+#if NAU_DEFAULT_SINK_NULL && !defined(NAU_SINK_NULL_THREAD_ONLY)
 
 /* The default backend in builds without SDL3 or Oboe uses the same null device. */
 struct nau_sink_device {
