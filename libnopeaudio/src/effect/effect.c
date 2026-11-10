@@ -49,6 +49,7 @@
 
 static const struct nau_effect_class *const classes[] = {
     [NAU_EFFECT_PASSTHROUGH] = &nau_effect_passthrough,
+    [NAU_EFFECT_LOWPASS] = &nau_effect_lowpass,
 };
 
 static const struct nau_effect_class *get_class(enum nau_effect_type type)

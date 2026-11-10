@@ -21,6 +21,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,13 +34,16 @@ struct numbers {
     int again;      /* reads left answering AGAIN */
     int not_ready;  /* readiness checks left answering not ready */
     float value;    /* nonzero: a constant rather than the frame numbers */
+    int period;     /* nonzero: the constant changes sign every half period, in frames */
 };
 
 static int numbers_read(void *user, int64_t frame, uint32_t frames, float *out)
 {
     struct numbers *n = user;
-    for (uint32_t i = 0; i < frames; i++)
-        out[i] = n->value != 0.f ? n->value : (float)(frame + i);
+    for (uint32_t i = 0; i < frames; i++) {
+        const bool negative = n->period && (frame + i) % n->period >= n->period / 2;
+        out[i] = n->value != 0.f ? (negative ? -n->value : n->value) : (float)(frame + i);
+    }
     if (n->again > 0) {
         n->again--;
         return NAU_AGAIN;
@@ -652,6 +656,49 @@ static void test_gain_while_silent(void)
     teardown(&s);
 }
 
+static float peak_of(const float *out, int frames)
+{
+    float peak = 0.f;
+    for (int i = 0; i < frames; i++)
+        peak = fmaxf(peak, fabsf(out[i]));
+    return peak;
+}
+
+/* The values set of an effect, ramped over a long time while it is heard,
+ * apply at once as well */
+static void test_lowpass_while_silent(void)
+{
+    /* A 6 kHz square under a filter closed at 100 Hz */
+    struct numbers n = {.value = 1, .period = 8};
+    struct setup s = setup(&n, 0, 100000, 4, 100);
+    struct nau_node *lowpass = NULL;
+    lowpass = nau_node_create();
+    assert(lowpass);
+    assert(nau_effect_init(lowpass, s.engine, NAU_EFFECT_LOWPASS, 4800) == NAU_OK);
+    const struct nau_ramp closed = {.value = 100.f};
+    assert(nau_effect_set_automation(lowpass, NAU_LOWPASS_CUTOFF, &closed, 1) == NAU_OK);
+    append(&s, lowpass);
+    static float out[480];
+    nau_transport_play(s.transport);
+    assert(nau_transport_render(s.transport, 0, 480, out) == NAU_OK);
+    assert(peak_of(out + 240, 240) < 0.05f);
+    /* Opened while playing: still closing in a tenth of its ramp later */
+    assert(nau_effect_set_param(lowpass, NAU_LOWPASS_AMOUNT, 0.f) == NAU_OK);
+    assert(nau_transport_render(s.transport, 0, 480, out) == NAU_OK);
+    assert(peak_of(out, 480) < 0.5f);
+    assert(nau_effect_set_param(lowpass, NAU_LOWPASS_AMOUNT, 1.f) == NAU_OK);
+    assert(nau_transport_render(s.transport, 0, 480, out) == NAU_OK);
+    /* Opened while paused: open from the first frames */
+    nau_transport_pause(s.transport);
+    assert(nau_transport_render(s.transport, 0, 480, out) == NAU_OK);
+    assert(nau_effect_set_param(lowpass, NAU_LOWPASS_AMOUNT, 0.f) == NAU_OK);
+    nau_transport_play(s.transport);
+    assert(nau_transport_render(s.transport, 0, 48, out) == NAU_OK);
+    assert(peak_of(out + 8, 40) > 0.8f);
+    nau_node_unrefp(&lowpass);
+    teardown(&s);
+}
+
 int main(void)
 {
     test_play_to_end();
@@ -666,5 +713,6 @@ int main(void)
     test_clock_history();
     test_commit_while_silent();
     test_gain_while_silent();
+    test_lowpass_while_silent();
     return 0;
 }

@@ -491,6 +491,7 @@ NAU_API int nau_fader_set_ramps(struct nau_node *node, const struct nau_ramp *ra
  */
 enum nau_effect_type {
     NAU_EFFECT_PASSTHROUGH, /* passes its input through unchanged; no parameters */
+    NAU_EFFECT_LOWPASS,     /* resonant low-pass filter, see enum nau_lowpass_param */
     NAU_EFFECT_TYPE_MAX_ENUM = 0x7FFFFFFF
 };
 
@@ -603,6 +604,45 @@ NAU_API int nau_effect_set_param(struct nau_node *node, uint32_t param, float va
  */
 NAU_API int nau_effect_set_automation(struct nau_node *node, uint32_t param, const struct nau_ramp *ramps,
                                       uint32_t ramp_count);
+
+/**
+ * Slope of a low-pass filter
+ */
+enum nau_lowpass_slope {
+    NAU_LOWPASS_12DB,   /* 2 poles, 12 dB per octave */
+    NAU_LOWPASS_24DB,   /* 4 poles, 24 dB per octave */
+    NAU_LOWPASS_SLOPE_MAX_ENUM = 0x7FFFFFFF
+};
+
+/* Cutoff frequency leaving the filter open: any cutoff from 0.49 x the sample rate does */
+#define NAU_LOWPASS_OPEN 1000000.f
+
+/* Resonance of a flat (Butterworth) response: no peak, -3 dB at the cutoff */
+#define NAU_LOWPASS_FLAT 0.70710678f
+
+/**
+ * Parameters of a resonant low-pass filter (NAU_EFFECT_LOWPASS).
+ *
+ * The cutoff and the resonance shape the filter; the amount and the resonance
+ * scale apply on top of them, so that a value set can drive the depth of an
+ * automated filter.
+ */
+enum nau_lowpass_param {
+    NAU_LOWPASS_CUTOFF,          /* cutoff frequency in Hz, within [10, NAU_LOWPASS_OPEN], rendered
+                                    up to 0.49 x the sample rate; moves by octaves;
+                                    NAU_LOWPASS_OPEN by default */
+    NAU_LOWPASS_RESONANCE,       /* gain at the cutoff frequency (Q), within [0.1, 40];
+                                    NAU_LOWPASS_FLAT by default */
+    NAU_LOWPASS_SLOPE,           /* enum nau_lowpass_slope, NAU_LOWPASS_24DB by default; changing it
+                                    while playing may click */
+    NAU_LOWPASS_AMOUNT,          /* how much of the filtering is applied, within [0, 4]: it scales
+                                    the distance, in octaves, between the cutoff and the open
+                                    filter, so 0 opens the filter, 1 (the default) leaves the cutoff
+                                    as is, and more closes it further */
+    NAU_LOWPASS_RESONANCE_SCALE, /* factor applied to the resonance, within [0, 100], the result
+                                    clamped to [0.1, 40]; 1 by default */
+    NAU_LOWPASS_PARAM_MAX_ENUM = 0x7FFFFFFF
+};
 
 /* Input of a route left unconnected (silence) */
 #define NAU_INPUT_NONE UINT32_MAX

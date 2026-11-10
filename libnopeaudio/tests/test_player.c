@@ -118,6 +118,14 @@ static struct nau_player *offline_player(int64_t duration)
     return p;
 }
 
+/* Automate a parameter of an effect */
+static int automate(struct nau_player *p, struct nau_track_effect *effect, uint32_t param,
+                    const struct nau_ramp *ramps, uint32_t count)
+{
+    const struct nau_lane lane = {param, ramps, count};
+    return nau_player_set_track_effect_automation(p, effect, &lane, 1);
+}
+
 static void test_export(void)
 {
     char path[4096];
@@ -378,20 +386,31 @@ static void test_never_waits(void)
         } else if (what == 4) {
             const struct nau_ramp ramps[] = {{0, 0, 0.5f, NAU_RAMP_LINEAR, 0}, {(int64_t)(seed % 20000), 4800, 0.1f, NAU_RAMP_LINEAR, 0}};
             CHECK_EDIT(nau_player_set_track_fader(p, tracks[seed % 4], ramps, 2));
-            /* Effects added, moved and removed: one on each track */
+            /* Effects added, edited in place, moved and removed: a filter on
+             * each track */
             const uint32_t slot = seed % 4;
             const enum nau_track_effect_placement placement =
                 (seed >> 9) % 2 ? NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER : NAU_TRACK_EFFECT_PLACEMENT_POST_FADER;
-            if (!effects[slot])
-                CHECK_EDIT(nau_player_add_track_effect(p, tracks[slot], NAU_EFFECT_PASSTHROUGH, placement, &effects[slot]));
-            else if ((seed >> 10) % 4 == 0)
+            if (!effects[slot]) {
+                CHECK_EDIT(nau_player_add_track_effect(p, tracks[slot], NAU_EFFECT_LOWPASS, placement, &effects[slot]));
+            } else if ((seed >> 10) % 4 == 0) {
                 CHECK_EDIT(nau_player_remove_track_effect(p, &effects[slot]));
-            else
+            } else {
+                const struct nau_ramp automation[] = {
+                    {.value = 2000.f},
+                    {.frame = seed % 20000, .length = 4800, .value = (float)(300 + seed % 1000)},
+                };
+                CHECK_EDIT(automate(p, effects[slot], NAU_LOWPASS_CUTOFF, automation, 2));
                 CHECK_EDIT(nau_player_move_track_effect(p, effects[slot], placement, 0));
+            }
         } else if (what == 5) {
             CHECK_EDIT(nau_player_set_track_timings(p, tracks[seed % 4], frame, (seed >> 3) % 20000, 20000));
         } else if (what == 6) {
             assert(nau_player_set_track_volume(p, tracks[seed % 4], (float)(seed % 100) / 100) == NAU_OK);
+            if (effects[0])
+                assert(nau_player_set_track_effect_param(p, effects[0], NAU_LOWPASS_AMOUNT, (float)(seed % 150) / 100) == NAU_OK);
+            if (effects[2])
+                assert(nau_player_set_track_effect_param(p, effects[2], NAU_LOWPASS_RESONANCE_SCALE, (float)(seed % 300) / 100) == NAU_OK);
             assert(nau_player_set_volume(p, 0.5f + (float)(seed % 50) / 100) == NAU_OK);
         } else {
             assert(nau_player_pause(p) == NAU_OK);
@@ -698,8 +717,10 @@ static void test_time_limits(void)
     const struct nau_ramp volume_ramp = {.frame = INT64_MAX, .value = 1};
     assert(nau_player_set_track_fader(p, t, &volume_ramp, 1) == NAU_OK);
     assert(nau_player_set_track_fader(p, t, &volume_ramp, UINT32_MAX) == NAU_ERROR_INVALID);
-    struct nau_track_effect *effect = NULL;
-    assert(nau_player_add_track_effect(p, t, NAU_EFFECT_PASSTHROUGH, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &effect) == NAU_OK);
+    struct nau_track_effect *lowpass = NULL;
+    assert(nau_player_add_track_effect(p, t, NAU_EFFECT_LOWPASS, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &lowpass) == NAU_OK);
+    const struct nau_ramp cutoff = {.frame = INT64_MAX, .value = 1000};
+    assert(automate(p, lowpass, NAU_LOWPASS_CUTOFF, &cutoff, 1) == NAU_OK);
     assert(nau_player_set_track_timings(p, t, INT64_MAX - 100, 100, 100) == NAU_OK);
     assert(nau_player_play(p) == NAU_OK);
     float output[2 * 256];
@@ -771,6 +792,24 @@ static void test_pending_edits(void)
     nau_player_freep(&p);
 }
 
+/* The delay of the 24 dB filter at low frequencies, in frames: half the sum
+ * of 1 / (Q g) over its stages */
+static double lowpass_delay(double cutoff, double resonance)
+{
+    const double g = tan(3.14159265358979323846 * cutoff / 48000);
+    return (1 / 0.54119610 + 1 / (1.84775907 * resonance)) / (2 * g);
+}
+
+/* The fixture's left sample, delayed: its slope passing a low-pass filter */
+static void lagged(float sample, int64_t frame, double delay)
+{
+    const double expected = (1000. + (double)frame - delay) / 32768.;
+    if (fabs(sample - expected) > 5e-5) {
+        fprintf(stderr, "frame %" PRId64 ": %f != %f\n", frame, sample, expected);
+        assert(0);
+    }
+}
+
 /* The frames of the project exported to a file of the output directory */
 static float *export_frames(struct nau_player *p, const char *name, int64_t frame_count)
 {
@@ -781,6 +820,238 @@ static float *export_frames(struct nau_player *p, const char *name, int64_t fram
     float *frames = read_wav(path, &n);
     assert(n == frame_count);
     return frames;
+}
+
+/* A ramp of the cutoff and of the resonance of a low-pass filter */
+struct filter_ramp {
+    int64_t frame, length;
+    float cutoff, resonance;
+};
+
+/* Automate the cutoff and the resonance of a low-pass filter with the same ramps */
+static int set_filter(struct nau_player *p, struct nau_track_effect *lowpass, const struct filter_ramp *ramps,
+                      uint32_t count)
+{
+    struct nau_ramp cutoffs[4], resonances[4];
+    assert(count <= 4);
+    for (uint32_t i = 0; i < count; i++) {
+        cutoffs[i] = (struct nau_ramp){.frame = ramps[i].frame, .length = ramps[i].length, .value = ramps[i].cutoff};
+        resonances[i] = (struct nau_ramp){.frame = ramps[i].frame, .length = ramps[i].length, .value = ramps[i].resonance};
+    }
+    const struct nau_lane lanes[] = {
+        {NAU_LOWPASS_CUTOFF, cutoffs, count},
+        {NAU_LOWPASS_RESONANCE, resonances, count},
+    };
+    return nau_player_set_track_effect_automation(p, lowpass, lanes, 2);
+}
+
+/*
+ * Under water from frame 1000 of the track to frame 2000: the filter closes
+ * to 400 Hz over 200 frames, and opens again over 1000 frames. The fixture,
+ * a slow ramp, comes out of it delayed.
+ */
+static void test_lowpass(void)
+{
+    struct nau_player *p = offline_player(6000);
+    struct nau_track *t = NULL;
+    const struct nau_track_params params = {.filename = fixture, .duration = -1, .volume = 1};
+    assert(nau_player_add_track(p, &params, &t) == NAU_OK);
+    float *dry = export_frames(p, "lowpass.wav", 6000);
+
+    struct nau_track_effect *lowpass = NULL;
+    assert(nau_player_add_track_effect(p, t, NAU_EFFECT_LOWPASS, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &lowpass) == NAU_OK);
+    const struct filter_ramp underwater[] = {
+        {1000, 200, 400, 1.2f},
+        {2000, 1000, NAU_LOWPASS_OPEN, NAU_LOWPASS_FLAT},
+    };
+    assert(set_filter(p, lowpass, underwater, 2) == NAU_OK);
+    /* Failed edits leave the filter as it was */
+    const struct nau_ramp invalid = {.value = NAN}, cutoff = {.value = 1000};
+    assert(automate(p, lowpass, NAU_LOWPASS_CUTOFF, &invalid, 1) == NAU_ERROR_INVALID);
+    assert(automate(p, lowpass, NAU_LOWPASS_CUTOFF, NULL, 2) == NAU_ERROR_INVALID);
+    assert(automate(p, lowpass, NAU_LOWPASS_CUTOFF, &cutoff, 65537) == NAU_ERROR_INVALID);
+    assert(automate(p, lowpass, 99, &cutoff, 1) == NAU_ERROR_INVALID);
+    assert(automate(NULL, lowpass, NAU_LOWPASS_CUTOFF, &cutoff, 1) == NAU_ERROR_INVALID);
+    assert(automate(p, NULL, NAU_LOWPASS_CUTOFF, &cutoff, 1) == NAU_ERROR_INVALID);
+    /* Lanes are set together or not at all, each one once */
+    const struct nau_lane valid_first[] = {{NAU_LOWPASS_CUTOFF, &cutoff, 1}, {NAU_LOWPASS_RESONANCE, &invalid, 1}};
+    assert(nau_player_set_track_effect_automation(p, lowpass, valid_first, 2) == NAU_ERROR_INVALID);
+    const struct nau_lane twice[] = {{NAU_LOWPASS_CUTOFF, &cutoff, 1}, {NAU_LOWPASS_CUTOFF, &cutoff, 1}};
+    assert(nau_player_set_track_effect_automation(p, lowpass, twice, 2) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_automation(p, lowpass, twice, 0) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_automation(p, lowpass, NULL, 1) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_SLOPE, 2) == NAU_ERROR_INVALID);
+    float *wet = export_frames(p, "lowpass.wav", 6000);
+    const double delay = lowpass_delay(400, 1.2);
+    for (int64_t i = 0; i < 6000; i++) {
+        close_to(wet[2 * i + 1], -wet[2 * i]);
+        assert(fabsf(wet[2 * i]) < 0.2f);
+        /* Open, once its start settled, and once opened again */
+        if ((i >= 500 && i < 1000) || (i >= 3500 && i < 4000))
+            close_to(wet[2 * i], dry[2 * i]);
+        /* Under water, once the dive settled */
+        if (i >= 1700 && i < 2000)
+            lagged(wet[2 * i], i, delay);
+    }
+
+    /* Moved with its track, by any number of frames: the same */
+    assert(nau_player_set_track_timings(p, t, 100, 0, -1) == NAU_OK);
+    float *moved = export_frames(p, "lowpass.wav", 6000);
+    for (int64_t i = 0; i < 100; i++)
+        assert(moved[2 * i] == 0.f);
+    for (int64_t i = 0; i + 100 < 6000; i++)
+        assert(moved[2 * (i + 100)] == wet[2 * i] && moved[2 * (i + 100) + 1] == wet[2 * i + 1]);
+
+    /* Removed */
+    assert(nau_player_set_track_timings(p, t, 0, 0, -1) == NAU_OK);
+    struct nau_track_effect *removed = lowpass;
+    assert(nau_player_remove_track_effect(p, &lowpass) == NAU_OK && !lowpass);
+    assert(nau_player_remove_track_effect(p, &removed) == NAU_ERROR_INVALID);
+    assert(automate(p, removed, NAU_LOWPASS_CUTOFF, &cutoff, 1) == NAU_ERROR_INVALID);
+    float *frames = export_frames(p, "lowpass.wav", 6000);
+    assert(!memcmp(frames, dry, 6000 * 2 * sizeof(*dry)));
+    free(dry);
+    free(wet);
+    free(moved);
+    free(frames);
+    nau_player_freep(&p);
+}
+
+/* The values set of a filter drive it on top of its automation */
+static void test_lowpass_live(void)
+{
+    struct nau_player *p = offline_player(6000);
+    struct nau_track *t = NULL;
+    const struct nau_track_params params = {.filename = fixture, .duration = -1, .volume = 1};
+    assert(nau_player_add_track(p, &params, &t) == NAU_OK);
+    float *dry = export_frames(p, "lowpass_live.wav", 6000);
+
+    /* Set before the automation, for it */
+    struct nau_track_effect *lowpass = NULL;
+    assert(nau_player_add_track_effect(p, t, NAU_EFFECT_LOWPASS, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &lowpass) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_AMOUNT, 0) == NAU_OK);
+    const struct filter_ramp muffled = {.cutoff = 400, .resonance = 1};
+    assert(set_filter(p, lowpass, &muffled, 1) == NAU_OK);
+    float *frames = export_frames(p, "lowpass_live.wav", 6000);
+    for (int64_t i = 500; i < 4000; i++)
+        close_to(frames[2 * i], dry[2 * i]);
+    free(frames);
+
+    /* Half the octaves below open */
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_AMOUNT, 0.5f) == NAU_OK);
+    float *half = export_frames(p, "lowpass_live.wav", 6000);
+    const double delay = lowpass_delay(sqrt(0.49 * 48000 * 400), 1);
+    for (int64_t i = 1000; i < 4000; i++)
+        lagged(half[2 * i], i, delay);
+    /* Kept through a change of slope and edits of the automation */
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_SLOPE, NAU_LOWPASS_12DB) == NAU_OK);
+    assert(set_filter(p, lowpass, NULL, 0) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_SLOPE, NAU_LOWPASS_24DB) == NAU_OK);
+    assert(set_filter(p, lowpass, &muffled, 1) == NAU_OK);
+    frames = export_frames(p, "lowpass_live.wav", 6000);
+    assert(!memcmp(frames, half, 6000 * 2 * sizeof(*frames)));
+    free(frames);
+
+    /* The resonance at its highest, ringing when the media ends */
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_RESONANCE_SCALE, 100) == NAU_OK);
+    frames = export_frames(p, "lowpass_live.wav", 6000);
+    float ringing = 0;
+    for (int64_t i = 4096; i < 4600; i++)
+        ringing = fmaxf(ringing, fabsf(frames[2 * i] - half[2 * i]));
+    assert(ringing > 0.05f);
+    free(frames);
+
+    /* The automation as it is */
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_AMOUNT, 1) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_RESONANCE_SCALE, 1) == NAU_OK);
+    frames = export_frames(p, "lowpass_live.wav", 6000);
+    for (int64_t i = 1000; i < 4000; i++)
+        lagged(frames[2 * i], i, lowpass_delay(400, 1));
+    free(frames);
+
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_AMOUNT, -1) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_AMOUNT, NAN) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_RESONANCE_SCALE, INFINITY) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_param(p, lowpass, 99, 1) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_param(NULL, lowpass, NAU_LOWPASS_AMOUNT, 1) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_param(p, NULL, NAU_LOWPASS_AMOUNT, 1) == NAU_ERROR_INVALID);
+    /* Gone with its track */
+    assert(nau_player_remove_track(p, &t) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_AMOUNT, 1) == NAU_ERROR_INVALID);
+    assert(nau_player_remove_track_effect(p, &lowpass) == NAU_ERROR_INVALID);
+    free(dry);
+    free(half);
+    nau_player_freep(&p);
+}
+
+/*
+ * Edited while playing, the filter keeps its memory: no jump is heard, its
+ * delay changing. Edits failing while another is pending leave it as it was.
+ */
+static void test_lowpass_edits(void)
+{
+    struct nau_player *p = NULL;
+    const struct nau_player_config config = {.mode = NAU_PLAYER_HOST};
+    p = nau_player_create();
+    assert(p);
+    assert(nau_player_init(p, &config) == NAU_OK);
+    assert(nau_player_set_duration(p, 9600) == NAU_OK);
+    struct nau_track *t = NULL;
+    const struct nau_track_params params = {.filename = fixture, .duration = -1, .volume = 1};
+    assert(nau_player_add_track(p, &params, &t) == NAU_OK);
+    struct nau_track_effect *lowpass = NULL;
+    assert(nau_player_add_track_effect(p, t, NAU_EFFECT_LOWPASS, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &lowpass) == NAU_OK);
+    const struct filter_ramp muffled = {.cutoff = 400, .resonance = 1};
+    const struct nau_ramp opener = {.value = 500}, open = {.value = NAU_LOWPASS_OPEN};
+    assert(set_filter(p, lowpass, &muffled, 1) == NAU_OK);
+
+    assert(nau_player_start_rendering(p) == NAU_OK);
+    const struct nau_ramp unity = {.value = 1};
+    assert(nau_player_set_track_fader(p, t, &unity, 1) == NAU_OK);
+    assert(automate(p, lowpass, NAU_LOWPASS_CUTOFF, &open, 1) == NAU_AGAIN);
+    assert(automate(p, lowpass, NAU_LOWPASS_CUTOFF, NULL, 0) == NAU_AGAIN);
+    assert(nau_player_move_track_effect(p, lowpass, NAU_TRACK_EFFECT_PLACEMENT_POST_FADER, 0) == NAU_AGAIN);
+    struct nau_track_effect *saved = lowpass, *other = NULL;
+    assert(nau_player_remove_track_effect(p, &lowpass) == NAU_AGAIN && lowpass == saved);
+    assert(nau_player_add_track_effect(p, t, NAU_EFFECT_LOWPASS, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &other) == NAU_AGAIN && !other);
+    assert(nau_player_set_track_timings(p, t, 4800, 0, -1) == NAU_AGAIN);
+    /* The values set are never pending */
+    assert(nau_player_set_track_effect_param(p, lowpass, NAU_LOWPASS_AMOUNT, 1) == NAU_OK);
+
+    /* About in real time, for the track to have its data once ready */
+    assert(nau_player_play(p) == NAU_OK);
+    static float output[2 * 9600];
+    int64_t played = -1, edited = -1;
+    while (nau_player_get_position(p) < 4600) {
+        float block[2 * 256];
+        const int64_t from = nau_player_get_position(p);
+        const int ret = nau_player_render(p, 0, 256, block);
+        const int64_t to = nau_player_get_position(p);
+        assert(ret == NAU_OK || (ret == NAU_AGAIN && played < 0));
+        /* Held while waiting for the track, then playing on */
+        if (to > from) {
+            memcpy(output + 2 * from, block + 2 * (256 - (to - from)), (size_t)(to - from) * 2 * sizeof(*block));
+            if (played < 0)
+                played = from;
+        }
+        if (to >= 2048 && edited < 0) {
+            assert(automate(p, lowpass, NAU_LOWPASS_CUTOFF, &opener, 1) == NAU_OK);
+            edited = to;
+        }
+        assert(played >= 0 || from == 0);
+        nau_sleep_ms(5);
+    }
+    assert(played == 0 && edited >= 2048 && edited < 2500);
+    for (int64_t i = 1; i < 4090; i++)
+        assert(fabsf(output[2 * i] - output[2 * (i - 1)]) < 1e-3f);
+    for (int64_t i = 1000; i < 2000; i++)
+        lagged(output[2 * i], i, lowpass_delay(400, 1));
+    for (int64_t i = edited + 500; i < 4000; i++)
+        lagged(output[2 * i], i, lowpass_delay(500, 1));
+    /* The media ended at 4096, the filter still sounding */
+    assert(output[2 * 4100] > 0.1f);
+    assert(nau_player_stop_rendering(p) == NAU_OK);
+    nau_player_freep(&p);
 }
 
 /*
@@ -854,6 +1125,39 @@ static void test_effect_chain(void)
     nau_player_freep(&p);
 }
 
+/*
+ * A filter before a fader cutting the track is cut with it; after the volume,
+ * it rings on.
+ */
+static void test_lowpass_placement(void)
+{
+    struct nau_player *p = offline_player(6000);
+    struct nau_track *t = NULL;
+    const struct nau_track_params params = {.filename = fixture, .duration = -1, .volume = 1};
+    assert(nau_player_add_track(p, &params, &t) == NAU_OK);
+    const struct nau_ramp cut = {.frame = 2000, .value = 0};
+    assert(nau_player_set_track_fader(p, t, &cut, 1) == NAU_OK);
+
+    struct nau_track_effect *lowpass = NULL;
+    assert(nau_player_add_track_effect(p, t, NAU_EFFECT_LOWPASS, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &lowpass) == NAU_OK);
+    const struct nau_ramp muffled = {.value = 400};
+    assert(automate(p, lowpass, NAU_LOWPASS_CUTOFF, &muffled, 1) == NAU_OK);
+    float *pre = export_frames(p, "placement.wav", 6000);
+    for (int64_t i = 1000; i < 2000; i++)
+        lagged(pre[2 * i], i, lowpass_delay(400, NAU_LOWPASS_FLAT));
+    for (int64_t i = 2000; i < 6000; i++)
+        assert(pre[2 * i] == 0.f);
+
+    /* After the volume: the same until the cut, then ringing */
+    assert(nau_player_move_track_effect(p, lowpass, NAU_TRACK_EFFECT_PLACEMENT_POST_FADER, 0) == NAU_OK);
+    float *post = export_frames(p, "placement.wav", 6000);
+    assert(!memcmp(post, pre, 2000 * 2 * sizeof(*post)));
+    assert(fabsf(post[2 * 2010]) > 0.01f);
+    free(pre);
+    free(post);
+    nau_player_freep(&p);
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 5);
@@ -866,6 +1170,10 @@ int main(int argc, char **argv)
     test_export();
     test_export_gap();
     test_mix();
+    test_lowpass();
+    test_lowpass_live();
+    test_lowpass_edits();
+    test_lowpass_placement();
     test_effect_chain();
     test_never_waits();
     test_position_while_rendering();

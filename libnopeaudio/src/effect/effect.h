@@ -62,6 +62,7 @@ struct nau_effect_class {
     void (*render)(void *state, const float *params, const struct nau_block *chunk);
 };
 
+extern const struct nau_effect_class nau_effect_lowpass;
 extern const struct nau_effect_class nau_effect_passthrough;
 
 #endif

@@ -350,6 +350,9 @@ class AudioPlayerTest {
         assertTrue(passthrough.params.isEmpty())
         assertThrows(IllegalArgumentException::class.java) { AudioPlayer.effectType("unknown") }
         assertThrows(IllegalArgumentException::class.java) { passthrough.param("unknown") }
+        val lowpass = AudioPlayer.effectType("lowpass")
+        assertEquals(AudioPlayer.ParamScale.Log, lowpass.param("cutoff").scale)
+        assertEquals(AudioPlayer.ParamScale.Stepped, lowpass.param("slope").scale)
     }
 
     /** Under water from 0.2 s to 0.6 s: the filter closes on a 4 kHz tone, then opens again */
@@ -381,6 +384,88 @@ class AudioPlayerTest {
                 assertThrows(IllegalStateException::class.java) { player.moveEffect(pre, AudioPlayer.Placement.PreFader, 0) }
                 assertEquals(AudioPlayer.OK, player.removeTrack(track))
                 assertThrows(IllegalStateException::class.java) { player.removeEffect(post) }
+            }
+        } finally {
+            output.delete()
+        }
+    }
+
+    @Test
+    fun lowpassMufflesTheTrack() = withAudio(
+        frames = 48000,
+        sample = { (16384 * sin(2 * PI * 4000 * it / 48000)).toInt().toShort() },
+    ) { file ->
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val output = File.createTempFile("nau-lowpass", ".wav", context.cacheDir)
+        try {
+            AudioPlayer(AudioPlayer.Mode.Offline).use { player ->
+                player.duration = 1.seconds
+                val track = addTrack(player, file)
+                assertEquals(AudioPlayer.OK, player.export(output, AudioPlayer.ExportFormat.F32))
+                val dry = readWav(output)
+
+                val lowpass = AudioPlayer.effectType("lowpass")
+                val cutoff = lowpass.param("cutoff")
+                val resonance = lowpass.param("resonance")
+                val amount = lowpass.param("amount")
+                val resonanceScale = lowpass.param("resonance_scale")
+                val effect = checkNotNull(player.addEffect(track, lowpass).effect)
+                val dive = listOf(
+                    AudioPlayer.Ramp(200.milliseconds, 400f, 50.milliseconds),
+                    AudioPlayer.Ramp(600.milliseconds, cutoff.max, 200.milliseconds),
+                )
+                val peak = listOf(
+                    AudioPlayer.Ramp(200.milliseconds, 1.2f, 50.milliseconds),
+                    AudioPlayer.Ramp(600.milliseconds, resonance.defaultValue, 200.milliseconds),
+                )
+                assertEquals(AudioPlayer.OK, player.setEffectAutomation(effect, mapOf(cutoff to dive, resonance to peak)))
+                for (invalid in listOf(Float.NaN, 0f, cutoff.max * 2))
+                    assertEquals(
+                        AudioPlayer.ERROR_INVALID,
+                        player.setEffectAutomation(effect, cutoff, listOf(AudioPlayer.Ramp(Duration.ZERO, invalid))),
+                    )
+                for (invalid in listOf(0f, 41f))
+                    assertEquals(AudioPlayer.ERROR_INVALID, player.setEffectParam(effect, resonance, invalid))
+                // The lanes change together: none does with an invalid one
+                val invalidPeak = listOf(AudioPlayer.Ramp(Duration.ZERO, 0f))
+                assertEquals(
+                    AudioPlayer.ERROR_INVALID,
+                    player.setEffectAutomation(effect, mapOf(cutoff to emptyList(), resonance to invalidPeak)),
+                )
+                assertEquals(AudioPlayer.OK, player.export(output, AudioPlayer.ExportFormat.F32))
+                val wet = readWav(output)
+                val level = rms(dry, 100.milliseconds, 200.milliseconds)
+                assertTrue("$level", level > 0.3)
+                assertEquals(level, rms(wet, 100.milliseconds, 200.milliseconds), 0.01 * level)
+                assertTrue(rms(wet, 300.milliseconds, 600.milliseconds) < level / 100)
+                assertEquals(level, rms(wet, 850.milliseconds, 1000.milliseconds), 0.01 * level)
+
+                // Live: no depth, the tone heard under water as it is
+                assertEquals(AudioPlayer.OK, player.setEffectParam(effect, amount, 0f))
+                assertEquals(AudioPlayer.OK, player.export(output, AudioPlayer.ExportFormat.F32))
+                assertEquals(level, rms(readWav(output), 300.milliseconds, 600.milliseconds), 0.01 * level)
+                assertEquals(AudioPlayer.ERROR_INVALID, player.setEffectParam(effect, amount, Float.NaN))
+                assertEquals(AudioPlayer.ERROR_INVALID, player.setEffectParam(effect, resonanceScale, -1f))
+                assertEquals(AudioPlayer.OK, player.setEffectParam(effect, resonanceScale, 2f))
+                assertEquals(AudioPlayer.OK, player.setEffectParam(effect, resonanceScale, 1f))
+                assertEquals(AudioPlayer.OK, player.setEffectParam(effect, amount, 1f))
+
+                // A 12 dB filter, then none
+                assertEquals(AudioPlayer.ERROR_INVALID, player.setEffectParam(effect, lowpass.param("slope"), 0.5f))
+                assertEquals(AudioPlayer.OK, player.setEffectParam(effect, lowpass.param("slope"), 0f))
+                assertEquals(AudioPlayer.OK, player.export(output, AudioPlayer.ExportFormat.F32))
+                val gentle = rms(readWav(output), 300.milliseconds, 600.milliseconds)
+                assertTrue("$gentle", gentle > rms(wet, 300.milliseconds, 600.milliseconds) && gentle < level / 10)
+                assertEquals(AudioPlayer.OK, player.removeEffect(effect))
+                assertEquals(AudioPlayer.OK, player.export(output, AudioPlayer.ExportFormat.F32))
+                assertTrue(dry.contentEquals(readWav(output)))
+                assertThrows(IllegalStateException::class.java) { player.setEffectParam(effect, amount, 0f) }
+
+                // The effects of a removed track are rejected
+                val other = checkNotNull(player.addEffect(track, lowpass).effect)
+                assertEquals(AudioPlayer.OK, player.removeTrack(track))
+                assertThrows(IllegalStateException::class.java) { player.setEffectAutomation(other, cutoff, dive) }
+                assertThrows(IllegalStateException::class.java) { player.removeEffect(other) }
             }
         } finally {
             output.delete()

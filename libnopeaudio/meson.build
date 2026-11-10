@@ -155,6 +155,7 @@ conf_data.set10('have_nopemedia', nmd_dep.found())
 core_src = files(
   'src/engine.c',
   'src/effect/effect.c',
+  'src/effect/effect_lowpass.c',
   'src/effect/effect_passthrough.c',
   'src/node/node_fader.c',
   'src/node/node_gain.c',

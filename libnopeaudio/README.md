@@ -120,8 +120,9 @@ every 16 frames relative to this origin. Splitting render calls does not
 shift the automation.
 
 Sources play at normal speed; time stretching, effect latency compensation
-and tail handling are not implemented. Routing changes can cause an audible
-discontinuity; the host is responsible for fading around them.
+and tail handling are not implemented. A low-pass filter keeps ringing after
+the end of its input. Routing changes can cause an audible discontinuity; the
+host is responsible for fading around them.
 
 ### Effects
 
@@ -314,6 +315,28 @@ Effect targets change without a graph commit. All lanes passed to
 state survives automation edits and moves; changing effect order or ramp
 values can still cause an audible discontinuity.
 
+A track heard under water, then back at the surface:
+
+```c
+const int64_t rate = nau_player_get_sample_rate(player);
+struct nau_track_effect *lowpass = NULL;
+nau_player_add_track_effect(player, track, NAU_EFFECT_LOWPASS,
+                            NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &lowpass);
+const struct nau_ramp cutoff[] = {
+    /* At 2 s: down to 500 Hz in 0.3 s */
+    {.frame = 2 * rate, .length = rate * 3 / 10, .value = 500.f},
+    /* At 6 s: open again in 1.5 s */
+    {.frame = 6 * rate, .length = rate * 3 / 2, .value = NAU_LOWPASS_OPEN},
+};
+const struct nau_lane lane = {NAU_LOWPASS_CUTOFF, cutoff, 2};
+nau_player_set_track_effect_automation(player, lowpass, &lane, 1);
+nau_player_set_track_effect_param(player, lowpass, NAU_LOWPASS_RESONANCE, 1.4f);
+```
+
+Automating the resonance with the cutoff takes a lane for each, in one call.
+A slider can drive the depth of the filter (`NAU_LOWPASS_AMOUNT`) on top of
+its automation.
+
 With `NAU_PLAYER_HOST`, bracket rendering with
 `nau_player_start_rendering()` and `nau_player_stop_rendering()`. The host
 owns the rendering thread: `nau_player_stop()` pauses and seeks to the start
@@ -348,10 +371,11 @@ environment. The test programs are in the build directory.
 
 ### Validation
 
-The tests cover the graph, the ramps, every effect type, the effect chains,
-the block boundaries, seeks, short loops, late clock queries, concurrent
-edits, decoding, the queue between threads, the error paths, the export and
-the null device. ASan/UBSan and TSan use separate Meson builds.
+The tests cover the graph, the ramps, every effect type, the filter
+responses, the effect chains, the block boundaries, seeks, short loops, late
+clock queries, concurrent edits, decoding, the queue between threads, the
+error paths, the export and the null device. ASan/UBSan and TSan use separate
+Meson builds.
 
 On Linux, the player tests also check the voluntary context switches of the
 render thread. This measures neither the callback deadlines nor the latency of
