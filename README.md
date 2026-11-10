@@ -8,6 +8,7 @@ It is composed of the following libraries:
 
 - `libnopegpu`: a GPU abstraction layer (OpenGL, OpenGL ES, Vulkan)
 - `libnopemedia`: a media playback library (based on FFmpeg)
+- `libnopeaudio`: an audio engine for real-time playback and offline export
 - `libnopegl`: a scene graph engine that uses both `libnopegpu` and
   `libnopemedia`
 

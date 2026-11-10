@@ -6,6 +6,7 @@ The `nope.gl` project is split in several parts:
 - `libnopegpu`: the GPU abstraction layer (OpenGL, OpenGL ES and Vulkan).
 - `libnopemedia`: the media playback library licensed under the LGPL 2.1 or
   later (formerly the `nope.media` project).
+- `libnopeaudio`: the audio engine for real-time playback and offline export.
 - `ngl-tools`: a set of various program tools using `libnopegl`, including a
   viewer (`ngl-viewer`) to display and export scenes.
 - `pynopegl`: a Python binding for `libnopegl` (with the help of `Cython`) to
@@ -21,6 +22,9 @@ The `nope.gl` project is split in several parts:
   obtained from the API.
 - `libnopemedia` requires a standard C toolchain, [meson build system][meson] and
   [FFmpeg][ffmpeg].
+- `libnopeaudio` requires a standard C toolchain and [meson build system][meson].
+  It uses `libnopemedia` for media playback, [FFmpeg][ffmpeg] for export,
+  [SDL3][sdl3] for device output on desktop, and [Oboe][oboe] on Android.
 - `ngl-tools` needs [SDL3][sdl3] and `libnopegl` installed.
 - `pynopegl` needs [Python][python] and [Cython][cython], and `libnopegl`
   installed.
@@ -32,6 +36,7 @@ graph
     libnopegl(libnopegl)
     libnopegpu(libnopegpu)
     libnopemedia(libnopemedia)
+    libnopeaudio(libnopeaudio)
     ngl_tools(ngl-tools)
     pynopegl(pynopegl)
     pynopegl_utils(pynopegl-utils)
@@ -40,12 +45,17 @@ graph
     ffmpeg[FFmpeg]
     python[Python]
     sdl3[SDL3]
+    oboe[Oboe]
     numpy[NumPy]
     jinja[Jinja]
 
     libnopemedia --> ffmpeg
     libnopegl --> libnopegpu
     libnopegl --> libnopemedia
+    libnopeaudio -. media sources and player .-> libnopemedia
+    libnopeaudio -. export .-> ffmpeg
+    libnopeaudio -. device output .-> sdl3
+    libnopeaudio -. Android output .-> oboe
     ngl_tools --> sdl3
     ngl_tools --> libnopegl
     ngl_tools -. ngl-python .-> python
@@ -60,8 +70,8 @@ graph
 
     classDef ngldep fill:#add8e6,color:#222
     classDef extdep fill:#c0c0c0,color:#222
-    class libnopegl,libnopegpu,libnopemedia,ngl_tools,pynopegl,pynopegl_utils ngldep
-    class ffmpeg,sdl3,python,cython,graphviz,numpy,jinja extdep
+    class libnopegl,libnopegpu,libnopemedia,libnopeaudio,ngl_tools,pynopegl,pynopegl_utils ngldep
+    class ffmpeg,sdl3,oboe,python,cython,graphviz,numpy,jinja extdep
 ```
 
 [meson]: https://mesonbuild.com/
@@ -70,3 +80,4 @@ graph
 [python]: https://www.python.org/
 [cython]: http://cython.org/
 [sdl3]: https://www.libsdl.org/
+[oboe]: https://github.com/google/oboe
