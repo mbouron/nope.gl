@@ -184,6 +184,13 @@ _ROOTDIR = op.abspath(op.dirname(__file__))
 _SYSTEM = "MinGW" if sysconfig.get_platform().startswith("mingw") else platform.system()
 _RENDERDOC_ID = f"renderdoc_{_SYSTEM}"
 _EXTERNAL_DEPS = dict(
+    oboe=dict(
+        version="1.11.0",
+        url="https://codeload.github.com/google/oboe/tar.gz/refs/tags/@VERSION@",
+        dst_file="oboe-@VERSION@.tar.gz",
+        sha256="0ccf2110640a2b4489f1c93a404f2978656b434d8c5dc9cb6258f9cc95c79b15",
+        patches=["0001-install-a-pkg-config-file.patch"],
+    ),
     boringssl=dict(
         version="059585c",
         url="https://codeload.github.com/google/boringssl/zip/@VERSION@",
@@ -211,11 +218,17 @@ _EXTERNAL_DEPS = dict(
         dst_file="ffmpeg-@VERSION@.zip",
         sha256="7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646",
     ),
+    sdl3=dict(
+        version="3.4.20",
+        url="https://github.com/libsdl-org/SDL/archive/refs/tags/release-@VERSION@.tar.gz",
+        dst_file="SDL3-@VERSION@.tar.gz",
+        sha256="5cb56d4223a41283f3c2baf6f1263fba171692409ae405a50417a7c8e7e28deb",
+    ),
     sdl3_Windows=dict(
-        version="3.4.8",
+        version="3.4.20",
         url="https://github.com/libsdl-org/SDL/releases/download/release-@VERSION@/SDL3-devel-@VERSION@-VC.zip",
         dst_file="SDL3-@VERSION@.zip",
-        sha256="a91a4f7b64ce29f1c6a4bd5ea648b18380810f7c4ac8a332fc86bd9d3ad17131",
+        sha256="1ec3009655ee37b1f73e52b3b120acc5afd8abaf9532f3303b1bf1dfe91b5969",
     ),
     xxhash=dict(
         version="0.8.3",
@@ -284,6 +297,7 @@ def _get_external_deps(args):
         deps.append("ffmpeg")
         deps.append("harfbuzz")
         deps.append("fribidi")
+        deps.append("oboe")
     elif host == "Darwin":
         deps.append("moltenvk_Darwin")
     elif host == "iOS":
@@ -293,6 +307,7 @@ def _get_external_deps(args):
         deps.append("moltenvk_iOS")
         deps.append("harfbuzz")
         deps.append("fribidi")
+        deps.append("sdl3")
     elif host == "Windows":
         deps.append("pkgconf")
         deps.append("ffmpeg_Windows")
@@ -565,6 +580,7 @@ def _ffmpeg_setup(cfg):
         "ipod",
         "mov",
         "mp4",
+        "wav",
     ]
     parsers = [
         "aac",
@@ -638,6 +654,7 @@ def _ffmpeg_setup(cfg):
         "mjpeg",
         "mp3",
         "opus",
+        "pcm_f32le",
         "pcm_s16be",
         "pcm_s16le",
         "pcm_s24be",
@@ -649,7 +666,7 @@ def _ffmpeg_setup(cfg):
         "vp9",
         "webp",
     ]
-    encoders = ["mjpeg", "png"]
+    encoders = ["mjpeg", "pcm_f32le", "pcm_s16le", "png"]
     builddir = _get_builddir(cfg, "ffmpeg")
     os.makedirs(builddir, exist_ok=True)
     extra_include_dir = op.join(cfg.prefix, "include")
@@ -742,25 +759,66 @@ def _ffmpeg_install(cfg):
         return cmds
 
 
-@_block("sdl3-install", [])
+@_block("sdl3-setup")
+def _sdl3_setup(cfg):
+    build_type = "Debug" if cfg.args.buildtype == "debug" else "Release"
+    return [
+        _cmd_join(
+            "cmake",
+            "-GNinja",
+            f"-DCMAKE_BUILD_TYPE={build_type}",
+            f"-DCMAKE_INSTALL_PREFIX={cfg.prefix}",
+            "-DCMAKE_INSTALL_LIBDIR=lib",
+            "-DCMAKE_SYSTEM_NAME=iOS",
+            "-DCMAKE_OSX_SYSROOT=iphoneos",
+            f"-DCMAKE_OSX_ARCHITECTURES={cfg.ios_abi}",
+            "-DSDL_SHARED=ON",
+            "-DSDL_STATIC=OFF",
+            "-DSDL_TEST_LIBRARY=OFF",
+            "-DSDL_TESTS=OFF",
+            "-DSDL_EXAMPLES=OFF",
+            "-DSDL_GPU=OFF",
+            "-DSDL_RENDER=OFF",
+            "-DSDL_CAMERA=OFF",
+            "-DSDL_VULKAN=OFF",
+            "-DSDL_JOYSTICK=OFF",
+            "-DSDL_HAPTIC=OFF",
+            "-DSDL_HIDAPI=OFF",
+            "-DSDL_POWER=OFF",
+            "-DSDL_SENSOR=OFF",
+            "-DSDL_DIALOG=OFF",
+            "-DSDL_TRAY=OFF",
+            "-S",
+            cfg.externals["sdl3"],
+            "-B",
+            _get_builddir(cfg, "sdl3"),
+        )
+    ]
+
+
+@_block("sdl3-install", {"iOS": [_sdl3_setup]})
 def _sdl3_install(cfg):
-    dirs = (
-        "lib",
-        "include",
-        "cmake",
-    )
-    cmds = []
-    for d in dirs:
-        src = op.join(cfg.externals["sdl3_Windows"], d, "*")
-        dst = op.join(cfg.prefix, d)
-        os.makedirs(dst, exist_ok=True)
-        cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
+    if cfg.host == "Windows":
+        dirs = (
+            "lib",
+            "include",
+            "cmake",
+        )
+        cmds = []
+        for d in dirs:
+            src = op.join(cfg.externals["sdl3_Windows"], d, "*")
+            dst = op.join(cfg.prefix, d)
+            os.makedirs(dst, exist_ok=True)
+            cmds.append(_cmd_join("xcopy", src, dst, "/s", "/y"))
 
-    src = op.join(cfg.externals["sdl3_Windows"], "lib", "x64", "SDL3.dll")
-    dst = op.join(cfg.prefix, "Scripts")
-    cmds.append(_cmd_join("xcopy", src, dst, "/y"))
+        src = op.join(cfg.externals["sdl3_Windows"], "lib", "x64", "SDL3.dll")
+        dst = op.join(cfg.prefix, "Scripts")
+        cmds.append(_cmd_join("xcopy", src, dst, "/y"))
 
-    return cmds
+        return cmds
+    elif cfg.host == "iOS":
+        builddir = _get_builddir(cfg, "sdl3")
+        return [_cmd_join("cmake", "--build", builddir), _cmd_join("cmake", "--install", builddir)]
 
 
 @_block("moltenvk-install", [])
@@ -890,6 +948,59 @@ def _nopemedia_setup(cfg):
 @_block("nopemedia-install", [_nopemedia_setup])
 def _nopemedia_install(cfg):
     return _meson_compile_install_cmd(cfg, "libnopemedia")
+
+
+@_block("oboe-setup")
+def _oboe_setup(cfg):
+    build_type = "Debug" if cfg.args.buildtype == "debug" else "Release"
+    return [
+        _cmd_join(
+            "cmake",
+            "-GNinja",
+            f"-DCMAKE_BUILD_TYPE={build_type}",
+            f"-DCMAKE_INSTALL_PREFIX={cfg.prefix}",
+            "-DBUILD_SHARED_LIBS=OFF",
+            "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+            "-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
+            f"-DCMAKE_TOOLCHAIN_FILE={cfg.android_cmake_toolchain}",
+            "-DANDROID_STL=c++_shared",
+            f"-DANDROID_PLATFORM=android-{_ANDROID_VERSION}",
+            f"-DANDROID_ABI={cfg.android_abi}",
+            "-S",
+            cfg.externals["oboe"],
+            "-B",
+            _get_builddir(cfg, "oboe"),
+        )
+    ]
+
+
+@_block("oboe-install", [_oboe_setup])
+def _oboe_install(cfg):
+    builddir = _get_builddir(cfg, "oboe")
+    return [_cmd_join("cmake", "--build", builddir), _cmd_join("cmake", "--install", builddir)]
+
+
+@_block(
+    "nopeaudio-setup",
+    {
+        "Local": [_nopemedia_install],
+        "Android": [_nopemedia_install, _oboe_install],
+        "iOS": [_nopemedia_install, _sdl3_install],
+    },
+)
+def _nopeaudio_setup(cfg):
+    sink = "oboe" if cfg.host == "Android" else "sdl3"
+    opts = ["-Drpath=true", "-Dnopemedia=enabled", f"-Dsink={sink}"]
+    if cfg.args.sanitize:
+        opts += [f"-Db_sanitize={cfg.args.sanitize}"]
+    if cfg.host == "Windows":
+        opts += _get_clang_cl_meson_opts(cfg)
+    return ["$(MESON_SETUP) " + _cmd_join(*opts, "libnopeaudio", _get_builddir(cfg, "libnopeaudio"))]
+
+
+@_block("nopeaudio-install", [_nopeaudio_setup])
+def _nopeaudio_install(cfg):
+    return _meson_compile_install_cmd(cfg, "libnopeaudio")
 
 
 @_block("renderdoc-install")
@@ -1173,9 +1284,9 @@ def _nopegl_updateglsllexer(cfg):
 @_block(
     "all",
     {
-        "Local": [_ngl_tools_install, _pynopegl_utils_install],
-        "Android": [_nopegl_install],
-        "iOS": [_nopegl_install],
+        "Local": [_ngl_tools_install, _pynopegl_utils_install, _nopeaudio_install],
+        "Android": [_nopegl_install, _nopeaudio_install],
+        "iOS": [_nopegl_install, _nopeaudio_install],
     },
 )
 def _all(cfg):
@@ -1229,7 +1340,9 @@ def _clean_py(cfg):
 
 @_block("clean", [_clean_py])
 def _clean(cfg):
-    deps = ["doc", "libnopegpu", "libnopemedia", "libnopegl", "ngl-tools", "tests"] + list(cfg.externals.keys())
+    deps = ["doc", "libnopegpu", "libnopemedia", "libnopegl", "libnopeaudio", "ngl-tools", "tests"] + list(
+        cfg.externals.keys()
+    )
     return [_rd(_get_builddir(cfg, dep)) for dep in deps]
 
 

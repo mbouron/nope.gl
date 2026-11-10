@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to a flavor of [Calendar Versioning](https://calver.org/)
 for the global releases (`YYYY.MINOR`), and to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
-`libnopemedia` and `libnopegpu`.
+`libnopemedia`, `libnopegpu` and `libnopeaudio`.
 
 ## [Unreleased]
 
@@ -14,6 +14,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 - `NGLContext.version`, `versionMajor`, `versionMinor` and `versionMicro` to
   get the `libnopegl` version from the Android bindings
 - `libnopemedia` support for Android assets (`file:///android_asset/<path>`)
+- `libnopeaudio`, an audio engine for real-time playback and offline export
 
 ### Changed
 - `libnopemd` headers are now located in the nopemd sub directory. Users

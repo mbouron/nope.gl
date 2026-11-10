@@ -52,3 +52,7 @@
 -keepclassmembers class org.nopeforge.nopemedia.Player { *; }
 -keep class org.nopeforge.nopemedia.Player$Companion { *; }
 -keepclassmembers class org.nopeforge.nopemedia.Player$Companion { *; }
+-keep class org.nopeforge.nopeaudio.AudioPlayer { *; }
+-keepclassmembers class org.nopeforge.nopeaudio.AudioPlayer { *; }
+-keep class org.nopeforge.nopeaudio.AudioPlayer$Companion { *; }
+-keepclassmembers class org.nopeforge.nopeaudio.AudioPlayer$Companion { *; }

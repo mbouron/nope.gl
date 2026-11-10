@@ -43,6 +43,7 @@ get_lib_version() {
 new_nopegl_ver=$(get_lib_version libnopegl)
 new_nopemedia_ver=$(get_lib_version libnopemedia)
 new_nopegpu_ver=$(get_lib_version libnopegpu)
+new_nopeaudio_ver=$(get_lib_version libnopeaudio)
 
 # Execute the version bump: we are verbose with set -x to be transparent about
 # the actions that matters
@@ -51,8 +52,9 @@ echo "$new_prj_ver" > VERSION
 echo "$new_nopegl_ver" > libnopegl/VERSION
 echo "$new_nopemedia_ver" > libnopemedia/VERSION
 echo "$new_nopegpu_ver" > libnopegpu/VERSION
-sed "/^## \[Unreleased\]/a \\\n## [$new_prj_ver / libnopegl $new_nopegl_ver / libnopemedia $new_nopemedia_ver / libnopegpu $new_nopegpu_ver][$new_prj_ver] - $today" -i CHANGELOG.md
+echo "$new_nopeaudio_ver" > libnopeaudio/VERSION
+sed "/^## \[Unreleased\]/a \\\n## [$new_prj_ver / libnopegl $new_nopegl_ver / libnopemedia $new_nopemedia_ver / libnopegpu $new_nopegpu_ver / libnopeaudio $new_nopeaudio_ver][$new_prj_ver] - $today" -i CHANGELOG.md
 echo "[$new_prj_ver]: https://github.com/NopeForge/nope.gl/releases/tag/v$new_prj_ver" >> CHANGELOG.md
-git add CHANGELOG.md VERSION libnopegl/VERSION libnopemedia/VERSION libnopegpu/VERSION
+git add CHANGELOG.md VERSION libnopegl/VERSION libnopemedia/VERSION libnopegpu/VERSION libnopeaudio/VERSION
 git commit -m "Release $new_prj_ver"
 git tag "v${new_prj_ver}"
