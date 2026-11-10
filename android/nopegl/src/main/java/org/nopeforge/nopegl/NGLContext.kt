@@ -23,6 +23,7 @@ package org.nopeforge.nopegl
 
 import android.content.Context
 import android.view.Surface
+import org.nopeforge.Nope
 import java.nio.ByteBuffer
 
 class NGLContext {
@@ -103,20 +104,7 @@ class NGLContext {
         private var logger: NGLLogger? = null
 
         init {
-            System.loadLibrary("lcms2")
-            System.loadLibrary("avutil")
-            System.loadLibrary("avcodec")
-            System.loadLibrary("avformat")
-            System.loadLibrary("avdevice")
-            System.loadLibrary("swresample")
-            System.loadLibrary("swscale")
-            System.loadLibrary("avfilter")
-            System.loadLibrary("fribidi")
-            System.loadLibrary("harfbuzz")
-            System.loadLibrary("nopemedia")
-            System.loadLibrary("nopegpu")
-            System.loadLibrary("nopegl")
-            System.loadLibrary("nopegl_native")
+            Nope.load()
         }
 
         @JvmStatic
@@ -128,7 +116,8 @@ class NGLContext {
             context: Context?,
             logLevel: String = "info"
         ) {
-            nativeInit(context, logLevel)
+            nativeSetLogLevel(logLevel)
+            context?.let { Nope.init(it) }
         }
 
         @JvmStatic
@@ -137,7 +126,7 @@ class NGLContext {
             level: LogLevel,
             onLog: (level: LogLevel, tag: String, message: String) -> Unit,
         ) {
-            nativeInit(context, null)
+            context?.let { Nope.init(it) }
             logger?.release()
             logger = NGLLogger(level, onLog)
         }
@@ -158,7 +147,7 @@ class NGLContext {
         }
 
         @JvmStatic
-        private external fun nativeInit(context: Context?, logLevel: String?)
+        private external fun nativeSetLogLevel(logLevel: String)
 
         @JvmStatic
         private external fun nativeCreateNativeWindow(surface: Any?): Long

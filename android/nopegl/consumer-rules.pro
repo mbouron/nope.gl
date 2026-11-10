@@ -20,6 +20,7 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
+-keep class org.nopeforge.Nope { *; }
 -keep class org.nopeforge.nopegl.NGLContext { *; }
 -keepclassmembers class org.nopeforge.nopegl.NGLContext { *; }
 -keep class org.nopeforge.nopegl.NGLContext$Companion { *; }

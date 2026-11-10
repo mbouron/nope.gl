@@ -39,7 +39,6 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
-#include <libavcodec/jni.h>
 #include <libavutil/log.h>
 
 #include <android/hardware_buffer_jni.h>
@@ -57,14 +56,6 @@
             abort();                                                           \
         }                                                                      \
     } while (0)
-
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
-{
-    av_jni_set_java_vm(vm, NULL);
-    ngl_jni_set_java_vm(vm);
-
-    return JNI_VERSION_1_6;
-}
 
 __attribute__((__format__(__printf__, 3, 0))) static void
 av_android_log(void *arg, int level, const char *fmt, va_list vl)
@@ -135,22 +126,16 @@ static void set_log_levels(const char *log_level)
     ngl_log_set_callback(NULL, ngl_android_log);
 }
 
-JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeInit(
-    JNIEnv *env, jclass type, jobject context, jstring log_level)
+JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeSetLogLevel(
+    JNIEnv *env, jclass type, jstring log_level)
 {
-    if (log_level) {
-        const char *log_level_str =
-            (*env)->GetStringUTFChars(env, log_level, 0);
-        if ((*env)->ExceptionCheck(env)) {
-            (*env)->ExceptionClear(env);
-            return;
-        }
-        set_log_levels(log_level_str);
-        (*env)->ReleaseStringUTFChars(env, log_level, log_level_str);
+    const char *log_level_str = (*env)->GetStringUTFChars(env, log_level, 0);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return;
     }
-
-    ngl_android_set_application_context(context);
-    av_jni_set_android_app_ctx((*env)->NewGlobalRef(env, context), NULL);
+    set_log_levels(log_level_str);
+    (*env)->ReleaseStringUTFChars(env, log_level, log_level_str);
 }
 
 JNIEXPORT jlong JNICALL
