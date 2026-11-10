@@ -8,9 +8,10 @@ set(NGL_HEADER_PATH ${NGL_ANDROID_ENV}/include)
 
 cmake_minimum_required(VERSION 3.22.1)
 
-project("nopegl_native")
+project("nope_jni")
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
+        nope_jni.c
         nopegl.c
         nopemedia.c
 )

@@ -5,6 +5,10 @@
         <uses-library
             android:name="android.test.mock"
             android:required="false" />
+        <provider
+            android:name="org.nopeforge.nopegl.NGLContentProvider"
+            android:authorities="org.nopeforge.ngl.provider"
+            android:exported="false" />
     </application>
 
 </manifest>

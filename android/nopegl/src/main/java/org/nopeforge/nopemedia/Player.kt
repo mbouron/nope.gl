@@ -26,6 +26,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
+import org.nopeforge.Nope
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -149,6 +150,10 @@ class Player(
     private external fun nativeRelease(ptr: Long)
 
     companion object {
+        init {
+            Nope.load()
+        }
+
         private const val MSG_INIT = 0x01
         private const val MSG_START = 0x02
         private const val MSG_SEEK = 0x03

@@ -21,13 +21,9 @@
 
 package org.nopeforge.nopegl
 
-import android.content.ContentResolver
 import android.content.Context
-import android.content.ContextWrapper
-import android.content.pm.ProviderInfo
 import android.graphics.Canvas
 import android.graphics.Color
-import android.test.mock.MockContentResolver
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -42,13 +38,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 
-
-class MockContext(private val contentResolver: ContentResolver, base: Context?) :
-    ContextWrapper(base) {
-    override fun getContentResolver(): ContentResolver {
-        return contentResolver
-    }
-}
 
 @RunWith(AndroidJUnit4::class)
 class NopeGLTest {
@@ -125,18 +114,7 @@ class NopeGLTest {
     @Test
     fun loadMediaScene() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-
-        val providerInfo = ProviderInfo()
-        providerInfo.authority = NGLContentProvider.AUTHORITY
-
-        val contentProvider = NGLContentProvider()
-        contentProvider.attachInfo(appContext, providerInfo)
-
-        val contentResolver = MockContentResolver(appContext)
-        contentResolver.addProvider(NGLContentProvider.AUTHORITY, contentProvider)
-
-        val fakeCtx = MockContext(contentResolver, appContext)
-        NGLContext.init(fakeCtx)
+        NGLContext.init(appContext)
 
         val scene = NGLScene(
             """
@@ -168,18 +146,7 @@ class NopeGLTest {
     @Test
     fun craftMediaScene() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-
-        val providerInfo = ProviderInfo()
-        providerInfo.authority = NGLContentProvider.AUTHORITY
-
-        val contentProvider = NGLContentProvider()
-        contentProvider.attachInfo(appContext, providerInfo)
-
-        val contentResolver = MockContentResolver(appContext)
-        contentResolver.addProvider(NGLContentProvider.AUTHORITY, contentProvider)
-
-        val fakeCtx = MockContext(contentResolver, appContext)
-        NGLContext.init(fakeCtx)
+        NGLContext.init(appContext)
 
         val duration = 10.0
         val keyFrames = listOf(
@@ -712,18 +679,7 @@ class NopeGLTest {
     @Test
     fun mediaLiveChanges() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-
-        val providerInfo = ProviderInfo()
-        providerInfo.authority = NGLContentProvider.AUTHORITY
-
-        val contentProvider = NGLContentProvider()
-        contentProvider.attachInfo(appContext, providerInfo)
-
-        val contentResolver = MockContentResolver(appContext)
-        contentResolver.addProvider(NGLContentProvider.AUTHORITY, contentProvider)
-
-        val fakeCtx = MockContext(contentResolver, appContext)
-        NGLContext.init(fakeCtx)
+        NGLContext.init(appContext)
 
         val duration = 10.0
         val startKf = NGLAnimKeyFrameFloat(0.0, 0.0)
