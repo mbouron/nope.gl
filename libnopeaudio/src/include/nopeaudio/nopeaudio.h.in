@@ -1,0 +1,1731 @@
+/*
+ * Copyright 2026 Matthieu Bouron <matthieu.bouron@gmail.com>
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+#ifndef NOPE_AUDIO_H
+#define NOPE_AUDIO_H
+
+#include <stdint.h>
+
+#define NAU_VERSION_MAJOR @version_major@
+#define NAU_VERSION_MINOR @version_minor@
+#define NAU_VERSION_MICRO @version_micro@
+
+#define NAU_GET_VERSION(major, minor, micro) ((major)<<16 | (minor)<<8 | (micro))
+
+#define NAU_VERSION_INT NAU_GET_VERSION(NAU_VERSION_MAJOR, NAU_VERSION_MINOR, NAU_VERSION_MICRO)
+
+/* Set to 1 when media sources and the player are available, 0 otherwise. */
+#define NAU_HAVE_NOPEMEDIA @have_nopemedia@
+
+#if defined(_WIN32)
+#  if defined(BUILD_NOPE_AUDIO_SHARED_LIB) /* On Windows, we need to export the symbols while building */
+#    define NAU_API __declspec(dllexport)
+#  elif defined(USE_NOPE_AUDIO_STATIC_LIB) /* Static library users don't need anything special */
+#    define NAU_API
+#  else
+#    define NAU_API __declspec(dllimport)  /* Dynamic library users (default) need a DLL import spec */
+#  endif
+#elif defined(__GNUC__)
+#  define NAU_API __attribute__((visibility("default"))) /* Override the hidden symbol visibility */
+#else
+#  define NAU_API
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * The library is made of layers, each one pulling audio from the next:
+ *
+ *    +--------+       +-----------+       +--------+       +---------+
+ *    |  sink  | ----> | transport | ----> | engine | ----> | sources |
+ *    +--------+       +-----------+       +--------+       +---------+
+ *     device           play, pause,        graph of         media decoded
+ *     callback         seek, loop,         nodes            ahead, on their
+ *                      clock                                own threads
+ *
+ * The player (see nau_player_init()) assembles these layers into media tracks
+ * on a timeline. Each layer can also be used independently.
+ *
+ * Objects are allocated with create() and configured with init(). Initializers
+ * require an uninitialized object; after a failed initialization, the call can
+ * be retried. freep() and unrefp() accept uninitialized objects and clear the
+ * caller's pointer. Tracks and track effects belong to their player and use
+ * its add/remove functions.
+ *
+ * Two threads are involved, besides the decoding threads of the sources:
+ *
+ * - The control thread builds graphs and controls playback. Unless stated
+ *   otherwise, API calls must be serialized on this thread.
+ * - The render thread is the device callback or a thread provided by the host.
+ *   In real time, it must not block, allocate or free memory. Graph changes
+ *   are published atomically and adopted at a render block boundary.
+ *   Offline media reads can wait for decoding.
+ *
+ * Audio is interleaved 32-bit float, at the sample rate and channel count of
+ * the engine. Positions and durations are expressed in frames (one sample per
+ * channel) at that rate, times in nanoseconds. The parameters of the effects
+ * have their own units (Hz, seconds), independent of the rate.
+ */
+
+/**
+ * Return codes.
+ *
+ * All NAU_ERROR_* values are negative.
+ */
+enum {
+    NAU_OK                = 0,
+    NAU_AGAIN             = 1,  /* not available yet, retry later (data not decoded, edit pending, ...) */
+    NAU_EOF               = 2,  /* end of the source */
+    NAU_ERROR_INVALID     = -1, /* invalid argument or usage */
+    NAU_ERROR_MEMORY      = -2, /* memory allocation error */
+    NAU_ERROR_UNSUPPORTED = -3, /* unsupported operation, or player capacity reached */
+    NAU_ERROR_IO          = -4, /* input/output or device error */
+};
+
+/**
+ * Opaque structure identifying an engine
+ */
+struct nau_engine;
+
+/**
+ * Opaque structure identifying a node of the graph
+ */
+struct nau_node;
+
+struct nau_engine_config {
+    uint32_t sample_rate;   /* in Hz, up to 768000 */
+    uint32_t channels;      /* number of channels, from 1 to 8; their order is up to the host */
+    uint32_t block_frames;  /* largest number of frames processed at once by the nodes, up to 8192 */
+};
+
+/**
+ * Allocate an uninitialized engine.
+ *
+ * Initialize it with nau_engine_init() and destroy it with nau_engine_freep().
+ *
+ * @return the allocated engine, or NULL on allocation failure
+ */
+NAU_API struct nau_engine *nau_engine_create(void);
+
+/**
+ * Initialize an engine.
+ *
+ * @param engine    uninitialized engine allocated with nau_engine_create()
+ * @param config    configuration of the engine, copied
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_engine_init(struct nau_engine *engine, const struct nau_engine_config *config);
+
+/**
+ * Get the configuration of the engine.
+ *
+ * @return a pointer valid until the engine is destroyed, or NULL before
+ *         initialization
+ */
+NAU_API const struct nau_engine_config *nau_engine_get_config(const struct nau_engine *engine);
+
+/**
+ * Destroy an engine.
+ *
+ * Stop rendering and release the nodes with nau_node_unrefp() before
+ * destroying the engine.
+ *
+ * @param engine    pointer to the engine pointer, set to NULL
+ */
+NAU_API void nau_engine_freep(struct nau_engine **engine);
+
+/**
+ * Audio block passed to a processor callback.
+ *
+ * The output is cleared before the call. The inputs are only valid during the
+ * call.
+ */
+struct nau_block {
+    int64_t frame;                  /* project frame of the first frame of the block */
+    uint32_t frames;                /* number of frames, at most block_frames */
+    uint32_t channels;
+    uint32_t sample_rate;
+    uint32_t input_count;
+    const float *const *inputs;     /* one buffer per input */
+    float *output;
+    /*
+     * project frame the automation of the node is relative to,
+     * see nau_node_set_origin()
+     */
+    int64_t origin;
+};
+
+/**
+ * Custom processing node.
+ *
+ * The process and reset callbacks must not block, allocate or free memory
+ * during real-time rendering. A processor must not add latency.
+ */
+struct nau_processor {
+    uint32_t input_count;   /* number of inputs, up to 64 */
+    void *user;             /* opaque user argument forwarded to the callbacks */
+
+    /*
+     * Render a block. Return NAU_OK, NAU_AGAIN if part of the audio is
+     * missing, or a negative error code (the output is then discarded).
+     */
+    int (*process)(void *user, const struct nau_block *block);
+
+    /*
+     * Optional. Reset state (filter history, ramps, ...) before rendering
+     * from frame. Called before the first block, after a seek, and when the
+     * transport resumes rendering after a pause, wait or loop hold.
+     */
+    void (*reset)(void *user, int64_t frame);
+
+    /* Optional. Called on the control thread when the node is destroyed. */
+    void (*destroy)(void *user);
+};
+
+/**
+ * Allocate an uninitialized node with one reference.
+ *
+ * Initialize it with nau_node_init() or a built-in initializer (source, mix,
+ * gain, fader, effect). Must be released using nau_node_unrefp().
+ *
+ * @return the allocated node, or NULL on allocation failure
+ */
+NAU_API struct nau_node *nau_node_create(void);
+
+/**
+ * Initialize a node from a custom processor.
+ *
+ * The ownership of processor.user is transferred to the node on success only.
+ *
+ * @param node      uninitialized node allocated with nau_node_create()
+ * @param engine    engine the node belongs to
+ * @param processor processor description, copied
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_node_init(struct nau_node *node, struct nau_engine *engine,
+                          const struct nau_processor *processor);
+
+/**
+ * Release a reference to a node.
+ *
+ * Graphs keep their own references, so the node is destroyed only after the
+ * last graph using it is released. An initialized node must not outlive its
+ * engine.
+ *
+ * @param node  pointer to the node pointer, set to NULL
+ */
+NAU_API void nau_node_unrefp(struct nau_node **node);
+
+/**
+ * Set the project frame used as the origin of a node's automation.
+ *
+ * Ramp positions are relative to this origin, which defaults to 0. Moving a
+ * clip only requires moving the origin of its nodes; the ramps stay unchanged.
+ *
+ * The change takes effect with the next nau_engine_commit().
+ *
+ * @param node  node to change
+ * @param frame project frame, >= 0
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_node_set_origin(struct nau_node *node, int64_t frame);
+
+/**
+ * Source of audio: a range of an external stream placed on the project
+ * timeline.
+ *
+ *                  timeline_start       timeline_start + duration
+ *                         v                         v
+ *    project   -----------+#########################+-----------
+ *                         .                         .
+ *    source         +-----+#########################+------+
+ *                   ^     ^
+ *                   0     source_start
+ *
+ * The read, seek and ready callbacks must not block, allocate or free memory
+ * during real-time rendering. Offline reads can wait for data.
+ */
+struct nau_source {
+    void *user;             /* opaque user argument forwarded to the callbacks */
+
+    /*
+     * Read `frames` frames from the source frame `frame` into `output`, which
+     * is cleared before the call. Return NAU_OK, NAU_AGAIN if part of the data
+     * is not available yet (it is left silent), NAU_EOF past the end of the
+     * source, or a negative error code.
+     */
+    int (*read)(void *user, int64_t frame, uint32_t frames, float *output);
+
+    /*
+     * Optional. Prepare to read from source position frame. Called before the
+     * first read and after a jump. wrap is non-zero for a loop wrap, allowing
+     * a source that decoded the next pass ahead to use it without seeking.
+     */
+    void (*seek)(void *user, int64_t frame, int wrap);
+
+    /*
+     * Optional. Return non-zero if a read at source position frame would not
+     * return NAU_AGAIN. This includes blocking reads and the end of the
+     * source.
+     * When playback starts from silence (play, seek, loop wrap), the transport
+     * waits for active sources up to its ready timeout, preserving the first
+     * frames while decoding catches up.
+     * A source without this callback is considered ready.
+     */
+    int (*ready)(void *user, int64_t frame);
+
+    /* Optional. Called on the control thread when the node is destroyed. */
+    void (*destroy)(void *user);
+
+    int64_t timeline_start; /* project frame at which the source starts playing */
+    int64_t source_start;   /* source frame it starts playing from */
+    int64_t duration;       /* number of frames played */
+};
+
+/**
+ * Initialize a source node.
+ *
+ * The ownership of source.user is transferred to the node on success only.
+ *
+ * @param node      uninitialized node allocated with nau_node_create()
+ * @param engine    engine the node belongs to
+ * @param source    source description, copied
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_source_init(struct nau_node *node, struct nau_engine *engine,
+                            const struct nau_source *source);
+
+/**
+ * Change the range played by a source.
+ *
+ * The change takes effect with the next nau_engine_commit().
+ *
+ * @param node              source node
+ * @param timeline_start    project frame at which the source starts playing
+ * @param source_start      source frame it starts playing from
+ * @param duration          number of frames played
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_source_set_range(struct nau_node *node, int64_t timeline_start,
+                                 int64_t source_start, int64_t duration);
+
+/**
+ * Initialize a node summing its inputs.
+ *
+ * @param node         uninitialized node allocated with nau_node_create()
+ * @param engine       engine the node belongs to
+ * @param input_count  number of inputs, up to 64
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_mix_init(struct nau_node *node, struct nau_engine *engine, uint32_t input_count);
+
+/**
+ * Initialize a node that multiplies its input by an adjustable gain.
+ *
+ * @param node          uninitialized node allocated with nau_node_create()
+ * @param engine        engine the node belongs to
+ * @param gain          initial linear gain (1 is unity), finite and >= 0
+ * @param ramp_frames   number of frames over which a gain change is ramped to
+ *                      avoid clicks
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_gain_init(struct nau_node *node, struct nau_engine *engine, float gain, uint32_t ramp_frames);
+
+/**
+ * Set the gain of a gain node.
+ *
+ * Can be called from any thread. The node ramps to the new gain from its next
+ * block, independently of nau_engine_commit(). When the transport resumes
+ * rendering after a pause, wait or loop hold, the gain applies immediately
+ * because the output starts from silence.
+ *
+ * @param node  gain node
+ * @param gain  linear gain (1 is unity), finite and >= 0
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_gain_set(struct nau_node *node, float gain);
+
+/** Maximum number of ramps in a fader or parameter automation lane. */
+#define NAU_MAX_RAMPS 65536U
+
+/**
+ * Interpolation curve of a ramp
+ */
+enum nau_ramp_shape {
+    NAU_RAMP_LINEAR,      /* linear in amplitude for a volume, along the scale of a parameter */
+    /*
+     * linear in dB; wider spans and silence use a 60 dB curve with the
+     * same endpoints; NAU_RAMP_LINEAR for logarithmic parameters
+     */
+    NAU_RAMP_DB,
+    /*
+     * quarter of a sine: the crossfade of two uncorrelated signals
+     * keeps a constant power
+     */
+    NAU_RAMP_EQUAL_POWER,
+    NAU_RAMP_S_CURVE,     /* ease in and out (smoothstep) */
+    NAU_RAMP_SHAPE_MAX_ENUM = 0x7FFFFFFF
+};
+
+/**
+ * Automation ramp for a fader volume or an effect parameter.
+ *
+ * Starting at frame, interpolate from the previous ramp's target to value
+ * over length frames, then hold the value until the next ramp:
+ *
+ *    value
+ *      ^
+ *    1 +-------.
+ *      |        \            ramps[0]                 ramps[1]
+ *      |         \_______________________
+ *      |                                 \
+ *      |                                  \__________________
+ *      +-------+--+----------------------+--+----------------> frame
+ *              |  |                      |  |
+ *          frame  frame + length     frame  frame + length
+ *
+ * The first ramp starts from 1 for a fader, or from the current parameter
+ * value for an effect (see nau_effect_set_param()).
+ *
+ * A new ramp takes over as soon as it starts. Overlapping ramps can therefore
+ * introduce a discontinuity.
+ *
+ * A ramp with a length of 0 is a step.
+ */
+struct nau_ramp {
+    /*
+     * frame at which the ramp starts, from the origin of the node
+     * (see nau_node_set_origin()), >= 0
+     */
+    int64_t frame;
+    int64_t length;             /* duration of the ramp in frames, >= 0 */
+    float value;                /* value reached at the end of the ramp */
+    enum nau_ramp_shape shape;
+    /*
+     * within [-1, 1]: positive values approach the target earlier,
+     * negative values later; 0 leaves the shape unchanged
+     */
+    float curvature;
+};
+
+/**
+ * Evaluate a volume ramp, as a fader renders it.
+ *
+ * This is meant for hosts drawing the curve of a fader.
+ *
+ * @param shape     shape of the ramp
+ * @param curvature bend of the shape, within [-1, 1]
+ * @param from      linear gain at the start of the ramp
+ * @param to        linear gain at the end of the ramp
+ * @param progress  position within the ramp, clamped to [0, 1]
+ *
+ * @return the linear gain at this position
+ */
+NAU_API float nau_ramp_volume(enum nau_ramp_shape shape, float curvature, float from, float to, float progress);
+
+/**
+ * Initialize a fader node that applies volume automation to its input.
+ *
+ * Without ramps, the volume is 1.
+ *
+ * @param node      uninitialized node allocated with nau_node_create()
+ * @param engine    engine the node belongs to
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_fader_init(struct nau_node *node, struct nau_engine *engine);
+
+/**
+ * Set the volume ramps of a fader.
+ *
+ * The change takes effect with the next nau_engine_commit().
+ *
+ * @param node        fader node
+ * @param ramps       ramps sorted by frame, copied; their values are linear
+ *                    gains, finite and >= 0
+ * @param ramp_count  number of ramps, up to NAU_MAX_RAMPS; 0 removes them
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_fader_set_ramps(struct nau_node *node, const struct nau_ramp *ramps, uint32_t ramp_count);
+
+/**
+ * Effect types.
+ *
+ * Each effect exposes its parameters through nau_effect_get_info(). A parameter
+ * has a target, set from any thread, and optional automation. It ramps towards
+ * the target until the first automation ramp takes over.
+ *
+ * Automation is evaluated every 16 frames relative to the node's origin, so
+ * splitting render calls does not shift it. Effects keep their processing
+ * state across nau_engine_commit(); editing automation does not reset filter
+ * history.
+ */
+enum nau_effect_type {
+    NAU_EFFECT_PASSTHROUGH, /* passes its input through unchanged; no parameters */
+    NAU_EFFECT_TYPE_MAX_ENUM = 0x7FFFFFFF
+};
+
+/**
+ * Interpolation scale of an effect parameter
+ */
+enum nau_param_scale {
+    NAU_PARAM_LINEAR,       /* linearly */
+    NAU_PARAM_LOG,          /* by constant ratios, as a frequency by octaves */
+    /*
+     * integer values: automation rounds to the nearest step;
+     * explicit value changes apply without a ramp
+     */
+    NAU_PARAM_STEPPED,
+    NAU_PARAM_SCALE_MAX_ENUM = 0x7FFFFFFF
+};
+
+/**
+ * Description of a parameter of an effect.
+ */
+struct nau_param_info {
+    const char *name;           /* identifier, unique among the parameters of the effect */
+    float min, max;             /* range of the values accepted */
+    float default_value;
+    enum nau_param_scale scale;
+};
+
+/**
+ * Description of an effect.
+ */
+struct nau_effect_info {
+    const char *name;                       /* identifier, unique among the effects */
+    const struct nau_param_info *params;    /* indexed by the parameters of the effect */
+    uint32_t param_count;
+};
+
+/**
+ * Get the description of an effect.
+ *
+ * The types are numbered from 0 without gaps: a binding can list them all by
+ * increasing the type until NULL is returned.
+ *
+ * @return the description, valid for the lifetime of the library, or NULL if
+ *         the type is unknown
+ */
+NAU_API const struct nau_effect_info *nau_effect_get_info(enum nau_effect_type type);
+
+/**
+ * Evaluate a ramp of a parameter, as an effect renders it.
+ *
+ * This is meant for hosts drawing the automation of a parameter. An effect
+ * may render a narrower range than the one accepted (see the parameters of
+ * each effect): the values are then clamped before being evaluated.
+ *
+ * @param param     description of the parameter
+ * @param shape     shape of the ramp
+ * @param curvature bend of the shape, within [-1, 1]
+ * @param from      value at the start of the ramp
+ * @param to        value at the end of the ramp
+ * @param progress  position within the ramp, clamped to [0, 1]
+ *
+ * @return the value at this position
+ */
+NAU_API float nau_ramp_param(const struct nau_param_info *param, enum nau_ramp_shape shape, float curvature,
+                             float from, float to, float progress);
+
+/**
+ * Initialize an effect node with default parameter values.
+ *
+ * @param node          uninitialized node allocated with nau_node_create()
+ * @param engine        engine the node belongs to
+ * @param type          type of the effect
+ * @param ramp_frames   duration of parameter changes, in frames
+ *                      (see nau_effect_set_param())
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_effect_init(struct nau_node *node, struct nau_engine *engine, enum nau_effect_type type,
+                            uint32_t ramp_frames);
+
+/**
+ * Set the value of a parameter of an effect.
+ *
+ * Can be called from any thread. The effect ramps towards the target from
+ * its next block, unless the parameter is stepped. As with nau_gain_set(),
+ * resuming from silence applies the target immediately. Automation uses this
+ * value until its first ramp.
+ *
+ * @param node      effect node
+ * @param param     index of the parameter
+ * @param value     value within the range of the parameter, an integer if it
+ *                  is stepped
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_effect_set_param(struct nau_node *node, uint32_t param, float value);
+
+/**
+ * Set the automation of a parameter of an effect.
+ *
+ * The change takes effect with the next nau_engine_commit().
+ *
+ * @param node        effect node
+ * @param param       index of the parameter
+ * @param ramps       ramps sorted by frame, copied; their values are within the
+ *                    range of the parameter, integers if it is stepped
+ * @param ramp_count  number of ramps, up to NAU_MAX_RAMPS; 0 removes the automation
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_effect_set_automation(struct nau_node *node, uint32_t param, const struct nau_ramp *ramps,
+                                      uint32_t ramp_count);
+
+/* Input of a route left unconnected (silence) */
+#define NAU_INPUT_NONE UINT32_MAX
+
+/**
+ * Graph node and its input connections
+ */
+struct nau_route {
+    struct nau_node *node;
+    /*
+     * for each input of the node, the index of the route feeding it,
+     * or NAU_INPUT_NONE
+     */
+    const uint32_t *inputs;
+};
+
+/**
+ * Publish a graph: the nodes to render and their connections.
+ *
+ * For example, two sources mixed through their own gain:
+ *
+ *    routes[0]: source A ----> routes[2]: gain ---.
+ *                                                 +--> routes[4]: mix (output)
+ *    routes[1]: source B ----> routes[3]: gain ---'
+ *
+ *    routes[2].inputs = {0}, routes[3].inputs = {1}, routes[4].inputs = {2, 3}
+ *
+ * Routes can be listed in any order. Each node reachable from the output
+ * renders once per block, even if it feeds several inputs. The graph keeps
+ * references to its nodes and copies their source ranges, origins and ramps.
+ * Later configuration edits require another commit.
+ *
+ * Graph validation, buffer allocation and configuration copies happen on the
+ * control thread. A failed commit leaves the current graph unchanged.
+ *
+ * The render thread adopts the graph at its next block, without waiting:
+ *
+ *    control thread                              render thread
+ *
+ *    nau_engine_commit(A) --> pending: A
+ *                                           --> adopts A, renders A
+ *    nau_engine_commit(B) --> pending: B
+ *    nau_engine_commit(C) --> NAU_AGAIN         (still rendering A)
+ *                                           --> adopts B, retires A
+ *    nau_engine_commit(C) --> pending: C
+ *                             A is freed
+ *
+ * Only one graph can be pending: NAU_AGAIN is returned until the previous
+ * commit has been adopted, and the graph in use is left unchanged.
+ *
+ * @param engine       engine to publish the graph to
+ * @param routes       nodes and their connections, copied; a node can only
+ *                     appear once, and cycles are not allowed
+ * @param route_count  number of routes, up to 4096; 0 removes the graph
+ * @param output       index of the route of the output node
+ *
+ * @return NAU_OK on success, NAU_AGAIN if a commit is still pending,
+ *         NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_engine_commit(struct nau_engine *engine, const struct nau_route *routes,
+                              uint32_t route_count, uint32_t output);
+
+/**
+ * Free a replaced graph once the render thread has finished using it.
+ *
+ * nau_engine_commit() also collects replaced graphs. Call this function to
+ * release their nodes without waiting for another commit.
+ *
+ * @return NAU_OK on success, NAU_AGAIN if the render thread has not adopted
+ *         the last commit yet, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_engine_collect(struct nau_engine *engine);
+
+/**
+ * Render frames of the project.
+ *
+ * Must be called from one thread at a time (the render thread). Use
+ * nau_transport_render() instead to get playback controls.
+ *
+ * A non-sequential position resets processors and seeks sources before
+ * rendering. Output samples are not clamped.
+ *
+ * @param engine        engine to render
+ * @param first_frame   project frame of the first frame to render, >= 0
+ * @param frames        number of frames to render
+ * @param output        buffer of at least frames x channels samples
+ *
+ * @return NAU_OK on success, NAU_AGAIN if the data of a source was not
+ *         available (it is rendered as silence, the rest of the graph is
+ *         rendered normally), NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_engine_render(struct nau_engine *engine, int64_t first_frame,
+                              uint32_t frames, float *output);
+
+/**
+ * Opaque structure identifying a transport.
+ *
+ * Before initialization, its engine is NULL, duration and position are zero,
+ * and playback and looping are inactive. Playback controls and clock queries
+ * returning a status reject it with NAU_ERROR_INVALID; void controls do nothing.
+ */
+struct nau_transport;
+
+struct nau_transport_config {
+    /*
+     * length of the fades around the discontinuities, limited to
+     * half the range played; 0 disables them
+     */
+    uint32_t declick_frames;
+    /*
+     * how long the output can stay silent while the sources get ready,
+     * when playback starts from silence (see nau_source.ready)
+     */
+    uint32_t ready_timeout_frames;
+};
+
+/**
+ * Allocate an uninitialized transport.
+ *
+ * Initialize it with nau_transport_init() and destroy it with
+ * nau_transport_freep().
+ *
+ * @return the allocated transport, or NULL on allocation failure
+ */
+NAU_API struct nau_transport *nau_transport_create(void);
+
+/**
+ * Initialize playback controls and a clock for an engine.
+ *
+ * The transport plays the project over [0, duration), or over a loop range:
+ *
+ *    0             loop start                 loop end           duration
+ *    +-----------------+##########################+------------------+
+ *                      ^                          |
+ *                      '--------------------------'
+ *                        after `hold` frames of silence
+ *                        (see nau_transport_set_loop_hold())
+ *
+ * The render thread calls nau_transport_render() in place of
+ * nau_engine_render(). The playback controls are wait-free and take effect at
+ * the next render.
+ *
+ * Playback changes use short fades to avoid clicks. A seek is applied after
+ * fading out; playback fades in once the sources are ready or the readiness
+ * timeout expires.
+ *
+ * @param transport uninitialized transport allocated with nau_transport_create()
+ * @param engine    engine to play, which must outlive the initialized transport
+ * @param config    configuration of the transport, copied
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_transport_init(struct nau_transport *transport, struct nau_engine *engine,
+                               const struct nau_transport_config *config);
+
+/**
+ * Get the engine played by the transport.
+ */
+NAU_API struct nau_engine *nau_transport_get_engine(const struct nau_transport *transport);
+
+/**
+ * Destroy a transport.
+ *
+ * Rendering must be stopped before destroying the transport.
+ *
+ * @param transport pointer to the transport pointer, set to NULL
+ */
+NAU_API void nau_transport_freep(struct nau_transport **transport);
+
+/**
+ * Start or resume the playback.
+ */
+NAU_API void nau_transport_play(struct nau_transport *transport);
+
+/**
+ * Pause the playback.
+ */
+NAU_API void nau_transport_pause(struct nau_transport *transport);
+
+/**
+ * Tell whether the transport is playing.
+ *
+ * Without looping, the transport pauses at the end of the project and goes
+ * back to its start.
+ *
+ * @return a non-zero value if playing, 0 otherwise
+ */
+NAU_API int nau_transport_is_playing(const struct nau_transport *transport);
+
+/**
+ * Seek to a frame of the project.
+ *
+ * @param transport transport to seek
+ * @param frame     frame to play from, within [0, 2^48-1], clamped to the duration
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_transport_seek(struct nau_transport *transport, int64_t frame);
+
+/**
+ * Set the duration of the project, in frames.
+ *
+ * @param transport transport to configure
+ * @param frames    duration, >= 0
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_transport_set_duration(struct nau_transport *transport, int64_t frames);
+
+/**
+ * Get the duration of the project, in frames.
+ */
+NAU_API int64_t nau_transport_get_duration(const struct nau_transport *transport);
+
+/**
+ * Enable or disable looping over the configured range.
+ */
+NAU_API void nau_transport_set_looping(struct nau_transport *transport, int looping);
+
+/**
+ * Tell whether looping is enabled.
+ */
+NAU_API int nau_transport_is_looping(const struct nau_transport *transport);
+
+/**
+ * Set the loop range.
+ *
+ * A position before the range plays until the end of the range, then loops.
+ *
+ * @param transport transport to configure
+ * @param start     first frame of the range, >= 0
+ * @param end       end of the range (exclusive), >= 0, clamped to the duration; an
+ *                  empty range (the default) loops over the whole project
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_transport_set_loop_range(struct nau_transport *transport, int64_t start, int64_t end);
+
+/**
+ * Set the duration of silence after each loop pass.
+ *
+ * The position stays at the loop end during this hold.
+ *
+ * @param transport transport to configure
+ * @param frames    number of frames of silence, >= 0 (0 by default)
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_transport_set_loop_hold(struct nau_transport *transport, int64_t frames);
+
+/**
+ * Get the next frame to render, or the target of a pending seek.
+ *
+ * This position is ahead of the audible position by the output latency.
+ * Use nau_transport_get_position_at() for audio/video synchronization.
+ */
+NAU_API int64_t nau_transport_get_position(const struct nau_transport *transport);
+
+/**
+ * Relation between the project position and the time: `position` is heard at
+ * `time`.
+ */
+struct nau_clock {
+    int64_t position;       /* project frame */
+    /*
+     * time at which it is heard, in nanoseconds, in the time base of
+     * the times given to nau_transport_render()
+     */
+    int64_t time;
+    uint32_t sample_rate;
+    int playing;            /* non-zero if the position advances with the time */
+};
+
+/**
+ * Get the clock of the last rendered frames. Can be called from any thread.
+ *
+ * @param transport transport to query
+ * @param clock     pointer to the clock to set; only valid on success
+ *
+ * @return NAU_OK on success, NAU_AGAIN if no timed render is available or a
+ *         concurrent write prevents reading the clock, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_transport_get_clock(const struct nau_transport *transport, struct nau_clock *clock);
+
+/**
+ * Get the position of a clock at a given time.
+ *
+ * The clock is extrapolated: the result is only meaningful as long as the
+ * playback goes on uninterrupted. nau_transport_get_position_at() handles the
+ * seeks, loops and pauses.
+ *
+ * @param clock clock to evaluate
+ * @param time  time in nanoseconds, in the time base of the clock
+ */
+NAU_API int64_t nau_clock_position_at(const struct nau_clock *clock, int64_t time);
+
+/**
+ * Get the position heard at a given time.
+ *
+ * Use this for audio/video synchronization. The transport keeps a history
+ * of rendered segments, including seeks, loops, holds and pauses. Times can
+ * be in the past or near future because rendered audio is queued before it
+ * is heard. Times beyond the rendered range return its final position.
+ *
+ * Can be called from any thread.
+ *
+ * @param transport transport to query
+ * @param time      time in nanoseconds, in the time base of the times given
+ *                  to nau_transport_render()
+ * @param position  pointer to the position to set, left untouched on failure
+ *
+ * @return NAU_OK on success, NAU_AGAIN if no history is available, the time is
+ *         too old, or a concurrent write prevents reading it; NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_transport_get_position_at(const struct nau_transport *transport, int64_t time,
+                                          int64_t *position);
+
+/**
+ * Apply a pending graph or seek and position sources without rendering.
+ *
+ * This lets the sources decode ahead while nothing renders. The next render
+ * starts from silence. Must be called from the render thread, or from the
+ * control thread while the rendering is stopped.
+ */
+NAU_API void nau_transport_sync(struct nau_transport *transport);
+
+/**
+ * Render the next frames of the playback.
+ *
+ * Must be called from one thread at a time (the render thread).
+ *
+ * @param transport transport to render
+ * @param time      time at which the first frame will be heard, in
+ *                  nanoseconds, or 0 if unknown (no clock is then available);
+ *                  successive timestamps are smoothed for the playback clock
+ * @param frames    number of frames to render
+ * @param output    buffer of at least frames x channels samples
+ *
+ * @return NAU_OK on success, NAU_AGAIN if part of the audio was not
+ *         available, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_transport_render(struct nau_transport *transport, int64_t time,
+                                 uint32_t frames, float *output);
+
+#if NAU_HAVE_NOPEMEDIA
+
+/**
+ * Opaque structure identifying a media: an audio stream decoded with
+ * nope.media
+ */
+struct nau_media;
+
+struct nau_media_params {
+    int64_t start;      /* initial source frame to decode ahead of the first read */
+    int normalize;      /* non-zero to normalize the loudness */
+    /*
+     * non-zero to have the reads wait for their data instead of
+     * returning silence (offline rendering)
+     */
+    int blocking;
+};
+
+/**
+ * Allocate an uninitialized media with one reference.
+ *
+ * Initialize it with nau_media_init() and release it with nau_media_unrefp().
+ *
+ * @return the allocated media, or NULL on allocation failure
+ */
+NAU_API struct nau_media *nau_media_create(void);
+
+/**
+ * Initialize a media to decode the audio of a file in stereo, at the sample
+ * rate of the engine (which must be stereo).
+ *
+ * A dedicated thread decodes ahead of playback. In real time, the render
+ * thread reads queued audio without waiting:
+ *
+ *    decoding thread                             render thread
+ *
+ *                  +---+---+---+---+---+---+
+ *    nope.media -> | decoded blocks, ahead | ->  read()
+ *                  +---+---+---+---+---+---+
+ *         ^                                        |
+ *         '----------- seek requests --------------'
+ *
+ * Missing audio is rendered as silence and skipped when it arrives, keeping
+ * the source in sync with the project. Set params.blocking for offline
+ * rendering to wait for decoding instead.
+ *
+ * @param media     uninitialized media allocated with nau_media_create()
+ * @param engine    engine the media is rendered by
+ * @param filename  path or URL of the media
+ * @param params    parameters of the media, or NULL for the defaults
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_media_init(struct nau_media *media, struct nau_engine *engine, const char *filename,
+                           const struct nau_media_params *params);
+
+/**
+ * Get the length of the media, in frames at the sample rate of the engine.
+ *
+ * @return the number of frames, 0 if unknown or uninitialized
+ */
+NAU_API int64_t nau_media_get_length(const struct nau_media *media);
+
+/**
+ * Initialize the source node of a media.
+ *
+ * A media can only have one source node: a file played by several clips at
+ * once needs one media per clip. The node keeps a reference to the media.
+ *
+ * @param media             initialized media to play
+ * @param node              uninitialized node allocated with nau_node_create()
+ * @param timeline_start    project frame at which the media starts playing
+ * @param source_start      media frame it starts playing from
+ * @param duration          number of frames played
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_media_init_source(struct nau_media *media, struct nau_node *node, int64_t timeline_start,
+                                  int64_t source_start, int64_t duration);
+
+/**
+ * Set the media range to decode repeatedly for a project loop.
+ *
+ * Decoding the next pass ahead lets the transport wrap without requesting a
+ * seek. Can be called from any thread after initialization.
+ *
+ * @param media initialized media to configure
+ * @param start first media frame of the range
+ * @param end   end of the range (exclusive); an empty range disables it
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_media_set_loop(struct nau_media *media, int64_t start, int64_t end);
+
+struct nau_media_stats {
+    int64_t silent_frames;   /* frames rendered as silence because they were not decoded in time */
+    int64_t skipped_frames;  /* frames decoded too late and skipped */
+    int64_t requests;        /* positions requested from the decoder (seeks included) */
+    int64_t errors;          /* nope.media errors */
+};
+
+/**
+ * Get the statistics of a media. Can be called from any thread.
+ * An uninitialized media has zero statistics.
+ */
+NAU_API void nau_media_get_stats(const struct nau_media *media, struct nau_media_stats *stats);
+
+/**
+ * Release a reference to a media.
+ *
+ * Releasing the last reference stops and joins the decoding thread.
+ *
+ * @param media pointer to the media pointer, set to NULL
+ */
+NAU_API void nau_media_unrefp(struct nau_media **media);
+
+#endif /* NAU_HAVE_NOPEMEDIA */
+
+/**
+ * Opaque structure identifying an audio output device playing a transport.
+ *
+ * The build selects SDL3, Oboe (Android), or the null backend. Null devices
+ * render in real time without audio output and are available in every build.
+ */
+struct nau_sink;
+
+struct nau_sink_config {
+    int null_device;                /* non-zero to render in real time without any audio device (testing) */
+    /*
+     * requested buffer duration in milliseconds; 0 selects 10 ms for SDL and
+     * null devices, or lets Oboe choose; SDL sets
+     * SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, which also affects devices opened
+     * later by the application
+     */
+    uint32_t period_ms;
+};
+
+/**
+ * Initialize the audio subsystem.
+ *
+ * Call from the main thread before initializing device sinks or players,
+ * and balance each successful call with nau_sink_backend_uninit(). Null
+ * devices do not require it. Does nothing with Oboe and the null backend.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_sink_backend_init(void);
+
+/**
+ * Uninitialize the audio subsystem.
+ *
+ * Must be called from the main thread. Free device sinks and players before
+ * releasing the last backend reference.
+ *
+ * @return NAU_OK on success, NAU_AGAIN if the last reference cannot be released
+ *         while device sinks exist, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_sink_backend_uninit(void);
+
+/**
+ * Handle the device events: default output changes, disconnections, latency
+ * updates.
+ *
+ * Must be called regularly from the main thread while initialized. The SDL
+ * events are left in the queue for the application. It does nothing with
+ * Oboe, which handles them on its own, and with the null backend.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error; device failures are
+ *         also reported by nau_sink_get_status()
+ */
+NAU_API int nau_sink_poll(void);
+
+/**
+ * Allocate an uninitialized sink.
+ *
+ * Initialize it with nau_sink_init() and destroy it with nau_sink_freep().
+ *
+ * @return the allocated sink, or NULL on allocation failure
+ */
+NAU_API struct nau_sink *nau_sink_create(void);
+
+/**
+ * Initialize a sink and prepare its output device without starting rendering.
+ *
+ * @param sink      uninitialized sink allocated with nau_sink_create()
+ * @param transport transport to play, which must outlive the initialized sink
+ * @param config    configuration of the sink, or NULL for the defaults
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_sink_init(struct nau_sink *sink, struct nau_transport *transport,
+                          const struct nau_sink_config *config);
+
+/**
+ * Start rendering from the callback of the device.
+ *
+ * The sink must be the only caller rendering this transport while started.
+ * Starting it again has no effect; use nau_sink_get_status() to check for
+ * device errors, and stop then start the sink to recover from one.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error; a device failure
+ *         leaves the sink stopped
+ */
+NAU_API int nau_sink_start(struct nau_sink *sink);
+
+/**
+ * Stop rendering. The device may stay open until the sink is freed.
+ *
+ * When the function returns, the sink no longer renders the transport.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_sink_stop(struct nau_sink *sink);
+
+/**
+ * Get the estimated latency of the output: the time between the rendering of
+ * a frame and the moment it is heard, in nanoseconds.
+ * Returns zero for an uninitialized sink.
+ */
+NAU_API int64_t nau_sink_get_latency(const struct nau_sink *sink);
+
+/**
+ * Get the monotonic time in nanoseconds used by sink playback clocks.
+ *
+ * On Android, this is the time base of System.nanoTime().
+ */
+NAU_API int64_t nau_sink_now(void);
+
+/**
+ * Get the number of callbacks in which audio was missing (source data not
+ * available, or rendering error) since the sink was started.
+ *
+ * The underruns of the device itself are not counted. Returns zero for an
+ * uninitialized sink.
+ */
+NAU_API uint32_t nau_sink_get_underruns(const struct nau_sink *sink);
+
+/**
+ * Get the status of the sink.
+ *
+ * @return NAU_OK if the sink is working, NAU_ERROR_INVALID if uninitialized,
+ *         or the error code of the last device or rendering error otherwise
+ */
+NAU_API int nau_sink_get_status(const struct nau_sink *sink);
+
+/**
+ * Stop and destroy a sink.
+ *
+ * @param sink  pointer to the sink pointer, set to NULL
+ */
+NAU_API void nau_sink_freep(struct nau_sink **sink);
+
+#if NAU_HAVE_NOPEMEDIA
+
+/**
+ * Opaque structure identifying a player
+ */
+struct nau_player;
+
+/**
+ * Opaque structure identifying a track of a player
+ */
+struct nau_track;
+
+/**
+ * Opaque structure identifying an effect on a track of a player
+ */
+struct nau_track_effect;
+
+enum nau_player_mode {
+    NAU_PLAYER_DEVICE,       /* play on the default audio output */
+    NAU_PLAYER_NULL_DEVICE,  /* play in real time without any audio device (testing) */
+    /*
+     * the host renders the audio in real time from its own thread,
+     * see nau_player_render()
+     */
+    NAU_PLAYER_HOST,
+    /*
+     * render as fast as possible, waiting for decoding when needed;
+     * see nau_player_render() and nau_player_export()
+     */
+    NAU_PLAYER_OFFLINE,
+    NAU_PLAYER_MODE_MAX_ENUM = 0x7FFFFFFF
+};
+
+struct nau_player_config {
+    enum nau_player_mode mode;
+    uint32_t sample_rate;    /* in Hz, 0 for 48000 */
+    /*
+     * requested buffer duration in milliseconds; see nau_sink_config.period_ms
+     */
+    uint32_t period_ms;
+};
+
+/**
+ * Allocate an uninitialized player.
+ *
+ * Initialize it with nau_player_init() and destroy it with nau_player_freep().
+ * Before initialization, scalar getters and statistics return zero; operations
+ * returning a status reject the player with NAU_ERROR_INVALID.
+ *
+ * @return the allocated player, or NULL on allocation failure
+ */
+NAU_API struct nau_player *nau_player_create(void);
+
+/**
+ * Initialize a player: media tracks on a timeline, mixed in stereo.
+ *
+ *    track 0: media --> [effects] --> fader --> volume --> [effects] --.
+ *    track 1: media --> [effects] --> fader --> volume --> [effects] --+--> mix --> volume --> output
+ *    track 2: media --> [effects] --> fader --> volume --> [effects] --'
+ *
+ * The fader applies volume automation; the following gain sets the track
+ * volume. Effects can run before or after both controls (see
+ * nau_track_effect_placement).
+ *
+ * Player calls must be serialized, except nau_player_render() on the render
+ * thread, nau_player_get_stats(), and the playback getters
+ * (nau_player_is_playing(), nau_player_get_position(),
+ * nau_player_get_position_at()). A video renderer can use these getters
+ * while the player is being edited.
+ *
+ * In NAU_PLAYER_OFFLINE mode, render calls must also be serialized with edits
+ * and seeks, which position sources directly. Opening media, exporting and
+ * stopping the device can block.
+ *
+ * Track edits publish a graph without waiting for the render thread. An edit
+ * returns NAU_AGAIN while the previous one is pending; retry it later. Failed
+ * edits, including NAU_AGAIN, leave the player unchanged.
+ *
+ * With NAU_PLAYER_DEVICE, nau_sink_backend_init() must have been called first.
+ *
+ * @param player    uninitialized player allocated with nau_player_create()
+ * @param config    configuration of the player, copied
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_init(struct nau_player *player, const struct nau_player_config *config);
+
+/**
+ * Destroy a player and its tracks.
+ *
+ * With NAU_PLAYER_HOST, stop the rendering thread before destroying the player.
+ *
+ * @param player    pointer to the player pointer, set to NULL
+ */
+NAU_API void nau_player_freep(struct nau_player **player);
+
+/**
+ * Get the sample rate of the player, in Hz.
+ */
+NAU_API uint32_t nau_player_get_sample_rate(const struct nau_player *player);
+
+/**
+ * Parameters of a track: where a media plays on the timeline.
+ *
+ *                       start                  start + duration
+ *                         v                           v
+ *    project   -----------+###########################+-----------
+ *                         .                           .
+ *    media          +-----+###########################+------+
+ *                   ^     ^                                  ^
+ *                   0     trim                             length
+ *
+ * The positions and durations are in frames at the sample rate of the player.
+ */
+struct nau_track_params {
+    const char *filename;    /* path or URL of the media */
+    int64_t start;           /* project frame at which the track starts playing */
+    int64_t trim;            /* media frame it starts playing from */
+    /*
+     * number of frames played, < 0 to play until the end of the media
+     * (NAU_ERROR_UNSUPPORTED if its length is unknown)
+     */
+    int64_t duration;
+    float volume;            /* linear gain (1 is unity), finite and >= 0 */
+    int normalize;           /* non-zero to normalize the loudness of the media */
+};
+
+/**
+ * Add a track to a player.
+ *
+ * The track belongs to the player: it is valid until it is removed or until
+ * the player is destroyed.
+ *
+ * @param player    player to add the track to
+ * @param params    parameters of the track
+ * @param track     pointer to the track pointer to set, NULL on failure
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending,
+ *         NAU_ERROR_UNSUPPORTED if the player already has 64 tracks, or another
+ *         NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_add_track(struct nau_player *player, const struct nau_track_params *params,
+                                 struct nau_track **track);
+
+/**
+ * Move or trim a track. See nau_track_params.
+ *
+ * Fader and effect automation moves with the track.
+ *
+ * @param player    player owning the track
+ * @param track     track to change
+ * @param start     project frame at which the track starts, >= 0
+ * @param trim      first media frame to play, >= 0
+ * @param duration  number of frames to play, < 0 for the remaining media
+ *                  (NAU_ERROR_UNSUPPORTED if its length is unknown)
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending, NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_player_set_track_timings(struct nau_player *player, struct nau_track *track,
+                                         int64_t start, int64_t trim, int64_t duration);
+
+/**
+ * Set the volume of a track.
+ *
+ * The change uses a 5 ms ramp while rendering. When the transport resumes
+ * from silence, the volume applies immediately. No graph commit is needed,
+ * so this function never returns NAU_AGAIN.
+ *
+ * @param player    player owning the track
+ * @param track     track to change
+ * @param volume    linear gain (1 is unity), finite and >= 0
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_set_track_volume(struct nau_player *player, struct nau_track *track, float volume);
+
+/**
+ * Set the volume ramps of a track (fades, volume automation).
+ *
+ * @param player      player owning the track
+ * @param track       track to change
+ * @param ramps       ramps sorted by frame, copied; their frames are relative
+ *                    to the start of the track, their values are linear gains
+ * @param ramp_count  number of ramps, up to NAU_MAX_RAMPS; 0 removes them
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending, NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_player_set_track_fader(struct nau_player *player, struct nau_track *track,
+                                       const struct nau_ramp *ramps, uint32_t ramp_count);
+
+/**
+ * Placement relative to a track's volume controls.
+ *
+ *    source --> [PRE_FADER] --> fader --> volume --> [POST_FADER] --> mix
+ *
+ * Any effect type can use either placement. For example, a compressor before
+ * these controls reacts to the source level. After them, volume changes also
+ * affect how much compression is applied.
+ */
+enum nau_track_effect_placement {
+    NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER,
+    NAU_TRACK_EFFECT_PLACEMENT_POST_FADER,
+    NAU_TRACK_EFFECT_PLACEMENT_MAX_ENUM = 0x7FFFFFFF
+};
+
+/**
+ * Append an effect to a track's pre-fader or post-fader chain.
+ *
+ * The effect belongs to its track and remains valid until either is removed.
+ * Parameters start at their defaults. Automation is relative to the track's
+ * start, as with its fader. See nau_effect_type for available effects.
+ *
+ * @param player    player owning the track
+ * @param track     track to add the effect to
+ * @param type      type of the effect
+ * @param placement before or after the track's volume controls
+ * @param effect    pointer to the effect pointer to set, NULL on failure
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending,
+ *         NAU_ERROR_UNSUPPORTED if the track already has 16 effects, or another
+ *         NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_add_track_effect(struct nau_player *player, struct nau_track *track,
+                                        enum nau_effect_type type, enum nau_track_effect_placement placement,
+                                        struct nau_track_effect **effect);
+
+/**
+ * Move an effect within its track, preserving its processing state.
+ *
+ * Changing the processing order can still introduce an audible discontinuity.
+ *
+ * @param player    player owning the effect
+ * @param effect    effect to move
+ * @param placement before or after the track's volume controls
+ * @param index     position in the destination chain after removing the
+ *                  effect from its old position; 0 prepends, the count appends
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending, NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_player_move_track_effect(struct nau_player *player, struct nau_track_effect *effect,
+                                         enum nau_track_effect_placement placement, uint32_t index);
+
+/**
+ * Remove an effect from its track.
+ *
+ * @param player    player owning the effect
+ * @param effect    pointer to the effect pointer, set to NULL on success
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending, NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_player_remove_track_effect(struct nau_player *player, struct nau_track_effect **effect);
+
+/**
+ * Set the value of a parameter of an effect. See nau_effect_set_param().
+ *
+ * The change uses a 20 ms ramp while rendering, except for stepped parameters.
+ * When the transport resumes from silence, the target applies immediately.
+ * This function never returns NAU_AGAIN.
+ *
+ * @param player    player owning the effect
+ * @param effect    effect to change
+ * @param param     index of the parameter
+ * @param value     value within the parameter's range, an integer if stepped
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_set_track_effect_param(struct nau_player *player, struct nau_track_effect *effect,
+                                              uint32_t param, float value);
+
+/**
+ * The automation of a parameter of an effect on a track
+ */
+struct nau_lane {
+    uint32_t param;                 /* index of the parameter */
+    /*
+     * sorted by frame; their frames are relative to the start of
+     * the track
+     */
+    const struct nau_ramp *ramps;
+    uint32_t ramp_count;            /* up to NAU_MAX_RAMPS; 0 removes the automation */
+};
+
+/**
+ * Replace automation for the specified effect parameters.
+ *
+ * Other parameters keep their automation. All supplied lanes take effect
+ * together, or none changes if the edit fails. The effect keeps its processing
+ * state. See nau_effect_set_automation().
+ *
+ * @param player      player owning the effect
+ * @param effect      effect to change
+ * @param lanes       lanes to set, copied, one per parameter at most
+ * @param lane_count  number of lanes, at least 1
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending, NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_player_set_track_effect_automation(struct nau_player *player, struct nau_track_effect *effect,
+                                                   const struct nau_lane *lanes, uint32_t lane_count);
+
+/**
+ * Get the track's media length, in frames.
+ *
+ * @return the number of frames, 0 if unknown
+ */
+NAU_API int64_t nau_track_get_length(const struct nau_track *track);
+
+/**
+ * Get the number of frames played by a track.
+ */
+NAU_API int64_t nau_track_get_duration(const struct nau_track *track);
+
+/**
+ * Remove a track from a player.
+ *
+ * @param player    player owning the track
+ * @param track     pointer to the track pointer, set to NULL on success
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending, NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_player_remove_track(struct nau_player *player, struct nau_track **track);
+
+/**
+ * Remove all the tracks of a player.
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending, NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_player_clear_tracks(struct nau_player *player);
+
+/**
+ * Start or resume the playback. The device is started if needed.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_play(struct nau_player *player);
+
+/**
+ * Pause the playback.
+ *
+ * The device keeps running, so that the playback resumes without delay.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_pause(struct nau_player *player);
+
+/**
+ * Pause playback, seek to the start and stop the device.
+ *
+ * In NAU_PLAYER_HOST mode, the host's rendering thread keeps running.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_stop(struct nau_player *player);
+
+/**
+ * Tell whether the player is playing. See nau_transport_is_playing().
+ */
+NAU_API int nau_player_is_playing(const struct nau_player *player);
+
+/**
+ * Seek to a frame of the project. See nau_transport_seek().
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_seek(struct nau_player *player, int64_t frame);
+
+/**
+ * Get the position of the player. See nau_transport_get_position().
+ */
+NAU_API int64_t nau_player_get_position(const struct nau_player *player);
+
+/**
+ * Get the position heard at a given time. See
+ * nau_transport_get_position_at().
+ *
+ * While rendering is stopped, return nau_player_get_position() instead.
+ *
+ * @param player    player to query
+ * @param time      time in nanoseconds, in the time base of nau_sink_now(),
+ *                  or of the times given to nau_player_render()
+ * @param position  pointer to the position to set, left untouched on failure
+ *
+ * @return NAU_OK on success, NAU_AGAIN if the position is not available,
+ *         NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_get_position_at(const struct nau_player *player, int64_t time, int64_t *position);
+
+/**
+ * Set the project duration in frames. See nau_transport_set_duration().
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_set_duration(struct nau_player *player, int64_t frames);
+
+/**
+ * Get the duration of the project, in frames.
+ */
+NAU_API int64_t nau_player_get_duration(const struct nau_player *player);
+
+/**
+ * Enable or disable looping. See nau_transport_set_looping().
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_set_looping(struct nau_player *player, int looping);
+
+/**
+ * Tell whether looping is enabled.
+ */
+NAU_API int nau_player_is_looping(const struct nau_player *player);
+
+/**
+ * Set the loop range. See nau_transport_set_loop_range().
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_set_loop_range(struct nau_player *player, int64_t start, int64_t end);
+
+/**
+ * Set the silence inserted at the end of each pass of the loop. See
+ * nau_transport_set_loop_hold().
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_set_loop_hold(struct nau_player *player, int64_t frames);
+
+/**
+ * Set the master volume.
+ *
+ * @param player    player to change
+ * @param volume    linear gain (1 is unity), finite and >= 0
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_set_volume(struct nau_player *player, float volume);
+
+/**
+ * Get the master volume.
+ */
+NAU_API float nau_player_get_volume(const struct nau_player *player);
+
+/**
+ * Begin host rendering (NAU_PLAYER_HOST).
+ *
+ * Must be called before starting the rendering thread.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_start_rendering(struct nau_player *player);
+
+/**
+ * End host rendering and apply pending edits (NAU_PLAYER_HOST).
+ *
+ * Must be called after the rendering thread has stopped.
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_stop_rendering(struct nau_player *player);
+
+/**
+ * Render the next frames of the playback (NAU_PLAYER_HOST and
+ * NAU_PLAYER_OFFLINE).
+ *
+ * Must be called from one thread at a time.
+ *
+ * @param player    player to render
+ * @param time      time at which the first frame will be heard, in
+ *                  nanoseconds, or 0 if unknown
+ * @param frames    number of frames to render
+ * @param output    buffer of at least frames x 2 samples
+ *
+ * @return NAU_OK on success, NAU_AGAIN if part of the audio was not
+ *         available, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_render(struct nau_player *player, int64_t time, uint32_t frames, float *output);
+
+/**
+ * Sample format of an exported file
+ */
+enum nau_export_format {
+    NAU_EXPORT_S16,     /* 16-bit signed integer, clipped */
+    NAU_EXPORT_F32,     /* 32-bit float */
+    NAU_EXPORT_FORMAT_MAX_ENUM = 0x7FFFFFFF
+};
+
+/**
+ * Export the project to a WAV file (NAU_PLAYER_OFFLINE).
+ *
+ * Render the project once, from 0 to its duration, ignoring loop settings.
+ * Playback is left paused. Files exceeding the RIFF size limit use RF64 and
+ * require a reader with RF64 support.
+ *
+ * @param player    player to export
+ * @param filename  path of the file to write
+ * @param format    sample format of the file
+ *
+ * @return NAU_OK on success, NAU_ERROR_* (< 0) on error
+ */
+NAU_API int nau_player_export(struct nau_player *player, const char *filename,
+                              enum nau_export_format format);
+
+struct nau_player_stats {
+    uint32_t underruns;      /* device callbacks in which audio was missing */
+    int64_t silent_frames;   /* frames rendered as silence because they were not decoded in time */
+    int64_t skipped_frames;  /* frames decoded too late and skipped */
+    int64_t requests;        /* positions requested from the decoders (seeks included) */
+    int64_t errors;          /* decoder errors, plus the device error if any */
+};
+
+/**
+ * Get the statistics of a player.
+ *
+ * Can be called from any thread without waiting for edits. If the tracks are
+ * being edited, return their last collected statistics.
+ */
+NAU_API void nau_player_get_stats(const struct nau_player *player, struct nau_player_stats *stats);
+
+#endif /* NAU_HAVE_NOPEMEDIA */
+
+#ifdef __cplusplus
+}
+#endif
+#endif

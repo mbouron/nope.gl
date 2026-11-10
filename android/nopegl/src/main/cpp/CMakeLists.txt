@@ -14,6 +14,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         nope_jni.c
         nopegl.c
         nopemedia.c
+        nopeaudio.c
 )
 
 include_directories(${NGL_HEADER_PATH})
@@ -22,6 +23,7 @@ set(NGL_LIBS
         nopegl
         nopegpu
         nopemedia
+        nopeaudio
         avfilter
         swresample
         swscale

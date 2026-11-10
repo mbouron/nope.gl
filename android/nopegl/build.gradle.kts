@@ -181,6 +181,8 @@ val prefabModules = mapOf(
     "avfilter" to PrefabModule(listOf("libavfilter"), listOf("avutil", "swscale", "swresample")),
     "avdevice" to PrefabModule(listOf("libavdevice"), listOf("avformat", "avcodec", "avutil"), stl = "c++_shared"),
     "nopemedia" to PrefabModule(listOf("nopemedia"), stl = "c++_shared"),
+    // nopeaudio uses Oboe, which needs the shared C++ runtime.
+    "nopeaudio" to PrefabModule(listOf("nopeaudio"), listOf("nopemedia"), stl = "c++_shared"),
 )
 
 // Keep in sync with _ANDROID_VERSION in configure.py.

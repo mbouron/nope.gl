@@ -1,0 +1,24 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -123,3 +123,8 @@
+ 
+ # Also install the headers
+ install(DIRECTORY include/oboe DESTINATION include)
++
++# Install pkg-config metadata for Meson. Static library users also need
++# Oboe's dependencies, listed in Libs.private.
++configure_file(oboe.pc.in oboe.pc @ONLY)
++install(FILES ${CMAKE_CURRENT_BINARY_DIR}/oboe.pc DESTINATION lib/pkgconfig)
+--- a/oboe.pc.in
++++ b/oboe.pc.in
+@@ -0,0 +1,10 @@
++prefix=@CMAKE_INSTALL_PREFIX@
++libdir=${prefix}/lib/@ANDROID_ABI@
++includedir=${prefix}/include
++
++Name: oboe
++Description: Oboe, low latency audio on Android
++Version: 1.11.0
++Libs: -L${libdir} -loboe
++Libs.private: -llog -lOpenSLES
++Cflags: -I${includedir}
