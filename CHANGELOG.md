@@ -5,7 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 This project adheres to a flavor of [Calendar Versioning](https://calver.org/)
 for the global releases (`YYYY.MINOR`), and to [Semantic
-Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
+Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
+`libnopemedia` and `libnopegpu`.
 
 ## [Unreleased]
 
