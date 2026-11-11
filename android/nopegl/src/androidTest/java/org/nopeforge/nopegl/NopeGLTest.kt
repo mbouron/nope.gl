@@ -21,7 +21,6 @@
 
 package org.nopeforge.nopegl
 
-import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -30,17 +29,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.math.abs
-import java.io.File
-import java.io.FileOutputStream
 import java.nio.ByteBuffer
 
 
 @RunWith(AndroidJUnit4::class)
 class NopeGLTest {
+    companion object {
+        private const val CAT_MEDIA = "file:///android_asset/cat.mp4"
+    }
+
     private fun createContext(backend: Int): NGLContext {
         val config = NGLConfig.Builder()
             .setBackend(backend)
@@ -91,26 +91,6 @@ class NopeGLTest {
         offscreenCtx(NGLConfig.BACKEND_VULKAN)
     }
 
-    private fun checkAsset(applicationContext: Context, name: String): Boolean {
-        return File(getAssetPath(applicationContext, name)).exists()
-    }
-
-    private fun copyAsset(applicationContext: Context, name: String) {
-        val inputStream = applicationContext.resources.assets.open(name)
-        inputStream.copyTo(FileOutputStream(getAssetPath(applicationContext, name)))
-    }
-
-    private fun getAssetPath(applicationContext: Context, name: String): String {
-        return applicationContext.cacheDir!!.path + "/" + name
-    }
-
-    @Before
-    fun initAssets() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        if (!checkAsset(context, "cat.mp4"))
-            copyAsset(context, "cat.mp4")
-    }
-
     @Test
     fun loadMediaScene() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
@@ -122,14 +102,11 @@ class NopeGLTest {
             # duration=403Z9000000000000
             # canvas=320x240
             # framerate=60/1
-            Mdia filename:content://%s/medias%s
+            Mdia filename:$CAT_MEDIA
             Tex2 data_src:1
             Quad
             Dtex texture:2 geometry:1
-        """.trimIndent().format(
-                NGLContentProvider.AUTHORITY,
-                getAssetPath(appContext, "cat.mp4")
-            )
+        """.trimIndent()
         )
         val ctx = createContext(NGLConfig.BACKEND_OPENGLES)
         ctx.setScene(scene)
@@ -154,10 +131,7 @@ class NopeGLTest {
             NGLAnimKeyFrameFloat(duration, duration),
         )
         val mediaNode = NGLMedia(
-            filename = "content://%s/medias%s".format(
-                NGLContentProvider.AUTHORITY,
-                getAssetPath(appContext, "cat.mp4")
-            ),
+            filename = CAT_MEDIA,
             timeAnim = NGLAnimatedTime(keyFrames),
         )
         val texture2DNode = NGLTexture2D(
@@ -324,11 +298,7 @@ class NopeGLTest {
             }
         """.trimIndent()
 
-        val filename = "content://%s/medias%s".format(
-            NGLContentProvider.AUTHORITY,
-            getAssetPath(appContext, "cat.mp4")
-        )
-        val media = NGLMedia(filename)
+        val media = NGLMedia(CAT_MEDIA)
         val texture = NGLTexture2D(dataSrc = media)
         val quad = NGLQuad(NGLVec3(-1f, -1f, 0f), NGLVec3(2f, 0f, 0f), NGLVec3(0f, 2f, 0f))
         val program = NGLProgram(vertex = vertex, fragment = fragment)
@@ -686,10 +656,7 @@ class NopeGLTest {
         val endKf = NGLAnimKeyFrameFloat(duration, duration)
         val keyFrames = listOf(startKf, endKf)
         val mediaNode = NGLMedia(
-            filename = "content://%s/medias%s".format(
-                NGLContentProvider.AUTHORITY,
-                getAssetPath(appContext, "cat.mp4")
-            ),
+            filename = CAT_MEDIA,
             timeAnim = NGLAnimatedTime(keyFrames),
         )
         val texture = NGLTexture2D(dataSrc = mediaNode)
