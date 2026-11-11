@@ -11,7 +11,9 @@ plugins {
 }
 
 val buildEnv = "${rootProject.projectDir.parent}/build-android"
-val abis = listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+// -Porg.nopeforge.nopegl.abis=arm64-v8a builds a subset, for a device at hand
+val abis = (findProperty("org.nopeforge.nopegl.abis") as String?)?.split(",")
+    ?: listOf("armeabi-v7a", "arm64-v8a", "x86_64")
 
 afterEvaluate {
     val repo = System.getenv("GITHUB_REPOSITORY") ?: "mbouron/nope.gl"
