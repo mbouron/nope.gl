@@ -9,6 +9,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`.
 
 ## [Unreleased]
 
+### Added
+- `NGLContext.version`, `versionMajor`, `versionMinor` and `versionMicro` to
+  get the `libnopegl` version from the Android bindings
+
 ### Changed
 - `libnopemd` headers are now located in the nopemd sub directory. Users
   must now use `#include <nopemd/nopemd.h>` instead of `#include <nopemd.h>`
