@@ -35,17 +35,9 @@ import org.nopeforge.nopegl.NGLContentProvider
 
 @RunWith(AndroidJUnit4::class)
 class NopeMediaTest {
-    @Test
-    fun contentUriPlayback() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val file = File(context.cacheDir, "player-cat.mp4")
-        context.resources.assets.open("cat.mp4").use { input ->
-            file.outputStream().use { input.copyTo(it) }
-        }
+    private fun checkPlayback(uri: Uri) {
         val reader = ImageReader.newInstance(320, 240, PixelFormat.RGBA_8888, 2)
         try {
-            Nope.init(context)
-            val uri = Uri.parse(NGLContentProvider.getUri("medias${file.absolutePath}"))
             val player = Player(uri, reader.surface)
             player.start()
             player.draw(0.5, blocking = true)
@@ -53,7 +45,27 @@ class NopeMediaTest {
             player.release()
         } finally {
             reader.close()
+        }
+    }
+
+    @Test
+    fun contentUriPlayback() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = File(context.cacheDir, "player-cat.mp4")
+        context.resources.assets.open("cat.mp4").use { input ->
+            file.outputStream().use { input.copyTo(it) }
+        }
+        try {
+            Nope.init(context)
+            checkPlayback(Uri.parse(NGLContentProvider.getUri("medias${file.absolutePath}")))
+        } finally {
             file.delete()
         }
+    }
+
+    @Test
+    fun assetUriPlayback() {
+        Nope.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        checkPlayback(Uri.parse("file:///android_asset/cat.mp4"))
     }
 }

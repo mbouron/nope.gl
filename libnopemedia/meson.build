@@ -80,7 +80,10 @@ if vaapi_dep.found()
 endif
 
 if host_system == 'android'
-  lib_deps += cc.find_library('mediandk')
+  lib_deps += [
+    cc.find_library('android'),
+    cc.find_library('mediandk'),
+  ]
 endif
 
 
@@ -109,6 +112,7 @@ lib_src = files(
 
 if host_system == 'android'
   lib_src += files(
+    'src/android_asset.c',
     'src/decoder_mediacodec.c',
     'src/mediacodec.c',
   )
