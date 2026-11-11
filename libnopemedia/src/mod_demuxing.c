@@ -26,6 +26,9 @@
 #include <libavutil/opt.h>
 
 #include "mod_demuxing.h"
+#ifdef __ANDROID__
+#include "android_asset.h"
+#endif
 #include "internal.h"
 #include "log.h"
 #include "loop.h"
@@ -41,6 +44,7 @@
 struct demuxing_ctx {
     void *log_ctx;
     AVFormatContext *fmt_ctx;
+    AVIOContext *asset_pb;          // Android asset reader, if the media is one
     AVStream *stream;
     int stream_idx;
     int is_image;
@@ -149,6 +153,20 @@ int nmdi_demuxing_init(void *log_ctx,
     default:
         av_assert0(0);
     }
+
+#ifdef __ANDROID__
+    const size_t asset_prefix_len = strlen(NMDI_ANDROID_ASSET_PREFIX);
+    if (!strncmp(filename, NMDI_ANDROID_ASSET_PREFIX, asset_prefix_len)) {
+        int ret = nmdi_android_asset_open(log_ctx, filename + asset_prefix_len, &ctx->asset_pb);
+        if (ret < 0)
+            return ret;
+
+        ctx->fmt_ctx = avformat_alloc_context();
+        if (!ctx->fmt_ctx)
+            return AVERROR(ENOMEM);
+        ctx->fmt_ctx->pb = ctx->asset_pb;
+    }
+#endif
 
     AVDictionary *fmt_opts = NULL;
     if (!strncmp(filename, "fd:", 3)) {
@@ -682,5 +700,8 @@ void nmdi_demuxing_free(struct demuxing_ctx **ctxp)
         return;
     av_packet_free(&ctx->seek_pkt);
     avformat_close_input(&ctx->fmt_ctx);
+#ifdef __ANDROID__
+    nmdi_android_asset_close(&ctx->asset_pb);
+#endif
     av_freep(ctxp);
 }

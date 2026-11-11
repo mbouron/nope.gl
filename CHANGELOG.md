@@ -13,6 +13,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 ### Added
 - `NGLContext.version`, `versionMajor`, `versionMinor` and `versionMicro` to
   get the `libnopegl` version from the Android bindings
+- `libnopemedia` support for Android assets (`file:///android_asset/<path>`)
 
 ### Changed
 - `libnopemd` headers are now located in the nopemd sub directory. Users
