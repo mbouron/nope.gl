@@ -138,6 +138,24 @@ JNIEXPORT void JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeSetLogLevel(
     (*env)->ReleaseStringUTFChars(env, log_level, log_level_str);
 }
 
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeGetVersionMajor(
+    JNIEnv *env, jclass type)
+{
+    return NGL_VERSION_MAJOR;
+}
+
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeGetVersionMinor(
+    JNIEnv *env, jclass type)
+{
+    return NGL_VERSION_MINOR;
+}
+
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopegl_NGLContext_nativeGetVersionMicro(
+    JNIEnv *env, jclass type)
+{
+    return NGL_VERSION_MICRO;
+}
+
 JNIEXPORT jlong JNICALL
 Java_org_nopeforge_nopegl_NGLContext_nativeCreateNativeWindow(JNIEnv *env,
                                                               jclass type,

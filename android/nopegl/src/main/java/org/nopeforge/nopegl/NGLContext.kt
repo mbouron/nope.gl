@@ -108,6 +108,18 @@ class NGLContext {
         }
 
         @JvmStatic
+        val versionMajor: Int = nativeGetVersionMajor()
+
+        @JvmStatic
+        val versionMinor: Int = nativeGetVersionMinor()
+
+        @JvmStatic
+        val versionMicro: Int = nativeGetVersionMicro()
+
+        @JvmStatic
+        val version: String = "$versionMajor.$versionMinor.$versionMicro"
+
+        @JvmStatic
         @Deprecated(
             "Use init(context: Context?) instead. To handle logging use NGLLogger",
             ReplaceWith("init(context, logLevel, { level, tag, message ->  })")
@@ -148,6 +160,15 @@ class NGLContext {
 
         @JvmStatic
         private external fun nativeSetLogLevel(logLevel: String)
+
+        @JvmStatic
+        private external fun nativeGetVersionMajor(): Int
+
+        @JvmStatic
+        private external fun nativeGetVersionMinor(): Int
+
+        @JvmStatic
+        private external fun nativeGetVersionMicro(): Int
 
         @JvmStatic
         private external fun nativeCreateNativeWindow(surface: Any?): Long
