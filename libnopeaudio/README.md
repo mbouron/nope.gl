@@ -130,7 +130,8 @@ host is responsible for fading around them.
 default value and interpolation scale (linear, logarithmic or stepped).
 Effect types are numbered from 0 without gaps; enumeration ends when the
 function returns `NULL`. The initial effect, `NAU_EFFECT_PASSTHROUGH`, leaves
-its input unchanged and has no parameters.
+its input unchanged and has no parameters. An effect with a sidechain (the
+ducker) has a second input, its key.
 
 `nau_effect_set_param()` sets a target from any thread. The effect ramps
 towards it, except for stepped parameters, which change immediately.
@@ -337,6 +338,23 @@ Automating the resonance with the cutoff takes a lane for each, in one call.
 A slider can drive the depth of the filter (`NAU_LOWPASS_AMOUNT`) on top of
 its automation.
 
+Music ducking under two voices:
+
+```c
+struct nau_track_effect *ducker = NULL;
+nau_player_add_track_effect(player, music, NAU_EFFECT_DUCKER,
+                            NAU_TRACK_EFFECT_PLACEMENT_POST_FADER, &ducker);
+nau_player_set_track_effect_param(player, ducker, NAU_DUCKER_THRESHOLD, 0.01f);  /* voices above -40 dB */
+nau_player_set_track_effect_param(player, ducker, NAU_DUCKER_VOLUME, 0.25f);     /* down to -12 dB */
+struct nau_track *const voices[] = {voice, other_voice};
+nau_player_set_track_effect_sidechain(player, ducker, voices, 2);
+```
+
+A sidechain hears its key tracks after their volume, before their effects
+placed after it: a silent track ducks nothing, and tracks can duck under
+each other with effects placed after their volume. A track listening to
+itself through effects placed before the faders is refused.
+
 With `NAU_PLAYER_HOST`, bracket rendering with
 `nau_player_start_rendering()` and `nau_player_stop_rendering()`. The host
 owns the rendering thread: `nau_player_stop()` pauses and seeks to the start
@@ -372,10 +390,10 @@ environment. The test programs are in the build directory.
 ### Validation
 
 The tests cover the graph, the ramps, every effect type, the filter
-responses, the effect chains, the block boundaries, seeks, short loops, late
-clock queries, concurrent edits, decoding, the queue between threads, the
-error paths, the export and the null device. ASan/UBSan and TSan use separate
-Meson builds.
+responses, the ducker, the effect chains and their sidechains, the block
+boundaries, seeks, short loops, late clock queries, concurrent edits,
+decoding, the queue between threads, the error paths, the export and the null
+device. ASan/UBSan and TSan use separate Meson builds.
 
 On Linux, the player tests also check the voluntary context switches of the
 render thread. This measures neither the callback deadlines nor the latency of

@@ -492,6 +492,7 @@ NAU_API int nau_fader_set_ramps(struct nau_node *node, const struct nau_ramp *ra
 enum nau_effect_type {
     NAU_EFFECT_PASSTHROUGH, /* passes its input through unchanged; no parameters */
     NAU_EFFECT_LOWPASS,     /* resonant low-pass filter, see enum nau_lowpass_param */
+    NAU_EFFECT_DUCKER,      /* sidechain ducker, see enum nau_ducker_param */
     NAU_EFFECT_TYPE_MAX_ENUM = 0x7FFFFFFF
 };
 
@@ -526,6 +527,8 @@ struct nau_effect_info {
     const char *name;                       /* identifier, unique among the effects */
     const struct nau_param_info *params;    /* indexed by the parameters of the effect */
     uint32_t param_count;
+    int sidechain;                          /* non-zero if the effect listens to a key: the
+                                               second input of its node */
 };
 
 /**
@@ -560,6 +563,9 @@ NAU_API float nau_ramp_param(const struct nau_param_info *param, enum nau_ramp_s
 
 /**
  * Initialize an effect node with default parameter values.
+ *
+ * Its first input is the audio processed, its second one the key of a
+ * sidechain if it has one.
  *
  * @param node          uninitialized node allocated with nau_node_create()
  * @param engine        engine the node belongs to
@@ -642,6 +648,51 @@ enum nau_lowpass_param {
     NAU_LOWPASS_RESONANCE_SCALE, /* factor applied to the resonance, within [0, 100], the result
                                     clamped to [0.1, 40]; 1 by default */
     NAU_LOWPASS_PARAM_MAX_ENUM = 0x7FFFFFFF
+};
+
+/**
+ * Parameters of a sidechain ducker (NAU_EFFECT_DUCKER), lowering the volume
+ * of its main input while its key is heard: music ducking under a voice, for
+ * example.
+ *
+ *    main ------------------------------------------> x ----> output
+ *                                                     ^
+ *                                                     | gain
+ *    key ----> peak >= threshold ----> hold ----> attack / release
+ *
+ * The key is heard at a frame when the peak of its channels reaches the
+ * threshold, and during the hold which follows: the hold bridges the cycles
+ * of the key and the gaps between words, which would otherwise make the volume
+ * go up and down.
+ *
+ *    key      ____/\/\/\/\/\/\_______________________
+ *
+ *    gain   1 ----.                         .--------
+ *                  \                       /
+ *      volume       \_____________________/
+ *                 |  |         |          |  |
+ *                attack            hold     release
+ *
+ * The gain moves linearly. The ducker does not look ahead, since a processor
+ * must not add latency: the main input is still on its way down during the
+ * first frames of the key. When the rendering jumps to another position, or
+ * starts again after a pause, its first frame tells whether the main input is
+ * ducked, without a ramp. Without a key, the main input is left as is.
+ *
+ * The levels and the volume are linear (0.25 is -12 dB).
+ */
+enum nau_ducker_param {
+    NAU_DUCKER_THRESHOLD,   /* level of the key from which the main input is ducked, within
+                               [0.00001, 1], moving in dB; 0.0316 (-30 dB) by default */
+    NAU_DUCKER_VOLUME,      /* gain of the main input while it is ducked, within [0, 1];
+                               0.251 (-12 dB) by default */
+    NAU_DUCKER_ATTACK,      /* seconds the gain takes to go from 1 to the volume, within [0, 10];
+                               0.05 by default */
+    NAU_DUCKER_HOLD,        /* seconds the main input stays ducked after the key was last at the
+                               threshold, within [0, 10]; 0.2 by default */
+    NAU_DUCKER_RELEASE,     /* seconds the gain takes to go back from the volume to 1, within
+                               [0, 10]; 0.4 by default */
+    NAU_DUCKER_PARAM_MAX_ENUM = 0x7FFFFFFF
 };
 
 /* Input of a route left unconnected (silence) */
@@ -1543,6 +1594,39 @@ struct nau_lane {
  */
 NAU_API int nau_player_set_track_effect_automation(struct nau_player *player, struct nau_track_effect *effect,
                                                    const struct nau_lane *lanes, uint32_t lane_count);
+
+/**
+ * Set the tracks the sidechain of an effect listens to (its keys), such as
+ * the voices a ducker lowers the music under.
+ *
+ * The key is the mix of the key tracks, each one heard after its volume and
+ * before its own effects placed after it:
+ *
+ *    music:   media --> fader --> volume -----------------> ducker --.
+ *                                                             ^ key  |
+ *    voice 1: media --> fader --> volume --+--> mix ----------'      +--> mix
+ *                                          |     ^                   |
+ *                                          '-----|-------------------+
+ *    voice 2: media --> fader --> volume --+-----'                   |
+ *                                          '-------------------------'
+ *
+ * A key track which is silent (faded out, volume at 0) is not heard by the
+ * sidechain. Effects placed after the volume can listen to each other's
+ * tracks; an edit making a track listen to itself through effects placed
+ * before the fader is refused. A key track removed from the player is not a
+ * key anymore.
+ *
+ * @param player    player owning the effect
+ * @param effect    effect with a sidechain (see nau_effect_info.sidechain)
+ * @param keys      tracks to listen to, copied: other tracks of the player,
+ *                  each of them once
+ * @param key_count number of keys; 0 leaves the sidechain silent
+ *
+ * @return NAU_OK on success, NAU_AGAIN if an edit is pending, NAU_ERROR_* (< 0)
+ *         on error
+ */
+NAU_API int nau_player_set_track_effect_sidechain(struct nau_player *player, struct nau_track_effect *effect,
+                                                  struct nau_track *const *keys, uint32_t key_count);
 
 /**
  * Get the track's media length, in frames.

@@ -27,6 +27,7 @@
  */
 
 #include <assert.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "nopeaudio/nopeaudio.h"
@@ -182,6 +183,9 @@ static void test_media(const char *fixture)
     nau_engine_freep(&e);
 }
 
+/* Stands for an effect the player does not have: the player only compares it */
+static max_align_t foreign_effect;
+
 static void test_player(const char *fixture, const char *export_path)
 {
     struct nau_player *p = nau_player_create();
@@ -197,6 +201,8 @@ static void test_player(const char *fixture, const char *export_path)
     assert(nau_player_set_duration(p, 10) == NAU_ERROR_INVALID);
     assert(nau_player_set_volume(p, 1.f) == NAU_ERROR_INVALID);
     assert(nau_player_clear_tracks(p) == NAU_ERROR_INVALID);
+    struct nau_track_effect *effect = (struct nau_track_effect *)&foreign_effect;
+    assert(nau_player_set_track_effect_sidechain(p, effect, NULL, 0) == NAU_ERROR_INVALID);
     assert(nau_player_export(p, export_path, NAU_EXPORT_S16) == NAU_ERROR_INVALID);
     struct nau_track *t = (struct nau_track *)1;
     const struct nau_track_params params = {.filename = fixture, .duration = -1, .volume = 1.f};

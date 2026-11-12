@@ -756,7 +756,7 @@ static void test_effect_info(void)
         }
     }
     assert(count >= 1 && !strcmp(effect_info(NAU_EFFECT_PASSTHROUGH)->name, "passthrough"));
-    assert(!effect_info(NAU_EFFECT_PASSTHROUGH)->param_count);
+    assert(!effect_info(NAU_EFFECT_PASSTHROUGH)->param_count && !effect_info(NAU_EFFECT_PASSTHROUGH)->sidechain);
     assert(!effect_info(count) && !effect_info(count + 1) && !effect_info(UINT32_MAX));
 }
 
@@ -860,12 +860,16 @@ static void test_effects_render(void)
         e = nau_engine_create();
         assert(e);
         assert(nau_engine_init(e, &c) == NAU_OK);
-        struct delayed_tone tone = {440, 0};
+        struct delayed_tone tone = {440, 0}, key = {1000, 0};
         const struct nau_processor tone_processor = {.user = &tone, .process = delayed_tone_process};
-        struct nau_node *input = NULL, *effect = NULL;
+        const struct nau_processor key_processor = {.user = &key, .process = delayed_tone_process};
+        struct nau_node *input = NULL, *key_input = NULL, *effect = NULL;
         input = nau_node_create();
         assert(input);
         assert(nau_node_init(input, e, &tone_processor) == NAU_OK);
+        key_input = nau_node_create();
+        assert(key_input);
+        assert(nau_node_init(key_input, e, &key_processor) == NAU_OK);
         effect = nau_node_create();
         assert(effect);
         assert(nau_effect_init(effect, e, (enum nau_effect_type)type, 0) == NAU_OK);
@@ -876,9 +880,11 @@ static void test_effects_render(void)
             assert(nau_effect_set_automation(effect, i, &ramp, 1) == NAU_OK);
         }
         assert(nau_node_set_origin(effect, 500) == NAU_OK);
-        static const uint32_t in[] = {0};
-        const struct nau_route r[] = {{input, NULL}, {effect, in}};
-        assert(nau_engine_commit(e, r, 2, 1) == NAU_OK);
+        /* A sidechain hears another tone */
+        static const uint32_t in[] = {0, 2};
+        const struct nau_route r[] = {{input, NULL}, {effect, in}, {key_input, NULL}};
+        const uint32_t route_count = info->sidechain ? 3 : 2;
+        assert(nau_engine_commit(e, r, route_count, 1) == NAU_OK);
         assert(nau_engine_render(e, 0, N, whole) == NAU_OK);
         for (uint32_t i = 0; i < 2 * N; i++)
             assert(isfinite(whole[i]));
@@ -893,13 +899,14 @@ static void test_effects_render(void)
         assert(!memcmp(whole, pieces, sizeof(whole)));
 
         /* Moved with its inputs by any number of frames: moved as is */
-        tone.delay = 7;
+        tone.delay = key.delay = 7;
         assert(nau_node_set_origin(effect, 507) == NAU_OK);
-        assert(nau_engine_commit(e, r, 2, 1) == NAU_OK);
+        assert(nau_engine_commit(e, r, route_count, 1) == NAU_OK);
         assert(nau_engine_render(e, 7, N, moved) == NAU_OK);
         assert(!memcmp(whole, moved, sizeof(whole)));
 
         nau_node_unrefp(&input);
+        nau_node_unrefp(&key_input);
         nau_node_unrefp(&effect);
         nau_engine_freep(&e);
     }
@@ -979,6 +986,243 @@ static void test_lowpass_info(void)
     }
 }
 
+/*
+ * The automation of an effect is relative to the origin of its node, and is
+ * evaluated every 16 frames from it: ducked all the time, the volume of a
+ * ducker without attack is its parameter.
+ */
+static void test_effect_origin(void)
+{
+    struct nau_engine *e = NULL;
+    const struct nau_engine_config c = {RATE, 2, 64};
+    e = nau_engine_create();
+    assert(e);
+    assert(nau_engine_init(e, &c) == NAU_OK);
+    struct nau_node *signal = NULL, *key = NULL, *ducker = NULL;
+    /* Ones, under a key heard all the time */
+    const struct nau_processor input = {.process = ones};
+    signal = nau_node_create();
+    assert(signal);
+    assert(nau_node_init(signal, e, &input) == NAU_OK);
+    key = nau_node_create();
+    assert(key);
+    assert(nau_node_init(key, e, &input) == NAU_OK);
+    ducker = nau_node_create();
+    assert(ducker);
+    assert(nau_effect_init(ducker, e, NAU_EFFECT_DUCKER, 0) == NAU_OK);
+    assert(nau_effect_set_param(ducker, NAU_DUCKER_ATTACK, 0) == NAU_OK);
+    /* 0.5 from the origin, down to 0 over 64 frames from 32 */
+    const struct nau_ramp ramps[] = {{.value = 0.5f}, {.frame = 32, .length = 64, .value = 0}};
+    assert(nau_effect_set_automation(ducker, NAU_DUCKER_VOLUME, ramps, 2) == NAU_OK);
+    assert(nau_node_set_origin(ducker, 100) == NAU_OK);
+    static const uint32_t in[] = {0, 1};
+    const struct nau_route r[] = {{signal, NULL}, {key, NULL}, {ducker, in}};
+    assert(nau_engine_commit(e, r, 3, 2) == NAU_OK);
+    enum { N = 256 };
+    static float out[2 * N], pieces[2 * N], moved[2 * N];
+    assert(nau_engine_render(e, 0, N, out) == NAU_OK);
+    const float set = nau_effect_get_info(NAU_EFFECT_DUCKER)->params[NAU_DUCKER_VOLUME].default_value;
+    for (int i = 0; i < N; i++) {
+        const int64_t chunk = (i - 100 + 1600) / 16 * 16 - 1600;
+        const float expected = chunk < 0 ? set : chunk < 32 ? 0.5f : chunk < 96 ? 0.5f * (1 - (float)(chunk - 32) / 64) : 0;
+        close_to(out[2 * i], expected);
+        assert(out[2 * i + 1] == out[2 * i]);
+    }
+    /* Cut anywhere, the same */
+    const uint32_t sizes[] = {1, 7, 13, 64, 3, 100};
+    for (uint32_t done = 0, i = 0; done < N; i++) {
+        const uint32_t size = sizes[i % 6] < N - done ? sizes[i % 6] : N - done;
+        assert(nau_engine_render(e, done, size, pieces + 2 * done) == NAU_OK);
+        done += size;
+    }
+    assert(!memcmp(out, pieces, sizeof(out)));
+    /* Moved by any number of frames, moved as is */
+    assert(nau_node_set_origin(ducker, 107) == NAU_OK);
+    assert(nau_engine_commit(e, r, 3, 2) == NAU_OK);
+    assert(nau_engine_render(e, 7, N, moved) == NAU_OK);
+    assert(!memcmp(out, moved, sizeof(out)));
+    nau_node_unrefp(&signal);
+    nau_node_unrefp(&key);
+    nau_node_unrefp(&ducker);
+    nau_engine_freep(&e);
+}
+
+/* A key heard on its right channel only: at the threshold over [10, 12), and above it, negative, at 40 */
+static int key_process(void *user, const struct nau_block *p)
+{
+    for (uint32_t i = 0; i < p->frames; i++) {
+        const int64_t frame = p->frame + i;
+        p->output[2 * i] = 0.f;
+        p->output[2 * i + 1] = frame == 10 || frame == 11 ? 0.5f : frame == 40 ? -0.9f : 0.1f;
+    }
+    return NAU_OK;
+}
+
+struct ducked {
+    struct nau_engine *engine;
+    struct nau_node *main, *key, *ducker;
+};
+
+/* Parameters of a ducker, its durations in frames */
+struct ducking {
+    float threshold, volume;
+    uint32_t attack, hold, release;
+};
+
+static void ducked_set(struct ducked *d, const struct ducking *k)
+{
+    assert(nau_effect_set_param(d->ducker, NAU_DUCKER_THRESHOLD, k->threshold) == NAU_OK);
+    assert(nau_effect_set_param(d->ducker, NAU_DUCKER_VOLUME, k->volume) == NAU_OK);
+    assert(nau_effect_set_param(d->ducker, NAU_DUCKER_ATTACK, (float)k->attack / RATE) == NAU_OK);
+    assert(nau_effect_set_param(d->ducker, NAU_DUCKER_HOLD, (float)k->hold / RATE) == NAU_OK);
+    assert(nau_effect_set_param(d->ducker, NAU_DUCKER_RELEASE, (float)k->release / RATE) == NAU_OK);
+}
+
+/* Commit the ducker, with its key or without */
+static void ducked_commit(struct ducked *d, int keyed)
+{
+    const uint32_t in[] = {0, keyed ? 1 : NAU_INPUT_NONE};
+    const struct nau_route r[] = {{d->main, NULL}, {d->key, NULL}, {d->ducker, in}};
+    assert(nau_engine_commit(d->engine, r, 3, 2) == NAU_OK);
+}
+
+static void ducked_init(struct ducked *d)
+{
+    const struct nau_engine_config c = {RATE, 2, 16};
+    d->engine = nau_engine_create();
+    assert(d->engine);
+    assert(nau_engine_init(d->engine, &c) == NAU_OK);
+    const struct nau_processor input = {.process = ones}, key = {.process = key_process};
+    d->main = nau_node_create();
+    assert(d->main);
+    assert(nau_node_init(d->main, d->engine, &input) == NAU_OK);
+    d->key = nau_node_create();
+    assert(d->key);
+    assert(nau_node_init(d->key, d->engine, &key) == NAU_OK);
+    d->ducker = nau_node_create();
+    assert(d->ducker);
+    assert(nau_effect_init(d->ducker, d->engine, NAU_EFFECT_DUCKER, 0) == NAU_OK);
+}
+
+static void ducked_uninit(struct ducked *d)
+{
+    nau_node_unrefp(&d->main);
+    nau_node_unrefp(&d->key);
+    nau_node_unrefp(&d->ducker);
+    nau_engine_freep(&d->engine);
+}
+
+/* The volumes of `frames` frames rendered from `first`, the same on both channels */
+static void ducked_render(struct ducked *d, int64_t first, uint32_t frames, float *volumes)
+{
+    float out[2 * 64];
+    assert(frames <= 64);
+    assert(nau_engine_render(d->engine, first, frames, out) == NAU_OK);
+    for (uint32_t i = 0; i < frames; i++) {
+        assert(out[2 * i] == out[2 * i + 1]);
+        volumes[i] = out[2 * i];
+    }
+}
+
+/* The volume of a main input ducked to 0.25, at a depth going from 0 to 1 */
+static float ducked_volume(float depth)
+{
+    return 1.f - 0.75f * depth;
+}
+
+static void test_ducker(void)
+{
+    struct ducked d = {0};
+    ducked_init(&d);
+    float volumes[64];
+    /* At its own volume without a key */
+    ducked_commit(&d, 0);
+    ducked_render(&d, 0, 64, volumes);
+    for (int i = 0; i < 64; i++)
+        assert(volumes[i] == 1.f);
+
+    const struct ducking params = {.threshold = 0.5f, .volume = 0.25f, .attack = 4, .hold = 3, .release = 8};
+    ducked_set(&d, &params);
+    ducked_commit(&d, 1);
+    ducked_render(&d, 0, 64, volumes);
+    /* Down over 4 frames from the key at 10, held for 3 frames after it at 11, back over 8 frames */
+    const float depths[] = {0, 0, 0.25f, 0.5f, 0.75f, 1, 1, 0.875f, 0.75f, 0.625f, 0.5f, 0.375f, 0.25f, 0.125f, 0, 0};
+    for (int i = 0; i < 64; i++) {
+        float depth = i >= 8 && i < 24 ? depths[i - 8] : 0;
+        /* One frame of key: on its way down while held, then back from there */
+        if (i >= 40)
+            depth = i < 44 ? (float)(i - 39) / 4 : i < 51 ? (float)(51 - i) / 8 : 0;
+        assert(volumes[i] == ducked_volume(depth));
+    }
+
+    /* Renders cut anywhere, the graph committed again midway: the same */
+    float pieces[64];
+    const uint32_t sizes[] = {1, 7, 3, 16, 2, 13, 5, 17};
+    for (uint32_t done = 0, i = 0; done < 64; i++) {
+        ducked_render(&d, done, sizes[i], pieces + done);
+        done += sizes[i];
+        if (done == 11)
+            ducked_commit(&d, 1);
+    }
+    assert(!memcmp(volumes, pieces, sizeof(volumes)));
+
+    /* After a jump, ducked at once when the key is heard, then held */
+    ducked_render(&d, 11, 8, volumes);
+    for (int i = 0; i < 8; i++)
+        assert(volumes[i] == ducked_volume(i < 4 ? 1 : 1 - (float)(i - 3) / 8));
+    /* And at its own volume when it is not, even within the hold of a key before the jump */
+    ducked_render(&d, 12, 4, volumes);
+    for (int i = 0; i < 4; i++)
+        assert(volumes[i] == 1.f);
+
+    /* Set while it plays: the volume goes on from where it is */
+    ducked_render(&d, 0, 17, volumes);
+    assert(volumes[16] == ducked_volume(0.75f));
+    const struct ducking faster = {.threshold = 0.5f, .volume = 0.25f, .attack = 4, .hold = 3, .release = 4};
+    ducked_set(&d, &faster);
+    ducked_render(&d, 17, 4, volumes);
+    for (int i = 0; i < 4; i++)
+        assert(volumes[i] == ducked_volume(i < 3 ? 0.5f - (float)i / 4 : 0));
+    /* A hold made shorter ends there */
+    ducked_render(&d, 0, 13, volumes);
+    assert(volumes[12] == ducked_volume(0.75f));
+    const struct ducking unheld = {.threshold = 0.5f, .volume = 0.25f, .attack = 4, .release = 4};
+    ducked_set(&d, &unheld);
+    ducked_render(&d, 13, 4, volumes);
+    for (int i = 0; i < 4; i++)
+        assert(volumes[i] == ducked_volume(i < 3 ? 0.5f - (float)i / 4 : 0));
+
+    /* Without attack nor release: the volume follows the key */
+    const struct ducking gate = {.threshold = 0.9f, .volume = 0};
+    ducked_set(&d, &gate);
+    ducked_render(&d, 32, 16, volumes);
+    for (int i = 0; i < 16; i++)
+        assert(volumes[i] == (i == 8 ? 0.f : 1.f));
+    ducked_uninit(&d);
+}
+
+static void test_ducker_validation(void)
+{
+    struct ducked d = {0};
+    ducked_init(&d);
+    assert(effect_info(NAU_EFFECT_DUCKER)->sidechain && !effect_info(NAU_EFFECT_LOWPASS)->sidechain);
+    const struct {
+        uint32_t param;
+        float value;
+    } bad[] = {
+        {NAU_DUCKER_THRESHOLD, 0}, {NAU_DUCKER_THRESHOLD, -1}, {NAU_DUCKER_THRESHOLD, 1.5f},
+        {NAU_DUCKER_THRESHOLD, NAN}, {NAU_DUCKER_THRESHOLD, INFINITY},
+        {NAU_DUCKER_VOLUME, -0.1f}, {NAU_DUCKER_VOLUME, 1.5f}, {NAU_DUCKER_VOLUME, NAN},
+        {NAU_DUCKER_ATTACK, -1}, {NAU_DUCKER_HOLD, 11}, {NAU_DUCKER_RELEASE, INFINITY},
+        {NAU_DUCKER_RELEASE + 1, 0},
+    };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(*bad); i++)
+        assert(nau_effect_set_param(d.ducker, bad[i].param, bad[i].value) == NAU_ERROR_INVALID);
+    assert(nau_effect_set_param(d.main, NAU_DUCKER_VOLUME, 0.5f) == NAU_ERROR_INVALID);
+    assert(nau_effect_set_param(NULL, NAU_DUCKER_VOLUME, 0.5f) == NAU_ERROR_INVALID);
+    ducked_uninit(&d);
+}
+
 int main(void)
 {
     test_mix_edit();
@@ -1000,6 +1244,9 @@ int main(void)
     test_effects_render();
     test_lowpass_values();
     test_lowpass_info();
+    test_effect_origin();
+    test_ducker();
+    test_ducker_validation();
     test_effects_timeline_end();
     return 0;
 }

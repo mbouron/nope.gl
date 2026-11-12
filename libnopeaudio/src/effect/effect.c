@@ -50,6 +50,7 @@
 static const struct nau_effect_class *const classes[] = {
     [NAU_EFFECT_PASSTHROUGH] = &nau_effect_passthrough,
     [NAU_EFFECT_LOWPASS] = &nau_effect_lowpass,
+    [NAU_EFFECT_DUCKER] = &nau_effect_ducker,
 };
 
 static const struct nau_effect_class *get_class(enum nau_effect_type type)
@@ -322,7 +323,7 @@ int nau_effect_init(struct nau_node *node, struct nau_engine *s, enum nau_effect
         return NAU_ERROR_UNSUPPORTED;
     }
     const struct nau_processor processor = {
-        .input_count = 1,
+        .input_count = cls->info.sidechain ? 2 : 1,
         .user        = e,
         .process     = effect_process,
         .reset       = effect_reset,

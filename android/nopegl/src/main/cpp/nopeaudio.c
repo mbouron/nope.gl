@@ -198,16 +198,16 @@ JNIEXPORT jint JNICALL Java_org_nopeforge_nopeaudio_AudioPlayer_nativeSetTrackFa
 
 /*
  * The name of an effect, NULL past the last one; `counts` gets its number of
- * parameters
+ * parameters, and whether it has a sidechain
  */
 JNIEXPORT jstring JNICALL Java_org_nopeforge_nopeaudio_AudioPlayer_nativeGetEffect(JNIEnv *env, jclass clazz,
                                                                                    jint type, jintArray counts)
 {
     const struct nau_effect_info *info = nau_effect_get_info((enum nau_effect_type)type);
-    if (!info || (*env)->GetArrayLength(env, counts) != 1)
+    if (!info || (*env)->GetArrayLength(env, counts) != 2)
         return NULL;
-    const jint values[] = {(jint)info->param_count};
-    (*env)->SetIntArrayRegion(env, counts, 0, 1, values);
+    const jint values[] = {(jint)info->param_count, info->sidechain ? 1 : 0};
+    (*env)->SetIntArrayRegion(env, counts, 0, 2, values);
     if ((*env)->ExceptionCheck(env))
         return NULL;
     return (*env)->NewStringUTF(env, info->name);
@@ -328,6 +328,28 @@ end:
         (*env)->ReleaseIntArrayElements(env, counts, c, JNI_ABORT);
     free(ramps);
     free(lanes);
+    return ret;
+}
+
+JNIEXPORT jint JNICALL Java_org_nopeforge_nopeaudio_AudioPlayer_nativeSetEffectSidechain(JNIEnv *env, jclass clazz,
+                                                                                        jlong ptr, jlong effect,
+                                                                                        jlongArray keys)
+{
+    const jsize n = (*env)->GetArrayLength(env, keys);
+    if (n > 64)
+        return NAU_ERROR_INVALID;
+    struct nau_track **tracks = calloc((size_t)n + 1, sizeof(*tracks));
+    if (!tracks)
+        return NAU_ERROR_MEMORY;
+    jlong *k = (*env)->GetLongArrayElements(env, keys, NULL);
+    int ret = NAU_ERROR_MEMORY;
+    if (k) {
+        for (jsize i = 0; i < n; i++)
+            tracks[i] = TRACK(k[i]);
+        (*env)->ReleaseLongArrayElements(env, keys, k, JNI_ABORT);
+        ret = nau_player_set_track_effect_sidechain(PLAYER(ptr), EFFECT(effect), tracks, (uint32_t)n);
+    }
+    free(tracks);
     return ret;
 }
 

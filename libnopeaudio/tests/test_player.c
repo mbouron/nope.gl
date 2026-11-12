@@ -387,21 +387,27 @@ static void test_never_waits(void)
             const struct nau_ramp ramps[] = {{0, 0, 0.5f, NAU_RAMP_LINEAR, 0}, {(int64_t)(seed % 20000), 4800, 0.1f, NAU_RAMP_LINEAR, 0}};
             CHECK_EDIT(nau_player_set_track_fader(p, tracks[seed % 4], ramps, 2));
             /* Effects added, edited in place, moved and removed: a filter on
-             * each track */
+             * the even tracks, a ducker under the next track on the odd ones */
             const uint32_t slot = seed % 4;
+            const int filter = slot % 2 == 0;
             const enum nau_track_effect_placement placement =
-                (seed >> 9) % 2 ? NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER : NAU_TRACK_EFFECT_PLACEMENT_POST_FADER;
+                filter && (seed >> 9) % 2 ? NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER : NAU_TRACK_EFFECT_PLACEMENT_POST_FADER;
             if (!effects[slot]) {
-                CHECK_EDIT(nau_player_add_track_effect(p, tracks[slot], NAU_EFFECT_LOWPASS, placement, &effects[slot]));
+                CHECK_EDIT(nau_player_add_track_effect(p, tracks[slot], filter ? NAU_EFFECT_LOWPASS : NAU_EFFECT_DUCKER,
+                                                       placement, &effects[slot]));
+                if (!filter)
+                    CHECK_EDIT(nau_player_set_track_effect_sidechain(p, effects[slot], &tracks[(slot + 1) % 4], 1));
             } else if ((seed >> 10) % 4 == 0) {
                 CHECK_EDIT(nau_player_remove_track_effect(p, &effects[slot]));
             } else {
                 const struct nau_ramp automation[] = {
-                    {.value = 2000.f},
-                    {.frame = seed % 20000, .length = 4800, .value = (float)(300 + seed % 1000)},
+                    {.value = filter ? 2000.f : 0.5f},
+                    {.frame = seed % 20000, .length = 4800, .value = filter ? (float)(300 + seed % 1000) : 0.1f},
                 };
-                CHECK_EDIT(automate(p, effects[slot], NAU_LOWPASS_CUTOFF, automation, 2));
-                CHECK_EDIT(nau_player_move_track_effect(p, effects[slot], placement, 0));
+                const uint32_t param = filter ? (uint32_t)NAU_LOWPASS_CUTOFF : (uint32_t)NAU_DUCKER_VOLUME;
+                CHECK_EDIT(automate(p, effects[slot], param, automation, 2));
+                if (filter)
+                    CHECK_EDIT(nau_player_move_track_effect(p, effects[slot], placement, 0));
             }
         } else if (what == 5) {
             CHECK_EDIT(nau_player_set_track_timings(p, tracks[seed % 4], frame, (seed >> 3) % 20000, 20000));
@@ -411,6 +417,8 @@ static void test_never_waits(void)
                 assert(nau_player_set_track_effect_param(p, effects[0], NAU_LOWPASS_AMOUNT, (float)(seed % 150) / 100) == NAU_OK);
             if (effects[2])
                 assert(nau_player_set_track_effect_param(p, effects[2], NAU_LOWPASS_RESONANCE_SCALE, (float)(seed % 300) / 100) == NAU_OK);
+            if (effects[1])
+                assert(nau_player_set_track_effect_param(p, effects[1], NAU_DUCKER_THRESHOLD, (float)(1 + seed % 100) / 1000) == NAU_OK);
             assert(nau_player_set_volume(p, 0.5f + (float)(seed % 50) / 100) == NAU_OK);
         } else {
             assert(nau_player_pause(p) == NAU_OK);
@@ -1158,6 +1166,188 @@ static void test_lowpass_placement(void)
     nau_player_freep(&p);
 }
 
+/* Parameters of a ducker, its durations in frames */
+struct ducking {
+    float threshold, volume;
+    uint32_t attack, hold, release;
+};
+
+static void set_ducking(struct nau_player *p, struct nau_track_effect *ducker, const struct ducking *k)
+{
+    assert(nau_player_set_track_effect_param(p, ducker, NAU_DUCKER_THRESHOLD, k->threshold) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, ducker, NAU_DUCKER_VOLUME, k->volume) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, ducker, NAU_DUCKER_ATTACK, (float)k->attack / 48000) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, ducker, NAU_DUCKER_HOLD, (float)k->hold / 48000) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, ducker, NAU_DUCKER_RELEASE, (float)k->release / 48000) == NAU_OK);
+}
+
+/* The volume of a track ducked to 0.25 over 100 frames while a key plays
+ * over [start, end), held for 50 frames and back over 200 frames */
+static float ducked_volume(int64_t frame, int64_t start, int64_t end)
+{
+    float depth = 0;
+    if (frame >= start && frame < end + 50)
+        depth = fminf((float)(frame - start + 1) / 100, 1);
+    else if (frame >= end + 50)
+        depth = fmaxf(1 - (float)(frame - end - 49) / 200, 0);
+    return 1 - 0.75f * depth;
+}
+
+/*
+ * Music under voices: the first track ducks while the others play.
+ */
+static void test_ducking(void)
+{
+    struct nau_player *p = offline_player(6000);
+    struct nau_track *music = NULL, *voice = NULL, *other = NULL;
+    const struct nau_track_params music_params = {.filename = fixture, .duration = -1, .volume = 0.5f};
+    assert(nau_player_add_track(p, &music_params, &music) == NAU_OK);
+    float *alone = export_frames(p, "ducking.wav", 6000);
+    const struct nau_track_params voice_params = {.filename = fixture, .start = 1000, .trim = 100, .duration = 500, .volume = 1};
+    const struct nau_track_params other_params = {.filename = fixture, .start = 3000, .duration = 100, .volume = 1};
+    assert(nau_player_add_track(p, &voice_params, &voice) == NAU_OK);
+    assert(nau_player_add_track(p, &other_params, &other) == NAU_OK);
+    float *dry = export_frames(p, "ducking.wav", 6000);
+
+    /* The fixture is at 0.03 at least */
+    struct nau_track_effect *ducker = NULL;
+    assert(nau_player_add_track_effect(p, music, NAU_EFFECT_DUCKER, NAU_TRACK_EFFECT_PLACEMENT_POST_FADER, &ducker) == NAU_OK);
+    const struct ducking params = {.threshold = 0.01f, .volume = 0.25f, .attack = 100, .hold = 50, .release = 200};
+    set_ducking(p, ducker, &params);
+    struct nau_track *keys[] = {voice, other};
+    assert(nau_player_set_track_effect_sidechain(p, ducker, keys, 2) == NAU_OK);
+    float *ducked = export_frames(p, "ducking.wav", 6000);
+    for (int64_t i = 0; i < 6000; i++) {
+        const float volume = i < 2500 ? ducked_volume(i, 1000, 1500) : ducked_volume(i, 3000, 3100);
+        float expected = 0.5f * volume * fixture_at(i);
+        if (i >= 1000 && i < 1500)
+            expected += fixture_at(100 + i - 1000);
+        if (i >= 3000 && i < 3100)
+            expected += fixture_at(i - 3000);
+        close_to(ducked[2 * i], expected);
+        close_to(ducked[2 * i + 1], -expected);
+    }
+    assert(ducked[2 * 1400] < dry[2 * 1400] - 0.01f);
+
+    /* Failed edits leave the ducking as it was */
+    struct nau_track *self[] = {voice, music}, *twice[] = {voice, voice};
+    struct nau_track_effect *lowpass = NULL;
+    assert(nau_player_add_track_effect(p, voice, NAU_EFFECT_LOWPASS, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, &lowpass) == NAU_OK);
+    assert(nau_player_set_track_effect_param(p, ducker, NAU_DUCKER_THRESHOLD, 0) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_sidechain(p, ducker, self, 2) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_sidechain(p, ducker, twice, 2) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_sidechain(p, ducker, NULL, 2) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_sidechain(p, ducker, keys, 64) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_sidechain(NULL, ducker, keys, 2) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_sidechain(p, NULL, keys, 2) == NAU_ERROR_INVALID);
+    assert(nau_player_set_track_effect_sidechain(p, lowpass, &music, 1) == NAU_ERROR_INVALID);
+    assert(nau_player_remove_track_effect(p, &lowpass) == NAU_OK);
+    float *frames = export_frames(p, "ducking.wav", 6000);
+    assert(!memcmp(frames, ducked, 6000 * 2 * sizeof(*frames)));
+    free(frames);
+
+    /* Tracks may duck under each other after their volume: a key is heard
+     * before the effects placed after it */
+    struct nau_track_effect *under_music = NULL;
+    assert(nau_player_add_track_effect(p, voice, NAU_EFFECT_DUCKER, NAU_TRACK_EFFECT_PLACEMENT_POST_FADER, &under_music) == NAU_OK);
+    const struct ducking silenced = {.threshold = 0.01f, .volume = 0};
+    set_ducking(p, under_music, &silenced);
+    assert(nau_player_set_track_effect_sidechain(p, under_music, &music, 1) == NAU_OK);
+    float *mutual = export_frames(p, "ducking.wav", 6000);
+    for (int64_t i = 0; i < 6000; i++) {
+        const float volume = i < 2500 ? ducked_volume(i, 1000, 1500) : ducked_volume(i, 3000, 3100);
+        const float expected = 0.5f * volume * fixture_at(i) + (i >= 3000 && i < 3100 ? fixture_at(i - 3000) : 0);
+        close_to(mutual[2 * i], expected);
+    }
+    /* Before their faders, refused: each would hear the other after itself */
+    assert(nau_player_move_track_effect(p, ducker, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, 0) == NAU_OK);
+    assert(nau_player_move_track_effect(p, under_music, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER, 0) == NAU_ERROR_INVALID);
+    assert(nau_player_move_track_effect(p, ducker, NAU_TRACK_EFFECT_PLACEMENT_POST_FADER, 0) == NAU_OK);
+    frames = export_frames(p, "ducking.wav", 6000);
+    assert(!memcmp(frames, mutual, 6000 * 2 * sizeof(*frames)));
+    free(frames);
+    free(mutual);
+    assert(nau_player_remove_track_effect(p, &under_music) == NAU_OK);
+
+    /* A key is heard after its volume: silent, it ducks nothing */
+    assert(nau_player_set_track_volume(p, other, 0) == NAU_OK);
+    frames = export_frames(p, "ducking.wav", 6000);
+    for (int64_t i = 0; i < 6000; i++) {
+        const float expected = 0.5f * ducked_volume(i, 1000, 1500) * fixture_at(i) +
+                               (i >= 1000 && i < 1500 ? fixture_at(100 + i - 1000) : 0);
+        close_to(frames[2 * i], expected);
+    }
+    free(frames);
+
+    /* A key removed is not one anymore, and a track without keys left is at its own volume */
+    struct nau_track *removed = other;
+    assert(nau_player_remove_track(p, &other) == NAU_OK);
+    assert(nau_player_set_track_effect_sidechain(p, ducker, &removed, 1) == NAU_ERROR_INVALID);
+    frames = export_frames(p, "ducking.wav", 6000);
+    assert(frames[2 * 1400] == ducked[2 * 1400] && frames[2 * 3050] == alone[2 * 3050]);
+    free(frames);
+    assert(nau_player_remove_track(p, &voice) == NAU_OK);
+    frames = export_frames(p, "ducking.wav", 6000);
+    assert(!memcmp(frames, alone, 6000 * 2 * sizeof(*frames)));
+    free(frames);
+    assert(nau_player_set_track_effect_sidechain(p, ducker, NULL, 0) == NAU_OK);
+    assert(nau_player_remove_track_effect(p, &ducker) == NAU_OK);
+    frames = export_frames(p, "ducking.wav", 6000);
+    assert(!memcmp(frames, alone, 6000 * 2 * sizeof(*frames)));
+    free(frames);
+    free(alone);
+    free(dry);
+    free(ducked);
+    nau_player_freep(&p);
+}
+
+/* An edit of a sidechain failing while another edit is pending leaves it as it was */
+static void test_ducking_edits(void)
+{
+    struct nau_player *p = NULL;
+    const struct nau_player_config config = {.mode = NAU_PLAYER_HOST};
+    p = nau_player_create();
+    assert(p);
+    assert(nau_player_init(p, &config) == NAU_OK);
+    assert(nau_player_set_duration(p, 48000) == NAU_OK);
+    struct nau_track *music = NULL, *voice = NULL;
+    const struct nau_track_params music_params = {.filename = fixture, .duration = -1, .volume = 1};
+    const struct nau_track_params voice_params = {.filename = fixture_index, .duration = -1, .volume = 1};
+    assert(nau_player_add_track(p, &music_params, &music) == NAU_OK);
+    assert(nau_player_add_track(p, &voice_params, &voice) == NAU_OK);
+    /* Silent under the voice */
+    struct nau_track_effect *ducker = NULL;
+    assert(nau_player_add_track_effect(p, music, NAU_EFFECT_DUCKER, NAU_TRACK_EFFECT_PLACEMENT_POST_FADER, &ducker) == NAU_OK);
+    const struct ducking silent = {.threshold = 1e-5f, .volume = 0};
+    set_ducking(p, ducker, &silent);
+    assert(nau_player_set_track_effect_sidechain(p, ducker, &voice, 1) == NAU_OK);
+
+    assert(nau_player_start_rendering(p) == NAU_OK);
+    const struct nau_ramp unity = {.value = 1};
+    assert(nau_player_set_track_fader(p, voice, &unity, 1) == NAU_OK);
+    assert(nau_player_set_track_effect_sidechain(p, ducker, NULL, 0) == NAU_AGAIN);
+    float output[2 * 256];
+    assert(nau_player_render(p, 0, 1, output) == NAU_OK);
+    /* The sidechain playing is the one of the next commit */
+    assert(nau_player_set_track_fader(p, music, &unity, 1) == NAU_OK);
+    assert(nau_player_play(p) == NAU_OK);
+    int heard = 0;
+    for (int i = 0; i < 64; i++) {
+        const int64_t from = nau_player_get_position(p);
+        int ret = nau_player_render(p, 0, 256, output);
+        assert(ret >= 0);
+        if (ret == NAU_OK) {
+            assert(index_of(output + 2 * 255) == from + 255);
+            heard = 1;
+            break;
+        }
+        nau_sleep_ms(1);
+    }
+    assert(heard);
+    assert(nau_player_stop_rendering(p) == NAU_OK);
+    nau_player_freep(&p);
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 5);
@@ -1175,6 +1365,8 @@ int main(int argc, char **argv)
     test_lowpass_edits();
     test_lowpass_placement();
     test_effect_chain();
+    test_ducking();
+    test_ducking_edits();
     test_never_waits();
     test_position_while_rendering();
     test_edits_while_paused();

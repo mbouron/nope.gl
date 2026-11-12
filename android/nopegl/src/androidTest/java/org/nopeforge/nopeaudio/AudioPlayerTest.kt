@@ -34,6 +34,7 @@ import kotlin.concurrent.thread
 import org.nopeforge.Nope
 import org.nopeforge.nopegl.NGLContentProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -351,6 +352,8 @@ class AudioPlayerTest {
         assertThrows(IllegalArgumentException::class.java) { AudioPlayer.effectType("unknown") }
         assertThrows(IllegalArgumentException::class.java) { passthrough.param("unknown") }
         val lowpass = AudioPlayer.effectType("lowpass")
+        assertFalse(lowpass.sidechain)
+        assertTrue(AudioPlayer.effectType("ducker").sidechain)
         assertEquals(AudioPlayer.ParamScale.Log, lowpass.param("cutoff").scale)
         assertEquals(AudioPlayer.ParamScale.Stepped, lowpass.param("slope").scale)
     }
@@ -461,11 +464,59 @@ class AudioPlayerTest {
                 assertTrue(dry.contentEquals(readWav(output)))
                 assertThrows(IllegalStateException::class.java) { player.setEffectParam(effect, amount, 0f) }
 
-                // The effects of a removed track are rejected
+                // The parameters of another effect, and the effects of a removed track, are rejected
                 val other = checkNotNull(player.addEffect(track, lowpass).effect)
+                val volume = AudioPlayer.effectType("ducker").param("volume")
+                assertThrows(IllegalArgumentException::class.java) { player.setEffectParam(other, volume, 0f) }
                 assertEquals(AudioPlayer.OK, player.removeTrack(track))
                 assertThrows(IllegalStateException::class.java) { player.setEffectAutomation(other, cutoff, dive) }
                 assertThrows(IllegalStateException::class.java) { player.removeEffect(other) }
+            }
+        } finally {
+            output.delete()
+        }
+    }
+
+    /** A tone ducked to silence after its volume, under a second track playing from 0.5 s */
+    @Test
+    fun duckerLowersTheTrackUnderItsKeys() = withAudio(
+        frames = 48000,
+        sample = { (16384 * sin(2 * PI * 1000 * it / 48000)).toInt().toShort() },
+    ) { file ->
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val output = File.createTempFile("nau-ducker", ".wav", context.cacheDir)
+        try {
+            AudioPlayer(AudioPlayer.Mode.Offline).use { player ->
+                player.duration = 1.seconds
+                val music = addTrack(player, file)
+                val voice = checkNotNull(player.addTrack(file.absolutePath, start = 500.milliseconds).track)
+                assertEquals(AudioPlayer.OK, player.export(output, AudioPlayer.ExportFormat.F32))
+                val dry = readWav(output)
+                val level = rms(dry, 100.milliseconds, 400.milliseconds)
+                // In phase: both tracks together, twice as loud
+                assertEquals(2 * level, rms(dry, 600.milliseconds, 1000.milliseconds), 0.02 * level)
+
+                val type = AudioPlayer.effectType("ducker")
+                val ducker = checkNotNull(player.addEffect(music, type, AudioPlayer.Placement.PostFader).effect)
+                for ((name, value) in listOf("volume" to 0f, "attack" to 0f, "hold" to 0f, "release" to 0f))
+                    assertEquals(AudioPlayer.OK, player.setEffectParam(ducker, type.param(name), value))
+                assertEquals(AudioPlayer.OK, player.setEffectSidechain(ducker, listOf(voice)))
+                assertEquals(AudioPlayer.ERROR_INVALID, player.setEffectSidechain(ducker, listOf(music)))
+                assertEquals(AudioPlayer.ERROR_INVALID, player.setEffectSidechain(ducker, listOf(voice, voice)))
+                val lowpass = checkNotNull(player.addEffect(music, AudioPlayer.effectType("lowpass")).effect)
+                assertEquals(AudioPlayer.ERROR_INVALID, player.setEffectSidechain(lowpass, listOf(voice)))
+                assertEquals(AudioPlayer.OK, player.removeEffect(lowpass))
+                assertEquals(AudioPlayer.OK, player.export(output, AudioPlayer.ExportFormat.F32))
+                val ducked = readWav(output)
+                assertEquals(level, rms(ducked, 100.milliseconds, 400.milliseconds), 0.01 * level)
+                assertEquals(level, rms(ducked, 600.milliseconds, 1000.milliseconds), 0.01 * level)
+
+                // Moved after the fader, its key heard after the volume: a muted voice ducks nothing
+                assertEquals(AudioPlayer.OK, player.moveEffect(ducker, AudioPlayer.Placement.PreFader, 0))
+                assertEquals(AudioPlayer.ERROR_INVALID, player.moveEffect(ducker, AudioPlayer.Placement.PreFader, 1))
+                assertEquals(AudioPlayer.OK, player.setTrackVolume(voice, 0f))
+                assertEquals(AudioPlayer.OK, player.export(output, AudioPlayer.ExportFormat.F32))
+                assertEquals(level, rms(readWav(output), 600.milliseconds, 1000.milliseconds), 0.01 * level)
             }
         } finally {
             output.delete()

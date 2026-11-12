@@ -137,6 +137,8 @@ class AudioPlayer(
         internal val id: Int,
         val name: String,
         val params: List<Param>,
+        /** Whether the effect listens to other tracks, see [setEffectSidechain] */
+        val sidechain: Boolean,
     ) {
         /** The parameter named [name] */
         fun param(name: String): Param =
@@ -345,6 +347,16 @@ class AudioPlayer(
     fun setEffectAutomation(effect: Effect, param: Param, ramps: List<Ramp>): Int =
         setEffectAutomation(effect, mapOf(param to ramps))
 
+    /**
+     * Set the tracks the sidechain of [effect] listens to (see [EffectType.sidechain]), each one
+     * heard after its volume and before its effects placed after it: tracks can listen to each
+     * other through effects placed after their volume. Other tracks of the player, each of them
+     * once.
+     */
+    @Synchronized
+    fun setEffectSidechain(effect: Effect, keys: List<Track>): Int =
+        nativeSetEffectSidechain(ptr(), effectPtr(effect), keys.map { trackPtr(it) }.toLongArray())
+
     /** Get the media length of a track, or zero if unknown. */
     @Synchronized
     fun getTrackLength(track: Track): Duration = nativeGetTrackLength(trackPtr(track)).toDuration()
@@ -475,7 +487,7 @@ class AudioPlayer(
 
         private fun loadEffectTypes(): List<EffectType> {
             val types = mutableListOf<EffectType>()
-            val counts = IntArray(1)
+            val counts = IntArray(2)
             val values = FloatArray(4)
             while (true) {
                 val type = types.size
@@ -484,7 +496,7 @@ class AudioPlayer(
                     val paramName = checkNotNull(nativeGetParam(type, param, values))
                     Param(param, paramName, values[0], values[1], values[2], ParamScale.entries[values[3].toInt()])
                 }
-                types.add(EffectType(type, name, params))
+                types.add(EffectType(type, name, params, counts[1] != 0))
             }
         }
 
@@ -521,6 +533,7 @@ class AudioPlayer(
             ptr: Long, effect: Long, params: IntArray, counts: IntArray, frames: LongArray, lengths: LongArray,
             values: FloatArray, shapes: IntArray, curvatures: FloatArray,
         ): Int
+        @JvmStatic private external fun nativeSetEffectSidechain(ptr: Long, effect: Long, keys: LongArray): Int
         @JvmStatic private external fun nativeGetTrackLength(track: Long): Long
         @JvmStatic private external fun nativeGetTrackDuration(track: Long): Long
         @JvmStatic private external fun nativeRemoveTrack(ptr: Long, track: Long): Int

@@ -44,6 +44,11 @@
  *                                                            +--> mix --> master
  *    source --> [effects] --> fader --> gain --> [effects] --'
  *
+ * An effect with a sidechain listens to the mix of its key tracks, each one
+ * taken at its gain: whichever tracks listen to each other through effects
+ * placed after their gain, the graph has no cycle. A cycle through effects
+ * placed before the fader is refused by the engine.
+ *
  * Track edits publish a new graph. A commit can fail, including with NAU_AGAIN
  * while the previous commit is pending, so edits must leave the track intact
  * until publication succeeds. Changes are prepared in a local copy of the
@@ -69,8 +74,9 @@
  *
  * An effect keeps its node to preserve filter history across edits. Its
  * configuration is snapshotted at commit, so automation can be swapped into
- * the node and swapped back without allocation if the commit fails.
- * Source ranges and node origins are also restored on failure.
+ * the node and swapped back without allocation if the commit fails. The keys
+ * of a sidechain are swapped the same way. Source ranges and node origins are
+ * also restored on failure.
  *
  * Automation is relative to the track's start, used as the origin of its
  * nodes: moving the track does not require changing its ramps. Volume and
@@ -93,6 +99,9 @@
 
 struct nau_track_effect {
     struct nau_node *node;
+    int sidechain;                  /* the effect listens to key tracks */
+    struct nau_track **keys;        /* tracks the sidechain listens to */
+    uint32_t key_count;
 };
 
 struct nau_track {
@@ -208,6 +217,10 @@ struct graph {
     struct nau_route *routes;
     uint32_t route_count;
     uint32_t *input;          /* next free input */
+    /* Sidechains laid so far: the input left for their key, and their effect */
+    uint32_t **sidechain_inputs;
+    const struct nau_track_effect **sidechains;
+    uint32_t sidechain_count;
 };
 
 static void add_route(struct graph *g, struct nau_node *node, const uint32_t *inputs)
@@ -222,10 +235,17 @@ static void chain_node(struct graph *g, struct nau_node *node)
     add_route(g, node, g->input++);
 }
 
+/* The key of a sidechain, the second input of its node, is set once all tracks are laid */
 static void chain_effects(struct graph *g, const struct nau_track *t, struct effect_range range)
 {
-    for (uint32_t i = range.first; i < range.first + range.count; i++)
-        chain_node(g, t->effects[i]->node);
+    for (uint32_t i = range.first; i < range.first + range.count; i++) {
+        const struct nau_track_effect *e = t->effects[i];
+        chain_node(g, e->node);
+        if (!e->sidechain)
+            continue;
+        g->sidechain_inputs[g->sidechain_count] = g->input++;
+        g->sidechains[g->sidechain_count++] = e;
+    }
 }
 
 static int set_origins(const struct nau_track *t)
@@ -246,26 +266,44 @@ static int set_origins(const struct nau_track *t)
  * Publish the graph of the player: the chain of every track into the mix,
  * and the mix into the master volume. `replacement` is used in place of the
  * track `original`, if any (see the edits of the tracks).
+ *
+ * The key of a sidechain is the mix of the gains of its key tracks. The keys
+ * which are not tracks of the player anymore (a track being removed) are left
+ * out.
  */
 static int commit(struct nau_player *p, const struct nau_track *original, const struct nau_track *replacement)
 {
     const uint32_t n = p->track_count;
     /*
      * Each track needs one route for its source, then one route and one
-     * input per chained node. The mix and master gain add two routes,
-     * with one input per track for the mix and one for the master.
+     * input per chained node. A sidechain adds a second input to its effect,
+     * and a route mixing its keys, with one input per key. The mix and master
+     * gain add two routes, with one input per track for the mix and one for
+     * the master.
      */
-    size_t route_count = 2, input_count = n + 1;
+    size_t route_count = 2, input_count = n + 1, sidechain_count = 0;
     for (uint32_t i = 0; i < n; i++) {
         const struct nau_track *t = laid_track(p, i, original, replacement);
         route_count += 1 + chain_length(t);
         input_count += chain_length(t);
+        for (uint32_t j = 0; j < t->effect_count; j++) {
+            const struct nau_track_effect *e = t->effects[j];
+            if (!e->sidechain)
+                continue;
+            sidechain_count++;
+            route_count++;
+            input_count += 1 + e->key_count;
+        }
     }
     struct nau_route *routes = nau_try_calloc(route_count, sizeof(*routes));
     uint32_t *inputs = nau_try_calloc(input_count, sizeof(*inputs));
+    uint32_t *gains = nau_try_calloc(n + 1, sizeof(*gains));
+    uint32_t **sidechain_inputs = nau_try_calloc(sidechain_count + 1, sizeof(*sidechain_inputs));
+    const struct nau_track_effect **sidechains = nau_try_calloc(sidechain_count + 1, sizeof(*sidechains));
+    struct nau_node **key_mixes = nau_try_calloc(sidechain_count + 1, sizeof(*key_mixes));
     struct nau_node *mix = nau_node_create();
     int ret;
-    if (!routes || !inputs || !mix) {
+    if (!routes || !inputs || !gains || !sidechain_inputs || !sidechains || !key_mixes || !mix) {
         ret = NAU_ERROR_MEMORY;
         goto end;
     }
@@ -274,11 +312,17 @@ static int commit(struct nau_player *p, const struct nau_track *original, const 
     if (ret < 0)
         goto end;
     /*
-     * `inputs` holds the inputs of the mix (one per track), followed by the
-     * input of every chained node: the route before it
+     * `inputs` holds the inputs of the mix (one per track), followed by those
+     * of every chained node (the route before it, and its key), then those of
+     * the key mixes
      */
     uint32_t *mix_inputs = inputs;
-    struct graph g = {.routes = routes, .input = inputs + n};
+    struct graph g = {
+        .routes           = routes,
+        .input            = inputs + n,
+        .sidechain_inputs = sidechain_inputs,
+        .sidechains       = sidechains,
+    };
     for (uint32_t i = 0; i < n; i++) {
         const struct nau_track *t = laid_track(p, i, original, replacement);
         ret = set_origins(t);
@@ -288,8 +332,32 @@ static int commit(struct nau_player *p, const struct nau_track *original, const 
         chain_effects(&g, t, get_placement_range(t, NAU_TRACK_EFFECT_PLACEMENT_PRE_FADER));
         chain_node(&g, t->fader);
         chain_node(&g, t->gain);
+        gains[i] = g.route_count - 1;
         chain_effects(&g, t, get_placement_range(t, NAU_TRACK_EFFECT_PLACEMENT_POST_FADER));
         mix_inputs[i] = g.route_count - 1;
+    }
+    for (uint32_t i = 0; i < g.sidechain_count; i++) {
+        const struct nau_track_effect *e = g.sidechains[i];
+        uint32_t *keys = g.input;
+        for (uint32_t j = 0; j < e->key_count; j++) {
+            const uint32_t key = track_index(p, e->keys[j]);
+            if (key < n)
+                *g.input++ = gains[key];
+        }
+        const uint32_t heard_count = (uint32_t)(g.input - keys);
+        *g.sidechain_inputs[i] = NAU_INPUT_NONE;
+        if (!heard_count)
+            continue;
+        key_mixes[i] = nau_node_create();
+        if (!key_mixes[i]) {
+            ret = NAU_ERROR_MEMORY;
+            goto end;
+        }
+        ret = nau_mix_init(key_mixes[i], p->engine, heard_count);
+        if (ret < 0)
+            goto end;
+        *g.sidechain_inputs[i] = g.route_count;
+        add_route(&g, key_mixes[i], keys);
     }
     add_route(&g, mix, mix_inputs);
     chain_node(&g, p->master);
@@ -304,7 +372,13 @@ end:
             nau_assert(restored == NAU_OK);
         }
     }
+    for (uint32_t i = 0; key_mixes && i < sidechain_count; i++)
+        nau_node_unrefp(&key_mixes[i]);
     nau_node_unrefp(&mix);
+    nau_freep(&key_mixes);
+    nau_freep(&sidechains);
+    nau_freep(&sidechain_inputs);
+    nau_freep(&gains);
     nau_freep(&routes);
     nau_freep(&inputs);
     return ret;
@@ -370,6 +444,7 @@ static void free_effect(struct nau_track_effect **ep)
     if (!e)
         return;
     nau_node_unrefp(&e->node);
+    nau_freep(&e->keys);
     nau_freep(ep);
 }
 
@@ -807,6 +882,7 @@ int nau_player_add_track_effect(struct nau_player *p, struct nau_track *t, enum 
         ret = NAU_ERROR_MEMORY;
         goto end;
     }
+    e->sidechain = info->sidechain;
 
     e->node = nau_node_create();
     if (!e->node) {
@@ -995,6 +1071,74 @@ end:
     return ret;
 }
 
+/*
+ * Tell whether the keys of a sidechain of a track are other tracks of the
+ * player, each of them once
+ */
+static bool keys_valid(const struct nau_player *p, const struct nau_track *t, struct nau_track *const *keys,
+                       uint32_t key_count)
+{
+    for (uint32_t i = 0; i < key_count; i++) {
+        if (keys[i] == t || !owns(p, keys[i]))
+            return false;
+        for (uint32_t j = 0; j < i; j++)
+            if (keys[j] == keys[i])
+                return false;
+    }
+    return true;
+}
+
+int nau_player_set_track_effect_sidechain(struct nau_player *p, struct nau_track_effect *e,
+                                          struct nau_track *const *keys, uint32_t key_count)
+{
+    if (!p || !p->engine || !e)
+        return NAU_ERROR_INVALID;
+
+    if ((key_count && !keys) || key_count >= MAX_TRACKS)
+        return NAU_ERROR_INVALID;
+
+    pthread_mutex_lock(&p->lock);
+
+    int ret;
+    struct nau_track **copy = NULL;
+    uint32_t index;
+    const struct nau_track *t = find_effect(p, e, &index);
+    if (!t || !e->sidechain || !keys_valid(p, t, keys, key_count)) {
+        ret = NAU_ERROR_INVALID;
+        goto end;
+    }
+
+    if (key_count) {
+        copy = nau_try_memdup(keys, key_count * sizeof(*keys));
+        if (!copy) {
+            ret = NAU_ERROR_MEMORY;
+            goto end;
+        }
+    }
+
+    /*
+     * The keys are swapped in the effect, and swapped back if the commit
+     * fails
+     */
+    struct nau_track **previous = e->keys;
+    const uint32_t previous_count = e->key_count;
+    e->keys = copy;
+    e->key_count = key_count;
+    ret = commit(p, NULL, NULL);
+    if (ret != NAU_OK) {
+        e->keys = previous;
+        e->key_count = previous_count;
+        goto end;
+    }
+
+    /* The keys replaced are freed below */
+    copy = previous;
+end:
+    nau_freep(&copy);
+    pthread_mutex_unlock(&p->lock);
+    return ret;
+}
+
 int64_t nau_track_get_length(const struct nau_track *t)
 {
     return t ? t->length : 0;
@@ -1003,6 +1147,24 @@ int64_t nau_track_get_length(const struct nau_track *t)
 int64_t nau_track_get_duration(const struct nau_track *t)
 {
     return t ? t->duration : 0;
+}
+
+/* Remove a track from the keys of the sidechains of the other tracks */
+static void forget_key(struct nau_player *p, const struct nau_track *key)
+{
+    for (uint32_t i = 0; i < p->track_count; i++) {
+        const struct nau_track *t = p->tracks[i];
+        for (uint32_t j = 0; j < t->effect_count; j++) {
+            struct nau_track_effect *e = t->effects[j];
+            for (uint32_t k = 0; k < e->key_count; k++) {
+                if (e->keys[k] != key)
+                    continue;
+                memmove(&e->keys[k], &e->keys[k + 1], (e->key_count - k - 1) * sizeof(*e->keys));
+                e->key_count--;
+                break;
+            }
+        }
+    }
 }
 
 int nau_player_remove_track(struct nau_player *p, struct nau_track **tp)
@@ -1033,6 +1195,7 @@ int nau_player_remove_track(struct nau_player *p, struct nau_track **tp)
      * The graphs in use keep the nodes of the track until the render thread
      * is done with them
      */
+    forget_key(p, *tp);
     free_track(tp);
 end:
     pthread_mutex_unlock(&p->lock);
