@@ -78,6 +78,12 @@ static int build_texture_bindings(struct ngpu_bindgroup *s)
         };
         if (ngpu_darray_try_push(&s_priv->texture_bindings, binding_gl) < 0)
             return NGPU_ERROR_MEMORY;
+
+#if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
+        const struct ngpu_texture_gl *texture_gl = NGPU_PRIV_GL(s->textures[i].texture);
+        if (texture_gl && texture_gl->egl_image)
+            s_priv->has_egl_images = 1;
+#endif
     }
 
     if (nb_textures > limits->max_texture_image_units) {
@@ -204,6 +210,7 @@ void ngpu_bindgroup_gl_reset(struct ngpu_bindgroup *s)
     ngpu_darray_clear(&s_priv->texture_bindings);
     ngpu_darray_clear(&s_priv->buffer_bindings);
     s_priv->use_barriers = 0;
+    s_priv->has_egl_images = 0;
 }
 
 static const GLenum gl_access_map[NGPU_ACCESS_NB] = {
