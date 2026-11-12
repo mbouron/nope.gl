@@ -51,6 +51,8 @@ struct ngpu_bindgroup_gl {
     NGPU_DARRAY(struct texture_binding_gl) texture_bindings;
     NGPU_DARRAY(struct buffer_binding_gl) buffer_bindings;
     int use_barriers;
+    int has_egl_images;
+    int bound;
 };
 
 struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_gl_create(struct ngpu_ctx *gpu_ctx);

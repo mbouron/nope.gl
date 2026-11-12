@@ -135,6 +135,9 @@ struct glcontext {
      */
     int workaround_radeonsi_sync;
 
+    /* Rebind programs before drawing newly imported EGL images on ANGLE/Vulkan. */
+    int workaround_angle_egl_images;
+
     /* Whether the default framebuffer uses sRGB color encoding */
     int default_framebuffer_is_srgb;
 };

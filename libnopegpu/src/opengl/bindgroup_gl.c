@@ -78,6 +78,12 @@ static int build_texture_bindings(struct ngpu_bindgroup *s)
         };
         if (ngpu_darray_try_push(&s_priv->texture_bindings, binding_gl) < 0)
             return NGPU_ERROR_MEMORY;
+
+#if defined(TARGET_LINUX) || defined(TARGET_ANDROID)
+        const struct ngpu_texture_gl *texture_gl = NGPU_PRIV_GL(s->textures[i].texture);
+        if (texture_gl && texture_gl->egl_image)
+            s_priv->has_egl_images = 1;
+#endif
     }
 
     if (nb_textures > limits->max_texture_image_units) {
@@ -204,6 +210,8 @@ void ngpu_bindgroup_gl_reset(struct ngpu_bindgroup *s)
     ngpu_darray_clear(&s_priv->texture_bindings);
     ngpu_darray_clear(&s_priv->buffer_bindings);
     s_priv->use_barriers = 0;
+    s_priv->has_egl_images = 0;
+    s_priv->bound = 0;
 }
 
 static const GLenum gl_access_map[NGPU_ACCESS_NB] = {
@@ -219,10 +227,19 @@ static GLenum get_gl_access(enum ngpu_access access)
 
 void ngpu_bindgroup_gl_bind(struct ngpu_bindgroup *s, const uint32_t *dynamic_offsets, size_t nb_dynamic_offsets)
 {
-    const struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
-    const struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
-    const struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
+    struct ngpu_bindgroup_gl *s_priv = NGPU_PRIV_GL(s);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     const struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    /*
+     * Force the next draw to rebind the program when using a bindgroup with
+     * EGL images for the first time. This works around an ANGLE/Vulkan issue
+     * on Samsung Xclipse GPUs where draws sharing a program can sample the
+     * wrong image or produce no output after importing new EGL images.
+     */
+    if (gl->workaround_angle_egl_images && s_priv->has_egl_images && !s_priv->bound)
+        ngpu_glstate_use_program(gl, &gpu_ctx_gl->glstate, 0);
+    s_priv->bound = 1;
 
     ngpu_darray_foreach(texture_binding, &s_priv->texture_bindings) {
         const struct ngpu_bindgroup_layout_entry *layout_entry = &texture_binding->layout_entry;
