@@ -183,6 +183,29 @@ int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_
     return 0;
 }
 
+static void apply_bindgroup(const struct ngpu_cmd_gl *cmd, bool *has_egl_images)
+{
+    struct ngpu_bindgroup *bindgroup = cmd->set_bindgroup.bindgroup;
+    const struct ngpu_bindgroup_gl *bindgroup_gl = NGPU_PRIV_GL(bindgroup);
+    struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(bindgroup->gpu_ctx);
+    const struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    /*
+     * Force the next draw to rebind the program when the bindgroup, or the
+     * previously bound one, holds EGL images. This works around an
+     * ANGLE/Vulkan issue on Samsung Xclipse GPUs where draws sharing a program
+     * can sample the wrong image or produce no output when EGL images are
+     * involved.
+     */
+    if (gl->workaround_angle_egl_images) {
+        if (bindgroup_gl->has_egl_images || *has_egl_images)
+            ngpu_glstate_use_program(gl, &gpu_ctx_gl->glstate, 0);
+        *has_egl_images = bindgroup_gl->has_egl_images;
+    }
+
+    ngpu_bindgroup_gl_bind(bindgroup, cmd->set_bindgroup.offsets, cmd->set_bindgroup.nb_offsets);
+}
+
 int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *wait_fence, struct ngpu_fence *signal_fence)
 {
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
@@ -205,6 +228,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
     struct ngpu_pipeline *cur_pipeline = NULL;
     const struct ngpu_cmd_gl *bindgroup_cmd = NULL;
     bool bindgroup_dirty = true;
+    bool bindgroup_has_egl_images = true;
 
     ngpu_darray_foreach(cmd, &s->cmds) {
         switch (cmd->type) {
@@ -261,9 +285,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
         }
         case NGPU_CMD_TYPE_GL_DRAW: {
             if (bindgroup_cmd && bindgroup_dirty) {
-                ngpu_bindgroup_gl_bind(bindgroup_cmd->set_bindgroup.bindgroup,
-                                       bindgroup_cmd->set_bindgroup.offsets,
-                                       bindgroup_cmd->set_bindgroup.nb_offsets);
+                apply_bindgroup(bindgroup_cmd, &bindgroup_has_egl_images);
                 bindgroup_dirty = false;
             }
             ngpu_assert(cur_pipeline != NULL);
@@ -275,9 +297,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
         }
         case NGPU_CMD_TYPE_GL_DRAW_INDEXED: {
             if (bindgroup_cmd && bindgroup_dirty) {
-                ngpu_bindgroup_gl_bind(bindgroup_cmd->set_bindgroup.bindgroup,
-                                       bindgroup_cmd->set_bindgroup.offsets,
-                                       bindgroup_cmd->set_bindgroup.nb_offsets);
+                apply_bindgroup(bindgroup_cmd, &bindgroup_has_egl_images);
                 bindgroup_dirty = false;
             }
             ngpu_assert(cur_pipeline != NULL);
@@ -289,9 +309,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
         }
         case NGPU_CMD_TYPE_GL_DISPATCH: {
             if (bindgroup_cmd && bindgroup_dirty) {
-                ngpu_bindgroup_gl_bind(bindgroup_cmd->set_bindgroup.bindgroup,
-                                       bindgroup_cmd->set_bindgroup.offsets,
-                                       bindgroup_cmd->set_bindgroup.nb_offsets);
+                apply_bindgroup(bindgroup_cmd, &bindgroup_has_egl_images);
                 bindgroup_dirty = false;
             }
             ngpu_assert(cur_pipeline != NULL);
