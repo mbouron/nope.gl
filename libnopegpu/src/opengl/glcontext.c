@@ -577,6 +577,10 @@ static int glcontext_check_driver(struct glcontext *glcontext)
         return NGPU_ERROR_BUG;
     }
 
+    const char *renderer = (const char *)glcontext->funcs.GetString(GL_RENDERER);
+    glcontext->workaround_angle_egl_images =
+        renderer && strstr(renderer, "ANGLE") && strstr(renderer, "Vulkan");
+
     int mesa_version[3] = {0};
     const char *mesa = strstr(gl_version, "Mesa");
     if (mesa) {

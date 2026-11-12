@@ -27,6 +27,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 ### Fixed
 - `libnopemd` filters such as `dynaudnorm` not working with media (WAVE, AIFF)
   that do not specify their channel layout
+- Incorrect or missing video frames with ANGLE's Vulkan backend on Samsung
+  Xclipse GPUs
 
 ## [2026.6 / libnopegl 0.18.0][2026.6] - 2026-11-06
 ### Added
