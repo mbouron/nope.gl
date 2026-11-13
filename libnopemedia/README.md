@@ -71,9 +71,7 @@ Assuming `nope.media` is built within a `builddir` directory (`meson builddir
 && meson compile -C builddir`), the test can be run with meson using a command
 such as `meson test -C builddir -v`.
 
-The testing program itself (`test-prog`) can be found in the build directory,
-along a sample player tool named `nope-media` (if its dependencies were met at
-build time), which can be used for other manual testing purposes.
+The testing program itself (`test-prog`) can be found in the build directory.
 
 ### Infrastructure overview
 
