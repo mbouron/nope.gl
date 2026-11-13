@@ -153,30 +153,6 @@ pkg.generate(
 
 
 #
-# Player
-#
-
-player_deps = lib_deps + [
-  dependency('sdl2', required: get_option('player')),
-]
-player_deps_found = true
-foreach dep : player_deps
-  player_deps_found = player_deps_found and dep.found()
-endforeach
-if player_deps_found
-  player = executable(
-    'nope-media',
-    files('src/nope-media.c'),
-    dependencies: player_deps,
-    include_directories: inc_dir,
-    link_with: libnopemedia,
-    install: true,
-    install_rpath: install_rpath,
-  )
-endif
-
-
-#
 # Tests
 #
 
