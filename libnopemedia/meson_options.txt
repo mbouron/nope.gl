@@ -4,8 +4,6 @@ option('rpath', type: 'boolean', value: false,
        description: 'install with rpath')
 option('trace', type: 'boolean', value: false,
        description: 'log tracing (slow and verbose)')
-option('player', type: 'feature', value: 'auto',
-       description: 'player tool for testing purpose')
 option('cpp-header', type: 'boolean', value: false,
        description: 'install a C++ compat header (discouraged)')
 option('tests', type: 'boolean', value: true)
