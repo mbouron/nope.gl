@@ -23,6 +23,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
   parameters and Android package
 - `libngpu` is renamed to `libnopegpu` which includes: the library,
   pkg-config package and headers (`#include <nopegpu/nopegpu.h>`)
+- Videos without color space up to the PAL/NTSC resolutions are now converted
+  with the BT.601 color matrix instead of BT.709, like on Android
 
 ### Fixed
 - `libnopemd` filters such as `dynaudnorm` not working with media (WAVE, AIFF)

@@ -32,6 +32,19 @@
 #include "utils/refcount.h"
 #include "utils/utils.h"
 
+/*
+ * Like Android, assume BT.601 for the frames without color space up to the
+ * PAL/NTSC resolutions (in either orientation)
+ */
+static int get_color_space(const struct nmd_frame *frame)
+{
+    if (frame->color_space != NMD_COL_SPC_UNSPECIFIED)
+        return frame->color_space;
+    if ((frame->width <= 720 && frame->height <= 576) || (frame->width <= 576 && frame->height <= 720))
+        return NMD_COL_SPC_SMPTE170M;
+    return NMD_COL_SPC_UNSPECIFIED;
+}
+
 struct color_info ngli_color_info_from_nmd_frame(const struct nmd_frame *frame)
 {
     /* The peak of the content (MaxCLL) cannot exceed the one of the mastering display */
@@ -40,7 +53,7 @@ struct color_info ngli_color_info_from_nmd_frame(const struct nmd_frame *frame)
         max_luminance = max_luminance > 0.f ? NGLI_MIN(frame->max_cll, max_luminance) : frame->max_cll;
 
     return (struct color_info){
-        .space         = frame->color_space,
+        .space         = get_color_space(frame),
         .range         = frame->color_range,
         .primaries     = frame->color_primaries,
         .transfer      = frame->color_trc,
