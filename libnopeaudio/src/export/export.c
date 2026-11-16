@@ -302,9 +302,6 @@ int nau_exporter_write(struct nau_exporter *e, const float *samples, uint32_t fr
     if (frames > INT_MAX)
         return NAU_ERROR_INVALID;
 
-    if ((size_t)frames > SIZE_MAX / sizeof(*samples) / 2)
-        return NAU_ERROR_INVALID;
-
     if (e->frames > INT64_MAX - frames)
         return NAU_ERROR_INVALID;
 
