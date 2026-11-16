@@ -334,6 +334,7 @@ nau_player_set_track_effect_automation(player, lowpass, &lane, 1);
 nau_player_set_track_effect_param(player, lowpass, NAU_LOWPASS_RESONANCE, 1.4f);
 ```
 
+`nopeaudio-play --underwater 2 6 first.wav` plays its first track this way.
 Automating the resonance with the cutoff takes a lane for each, in one call.
 A slider can drive the depth of the filter (`NAU_LOWPASS_AMOUNT`) on top of
 its automation.
