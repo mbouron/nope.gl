@@ -71,25 +71,51 @@ static int underwater(struct nau_node *lowpass, double dive, double surface, uin
     return nau_effect_set_automation(lowpass, NAU_LOWPASS_RESONANCE, resonance, 2);
 }
 
+/* Down to -12 dB in 0.1 s when another track is above -40 dB, back in 0.5 s
+ * once none was for 0.5 s */
+static int duck_under_voices(struct nau_node *ducker)
+{
+    const struct {
+        uint32_t param;
+        float value;
+    } params[] = {
+        {NAU_DUCKER_THRESHOLD, 0.01f},
+        {NAU_DUCKER_VOLUME, 0.25f},
+        {NAU_DUCKER_ATTACK, 0.1f},
+        {NAU_DUCKER_HOLD, 0.5f},
+        {NAU_DUCKER_RELEASE, 0.5f},
+    };
+    for (size_t i = 0; i < sizeof(params) / sizeof(*params); i++) {
+        int ret = nau_effect_set_param(ducker, params[i].param, params[i].value);
+        if (ret < 0)
+            return ret;
+    }
+    return NAU_OK;
+}
+
 int main(int argc, char **argv)
 {
     int arg = 1;
     struct nau_sink_config sink_config = {0};
     double dive = -1., surface = -1.;
+    int duck = 0;
     for (; arg < argc && !strncmp(argv[arg], "--", 2); arg++) {
         if (!strcmp(argv[arg], "--null")) {
             sink_config.null_device = 1;
         } else if (!strcmp(argv[arg], "--underwater") && arg + 2 < argc) {
             dive = atof(argv[++arg]);
             surface = atof(argv[++arg]);
+        } else if (!strcmp(argv[arg], "--duck")) {
+            duck = 1;
         } else {
             break;
         }
     }
     const int count = argc - arg;
-    if (count < 1 || count > MAX_TRACKS || (dive >= 0. && surface < dive)) {
-        fprintf(stderr, "Usage: %s [--null] [--underwater IN OUT] audio-file [audio-file ...] (up to %d tracks)\n"
-                        "  --underwater IN OUT: the first track heard under water from IN to OUT seconds\n",
+    if (count < 1 || count > MAX_TRACKS || (dive >= 0. && surface < dive) || (duck && count < 2)) {
+        fprintf(stderr, "Usage: %s [--null] [--underwater IN OUT] [--duck] audio-file [audio-file ...] (up to %d tracks)\n"
+                        "  --underwater IN OUT: the first track heard under water from IN to OUT seconds\n"
+                        "  --duck: the first track ducks under the others\n",
                 argv[0], MAX_TRACKS);
         return 1;
     }
@@ -101,11 +127,12 @@ int main(int argc, char **argv)
     struct nau_transport *transport = NULL;
     struct nau_media *media[MAX_TRACKS] = {0};
     /* Nodes of the graph: for each track, its source, its filter (first
-     * track only, with --underwater) and its gain; then the mix and the
-     * master gain */
-    struct nau_node *nodes[2 * MAX_TRACKS + 3] = {0};
-    struct nau_route routes[2 * MAX_TRACKS + 3] = {0};
-    uint32_t inputs[MAX_TRACKS + 2], mix_inputs[MAX_TRACKS];
+     * track only, with --underwater) and its gain; then the ducker of the
+     * first track and the mix of the others, its key (with --duck); then
+     * the mix and the master gain */
+    struct nau_node *nodes[2 * MAX_TRACKS + 5] = {0};
+    struct nau_route routes[2 * MAX_TRACKS + 5] = {0};
+    uint32_t inputs[MAX_TRACKS + 4], mix_inputs[MAX_TRACKS];
     uint32_t node_count = 0, input_count = 0;
     int64_t length = 0;
     const struct nau_engine_config config = {48000, 2, 256};
@@ -118,7 +145,7 @@ int main(int argc, char **argv)
     ret = nau_engine_init(engine, &config);
     if (ret < 0)
         goto end;
-    for (int i = 0; i < 2 * count + 2 + (dive >= 0.); i++) {
+    for (int i = 0; i < 2 * count + 2 + (dive >= 0.) + 2 * duck; i++) {
         nodes[i] = nau_node_create();
         if (!nodes[i]) {
             ret = NAU_ERROR_MEMORY;
@@ -158,6 +185,24 @@ int main(int argc, char **argv)
         mix_inputs[i] = node_count++;
         if (nau_media_get_length(media[i]) > length)
             length = nau_media_get_length(media[i]);
+    }
+    if (duck) {
+        ret = nau_mix_init(nodes[node_count], engine, (uint32_t)count - 1);
+        if (ret < 0)
+            goto end;
+        routes[node_count] = (struct nau_route){nodes[node_count], mix_inputs + 1};
+        node_count++;
+        ret = nau_effect_init(nodes[node_count], engine, NAU_EFFECT_DUCKER, 0);
+        if (ret < 0)
+            goto end;
+        ret = duck_under_voices(nodes[node_count]);
+        if (ret < 0)
+            goto end;
+        inputs[input_count] = mix_inputs[0];
+        inputs[input_count + 1] = node_count - 1;
+        routes[node_count] = (struct nau_route){nodes[node_count], &inputs[input_count]};
+        input_count += 2;
+        mix_inputs[0] = node_count++;
     }
     ret = nau_mix_init(nodes[node_count], engine, (uint32_t)count);
     if (ret < 0)

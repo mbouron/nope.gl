@@ -351,6 +351,8 @@ struct nau_track *const voices[] = {voice, other_voice};
 nau_player_set_track_effect_sidechain(player, ducker, voices, 2);
 ```
 
+`nopeaudio-play --duck music.wav voice.wav` ducks its first track this way.
+
 A sidechain hears its key tracks after their volume, before their effects
 placed after it: a silent track ducks nothing, and tracks can duck under
 each other with effects placed after their volume. A track listening to
