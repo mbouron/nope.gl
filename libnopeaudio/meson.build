@@ -235,6 +235,29 @@ pkg.generate(
 
 
 #
+# Player
+#
+
+player_opt = get_option('player').require(
+  has_player,
+  error_message: 'the player needs nope.media',
+)
+if player_opt.allowed()
+  player = executable(
+    'nopeaudio-play',
+    files('examples/play.c'),
+    dependencies: lib_deps,
+    include_directories: inc_dir,
+    implicit_include_directories: false,
+    link_with: libnopeaudio,
+    install: true,
+    install_rpath: install_rpath,
+    c_args: pkg_extra_cflags,
+  )
+endif
+
+
+#
 # Tests
 #
 

@@ -385,7 +385,16 @@ and frees its resources, including after a failed open.
 
 From the `libnopeaudio` directory, run `meson test -C builddir -v`. From the
 repository root, `make nopeaudio-tests` builds and runs them in the configured
-environment. The test programs are in the build directory.
+environment. The test programs are in the build directory, along a sample
+player tool named `nopeaudio-play` (if its dependencies were met at build
+time), which can be used for other manual testing purposes:
+
+```sh
+builddir/nopeaudio-play --null first.wav second.wav
+```
+
+The tool mixes its files from the start of the project. `--null` selects the
+null device.
 
 ### Validation
 

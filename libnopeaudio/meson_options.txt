@@ -27,4 +27,6 @@ option('sink', type: 'combo', choices: ['auto', 'null', 'oboe', 'sdl3'], value: 
 
 option('rpath', type: 'boolean', value: false,
        description: 'install with rpath')
+option('player', type: 'feature', value: 'auto',
+       description: 'player tool for testing purpose')
 option('tests', type: 'boolean', value: true)
