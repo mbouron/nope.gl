@@ -29,6 +29,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
   that do not specify their channel layout
 - Incorrect or missing video frames with ANGLE's Vulkan backend on Samsung
   Xclipse GPUs
+- `libnopemedia` `nmd_get_next_frame()` restarting decoding from the beginning
+  instead of the position requested by `nmd_seek()` after EOF
 
 ## [2026.6 / libnopegl 0.18.0][2026.6] - 2026-11-06
 ### Added
