@@ -598,6 +598,11 @@ int nau_transport_render(struct nau_transport *t, int64_t time, uint32_t frames,
          */
         const bool fading_out = declick && to_end <= declick;
         ramp(t, dst, (uint32_t)block, playing && !pending && !t->waiting && !fading_out ? 1.f : 0.f, declick);
+        /*
+         * Published before the clock: a reader that sees these frames in the
+         * history also sees them rendered
+         */
+        atomic_store_explicit(&t->position_done, t->position + block, memory_order_relaxed);
         nau_transport_clock_record(&t->clock, &writer, done, (uint32_t)block, t->position, 1);
         t->position += block;
         done += (uint32_t)block;
