@@ -27,6 +27,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 ### Fixed
 - `libnopemd` filters such as `dynaudnorm` not working with media (WAVE, AIFF)
   that do not specify their channel layout
+- `libnopemedia` `nmd_get_next_frame()` restarting from the beginning instead
+  of the `nmd_seek()` position after reaching EOF
 - Incorrect or missing video frames with ANGLE's Vulkan backend on Samsung
   Xclipse GPUs
 
