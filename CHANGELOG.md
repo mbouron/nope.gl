@@ -31,6 +31,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
   that do not specify their channel layout
 - `libnopemedia` `nmd_get_next_frame()` restarting from the beginning instead
   of the `nmd_seek()` position after reaching EOF
+- `libnopemedia` audio frames moved to the requested time after a seek, or
+  repeated at the start of each loop pass, when the audio has a gap there
 - Incorrect or missing video frames with ANGLE's Vulkan backend on Samsung
   Xclipse GPUs
 

@@ -162,6 +162,11 @@ if get_option('tests')
 
   media = files('tests/media.mkv')
   image = files('tests/image.jpg')
+  # Three 10 ms stereo PCM frames (0.25, -0.25), at 300, 310 and 800 ms:
+  # ffmpeg -f lavfi -i 'aevalsrc=0.25|-0.25:s=48000:d=0.03' \
+  #   -af 'asetnsamples=n=480:p=0,asetpts=PTS+14400+gte(N\,960)*23040' \
+  #   -c:a pcm_s16le -fflags +bitexact audio_gaps.mka
+  audio_gaps = files('tests/audio_gaps.mka')
   h264 = files('tests/h264.mp4')
   h264_open_gop = files('tests/h264_open_gop.mp4')
   h264_offset = files('tests/h264_offset.mkv')
@@ -176,6 +181,7 @@ if get_option('tests')
 
   exe_names = [
     'audio',
+    'audio_gaps',
     'audio_seek',
     'audio_start_end_time',
     'comb',
@@ -224,6 +230,7 @@ if get_option('tests')
   endforeach
 
   tests = {
+    'Audio gaps':                         {'test': 'audio_gaps',        'args': [audio_gaps]},
     'Audio seek':                         {'test': 'audio_seek',        'args': [media]},
     'Audio':                              {'test': 'audio',             'args': [media]},
     'Audio start/end time':               {'test': 'audio_start_end_time', 'args': [media]},
