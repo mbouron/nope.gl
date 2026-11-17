@@ -56,7 +56,7 @@ static int read_header(FILE *f, enum nau_export_format format, uint32_t rate, ui
             CHECK(size == frames * 2 * bits / 8);
             return 0;
         }
-        const long next = ftell(f) + (long)size + (size & 1);
+        const long next = ftell(f) + (long)size + (long)(size & 1);
         if (!memcmp(b, "fmt ", 4)) {
             CHECK(size >= 16 && fread(b, 1, 16, f) == 16);
             CHECK(AV_RL16(b) == (format == NAU_EXPORT_S16 ? 1 : 3));
