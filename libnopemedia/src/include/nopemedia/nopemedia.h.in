@@ -425,15 +425,16 @@ NMDAPI int nmd_set_time_range(struct nmd_ctx *s, double start, double end);
  *
  * The returned frame needs to be released using nmd_frame_releasep().
  *
- * At EOF nmd_get_next_frame() will return NULL. You can call
- * nmd_get_next_frame() to restart the decoding from the beginning.
+ * At EOF, return NMD_ERR_EOF and set *framep to NULL. The next call restarts
+ * decoding from the beginning, unless nmd_seek() has requested another
+ * position in the meantime.
  *
  * If you want to process every single frame of the media regardless of a
  * "refresh rate" or seeking needs, this is the function you are probably
  * interested in. You can still use this function in combination with
  * nmd_get_frame() in case you need seeking.
  *
- * Return: NMD_RET_NEW_FRAME or NMD_ERR_*
+ * Return: NMD_RET_NEWFRAME, NMD_RET_UNCHANGED or NMD_ERR_*
  */
 NMDAPI int nmd_get_next_frame(struct nmd_ctx *s, struct nmd_frame **framep);
 
