@@ -785,6 +785,7 @@ int nmd_seek(struct nmd_ctx *s, double reqt)
 
     av_frame_free(&s->cached_frame);
     s->last_pushed_frame_ts = AV_NOPTS_VALUE;
+    s->eof = 0;
 
     int ret = configure_context(s);
     if (ret < 0)
