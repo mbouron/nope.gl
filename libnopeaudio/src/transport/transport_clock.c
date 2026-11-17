@@ -163,6 +163,20 @@ int64_t nau_clock_position_at(const struct nau_clock *clock, int64_t time)
     return (int64_t)position;
 }
 
+/*
+ * The position at a time within a run, along the run's own span: it follows
+ * the smoothed pace of the device rather than the nominal rate, so that it
+ * neither passes the end of the run nor goes back at the next one
+ */
+static int64_t position_in_run(const struct nau_clock *clock, uint32_t frames, int64_t end, int64_t time)
+{
+    if (!clock->playing || end <= clock->time)
+        return clock->position;
+    const long double offset = ((long double)time - (long double)clock->time) * frames /
+                               ((long double)end - (long double)clock->time);
+    return clock->position + (int64_t)offset;
+}
+
 int nau_transport_clock_get_position_at(const struct nau_transport_clock *c, int64_t time,
                                         int64_t *position)
 {
@@ -210,7 +224,7 @@ int nau_transport_clock_get_position_at(const struct nau_transport_clock *c, int
              * before the next run): the position stays at its end
              */
             value = time >= end ? clock.position + (clock.playing ? frames : 0)
-                                : nau_clock_position_at(&clock, time);
+                                : position_in_run(&clock, frames, end, time);
             ret = NAU_OK;
             break;
         }
