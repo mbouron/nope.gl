@@ -127,6 +127,12 @@ struct block {
     uint32_t request;        /* request served, see publish_request() */
     uint32_t pass;           /* loop pass of the chunk, see take_block() */
     int status;              /* NAU_OK with a chunk, else NAU_EOF or an error */
+    /*
+     * An end queued while looping: the decoder stops after it, so it ends
+     * every pass of the loop of this revision
+     */
+    bool loop_end;
+    uint32_t loop_revision;
     struct chunk chunk;
 };
 
@@ -705,9 +711,11 @@ static void *run_decoder(void *arg)
             count_error(m, ret);
             push_held(&d);
             const struct block end_block = {
-                .request = d.served,
-                .pass    = d.pass,
-                .status  = ret,
+                .request       = d.served,
+                .pass          = d.pass,
+                .status        = ret,
+                .loop_end      = looping,
+                .loop_revision = loop_revision,
             };
             push_block(&d, &end_block);
             at_end = true;
@@ -782,6 +790,18 @@ static void request(struct nau_media *m)
 }
 
 /*
+ * An end queued while looping over the current loop range. The decoder only
+ * queues one once a whole pass ended with no audio (it decodes the next pass
+ * otherwise), or on an error, and stops after it: it ends every pass of the
+ * loop, whichever pass it was queued in.
+ */
+static bool ends_loop(const struct nau_media *m, const struct block *block)
+{
+    return block->status != NAU_OK && block->loop_end &&
+           block->loop_revision == atomic_load(&m->loop_revision);
+}
+
+/*
  * Take the next block of the current loop pass. Return false if no block is
  * available for this pass, including when its audio has ended.
  *
@@ -820,7 +840,7 @@ static bool take_block(struct nau_media *m)
          * From a pass the reader has left. An error block is kept and
          * reported: the decoder stops after it, so nothing would follow.
          */
-        if (block.pass < m->pass && block.status >= 0) {
+        if (block.pass < m->pass && block.status >= 0 && !ends_loop(m, &block)) {
             /*
              * The media ended and the loop is no longer set: the next pass
              * is not coming
@@ -909,14 +929,9 @@ static int media_read(void *user, int64_t frame, uint32_t frames, float *output)
         const struct block *block = &m->block;
         if (block->status != NAU_OK) {
             m->end_status = block->status;
-            /*
-             * While looping, the decoder only queues an end once a whole
-             * pass ended with no audio (it decodes the next pass otherwise),
-             * or on an error: every pass of this loop ends there
-             */
-            if (loop_length(m)) {
+            if (ends_loop(m, block)) {
                 m->loop_ended = true;
-                m->loop_ended_revision = atomic_load(&m->loop_revision);
+                m->loop_ended_revision = block->loop_revision;
             }
             drop_block(m);
             break;
