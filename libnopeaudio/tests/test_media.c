@@ -28,7 +28,7 @@
 #include "../src/utils/time.h"
 
 static const char *fixture, *fixture_44100, *fixture_index, *fixture_mono, *fixture_quiet_wav, *fixture_quiet, *fixture_aac;
-static const char *fixture_gap;
+static const char *fixture_gap, *fixture_gaps;
 
 static void close_to(float a, float b)
 {
@@ -153,6 +153,57 @@ static void test_gap(void)
     }
     const struct nau_media_stats stats = stats_of(&m);
     assert(stats.requests == 0 && stats.silent_frames == 0 && stats.skipped_frames == 0);
+    close_media(&m);
+}
+
+/* The frames of the gaps fixture: 10 ms of (0.25, -0.25) at 300, 310 and 800 ms */
+static float gaps_sample(int64_t frame)
+{
+    return (frame >= 14400 && frame < 15360) || (frame >= 38400 && frame < 38880) ? 0.25f : 0.f;
+}
+
+/* Audio starting after the requested position stays at its time */
+static void test_late_start(void)
+{
+    struct media m = open_media(fixture_gaps, 1, 0, 0, 4800, 40000);
+    float out[2 * 64];
+    for (int64_t frame = 0; frame < 40000; frame += 64) {
+        assert(nau_engine_render(m.engine, frame, 64, out) == NAU_OK);
+        for (uint32_t i = 0; i < 64; i++) {
+            close_to(out[2 * i], gaps_sample(4800 + frame + i));
+            close_to(out[2 * i + 1], -gaps_sample(4800 + frame + i));
+        }
+    }
+    close_media(&m);
+}
+
+/*
+ * Blocking reads of a loop with gaps: each pass plays the audio within the
+ * range only, a range without audio included
+ */
+static void test_loop_gaps(int64_t source_start)
+{
+    const int64_t length = 9600;
+    struct media m = open_media(fixture_gaps, 1, 0, 0, source_start, length);
+    const struct nau_transport_config tc = {0};
+    struct nau_transport *t = nau_transport_create();
+    assert(t);
+    assert(nau_transport_init(t, m.engine, &tc) == NAU_OK);
+    assert(nau_transport_set_duration(t, length) == NAU_OK);
+    nau_transport_set_looping(t, 1);
+    assert(nau_media_set_loop(m.media, source_start, source_start + length) == NAU_OK);
+    nau_transport_play(t);
+    float out[2 * 256];
+    int64_t position = 0;
+    for (int i = 0; i < 3 * length / 256; i++) {
+        assert(nau_transport_render(t, 0, 256, out) == NAU_OK);
+        for (uint32_t f = 0; f < 256; f++, position++) {
+            const float sample = gaps_sample(source_start + position % length);
+            close_to(out[2 * f], sample);
+            close_to(out[2 * f + 1], -sample);
+        }
+    }
+    nau_transport_freep(&t);
     close_media(&m);
 }
 
@@ -575,7 +626,7 @@ static void test_open_error(void)
 
 int main(int argc, char **argv)
 {
-    assert(argc == 9);
+    assert(argc == 10);
     fixture = argv[1];
     fixture_44100 = argv[2];
     fixture_index = argv[3];
@@ -584,9 +635,13 @@ int main(int argc, char **argv)
     fixture_aac = argv[6];
     fixture_quiet = argv[7];
     fixture_gap = argv[8];
+    fixture_gaps = argv[9];
     test_open_error();
     test_read_and_seek();
     test_gap();
+    test_late_start();
+    test_loop_gaps(15000);
+    test_loop_gaps(16000);
     test_loop(0);
     test_loop(1);
     test_short_loop(0);

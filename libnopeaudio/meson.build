@@ -342,9 +342,11 @@ if get_option('tests')
     #   -af 'asetnsamples=n=480:p=0,asetpts=PTS+gte(N\,480)*24000' \
     #   -c:a pcm_s16le -fflags +bitexact gap.mka
     gap_fixture = files('tests/gap.mka')
+    # Audio with gaps, see the tests of nope.media
+    gaps_fixture = files('../libnopemedia/tests/audio_gaps.mka')
 
     test_progs += {'test_media': {'src': files('tests/test_media.c', 'src/utils/time.c')}}
-    tests += {'nope.media source': {'exe': 'test_media', 'args': [fixture, aac_fixture, quiet_fixture, gap_fixture]}}
+    tests += {'nope.media source': {'exe': 'test_media', 'args': [fixture, aac_fixture, quiet_fixture, gap_fixture, gaps_fixture]}}
     if has_pthread
       test_progs += {'test_media_threads': {'src': files('tests/test_media_threads.c', 'src/utils/time.c')}}
       tests += {'Concurrent PCM reads': {'exe': 'test_media_threads', 'args': [fixture[2]], 'timeout': 120}}
