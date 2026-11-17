@@ -237,6 +237,41 @@ static void test_loop(void)
     teardown(&s);
 }
 
+/*
+ * The end of the range moved before the playhead: the output fades out past
+ * it, then holds at the end of the range, not where the fade ended
+ */
+static void test_hold_after_moved_end(void)
+{
+    struct numbers n = {.value = 1.f};
+    struct setup s = setup(&n, 0, 100, 8, 0);
+    float out[80];
+    nau_transport_set_looping(s.transport, 1);
+    assert(nau_transport_set_loop_hold(s.transport, 20) == NAU_OK);
+    nau_transport_play(s.transport);
+    assert(nau_transport_render(s.transport, 0, 70, out) == NAU_OK);
+    assert(nau_transport_set_duration(s.transport, 40) == NAU_OK);
+    assert(nau_transport_render(s.transport, 0, 8, out) == NAU_OK);
+    for (int i = 0; i < 8; i++)
+        close_to(out[i], (float)(7 - i) / 8);
+    const int64_t time = 1000000000;
+    assert(nau_transport_render(s.transport, time, 10, out) == NAU_OK);
+    for (int i = 0; i < 10; i++)
+        close_to(out[i], 0);
+    assert(nau_transport_get_position(s.transport) == 40);
+    int64_t heard;
+    assert(nau_transport_get_position_at(s.transport, time + 5 * 1000000000 / 48000, &heard) == NAU_OK);
+    assert(heard == 40);
+    /* The rest of the hold, then the start of the range */
+    assert(nau_transport_render(s.transport, 0, 18, out) == NAU_OK);
+    for (int i = 0; i < 10; i++)
+        close_to(out[i], 0);
+    for (int i = 10; i < 18; i++)
+        close_to(out[i], (float)(i - 10 + 1) / 8);
+    assert(nau_transport_get_position(s.transport) == 8);
+    teardown(&s);
+}
+
 /* Gain k/8 after k frames of an 8-frame ramp from silence */
 static void check_ramp_in(const float *out, int count)
 {
@@ -704,6 +739,7 @@ int main(void)
     test_play_to_end();
     test_seek();
     test_loop();
+    test_hold_after_moved_end();
     test_declick();
     test_short_declick();
     test_long_declick();
