@@ -470,6 +470,8 @@ int nau_transport_render(struct nau_transport *t, int64_t time, uint32_t frames,
             if (!t->holding && hold > 0) {
                 t->holding = true;
                 t->hold_left = hold;
+                /* The end may have moved before the playhead: hold at the end */
+                t->position = end;
             }
             if (t->holding) {
                 /*
