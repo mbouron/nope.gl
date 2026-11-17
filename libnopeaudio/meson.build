@@ -376,7 +376,7 @@ if get_option('tests')
       'c_args': ['-DNAU_SINK_NULL_THREAD_ONLY'],
     }}
     tests += {
-      'SDL3 dummy sink':  {'exe': 'test_sink', 'args': ['--device'], 'env': ['SDL_AUDIO_DRIVER=dummy'], 'timeout': 10},
+      'SDL3 dummy sink':  {'exe': 'test_sink', 'args': ['--untimed-device'], 'env': ['SDL_AUDIO_DRIVER=dummy'], 'timeout': 10},
       'SDL3 sink events': {'exe': 'test_sink_sdl3_events', 'env': ['SDL_AUDIO_DRIVER=dummy'], 'timeout': 10},
     }
     if host_system != 'windows'

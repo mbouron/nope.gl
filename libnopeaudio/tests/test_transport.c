@@ -260,7 +260,7 @@ static void test_hold_after_moved_end(void)
         close_to(out[i], 0);
     assert(nau_transport_get_position(s.transport) == 40);
     int64_t heard;
-    assert(nau_transport_get_position_at(s.transport, time + 5 * 1000000000 / 48000, &heard) == NAU_OK);
+    assert(nau_transport_get_position_at(s.transport, time + 5 * INT64_C(1000000000) / 48000, &heard) == NAU_OK);
     assert(heard == 40);
     /* The rest of the hold, then the start of the range */
     assert(nau_transport_render(s.transport, 0, 18, out) == NAU_OK);
@@ -298,6 +298,58 @@ static void test_pause_across_renders(void)
     for (int i = 0; i < 10; i++)
         close_to(out[i], (float)(28 + i) * (i < 8 ? (float)(i + 1) / 8 : 1));
     teardown(&s);
+}
+
+/* A source checking, during the renders, that what is heard was rendered */
+struct observer {
+    struct nau_transport *transport;
+    int64_t time;
+    int checks;
+};
+
+static int observer_read(void *user, int64_t frame, uint32_t frames, float *out)
+{
+    struct observer *o = user;
+    int64_t heard;
+    if (nau_transport_get_position_at(o->transport, o->time + INT64_C(1000000000), &heard) == NAU_OK) {
+        assert(heard <= nau_transport_get_position(o->transport));
+        o->checks++;
+    }
+    for (uint32_t i = 0; i < frames; i++)
+        out[i] = 1.f;
+    return NAU_OK;
+}
+
+/*
+ * The rendered position is published before the clock: the frames of a
+ * render call already heard in the history are rendered, during the call too
+ */
+static void test_heard_is_rendered(void)
+{
+    struct observer o = {.time = INT64_C(1000000000)};
+    const struct nau_engine_config c = {48000, 1, 16};
+    struct nau_engine *e = nau_engine_create();
+    assert(e);
+    assert(nau_engine_init(e, &c) == NAU_OK);
+    const struct nau_source source = {.user = &o, .read = observer_read, .duration = 1000};
+    struct nau_node *n = nau_node_create();
+    assert(n);
+    assert(nau_source_init(n, e, &source) == NAU_OK);
+    const struct nau_route r = {n, NULL};
+    assert(nau_engine_commit(e, &r, 1, 0) == NAU_OK);
+    const struct nau_transport_config tc = {.declick_frames = 8};
+    o.transport = nau_transport_create();
+    assert(o.transport);
+    assert(nau_transport_init(o.transport, e, &tc) == NAU_OK);
+    assert(nau_transport_set_duration(o.transport, 1000) == NAU_OK);
+    nau_transport_play(o.transport);
+    /* The fade in, then the rest of the call: read once the fade is recorded */
+    float out[40];
+    assert(nau_transport_render(o.transport, o.time, 40, out) == NAU_OK);
+    assert(o.checks > 0);
+    nau_transport_freep(&o.transport);
+    nau_node_unrefp(&n);
+    nau_engine_freep(&e);
 }
 
 /* Gain k/8 after k frames of an 8-frame ramp from silence */
@@ -769,6 +821,7 @@ int main(void)
     test_loop();
     test_hold_after_moved_end();
     test_pause_across_renders();
+    test_heard_is_rendered();
     test_declick();
     test_short_declick();
     test_long_declick();

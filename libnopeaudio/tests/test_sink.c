@@ -27,6 +27,8 @@
 #include "../src/utils/time.h"
 
 static int null_device = 1;
+/* SDL's dummy driver paces itself with relative sleeps: it does not keep time */
+static int timed_device = 1;
 
 static int process(void *user, const struct nau_block *p)
 {
@@ -78,7 +80,10 @@ static void test_transport(void)
     const int64_t played = nau_transport_get_position(t);
     const int64_t elapsed = nau_sink_now() - start;
     /* As fast as time goes, within a few periods */
-    assert(llabs(played - elapsed * 48 / 1000000) < 48 * 60);
+    if (timed_device)
+        assert(llabs(played - elapsed * 48 / 1000000) < 48 * 60);
+    else
+        assert(played > elapsed * 48 / 1000000 / 2 && played < elapsed * 48 / 1000000 * 3 / 2);
     struct nau_clock clock;
     assert(nau_transport_get_clock(t, &clock) == NAU_OK && clock.playing);
     /* The history lookup clamps when the device falls behind its nominal rate. */
@@ -191,8 +196,9 @@ static void test_null_periods(void)
 int main(int argc, char **argv)
 {
     test_null_periods();
-    assert(argc == 1 || (argc == 2 && !strcmp(argv[1], "--device")));
+    assert(argc == 1 || (argc == 2 && (!strcmp(argv[1], "--device") || !strcmp(argv[1], "--untimed-device"))));
     null_device = argc == 1;
+    timed_device = argc == 1 || !strcmp(argv[1], "--device");
     if (!null_device)
         assert(nau_sink_backend_init() == NAU_OK);
     test_stop();
