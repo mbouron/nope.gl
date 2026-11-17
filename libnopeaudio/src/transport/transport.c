@@ -534,6 +534,16 @@ int nau_transport_render(struct nau_transport *t, int64_t time, uint32_t frames,
          */
         if (declick && block > declick && (t->ramp_left || t->waiting || pending || !playing || to_end <= 0))
             block = declick;
+        /*
+         * Fading out for a pause, a seek or the end of the range: the block
+         * ends with the fade, so that the transition applies on the first
+         * silent frame instead of after silent frames
+         */
+        if (declick && t->gain > 0.f && (!playing || pending || to_end <= (int64_t)declick)) {
+            const int64_t fade = t->target == 0.f ? t->ramp_left : (int64_t)ceil((double)t->gain * declick);
+            if (fade && block > fade)
+                block = fade;
+        }
 
         if (t->waiting && t->waited >= t->ready_timeout)
             t->waiting = false;
