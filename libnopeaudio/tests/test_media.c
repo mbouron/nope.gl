@@ -179,12 +179,15 @@ static void test_late_start(void)
 
 /*
  * Blocking reads of a loop with gaps: each pass plays the audio within the
- * range only, a range without audio included
+ * range only, a range without audio included. Set late, once nope.media has
+ * read the media to its end, with the audio past the range queued.
  */
-static void test_loop_gaps(int64_t source_start)
+static void test_loop_gaps(int64_t source_start, int late)
 {
     const int64_t length = 9600;
     struct media m = open_media(fixture_gaps, 1, 0, 0, source_start, length);
+    if (late)
+        nau_sleep_ms(200);
     const struct nau_transport_config tc = {0};
     struct nau_transport *t = nau_transport_create();
     assert(t);
@@ -640,8 +643,10 @@ int main(int argc, char **argv)
     test_read_and_seek();
     test_gap();
     test_late_start();
-    test_loop_gaps(15000);
-    test_loop_gaps(16000);
+    test_loop_gaps(15000, 0);
+    test_loop_gaps(16000, 0);
+    test_loop_gaps(15000, 1);
+    test_loop_gaps(16000, 1);
     test_loop(0);
     test_loop(1);
     test_short_loop(0);
