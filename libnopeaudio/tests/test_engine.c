@@ -465,7 +465,7 @@ static void filtered_init(struct filtered *f, enum nau_lowpass_slope slope, doub
 /* Automate the cutoff and the resonance with the same ramps, and commit */
 static void filtered_commit(struct filtered *f, const struct filter_ramp *ramps, uint32_t count)
 {
-    struct nau_ramp cutoffs[4], resonances[4];
+    struct nau_ramp cutoffs[4] = {0}, resonances[4] = {0};
     assert(count <= 4);
     for (uint32_t i = 0; i < count; i++) {
         cutoffs[i] = (struct nau_ramp){.frame = ramps[i].frame, .length = ramps[i].length, .value = ramps[i].cutoff};
