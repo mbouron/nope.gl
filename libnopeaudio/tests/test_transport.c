@@ -352,6 +352,32 @@ static void test_heard_is_rendered(void)
     nau_engine_freep(&e);
 }
 
+/*
+ * A device slower than its nominal rate: the heard position follows the pace
+ * of the renders, never ahead of what is rendered, and never going back
+ */
+static void test_clock_slow_device(void)
+{
+    struct numbers n = {.value = 1.f};
+    struct setup s = setup(&n, 0, 480000, 0, 0);
+    float out[480];
+    nau_transport_play(s.transport);
+    /* 480 frames every 12 ms instead of 10 */
+    const int64_t span = 12000000;
+    int64_t time = INT64_C(1000000000);
+    for (int i = 0; i < 100; i++, time += span)
+        assert(nau_transport_render(s.transport, time, 480, out) == NAU_OK);
+    const int64_t rendered = nau_transport_get_position(s.transport);
+    int64_t previous = 0;
+    for (int64_t t = time - 20 * span; t < time + span; t += 100000) {
+        int64_t heard;
+        assert(nau_transport_get_position_at(s.transport, t, &heard) == NAU_OK);
+        assert(heard >= previous && heard <= rendered);
+        previous = heard;
+    }
+    teardown(&s);
+}
+
 /* Gain k/8 after k frames of an 8-frame ramp from silence */
 static void check_ramp_in(const float *out, int count)
 {
@@ -822,6 +848,7 @@ int main(void)
     test_hold_after_moved_end();
     test_pause_across_renders();
     test_heard_is_rendered();
+    test_clock_slow_device();
     test_declick();
     test_short_declick();
     test_long_declick();
