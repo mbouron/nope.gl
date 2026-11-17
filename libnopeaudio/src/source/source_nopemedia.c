@@ -197,6 +197,8 @@ struct nau_media {
     int64_t block_read;      /* frames of it consumed so far, read or skipped */
     int64_t dropped;         /* frames of earlier passes dropped since the wrap */
     int end_status;          /* NAU_EOF at the end of the current pass, negative on error */
+    bool loop_ended;         /* the end block of a loop: no pass of it has audio, see media_seek() */
+    uint32_t loop_ended_revision;
 
     /* Statistics, see struct nau_media_stats */
     _Atomic int64_t silent_frames;
@@ -433,9 +435,9 @@ static bool cut_preroll(struct decoder *d, struct chunk *chunk)
     /*
      * nope.media went back to the start of the loop before reaching the
      * position: the audio ends before it, and this chunk starts the next pass
+     * (within a pass, each chunk starts after the previous one)
      */
-    const int64_t contiguous = frames_in(d->media, CONTIGUOUS_MS);
-    if (d->dropped_start >= 0 && chunk->position + contiguous < d->dropped_start) {
+    if (d->dropped_start >= 0 && chunk->position <= d->dropped_start) {
         d->drop_before = 0;
         start_pass(d);
         return true;
@@ -494,7 +496,9 @@ static void push_held(struct decoder *d)
  * Queue a decoded chunk after determining its loop pass and position.
  *
  * Pass: nope.media does not tell when it goes back to the start of the loop.
- * A chunk starting before the previous one marks the next pass.
+ * A chunk starting at or before the previous one marks the next pass: within
+ * a pass, each chunk starts after the previous one, and a pass can be a
+ * single chunk.
  *
  * Position: a chunk close enough to the end of the previous one is moved to
  * that end (see CONTIGUOUS_MS), so that the reader sees no gap or overlap.
@@ -515,7 +519,7 @@ static void queue_chunk(struct decoder *d, struct chunk *chunk)
 {
     const int64_t contiguous = frames_in(d->media, CONTIGUOUS_MS);
 
-    const bool next_pass = d->has_last && chunk->position + contiguous < d->last_start;
+    const bool next_pass = d->has_last && chunk->position <= d->last_start;
 
     /* Corrects the held chunk, unless that would give it a negative position */
     if (d->has_held && !next_pass && chunk->position < d->last_end &&
@@ -771,6 +775,7 @@ static void request(struct nau_media *m)
     m->pass_started = false;
     m->origin = m->cursor;
     m->end_status = NAU_OK;
+    m->loop_ended = false;
     publish_request(m, m->number, m->cursor);
     nau_sem_post(&m->wake);
     atomic_fetch_add_explicit(&m->requests, 1, memory_order_relaxed);
@@ -904,6 +909,15 @@ static int media_read(void *user, int64_t frame, uint32_t frames, float *output)
         const struct block *block = &m->block;
         if (block->status != NAU_OK) {
             m->end_status = block->status;
+            /*
+             * While looping, the decoder only queues an end once a whole
+             * pass ended with no audio (it decodes the next pass otherwise),
+             * or on an error: every pass of this loop ends there
+             */
+            if (loop_length(m)) {
+                m->loop_ended = true;
+                m->loop_ended_revision = atomic_load(&m->loop_revision);
+            }
             drop_block(m);
             break;
         }
@@ -999,7 +1013,10 @@ static void media_seek(void *user, int64_t frame, int wrap)
         m->cursor = frame;
         m->origin = frame;
         m->dropped = 0;
-        m->end_status = NAU_OK;
+        if (!m->loop_ended || m->loop_ended_revision != atomic_load(&m->loop_revision)) {
+            m->loop_ended = false;
+            m->end_status = NAU_OK;
+        }
         return;
     }
     /*
