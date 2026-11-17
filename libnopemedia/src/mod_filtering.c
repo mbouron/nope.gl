@@ -763,6 +763,15 @@ static int start_audio_pass(struct filtering_ctx *ctx, int64_t pass, int64_t off
 static int announce_audio_pass(struct filtering_ctx *ctx, int64_t pass)
 {
     if (ctx->in_pending_pass_number >= 0) {
+        /*
+         * The previous pass received no frame. End playback if its loop range
+         * is still current.
+         */
+        if (nmdi_loop_report_empty_pass(ctx->loop, ctx->in_pending_pass_number)) {
+            LOG(ctx, WARNING, "No frame in the loop range, ending playback");
+            avfilter_graph_free(&ctx->filter_graph);
+            return AVERROR_EOF;
+        }
         int ret = start_audio_pass(ctx, ctx->in_pending_pass_number, ctx->in.pts_offset, 1);
         if (ret < 0)
             return ret;

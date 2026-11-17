@@ -31,6 +31,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
   Xclipse GPUs
 - `libnopemedia` `nmd_get_next_frame()` restarting decoding from the beginning
   instead of the position requested by `nmd_seek()` after EOF
+- `libnopemedia` playing audio too early after a seek into an audio gap, or at
+  the start of a loop repetition
 
 ## [2026.6 / libnopegl 0.18.0][2026.6] - 2026-11-06
 ### Added

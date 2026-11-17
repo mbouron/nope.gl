@@ -53,6 +53,8 @@ struct decoding_ctx {
     AVThreadMessageQueue *frames_queue;
 
     int is_image;
+    int is_audio;
+    int draining;
     int frame_count;
 
     struct decoder_ctx *decoder;
@@ -122,6 +124,7 @@ int nmdi_decoding_init(void *log_ctx,
     const struct decoder *decs[3];
     int nb_decs = 0;
     const enum AVMediaType type = stream->codecpar->codec_type;
+    ctx->is_audio = type == AVMEDIA_TYPE_AUDIO;
     if (type == AVMEDIA_TYPE_VIDEO && opts->auto_hwaccel)
         decs[nb_decs++] = decoder_def_hwaccel;
     decs[nb_decs++] = decoder_def_software;
@@ -248,9 +251,11 @@ static void reset_passes(struct decoding_ctx *ctx)
 static int drain_decoder(struct decoding_ctx *ctx)
 {
     int ret;
+    ctx->draining = 1;
     do {
         ret = nmdi_decoder_push_packet(ctx->decoder, NULL);
     } while (ret == 0 || ret == AVERROR(EAGAIN));
+    ctx->draining = 0;
     if (ret != AVERROR_EOF)
         return ret;
     nmdi_decoder_flush(ctx->decoder);
@@ -344,6 +349,14 @@ static int set_frame_pass(struct decoding_ctx *ctx, AVFrame *frame, int64_t *tsp
     return 0;
 }
 
+/* End timestamp of an audio frame in the stream time base. */
+static int64_t get_audio_end(const struct decoding_ctx *ctx, const AVFrame *frame, int64_t ts)
+{
+    if (ts == AV_NOPTS_VALUE || frame->sample_rate <= 0)
+        return ts;
+    return ts + av_rescale_q(frame->nb_samples, (AVRational){1, frame->sample_rate}, ctx->st_timebase);
+}
+
 int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
 {
     int ret;
@@ -351,9 +364,17 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
     if (!frame) {
         TRACE(ctx, "async_queue_frame() called for flushing");
         if (ctx->tmp_frame) {
-            ret = queue_cached_frame(ctx);
-            if (ret < 0)
-                return ret;
+            /*
+             * Keep the cached audio frame for seeks past EOF. Drop it when
+             * draining for the next loop pass.
+             */
+            if (ctx->is_audio && ctx->draining) {
+                av_frame_free(&ctx->tmp_frame);
+            } else {
+                ret = queue_cached_frame(ctx);
+                if (ret < 0)
+                    return ret;
+            }
         }
         return AVERROR_EOF;
     }
@@ -369,15 +390,29 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
             return 0;
         }
     }
-    /* A frame without a timestamp cannot be shown, so it does not count as output */
-    if (ts != AV_NOPTS_VALUE)
+    /*
+     * Audio ending at or before the requested time has no samples to play
+     * from that time.
+     */
+    const int audio_before = ctx->is_audio && ctx->seek_request != AV_NOPTS_VALUE &&
+                             get_audio_end(ctx, frame, ts) <= ctx->seek_request;
+
+    /* Only reset the decoder delay counter for frames that can be output. */
+    if (ts != AV_NOPTS_VALUE && !audio_before)
         ctx->nb_packets_without_frame = 0;
 
-    /* Emit the previous pass's cached frame before processing the next pass. */
+    /*
+     * Output the previous pass's cached video frame before starting the next
+     * pass. Drop cached audio, which was kept only for seeks past EOF.
+     */
     if (ctx->pass_number != prev_pass && ctx->tmp_frame) {
-        ret = queue_cached_frame(ctx);
-        if (ret < 0)
-            return ret;
+        if (ctx->is_audio) {
+            av_frame_free(&ctx->tmp_frame);
+        } else {
+            ret = queue_cached_frame(ctx);
+            if (ret < 0)
+                return ret;
+        }
     }
 
     if (ctx->pass_number != prev_pass) {
@@ -387,6 +422,23 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
     }
 
     frame->pts = ts;
+
+    /*
+     * Keep audio timestamps unchanged. Cache frames ending at or before the
+     * requested time only for seeks past EOF. Return overlapping frames intact
+     * so the caller can discard the samples before the requested time.
+     */
+    if (ctx->is_audio && ctx->seek_request != AV_NOPTS_VALUE && ts < ctx->seek_request) {
+        av_frame_free(&ctx->tmp_frame);
+        if (audio_before) {
+            TRACE(ctx, "audio frame ts:%s ends before %s", av_ts2timestr(ts, &ctx->st_timebase),
+                  av_ts2timestr(ctx->seek_request, &ctx->st_timebase));
+            ctx->tmp_frame = frame;
+            return 0;
+        }
+        ctx->seek_request = AV_NOPTS_VALUE;
+        return queue_frame(ctx, frame);
+    }
 
     if (ctx->seek_request != AV_NOPTS_VALUE && ts < ctx->seek_request) {
         TRACE(ctx, "frame ts:%s (%"PRId64"), skipping because before %s (%"PRId64")",
@@ -404,7 +456,7 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
     }
 
     if (ctx->tmp_frame) {
-        if (ctx->seek_request != AV_NOPTS_VALUE && ts == ctx->seek_request) {
+        if (ctx->is_audio || (ctx->seek_request != AV_NOPTS_VALUE && ts == ctx->seek_request)) {
             av_frame_free(&ctx->tmp_frame);
         } else {
             ret = queue_cached_frame(ctx);
@@ -412,7 +464,7 @@ int nmdi_decoding_queue_frame(struct decoding_ctx *ctx, AVFrame *frame)
                 return ret;
         }
     } else {
-        if (ctx->seek_request != AV_NOPTS_VALUE && (ctx->seek_request > 0 || ctx->pass_number) &&
+        if (!ctx->is_audio && ctx->seek_request != AV_NOPTS_VALUE && (ctx->seek_request > 0 || ctx->pass_number) &&
             frame->pts > ctx->seek_request) {
             TRACE(ctx, "first frame obtained is after requested time, fixup its ts from %s to %s",
                   av_ts2timestr(frame->pts, &ctx->st_timebase),
