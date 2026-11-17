@@ -272,6 +272,34 @@ static void test_hold_after_moved_end(void)
     teardown(&s);
 }
 
+/*
+ * A fade spanning renders: the pause applies on the first silent frame, so
+ * that the playback resumes from the end of the fade without skipping frames
+ */
+static void test_pause_across_renders(void)
+{
+    struct numbers n = {0};
+    struct setup s = setup(&n, 0, 1000, 8, 0);
+    float out[20];
+    nau_transport_play(s.transport);
+    assert(nau_transport_render(s.transport, 0, 20, out) == NAU_OK);
+    nau_transport_pause(s.transport);
+    assert(nau_transport_render(s.transport, 0, 5, out) == NAU_OK);
+    for (int i = 0; i < 5; i++)
+        close_to(out[i], (float)(20 + i) * (float)(7 - i) / 8);
+    assert(nau_transport_render(s.transport, 0, 20, out) == NAU_OK);
+    for (int i = 0; i < 3; i++)
+        close_to(out[i], (float)(25 + i) * (float)(2 - i) / 8);
+    for (int i = 3; i < 20; i++)
+        close_to(out[i], 0);
+    assert(nau_transport_get_position(s.transport) == 28);
+    nau_transport_play(s.transport);
+    assert(nau_transport_render(s.transport, 0, 10, out) == NAU_OK);
+    for (int i = 0; i < 10; i++)
+        close_to(out[i], (float)(28 + i) * (i < 8 ? (float)(i + 1) / 8 : 1));
+    teardown(&s);
+}
+
 /* Gain k/8 after k frames of an 8-frame ramp from silence */
 static void check_ramp_in(const float *out, int count)
 {
@@ -740,6 +768,7 @@ int main(void)
     test_seek();
     test_loop();
     test_hold_after_moved_end();
+    test_pause_across_renders();
     test_declick();
     test_short_declick();
     test_long_declick();
