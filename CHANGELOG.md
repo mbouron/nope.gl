@@ -10,6 +10,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 
 ## [Unreleased]
 
+## [2026.7 / libnopegl 0.19.0 / libnopemedia 15.0.0 / libnopegpu 0.1.0 / libnopeaudio 0.1.0][2026.7] - 2026-11-18
+
 ### Added
 - `NGLContext.version`, `versionMajor`, `versionMinor` and `versionMicro` to
   get the `libnopegl` version from the Android bindings
@@ -747,3 +749,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 [2026.4]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.4
 [2026.5]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.5
 [2026.6]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.6
+[2026.7]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.7
