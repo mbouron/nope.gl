@@ -13,6 +13,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 ### Fixed
 - Crash of the Android emulator when rendering with its default OpenGL ES
   driver
+- Vulkan initialization failing with `set_surface_pts` enabled on some Android
+  devices, including the Android emulator
 
 ## [2026.7 / libnopegl 0.19.0 / libnopemedia 15.0.0 / libnopegpu 0.1.0 / libnopeaudio 0.1.0][2026.7] - 2026-11-18
 

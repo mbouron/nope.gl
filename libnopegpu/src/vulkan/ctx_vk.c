@@ -1013,12 +1013,18 @@ static int vk_init(struct ngpu_ctx *s)
     s->limits.min_uniform_block_offset_alignment = limits->minUniformBufferOffsetAlignment;
     s->limits.min_storage_block_offset_alignment = limits->minStorageBufferOffsetAlignment;
 
+#if !defined(TARGET_ANDROID)
+    /*
+     * The Android loader stamps the presented buffer with
+     * VkPresentTimesInfoGOOGLE whether it lists the extension or not.
+     */
     if (ctx_params->set_surface_pts &&
         !ngpu_vkcontext_has_extension(vk, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME, 1)) {
         LOG(ERROR, "context does not support setting surface pts: %s is not supported",
             VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
         return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
+#endif
 
     s->nb_in_flight_frames = 2;
 
