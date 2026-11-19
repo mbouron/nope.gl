@@ -24,6 +24,7 @@
 #include <nopegpu/nopegpu.h>
 
 #include "filterschain.h"
+#include "log.h"
 #include "utils/bstr.h"
 #include "utils/darray.h"
 #include "utils/hmap.h"
@@ -68,8 +69,12 @@ int ngli_filterschain_add_filter(struct filterschain *s, const struct filter *fi
     for (size_t i = 0; i < filter->resources.count; i++) {
         const struct ngli_filter_resource *res = &filter->resources.data[i];
         struct ngli_filter_resource combined_res = *res;
-        snprintf(combined_res.name, sizeof(combined_res.name), "%s%zu_%s",
-                 filter->name, s->filters.count, res->name);
+        int len = snprintf(combined_res.name, sizeof(combined_res.name), "%s%zu_%s",
+                           filter->name, s->filters.count, res->name);
+        if (len >= sizeof(combined_res.name)) {
+            LOG(ERROR, "filter resource name \"%s%zu_%s\" is too long", filter->name, s->filters.count, res->name);
+            return NGL_ERROR_LIMIT_EXCEEDED;
+        }
         if (ngli_darray_try_push(&s->resources, combined_res) < 0)
             return NGL_ERROR_MEMORY;
     }
