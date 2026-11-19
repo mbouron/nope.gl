@@ -213,6 +213,15 @@ static void invalidate(struct ngpu_rendertarget *s)
     struct ngpu_rendertarget_gl *s_priv = NGPU_PRIV_GL(s);
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
+
+    /*
+     * Workaround a crash on non-compliant implementations (notably the default
+     * one on the Android emulator) when calling glInvalidateFramebuffer()
+     * without any attachment.
+     */
+    if (!s_priv->nb_invalidate_attachments)
+        return;
+
     gl->funcs.InvalidateFramebuffer(GL_FRAMEBUFFER, s_priv->nb_invalidate_attachments, s_priv->invalidate_attachments);
 }
 

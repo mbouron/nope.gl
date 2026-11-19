@@ -10,6 +10,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 
 ## [Unreleased]
 
+### Fixed
+- Crash of the Android emulator when rendering with its default OpenGL ES
+  driver
+
 ## [2026.7 / libnopegl 0.19.0 / libnopemedia 15.0.0 / libnopegpu 0.1.0 / libnopeaudio 0.1.0][2026.7] - 2026-11-18
 
 ### Added
