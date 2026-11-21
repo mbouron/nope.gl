@@ -46,6 +46,10 @@ Now is the time to take a step back:
 
 - Have you considered the impact of your changes from a **user perspective**?
 - Can your changes be made **simpler**? [Keep It Simple, Stupid][kiss]
+- When implementing a formula from a paper, specification, or website, name
+  and link the source both in a comment beside the formula and in the commit
+  message. Identify the equation or section when available. If you adapt the
+  formula, explain what changed and why.
 - Try to **avoid external dependencies**, especially for core features
 - If you are altering the **architecture and internal dependencies** between
   components, is it clarifying / following the current structure or entangling
