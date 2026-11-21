@@ -22,7 +22,7 @@ Some simple checks to greatly improve the basic functionality of your
 submission:
 
 - Make sure the build and **tests pass for every commits**: `git rebase main
-  --exec "make clean && make test"`
+  --exec "make clean && make tests"`
 - Can the same changes be **applied elsewhere** in the codebase?
 - Avoid at all cost **glob-like code** such as `import *` or `*.ext` file
   references: this kind of code leads to dangling references because they break
@@ -46,6 +46,10 @@ Now is the time to take a step back:
 
 - Have you considered the impact of your changes from a **user perspective**?
 - Can your changes be made **simpler**? [Keep It Simple, Stupid][kiss]
+- When implementing a formula from a paper, specification, or website, name
+  and link the source both in a comment beside the formula and in the commit
+  message. Identify the equation or section when available. If you adapt the
+  formula, explain what changed and why.
 - Try to **avoid external dependencies**, especially for core features
 - If you are altering the **architecture and internal dependencies** between
   components, is it clarifying / following the current structure or entangling
@@ -55,20 +59,27 @@ Now is the time to take a step back:
 ### Exposure
 
 In order to keep the API maintainable in the long term, we try to keep it as
-small as possible. This means the only public header of the project
-`nopegl/nopegl.h` must be kept with as little symbols as possible.
-Additionally, we try to prevent painful integration for our users:
+small as possible.
+
+Before 1.0, the public API and ABI can change as needed. From 1.0 onward,
+breaking any of the following rules requires a major version bump for the
+affected library.
 
 - Do not reorder public enum such as `NGL_PLATFORM_*` as it breaks ABI
 - Do not insert a value in the middle of a public enum as it breaks ABI
 - Do not remove or change a public prototype as it breaks API and ABI
+- Do not add, remove, or reorder fields in a public struct such as
+  `struct ngl_config` as it breaks ABI
 
 ### Integration
 
 This part is where we focus on the finalization of the work to reach production
 quality:
 
-- Are your commits **atomics**?
+- Each commit must be **atomic**. When a behavior change needs existing code
+  to move or change names, put those mechanical edits in a preparatory
+  commit when practical. This lets reviewers see the behavior change in its
+  own diff.
 - Check that your commit messages use a **standard prefix** (look at the Git
   history for the commonly used ones)
 - Do your commit descriptions explain the context of **why** you're making each
@@ -78,6 +89,9 @@ quality:
 - If you're adding code, is it covered by **tests**?
 - If you're fixing a bug, do you have a **test** or some **safeguard** to
   prevent it from being re-introduced in the future / another context?
+- For a regression, find the smallest scene, media sample, or API call that
+  shows the problem. When practical, run the same case on the fix's parent
+  commit and on the fix. Describe what the reviewer can observe in each.
 - If the code is a workaround for an issue outside the control of the project,
   did you **link to the issue** with a comment (and opened it if needed) in the
   code?
