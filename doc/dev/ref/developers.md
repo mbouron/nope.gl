@@ -72,7 +72,10 @@ Additionally, we try to prevent painful integration for our users:
 This part is where we focus on the finalization of the work to reach production
 quality:
 
-- Are your commits **atomics**?
+- Each commit must be **atomic**. When a behavior change needs existing code
+  to move or change names, put those mechanical edits in a preparatory
+  commit when practical. This lets reviewers see the behavior change in its
+  own diff.
 - Check that your commit messages use a **standard prefix** (look at the Git
   history for the commonly used ones)
 - Do your commit descriptions explain the context of **why** you're making each
