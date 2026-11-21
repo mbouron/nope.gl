@@ -72,7 +72,9 @@ Keeping the frame's original timestamp lets the caller preserve the gap.
   changing a time range invalidates its children's cached timestamps because
   the next draw can request the same scene time.
 - When changing an interface, check its callers, bindings, tests, and docs.
-  Preserve public enum values and function signatures. After changing node
+  Keep public enum values and function signatures stable unless the change
+  needs to break them. The [exposure rules](doc/dev/ref/developers.md#exposure)
+  say when a break requires a major version bump. After changing node
   parameters, regenerate `libnopegl/nodes.specs` with `make nopegl-updatespecs`.
 
 ## Commits and review
