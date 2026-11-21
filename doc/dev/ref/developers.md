@@ -85,6 +85,9 @@ quality:
 - If you're adding code, is it covered by **tests**?
 - If you're fixing a bug, do you have a **test** or some **safeguard** to
   prevent it from being re-introduced in the future / another context?
+- For a regression, find the smallest scene, media sample, or API call that
+  shows the problem. When practical, run the same case on the fix's parent
+  commit and on the fix. Describe what the reviewer can observe in each.
 - If the code is a workaround for an issue outside the control of the project,
   did you **link to the issue** with a comment (and opened it if needed) in the
   code?
