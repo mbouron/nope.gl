@@ -22,7 +22,7 @@
 #ifndef NODE_TRANSFORM_H
 #define NODE_TRANSFORM_H
 
-#include "utils/utils.h"
+#include "math_utils.h"
 
 struct ngl_node;
 

@@ -28,7 +28,7 @@
 
 #include <nopegpu/nopegpu.h>
 
-#include "utils/utils.h"
+#include "math_utils.h"
 
 #define NGLI_COLOR_INFO_DEFAULTS {             \
     .space     = NMD_COL_SPC_UNSPECIFIED,      \

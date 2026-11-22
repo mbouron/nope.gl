@@ -24,6 +24,7 @@
 #define MATH_UTILS_H
 
 #include "config.h"
+#include "utils/utils.h"
 
 #define PI_F32 3.14159265358979323846f
 #define PI_F64 3.14159265358979323846
@@ -81,6 +82,14 @@
 #define NGLI_VEC2_MUL(a, b) {(a)[0] * (b)[0], (a)[1] * (b)[1]}
 #define NGLI_VEC3_MUL(a, b) {(a)[0] * (b)[0], (a)[1] * (b)[1], (a)[2] * (b)[2]}
 #define NGLI_VEC4_MUL(a, b) {(a)[0] * (b)[0], (a)[1] * (b)[1], (a)[2] * (b)[2], (a)[3] * (b)[3]}
+
+struct ngli_mat4 {
+    NGLI_ALIGNED_MAT(m);
+};
+
+struct ngli_vec4 {
+    NGLI_ALIGNED_VEC(v);
+};
 
 void ngli_vec2_add(float *dst, const float *v1, const float *v2);
 void ngli_vec2_sub(float *dst, const float *v1, const float *v2);

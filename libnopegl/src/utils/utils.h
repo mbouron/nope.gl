@@ -100,14 +100,6 @@
 #define NGLI_ALIGNED_VEC(vname) float NGLI_ATTR_ALIGNED vname[4]
 #define NGLI_ALIGNED_MAT(mname) float NGLI_ATTR_ALIGNED mname[4*4]
 
-struct ngli_mat4 {
-    NGLI_ALIGNED_MAT(m);
-};
-
-struct ngli_vec4 {
-    NGLI_ALIGNED_VEC(v);
-};
-
 #ifndef INCLUDE_DOCSTRINGS
 #define NGLI_DOCSTRING(s) (NULL)
 #else

@@ -33,6 +33,7 @@
 
 #include "android_imagereader.h"
 #include "log.h"
+#include "math_utils.h"
 #include "utils/darray.h"
 #include "utils/memory.h"
 #include "utils/pthread_compat.h"

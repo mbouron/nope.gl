@@ -24,6 +24,7 @@
 
 #include "aabb.h"
 #include "blend_mode.h"
+#include "math_utils.h"
 #include "utils/utils.h"
 
 struct ngl_ctx;
