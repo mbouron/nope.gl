@@ -24,13 +24,13 @@
 #include <stdint.h>
 
 #include "config.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/pthread_compat.h"
+#include "libnopeutil/thread.h"
+#include "libnopeutil/time.h"
 #include "nopeaudio/nopeaudio.h"
 #include "sink/sink_internal.h"
-#include "utils/memory.h"
-#include "utils/pthread_compat.h"
 #include "utils/semaphore.h"
-#include "utils/thread.h"
-#include "utils/time.h"
 
 /* A null device renders in real time without audio output. Available in every build. */
 struct nau_sink_null {
@@ -49,7 +49,7 @@ struct nau_sink_null {
 static void *run_null(void *arg)
 {
     struct nau_sink_null *s = arg;
-    nau_thread_set_name("nau/null");
+    npriv_thread_set_name("nau/null");
     const int64_t period = nau_sink_null_get_latency(s);
     int64_t next = nau_sink_now();
     while (atomic_load_explicit(&s->running, memory_order_relaxed)) {
@@ -66,7 +66,7 @@ static void *run_null(void *arg)
 
 struct nau_sink_null *nau_sink_null_create(void)
 {
-    struct nau_sink_null *s = nau_try_calloc(1, sizeof(*s));
+    struct nau_sink_null *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     atomic_init(&s->running, false);
@@ -78,12 +78,12 @@ int nau_sink_null_init(struct nau_sink_null *s, struct nau_sink *sink,
 {
     s->sample_rate = config->sample_rate;
     s->period_frames = nau_sink_period(s->sample_rate, period_ms ? period_ms : 10);
-    s->buffer = nau_try_calloc(s->period_frames, config->channels * sizeof(*s->buffer));
+    s->buffer = npriv_try_calloc(s->period_frames, config->channels * sizeof(*s->buffer));
     if (!s->buffer)
         return NAU_ERROR_MEMORY;
     int ret = nau_sem_init(&s->wake);
     if (ret < 0) {
-        nau_freep(&s->buffer);
+        npriv_freep(&s->buffer);
         return ret;
     }
     s->wake_ready = true;
@@ -125,7 +125,7 @@ void nau_sink_null_stop(struct nau_sink_null *s)
 /* Simulate one period of output latency. */
 int64_t nau_sink_null_get_latency(const struct nau_sink_null *s)
 {
-    return (int64_t)s->period_frames * NAU_NS_PER_SEC / s->sample_rate;
+    return (int64_t)s->period_frames * NPRIV_NS_PER_SEC / s->sample_rate;
 }
 
 void nau_sink_null_freep(struct nau_sink_null **sp)
@@ -138,8 +138,8 @@ void nau_sink_null_freep(struct nau_sink_null **sp)
     nau_sink_null_stop(s);
     if (s->wake_ready)
         nau_sem_destroy(&s->wake);
-    nau_freep(&s->buffer);
-    nau_freep(sp);
+    npriv_freep(&s->buffer);
+    npriv_freep(sp);
 }
 
 #if NAU_DEFAULT_SINK_NULL
@@ -166,7 +166,7 @@ int nau_sink_poll(void)
 
 struct nau_sink_device *nau_sink_device_create(void)
 {
-    return nau_try_calloc(1, sizeof(struct nau_sink_device));
+    return npriv_try_calloc(1, sizeof(struct nau_sink_device));
 }
 
 int nau_sink_device_init(struct nau_sink_device *d, struct nau_sink *sink,
@@ -213,7 +213,7 @@ void nau_sink_device_freep(struct nau_sink_device **dp)
     if (!d)
         return;
     nau_sink_null_freep(&d->null_device);
-    nau_freep(dp);
+    npriv_freep(dp);
 }
 
 #endif

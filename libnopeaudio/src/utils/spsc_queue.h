@@ -27,7 +27,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "utils.h"
+#include "libnopeutil/utils.h"
 
 /*
  * Lock-free queue for one producer thread and one consumer thread.
@@ -80,7 +80,7 @@ struct spsc_queue {
 #define NAU_SPSC_QUEUE(T) struct { NAU_SPSC_QUEUE_FIELDS_(T); }
 #define NAU_DECLARE_SPSC_QUEUE_WITH_NAME(name, T) struct name { NAU_SPSC_QUEUE_FIELDS_(T); }
 
-typedef void *nau_may_alias nau_spsc_queue_data_alias;
+typedef void *npriv_may_alias nau_spsc_queue_data_alias;
 
 int nau_spsc_queue_init_(struct spsc_queue *q, nau_spsc_queue_data_alias *data,
                          size_t capacity, size_t element_size, size_t alignment);

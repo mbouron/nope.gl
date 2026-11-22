@@ -43,9 +43,9 @@
 #include "nopeaudio/nopeaudio.h"
 #include "sdl3.h"
 #include "sink/sink_internal.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
-#include "utils/time.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
+#include "libnopeutil/time.h"
 
 /*
  * SDL exposes neither presentation timestamps nor backend buffering.
@@ -192,11 +192,11 @@ static void SDLCALL feed(void *user, SDL_AudioStream *stream, int additional, in
     /* Frames the stream already holds: they are played before this render */
     int64_t ahead = total > additional ? (total - additional) / frame_size : 0;
     const int64_t device_latency = atomic_load_explicit(&d->device_latency, memory_order_relaxed);
-    atomic_store_explicit(&d->latency, ahead * NAU_NS_PER_SEC / d->sample_rate, memory_order_relaxed);
+    atomic_store_explicit(&d->latency, ahead * NPRIV_NS_PER_SEC / d->sample_rate, memory_order_relaxed);
     int64_t left = ((int64_t)additional + frame_size - 1) / frame_size;
     while (left > 0) {
         const uint32_t frames = left < d->buffer_frames ? (uint32_t)left : d->buffer_frames;
-        nau_sink_render(d->sink, d->buffer, frames, now + device_latency + ahead * NAU_NS_PER_SEC / d->sample_rate);
+        nau_sink_render(d->sink, d->buffer, frames, now + device_latency + ahead * NPRIV_NS_PER_SEC / d->sample_rate);
         if (!SDL_PutAudioStreamData(stream, d->buffer, (int)frames * frame_size)) {
             nau_sink_set_status(d->sink, NAU_ERROR_MEMORY);
             return;
@@ -261,7 +261,7 @@ static int open_stream(struct nau_sink_device *d)
         d->stream = NULL;
         return NAU_ERROR_IO;
     }
-    const int64_t device_latency = (int64_t)DEVICE_BUFFERS * device_frames * NAU_NS_PER_SEC / device_spec.freq;
+    const int64_t device_latency = (int64_t)DEVICE_BUFFERS * device_frames * NPRIV_NS_PER_SEC / device_spec.freq;
     atomic_store_explicit(&d->device_latency, device_latency, memory_order_relaxed);
     atomic_store_explicit(&d->latency, 0, memory_order_relaxed);
     const int version = SDL_GetVersion();
@@ -314,7 +314,7 @@ static void device_uninit(struct nau_sink_device *d)
         nau_sdl3_release();
         d->backend_ready = false;
     }
-    nau_freep(&d->buffer);
+    npriv_freep(&d->buffer);
     d->sink = NULL;
     d->next = NULL;
     d->started = false;
@@ -325,7 +325,7 @@ static void device_uninit(struct nau_sink_device *d)
 
 struct nau_sink_device *nau_sink_device_create(void)
 {
-    struct nau_sink_device *d = nau_try_calloc(1, sizeof(*d));
+    struct nau_sink_device *d = npriv_try_calloc(1, sizeof(*d));
     if (!d)
         return NULL;
     atomic_init(&d->device_latency, 0);
@@ -354,8 +354,8 @@ int nau_sink_device_init(struct nau_sink_device *d, struct nau_sink *sink,
      * more frames. SDL copies data of 64 KiB or more to a new allocation:
      * each round stays below.
      */
-    d->buffer_frames = NAU_MIN(4096U, (uint32_t)((64 * 1024 - 1) / (d->channels * sizeof(*d->buffer))));
-    d->buffer = nau_try_calloc(d->buffer_frames, d->channels * sizeof(*d->buffer));
+    d->buffer_frames = NPRIV_MIN(4096U, (uint32_t)((64 * 1024 - 1) / (d->channels * sizeof(*d->buffer))));
+    d->buffer = npriv_try_calloc(d->buffer_frames, d->channels * sizeof(*d->buffer));
     if (!d->buffer) {
         device_uninit(d);
         return NAU_ERROR_MEMORY;
@@ -467,7 +467,7 @@ int nau_sink_poll(void)
                 }
                 ret = NAU_ERROR_IO;
             } else {
-                const int64_t latency = (int64_t)DEVICE_BUFFERS * frames * NAU_NS_PER_SEC / spec.freq;
+                const int64_t latency = (int64_t)DEVICE_BUFFERS * frames * NPRIV_NS_PER_SEC / spec.freq;
                 atomic_store_explicit(&d->device_latency, latency, memory_order_relaxed);
                 bool resumed = true;
                 if (ret != NAU_OK && d->started)
@@ -504,5 +504,5 @@ void nau_sink_device_freep(struct nau_sink_device **dp)
     if (!dp || !*dp)
         return;
     device_uninit(*dp);
-    nau_freep(dp);
+    npriv_freep(dp);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -29,5 +29,6 @@
 #define NPRIV_NS_PER_SEC 1000000000
 
 int64_t npriv_gettime_relative(void);
+void npriv_sleep_ms(uint32_t ms);
 
 #endif /* NPRIV_TIME_H */

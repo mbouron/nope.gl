@@ -29,12 +29,13 @@
 
 #include <nopemedia/nopemedia.h>
 
+#include "libnopeutil/memory.h"
+#include "libnopeutil/pthread_compat.h"
+#include "libnopeutil/thread.h"
+#include "libnopeutil/utils.h"
 #include "nopeaudio/nopeaudio.h"
-#include "utils/memory.h"
-#include "utils/pthread_compat.h"
 #include "utils/semaphore.h"
 #include "utils/spsc_queue.h"
-#include "utils/thread.h"
 #include "utils/utils.h"
 
 /*
@@ -284,7 +285,7 @@ static int decoder_next(struct nau_media *m, struct chunk *chunk)
         goto fail;
 
     /* Despite its name, nmd_frame.ms is in microseconds */
-    const int64_t us = NAU_MAX(frame->ms, 0);
+    const int64_t us = NPRIV_MAX(frame->ms, 0);
     int64_t position;
     const int64_t fraction = (us % 1000000 * m->sample_rate + 500000) / 1000000;
     if (ckd_mul(&position, us / 1000000, m->sample_rate))
@@ -472,7 +473,7 @@ static void push_block(struct decoder *d, const struct block *block)
     struct nau_media *m = d->media;
     /* Cannot fail: see the queue capacity in struct decoder */
     const bool pushed = nau_spsc_queue_push(&m->blocks, *block);
-    nau_assert(pushed);
+    npriv_assert(pushed);
     d->outstanding++;
     if (block->status == NAU_OK)
         d->queued += block->chunk.frame_count;
@@ -577,7 +578,7 @@ static void queue_chunk(struct decoder *d, struct chunk *chunk)
 static void *run_decoder(void *arg)
 {
     struct nau_media *m = arg;
-    nau_thread_set_name("nau/media");
+    npriv_thread_set_name("nau/media");
     const int64_t read_ahead = frames_in(m, READ_AHEAD_MS);
     const size_t capacity = nau_spsc_queue_capacity(&m->blocks);
 
@@ -741,7 +742,7 @@ static void give_back(struct nau_media *m, const struct block *block)
 {
     /* Cannot fail: see the queue capacity in struct decoder */
     const bool pushed = nau_spsc_queue_push(&m->released, *block);
-    nau_assert(pushed);
+    npriv_assert(pushed);
     nau_sem_post(&m->wake);
 }
 
@@ -956,7 +957,7 @@ static int media_read(void *user, int64_t frame, uint32_t frames, float *output)
          * return the same gap, indefinitely with blocking reads.
          */
         if (cursor < start) {
-            const int64_t count = NAU_MIN(start - cursor, frames - done);
+            const int64_t count = NPRIV_MIN(start - cursor, frames - done);
             cursor += count;
             done += count;
             continue;
@@ -1071,7 +1072,7 @@ static void media_uninit(struct nau_media *m)
          */
         if (m->has_block) {
             const bool pushed = nau_spsc_queue_push(&m->released, m->block);
-            nau_assert(pushed);
+            npriv_assert(pushed);
         }
         atomic_store(&m->stop, true);
         nau_sem_post(&m->wake);
@@ -1096,7 +1097,7 @@ static void media_uninit(struct nau_media *m)
 
 struct nau_media *nau_media_create(void)
 {
-    struct nau_media *m = nau_try_calloc(1, sizeof(*m));
+    struct nau_media *m = npriv_try_calloc(1, sizeof(*m));
     if (!m)
         return NULL;
     m->refs = 1;
@@ -1319,5 +1320,5 @@ void nau_media_unrefp(struct nau_media **mp)
     if (--m->refs)
         return;
     media_uninit(m);
-    nau_freep(&m);
+    npriv_freep(&m);
 }

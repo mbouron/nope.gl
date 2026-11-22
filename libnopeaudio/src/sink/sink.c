@@ -31,10 +31,10 @@
 #include <time.h>
 #endif
 
+#include "libnopeutil/memory.h"
+#include "libnopeutil/time.h"
 #include "nopeaudio/nopeaudio.h"
 #include "sink/sink_internal.h"
-#include "utils/memory.h"
-#include "utils/time.h"
 
 /* Shared sink API and rendering, independent of the device (see sink_internal.h). */
 struct nau_sink {
@@ -80,7 +80,7 @@ void nau_sink_set_status(struct nau_sink *s, int status)
 
 struct nau_sink *nau_sink_create(void)
 {
-    struct nau_sink *s = nau_try_calloc(1, sizeof(*s));
+    struct nau_sink *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     atomic_init(&s->underruns, 0);
@@ -177,7 +177,7 @@ void nau_sink_freep(struct nau_sink **sp)
     struct nau_sink *s = *sp;
     nau_sink_device_freep(&s->device);
     nau_sink_null_freep(&s->null_device);
-    nau_freep(sp);
+    npriv_freep(sp);
 }
 
 int64_t nau_sink_now(void)
@@ -186,10 +186,10 @@ int64_t nau_sink_now(void)
     LARGE_INTEGER count, frequency;
     QueryPerformanceCounter(&count);
     QueryPerformanceFrequency(&frequency);
-    return (int64_t)((double)count.QuadPart * NAU_NS_PER_SEC / (double)frequency.QuadPart);
+    return (int64_t)((double)count.QuadPart * NPRIV_NS_PER_SEC / (double)frequency.QuadPart);
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (int64_t)ts.tv_sec * NAU_NS_PER_SEC + ts.tv_nsec;
+    return (int64_t)ts.tv_sec * NPRIV_NS_PER_SEC + ts.tv_nsec;
 #endif
 }

@@ -66,8 +66,8 @@
 #include "nopeaudio/nopeaudio.h"
 #include "engine_internal.h"
 #include "internal.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 #define MAX_NODES 4096U
 #define MAX_INPUTS 64U
@@ -172,16 +172,16 @@ static void render_plan_freep(struct render_plan **pp)
         if (step->release)
             step->release(step->snapshot);
         nau_node_unrefp(&step->node);
-        nau_freep(&step->inputs);
+        npriv_freep(&step->inputs);
     }
-    nau_freep(&p->steps);
-    nau_freep(&p->buffers);
-    nau_freep(pp);
+    npriv_freep(&p->steps);
+    npriv_freep(&p->buffers);
+    npriv_freep(pp);
 }
 
 struct nau_engine *nau_engine_create(void)
 {
-    struct nau_engine *s = nau_try_calloc(1, sizeof(*s));
+    struct nau_engine *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     atomic_init(&s->busy, 0);
@@ -209,7 +209,7 @@ int nau_engine_init(struct nau_engine *s, const struct nau_engine_config *config
     if (!atomic_is_lock_free(&s->busy) || !atomic_is_lock_free(&s->pending))
         return NAU_ERROR_UNSUPPORTED;
 
-    float *silence = nau_try_calloc((size_t)config->channels * config->block_frames, sizeof(*silence));
+    float *silence = npriv_try_calloc((size_t)config->channels * config->block_frames, sizeof(*silence));
     if (!silence)
         return NAU_ERROR_MEMORY;
     s->config = *config;
@@ -231,8 +231,8 @@ void nau_engine_freep(struct nau_engine **sp)
     render_plan_freep(&pending);
     render_plan_freep(&s->active);
     render_plan_freep(&s->retired);
-    nau_freep(&s->silence);
-    nau_freep(sp);
+    npriv_freep(&s->silence);
+    npriv_freep(sp);
 }
 
 int nau_engine_collect(struct nau_engine *s)
@@ -291,10 +291,10 @@ static int render_plan_init(struct render_plan *p, struct nau_engine *s, const s
     }
 
     int ret = NAU_OK;
-    uint32_t *order = nau_try_calloc(count + 1, sizeof(*order));
-    uint32_t *map = nau_try_calloc(count + 1, sizeof(*map));
-    uint8_t *color = nau_try_calloc(count + 1, sizeof(*color));
-    struct visit *stack = nau_try_calloc(count + 1, sizeof(*stack));
+    uint32_t *order = npriv_try_calloc(count + 1, sizeof(*order));
+    uint32_t *map = npriv_try_calloc(count + 1, sizeof(*map));
+    uint8_t *color = npriv_try_calloc(count + 1, sizeof(*color));
+    struct visit *stack = npriv_try_calloc(count + 1, sizeof(*stack));
     if (!order || !map || !color || !stack) {
         ret = NAU_ERROR_MEMORY;
         goto end;
@@ -331,8 +331,8 @@ static int render_plan_init(struct render_plan *p, struct nau_engine *s, const s
         stack[depth++] = (struct visit){.index = dep};
     }
     const size_t samples = (size_t)s->config.channels * s->config.block_frames;
-    p->steps = nau_try_calloc(used + 1, sizeof(*p->steps));
-    p->buffers = nau_try_calloc(used + 1, samples * sizeof(float));
+    p->steps = npriv_try_calloc(used + 1, sizeof(*p->steps));
+    p->buffers = npriv_try_calloc(used + 1, samples * sizeof(float));
     if (!p->steps || !p->buffers) {
         ret = NAU_ERROR_MEMORY;
         goto end;
@@ -359,7 +359,7 @@ static int render_plan_init(struct render_plan *p, struct nau_engine *s, const s
         }
         step->output = p->buffers + i * samples;
         const uint32_t n = step->node->processor.input_count;
-        step->inputs = nau_try_calloc(n + 1, sizeof(*step->inputs));
+        step->inputs = npriv_try_calloc(n + 1, sizeof(*step->inputs));
         if (!step->inputs) {
             ret = NAU_ERROR_MEMORY;
             goto end;
@@ -370,10 +370,10 @@ static int render_plan_init(struct render_plan *p, struct nau_engine *s, const s
         }
     }
 end:
-    nau_freep(&order);
-    nau_freep(&map);
-    nau_freep(&color);
-    nau_freep(&stack);
+    npriv_freep(&order);
+    npriv_freep(&map);
+    npriv_freep(&color);
+    npriv_freep(&stack);
     return ret;
 }
 
@@ -396,7 +396,7 @@ int nau_engine_commit(struct nau_engine *s, const struct nau_route *routes,
     if (ret != NAU_OK)
         return ret;
 
-    struct render_plan *p = nau_try_calloc(1, sizeof(*p));
+    struct render_plan *p = npriv_try_calloc(1, sizeof(*p));
     if (!p)
         return NAU_ERROR_MEMORY;
     ret = render_plan_init(p, s, routes, count, output);
@@ -520,7 +520,7 @@ int nau_engine_render_jump(struct nau_engine *s, int64_t first, uint32_t frames,
     while (frames) {
         if (adopt)
             adopt_pending(s);
-        const uint32_t n = NAU_MIN(frames, s->config.block_frames);
+        const uint32_t n = NPRIV_MIN(frames, s->config.block_frames);
         const size_t bytes = (size_t)n * s->config.channels * sizeof(float);
         struct render_plan *p = s->active;
         for (uint32_t i = 0; p && i < p->step_count; i++) {
@@ -562,7 +562,7 @@ int nau_engine_render_jump(struct nau_engine *s, int64_t first, uint32_t frames,
 
 struct nau_node *nau_node_create(void)
 {
-    struct nau_node *node = nau_try_calloc(1, sizeof(*node));
+    struct nau_node *node = npriv_try_calloc(1, sizeof(*node));
     if (node)
         node->refs = 1;
     return node;
@@ -625,7 +625,7 @@ void nau_node_unrefp(struct nau_node **np)
         return;
     if (n->processor.destroy)
         n->processor.destroy(n->processor.user);
-    nau_freep(&n);
+    npriv_freep(&n);
 }
 
 static int source_process(void *user, const struct nau_block *p)
@@ -643,7 +643,7 @@ static void source_destroy(void *user)
     struct nau_source *s = user;
     if (s->destroy)
         s->destroy(s->user);
-    nau_freep(&s);
+    npriv_freep(&s);
 }
 
 int nau_source_init(struct nau_node *node, struct nau_engine *s, const struct nau_source *source)
@@ -658,7 +658,7 @@ int nau_source_init(struct nau_node *node, struct nau_engine *s, const struct na
         source->source_start > INT64_MAX - source->duration)
         return NAU_ERROR_INVALID;
 
-    struct nau_source *copy = nau_try_malloc(sizeof(*copy));
+    struct nau_source *copy = npriv_try_malloc(sizeof(*copy));
     if (!copy)
         return NAU_ERROR_MEMORY;
     *copy = *source;
@@ -670,7 +670,7 @@ int nau_source_init(struct nau_node *node, struct nau_engine *s, const struct na
     };
     int ret = nau_node_init(node, s, &processor);
     if (ret < 0)
-        nau_freep(&copy);
+        npriv_freep(&copy);
     return ret;
 }
 

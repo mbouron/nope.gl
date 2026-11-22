@@ -30,10 +30,10 @@
 #include "effect/effect.h"
 #include "export/export.h"
 #include "ramp.h"
-#include "utils/memory.h"
-#include "utils/pthread_compat.h"
-#include "utils/time.h"
-#include "utils/utils.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/pthread_compat.h"
+#include "libnopeutil/time.h"
+#include "libnopeutil/utils.h"
 
 /*
  * The player assembles an engine and a transport, with a sink for device output.
@@ -261,8 +261,8 @@ static int commit(struct nau_player *p, const struct nau_track *original, const 
         route_count += 1 + chain_length(t);
         input_count += chain_length(t);
     }
-    struct nau_route *routes = nau_try_calloc(route_count, sizeof(*routes));
-    uint32_t *inputs = nau_try_calloc(input_count, sizeof(*inputs));
+    struct nau_route *routes = npriv_try_calloc(route_count, sizeof(*routes));
+    uint32_t *inputs = npriv_try_calloc(input_count, sizeof(*inputs));
     struct nau_node *mix = nau_node_create();
     int ret;
     if (!routes || !inputs || !mix) {
@@ -301,12 +301,12 @@ end:
     if (ret != NAU_OK) {
         for (uint32_t i = 0; i < n; i++) {
             int restored = set_origins(p->tracks[i]);
-            nau_assert(restored == NAU_OK);
+            npriv_assert(restored == NAU_OK);
         }
     }
     nau_node_unrefp(&mix);
-    nau_freep(&routes);
-    nau_freep(&inputs);
+    npriv_freep(&routes);
+    npriv_freep(&inputs);
     return ret;
 }
 
@@ -330,8 +330,8 @@ static void update_loop(const struct nau_player *p, struct nau_track *t)
 {
     int64_t start, end;
     play_range(p, &start, &end);
-    const int64_t first = NAU_MAX(start, t->start);
-    const int64_t last = NAU_MIN(end, t->start + t->duration);
+    const int64_t first = NPRIV_MAX(start, t->start);
+    const int64_t last = NPRIV_MIN(end, t->start + t->duration);
     if (!p->looping || last <= first)
         nau_media_set_loop(t->media, 0, 0);
     else
@@ -370,7 +370,7 @@ static void free_effect(struct nau_track_effect **ep)
     if (!e)
         return;
     nau_node_unrefp(&e->node);
-    nau_freep(ep);
+    npriv_freep(ep);
 }
 
 static void free_track(struct nau_track **tp)
@@ -384,7 +384,7 @@ static void free_track(struct nau_track **tp)
     nau_node_unrefp(&t->fader);
     nau_node_unrefp(&t->gain);
     nau_media_unrefp(&t->media);
-    nau_freep(tp);
+    npriv_freep(tp);
 }
 
 static void player_uninit(struct nau_player *p)
@@ -410,7 +410,7 @@ static void player_uninit(struct nau_player *p)
 
 struct nau_player *nau_player_create(void)
 {
-    struct nau_player *p = nau_try_calloc(1, sizeof(*p));
+    struct nau_player *p = npriv_try_calloc(1, sizeof(*p));
     if (!p)
         return NULL;
     atomic_init(&p->sink_started, false);
@@ -509,7 +509,7 @@ void nau_player_freep(struct nau_player **pp)
     if (!pp || !*pp)
         return;
     player_uninit(*pp);
-    nau_freep(pp);
+    npriv_freep(pp);
 }
 
 uint32_t nau_player_get_sample_rate(const struct nau_player *p)
@@ -551,7 +551,7 @@ int nau_player_add_track(struct nau_player *p, const struct nau_track_params *pa
     if (ret != NAU_OK)
         goto end;
 
-    t = nau_try_calloc(1, sizeof(*t));
+    t = npriv_try_calloc(1, sizeof(*t));
     if (!t) {
         ret = NAU_ERROR_MEMORY;
         goto end;
@@ -657,7 +657,7 @@ int nau_player_set_track_timings(struct nau_player *p, struct nau_track *t, int6
     ret = commit(p, t, &edited);
     if (ret != NAU_OK) {
         int restored = nau_source_set_range(t->source, t->start, t->trim, t->duration);
-        nau_assert(restored == NAU_OK);
+        npriv_assert(restored == NAU_OK);
         goto end;
     }
 
@@ -750,7 +750,7 @@ static bool insert_effect(struct nau_track *t, struct nau_track_effect *e, enum 
     const struct effect_range range = get_placement_range(t, placement);
     if (index > range.count)
         return false;
-    nau_assert(t->effect_count < MAX_EFFECTS);
+    npriv_assert(t->effect_count < MAX_EFFECTS);
     const uint32_t at = range.first + index;
     memmove(&t->effects[at + 1], &t->effects[at], (t->effect_count - at) * sizeof(*t->effects));
     t->effects[at] = e;
@@ -763,7 +763,7 @@ static bool insert_effect(struct nau_track *t, struct nau_track_effect *e, enum 
 /* Take an effect out of a copy of a track */
 static void extract_effect(struct nau_track *t, uint32_t index)
 {
-    nau_assert(index < t->effect_count);
+    npriv_assert(index < t->effect_count);
     if (index < t->pre_fader_effect_count)
         t->pre_fader_effect_count--;
     t->effect_count--;
@@ -802,7 +802,7 @@ int nau_player_add_track_effect(struct nau_player *p, struct nau_track *t, enum 
         goto end;
     }
 
-    e = nau_try_calloc(1, sizeof(*e));
+    e = npriv_try_calloc(1, sizeof(*e));
     if (!e) {
         ret = NAU_ERROR_MEMORY;
         goto end;
@@ -824,7 +824,7 @@ int nau_player_add_track_effect(struct nau_player *p, struct nau_track *t, enum 
     struct nau_track edited = *t;
     const uint32_t count = get_placement_range(t, placement).count;
     const bool inserted = insert_effect(&edited, e, placement, count);
-    nau_assert(inserted);
+    npriv_assert(inserted);
 
     ret = commit(p, t, &edited);
     if (ret != NAU_OK)
@@ -958,7 +958,7 @@ int nau_player_set_track_effect_automation(struct nau_player *p, struct nau_trac
         counts[i] = lanes[i].ramp_count;
         if (!counts[i])
             continue;
-        items[i] = nau_try_memdup(lanes[i].ramps, counts[i] * sizeof(*items[i]));
+        items[i] = npriv_try_memdup(lanes[i].ramps, counts[i] * sizeof(*items[i]));
         if (!items[i]) {
             ret = NAU_ERROR_MEMORY;
             goto end;
@@ -987,10 +987,10 @@ end:
         swapped_count--;
         int restored = nau_effect_swap_automation(e->node, lanes[swapped_count].param, &items[swapped_count],
                                                         &counts[swapped_count]);
-        nau_assert(restored == NAU_OK);
+        npriv_assert(restored == NAU_OK);
     }
     for (uint32_t i = 0; i < lane_count; i++)
-        nau_freep(&items[i]);
+        npriv_freep(&items[i]);
     pthread_mutex_unlock(&p->lock);
     return ret;
 }
@@ -1111,7 +1111,7 @@ int nau_player_stop(struct nau_player *p)
             }
             if (silent >= 0 && nau_sink_now() >= silent)
                 break;
-            nau_sleep_ms(1);
+            npriv_sleep_ms(1);
         }
         ret = nau_sink_stop(p->sink);
         atomic_store_explicit(&p->sink_started, false, memory_order_release);
@@ -1288,7 +1288,7 @@ int nau_player_export(struct nau_player *p, const char *filename, enum nau_expor
     int ret;
     const int64_t duration = nau_transport_get_duration(p->transport);
 
-    frames = nau_try_calloc(EXPORT_FRAMES * 2, sizeof(*frames));
+    frames = npriv_try_calloc(EXPORT_FRAMES * 2, sizeof(*frames));
     if (!frames) {
         ret = NAU_ERROR_MEMORY;
         goto end;
@@ -1320,7 +1320,7 @@ int nau_player_export(struct nau_player *p, const char *filename, enum nau_expor
     nau_transport_sync(p->transport);
     nau_transport_play(p->transport);
     for (int64_t written = 0; written < duration;) {
-        const uint32_t n = (uint32_t)NAU_MIN(duration - written, EXPORT_FRAMES);
+        const uint32_t n = (uint32_t)NPRIV_MIN(duration - written, EXPORT_FRAMES);
         ret = nau_transport_render(p->transport, 0, n, frames);
         if (ret < 0)
             break;
@@ -1338,7 +1338,7 @@ end:
     int close_ret = nau_exporter_closep(&exporter);
     if (ret >= 0)
         ret = close_ret;
-    nau_freep(&frames);
+    npriv_freep(&frames);
     pthread_mutex_unlock(&p->lock);
     return ret;
 }

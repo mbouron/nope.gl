@@ -28,9 +28,9 @@
 #include <time.h>
 #endif
 
+#include "libnopeutil/time.h"
 #include "nopeaudio/nopeaudio.h"
 #include "semaphore.h"
-#include "time.h"
 
 #if defined(_WIN32)
 
@@ -121,9 +121,9 @@ bool nau_sem_timedwait(nau_sem *sem, int64_t timeout)
     /* sem_timedwait() requires an absolute CLOCK_REALTIME deadline. */
     struct timespec date;
     clock_gettime(CLOCK_REALTIME, &date);
-    const int64_t ns = date.tv_nsec + timeout % NAU_NS_PER_SEC;
-    date.tv_sec += (time_t)(timeout / NAU_NS_PER_SEC + ns / NAU_NS_PER_SEC);
-    date.tv_nsec = (long)(ns % NAU_NS_PER_SEC);
+    const int64_t ns = date.tv_nsec + timeout % NPRIV_NS_PER_SEC;
+    date.tv_sec += (time_t)(timeout / NPRIV_NS_PER_SEC + ns / NPRIV_NS_PER_SEC);
+    date.tv_nsec = (long)(ns % NPRIV_NS_PER_SEC);
     int ret;
     do {
         ret = sem_timedwait(sem, &date);

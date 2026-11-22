@@ -27,8 +27,8 @@
 #include "nopeaudio/nopeaudio.h"
 #include "engine_internal.h"
 #include "transport/transport_clock.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 /*
  * The control thread publishes playback controls through atomics. The render
@@ -120,7 +120,7 @@ struct nau_transport {
 
 struct nau_transport *nau_transport_create(void)
 {
-    struct nau_transport *t = nau_try_calloc(1, sizeof(*t));
+    struct nau_transport *t = npriv_try_calloc(1, sizeof(*t));
     if (!t)
         return NULL;
     atomic_init(&t->playing, 0);
@@ -173,7 +173,7 @@ void nau_transport_freep(struct nau_transport **tp)
 {
     if (!tp || !*tp)
         return;
-    nau_freep(tp);
+    npriv_freep(tp);
 }
 
 void nau_transport_play(struct nau_transport *t)
@@ -275,7 +275,7 @@ int64_t nau_transport_get_position(const struct nau_transport *t)
     if ((uint16_t)(seek >> FRAME_BITS) != done) {
         const int64_t duration = atomic_load(&t->duration);
         const int64_t frame = (int64_t)(seek & FRAME_MASK);
-        return NAU_MIN(frame, duration);
+        return NPRIV_MIN(frame, duration);
     }
     return atomic_load_explicit(&t->position_done, memory_order_relaxed);
 }
@@ -366,7 +366,7 @@ static void ramp(struct nau_transport *t, float *output, uint32_t frames, float 
 static void apply_seek(struct nau_transport *t, uint64_t seek, int64_t duration)
 {
     const int64_t frame = (int64_t)(seek & FRAME_MASK);
-    t->position = NAU_MIN(frame, duration);
+    t->position = NPRIV_MIN(frame, duration);
     t->seek_seen = (uint16_t)(seek >> FRAME_BITS);
     t->holding = false;
     t->wrap_next = false;
@@ -484,7 +484,7 @@ int nau_transport_render(struct nau_transport *t, int64_t time, uint32_t frames,
                 /* The hold was shortened meanwhile */
                 if (t->hold_left > hold)
                     t->hold_left = hold;
-                const int64_t count = NAU_MIN(t->hold_left, frames - done);
+                const int64_t count = NPRIV_MIN(t->hold_left, frames - done);
                 nau_transport_clock_record(&t->clock, &writer, done, (uint32_t)count, t->position, 0);
                 done += (uint32_t)count;
                 t->hold_left -= count;

@@ -44,8 +44,8 @@
 #include "engine_internal.h"
 #include "internal.h"
 #include "ramp.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 static const struct nau_effect_class *const classes[] = {
     [NAU_EFFECT_PASSTHROUGH] = &nau_effect_passthrough,
@@ -53,7 +53,7 @@ static const struct nau_effect_class *const classes[] = {
 
 static const struct nau_effect_class *get_class(enum nau_effect_type type)
 {
-    return (size_t)type < NAU_ARRAY_COUNT(classes) ? classes[type] : NULL;
+    return (size_t)type < NPRIV_ARRAY_NB(classes) ? classes[type] : NULL;
 }
 
 const struct nau_effect_info *nau_effect_get_info(enum nau_effect_type type)
@@ -100,14 +100,14 @@ static void snapshot_release(void *user)
 {
     struct effect_snapshot *snapshot = user;
     for (uint32_t i = 0; i < NAU_EFFECT_MAX_PARAMS; i++)
-        nau_freep(&snapshot->lanes[i].items);
-    nau_freep(&snapshot);
+        npriv_freep(&snapshot->lanes[i].items);
+    npriv_freep(&snapshot);
 }
 
 static void *snapshot_take(void *user)
 {
     struct effect *e = user;
-    struct effect_snapshot *snapshot = nau_try_calloc(1, sizeof(*snapshot));
+    struct effect_snapshot *snapshot = npriv_try_calloc(1, sizeof(*snapshot));
     if (!snapshot)
         return NULL;
     snapshot->effect = e;
@@ -115,7 +115,7 @@ static void *snapshot_take(void *user)
         const struct lane *lane = &e->lanes[i];
         if (!lane->count)
             continue;
-        snapshot->lanes[i].items = nau_try_memdup(lane->items, lane->count * sizeof(*lane->items));
+        snapshot->lanes[i].items = npriv_try_memdup(lane->items, lane->count * sizeof(*lane->items));
         if (!snapshot->lanes[i].items) {
             snapshot_release(snapshot);
             return NULL;
@@ -280,9 +280,9 @@ static void effect_destroy(void *user)
 {
     struct effect *e = user;
     for (uint32_t i = 0; i < NAU_EFFECT_MAX_PARAMS; i++)
-        nau_freep(&e->lanes[i].items);
-    nau_freep(&e->state);
-    nau_freep(&e);
+        npriv_freep(&e->lanes[i].items);
+    npriv_freep(&e->state);
+    npriv_freep(&e);
 }
 
 int nau_effect_init(struct nau_node *node, struct nau_engine *s, enum nau_effect_type type, uint32_t ramp_frames)
@@ -290,17 +290,17 @@ int nau_effect_init(struct nau_node *node, struct nau_engine *s, enum nau_effect
     const struct nau_effect_class *cls = get_class(type);
     if (!cls)
         return NAU_ERROR_INVALID;
-    nau_assert(cls->info.param_count <= NAU_EFFECT_MAX_PARAMS);
+    npriv_assert(cls->info.param_count <= NAU_EFFECT_MAX_PARAMS);
     const struct nau_engine_config *config = nau_engine_get_config(s);
     if (!config)
         return NAU_ERROR_INVALID;
-    struct effect *e = nau_try_calloc(1, sizeof(*e));
+    struct effect *e = npriv_try_calloc(1, sizeof(*e));
     if (!e)
         return NAU_ERROR_MEMORY;
     e->cls = cls;
     e->ramp_chunks = ramp_frames / NAU_EFFECT_CHUNK + (ramp_frames % NAU_EFFECT_CHUNK != 0);
     if (cls->state_size) {
-        e->state = nau_try_calloc(1, cls->state_size);
+        e->state = npriv_try_calloc(1, cls->state_size);
         if (!e->state) {
             effect_destroy(e);
             return NAU_ERROR_MEMORY;
@@ -390,12 +390,12 @@ int nau_effect_set_automation(struct nau_node *node, uint32_t param, const struc
 
     struct nau_ramp *items = NULL;
     if (count) {
-        items = nau_try_memdup(ramps, count * sizeof(*items));
+        items = npriv_try_memdup(ramps, count * sizeof(*items));
         if (!items)
             return NAU_ERROR_MEMORY;
     }
     swap_lane(&e->lanes[param], &items, &count);
-    nau_freep(&items);
+    npriv_freep(&items);
     return NAU_OK;
 }
 

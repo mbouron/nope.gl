@@ -20,7 +20,8 @@
  */
 
 #include "spsc_queue.h"
-#include "memory.h"
+#include "libnopeutil/memory.h"
+#include "nopeaudio/nopeaudio.h"
 
 int nau_spsc_queue_init_(struct spsc_queue *q, nau_spsc_queue_data_alias *data,
                          size_t capacity, size_t element_size, size_t alignment)
@@ -50,7 +51,7 @@ int nau_spsc_queue_init_(struct spsc_queue *q, nau_spsc_queue_data_alias *data,
 
     const size_t bytes = size * element_size;
     void *buffer = alignment > _Alignof(max_align_t)
-                 ? nau_try_malloc_aligned(alignment, bytes) : nau_try_malloc(bytes);
+                 ? npriv_try_malloc_aligned(alignment, bytes) : npriv_try_malloc(bytes);
     if (!buffer)
         return NAU_ERROR_MEMORY;
     q->mask = size - 1;
@@ -61,9 +62,9 @@ int nau_spsc_queue_init_(struct spsc_queue *q, nau_spsc_queue_data_alias *data,
 void nau_spsc_queue_uninit_(struct spsc_queue *q, nau_spsc_queue_data_alias *data, size_t alignment)
 {
     if (alignment > _Alignof(max_align_t))
-        nau_free_aligned(*data);
+        npriv_free_aligned(*data);
     else
-        nau_free(*data);
+        npriv_free(*data);
     *data = NULL;
     q->mask = 0;
     atomic_init(&q->head, 0);

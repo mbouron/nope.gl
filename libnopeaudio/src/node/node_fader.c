@@ -24,8 +24,8 @@
 #include "nopeaudio/nopeaudio.h"
 #include "engine_internal.h"
 #include "ramp.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 /* Ramps of a fader: those set on the node, or their copy in a plan */
 struct volume_ramps {
@@ -36,19 +36,19 @@ struct volume_ramps {
 static void fader_destroy(void *user)
 {
     struct volume_ramps *set = user;
-    nau_freep(&set->items);
-    nau_freep(&set);
+    npriv_freep(&set->items);
+    npriv_freep(&set);
 }
 
 static void *fader_take(void *user)
 {
     const struct volume_ramps *set = user;
-    struct volume_ramps *copy = nau_try_calloc(1, sizeof(*copy));
+    struct volume_ramps *copy = npriv_try_calloc(1, sizeof(*copy));
     if (!copy)
         return NULL;
-    copy->items = nau_try_calloc(set->count + 1, sizeof(*set->items));
+    copy->items = npriv_try_calloc(set->count + 1, sizeof(*set->items));
     if (!copy->items) {
-        nau_freep(&copy);
+        npriv_freep(&copy);
         return NULL;
     }
     if (set->count)
@@ -90,7 +90,7 @@ static int fader_process(void *user, const struct nau_block *p)
         const struct nau_ramp *k = next ? &set->items[next - 1] : NULL;
         if (k && frame < k->frame + k->length) {
             /* Within a ramp, up to its end */
-            n = NAU_MIN(n, k->frame + k->length - frame);
+            n = NPRIV_MIN(n, k->frame + k->length - frame);
             const float from = next > 1 ? set->items[next - 2].value : 1.f;
             for (uint32_t j = i; j < i + (uint32_t)n; j++) {
                 const float progress = (float)((double)(start + j - k->frame) / (double)k->length);
@@ -111,7 +111,7 @@ static int fader_process(void *user, const struct nau_block *p)
 
 int nau_fader_init(struct nau_node *node, struct nau_engine *s)
 {
-    struct volume_ramps *set = nau_try_calloc(1, sizeof(*set));
+    struct volume_ramps *set = npriv_try_calloc(1, sizeof(*set));
     if (!set)
         return NAU_ERROR_MEMORY;
 
@@ -123,7 +123,7 @@ int nau_fader_init(struct nau_node *node, struct nau_engine *s)
     };
     int ret = nau_node_init_with_snapshot_callbacks(node, s, &processor, &fader_snapshot_callbacks);
     if (ret < 0)
-        nau_freep(&set);
+        npriv_freep(&set);
     return ret;
 }
 
@@ -141,11 +141,11 @@ int nau_fader_set_ramps(struct nau_node *node, const struct nau_ramp *ramps, uin
             return NAU_ERROR_INVALID;
     struct nau_ramp *items = NULL;
     if (count) {
-        items = nau_try_memdup(ramps, count * sizeof(*items));
+        items = npriv_try_memdup(ramps, count * sizeof(*items));
         if (!items)
             return NAU_ERROR_MEMORY;
     }
-    nau_freep(&set->items);
+    npriv_freep(&set->items);
     set->items = items;
     set->count = count;
     return NAU_OK;

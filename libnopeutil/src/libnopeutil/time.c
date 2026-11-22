@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2024-2026 Matthieu Bouron <matthieu.bouron@gmail.com>
  * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -26,6 +26,7 @@
 #define POW10_9 1000000000
 #include <Windows.h>
 #else
+#include <errno.h>
 #include <time.h>
 #endif
 
@@ -49,5 +50,18 @@ int64_t npriv_gettime_relative(void)
     struct timespec ts;
     int ret = clock_gettime(CLOCK_MONOTONIC, &ts);
     return ret != 0 ? 0 : ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+#endif
+}
+
+void npriv_sleep_ms(uint32_t ms)
+{
+#ifdef _WIN32
+    Sleep(ms);
+#else
+    struct timespec ts = {.tv_sec = ms / 1000, .tv_nsec = (long)(ms % 1000) * 1000000L};
+    int ret;
+    do {
+        ret = nanosleep(&ts, &ts);
+    } while (ret < 0 && errno == EINTR);
 #endif
 }

@@ -88,6 +88,7 @@ add_project_arguments(project_args, language: 'c')
 inc_dir = include_directories(
   'src',
   'src/include',
+  '../libnopeutil/src',
 )
 
 
@@ -162,14 +163,17 @@ core_src = files(
   'src/ramp.c',
   'src/transport/transport.c',
   'src/transport/transport_clock.c',
-  'src/utils/memory.c',
   'src/utils/semaphore.c',
   'src/utils/spsc_queue.c',
-  'src/utils/thread.c',
-  'src/utils/time.c',
 )
 
-lib_src = core_src
+libnopeutil_src = files(
+  '../libnopeutil/src/libnopeutil/memory.c',
+  '../libnopeutil/src/libnopeutil/thread.c',
+  '../libnopeutil/src/libnopeutil/time.c',
+)
+
+lib_src = core_src + libnopeutil_src
 if nmd_dep.found()
   lib_src += files('src/source/source_nopemedia.c')
 endif

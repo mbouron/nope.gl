@@ -29,10 +29,10 @@
 #include <android/api-level.h>
 #include <oboe/Oboe.h>
 
+#include "libnopeutil/time.h"
 #include "nopeaudio/nopeaudio.h"
 #include "oboe_stream.h"
 #include "sink/sink_internal.h"
-#include "utils/time.h"
 
 namespace {
 
@@ -78,7 +78,7 @@ protected:
         if (callback_frames <= 0)
             callback_frames = std::max(opened->getFramesPerBurst(), 0);
         const int64_t buffered = static_cast<int64_t>(opened->getBufferSizeInFrames()) + callback_frames;
-        latency.store(buffered * NAU_NS_PER_SEC / rate, std::memory_order_relaxed);
+        latency.store(buffered * NPRIV_NS_PER_SEC / rate, std::memory_order_relaxed);
         return NAU_OK;
     }
 
@@ -112,13 +112,13 @@ private:
             const int32_t rate = audio_stream->getSampleRate();
             if (timestamp && rate > 0) {
                 const int64_t ahead = audio_stream->getFramesWritten() - timestamp.value().position;
-                const int64_t time = timestamp.value().timestamp + ahead * NAU_NS_PER_SEC / rate;
+                const int64_t time = timestamp.value().timestamp + ahead * NPRIV_NS_PER_SEC / rate;
                 /*
                  * Sanity check: the time must be within the next second. A
                  * stream converting the sample rate may count the frames
                  * written and the frames presented at different rates.
                  */
-                if (time >= now && time - now < NAU_NS_PER_SEC) {
+                if (time >= now && time - now < NPRIV_NS_PER_SEC) {
                     latency.store(time - now, std::memory_order_relaxed);
                     return time;
                 }

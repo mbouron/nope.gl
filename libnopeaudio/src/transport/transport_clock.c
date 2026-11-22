@@ -31,9 +31,9 @@
 #include <sched.h>
 #endif
 
+#include "libnopeutil/time.h"
 #include "nopeaudio/nopeaudio.h"
 #include "transport/transport_clock.h"
-#include "utils/time.h"
 #include "utils/utils.h"
 
 /*
@@ -155,7 +155,7 @@ int64_t nau_clock_position_at(const struct nau_clock *clock, int64_t time)
     if (!clock->playing)
         return clock->position;
     const long double position = (long double)clock->position +
-                                 ((long double)time - (long double)clock->time) * clock->sample_rate / NAU_NS_PER_SEC;
+                                 ((long double)time - (long double)clock->time) * clock->sample_rate / NPRIV_NS_PER_SEC;
     if (position <= 0)
         return 0;
     if (position >= NAU_INT64_MAX_EXCLUSIVE)
@@ -332,7 +332,7 @@ void nau_transport_clock_record(struct nau_transport_clock *c, struct nau_clock_
  */
 static int64_t smooth_time(struct nau_transport_clock *c, int64_t time, uint32_t frames)
 {
-    const double nominal = (double)NAU_NS_PER_SEC / c->sample_rate;
+    const double nominal = (double)NPRIV_NS_PER_SEC / c->sample_rate;
     const double error = (double)time - c->next_time;
     const double w = 2 * NAU_PI_F64 * CLOCK_BANDWIDTH_HZ * frames / c->sample_rate;
     if (!c->ready || error > CLOCK_RESET_NS || error < -CLOCK_RESET_NS || w >= 1.) {

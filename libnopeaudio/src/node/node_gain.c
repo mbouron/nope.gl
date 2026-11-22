@@ -25,8 +25,8 @@
 #include "nopeaudio/nopeaudio.h"
 #include "engine_internal.h"
 #include "internal.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 /*
  * A gain following a target which can be set from any thread: the render
@@ -74,7 +74,7 @@ static int gain_process(void *user, const struct nau_block *p)
     uint32_t remaining = g->remaining;
 
     /* The frames of the ramp, then the target for the rest of the block */
-    const uint32_t ramp_frames = NAU_MIN(remaining, p->frames);
+    const uint32_t ramp_frames = NPRIV_MIN(remaining, p->frames);
     for (uint32_t i = 0; i < ramp_frames; i++) {
         current += (target - current) / (float)remaining;
         remaining--;
@@ -97,12 +97,12 @@ int nau_gain_init(struct nau_node *node, struct nau_engine *s, float value, uint
     if (!isfinite(value) || value < 0)
         return NAU_ERROR_INVALID;
 
-    struct gain *g = nau_try_calloc(1, sizeof(*g));
+    struct gain *g = npriv_try_calloc(1, sizeof(*g));
     if (!g)
         return NAU_ERROR_MEMORY;
     atomic_init(&g->target_bits, nau_float_bits(value));
     if (!atomic_is_lock_free(&g->target_bits)) {
-        nau_freep(&g);
+        npriv_freep(&g);
         return NAU_ERROR_UNSUPPORTED;
     }
     g->ramp_frames = ramp_frames;
@@ -112,11 +112,11 @@ int nau_gain_init(struct nau_node *node, struct nau_engine *s, float value, uint
         .user        = g,
         .process     = gain_process,
         .reset       = gain_reset,
-        .destroy     = nau_free,
+        .destroy     = npriv_free,
     };
     int ret = nau_node_init(node, s, &processor);
     if (ret < 0)
-        nau_freep(&g);
+        npriv_freep(&g);
     return ret;
 }
 
