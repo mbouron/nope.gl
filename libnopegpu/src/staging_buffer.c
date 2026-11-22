@@ -177,8 +177,10 @@ void ngpu_staging_buffer_reset(struct ngpu_staging_buffer *s)
 
     s->offset = 0;
 
-    if (!s->persistent && !s->mapped_data)
-        ngpu_buffer_map(s->buffer, 0, NGPU_BUFFER_WHOLE_SIZE, (void **)&s->mapped_data);
+    if (!s->persistent && !s->mapped_data) {
+        int ret = ngpu_buffer_map(s->buffer, 0, NGPU_BUFFER_WHOLE_SIZE, (void **)&s->mapped_data);
+        ngpu_assert(ret == 0);
+    }
 }
 
 struct ngpu_buffer *ngpu_staging_buffer_get_buffer(const struct ngpu_staging_buffer *s)
