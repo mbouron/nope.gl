@@ -23,8 +23,8 @@
 #include <string.h>
 #include <math.h>
 
+#include "libnopeutil/utils.h"
 #include "math_utils.h"
-#include "utils/utils.h"
 
 static const float zero_vec[4];
 
@@ -129,8 +129,8 @@ void ngli_vec3_init(float *dst, float x, float y, float z)
 
 void ngli_vec4_lerp(float *dst, const float *v1, const float *v2, float c)
 {
-    const NGLI_ALIGNED_VEC(a) = {NGLI_ARG_VEC4(v1)};
-    const NGLI_ALIGNED_VEC(b) = {NGLI_ARG_VEC4(v2)};
+    const NPRIV_ALIGNED_VEC(a) = {NPRIV_ARG_VEC4(v1)};
+    const NPRIV_ALIGNED_VEC(b) = {NPRIV_ARG_VEC4(v2)};
     dst[0] = NGLI_MIX_F32(a[0], b[0], c);
     dst[1] = NGLI_MIX_F32(a[1], b[1], c);
     dst[2] = NGLI_MIX_F32(a[2], b[2], c);
@@ -139,13 +139,13 @@ void ngli_vec4_lerp(float *dst, const float *v1, const float *v2, float c)
 
 void ngli_vec4_perspective_div(float *dst, const float *v)
 {
-    const NGLI_ALIGNED_VEC(r) = NGLI_VEC4_SCALE(v, 1.f / v[3]);
+    const NPRIV_ALIGNED_VEC(r) = NGLI_VEC4_SCALE(v, 1.f / v[3]);
     memcpy(dst, r, sizeof(r));
 }
 
 void ngli_vec4_init(float *dst, float x, float y, float z, float w)
 {
-    const NGLI_ALIGNED_VEC(r) = {x, y, z, w};
+    const NPRIV_ALIGNED_VEC(r) = {x, y, z, w};
     memcpy(dst, r, sizeof(r));
 }
 
@@ -262,7 +262,7 @@ void ngli_mat4_inverse(float *dst, const float *m)
     }
     det = 1.f / det;
 
-    const NGLI_ALIGNED_MAT(tmp) = {
+    const NPRIV_ALIGNED_MAT(tmp) = {
          det * det_p0,
         -det * (m[1] * x17 - m[2] * x16 + m[3] * x15),
          det * (m[1] * x11 - m[2] * x10 + m[3] * x09),
@@ -286,7 +286,7 @@ void ngli_mat4_inverse(float *dst, const float *m)
 
 void ngli_mat4_mul_c(float *dst, const float *m1, const float *m2)
 {
-    NGLI_ALIGNED_MAT(m);
+    NPRIV_ALIGNED_MAT(m);
 
     m[ 0] = m1[0]*m2[ 0] + m1[4]*m2[ 1] + m1[ 8]*m2[ 2] + m1[12]*m2[ 3];
     m[ 1] = m1[1]*m2[ 0] + m1[5]*m2[ 1] + m1[ 9]*m2[ 2] + m1[13]*m2[ 3];
@@ -313,7 +313,7 @@ void ngli_mat4_mul_c(float *dst, const float *m1, const float *m2)
 
 void ngli_mat4_mul_vec4_c(float *dst, const float *m, const float *v)
 {
-    NGLI_ALIGNED_VEC(tmp);
+    NPRIV_ALIGNED_VEC(tmp);
 
     tmp[0] = m[ 0]*v[0] + m[ 4]*v[1] + m[ 8]*v[2] + m[12]*v[3];
     tmp[1] = m[ 1]*v[0] + m[ 5]*v[1] + m[ 9]*v[2] + m[13]*v[3];
@@ -359,7 +359,7 @@ void ngli_mat4_look_at(float * restrict dst, float *eye, float *center, float *u
 
 void ngli_mat4_identity(float *dst)
 {
-    static const NGLI_ALIGNED_MAT(id) = NGLI_MAT4_IDENTITY;
+    static const NPRIV_ALIGNED_MAT(id) = NGLI_MAT4_IDENTITY;
     memcpy(dst, id, sizeof(id));
 }
 
@@ -539,7 +539,7 @@ void ngli_mat4_skew(float * restrict dst, float x, float y, float z, const float
 
 void ngli_mat4_abs(float *dst, const float *m)
 {
-    NGLI_ALIGNED_MAT(tmp);
+    NPRIV_ALIGNED_MAT(tmp);
 
     ngli_vec4_abs(tmp, m);
     ngli_vec4_abs(tmp + 4, m + 4);
@@ -553,7 +553,7 @@ void ngli_mat4_abs(float *dst, const float *m)
 
 void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, float t)
 {
-    NGLI_ALIGNED_VEC(tmp_q1);
+    NPRIV_ALIGNED_VEC(tmp_q1);
     const float *tmp_q1p = q1;
 
     float cos_alpha = ngli_vec4_dot(q1, q2);
@@ -570,18 +570,18 @@ void ngli_quat_slerp(float * restrict dst, const float *q1, const float *q2, flo
         return;
     }
 
-    cos_alpha = NGLI_MIN(cos_alpha, 1.0f);
+    cos_alpha = NPRIV_MIN(cos_alpha, 1.0f);
 
     const float alpha = acosf(cos_alpha);
     const float theta = alpha * t;
 
-    NGLI_ALIGNED_VEC(tmp);
+    NPRIV_ALIGNED_VEC(tmp);
     ngli_vec4_scale(tmp, tmp_q1p, cos_alpha);
     ngli_vec4_sub(tmp, q2, tmp);
     ngli_vec4_norm(tmp, tmp);
 
-    NGLI_ALIGNED_VEC(tmp1);
-    NGLI_ALIGNED_VEC(tmp2);
+    NPRIV_ALIGNED_VEC(tmp1);
+    NPRIV_ALIGNED_VEC(tmp2);
     ngli_vec4_scale(tmp1, tmp_q1p, cosf(theta));
     ngli_vec4_scale(tmp2, tmp, sinf(theta));
     ngli_vec4_add(dst, tmp1, tmp2);

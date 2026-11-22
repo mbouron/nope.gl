@@ -23,11 +23,11 @@
 #include <string.h>
 
 #include "glsl_lexer.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/string.h"
 #include "log.h"
 #include "shader2d.h"
-#include "utils/bstr.h"
-#include "utils/memory.h"
-#include "utils/string.h"
 
 static bool is_glsl_ident(char c)
 {
@@ -53,7 +53,7 @@ int ngli_shader2d_check_key(const char *key, const char *label)
         goto fail;
 
     const char * const reserved[] = {"gl_", "ngl_", "ngli_"};
-    for (size_t i = 0; i < NGLI_ARRAY_NB(reserved); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(reserved); i++) {
         if (!strncmp(key, reserved[i], strlen(reserved[i])))
             goto fail;
     }
@@ -84,23 +84,23 @@ static int rewrite_source(struct bstr *out, const char *source, const char *entr
                                 (!token.text[texture_len] || token.text[texture_len] == '_');
         if (!is_entry && !is_texture)
             continue;
-        ngli_bstr_write(out, segment, (size_t)(token.start - segment));
+        npriv_bstr_write(out, segment, (size_t)(token.start - segment));
         if (is_entry)
-            ngli_bstr_print(out, entry);
+            npriv_bstr_print(out, entry);
         else
-            ngli_bstr_printf(out, "%s%s", texture, token.text + texture_len);
+            npriv_bstr_printf(out, "%s%s", texture, token.text + texture_len);
         for (size_t i = 0; i < token.spliced_lines; i++)
-            ngli_bstr_print(out, "\\\n");
+            npriv_bstr_print(out, "\\\n");
         segment = token.end;
     }
-    ngli_bstr_print(out, segment);
+    npriv_bstr_print(out, segment);
     ngli_glsl_lexer_freep(&lexer);
-    return ngli_bstr_check(out);
+    return npriv_bstr_check(out);
 }
 
 int ngli_shader2d_write_builtin(struct bstr *out, const char *source, const char *entry, const char *prefix)
 {
-    struct bstr *expanded = ngli_bstr_create();
+    struct bstr *expanded = npriv_bstr_create();
     if (!expanded)
         return NGL_ERROR_MEMORY;
 
@@ -108,26 +108,26 @@ int ngli_shader2d_write_builtin(struct bstr *out, const char *source, const char
     for (const char *p = segment; *p; p++) {
         if (*p != '$')
             continue;
-        ngli_bstr_write(expanded, segment, (size_t)(p - segment));
-        ngli_bstr_print(expanded, prefix);
+        npriv_bstr_write(expanded, segment, (size_t)(p - segment));
+        npriv_bstr_print(expanded, prefix);
         segment = p + 1;
     }
-    ngli_bstr_print(expanded, segment);
-    int ret = ngli_bstr_check(expanded);
+    npriv_bstr_print(expanded, segment);
+    int ret = npriv_bstr_check(expanded);
     if (ret >= 0)
-        ret = rewrite_source(out, ngli_bstr_strptr(expanded), entry, NULL);
-    ngli_bstr_freep(&expanded);
+        ret = rewrite_source(out, npriv_bstr_strptr(expanded), entry, NULL);
+    npriv_bstr_freep(&expanded);
     return ret;
 }
 
 int ngli_shader2d_write_source(struct bstr *out, const char *source, const char *entry,
                                const char *texture, bool multiple_outputs, int source_id, const char *label)
 {
-    ngli_bstr_printf(out, "%s %s(const ngl_FragmentInput frag);\n", multiple_outputs ? "void" : "vec4", entry);
+    npriv_bstr_printf(out, "%s %s(const ngl_FragmentInput frag);\n", multiple_outputs ? "void" : "vec4", entry);
     LOG(DEBUG, "GLSL source %d: %s", source_id, label);
-    ngli_bstr_printf(out, "#line 1 %d\n", source_id);
+    npriv_bstr_printf(out, "#line 1 %d\n", source_id);
     int ret = rewrite_source(out, source, entry, texture);
-    ngli_bstr_print(out, "\n#line 1 0\n");
+    npriv_bstr_print(out, "\n#line 1 0\n");
     return ret;
 }
 
@@ -136,18 +136,18 @@ int ngli_shader2d_add_texture(struct shader2d *s, const char *name)
     for (size_t i = 0; i < s->textures.count; i++)
         if (!strcmp(s->textures.data[i], name))
             return 0;
-    char *copy = ngli_strdup(name);
+    char *copy = npriv_strdup(name);
     if (!copy)
         return NGL_ERROR_MEMORY;
-    int ret = ngli_darray_try_push(&s->textures, copy);
+    int ret = npriv_darray_try_push(&s->textures, copy);
     if (ret < 0)
-        ngli_free(copy);
+        npriv_free(copy);
     return ret;
 }
 
 void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
 {
-    ngli_bstr_print(out,
+    npriv_bstr_print(out,
         "struct ngl_FragmentInput {\n"
         "    vec2 rect_uv;\n"
         "    vec2 rect_size;\n"
@@ -165,12 +165,12 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
         "}\n");
     for (size_t i = 0; i < s->textures.count; i++) {
         const char *k = s->textures.data[i];
-        ngli_bstr_printf(out,
+        npriv_bstr_printf(out,
             "vec2 %s_coord(const ngl_FragmentInput frag) { return ngli_v_%s_coord; }\n"
             "vec2 %s_coord(const ngl_FragmentInput frag, vec2 uv) {\n"
             "    return (%s_coord_matrix * vec4(uv, 0.0, 1.0)).xy;\n"
             "}\n", k, k, k, k);
-        ngli_bstr_printf(out,
+        npriv_bstr_printf(out,
             "vec4 %s_sample(const ngl_FragmentInput frag) { return ngl_texvideo(%s, %s_coord(frag)); }\n"
             "vec4 %s_sample(const ngl_FragmentInput frag, vec2 uv) { return ngl_texvideo(%s, %s_coord(frag, uv)); }\n",
             k, k, k, k, k, k);
@@ -179,7 +179,7 @@ void ngli_shader2d_write_header(const struct shader2d *s, struct bstr *out)
 
 void ngli_shader2d_write_texture_helpers(struct bstr *out, const char *name)
 {
-    ngli_bstr_printf(out,
+    npriv_bstr_printf(out,
         "vec2 %s_uv(const ngl_FragmentInput frag) { return frag._uv; }\n"
         "vec2 %s_uv(const ngl_FragmentInput frag, vec2 p) {\n"
         "    return mat2(frag._lin.xy, frag._lin.zw) * p + frag._off;\n"
@@ -197,30 +197,30 @@ int ngli_shader2d_write_vertex(struct shader2d *s, struct bstr *out, const char 
                                const struct ngpu_pgcraft_iovar *vars, size_t var_count,
                                const char *uv)
 {
-    ngli_darray_reset(&s->varyings);
+    npriv_darray_reset(&s->varyings);
     for (size_t i = 0; i < var_count; i++) {
-        if (ngli_darray_try_push(&s->varyings, vars[i]) < 0)
+        if (npriv_darray_try_push(&s->varyings, vars[i]) < 0)
             return NGL_ERROR_MEMORY;
     }
-    ngli_bstr_print(out, base);
-    ngli_bstr_print(out, "\nvoid main() {\n    ngli_vertex();\n");
+    npriv_bstr_print(out, base);
+    npriv_bstr_print(out, "\nvoid main() {\n    ngli_vertex();\n");
     for (size_t i = 0; i < s->textures.count; i++) {
         const char *name = s->textures.data[i];
         struct ngpu_pgcraft_iovar var = {.type = NGPU_TYPE_VEC2};
         snprintf(var.name, sizeof(var.name), "ngli_v_%s_coord", name);
-        int ret = ngli_darray_try_push(&s->varyings, var);
+        int ret = npriv_darray_try_push(&s->varyings, var);
         if (ret < 0)
             return ret;
-        ngli_bstr_printf(out, "    %s = (%s_coord_matrix * vec4(%s, 0.0, 1.0)).xy;\n", var.name, name, uv);
+        npriv_bstr_printf(out, "    %s = (%s_coord_matrix * vec4(%s, 0.0, 1.0)).xy;\n", var.name, name, uv);
     }
-    ngli_bstr_print(out, "}\n");
-    return ngli_bstr_check(out);
+    npriv_bstr_print(out, "}\n");
+    return npriv_bstr_check(out);
 }
 
 void ngli_shader2d_reset(struct shader2d *s)
 {
     for (size_t i = 0; i < s->textures.count; i++)
-        ngli_free(s->textures.data[i]);
-    ngli_darray_reset(&s->textures);
-    ngli_darray_reset(&s->varyings);
+        npriv_free(s->textures.data[i]);
+    npriv_darray_reset(&s->textures);
+    npriv_darray_reset(&s->varyings);
 }

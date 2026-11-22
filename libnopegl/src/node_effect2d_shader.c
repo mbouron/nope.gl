@@ -66,7 +66,7 @@ static int effect2dshader_init(struct ngl_node *node)
     const struct effect2d_shader_opts *o = node->opts;
     if (o->resources) {
         const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(o->resources, entry))) {
+        while ((entry = npriv_hmap_next(o->resources, entry))) {
             int ret = ngli_shader2d_check_key(entry->key.str, "Effect2DShader");
             if (ret < 0)
                 return ret;
@@ -154,7 +154,7 @@ static const struct node_param effect2d_shader_params[] = {
 
 struct effect2d_shader_info ngli_effect2d_shader_get_info(const struct ngl_node *node)
 {
-    ngli_assert(node->cls->id == NGL_NODE_EFFECT2DSHADER);
+    npriv_assert(node->cls->id == NGL_NODE_EFFECT2DSHADER);
     const struct effect2d_shader_opts *o = node->opts;
     struct effect2d_shader_info info = {
         .glsl  = o->glsl,

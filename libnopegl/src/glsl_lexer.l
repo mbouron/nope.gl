@@ -52,7 +52,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 #include "glsl_lexer.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 
 struct ngli_glsl_lexer {
     yyscan_t scanner;
@@ -132,7 +132,7 @@ DIGIT_WORD  [0-9]([_a-zA-Z0-9]|{SPLICE})*
 
 struct ngli_glsl_lexer *ngli_glsl_lexer_create(const char *source)
 {
-    struct ngli_glsl_lexer *s = ngli_calloc(1, sizeof(*s));
+    struct ngli_glsl_lexer *s = npriv_calloc(1, sizeof(*s));
     s->cursor = source;
     s->line_start = true;
 
@@ -140,7 +140,7 @@ struct ngli_glsl_lexer *ngli_glsl_lexer_create(const char *source)
     const size_t size = strlen(source);
     const size_t buffer_size = size + 2;
 
-    s->buffer = ngli_calloc(buffer_size, 1);
+    s->buffer = npriv_calloc(buffer_size, 1);
     memcpy(s->buffer, source, size);
 
     yylex_init_extra(s, &s->scanner);
@@ -160,21 +160,21 @@ void ngli_glsl_lexer_freep(struct ngli_glsl_lexer **sp)
     if (!s)
         return;
     yylex_destroy(s->scanner);
-    ngli_free(s->buffer);
-    ngli_freep(sp);
+    npriv_free(s->buffer);
+    npriv_freep(sp);
 }
 
 void *yyalloc(yy_size_t size, yyscan_t scanner)
 {
-    return ngli_malloc(size);
+    return npriv_malloc(size);
 }
 
 void *yyrealloc(void *ptr, yy_size_t size, yyscan_t scanner)
 {
-    return ngli_realloc(ptr, size, 1);
+    return npriv_realloc(ptr, size, 1);
 }
 
 void yyfree(void *ptr, yyscan_t scanner)
 {
-    ngli_free(ptr);
+    npriv_free(ptr);
 }

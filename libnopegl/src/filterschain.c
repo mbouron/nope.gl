@@ -24,11 +24,11 @@
 #include <nopegpu/nopegpu.h>
 
 #include "filterschain.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
 #include "log.h"
-#include "utils/bstr.h"
-#include "utils/darray.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
 
 /* Shader helpers */
 #include "helper_misc_utils_glsl.h"
@@ -37,7 +37,7 @@
 #include "helper_srgb_glsl.h"
 
 struct filterschain {
-    NGLI_DARRAY(const struct filter *) filters;
+    NPRIV_DARRAY(const struct filter *) filters;
     struct ngli_filter_resource_darray resources; // combined resources (struct ngli_filter_resource)
     struct hmap *unique_filters;
     struct bstr *str;
@@ -48,15 +48,15 @@ struct filterschain {
 
 struct filterschain *ngli_filterschain_create(void)
 {
-    struct filterschain *s = ngli_try_calloc(1, sizeof(*s));
+    struct filterschain *s = npriv_try_calloc(1, sizeof(*s));
     return s;
 }
 
 int ngli_filterschain_init(struct filterschain *s, const char *source_name, const char *source_code, uint32_t helpers)
 {
     s->helpers = helpers;
-    s->str = ngli_bstr_create();
-    s->unique_filters = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    s->str = npriv_bstr_create();
+    s->unique_filters = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!s->str || !s->unique_filters)
         return NGL_ERROR_MEMORY;
     s->source_name = source_name;
@@ -75,18 +75,18 @@ int ngli_filterschain_add_filter(struct filterschain *s, const struct filter *fi
             LOG(ERROR, "filter resource name \"%s%zu_%s\" is too long", filter->name, s->filters.count, res->name);
             return NGL_ERROR_LIMIT_EXCEEDED;
         }
-        if (ngli_darray_try_push(&s->resources, combined_res) < 0)
+        if (npriv_darray_try_push(&s->resources, combined_res) < 0)
             return NGL_ERROR_MEMORY;
     }
 
-    if (ngli_darray_try_push(&s->filters, filter) < 0)
+    if (npriv_darray_try_push(&s->filters, filter) < 0)
         return NGL_ERROR_MEMORY;
 
     s->helpers |= filter->helpers;
 
-    if (ngli_hmap_get_str(s->unique_filters, filter->name))
+    if (npriv_hmap_get_str(s->unique_filters, filter->name))
         return 0;
-    return ngli_hmap_try_set_str(s->unique_filters, filter->name, (void *)filter->code);
+    return npriv_hmap_try_set_str(s->unique_filters, filter->name, (void *)filter->code);
 }
 
 static const struct {
@@ -103,11 +103,11 @@ char *ngli_filterschain_get_combination(struct filterschain *s)
 {
     struct bstr *b = s->str;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(helpers_mask_code); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(helpers_mask_code); i++)
         if (s->helpers & helpers_mask_code[i].mask)
-            ngli_bstr_printf(b, "%s\n", *helpers_mask_code[i].code);
+            npriv_bstr_printf(b, "%s\n", *helpers_mask_code[i].code);
 
-    ngli_bstr_printf(b, "%s\n", s->source_code);
+    npriv_bstr_printf(b, "%s\n", s->source_code);
 
     /*
      * Add filter codes; we're not using the filters darray because the same
@@ -115,24 +115,24 @@ char *ngli_filterschain_get_combination(struct filterschain *s)
      * to include its code only once.
      */
     const struct hmap_entry *entry = NULL;
-    while ((entry = ngli_hmap_next(s->unique_filters, entry)))
-        ngli_bstr_printf(s->str, "%s\n", (const char *)entry->data);
+    while ((entry = npriv_hmap_next(s->unique_filters, entry)))
+        npriv_bstr_printf(s->str, "%s\n", (const char *)entry->data);
 
-    ngli_bstr_printf(b, "void main() {\n    vec4 color = %s();\n", s->source_name);
+    npriv_bstr_printf(b, "void main() {\n    vec4 color = %s();\n", s->source_name);
 
     for (size_t i = 0; i < s->filters.count; i++) {
         const struct filter *filter = s->filters.data[i];
-        ngli_bstr_printf(b, "    color = filter_%s(color, uv", filter->name);
+        npriv_bstr_printf(b, "    color = filter_%s(color, uv", filter->name);
 
         for (size_t j = 0; j < filter->resources.count; j++)
-            ngli_bstr_printf(b, ", %s%zu_%s", filter->name, i, filter->resources.data[j].name);
+            npriv_bstr_printf(b, ", %s%zu_%s", filter->name, i, filter->resources.data[j].name);
 
-        ngli_bstr_print(b, ");\n");
+        npriv_bstr_print(b, ");\n");
     }
 
-    ngli_bstr_print(b, "    ngl_out_color = color;\n");
-    ngli_bstr_print(b, "}\n");
-    return ngli_bstr_strdup(b);
+    npriv_bstr_print(b, "    ngl_out_color = color;\n");
+    npriv_bstr_print(b, "}\n");
+    return npriv_bstr_strdup(b);
 }
 
 const struct ngli_filter_resource_darray *ngli_filterschain_get_resources(struct filterschain *s)
@@ -145,9 +145,9 @@ void ngli_filterschain_freep(struct filterschain **sp)
     struct filterschain *s = *sp;
     if (!s)
         return;
-    ngli_darray_reset(&s->filters);
-    ngli_darray_reset(&s->resources);
-    ngli_bstr_freep(&s->str);
-    ngli_hmap_freep(&s->unique_filters);
-    ngli_freep(sp);
+    npriv_darray_reset(&s->filters);
+    npriv_darray_reset(&s->resources);
+    npriv_bstr_freep(&s->str);
+    npriv_hmap_freep(&s->unique_filters);
+    npriv_freep(sp);
 }

@@ -30,13 +30,13 @@
 #include "geometry.h"
 #include "graphics_state.h"
 #include "internal.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_buffer.h"
 #include "node_program.h"
 #include "nopegl/nopegl.h"
 #include "pass.h"
-#include "utils/hmap.h"
-#include "utils/utils.h"
 
 struct draw_opts {
     struct ngl_node *geometry;
@@ -182,7 +182,7 @@ static int check_params(const struct ngl_node *node)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    const size_t nb_attributes = o->attributes ? ngli_hmap_count(o->attributes) : 0;
+    const size_t nb_attributes = o->attributes ? npriv_hmap_count(o->attributes) : 0;
     if (nb_attributes > limits->max_vertex_attributes) {
         LOG(ERROR, "number of attributes (%zu) exceeds device limits (%u)",
             nb_attributes, limits->max_vertex_attributes);
@@ -196,7 +196,7 @@ static int check_params(const struct ngl_node *node)
 
     if (o->attributes) {
         const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(o->attributes, entry))) {
+        while ((entry = npriv_hmap_next(o->attributes, entry))) {
             const struct ngl_node *anode = entry->data;
             const struct buffer_info *buffer = anode->priv_data;
 
@@ -218,7 +218,7 @@ static int check_params(const struct ngl_node *node)
 
     if (o->instance_attributes) {
         const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(o->instance_attributes, entry))) {
+        while ((entry = npriv_hmap_next(o->instance_attributes, entry))) {
             const struct ngl_node *anode = entry->data;
             const struct buffer_info *buffer = anode->priv_data;
 

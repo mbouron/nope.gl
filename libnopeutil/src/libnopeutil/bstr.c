@@ -36,30 +36,30 @@ struct bstr {
     int state;
 };
 
-struct bstr *ngli_bstr_create(void)
+struct bstr *npriv_bstr_create(void)
 {
-    struct bstr *b = ngli_try_calloc(1, sizeof(*b));
+    struct bstr *b = npriv_try_calloc(1, sizeof(*b));
 
     if (!b)
         return NULL;
     b->bufsize = BUFFER_PADDING;
-    b->str = ngli_try_malloc(b->bufsize);
+    b->str = npriv_try_malloc(b->bufsize);
     if (!b->str) {
-        ngli_free(b);
+        npriv_free(b);
         return NULL;
     }
     b->str[0] = 0;
     return b;
 }
 
-void ngli_bstr_write(struct bstr *b, const char *str, size_t len)
+void npriv_bstr_write(struct bstr *b, const char *str, size_t len)
 {
     const size_t avail = b->bufsize - b->len;
     if (len + 1 > avail) {
         const size_t new_size = b->len + len + 1 + BUFFER_PADDING;
-        void *ptr = ngli_try_realloc(b->str, new_size, 1);
+        void *ptr = npriv_try_realloc(b->str, new_size, 1);
         if (!ptr) {
-            b->state = NGL_ERROR_MEMORY;
+            b->state = NPRIV_ERROR_MEMORY;
             return;
         }
         b->str = ptr;
@@ -70,12 +70,12 @@ void ngli_bstr_write(struct bstr *b, const char *str, size_t len)
     b->str[b->len] = 0;
 }
 
-void ngli_bstr_print(struct bstr *b, const char *str)
+void npriv_bstr_print(struct bstr *b, const char *str)
 {
-    ngli_bstr_write(b, str, strlen(str));
+    npriv_bstr_write(b, str, strlen(str));
 }
 
-void ngli_bstr_printf(struct bstr *b, const char *fmt, ...)
+void npriv_bstr_printf(struct bstr *b, const char *fmt, ...)
 {
     va_list va;
 
@@ -85,15 +85,15 @@ void ngli_bstr_printf(struct bstr *b, const char *fmt, ...)
     va_end(va);
     if (len < 0) {
         b->str[b->len] = 0;
-        b->state = NGL_ERROR_MEMORY;
+        b->state = NPRIV_ERROR_MEMORY;
         return;
     }
 
     if (len + 1 > avail) {
         const size_t new_size = b->len + (size_t)len + 1 + BUFFER_PADDING;
-        void *ptr = ngli_try_realloc(b->str, new_size, 1);
+        void *ptr = npriv_try_realloc(b->str, new_size, 1);
         if (!ptr) {
-            b->state = NGL_ERROR_MEMORY;
+            b->state = NPRIV_ERROR_MEMORY;
             return;
         }
         b->str = ptr;
@@ -103,7 +103,7 @@ void ngli_bstr_printf(struct bstr *b, const char *fmt, ...)
         va_end(va);
         if (len < 0) {
             b->str[b->len] = 0;
-            b->state = NGL_ERROR_MEMORY;
+            b->state = NPRIV_ERROR_MEMORY;
             return;
         }
     }
@@ -111,47 +111,47 @@ void ngli_bstr_printf(struct bstr *b, const char *fmt, ...)
     b->len = b->len + (size_t)len;
 }
 
-void ngli_bstr_clear(struct bstr *b)
+void npriv_bstr_clear(struct bstr *b)
 {
     b->len = 0;
     b->str[0] = 0;
     b->state = 0;
 }
 
-int ngli_bstr_truncate(struct bstr *b, size_t len)
+int npriv_bstr_truncate(struct bstr *b, size_t len)
 {
     if (len > b->len)
-        return NGL_ERROR_INVALID_ARG;
+        return NPRIV_ERROR_INVALID_ARG;
     b->len = len;
     b->str[b->len] = 0;
     return 0;
 }
 
-char *ngli_bstr_strdup(const struct bstr *b)
+char *npriv_bstr_strdup(const struct bstr *b)
 {
-    return ngli_strdup(b->str);
+    return npriv_strdup(b->str);
 }
 
-const char *ngli_bstr_strptr(const struct bstr *b)
+const char *npriv_bstr_strptr(const struct bstr *b)
 {
     return b->str;
 }
 
-size_t ngli_bstr_len(const struct bstr *b)
+size_t npriv_bstr_len(const struct bstr *b)
 {
     return b->len;
 }
 
-int ngli_bstr_check(const struct bstr *b)
+int npriv_bstr_check(const struct bstr *b)
 {
     return b->state;
 }
 
-void ngli_bstr_freep(struct bstr **bp)
+void npriv_bstr_freep(struct bstr **bp)
 {
     struct bstr *b = *bp;
     if (!b)
         return;
-    ngli_free(b->str);
-    ngli_freep(bp);
+    npriv_free(b->str);
+    npriv_freep(bp);
 }

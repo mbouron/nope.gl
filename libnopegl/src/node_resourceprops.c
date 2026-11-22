@@ -64,20 +64,20 @@ static const char * const precisions_map[] = {
 static char *resourceprops_info_str(const struct ngl_node *node)
 {
     const struct resourceprops_opts *o = node->opts;
-    struct bstr *b = ngli_bstr_create();
+    struct bstr *b = npriv_bstr_create();
 
     if (!b)
         return NULL;
 
     if (o->precision != NGPU_PRECISION_AUTO)
-        ngli_bstr_printf(b, "precision:%s", precisions_map[o->precision]);
+        npriv_bstr_printf(b, "precision:%s", precisions_map[o->precision]);
     if (o->as_image)
-        ngli_bstr_printf(b, "%sas_image", ngli_bstr_len(b) ? " " : "");
+        npriv_bstr_printf(b, "%sas_image", npriv_bstr_len(b) ? " " : "");
     if (o->writable)
-        ngli_bstr_printf(b, "%swritable", ngli_bstr_len(b) ? " " : "");
+        npriv_bstr_printf(b, "%swritable", npriv_bstr_len(b) ? " " : "");
 
-    char *ret = ngli_bstr_strdup(b);
-    ngli_bstr_freep(&b);
+    char *ret = npriv_bstr_strdup(b);
+    npriv_bstr_freep(&b);
     return ret;
 }
 

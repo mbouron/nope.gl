@@ -29,10 +29,10 @@
 #include "config.h"
 
 #include "jni_utils.h"
+#include "libnopeutil/pthread_compat.h"
 #include "log.h"
 #include "nopegl/nopegl.h"
 #include "nopegl/nopegl_android.h"
-#include "utils/pthread_compat.h"
 
 static JavaVM *java_vm;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;

@@ -28,12 +28,12 @@
 #include "memory.h"
 #include "string.h"
 
-char *ngli_strdup(const char *s)
+char *npriv_strdup(const char *s)
 {
     if (!s)
         return NULL;
     const size_t len = strlen(s);
-    char *r = ngli_try_malloc(len + 1);
+    char *r = npriv_try_malloc(len + 1);
     if (!r)
         return NULL;
     memcpy(r, s, len);
@@ -41,7 +41,7 @@ char *ngli_strdup(const char *s)
     return r;
 }
 
-char *ngli_asprintf(const char *fmt, ...)
+char *npriv_asprintf(const char *fmt, ...)
 {
     va_list va;
 
@@ -52,7 +52,7 @@ char *ngli_asprintf(const char *fmt, ...)
         return NULL;
 
     const size_t n = (size_t)len + 1;
-    char *p = ngli_try_malloc(n);
+    char *p = npriv_try_malloc(n);
     if (!p)
         return NULL;
 
@@ -60,7 +60,7 @@ char *ngli_asprintf(const char *fmt, ...)
     len = vsnprintf(p, n, fmt, va);
     va_end(va);
     if (len < 0)
-        ngli_freep(&p);
+        npriv_freep(&p);
 
     return p;
 }
@@ -85,9 +85,9 @@ static int count_digits(int x)
     return n;
 }
 
-char *ngli_numbered_lines(const char *s)
+char *npriv_numbered_lines(const char *s)
 {
-    struct bstr *b = ngli_bstr_create();
+    struct bstr *b = npriv_bstr_create();
     if (!b)
         return NULL;
 
@@ -96,7 +96,7 @@ char *ngli_numbered_lines(const char *s)
     int line = 1, source = 0;
     while (*s) {
         const size_t len = strcspn(s, "\n");
-        ngli_bstr_printf(b, "%d:%*d %.*s\n", source, nb_digits, line++, (int)len, s);
+        npriv_bstr_printf(b, "%d:%*d %.*s\n", source, nb_digits, line++, (int)len, s);
         int next_line, next_source, pos = 0, end = 0;
         if (sscanf(s, " #line %d%n", &next_line, &pos) == 1 && (size_t)pos <= len) {
             line = next_line;
@@ -108,8 +108,8 @@ char *ngli_numbered_lines(const char *s)
         s += len + 1;
     }
 
-    char *ret = ngli_bstr_strdup(b);
-    ngli_bstr_freep(&b);
+    char *ret = npriv_bstr_strdup(b);
+    npriv_bstr_freep(&b);
     if (!ret)
         return NULL;
 
@@ -120,7 +120,7 @@ char *ngli_numbered_lines(const char *s)
     return ret;
 }
 
-bool ngli_str_is_empty(const char *s)
+bool npriv_str_is_empty(const char *s)
 {
     return !s || *s == '\0';
 }

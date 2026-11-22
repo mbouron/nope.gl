@@ -25,13 +25,13 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "path.h"
 #include "slug.h"
 #include "utils/cubic_to_quad.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 #define NGLI_SLUG_BAND_TEX_WIDTH 4096
 #define NGLI_SLUG_CUBIC_TO_QUAD_TOLERANCE 0.01f
@@ -43,8 +43,8 @@ struct curve {
     float p3[2]; /* end point */
 };
 
-NGLI_DECLARE_DARRAY_WITH_NAME(curve_darray, struct curve);
-NGLI_DECLARE_DARRAY_WITH_NAME(slug_texel_darray, struct ngli_vec4);
+NPRIV_DECLARE_DARRAY_WITH_NAME(curve_darray, struct curve);
+NPRIV_DECLARE_DARRAY_WITH_NAME(slug_texel_darray, struct ngli_vec4);
 
 struct glyph_entry {
     struct slug_glyph_data data;
@@ -53,7 +53,7 @@ struct glyph_entry {
 
 struct slug {
     struct ngl_ctx *ctx;
-    NGLI_DARRAY(struct glyph_entry) glyphs;
+    NPRIV_DARRAY(struct glyph_entry) glyphs;
 
     /* Packed texture data (built during finalize) */
     struct slug_texel_darray curve_texels; /* float[4] per texel */
@@ -70,7 +70,7 @@ struct slug {
 
 struct slug *ngli_slug_create(struct ngl_ctx *ctx)
 {
-    struct slug *s = ngli_try_calloc(1, sizeof(*s));
+    struct slug *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
@@ -165,7 +165,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                         .p2 = {(last[0] + subpath_start[0]) * .5f, (last[1] + subpath_start[1]) * .5f},
                         .p3 = {subpath_start[0], subpath_start[1]},
                     };
-                    if (ngli_darray_try_push(curves_out, closing) < 0)
+                    if (npriv_darray_try_push(curves_out, closing) < 0)
                         return NGL_ERROR_MEMORY;
                 }
             }
@@ -183,7 +183,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {(start[0] + end[0]) * .5f, (start[1] + end[1]) * .5f},
                 .p3 = {end[0], end[1]},
             };
-            if (ngli_darray_try_push(curves_out, c) < 0)
+            if (npriv_darray_try_push(curves_out, c) < 0)
                 return NGL_ERROR_MEMORY;
             last[0] = end[0];
             last[1] = end[1];
@@ -194,7 +194,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {seg->bezier_x[1], seg->bezier_y[1]},
                 .p3 = {seg->bezier_x[2], seg->bezier_y[2]},
             };
-            if (ngli_darray_try_push(curves_out, c) < 0)
+            if (npriv_darray_try_push(curves_out, c) < 0)
                 return NGL_ERROR_MEMORY;
             last[0] = seg->bezier_x[2];
             last[1] = seg->bezier_y[2];
@@ -215,7 +215,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                     .p2 = {quads[2 * j + 1].x, quads[2 * j + 1].y},
                     .p3 = {quads[2 * j + 2].x, quads[2 * j + 2].y},
                 };
-                if (ngli_darray_try_push(curves_out, c) < 0)
+                if (npriv_darray_try_push(curves_out, c) < 0)
                     return NGL_ERROR_MEMORY;
             }
             last[0] = seg->bezier_x[3];
@@ -224,10 +224,10 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
 
         /* Update bounds */
         for (int d = 0; d <= seg->degree; d++) {
-            bounds[0] = NGLI_MIN(bounds[0], seg->bezier_x[d]);
-            bounds[1] = NGLI_MIN(bounds[1], seg->bezier_y[d]);
-            bounds[2] = NGLI_MAX(bounds[2], seg->bezier_x[d]);
-            bounds[3] = NGLI_MAX(bounds[3], seg->bezier_y[d]);
+            bounds[0] = NPRIV_MIN(bounds[0], seg->bezier_x[d]);
+            bounds[1] = NPRIV_MIN(bounds[1], seg->bezier_y[d]);
+            bounds[2] = NPRIV_MAX(bounds[2], seg->bezier_x[d]);
+            bounds[3] = NPRIV_MAX(bounds[3], seg->bezier_y[d]);
         }
     }
 
@@ -239,7 +239,7 @@ static int collect_curves(struct slug *s, const struct path *path, uint32_t flag
                 .p2 = {(last[0] + subpath_start[0]) * .5f, (last[1] + subpath_start[1]) * .5f},
                 .p3 = {subpath_start[0], subpath_start[1]},
             };
-            if (ngli_darray_try_push(curves_out, closing) < 0)
+            if (npriv_darray_try_push(curves_out, closing) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -255,7 +255,7 @@ int ngli_slug_add_glyph(struct slug *s, const struct path *path, uint32_t flags,
     float bounds[4];
     int ret = collect_curves(s, path, flags, &entry.curves, bounds);
     if (ret < 0) {
-        ngli_darray_reset(&entry.curves);
+        npriv_darray_reset(&entry.curves);
         return ret;
     }
 
@@ -272,8 +272,8 @@ int ngli_slug_add_glyph(struct slug *s, const struct path *path, uint32_t flags,
         entry.data.em_bounds[3] = bounds[3];
     }
 
-    if (ngli_darray_try_push(&s->glyphs, entry) < 0) {
-        ngli_darray_reset(&entry.curves);
+    if (npriv_darray_try_push(&s->glyphs, entry) < 0) {
+        npriv_darray_reset(&entry.curves);
         return NGL_ERROR_MEMORY;
     }
 
@@ -300,7 +300,7 @@ static int cmp_band_entry_desc(const void *a, const void *b)
 static int push_texel(struct slug_texel_darray *texels, float x, float y, float z, float w)
 {
     const struct ngli_vec4 v = {{x, y, z, w}};
-    if (ngli_darray_try_push(texels, v) < 0)
+    if (npriv_darray_try_push(texels, v) < 0)
         return NGL_ERROR_MEMORY;
     return 0;
 }
@@ -355,7 +355,7 @@ static int finalize_internal(struct slug *s)
     int32_t curve_pos = 0;
     int32_t band_pos = 0;
 
-    NGLI_DARRAY(struct band_entry) band_entries = {0};
+    NPRIV_DARRAY(struct band_entry) band_entries = {0};
 
     for (size_t g = 0; g < nb_glyphs; g++) {
         struct glyph_entry *glyph = &s->glyphs.data[g];
@@ -391,8 +391,8 @@ static int finalize_internal(struct slug *s)
             nb_vbands = 1;
         } else {
             const int32_t n = (int32_t)ceilf(sqrtf((float)nb_curves));
-            nb_hbands = NGLI_CLAMP(n, 1, 255);
-            nb_vbands = NGLI_CLAMP(n, 1, 255);
+            nb_hbands = NPRIV_CLAMP(n, 1, 255);
+            nb_vbands = NPRIV_CLAMP(n, 1, 255);
         }
 
         /* Record glyph location in band texture */
@@ -437,15 +437,15 @@ static int finalize_internal(struct slug *s)
             const float band_y0 = by0 + em_h * (float)j / (float)nb_hbands;
             const float band_y1 = by0 + em_h * (float)(j + 1) / (float)nb_hbands;
 
-            ngli_darray_clear(&band_entries);
+            npriv_darray_clear(&band_entries);
             for (size_t ci = 0; ci < nb_curves; ci++) {
                 const struct curve *c = &curves[ci];
-                const float min_y = NGLI_MIN(NGLI_MIN(c->p1[1], c->p2[1]), c->p3[1]);
-                const float max_y = NGLI_MAX(NGLI_MAX(c->p1[1], c->p2[1]), c->p3[1]);
+                const float min_y = NPRIV_MIN(NPRIV_MIN(c->p1[1], c->p2[1]), c->p3[1]);
+                const float max_y = NPRIV_MAX(NPRIV_MAX(c->p1[1], c->p2[1]), c->p3[1]);
                 if (max_y >= band_y0 && min_y <= band_y1) {
-                    const float max_x = NGLI_MAX(NGLI_MAX(c->p1[0], c->p2[0]), c->p3[0]);
+                    const float max_x = NPRIV_MAX(NPRIV_MAX(c->p1[0], c->p2[0]), c->p3[0]);
                     const struct band_entry e = {.curve_index = (int32_t)ci, .sort_key = max_x};
-                    if (ngli_darray_try_push(&band_entries, e) < 0) {
+                    if (npriv_darray_try_push(&band_entries, e) < 0) {
                         ret = NGL_ERROR_MEMORY;
                         goto end;
                     }
@@ -484,15 +484,15 @@ static int finalize_internal(struct slug *s)
             const float band_x0 = bx0 + em_w * (float)j / (float)nb_vbands;
             const float band_x1 = bx0 + em_w * (float)(j + 1) / (float)nb_vbands;
 
-            ngli_darray_clear(&band_entries);
+            npriv_darray_clear(&band_entries);
             for (size_t ci = 0; ci < nb_curves; ci++) {
                 const struct curve *c = &curves[ci];
-                const float min_x = NGLI_MIN(NGLI_MIN(c->p1[0], c->p2[0]), c->p3[0]);
-                const float max_x = NGLI_MAX(NGLI_MAX(c->p1[0], c->p2[0]), c->p3[0]);
+                const float min_x = NPRIV_MIN(NPRIV_MIN(c->p1[0], c->p2[0]), c->p3[0]);
+                const float max_x = NPRIV_MAX(NPRIV_MAX(c->p1[0], c->p2[0]), c->p3[0]);
                 if (max_x >= band_x0 && min_x <= band_x1) {
-                    const float max_y = NGLI_MAX(NGLI_MAX(c->p1[1], c->p2[1]), c->p3[1]);
+                    const float max_y = NPRIV_MAX(NPRIV_MAX(c->p1[1], c->p2[1]), c->p3[1]);
                     const struct band_entry e = {.curve_index = (int32_t)ci, .sort_key = max_y};
-                    if (ngli_darray_try_push(&band_entries, e) < 0) {
+                    if (npriv_darray_try_push(&band_entries, e) < 0) {
                         ret = NGL_ERROR_MEMORY;
                         goto end;
                     }
@@ -532,15 +532,15 @@ static int finalize_internal(struct slug *s)
     ret = upload_texture(s, &s->band_texels, &s->band_texture, &s->band_texture_capacity, &s->band_texture_height);
 
 end:
-    ngli_darray_reset(&band_entries);
+    npriv_darray_reset(&band_entries);
     return ret;
 }
 
 int ngli_slug_finalize(struct slug *s)
 {
     /* Clear texel data (textures are preserved and grown as needed) */
-    ngli_darray_clear(&s->curve_texels);
-    ngli_darray_clear(&s->band_texels);
+    npriv_darray_clear(&s->curve_texels);
+    npriv_darray_clear(&s->band_texels);
 
     return finalize_internal(s);
 }
@@ -572,11 +572,11 @@ void ngli_slug_freep(struct slug **sp)
         return;
 
     for (size_t i = 0; i < s->glyphs.count; i++)
-        ngli_darray_reset(&s->glyphs.data[i].curves);
-    ngli_darray_reset(&s->glyphs);
-    ngli_darray_reset(&s->curve_texels);
-    ngli_darray_reset(&s->band_texels);
+        npriv_darray_reset(&s->glyphs.data[i].curves);
+    npriv_darray_reset(&s->glyphs);
+    npriv_darray_reset(&s->curve_texels);
+    npriv_darray_reset(&s->band_texels);
     ngpu_texture_freep(&s->curve_texture);
     ngpu_texture_freep(&s->band_texture);
-    ngli_freep(sp);
+    npriv_freep(sp);
 }

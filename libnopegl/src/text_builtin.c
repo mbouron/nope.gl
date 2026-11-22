@@ -23,10 +23,10 @@
 #include "internal.h"
 #include "path.h"
 #include "slug.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
 #include "text.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 struct text_builtin {
     int32_t chr_w, chr_h;
@@ -173,7 +173,7 @@ static int atlas_create(struct text *text, struct text_builtin_atlas *atlas)
         0.f, (float)s->chr_h, 0.f, 1.f,
     }};
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(outlines); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(outlines); i++) {
         ngli_path_clear(path);
 
         ret = ngli_path_add_svg_path(path, outlines[i]);
@@ -198,7 +198,7 @@ static int atlas_create(struct text *text, struct text_builtin_atlas *atlas)
         goto end;
 
     /* Retrieve glyph data after finalize (band_transform, glyph_loc, band_max are now valid) */
-    for (size_t i = 0; i < NGLI_ARRAY_NB(outlines); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(outlines); i++)
         ngli_slug_get_glyph_data(atlas->slug, (int32_t)i, &atlas->slug_data[FIRST_CHAR + i]);
 
 end:
@@ -218,9 +218,9 @@ static int text_builtin_init(struct text *text)
 
     char atlas_uid[32];
     snprintf(atlas_uid, sizeof(atlas_uid), "%d", size);
-    struct text_builtin_atlas *atlas = ngli_hmap_get_str(text->ctx->text_builtin_atlasses, atlas_uid);
+    struct text_builtin_atlas *atlas = npriv_hmap_get_str(text->ctx->text_builtin_atlasses, atlas_uid);
     if (!atlas) {
-        atlas = ngli_try_calloc(1, sizeof(*atlas));
+        atlas = npriv_try_calloc(1, sizeof(*atlas));
         if (!atlas)
             return NGL_ERROR_MEMORY;
 
@@ -230,7 +230,7 @@ static int text_builtin_init(struct text *text)
             return ret;
         }
 
-        ret = ngli_hmap_try_set_str(text->ctx->text_builtin_atlasses, atlas_uid, atlas);
+        ret = npriv_hmap_try_set_str(text->ctx->text_builtin_atlasses, atlas_uid, atlas);
         if (ret < 0) {
             ngli_free_text_builtin_atlas(NULL, atlas);
             return ret;
@@ -256,7 +256,7 @@ static void get_char_box_dim(const char *s, int32_t *wp, int32_t *hp, size_t *np
             h++;
         } else {
             cur_w++;
-            w = NGLI_MAX(w, cur_w);
+            w = NPRIV_MAX(w, cur_w);
             n++;
         }
     }
@@ -288,24 +288,24 @@ static int text_builtin_set_string(struct text *text, const char *str, struct ng
         const uint32_t tags = get_char_tags(str[i]);
         if ((tags & NGLI_TEXT_CHAR_TAG_GLYPH) != NGLI_TEXT_CHAR_TAG_GLYPH) {
             const struct char_info_internal chr = {.tags = tags};
-            if (ngli_darray_try_push(chars_dst, chr) < 0)
+            if (npriv_darray_try_push(chars_dst, chr) < 0)
                 return NGL_ERROR_MEMORY;
             if (tags & NGLI_TEXT_CHAR_TAG_LINE_BREAK) {
                 switch (text->config.writing_mode) {
                 case NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB: row++; col = 0; break;
                 case NGLI_TEXT_WRITING_MODE_VERTICAL_RL:   col--; row = 0; break;
                 case NGLI_TEXT_WRITING_MODE_VERTICAL_LR:   col++; row = 0; break;
-                default: ngli_assert(0);
+                default: npriv_assert(0);
                 }
             } else if (tags & NGLI_TEXT_CHAR_TAG_WORD_SEPARATOR) {
                 switch (text->config.writing_mode) {
                 case NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB: col++; break;
                 case NGLI_TEXT_WRITING_MODE_VERTICAL_RL:
                 case NGLI_TEXT_WRITING_MODE_VERTICAL_LR:   row++; break;
-                default: ngli_assert(0);
+                default: npriv_assert(0);
                 }
             } else {
-                ngli_assert(0);
+                npriv_assert(0);
             }
             continue;
         }
@@ -323,14 +323,14 @@ static int text_builtin_set_string(struct text *text, const char *str, struct ng
             .slug = *glyph_data,
         };
 
-        if (ngli_darray_try_push(chars_dst, chr) < 0)
+        if (npriv_darray_try_push(chars_dst, chr) < 0)
             return NGL_ERROR_MEMORY;
 
         switch (text->config.writing_mode) {
         case NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB: col++; break;
         case NGLI_TEXT_WRITING_MODE_VERTICAL_RL:
         case NGLI_TEXT_WRITING_MODE_VERTICAL_LR:   row++; break;
-        default: ngli_assert(0);
+        default: npriv_assert(0);
         }
     }
 

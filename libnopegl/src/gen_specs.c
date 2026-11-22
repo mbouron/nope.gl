@@ -27,9 +27,9 @@
 #include "nodes_register.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
-#include "utils/hmap.h"
-#include "utils/string.h"
-#include "utils/memory.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/string.h"
+#include "libnopeutil/memory.h"
 
 #define CLASS_LIST(type_name, cls) extern const struct node_class cls;
 NODE_MAP_TYPE2CLASS(CLASS_LIST)
@@ -40,7 +40,7 @@ extern const struct param_specs ngli_params_specs[];
 #define REGISTER_NODE(type_name, cls)           \
     case type_name: {                           \
         extern const struct node_class cls;     \
-        ngli_assert(cls.id == type_name);       \
+        npriv_assert(cls.id == type_name);      \
         return &cls;                            \
     }                                           \
 
@@ -96,7 +96,7 @@ static void print_node_params(const char *name, const struct node_param *p, cons
             case NGLI_PARAM_TYPE_SELECT: {
                 const int v = p->def_value.i32;
                 const char *s = ngli_params_get_select_str(p->choices->consts, v);
-                ngli_assert(s);
+                npriv_assert(s);
                 printf(D "\"%s\",\n", s);
                 printf(I "\"choices\": \"%s\",\n", p->choices->name);
                 break;
@@ -106,9 +106,9 @@ static void print_node_params(const char *name, const struct node_param *p, cons
                 char *s = ngli_params_get_flags_str(p->choices->consts, v);
                 if (!s)
                     abort();
-                ngli_assert(*s);
+                npriv_assert(*s);
                 printf(D "\"%s\",\n", s);
-                ngli_free(s);
+                npriv_free(s);
                 printf(I "\"choices\": \"%s\",\n", p->choices->name);
                 break;
             }
@@ -127,12 +127,12 @@ static void print_node_params(const char *name, const struct node_param *p, cons
             case NGLI_PARAM_TYPE_U32:
                 printf(D "%u,\n", p->def_value.u32);
                 break;
-            case NGLI_PARAM_TYPE_IVEC2: printf(D "[%d,%d],\n",       NGLI_ARG_VEC2(p->def_value.ivec)); break;
-            case NGLI_PARAM_TYPE_IVEC3: printf(D "[%d,%d,%d],\n",    NGLI_ARG_VEC3(p->def_value.ivec)); break;
-            case NGLI_PARAM_TYPE_IVEC4: printf(D "[%d,%d,%d,%d],\n", NGLI_ARG_VEC4(p->def_value.ivec)); break;
-            case NGLI_PARAM_TYPE_UVEC2: printf(D "[%u,%u],\n",       NGLI_ARG_VEC2(p->def_value.uvec)); break;
-            case NGLI_PARAM_TYPE_UVEC3: printf(D "[%u,%u,%u],\n",    NGLI_ARG_VEC3(p->def_value.uvec)); break;
-            case NGLI_PARAM_TYPE_UVEC4: printf(D "[%u,%u,%u,%u],\n", NGLI_ARG_VEC4(p->def_value.uvec)); break;
+            case NGLI_PARAM_TYPE_IVEC2: printf(D "[%d,%d],\n",       NPRIV_ARG_VEC2(p->def_value.ivec)); break;
+            case NGLI_PARAM_TYPE_IVEC3: printf(D "[%d,%d,%d],\n",    NPRIV_ARG_VEC3(p->def_value.ivec)); break;
+            case NGLI_PARAM_TYPE_IVEC4: printf(D "[%d,%d,%d,%d],\n", NPRIV_ARG_VEC4(p->def_value.ivec)); break;
+            case NGLI_PARAM_TYPE_UVEC2: printf(D "[%u,%u],\n",       NPRIV_ARG_VEC2(p->def_value.uvec)); break;
+            case NGLI_PARAM_TYPE_UVEC3: printf(D "[%u,%u,%u],\n",    NPRIV_ARG_VEC3(p->def_value.uvec)); break;
+            case NGLI_PARAM_TYPE_UVEC4: printf(D "[%u,%u,%u,%u],\n", NPRIV_ARG_VEC4(p->def_value.uvec)); break;
             case NGLI_PARAM_TYPE_VEC2:
                 printf(D "["); print_f(p->def_value.vec[0]); printf(","); print_f(p->def_value.vec[1]); printf("],\n");
                 break;
@@ -143,14 +143,14 @@ static void print_node_params(const char *name, const struct node_param *p, cons
                 printf(D "["); print_f(p->def_value.vec[0]); printf(","); print_f(p->def_value.vec[1]); printf(","); print_f(p->def_value.vec[2]); printf(","); print_f(p->def_value.vec[3]); printf("],\n");
                 break;
             case NGLI_PARAM_TYPE_MAT4:
-                printf(D "[%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f],\n", NGLI_ARG_MAT4(p->def_value.mat));
+                printf(D "[%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f],\n", NPRIV_ARG_MAT4(p->def_value.mat));
                 break;
             case NGLI_PARAM_TYPE_STR:
                 if (p->def_value.str)
                     printf(D "\"%s\",\n", p->def_value.str);
                 break;
             case NGLI_PARAM_TYPE_RATIONAL:
-                printf(D "[%d,%d],\n", NGLI_ARG_VEC2(p->def_value.r));
+                printf(D "[%d,%d],\n", NPRIV_ARG_VEC2(p->def_value.r));
                 break;
             default:
                 break;
@@ -159,7 +159,7 @@ static void print_node_params(const char *name, const struct node_param *p, cons
                 printf(I "\"node_types\": [");
                 for (size_t i = 0; p->node_types[i] != NGLI_NODE_NONE; i++) {
                     const struct node_class *cls = get_node_class(p->node_types[i]);
-                    ngli_assert(cls);
+                    npriv_assert(cls);
                     printf("%s\"%s\"", i ? ", " : "", cls->name);
                 }
                 printf("],\n");
@@ -175,7 +175,7 @@ static void print_node_params(const char *name, const struct node_param *p, cons
             };
             printf(I "\"flags\": [");
             int ihasflag = 0;
-            for (size_t i = 0; i < NGLI_ARRAY_NB(flag_names); i++) {
+            for (size_t i = 0; i < NPRIV_ARRAY_NB(flag_names); i++) {
                 if (!(p->flags & flag_names[i].flag))
                     continue;
                 printf("%s\"%s\"", ihasflag ? ", " : "", flag_names[i].name);
@@ -204,7 +204,7 @@ static void print_types(void)
     printf("  \"types\": [\n");
     for (size_t i = 0; i < NGLI_PARAM_TYPE_NB; i++) {
         const struct param_specs *ps = &ngli_params_specs[i];
-        ngli_assert(ps->name && ps->desc);
+        npriv_assert(ps->name && ps->desc);
         printf("    {\n");
         printf("      \"name\": \"%s\",\n", ps->name);
         printf("      \"size\": %zu,\n", ps->size);
@@ -221,7 +221,7 @@ static void print_constants(const struct param_choices *choices)
     printf("    \"%s\": [\n", choices->name);
     for (size_t i = 0; consts[i].key; i++) {
         const struct param_const *pc = &consts[i];
-        ngli_assert(pc->key && pc->desc);
+        npriv_assert(pc->key && pc->desc);
         printf("      {\n");
         printf("        \"name\": \"%s\",\n", pc->key);
         printf("        \"desc\": \"%s\"\n", pc->desc);
@@ -234,11 +234,11 @@ static int print_choices(void)
 {
     printf("  \"choices\": {\n");
 
-    struct hmap *choices_map = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    struct hmap *choices_map = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!choices_map)
         return -1;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(node_classes); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(node_classes); i++) {
         const struct node_class *c = node_classes[i];
 
         if (!c->params)
@@ -247,14 +247,14 @@ static int print_choices(void)
             const struct node_param *p = &c->params[j];
             if (!p->choices)
                 continue;
-            void *mapped_choices = ngli_hmap_get_str(choices_map, p->choices->name);
+            void *mapped_choices = npriv_hmap_get_str(choices_map, p->choices->name);
             if (mapped_choices) {
-                ngli_assert(mapped_choices == p->choices);
+                npriv_assert(mapped_choices == p->choices);
             } else {
-                if (ngli_hmap_count(choices_map))
+                if (npriv_hmap_count(choices_map))
                     printf(",\n");
                 print_constants(p->choices);
-                ngli_hmap_try_set_str(choices_map, p->choices->name, (void *)p->choices);
+                npriv_hmap_try_set_str(choices_map, p->choices->name, (void *)p->choices);
 
             }
         }
@@ -262,7 +262,7 @@ static int print_choices(void)
 
     printf("\n  }");
 
-    ngli_hmap_freep(&choices_map);
+    npriv_hmap_freep(&choices_map);
     return 0;
 }
 
@@ -340,7 +340,7 @@ static int check_node_params(const struct node_class *cls)
         }
 
         const uint32_t invalid_flags = NGLI_PARAM_FLAG_NON_NULL | NGLI_PARAM_FLAG_ALLOW_NODE;
-        if (NGLI_HAS_ALL_FLAGS(par->flags, invalid_flags)) {
+        if (NPRIV_HAS_ALL_FLAGS(par->flags, invalid_flags)) {
             fprintf(stderr, "parameter %s.%s can not be non-null and "
                     "allow a node at the same time\n", cls->name, par->key);
             return NGL_ERROR_BUG;
@@ -419,7 +419,7 @@ static int print_nodes(void)
     printf("  \"nodes\": {\n");
     print_node_params("_Node", ngli_base_node_params, NULL);
 
-    struct hmap *params_map = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    struct hmap *params_map = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!params_map)
         return -1;
 
@@ -427,7 +427,7 @@ static int print_nodes(void)
     if (ret < 0)
         goto end;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(node_classes); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(node_classes); i++) {
         const struct node_class *c = node_classes[i];
         const struct node_param *p = &c->params[0];
 
@@ -440,23 +440,23 @@ static int print_nodes(void)
             goto end;
 
         if (c->params_id) {
-            void *mapped_param = ngli_hmap_get_str(params_map, c->params_id);
-            char *pname = ngli_asprintf("_%s", c->params_id);
+            void *mapped_param = npriv_hmap_get_str(params_map, c->params_id);
+            char *pname = npriv_asprintf("_%s", c->params_id);
             if (!pname) {
-                ngli_free(pname);
+                npriv_free(pname);
                 ret = -1;
                 goto end;
             }
             if (mapped_param) {
-                ngli_assert(mapped_param == p);
+                npriv_assert(mapped_param == p);
             } else {
                 printf(",\n");
                 print_node_params(pname, p, c->file);
-                ngli_hmap_try_set_str(params_map, c->params_id, (void *)p);
+                npriv_hmap_try_set_str(params_map, c->params_id, (void *)p);
             }
             printf(",\n");
             printf("    \"%s\": \"%s\"", c->name, pname);
-            ngli_free(pname);
+            npriv_free(pname);
         } else {
             printf(",\n");
             print_node_params(c->name, p, c->file);
@@ -465,7 +465,7 @@ static int print_nodes(void)
     printf("\n  }");
 
 end:
-    ngli_hmap_freep(&params_map);
+    npriv_hmap_freep(&params_map);
     return ret;
 }
 

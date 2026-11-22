@@ -27,13 +27,13 @@
 
 #include "filterschain.h"
 #include "internal.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
 #include "log.h"
 #include "node_colorkey.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "utils/bstr.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
 
 /* GLSL filters as string */
 #include "filter_alpha.h"
@@ -134,17 +134,17 @@ struct filtersrgb2linear_priv {
 
 /* struct filter must be on top of each context because that's how the private
  * data is read externally and in the params below */
-NGLI_STATIC_ASSERT(offsetof(struct filteralpha_priv,        filter) == 0, "filter on top of alpha_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filtercolormap_priv,     filter) == 0, "filter on top of colormap_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filtercontrast_priv,     filter) == 0, "filter on top of contrast_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filterexposure_priv,     filter) == 0, "filter on top of exposure_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filterinversealpha_priv, filter) == 0, "filter on top of inversealpha_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filterlinear2srgb_priv,  filter) == 0, "filter on top of linear2srgb_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filteropacity_priv,      filter) == 0, "filter on top of opacity_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filterpremult_priv,      filter) == 0, "filter on top of premult_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filtersaturation_priv,   filter) == 0, "filter on top of saturation_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filterselector_priv,     filter) == 0, "filter on top of selector_priv");
-NGLI_STATIC_ASSERT(offsetof(struct filtersrgb2linear_priv,  filter) == 0, "filter on top of srgb2linear_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filteralpha_priv,        filter) == 0, "filter on top of alpha_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filtercolormap_priv,     filter) == 0, "filter on top of colormap_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filtercontrast_priv,     filter) == 0, "filter on top of contrast_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filterexposure_priv,     filter) == 0, "filter on top of exposure_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filterinversealpha_priv, filter) == 0, "filter on top of inversealpha_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filterlinear2srgb_priv,  filter) == 0, "filter on top of linear2srgb_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filteropacity_priv,      filter) == 0, "filter on top of opacity_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filterpremult_priv,      filter) == 0, "filter on top of premult_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filtersaturation_priv,   filter) == 0, "filter on top of saturation_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filterselector_priv,     filter) == 0, "filter on top of selector_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct filtersrgb2linear_priv,  filter) == 0, "filter on top of srgb2linear_priv");
 
 #define OFFSET(x) offsetof(struct filteralpha_opts, x)
 static const struct node_param filteralpha_params[] = {
@@ -284,7 +284,7 @@ static int register_resource(struct ngli_filter_resource_darray *resources, cons
         .data  = ngli_node_get_data_ptr(pnode, data),
     };
     snprintf(res.name, sizeof(res.name), "%s", name);
-    if (ngli_darray_try_push(resources, res) < 0)
+    if (npriv_darray_try_push(resources, res) < 0)
         return NGL_ERROR_MEMORY;
     return 0;
 }
@@ -313,7 +313,7 @@ static int filtercolormap_init(struct ngl_node *node)
     s->filter.helpers = NGLI_FILTER_HELPER_MISC_UTILS | NGLI_FILTER_HELPER_SRGB;
 
     /* Craft the shader dynamically according to the number of color keys */
-    struct bstr *str = ngli_bstr_create();
+    struct bstr *str = npriv_bstr_create();
     if (!str) {
         ret = NGL_ERROR_MEMORY;
         goto end;
@@ -322,43 +322,43 @@ static int filtercolormap_init(struct ngl_node *node)
     #define I "    "
 
     /* Prototype and initial declarations */
-    ngli_bstr_print(str, "vec4 filter_colormap(vec4 color, vec2 coords");
+    npriv_bstr_print(str, "vec4 filter_colormap(vec4 color, vec2 coords");
     for (size_t i = 0; i < o->colorkeys.count; i++)
-        ngli_bstr_printf(str, ", float pos%zu, vec3 color%zu, float opacity%zu", i, i, i);
-    ngli_bstr_print(str, ")\n{\n"
-                         I "float t_prv = 1.0, t_nxt = 0.0;\n"
-                         I "vec4 v_prv, v_nxt;\n"
-                         "\n");
+        npriv_bstr_printf(str, ", float pos%zu, vec3 color%zu, float opacity%zu", i, i, i);
+    npriv_bstr_print(str, ")\n{\n"
+                          I "float t_prv = 1.0, t_nxt = 0.0;\n"
+                          I "vec4 v_prv, v_nxt;\n"
+                          "\n");
 
     /* Convert input color to grayscale to obtain the interpolation index */
-    ngli_bstr_print(str, I "float t = dot(color.rgb, ngli_luma_weights);\n\n");
+    npriv_bstr_print(str, I "float t = dot(color.rgb, ngli_luma_weights);\n\n");
 
     /* Switch colors to linear space and saturate pos within [0,1] */
     for (size_t i = 0; i < o->colorkeys.count; i++) {
-        ngli_bstr_printf(str, I "pos%zu = ngli_sat(pos%zu);\n", i, i);
-        ngli_bstr_printf(str, I "color%zu = ngli_srgb2linear(color%zu);\n", i, i);
+        npriv_bstr_printf(str, I "pos%zu = ngli_sat(pos%zu);\n", i, i);
+        npriv_bstr_printf(str, I "color%zu = ngli_srgb2linear(color%zu);\n", i, i);
     }
 
     /* Identify left-most and right-most knots */
     for (size_t i = 0; i < o->colorkeys.count; i++) {
         /* The '=' are here to make sure we enter in the loop at least once */
-        ngli_bstr_printf(str, I "if (pos%zu <= t_prv) { t_prv = pos%zu; v_prv = vec4(color%zu, opacity%zu); }\n", i, i, i, i);
-        ngli_bstr_printf(str, I "if (pos%zu >= t_nxt) { t_nxt = pos%zu; v_nxt = vec4(color%zu, opacity%zu); }\n", i, i, i, i);
+        npriv_bstr_printf(str, I "if (pos%zu <= t_prv) { t_prv = pos%zu; v_prv = vec4(color%zu, opacity%zu); }\n", i, i, i, i);
+        npriv_bstr_printf(str, I "if (pos%zu >= t_nxt) { t_nxt = pos%zu; v_nxt = vec4(color%zu, opacity%zu); }\n", i, i, i, i);
     }
 
     /* Identify the two closest surrounding knots (if any) */
     for (size_t i = 0; i < o->colorkeys.count; i++) {
         /* The '=' are here to make sure we honor the knot if we are exactly on it */
-        ngli_bstr_printf(str, I "if (pos%zu <= t && pos%zu > t_prv) { t_prv = pos%zu; v_prv = vec4(color%zu, opacity%zu); }\n", i, i, i, i, i);
-        ngli_bstr_printf(str, I "if (pos%zu >= t && pos%zu < t_nxt) { t_nxt = pos%zu; v_nxt = vec4(color%zu, opacity%zu); }\n", i, i, i, i, i);
+        npriv_bstr_printf(str, I "if (pos%zu <= t && pos%zu > t_prv) { t_prv = pos%zu; v_prv = vec4(color%zu, opacity%zu); }\n", i, i, i, i, i);
+        npriv_bstr_printf(str, I "if (pos%zu >= t && pos%zu < t_nxt) { t_nxt = pos%zu; v_nxt = vec4(color%zu, opacity%zu); }\n", i, i, i, i, i);
     }
 
     /* Final interpolation: simple hermite spline */
-    ngli_bstr_print(str, I "vec4 ret = mix(v_prv, v_nxt, smoothstep(t_prv, t_nxt, t));\n"
-                         I "return vec4(ngli_linear2srgb(ret.rgb), 1.0) * ret.a;\n"
-                         "}\n");
+    npriv_bstr_print(str, I "vec4 ret = mix(v_prv, v_nxt, smoothstep(t_prv, t_nxt, t));\n"
+                          I "return vec4(ngli_linear2srgb(ret.rgb), 1.0) * ret.a;\n"
+                          "}\n");
 
-    s->filter.code = ngli_bstr_strdup(str);
+    s->filter.code = npriv_bstr_strdup(str);
     if (!s->filter.code) {
         ret = NGL_ERROR_MEMORY;
         goto end;
@@ -381,7 +381,7 @@ static int filtercolormap_init(struct ngl_node *node)
     }
 
 end:
-    ngli_bstr_freep(&str);
+    npriv_bstr_freep(&str);
 
     return ret;
 }
@@ -483,13 +483,13 @@ static int filtersrgb2linear_init(struct ngl_node *node)
 static void filter_uninit(struct ngl_node *node)
 {
     struct filter *s = node->priv_data;
-    ngli_darray_reset(&s->resources);
+    npriv_darray_reset(&s->resources);
 }
 
 static void filtercolormap_uninit(struct ngl_node *node)
 {
     struct filter *s = node->priv_data;
-    ngli_freep((char **)&s->code);
+    npriv_freep((char **)&s->code);
     filter_uninit(node);
 }
 

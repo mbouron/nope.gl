@@ -23,10 +23,10 @@
 #include <string.h>
 
 #include "config.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/string.h"
 #include "log.h"
 #include "ngl_config.h"
-#include "utils/memory.h"
-#include "utils/string.h"
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
 #include "nopegl/nopegl_opengl.h"
@@ -53,7 +53,7 @@ int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src)
     struct ngl_config tmp = *src;
 
     if (src->hud_export_filename) {
-        tmp.hud_export_filename = ngli_strdup(src->hud_export_filename);
+        tmp.hud_export_filename = npriv_strdup(src->hud_export_filename);
         if (!tmp.hud_export_filename)
             return NGL_ERROR_MEMORY;
     }
@@ -66,15 +66,15 @@ int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src)
             size = sizeof(struct ngl_config_gl);
 #endif
         if (!size) {
-            ngli_freep((char **)&tmp.hud_export_filename);
+            npriv_freep((char **)&tmp.hud_export_filename);
             LOG(ERROR, "backend_config %p is not supported by backend %u",
                 src->backend_config, src->backend);
             return NGL_ERROR_UNSUPPORTED;
         }
 
-        tmp.backend_config = ngli_try_memdup(src->backend_config, size);
+        tmp.backend_config = npriv_try_memdup(src->backend_config, size);
         if (!tmp.backend_config) {
-            ngli_freep((char **)&tmp.hud_export_filename);
+            npriv_freep((char **)&tmp.hud_export_filename);
             return NGL_ERROR_MEMORY;
         }
     }
@@ -86,7 +86,7 @@ int ngli_config_copy(struct ngl_config *dst, const struct ngl_config *src)
 
 void ngli_config_reset(struct ngl_config *config)
 {
-    ngli_freep(&config->backend_config);
-    ngli_freep((char **)&config->hud_export_filename);
+    npriv_freep(&config->backend_config);
+    npriv_freep((char **)&config->hud_export_filename);
     memset(config, 0, sizeof(*config));
 }

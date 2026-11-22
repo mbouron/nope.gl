@@ -35,7 +35,7 @@
 
 #include "log.h"
 #include "file.h"
-#include "utils.h"
+#include "libnopeutil/utils.h"
 
 int ngli_get_filesize(const char *filename, int64_t *size)
 {

@@ -25,9 +25,9 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
-#include "utils/utils.h"
 
 struct scissor_opts {
     struct ngl_node *child;
@@ -38,10 +38,10 @@ static int scissor_update_rect(struct ngl_node *node)
 {
     struct scissor_opts *o = node->opts;
 
-    o->rect.v[0] = NGLI_CLAMP(o->rect.v[0], 0.f, 1.f);
-    o->rect.v[1] = NGLI_CLAMP(o->rect.v[1], 0.f, 1.f);
-    o->rect.v[2] = NGLI_CLAMP(o->rect.v[2], 0.f, 1.f);
-    o->rect.v[3] = NGLI_CLAMP(o->rect.v[3], 0.f, 1.f);
+    o->rect.v[0] = NPRIV_CLAMP(o->rect.v[0], 0.f, 1.f);
+    o->rect.v[1] = NPRIV_CLAMP(o->rect.v[1], 0.f, 1.f);
+    o->rect.v[2] = NPRIV_CLAMP(o->rect.v[2], 0.f, 1.f);
+    o->rect.v[3] = NPRIV_CLAMP(o->rect.v[3], 0.f, 1.f);
 
     return 0;
 }
@@ -81,15 +81,15 @@ static void scissor_draw(struct ngl_node *node)
 
     const uint32_t width = ngpu_rendertarget_get_width(ctx->current_rendertarget);
     const uint32_t height = ngpu_rendertarget_get_height(ctx->current_rendertarget);
-    const uint32_t x = NGLI_MIN((uint32_t)lroundf(o->rect.v[0] * (float)width), width);
-    const uint32_t y = NGLI_MIN((uint32_t)lroundf(o->rect.v[1] * (float)height), height);
+    const uint32_t x = NPRIV_MIN((uint32_t)lroundf(o->rect.v[0] * (float)width), width);
+    const uint32_t y = NPRIV_MIN((uint32_t)lroundf(o->rect.v[1] * (float)height), height);
 
     const struct ngpu_scissor prev_scissor = ctx->scissor;
     ctx->scissor = (struct ngpu_scissor){
         .x      = x,
         .y      = y,
-        .width  = NGLI_MIN((uint32_t)lroundf(o->rect.v[2] * (float)width), width - x),
-        .height = NGLI_MIN((uint32_t)lroundf(o->rect.v[3] * (float)height), height - y),
+        .width  = NPRIV_MIN((uint32_t)lroundf(o->rect.v[2] * (float)width), width - x),
+        .height = NPRIV_MIN((uint32_t)lroundf(o->rect.v[3] * (float)height), height - y),
     };
 
     ngli_node_draw(o->child);

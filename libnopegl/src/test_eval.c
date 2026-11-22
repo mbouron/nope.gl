@@ -24,8 +24,8 @@
 #include <stdlib.h>
 
 #include "eval.h"
-#include "utils/hmap.h"
-#include "utils/utils.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/utils.h"
 
 struct test_expr {
     int is_valid;
@@ -168,18 +168,18 @@ end:
 int main(int ac, char **av)
 {
 
-    struct hmap *vars = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    struct hmap *vars = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!vars)
         return 1;
 
     int ret;
-    if ((ret = ngli_hmap_try_set_str(vars, "x", (void *)&vars_data[0])) < 0 ||
-        (ret = ngli_hmap_try_set_str(vars, "y", (void *)&vars_data[1])) < 0 ||
-        (ret = ngli_hmap_try_set_str(vars, "z", (void *)&vars_data[2])) < 0)
+    if ((ret = npriv_hmap_try_set_str(vars, "x", (void *)&vars_data[0])) < 0 ||
+        (ret = npriv_hmap_try_set_str(vars, "y", (void *)&vars_data[1])) < 0 ||
+        (ret = npriv_hmap_try_set_str(vars, "z", (void *)&vars_data[2])) < 0)
         goto end;
 
     size_t failed = 0;
-    static const size_t nb_expr = NGLI_ARRAY_NB(expressions);
+    static const size_t nb_expr = NPRIV_ARRAY_NB(expressions);
     for (size_t i = 0; i < nb_expr; i++)
         failed += test_expr(vars, &expressions[i]) < 0;
 
@@ -191,6 +191,6 @@ int main(int ac, char **av)
     }
 
 end:
-    ngli_hmap_freep(&vars);
+    npriv_hmap_freep(&vars);
     return ret;
 }

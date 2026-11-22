@@ -26,7 +26,7 @@
 
 #include <nopegpu/nopegpu.h>
 
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 
 struct filterschain;
 
@@ -46,7 +46,7 @@ struct ngli_filter_resource {
     size_t count;
 };
 
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_filter_resource_darray, struct ngli_filter_resource);
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_filter_resource_darray, struct ngli_filter_resource);
 
 struct filter {
     const char *name;

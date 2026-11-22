@@ -94,7 +94,7 @@ struct colorstats_priv {
     } sumscale;
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct colorstats_priv, blk) == 0, "block_priv is first");
+NPRIV_STATIC_ASSERT(offsetof(struct colorstats_priv, blk) == 0, "block_priv is first");
 
 static int setup_compute(struct ngl_ctx *ctx, struct colorstats_priv *s, struct ngpu_pgcraft *crafter,
                          struct ngli_pipeline *pipeline,
@@ -153,7 +153,7 @@ static int setup_waveform_compute(struct ngl_ctx *ctx, struct colorstats_priv *s
     const struct ngpu_pgcraft_params crafter_params = {
         .comp_base      = colorstats_waveform_comp,
         .textures       = textures,
-        .nb_textures    = NGLI_ARRAY_NB(textures),
+        .nb_textures    = NPRIV_ARRAY_NB(textures),
         .blocks         = blocks,
         .nb_blocks      = nb_blocks,
         .workgroup_size = {s->group_size, 1, 1},
@@ -226,7 +226,7 @@ static int init_computes(struct ngl_node *node)
     ngpu_block_desc_init(gpu_ctx, &params_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_add_field(&params_block_desc, "depth", NGPU_TYPE_I32, 0);
     ngpu_block_desc_add_field(&params_block_desc, "length_minus1", NGPU_TYPE_I32, 0);
-    ngli_assert(ngpu_block_desc_get_size(&params_block_desc, 0) == sizeof(struct stats_params_block));
+    npriv_assert(ngpu_block_desc_get_size(&params_block_desc, 0) == sizeof(struct stats_params_block));
 
     const struct ngpu_pgcraft_block blocks[] = {
         {
@@ -243,7 +243,7 @@ static int init_computes(struct ngl_node *node)
             .block    = &s->blk.block,
         },
     };
-    size_t nb_blocks = NGLI_ARRAY_NB(blocks);
+    size_t nb_blocks = NPRIV_ARRAY_NB(blocks);
 
     int ret;
     if ((ret = setup_init_compute(ctx, s, blocks, nb_blocks)) < 0 ||
@@ -273,7 +273,7 @@ static int init_block(struct colorstats_priv *s, struct ngpu_ctx *gpu_ctx)
         {"summary",       NGPU_TYPE_UVEC4, 1 << MAX_BIT_DEPTH},
         {"data",          NGPU_TYPE_UVEC4, NGPU_BLOCK_DESC_VARIADIC_COUNT},
     };
-    int ret = ngpu_block_desc_add_fields(block, block_fields, NGLI_ARRAY_NB(block_fields));
+    int ret = ngpu_block_desc_add_fields(block, block_fields, NPRIV_ARRAY_NB(block_fields));
     if (ret < 0)
         return ret;
 
@@ -321,7 +321,7 @@ static int alloc_block_buffer(struct ngl_node *node, uint32_t length)
      * TODO: add a vertical mode using the image height instead
      */
     s->length_minus1 = length - 1;
-    ngli_assert(s->length_minus1 <= INT32_MAX - 1);
+    npriv_assert(s->length_minus1 <= INT32_MAX - 1);
 
     /*
      * Given the following possible configurations:
@@ -332,11 +332,11 @@ static int alloc_block_buffer(struct ngl_node *node, uint32_t length)
      * remainder of data).
      */
     const uint32_t nb_workgroups = s->depth / s->group_size;
-    ngli_assert(nb_workgroups <= 128); // should be 1, 2, 4 or 8, so always safe
+    npriv_assert(nb_workgroups <= 128); // should be 1, 2, 4 or 8, so always safe
     s->init.wg_count = nb_workgroups;
     s->sumscale.wg_count = nb_workgroups;
-    ngli_assert(s->group_size <= s->depth);
-    ngli_assert(s->depth % s->group_size == 0);
+    npriv_assert(s->group_size <= s->depth);
+    npriv_assert(s->depth % s->group_size == 0);
 
     /* Each workgroup of the waveform compute works on 1 column of pixels */
     s->waveform.wg_count = length;

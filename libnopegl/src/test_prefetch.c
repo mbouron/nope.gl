@@ -22,7 +22,7 @@
 #include <math.h>
 
 #include "internal.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 
 struct prefetch_probe {
     double time;
@@ -55,12 +55,12 @@ struct range {
 static struct ngl_node *create_filter(uint32_t type, struct ngl_node *child, struct range range)
 {
     struct ngl_node *node = ngl_node_create(type);
-    ngli_assert(node);
-    ngli_assert(ngl_node_param_set_node(node, "child", child) == 0);
-    ngli_assert(ngl_node_param_set_f64(node, "start", range.start) == 0);
-    ngli_assert(ngl_node_param_set_f64(node, "end", range.end) == 0);
-    ngli_assert(ngl_node_param_set_f64(node, "render_time", range.render_time) == 0);
-    ngli_assert(ngl_node_param_set_f64(node, "prefetch_time", 10.0) == 0);
+    npriv_assert(node);
+    npriv_assert(ngl_node_param_set_node(node, "child", child) == 0);
+    npriv_assert(ngl_node_param_set_f64(node, "start", range.start) == 0);
+    npriv_assert(ngl_node_param_set_f64(node, "end", range.end) == 0);
+    npriv_assert(ngl_node_param_set_f64(node, "render_time", range.render_time) == 0);
+    npriv_assert(ngl_node_param_set_f64(node, "prefetch_time", 10.0) == 0);
     return node;
 }
 
@@ -81,29 +81,29 @@ static struct prefetch_probe visit(uint32_t type, double t, double loop_start, d
     struct ngl_node *a = create_filter(type, &leaf, first);
     struct ngl_node *b = second ? create_filter(type, nested ? a : &leaf, *second) : NULL;
     struct ngl_node *branches[] = {nested ? b : a, b};
-    ngli_assert(ngl_node_param_add_nodes(root, "children", second && !nested ? 2 : 1, branches) == 0);
+    npriv_assert(ngl_node_param_add_nodes(root, "children", second && !nested ? 2 : 1, branches) == 0);
     struct ngl_scene *scene = ngl_scene_create();
-    ngli_assert(scene);
+    npriv_assert(scene);
     const struct ngl_scene_params params = ngl_scene_default_params(root);
-    ngli_assert(ngl_scene_init(scene, &params) == 0);
-    ngli_assert(ngli_node_set_ctx(root, &ctx) == 0);
+    npriv_assert(ngl_scene_init(scene, &params) == 0);
+    npriv_assert(ngli_node_set_ctx(root, &ctx) == 0);
 
-    ngli_assert(ngli_node_honor_release_prefetch(root, t) == 0);
+    npriv_assert(ngli_node_honor_release_prefetch(root, t) == 0);
     const struct prefetch_probe ret = probe;
     /* Advancing scene time must not call prefetch again while resources are ready. */
-    ngli_assert(ngli_node_honor_release_prefetch(root, t + 0.01) == 0);
-    ngli_assert(probe.count == ret.count);
+    npriv_assert(ngli_node_honor_release_prefetch(root, t + 0.01) == 0);
+    npriv_assert(probe.count == ret.count);
 
     ngli_ctx_release_resources(&ctx);
-    ngli_darray_reset(&ctx.resource_nodes);
-    ngli_darray_reset(&ctx.activitycheck_nodes);
+    npriv_darray_reset(&ctx.resource_nodes);
+    npriv_darray_reset(&ctx.activitycheck_nodes);
     ngl_scene_unrefp(&scene);
     ngl_node_unrefp(&root);
     ngl_node_unrefp(&a);
     ngl_node_unrefp(&b);
-    ngli_assert(leaf.refcount == 1);
-    ngli_darray_reset(&leaf.children);
-    ngli_darray_reset(&leaf.parents);
+    npriv_assert(leaf.refcount == 1);
+    npriv_darray_reset(&leaf.children);
+    npriv_darray_reset(&leaf.parents);
     return ret;
 }
 
@@ -112,23 +112,23 @@ static void test_prefetch(uint32_t type, double t, double loop_start, double loo
                           double expected)
 {
     const struct prefetch_probe probe = visit(type, t, loop_start, loop_end, first, second, nested);
-    ngli_assert(expected < 0.0 || probe.count == 1);
-    ngli_assert(fabs(probe.time - expected) < 1e-9);
+    npriv_assert(expected < 0.0 || probe.count == 1);
+    npriv_assert(fabs(probe.time - expected) < 1e-9);
 }
 
 static void test_update_range(uint32_t type, struct range first, const struct range *second, bool nested,
                               double start, double end)
 {
     const struct prefetch_probe probe = visit(type, 0.0, 0, 0, first, second, nested);
-    ngli_assert(probe.count == 1);
-    ngli_assert(probe.update.start == start);
-    ngli_assert(probe.update.end == end);
+    npriv_assert(probe.count == 1);
+    npriv_assert(probe.update.start == start);
+    npriv_assert(probe.update.end == end);
 }
 
 int main(void)
 {
     const uint32_t types[] = {NGL_NODE_TIMERANGEFILTER, NGL_NODE_TIMERANGEFILTER2D};
-    for (size_t i = 0; i < NGLI_ARRAY_NB(types); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(types); i++) {
         const uint32_t type = types[i];
         /* Already visible: prepare for the current scene time, 2.5s. */
         test_prefetch(type, 2.5, 0, 0, (struct range){0, -1, -1}, NULL, false, 2.5);

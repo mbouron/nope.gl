@@ -30,11 +30,11 @@
 #include "box.h"
 #include "distmap.h"
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline.h"
-#include "utils/utils.h"
 
 /* GLSL fragments as string */
 #include "path_frag.h"
@@ -171,7 +171,7 @@ static int drawpath_init(struct ngl_node *node)
      * to the desired resolution.
      */
     const float res = (float)o->pt_size * (float)o->dpi / 72.f;
-    const struct ngli_box vb = {NGLI_ARG_VEC4(o->viewbox)};
+    const struct ngli_box vb = {NPRIV_ARG_VEC4(o->viewbox)};
     const struct ngli_mat4 path_transform = {.m = {
         res/vb.w, 0.f, 0.f, 0.f,
         0.f, res/vb.h, 0.f, 0.f,
@@ -204,7 +204,7 @@ static int drawpath_init(struct ngl_node *node)
     ngli_distmap_get_shape_scale(s->distmap, shape_id, scale);
 
     /* Geometry scale up */
-    const struct ngli_box box = {NGLI_ARG_VEC4(o->box)};
+    const struct ngli_box box = {NPRIV_ARG_VEC4(o->box)};
     const float nw = box.w * scale[0];
     const float nh = box.h * scale[1];
     const float bx = box.x + (box.w - nw) / 2.f;
@@ -253,8 +253,8 @@ static int drawpath_prepare(struct ngl_node *node,
 
     const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
     const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
-    ngli_assert(vert_size == sizeof(struct drawpath_vert_block));
-    ngli_assert(frag_size == sizeof(struct drawpath_frag_block));
+    npriv_assert(vert_size == sizeof(struct drawpath_vert_block));
+    npriv_assert(frag_size == sizeof(struct drawpath_frag_block));
 
     const struct ngpu_pgcraft_block blocks[] = {
         {
@@ -282,11 +282,11 @@ static int drawpath_prepare(struct ngl_node *node,
         .vert_base        = path_vert,
         .frag_base        = path_frag,
         .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .nb_textures      = NPRIV_ARRAY_NB(textures),
         .blocks           = blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(blocks),
+        .nb_blocks        = NPRIV_ARRAY_NB(blocks),
         .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
@@ -340,8 +340,8 @@ static void drawpath_draw(struct ngl_node *node)
     const struct drawpath_opts *o = node->opts;
     struct pipeline_desc *desc = &s->pipeline_desc;
 
-    const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix  = npriv_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = npriv_darray_tail(&ctx->projection_matrix_stack);
 
     /* Fill and push vertex block to staging buffer */
     struct drawpath_vert_block vert_data;

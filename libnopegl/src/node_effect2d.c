@@ -42,12 +42,12 @@
 #include "node_block.h"
 #include "node_mask.h"
 #include "node_texture.h"
-#include "utils/bstr.h"
-#include "utils/darray.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
-#include "utils/string.h"
-#include "utils/utils.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/string.h"
+#include "libnopeutil/utils.h"
 
 /* GLSL fragments as string */
 #include "effect2d_composite_vert.h"
@@ -58,8 +58,8 @@ struct uniform_map {
     const void *data;
 };
 
-NGLI_DECLARE_DARRAY_WITH_NAME(effect2d_texture_darray, struct ngpu_pgcraft_texture);
-NGLI_DECLARE_DARRAY_WITH_NAME(effect2d_block_darray, struct ngpu_pgcraft_block);
+NPRIV_DECLARE_DARRAY_WITH_NAME(effect2d_texture_darray, struct ngpu_pgcraft_texture);
+NPRIV_DECLARE_DARRAY_WITH_NAME(effect2d_block_darray, struct ngpu_pgcraft_block);
 
 struct effect2d_vert_block {
     struct ngli_mat4 projection_matrix;
@@ -113,8 +113,8 @@ struct effect2d_program {
     struct shader2d shader;
     struct ngpu_block_desc user_block_desc;
     size_t user_block_size;
-    NGLI_DARRAY(int32_t) user_field_indices;
-    NGLI_DARRAY(struct ngl_node *) user_nodes;
+    NPRIV_DARRAY(int32_t) user_field_indices;
+    NPRIV_DARRAY(struct ngl_node *) user_nodes;
     struct effect2d_texture_darray crafter_textures;
     struct effect2d_block_darray crafter_blocks;
     int32_t vert_block_index;
@@ -144,7 +144,7 @@ struct effect2d_priv {
     struct ngpu_block_desc frag_block_desc;
     size_t frag_block_size;
 
-    NGLI_DARRAY(struct effect2d_program) programs;
+    NPRIV_DARRAY(struct effect2d_program) programs;
     size_t active_program_index;
     bool drawme;
 };
@@ -414,9 +414,9 @@ static int register_uniform(const char *name, struct ngl_node *res, struct effec
     const int field_idx = ngpu_block_desc_add_field(&program->user_block_desc, name, var->data_type, 0);
     if (field_idx < 0)
         return field_idx;
-    if (ngli_darray_try_push(&program->user_field_indices, field_idx) < 0)
+    if (npriv_darray_try_push(&program->user_field_indices, field_idx) < 0)
         return NGL_ERROR_MEMORY;
-    if (ngli_darray_try_push(&program->user_nodes, res) < 0)
+    if (npriv_darray_try_push(&program->user_nodes, res) < 0)
         return NGL_ERROR_MEMORY;
     return 0;
 }
@@ -432,7 +432,7 @@ static int register_texture(const char *name, struct ngl_node *res, struct effec
         .premult     = texture_info->premult,
     };
     snprintf(tex.name, sizeof(tex.name), "%s", name);
-    return ngli_darray_try_push(textures, tex) < 0 ? NGL_ERROR_MEMORY : 0;
+    return npriv_darray_try_push(textures, tex) < 0 ? NGL_ERROR_MEMORY : 0;
 }
 
 static int register_block(const char *name, struct ngl_node *res, struct ngpu_ctx *gpu_ctx, struct effect2d_block_darray *blocks)
@@ -460,7 +460,7 @@ static int register_block(const char *name, struct ngl_node *res, struct ngpu_ct
         .block  = block,
     };
     snprintf(crafter_block.name, sizeof(crafter_block.name), "%s", name);
-    return ngli_darray_try_push(blocks, crafter_block) < 0 ? NGL_ERROR_MEMORY : 0;
+    return npriv_darray_try_push(blocks, crafter_block) < 0 ? NGL_ERROR_MEMORY : 0;
 }
 
 static int register_resource(const char *name, struct ngl_node *res, struct ngpu_ctx *gpu_ctx,
@@ -478,7 +478,7 @@ static int register_resources(struct hmap *resources, struct ngpu_ctx *gpu_ctx,
 {
     if (resources) {
         const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(resources, entry))) {
+        while ((entry = npriv_hmap_next(resources, entry))) {
             int ret = register_resource(entry->key.str, entry->data, gpu_ctx, program);
             if (ret < 0)
                 return ret;
@@ -491,12 +491,12 @@ static void reset_program(struct effect2d_program *program)
 {
     ngli_pipeline_freep(&program->pipeline);
     ngpu_pgcraft_freep(&program->crafter);
-    ngli_freep(&program->frag_glsl);
+    npriv_freep(&program->frag_glsl);
     ngli_shader2d_reset(&program->shader);
-    ngli_darray_reset(&program->user_field_indices);
-    ngli_darray_reset(&program->user_nodes);
-    ngli_darray_reset(&program->crafter_textures);
-    ngli_darray_reset(&program->crafter_blocks);
+    npriv_darray_reset(&program->user_field_indices);
+    npriv_darray_reset(&program->user_nodes);
+    npriv_darray_reset(&program->crafter_textures);
+    npriv_darray_reset(&program->crafter_blocks);
     ngpu_block_desc_reset(&program->user_block_desc);
 }
 
@@ -518,10 +518,10 @@ static int add_program(struct ngl_node *node, const char *glsl,
     ngli_shader2d_init(&program.shader);
     ngpu_block_desc_init(gpu_ctx, &program.user_block_desc, NGPU_BLOCK_LAYOUT_STD140);
 
-    if (ngli_str_is_empty(glsl))
+    if (npriv_str_is_empty(glsl))
         glsl = passthrough_glsl;
 
-    struct bstr *bstr = ngli_bstr_create();
+    struct bstr *bstr = npriv_bstr_create();
     if (!bstr) {
         reset_program(&program);
         return NGL_ERROR_MEMORY;
@@ -530,7 +530,7 @@ static int add_program(struct ngl_node *node, const char *glsl,
     int ret = 0;
     if (resources) {
         const struct hmap_entry *entry = NULL;
-        while (ret >= 0 && (entry = ngli_hmap_next(resources, entry))) {
+        while (ret >= 0 && (entry = npriv_hmap_next(resources, entry))) {
             const struct ngl_node *res = entry->data;
             if (!node_is_texture(res))
                 continue;
@@ -542,7 +542,7 @@ static int add_program(struct ngl_node *node, const char *glsl,
     if (ret >= 0 && s->mask_image && !s->programs.count)
         ret = ngli_shader2d_add_texture(&program.shader, "ngl_mask");
     if (ret < 0) {
-        ngli_bstr_freep(&bstr);
+        npriv_bstr_freep(&bstr);
         reset_program(&program);
         return ret;
     }
@@ -550,11 +550,11 @@ static int add_program(struct ngl_node *node, const char *glsl,
     ngli_shader2d_write_texture_helpers(bstr, "ngl_texture");
     ret = ngli_shader2d_write_source(bstr, glsl, "ngli_effect", NULL, false, 3, source_label);
     if (ret < 0) {
-        ngli_bstr_freep(&bstr);
+        npriv_bstr_freep(&bstr);
         reset_program(&program);
         return ret;
     }
-    ngli_bstr_print(bstr, "void main() {\n"
+    npriv_bstr_print(bstr, "void main() {\n"
                          "    ngl_FragmentInput frag;\n"
                          "    frag.rect_uv = ngli_v_rect_uv;\n"
                          "    frag.rect_size = ngli_effect_size;\n"
@@ -566,14 +566,14 @@ static int add_program(struct ngl_node *node, const char *glsl,
                          "    frag._off = vec2(0.0);\n"
                          "    frag._content_lin = frag._lin;\n"
                          "    frag._content_off = vec2(0.0);\n");
-    ngli_bstr_print(bstr, "    vec4 color = ngli_effect(frag);\n");
+    npriv_bstr_print(bstr, "    vec4 color = ngli_effect(frag);\n");
     if (premult)
-        ngli_bstr_printf(bstr, "    color.rgb *= color.a;\n");
-    ngli_bstr_printf(bstr, "    ngl_out_color = color * opacity;\n");
-    ngli_bstr_printf(bstr, "}\n");
+        npriv_bstr_printf(bstr, "    color.rgb *= color.a;\n");
+    npriv_bstr_printf(bstr, "    ngl_out_color = color * opacity;\n");
+    npriv_bstr_printf(bstr, "}\n");
 
-    program.frag_glsl = ngli_bstr_strdup(bstr);
-    ngli_bstr_freep(&bstr);
+    program.frag_glsl = npriv_bstr_strdup(bstr);
+    npriv_bstr_freep(&bstr);
     if (!program.frag_glsl) {
         reset_program(&program);
         return NGL_ERROR_MEMORY;
@@ -588,7 +588,7 @@ static int add_program(struct ngl_node *node, const char *glsl,
     if (program.user_field_indices.count > 0)
         program.user_block_size = ngpu_block_desc_get_size(&program.user_block_desc, 0);
 
-    if (ngli_darray_try_push(&s->programs, program) < 0) {
+    if (npriv_darray_try_push(&s->programs, program) < 0) {
         reset_program(&program);
         return NGL_ERROR_MEMORY;
     }
@@ -619,11 +619,11 @@ static int effect2d_init(struct ngl_node *node)
         {.name = "rect",              .type = NGPU_TYPE_VEC4},
         {.name = "effect_rect",       .type = NGPU_TYPE_VEC4},
     };
-    ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NGLI_ARRAY_NB(vert_fields));
+    ret = ngpu_block_desc_add_fields(&s->vert_block_desc, vert_fields, NPRIV_ARRAY_NB(vert_fields));
     if (ret < 0)
         return ret;
     s->vert_block_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
-    ngli_assert(s->vert_block_size == sizeof(struct effect2d_vert_block));
+    npriv_assert(s->vert_block_size == sizeof(struct effect2d_vert_block));
 
     /* Build fragment uniform block descriptor */
     ngpu_block_desc_init(gpu_ctx, &s->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
@@ -631,11 +631,11 @@ static int effect2d_init(struct ngl_node *node)
         {.name = "opacity", .type = NGPU_TYPE_F32},
         {.name = "ngli_effect_size", .type = NGPU_TYPE_VEC2},
     };
-    ret = ngpu_block_desc_add_fields(&s->frag_block_desc, frag_fields, NGLI_ARRAY_NB(frag_fields));
+    ret = ngpu_block_desc_add_fields(&s->frag_block_desc, frag_fields, NPRIV_ARRAY_NB(frag_fields));
     if (ret < 0)
         return ret;
     s->frag_block_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
-    ngli_assert(s->frag_block_size == sizeof(struct effect2d_frag_block));
+    npriv_assert(s->frag_block_size == sizeof(struct effect2d_frag_block));
 
     /*
      * Program 0 is always the passthrough used for gaps and the master bypass;
@@ -647,10 +647,10 @@ static int effect2d_init(struct ngl_node *node)
                 LOG(ERROR, "mask and mask_children are mutually exclusive");
                 return NGL_ERROR_INVALID_USAGE;
             }
-            s->mask_resources = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+            s->mask_resources = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
             if (!s->mask_resources)
                 return NGL_ERROR_MEMORY;
-            ret = ngli_hmap_try_set_str(s->mask_resources, "ngl_mask", o->mask_node);
+            ret = npriv_hmap_try_set_str(s->mask_resources, "ngl_mask", o->mask_node);
             if (ret < 0)
                 return ret;
         } else {
@@ -695,7 +695,7 @@ static int build_crafter_blocks(const struct ngl_node *node, const struct effect
     struct effect2d_priv *s = node->priv_data;
 
     for (size_t i = 0; i < program->crafter_blocks.count; i++)
-        if (ngli_darray_try_push(blocks, program->crafter_blocks.data[i]) < 0)
+        if (npriv_darray_try_push(blocks, program->crafter_blocks.data[i]) < 0)
             return NGL_ERROR_MEMORY;
 
     const struct ngpu_pgcraft_block vert_crafter_block = {
@@ -705,7 +705,7 @@ static int build_crafter_blocks(const struct ngl_node *node, const struct effect
         .stage         = NGPU_PROGRAM_STAGE_VERT,
         .block         = &s->vert_block_desc,
     };
-    if (ngli_darray_try_push(blocks, vert_crafter_block) < 0)
+    if (npriv_darray_try_push(blocks, vert_crafter_block) < 0)
         return NGL_ERROR_MEMORY;
 
     const struct ngpu_pgcraft_block frag_crafter_block = {
@@ -715,7 +715,7 @@ static int build_crafter_blocks(const struct ngl_node *node, const struct effect
         .stage         = NGPU_PROGRAM_STAGE_FRAG,
         .block         = &s->frag_block_desc,
     };
-    if (ngli_darray_try_push(blocks, frag_crafter_block) < 0)
+    if (npriv_darray_try_push(blocks, frag_crafter_block) < 0)
         return NGL_ERROR_MEMORY;
 
     if (has_user_uniforms) {
@@ -726,7 +726,7 @@ static int build_crafter_blocks(const struct ngl_node *node, const struct effect
             .stage         = NGPU_PROGRAM_STAGE_FRAG,
             .block         = &program->user_block_desc,
         };
-        if (ngli_darray_try_push(blocks, user_crafter_block) < 0)
+        if (npriv_darray_try_push(blocks, user_crafter_block) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -747,7 +747,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     struct effect2d_block_darray blocks = {0};
     int ret = build_crafter_blocks(node, program, has_user_uniforms, &blocks);
     if (ret < 0) {
-        ngli_darray_reset(&blocks);
+        npriv_darray_reset(&blocks);
         return ret;
     }
 
@@ -758,9 +758,9 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         .stage = NGPU_PROGRAM_STAGE_FRAG,
     };
     struct effect2d_texture_darray textures = {0};
-    if (ngli_darray_try_push(&textures, src_tex) < 0) {
-        ngli_darray_reset(&blocks);
-        ngli_darray_reset(&textures);
+    if (npriv_darray_try_push(&textures, src_tex) < 0) {
+        npriv_darray_reset(&blocks);
+        npriv_darray_reset(&textures);
         return NGL_ERROR_MEMORY;
     }
     const bool has_mask_image = s->mask_image && program == &s->programs.data[0];
@@ -771,16 +771,16 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
             .type  = NGPU_PGCRAFT_TEXTURE_TYPE_2D,
             .stage = NGPU_PROGRAM_STAGE_FRAG,
         };
-        if (ngli_darray_try_push(&textures, mask_tex) < 0) {
-            ngli_darray_reset(&blocks);
-            ngli_darray_reset(&textures);
+        if (npriv_darray_try_push(&textures, mask_tex) < 0) {
+            npriv_darray_reset(&blocks);
+            npriv_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
     }
     for (size_t i = 0; i < program->crafter_textures.count; i++) {
-        if (ngli_darray_try_push(&textures, program->crafter_textures.data[i]) < 0) {
-            ngli_darray_reset(&blocks);
-            ngli_darray_reset(&textures);
+        if (npriv_darray_try_push(&textures, program->crafter_textures.data[i]) < 0) {
+            npriv_darray_reset(&blocks);
+            npriv_darray_reset(&textures);
             return NGL_ERROR_MEMORY;
         }
     }
@@ -792,25 +792,25 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
         {.name = "ngli_v_canvas_px", .type = NGPU_TYPE_VEC2},
     };
 
-    struct bstr *vert = ngli_bstr_create();
+    struct bstr *vert = npriv_bstr_create();
     if (!vert) {
-        ngli_darray_reset(&textures);
-        ngli_darray_reset(&blocks);
+        npriv_darray_reset(&textures);
+        npriv_darray_reset(&blocks);
         return NGL_ERROR_MEMORY;
     }
     ret = ngli_shader2d_write_vertex(&program->shader, vert, effect2d_composite_vert,
-                                     vert_out_vars, NGLI_ARRAY_NB(vert_out_vars), "ngli_v_rect_uv");
+                                     vert_out_vars, NPRIV_ARRAY_NB(vert_out_vars), "ngli_v_rect_uv");
     if (ret < 0) {
-        ngli_bstr_freep(&vert);
-        ngli_darray_reset(&textures);
-        ngli_darray_reset(&blocks);
+        npriv_bstr_freep(&vert);
+        npriv_darray_reset(&textures);
+        npriv_darray_reset(&blocks);
         return ret;
     }
 
 
     const struct ngpu_pgcraft_params crafter_params = {
         .program_label    = "nopegl/effect2d",
-        .vert_base        = ngli_bstr_strptr(vert),
+        .vert_base        = npriv_bstr_strptr(vert),
         .frag_base        = program->frag_glsl,
         .textures         = textures.data,
         .nb_textures      = textures.count,
@@ -822,16 +822,16 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
 
     program->crafter = ngpu_pgcraft_create(gpu_ctx);
     if (!program->crafter) {
-        ngli_bstr_freep(&vert);
-        ngli_darray_reset(&blocks);
-        ngli_darray_reset(&textures);
+        npriv_bstr_freep(&vert);
+        npriv_darray_reset(&blocks);
+        npriv_darray_reset(&textures);
         return NGL_ERROR_MEMORY;
     }
 
     ret = ngpu_pgcraft_craft(program->crafter, &crafter_params);
-    ngli_bstr_freep(&vert);
-    ngli_darray_reset(&blocks);
-    ngli_darray_reset(&textures);
+    npriv_bstr_freep(&vert);
+    npriv_darray_reset(&blocks);
+    npriv_darray_reset(&textures);
     if (ret < 0) {
         LOG(ERROR, "Effect2DShader %s: failed to compile GLSL source 3", program->source_label);
         return ret;
@@ -880,7 +880,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     }
     for (size_t i = 0; i < program->crafter_textures.count; i++) {
         const char *name = program->crafter_textures.data[i].name;
-        const struct ngl_node *res = program->resources ? ngli_hmap_get_str(program->resources, name) : NULL;
+        const struct ngl_node *res = program->resources ? npriv_hmap_get_str(program->resources, name) : NULL;
         if (!res) {
             LOG(ERROR, "no resource registered for texture '%s'", name);
             return NGL_ERROR_BUG;
@@ -894,7 +894,7 @@ static int prepare_program(struct ngl_node *node, struct effect2d_program *progr
     /* Register block sources */
     if (program->resources) {
         const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(program->resources, entry))) {
+        while ((entry = npriv_hmap_next(program->resources, entry))) {
             const struct ngl_node *res = entry->data;
             if (res->cls->category != NGLI_NODE_CATEGORY_BLOCK)
                 continue;
@@ -1028,7 +1028,7 @@ static void effect2d_pre_draw(struct ngl_node *node)
     const struct effect2d_program *active_program = &s->programs.data[enabled ? s->active_program_index : 0];
     if (active_program->resources) {
         const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(active_program->resources, entry)))
+        while ((entry = npriv_hmap_next(active_program->resources, entry)))
             ngli_node_pre_draw(entry->data);
     }
 
@@ -1056,16 +1056,16 @@ static void effect2d_pre_draw(struct ngl_node *node)
     }
     struct aabb children_bbox;
     if (bounds == EFFECT2D_BOUNDS_CANVAS) {
-        const float width = NGLI_MAX(ctx->canvas_2d_width, 0.f);
-        const float height = NGLI_MAX(ctx->canvas_2d_height, 0.f);
+        const float width = NPRIV_MAX(ctx->canvas_2d_width, 0.f);
+        const float height = NPRIV_MAX(ctx->canvas_2d_height, 0.f);
         children_bbox = (struct aabb) {
             .center = {width / 2.f, height / 2.f, 0.f, 1.f},
             .extent = {width / 2.f, height / 2.f},
         };
     } else if (bounds == EFFECT2D_BOUNDS_RECT) {
         const float *rect = ngli_node_get_data_ptr(o->rect_node, o->rect);
-        const float half_w = NGLI_MAX(rect[2], 0.f) / 2.f;
-        const float half_h = NGLI_MAX(rect[3], 0.f) / 2.f;
+        const float half_w = NPRIV_MAX(rect[2], 0.f) / 2.f;
+        const float half_h = NPRIV_MAX(rect[3], 0.f) / 2.f;
         const float center_x = rect[0] + half_w;
         const float center_y = rect[1] + half_h;
         if (!isfinite(rect[2]) || !isfinite(rect[3]) ||
@@ -1089,14 +1089,14 @@ static void effect2d_pre_draw(struct ngl_node *node)
     if (children_bbox.extent[0] < 0.f || children_bbox.extent[1] < 0.f)
         return;
 
-    NGLI_ALIGNED_VEC(bbox_min);
-    NGLI_ALIGNED_VEC(bbox_max);
+    NPRIV_ALIGNED_VEC(bbox_min);
+    NPRIV_ALIGNED_VEC(bbox_max);
     ngli_aabb_get_min_max(&children_bbox, bbox_min, bbox_max);
 
     /* Sanitize the dilation value */
     if (!isfinite(o->dilation))
         return;
-    const float d = NGLI_MAX(o->dilation, 0.f);
+    const float d = NPRIV_MAX(o->dilation, 0.f);
 
     s->local_effect_margin = children_effect_margin + d;
     float x0 = bbox_min[0] - d;
@@ -1122,8 +1122,8 @@ static void effect2d_pre_draw(struct ngl_node *node)
         struct aabb visible = ngli_aabb_apply_transform(&canvas_aabb, canvas_to_local.m);
         visible.extent[0] += s->local_effect_margin;
         visible.extent[1] += s->local_effect_margin;
-        NGLI_ALIGNED_VEC(visible_min);
-        NGLI_ALIGNED_VEC(visible_max);
+        NPRIV_ALIGNED_VEC(visible_min);
+        NPRIV_ALIGNED_VEC(visible_max);
         ngli_aabb_get_min_max(&visible, visible_min, visible_max);
         x0 = fmaxf(x0, visible_min[0]);
         y0 = fmaxf(y0, visible_min[1]);
@@ -1336,13 +1336,13 @@ static void effect2d_uninit(struct ngl_node *node)
 
     for (size_t i = 0; i < s->programs.count; i++)
         reset_program(&s->programs.data[i]);
-    ngli_darray_reset(&s->programs);
+    npriv_darray_reset(&s->programs);
     ngli_image_resource_unrefp(&s->input_image);
     ngli_image_resource_unrefp(&s->mask_image);
 
     ngpu_block_desc_reset(&s->vert_block_desc);
     ngpu_block_desc_reset(&s->frag_block_desc);
-    ngli_hmap_freep(&s->mask_resources);
+    npriv_hmap_freep(&s->mask_resources);
 }
 
 const struct node_class ngli_effect2d_class = {

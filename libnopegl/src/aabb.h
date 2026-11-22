@@ -25,7 +25,7 @@
 #include <float.h>
 #include <stdint.h>
 
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 #define NGLI_AABB_EMPTY (struct aabb){ \
     .center = {0.f, 0.f, 0.f, 1.f},  \
@@ -33,14 +33,14 @@
 }
 
 struct ray {
-    NGLI_ALIGNED_VEC(origin);
-    NGLI_ALIGNED_VEC(direction);
-    NGLI_ALIGNED_VEC(direction_inv);
+    NPRIV_ALIGNED_VEC(origin);
+    NPRIV_ALIGNED_VEC(direction);
+    NPRIV_ALIGNED_VEC(direction_inv);
 };
 
 struct aabb {
-    NGLI_ALIGNED_VEC(center);
-    NGLI_ALIGNED_VEC(extent);
+    NPRIV_ALIGNED_VEC(center);
+    NPRIV_ALIGNED_VEC(extent);
 };
 
 struct obb2d {

@@ -30,9 +30,9 @@
 #include "config.h"
 #include "hwmap.h"
 #include "internal.h"
+#include "libnopeutil/memory.h"
 #include "log.h"
 #include "nopegl/nopegl.h"
-#include "utils/memory.h"
 
 extern const struct hwmap_class ngli_hwmap_common_class;
 extern const struct hwmap_class *ngli_hwmap_gl_classes[];
@@ -159,7 +159,7 @@ static int is_image_layout_supported(const struct hwmap_class **classes, enum ng
         return 0;
     for (size_t i = 0; classes[i]; i++) {
         const enum ngli_image_layout *layouts = classes[i]->layouts;
-        ngli_assert(layouts);
+        npriv_assert(layouts);
         for (size_t j = 0; layouts[j] != NGLI_IMAGE_LAYOUT_NONE; j++)
             if (layouts[j] == image_layout)
                 return 1;
@@ -199,7 +199,7 @@ static void hwmap_reset(struct hwmap *hwmap)
         hwmap->hwmap_class->uninit(hwmap);
     }
     hwmap->hwmap_class = NULL;
-    ngli_freep(&hwmap->hwmap_priv_data);
+    npriv_freep(&hwmap->hwmap_priv_data);
     hwmap->pix_fmt = NMD_PIXFMT_NONE;
     hwmap->width = 0;
     hwmap->height = 0;
@@ -224,11 +224,11 @@ int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ng
         hwmap_reset(hwmap);
 
         const struct hwmap_class *hwmap_class = get_hwmap_class(hwmap, frame);
-        ngli_assert(hwmap_class);
-        ngli_assert(hwmap_class->priv_size);
+        npriv_assert(hwmap_class);
+        npriv_assert(hwmap_class->priv_size);
         hwmap->hwmap_class = hwmap_class;
 
-        hwmap->hwmap_priv_data = ngli_try_calloc(1, hwmap_class->priv_size);
+        hwmap->hwmap_priv_data = npriv_try_calloc(1, hwmap_class->priv_size);
         if (!hwmap->hwmap_priv_data) {
             nmd_frame_releasep(&frame);
             return NGL_ERROR_MEMORY;
@@ -253,7 +253,7 @@ int ngli_hwmap_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ng
     int ret = hwmap->hwmap_class->map_frame(hwmap, frame, &image);
     if (ret < 0)
         goto end;
-    ngli_assert(image);
+    npriv_assert(image);
 
     if (is_hdr(color_trc))
         hwmap->require_hwconv = true;

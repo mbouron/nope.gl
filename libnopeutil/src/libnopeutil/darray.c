@@ -26,17 +26,17 @@
 #include <string.h>
 
 #include "darray.h"
+#include "error.h"
 #include "memory.h"
-#include "nopegl/nopegl.h"
 
-#define NGLI_DARRAY_INITIAL_CAPACITY 8
+#define NPRIV_DARRAY_INITIAL_CAPACITY 8
 
 static bool needs_aligned(size_t alignment)
 {
     return alignment > _Alignof(max_align_t);
 }
 
-static int reserve(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
+static int reserve(npriv_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
 {
     if (new_capacity <= *capacity)
         return 0;
@@ -44,19 +44,19 @@ static int reserve(ngli_darray_data_alias *data, size_t *capacity, size_t elemen
     if (needs_aligned(alignment)) {
         size_t size;
         if (ckd_mul(&size, new_capacity, element_size))
-            return NGL_ERROR_MEMORY;
-        void *ptr = ngli_try_malloc_aligned(alignment, size);
+            return NPRIV_ERROR_MEMORY;
+        void *ptr = npriv_try_malloc_aligned(alignment, size);
         if (!ptr)
-            return NGL_ERROR_MEMORY;
+            return NPRIV_ERROR_MEMORY;
         if (*data) {
             memcpy(ptr, *data, *capacity * element_size);
-            ngli_free_aligned(*data);
+            npriv_free_aligned(*data);
         }
         *data = ptr;
     } else {
-        void *ptr = ngli_try_realloc(*data, new_capacity, element_size);
+        void *ptr = npriv_try_realloc(*data, new_capacity, element_size);
         if (!ptr)
-            return NGL_ERROR_MEMORY;
+            return NPRIV_ERROR_MEMORY;
         *data = ptr;
     }
 
@@ -64,33 +64,33 @@ static int reserve(ngli_darray_data_alias *data, size_t *capacity, size_t elemen
     return 0;
 }
 
-int ngli_darray_try_grow_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment)
+int npriv_darray_try_grow_(npriv_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment)
 {
-    const size_t new_capacity = *capacity ? *capacity * 2 : NGLI_DARRAY_INITIAL_CAPACITY;
+    const size_t new_capacity = *capacity ? *capacity * 2 : NPRIV_DARRAY_INITIAL_CAPACITY;
     return reserve(data, capacity, element_size, alignment, new_capacity);
 }
 
-int ngli_darray_try_reserve_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
+int npriv_darray_try_reserve_(npriv_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
 {
     return reserve(data, capacity, element_size, alignment, new_capacity);
 }
 
-void ngli_darray_grow_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment)
+void npriv_darray_grow_(npriv_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment)
 {
-    if (ngli_darray_try_grow_(data, capacity, element_size, alignment) < 0)
-        ngli_oom();
+    if (npriv_darray_try_grow_(data, capacity, element_size, alignment) < 0)
+        npriv_oom();
 }
 
-void ngli_darray_reserve_(ngli_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
+void npriv_darray_reserve_(npriv_darray_data_alias *data, size_t *capacity, size_t element_size, size_t alignment, size_t new_capacity)
 {
-    if (ngli_darray_try_reserve_(data, capacity, element_size, alignment, new_capacity) < 0)
-        ngli_oom();
+    if (npriv_darray_try_reserve_(data, capacity, element_size, alignment, new_capacity) < 0)
+        npriv_oom();
 }
 
-void ngli_darray_free_(void *ptr, size_t alignment)
+void npriv_darray_free_(void *ptr, size_t alignment)
 {
     if (needs_aligned(alignment))
-        ngli_free_aligned(ptr);
+        npriv_free_aligned(ptr);
     else
-        ngli_free(ptr);
+        npriv_free(ptr);
 }

@@ -26,12 +26,12 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/memory.h"
 #include "log.h"
 #include "node_block.h"
 #include "node_buffer.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "utils/memory.h"
 
 static const struct param_choices layout_choices = {
     .name = "memory_layout",
@@ -130,7 +130,7 @@ static const struct node_param block_params[] = {
     {NULL}
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct block_priv, blk) == 0, "block_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct block_priv, blk) == 0, "block_info is first");
 
 int ngli_node_block_extend_usage(struct ngl_node *node, uint32_t usage)
 {
@@ -151,7 +151,7 @@ int ngli_node_block_extend_usage_from_type(struct ngl_node *node, enum ngpu_type
     else if (type == NGPU_TYPE_STORAGE_BUFFER)
         usage = NGPU_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     else
-        ngli_assert(0);
+        npriv_assert(0);
     return ngli_node_block_extend_usage(node, usage);
 }
 
@@ -164,7 +164,7 @@ static enum ngpu_type get_node_data_type(const struct ngl_node *node)
         const struct buffer_info *buffer = node->priv_data;
         return buffer->layout.type;
     } else {
-        ngli_assert(0);
+        npriv_assert(0);
     }
 }
 
@@ -176,7 +176,7 @@ static size_t get_node_data_count(const struct ngl_node *node)
         const struct buffer_info *buffer = node->priv_data;
         return buffer->layout.count;
     } else {
-        ngli_assert(0);
+        npriv_assert(0);
     }
 }
 
@@ -242,13 +242,13 @@ static int cmp_str(const void *a, const void *b)
 
 static int check_dup_labels(const char *block_name, struct ngl_node * const *nodes, size_t nb_nodes)
 {
-    char **labels = ngli_try_calloc(nb_nodes, sizeof(*labels));
+    char **labels = npriv_try_calloc(nb_nodes, sizeof(*labels));
     if (!labels)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < nb_nodes; i++) {
         if (!nodes[i]->label) {
             LOG(ERROR, "block field labels cannot be NULL");
-            ngli_free(labels);
+            npriv_free(labels);
             return NGL_ERROR_INVALID_ARG;
         }
         labels[i] = nodes[i]->label;
@@ -258,11 +258,11 @@ static int check_dup_labels(const char *block_name, struct ngl_node * const *nod
     for (size_t i = 1; i < nb_nodes; i++) {
         if (!strcmp(labels[i - 1], labels[i])) {
             LOG(ERROR, "duplicated label %s in block %s", labels[i], block_name);
-            ngli_free(labels);
+            npriv_free(labels);
             return NGL_ERROR_INVALID_ARG;
         }
     }
-    ngli_free(labels);
+    npriv_free(labels);
     return 0;
 }
 
@@ -326,7 +326,7 @@ static int block_init(struct ngl_node *node)
 
     info->data_size = info->block.size;
     LOG(DEBUG, "total %s size: %zu", node->label, info->data_size);
-    info->data = ngli_try_calloc(1, info->data_size);
+    info->data = npriv_try_calloc(1, info->data_size);
     if (!info->data)
         return NGL_ERROR_MEMORY;
 
@@ -397,7 +397,7 @@ static void block_uninit(struct ngl_node *node)
 
     ngli_buffer_resource_unrefp(&info->resource);
     ngpu_block_desc_reset(&info->block);
-    ngli_free(info->data);
+    npriv_free(info->data);
 }
 
 const struct node_class ngli_block_class = {

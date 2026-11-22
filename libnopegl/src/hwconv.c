@@ -32,9 +32,9 @@
 #include "hwconv.h"
 #include "image.h"
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "pipeline.h"
-#include "utils/utils.h"
 
 /* GLSL fragments as string */
 #include "hdr_hlg2sdr_frag.h"
@@ -217,11 +217,11 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
                 {.name = "dst_black", .type = NGPU_TYPE_F32},
                 {.name = "dst_peak",  .type = NGPU_TYPE_F32},
             };
-            ret = ngpu_block_desc_add_fields(&hwconv->block_desc, fields, NGLI_ARRAY_NB(fields));
+            ret = ngpu_block_desc_add_fields(&hwconv->block_desc, fields, NPRIV_ARRAY_NB(fields));
             if (ret < 0)
                 return ret;
         }
-        ngli_assert(ngpu_block_desc_get_size(&hwconv->block_desc, 0) == get_hdr_params_size(hwconv));
+        npriv_assert(ngpu_block_desc_get_size(&hwconv->block_desc, 0) == get_hdr_params_size(hwconv));
         block_name = "hdr_params";
     }
 
@@ -238,11 +238,11 @@ int ngli_hwconv_init(struct hwconv *hwconv, struct ngl_ctx *ctx,
         .vert_base        = vert_base,
         .frag_base        = frag_base,
         .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .nb_textures      = NPRIV_ARRAY_NB(textures),
         .blocks           = &block,
         .nb_blocks        = block_name ? 1 : 0,
         .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     hwconv->crafter = ngpu_pgcraft_create(gpu_ctx);
@@ -299,7 +299,7 @@ int ngli_hwconv_convert_image(struct hwconv *hwconv, const struct ngli_image *im
 
     struct ngl_ctx *ctx = hwconv->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
-    ngli_assert(hwconv->src_params.layout == ngli_image_get_params(image)->layout);
+    npriv_assert(hwconv->src_params.layout == ngli_image_get_params(image)->layout);
 
     struct ngpu_rendertarget *rt = hwconv->rt;
     struct ngli_pipeline *pipeline = hwconv->pipeline;

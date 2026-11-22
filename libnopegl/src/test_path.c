@@ -23,8 +23,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "libnopeutil/utils.h"
 #include "path.h"
-#include "utils/utils.h"
 
 #define NB_REFS (16 + 2)
 #define MAX_ERR 1e-5
@@ -34,7 +34,7 @@ static int check_value(struct path *path, float t, const float *ref)
     float value[3];
     ngli_path_evaluate(path, value, t);
     if (!ref) {
-        fprintf(stderr, "got:("NGLI_FMT_VEC3")\n", NGLI_ARG_VEC3(value));
+        fprintf(stderr, "got:("NPRIV_FMT_VEC3")\n", NPRIV_ARG_VEC3(value));
         return 1;
     }
     const float err[3] = {
@@ -44,8 +44,8 @@ static int check_value(struct path *path, float t, const float *ref)
     };
     int ret = err[0] > MAX_ERR || err[1] > MAX_ERR || err[2] > MAX_ERR ||
               isnan(err[0]) || isnan(err[1]) || isnan(err[2]);
-    fprintf(stderr, "%c t:%9f ref:("NGLI_FMT_VEC3") got:("NGLI_FMT_VEC3") err:("NGLI_FMT_VEC3")\n",
-            ret ? '!' : ' ', t, NGLI_ARG_VEC3(ref), NGLI_ARG_VEC3(value), NGLI_ARG_VEC3(err));
+    fprintf(stderr, "%c t:%9f ref:("NPRIV_FMT_VEC3") got:("NPRIV_FMT_VEC3") err:("NPRIV_FMT_VEC3")\n",
+            ret ? '!' : ' ', t, NPRIV_ARG_VEC3(ref), NPRIV_ARG_VEC3(value), NPRIV_ARG_VEC3(err));
     return ret;
 }
 
@@ -335,7 +335,7 @@ static int test_svg_parsing(void)
     };
 
     int ret = 0;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(tests); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(tests); i++) {
         struct path *path = ngli_path_create();
         if (!path)
             return -1;

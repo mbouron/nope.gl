@@ -28,12 +28,12 @@
 
 #include "box.h"
 #include "internal.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "params.h"
 #include "pipeline.h"
 #include "text.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 /* GLSL fragments as string */
 #include "text_bg_frag.h"
@@ -234,7 +234,7 @@ static int update_character_buffer(struct ngl_node *node)
     const size_t nb_chars = text->chars.count;
     if (!nb_chars) {
         ngli_buffer_resource_set(s->characters, NULL);
-        ngli_freep(&s->uploaded_chars);
+        npriv_freep(&s->uploaded_chars);
         s->nb_chars = 0;
         return 0;
     }
@@ -245,7 +245,7 @@ static int update_character_buffer(struct ngl_node *node)
         return 0;
 
     if (!buffer || ngpu_buffer_get_size(buffer) < size) {
-        struct text_char_data *uploaded_chars = ngli_try_realloc(s->uploaded_chars, nb_chars, sizeof(*uploaded_chars));
+        struct text_char_data *uploaded_chars = npriv_try_realloc(s->uploaded_chars, nb_chars, sizeof(*uploaded_chars));
         if (!uploaded_chars)
             return NGL_ERROR_MEMORY;
         s->uploaded_chars = uploaded_chars;
@@ -280,7 +280,7 @@ static int init_bounding_box_geometry(struct ngl_node *node)
     struct text_priv *s = node->priv_data;
     const struct text_opts *o = node->opts;
 
-    const struct ngli_box box = {NGLI_ARG_VEC4(o->box)};
+    const struct ngli_box box = {NPRIV_ARG_VEC4(o->box)};
     const float vertices[] = {
         box.x,         box.y,
         box.x + box.w, box.y,
@@ -331,11 +331,11 @@ static int text_init(struct ngl_node *node)
         .valign = o->valign,
         .halign = o->halign,
         .writing_mode = o->writing_mode,
-        .box = {NGLI_ARG_VEC4(o->box)},
+        .box = {NPRIV_ARG_VEC4(o->box)},
         .effect_nodes = o->effect_nodes.data,
         .nb_effect_nodes = o->effect_nodes.count,
         .defaults = {
-            .color = {NGLI_ARG_VEC3(o->fg_color)},
+            .color = {NPRIV_ARG_VEC3(o->fg_color)},
             .opacity = o->fg_opacity,
         }
     };
@@ -410,13 +410,13 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
     ngpu_block_desc_init(gpu_ctx, &desc->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_add_field(&desc->vert_block_desc, "modelview_matrix", NGPU_TYPE_MAT4, 0);
     ngpu_block_desc_add_field(&desc->vert_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
-    ngli_assert(ngpu_block_desc_get_size(&desc->vert_block_desc, 0) == sizeof(struct text_bg_vert_block));
+    npriv_assert(ngpu_block_desc_get_size(&desc->vert_block_desc, 0) == sizeof(struct text_bg_vert_block));
 
     /* Initialize fragment block descriptor */
     ngpu_block_desc_init(gpu_ctx, &desc->frag_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_add_field(&desc->frag_block_desc, "color", NGPU_TYPE_VEC3, 0);
     ngpu_block_desc_add_field(&desc->frag_block_desc, "opacity", NGPU_TYPE_F32, 0);
-    ngli_assert(ngpu_block_desc_get_size(&desc->frag_block_desc, 0) == sizeof(struct text_bg_frag_block));
+    npriv_assert(ngpu_block_desc_get_size(&desc->frag_block_desc, 0) == sizeof(struct text_bg_frag_block));
 
     const struct ngpu_pgcraft_block blocks[] = {
         {
@@ -462,9 +462,9 @@ static int bg_prepare(struct ngl_node *node, struct pipeline_desc_bg *desc,
         .vert_base                = text_bg_vert,
         .frag_base                = text_bg_frag,
         .blocks                   = blocks,
-        .nb_blocks                = NGLI_ARRAY_NB(blocks),
+        .nb_blocks                = NPRIV_ARRAY_NB(blocks),
         .vertex_buffer_layouts    = vertex_buffer_layouts,
-        .nb_vertex_buffer_layouts = NGLI_ARRAY_NB(vertex_buffer_layouts),
+        .nb_vertex_buffer_layouts = NPRIV_ARRAY_NB(vertex_buffer_layouts),
     };
 
     int ret = init_subdesc(node, &desc->common, &state, rendertarget_layout, &crafter_params);
@@ -492,7 +492,7 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
     ngpu_block_desc_init(gpu_ctx, &desc->vert_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_add_field(&desc->vert_block_desc, "modelview_matrix", NGPU_TYPE_MAT4, 0);
     ngpu_block_desc_add_field(&desc->vert_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
-    ngli_assert(ngpu_block_desc_get_size(&desc->vert_block_desc, 0) == sizeof(struct text_fg_vert_block));
+    npriv_assert(ngpu_block_desc_get_size(&desc->vert_block_desc, 0) == sizeof(struct text_fg_vert_block));
 
     const struct ngpu_pgcraft_block blocks[] = {
         {
@@ -622,13 +622,13 @@ static int fg_prepare(struct ngl_node *node, struct pipeline_desc_fg *desc,
         .vert_base                = text_slug_vert,
         .frag_base                = text_slug_frag,
         .blocks                   = blocks,
-        .nb_blocks                = NGLI_ARRAY_NB(blocks),
+        .nb_blocks                = NPRIV_ARRAY_NB(blocks),
         .textures                 = textures,
-        .nb_textures              = NGLI_ARRAY_NB(textures),
+        .nb_textures              = NPRIV_ARRAY_NB(textures),
         .vertex_buffer_layouts    = vertex_buffer_layouts,
-        .nb_vertex_buffer_layouts = NGLI_ARRAY_NB(vertex_buffer_layouts),
+        .nb_vertex_buffer_layouts = NPRIV_ARRAY_NB(vertex_buffer_layouts),
         .vert_out_vars            = vert_out_vars,
-        .nb_vert_out_vars         = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars         = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     int ret = init_subdesc(node, &desc->common, &state, rendertarget_layout, &crafter_params);
@@ -681,7 +681,7 @@ static int text_update(struct ngl_node *node, double t)
 
     if (s->live_changed) {
         const struct text_effects_defaults defaults = {
-            .color = {NGLI_ARG_VEC3(o->fg_color)},
+            .color = {NPRIV_ARG_VEC3(o->fg_color)},
             .opacity = o->fg_opacity,
         };
         ngli_text_update_effects_defaults(s->text_ctx, &defaults);
@@ -712,8 +712,8 @@ static void text_draw(struct ngl_node *node)
     struct text_priv *s = node->priv_data;
     const struct text_opts *o = node->opts;
 
-    const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix  = npriv_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = npriv_darray_tail(&ctx->projection_matrix_stack);
 
     struct pipeline_desc *desc = &s->pipeline_desc;
 
@@ -803,7 +803,7 @@ static void text_uninit(struct ngl_node *node)
 {
     struct text_priv *s = node->priv_data;
     ngli_buffer_resource_releasep(&s->characters);
-    ngli_freep(&s->uploaded_chars);
+    npriv_freep(&s->uploaded_chars);
     ngli_buffer_resource_releasep(&s->bg_vertices);
     ngli_text_freep(&s->text_ctx);
 }

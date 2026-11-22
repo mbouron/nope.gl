@@ -36,9 +36,9 @@
 #include "node_block.h"
 #include "node_buffer.h"
 #include "nopegl/nopegl.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 #include "utils/file.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 struct buffer_opts {
     uint32_t count;
@@ -54,7 +54,7 @@ struct buffer_priv {
     FILE *fp;
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct buffer_priv, buf) == 0, "buffer_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct buffer_priv, buf) == 0, "buffer_info is first");
 
 #define OFFSET(x) offsetof(struct buffer_opts, x)
 static const struct node_param buffer_params[] = {
@@ -141,7 +141,7 @@ static int buffer_init_from_filename(struct ngl_node *node)
         return NGL_ERROR_INVALID_DATA;
     }
 
-    s->buf.data = ngli_try_calloc(layout->count, layout->stride);
+    s->buf.data = npriv_try_calloc(layout->count, layout->stride);
     if (!s->buf.data)
         return NGL_ERROR_MEMORY;
 
@@ -172,7 +172,7 @@ static int buffer_init_from_count(struct ngl_node *node)
 
     layout->count = layout->count ? layout->count : 1;
     s->buf.data_size = layout->count * layout->stride;
-    s->buf.data = ngli_try_calloc(layout->count, layout->stride);
+    s->buf.data = npriv_try_calloc(layout->count, layout->stride);
     if (!s->buf.data)
         return NGL_ERROR_MEMORY;
 
@@ -336,7 +336,7 @@ static void buffer_uninit(struct ngl_node *node)
     ngli_buffer_resource_unrefp(&s->buf.resource);
 
     if (!o->data && !o->block)
-        ngli_freep(&s->buf.data);
+        npriv_freep(&s->buf.data);
 
     if (o->filename) {
         s->buf.data_size = 0;

@@ -23,10 +23,10 @@
 #include <nopegpu/nopegpu.h>
 
 #include "geometry.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "nopegl/nopegl.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 #define OWN_VERTICES (1 << 0)
 #define OWN_UVCOORDS (1 << 1)
@@ -35,7 +35,7 @@
 
 struct geometry *ngli_geometry_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct geometry *s = ngli_try_calloc(1, sizeof(*s));
+    struct geometry *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->gpu_ctx = gpu_ctx;
@@ -87,7 +87,7 @@ static int gen_vec3(struct geometry *s,
 
 int ngli_geometry_set_vertices(struct geometry *s, size_t n, const float *vertices)
 {
-    ngli_assert(!(s->buffer_ownership & OWN_VERTICES));
+    npriv_assert(!(s->buffer_ownership & OWN_VERTICES));
     ngli_buffer_resource_unrefp(&s->vertices);
     s->vertices = ngli_buffer_resource_create();
     if (!s->vertices)
@@ -98,7 +98,7 @@ int ngli_geometry_set_vertices(struct geometry *s, size_t n, const float *vertic
 
 int ngli_geometry_set_normals(struct geometry *s, size_t n, const float *normals)
 {
-    ngli_assert(!(s->buffer_ownership & OWN_NORMALS));
+    npriv_assert(!(s->buffer_ownership & OWN_NORMALS));
     ngli_buffer_resource_unrefp(&s->normals);
     s->normals = ngli_buffer_resource_create();
     if (!s->normals)
@@ -125,7 +125,7 @@ static int gen_vec2(struct geometry *s,
 
 int ngli_geometry_set_uvcoords(struct geometry *s, size_t n, const float *uvcoords)
 {
-    ngli_assert(!(s->buffer_ownership & OWN_UVCOORDS));
+    npriv_assert(!(s->buffer_ownership & OWN_UVCOORDS));
     ngli_buffer_resource_unrefp(&s->uvcoords);
     s->uvcoords = ngli_buffer_resource_create();
     if (!s->uvcoords)
@@ -136,7 +136,7 @@ int ngli_geometry_set_uvcoords(struct geometry *s, size_t n, const float *uvcoor
 
 int ngli_geometry_set_indices(struct geometry *s, size_t count, const uint16_t *indices)
 {
-    ngli_assert(!(s->buffer_ownership & OWN_INDICES));
+    npriv_assert(!(s->buffer_ownership & OWN_INDICES));
     ngli_buffer_resource_unrefp(&s->indices);
     s->indices = ngli_buffer_resource_create();
     if (!s->indices)
@@ -152,13 +152,13 @@ int ngli_geometry_set_indices(struct geometry *s, size_t count, const uint16_t *
         .offset = 0,
     };
     for (size_t i = 0; i < count; i++)
-        s->max_indices = NGLI_MAX(s->max_indices, indices[i]);
+        s->max_indices = NPRIV_MAX(s->max_indices, indices[i]);
     return gen_buffer(s, s->indices, &s->indices_layout, indices, NGPU_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
 void ngli_geometry_set_vertices_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout)
 {
-    ngli_assert(!(s->buffer_ownership & OWN_VERTICES));
+    npriv_assert(!(s->buffer_ownership & OWN_VERTICES));
     struct buffer_resource *ref = ngli_buffer_resource_ref(resource);
     ngli_buffer_resource_unrefp(&s->vertices);
     s->vertices = ref;
@@ -167,7 +167,7 @@ void ngli_geometry_set_vertices_buffer(struct geometry *s, const struct buffer_r
 
 void ngli_geometry_set_uvcoords_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout)
 {
-    ngli_assert(!(s->buffer_ownership & OWN_UVCOORDS));
+    npriv_assert(!(s->buffer_ownership & OWN_UVCOORDS));
     struct buffer_resource *ref = ngli_buffer_resource_ref(resource);
     ngli_buffer_resource_unrefp(&s->uvcoords);
     s->uvcoords = ref;
@@ -176,7 +176,7 @@ void ngli_geometry_set_uvcoords_buffer(struct geometry *s, const struct buffer_r
 
 void ngli_geometry_set_normals_buffer(struct geometry *s, const struct buffer_resource *resource, struct buffer_layout layout)
 {
-    ngli_assert(!(s->buffer_ownership & OWN_NORMALS));
+    npriv_assert(!(s->buffer_ownership & OWN_NORMALS));
     struct buffer_resource *ref = ngli_buffer_resource_ref(resource);
     ngli_buffer_resource_unrefp(&s->normals);
     s->normals = ref;
@@ -186,7 +186,7 @@ void ngli_geometry_set_normals_buffer(struct geometry *s, const struct buffer_re
 void ngli_geometry_set_indices_buffer(struct geometry *s, const struct buffer_resource *resource,
                                       struct buffer_layout layout, int64_t max_indices)
 {
-    ngli_assert(!(s->buffer_ownership & OWN_INDICES));
+    npriv_assert(!(s->buffer_ownership & OWN_INDICES));
     struct buffer_resource *ref = ngli_buffer_resource_ref(resource);
     ngli_buffer_resource_unrefp(&s->indices);
     s->indices = ref;
@@ -226,11 +226,11 @@ void ngli_geometry_freep(struct geometry **sp)
         {OWN_NORMALS,  &s->normals},
         {OWN_INDICES,  &s->indices},
     };
-    for (size_t i = 0; i < NGLI_ARRAY_NB(buffers); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(buffers); i++) {
         if (s->buffer_ownership & buffers[i].ownership)
             ngli_buffer_resource_releasep(buffers[i].resource);
         else
             ngli_buffer_resource_unrefp(buffers[i].resource);
     }
-    ngli_freep(sp);
+    npriv_freep(sp);
 }

@@ -26,13 +26,13 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_texture.h"
 #include "node_textureview.h"
 #include "nopegl/nopegl.h"
 #include "renderpass.h"
 #include "rtt.h"
-#include "utils/utils.h"
 
 struct rtt_opts {
     struct ngl_node *child;
@@ -234,7 +234,7 @@ static int rtt_prefetch(struct ngl_node *node)
                 .attachment       = texture,
                 .attachment_layer = j,
                 .load_op          = NGPU_LOAD_OP_CLEAR,
-                .clear_value      = {NGLI_ARG_VEC4(o->clear_color)},
+                .clear_value      = {NPRIV_ARG_VEC4(o->clear_color)},
                 .store_op         = NGPU_STORE_OP_STORE,
             };
         }
@@ -414,7 +414,7 @@ static int rtt_resize(struct ngl_node *node)
     return 0;
 
 fail:
-    for (size_t i = 0; i < NGLI_ARRAY_NB(images); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(images); i++)
         ngli_image_unrefp(&images[i]);
     ngli_image_unrefp(&depth_image);
     for (size_t i = 0; i < o->color_textures.count; i++)
@@ -439,8 +439,8 @@ static void rtt_pre_draw(struct ngl_node *node)
     }
 
     if (!o->forward_transforms) {
-        if (ngli_darray_try_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) < 0 ||
-            ngli_darray_try_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix) < 0)
+        if (npriv_darray_try_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) < 0 ||
+            npriv_darray_try_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix) < 0)
             return;
     }
 
@@ -451,8 +451,8 @@ static void rtt_pre_draw(struct ngl_node *node)
     ngli_rtt_end(s->rtt_ctx);
 
     if (!o->forward_transforms) {
-        ngli_darray_pop(&ctx->modelview_matrix_stack);
-        ngli_darray_pop(&ctx->projection_matrix_stack);
+        npriv_darray_pop(&ctx->modelview_matrix_stack);
+        npriv_darray_pop(&ctx->projection_matrix_stack);
     }
 }
 

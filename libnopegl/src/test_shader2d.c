@@ -24,8 +24,8 @@
 #include <string.h>
 
 #include "image.h"
+#include "libnopeutil/bstr.h"
 #include "shader2d.h"
-#include "utils/bstr.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -43,10 +43,10 @@ static int test_assembly(void)
     name[0] = 'x'; /* The assembler owns a copy of the name. */
     CHECK(ngli_shader2d_add_texture(&shader, "source") == 0);
     CHECK(shader.textures.count == 1);
-    struct bstr *out = ngli_bstr_create();
+    struct bstr *out = npriv_bstr_create();
     CHECK(out);
     ngli_shader2d_write_header(&shader, out);
-    const char *header = ngli_bstr_strptr(out);
+    const char *header = npriv_bstr_strptr(out);
     CHECK(strstr(header, "vec2 source_coord(const ngl_FragmentInput frag) { return ngli_v_source_coord; }"));
     CHECK(strstr(header, "(source_coord_matrix * vec4(uv, 0.0, 1.0)).xy"));
     CHECK(strstr(header, "{ return ngl_texvideo(source, source_coord(frag)); }"));
@@ -57,22 +57,22 @@ static int test_assembly(void)
     const struct ngpu_pgcraft_iovar vars[] = {
         {.name = "rect_uv", .type = NGPU_TYPE_VEC2},
     };
-    ngli_bstr_clear(out);
-    ngli_bstr_print(out, "// caller prefix\n");
+    npriv_bstr_clear(out);
+    npriv_bstr_print(out, "// caller prefix\n");
     CHECK(ngli_shader2d_write_vertex(&shader, out, "void ngli_vertex() {}\n", vars, 1, "rect_uv") == 0);
-    CHECK(!strncmp(ngli_bstr_strptr(out), "// caller prefix\n", strlen("// caller prefix\n")));
+    CHECK(!strncmp(npriv_bstr_strptr(out), "// caller prefix\n", strlen("// caller prefix\n")));
     CHECK(shader.varyings.count == 2);
     CHECK(!strcmp(shader.varyings.data[0].name, "rect_uv"));
     CHECK(!strcmp(shader.varyings.data[1].name, "ngli_v_source_coord"));
-    CHECK(strstr(ngli_bstr_strptr(out), "ngli_v_source_coord = (source_coord_matrix * vec4(rect_uv, 0.0, 1.0)).xy"));
+    CHECK(strstr(npriv_bstr_strptr(out), "ngli_v_source_coord = (source_coord_matrix * vec4(rect_uv, 0.0, 1.0)).xy"));
     /* The declarations are rebuilt, not appended */
-    ngli_bstr_clear(out);
+    npriv_bstr_clear(out);
     CHECK(ngli_shader2d_write_vertex(&shader, out, "void ngli_vertex() {}\n", vars, 1, "rect_uv") == 0);
     CHECK(shader.varyings.count == 2);
     ngli_shader2d_reset(&shader);
     CHECK(!shader.textures.count && !shader.varyings.count);
-    CHECK(strstr(ngli_bstr_strptr(out), "ngli_v_source_coord"));
-    ngli_bstr_freep(&out);
+    CHECK(strstr(npriv_bstr_strptr(out), "ngli_v_source_coord"));
+    npriv_bstr_freep(&out);
     CHECK(ngli_shader2d_add_texture(&shader, "source") == 0);
     CHECK(shader.textures.count == 1);
     ngli_shader2d_reset(&shader);
@@ -82,7 +82,7 @@ static int test_assembly(void)
 int main(void)
 {
     CHECK(test_assembly() == 0);
-    struct bstr *out = ngli_bstr_create();
+    struct bstr *out = npriv_bstr_create();
     CHECK(out);
 
     /* Directives are preserved verbatim; GLSL validation belongs to the compiler. */
@@ -100,9 +100,9 @@ int main(void)
         "#version 450\n", "#extension GL_EXT_test : enable\n",
     };
     for (size_t i = 0; i < sizeof(directives) / sizeof(*directives); i++) {
-        ngli_bstr_clear(out);
+        npriv_bstr_clear(out);
         CHECK(ngli_shader2d_write_builtin(out, directives[i], "ngli_entry", "ngli_test_") == 0);
-        CHECK(!strcmp(ngli_bstr_strptr(out), directives[i]));
+        CHECK(!strcmp(npriv_bstr_strptr(out), directives[i]));
     }
 
     const char *source =
@@ -113,24 +113,24 @@ int main(void)
         "#pragma main\n#if 0\n#error main\n#endif\n"
         "vec4 main(const ngl_FragmentInput pos);\n"
         "vec4 main(const ngl_FragmentInput pos) { return SAMPLE(pos); }\n";
-    ngli_bstr_clear(out);
+    npriv_bstr_clear(out);
     CHECK(ngli_shader2d_write_builtin(out, source, "ngli_entry", "ngli_test_") == 0);
-    const char *result = ngli_bstr_strptr(out);
+    const char *result = npriv_bstr_strptr(out);
     CHECK(strstr(result, "// main ngl_sample_comment\r\n/* main ngl_tex_uv_comment */\n"));
     CHECK(strstr(result, "#define domain main_color // main\n"));
     CHECK(strstr(result, "vec4 ngli_entry(const ngl_FragmentInput pos);\n"));
     CHECK(strstr(result, "vec4 ngli_entry(const ngl_FragmentInput pos) { return SAMPLE(pos); }\n"));
 
-    ngli_bstr_clear(out);
+    npriv_bstr_clear(out);
     CHECK(ngli_shader2d_write_source(out, "vec4 main(const ngl_FragmentInput c) { return vec4(1.0); }",
                                      "ngli_fill", NULL, false, 37, "test\n#error must not enter GLSL") == 0);
-    CHECK(strstr(ngli_bstr_strptr(out), "vec4 ngli_fill(const ngl_FragmentInput frag);\n"));
-    CHECK(strstr(ngli_bstr_strptr(out), "#line 1 37\nvec4 ngli_fill("));
-    CHECK(strstr(ngli_bstr_strptr(out), "#line 1 0\n"));
-    CHECK(!strstr(ngli_bstr_strptr(out), "#error"));
+    CHECK(strstr(npriv_bstr_strptr(out), "vec4 ngli_fill(const ngl_FragmentInput frag);\n"));
+    CHECK(strstr(npriv_bstr_strptr(out), "#line 1 37\nvec4 ngli_fill("));
+    CHECK(strstr(npriv_bstr_strptr(out), "#line 1 0\n"));
+    CHECK(!strstr(npriv_bstr_strptr(out), "#error"));
 
     /* The paint texture identifiers, macros included, are the role's texture */
-    ngli_bstr_clear(out);
+    npriv_bstr_clear(out);
     CHECK(ngli_shader2d_write_source(out,
                                      "#define SIZE ngl_texture_dimensions\n"
                                      "vec4 main(const ngl_FragmentInput frag) {\n"
@@ -138,23 +138,23 @@ int main(void)
                                      "    return ngl_texvideo(ngl_texture, uv) * ngl_textures * my_ngl_texture / SIZE.x;\n"
                                      "}\n",
                                      "ngli_stroke", "ngli_stroke_tex", false, 2, "test") == 0);
-    result = ngli_bstr_strptr(out);
+    result = npriv_bstr_strptr(out);
     CHECK(strstr(result, "#define SIZE ngli_stroke_tex_dimensions\n"));
     CHECK(strstr(result, "(ngli_stroke_tex_coord_matrix * vec4(ngli_stroke_tex_uv(frag), 0.0, 1.0)).xy"));
     CHECK(strstr(result, "ngl_texvideo(ngli_stroke_tex, uv) * ngl_textures * my_ngl_texture"));
 
     /* The built-in texture helpers are named after its sampler */
-    ngli_bstr_clear(out);
+    npriv_bstr_clear(out);
     ngli_shader2d_write_texture_helpers(out, "ngl_texture");
-    result = ngli_bstr_strptr(out);
+    result = npriv_bstr_strptr(out);
     CHECK(strstr(result, "vec2 ngl_texture_coord(const ngl_FragmentInput frag) { return frag._coord; }"));
     CHECK(strstr(result, "(ngl_texture_coord_matrix * vec4(uv, 0.0, 1.0)).xy"));
     CHECK(strstr(result, "vec2 ngl_texture_uv(const ngl_FragmentInput frag) { return frag._uv; }"));
     CHECK(strstr(result, "{ return ngl_texvideo(ngl_texture, ngl_texture_coord(frag, uv)); }"));
 
-    ngli_bstr_clear(out);
+    npriv_bstr_clear(out);
     CHECK(ngli_shader2d_write_builtin(out, "vec4 main() { return $color; }", "ngli_fill", "ngli_fill_") == 0);
-    CHECK(!strcmp(ngli_bstr_strptr(out), "vec4 ngli_fill() { return ngli_fill_color; }"));
+    CHECK(!strcmp(npriv_bstr_strptr(out), "vec4 ngli_fill() { return ngli_fill_color; }"));
 
     const char * const keys[] = {"rect_uv", "rect_px", "content_uv", "tex_coord", "canvas_px"};
     for (size_t i = 0; i < sizeof(keys) / sizeof(*keys); i++) {
@@ -174,6 +174,6 @@ int main(void)
     ngli_image_get_coordinates_scale_offset(image, storage, storage + 2);
     CHECK(storage[0] == 0.f && storage[1] == -0.75f && storage[2] == 0.25f && storage[3] == 0.875f);
     ngli_image_unrefp(&image);
-    ngli_bstr_freep(&out);
+    npriv_bstr_freep(&out);
     return 0;
 }

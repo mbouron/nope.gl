@@ -126,7 +126,7 @@ static const struct node_param rotate_params[] = {
     {NULL}
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct rotate_priv, trf) == 0, "trf on top of rotate");
+NPRIV_STATIC_ASSERT(offsetof(struct rotate_priv, trf) == 0, "trf on top of rotate");
 
 const struct node_class ngli_rotate_class = {
     .id        = NGL_NODE_ROTATE,

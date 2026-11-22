@@ -27,13 +27,13 @@
 #include <string.h>
 
 #include "internal.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "math_utils.h"
 #include "node_animkeyframe.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
-#include "utils/bstr.h"
-#include "utils/utils.h"
 
 #define CONSTS_4_IN_OUT(name, caps_name, formula, args, argsval)                                                                                                \
         {name "_in",     EASING_##caps_name##_IN,                                                                                                               \
@@ -625,40 +625,40 @@ static char *animkeyframe_info_str(const struct ngl_node *node)
 {
     const struct animkeyframe_opts *o = node->opts;
     const struct node_param *params = node->cls->params;
-    struct bstr *b = ngli_bstr_create();
+    struct bstr *b = npriv_bstr_create();
 
     if (!b)
         return NULL;
 
     const char *easing_name = ngli_params_get_select_str(easing_choices.consts, o->easing);
-    ngli_bstr_printf(b, "%s @ t=%g ", easing_name, o->time);
+    npriv_bstr_printf(b, "%s @ t=%g ", easing_name, o->time);
     if (o->args.count) {
         const struct node_param *easing_args_par = ngli_params_find(params, "easing_args");
-        ngli_assert(easing_args_par);
-        ngli_bstr_print(b, "(args: ");
+        npriv_assert(easing_args_par);
+        npriv_bstr_print(b, "(args: ");
         ngli_params_bstr_print_val(b, node->opts, easing_args_par);
-        ngli_bstr_print(b, ") ");
+        npriv_bstr_print(b, ") ");
     }
 
     if (o->offsets[0] != 0.0 || o->offsets[1] != 1.0) { // can not use scale_boundaries yet (not initialized)
-        ngli_bstr_printf(b, "on (%g,%g) ", o->offsets[0], o->offsets[1]);
+        npriv_bstr_printf(b, "on (%g,%g) ", o->offsets[0], o->offsets[1]);
     }
 
     if (node->cls->id == NGL_NODE_ANIMKEYFRAMEBUFFER) {
-        ngli_bstr_printf(b, "with data size of %zuB", o->data_size);
+        npriv_bstr_printf(b, "with data size of %zuB", o->data_size);
     } else if (node->cls->id == NGL_NODE_ANIMKEYFRAMEQUAT) {
-        ngli_bstr_printf(b, "with quat=(%g,%g,%g,%g)", NGLI_ARG_VEC4(o->value));
+        npriv_bstr_printf(b, "with quat=(%g,%g,%g,%g)", NPRIV_ARG_VEC4(o->value));
     } else if (node->cls->id == NGL_NODE_ANIMKEYFRAMECOLOR) {
-        ngli_bstr_printf(b, "with color=(%g,%g,%g)", NGLI_ARG_VEC3(o->value));
+        npriv_bstr_printf(b, "with color=(%g,%g,%g)", NPRIV_ARG_VEC3(o->value));
     } else {
-        ngli_bstr_print(b, "with v=");
+        npriv_bstr_print(b, "with v=");
         const struct node_param *val_par = ngli_params_find(params, "value");
-        ngli_assert(val_par);
+        npriv_assert(val_par);
         ngli_params_bstr_print_val(b, node->opts, val_par);
     }
 
-    char *ret = ngli_bstr_strdup(b);
-    ngli_bstr_freep(&b);
+    char *ret = npriv_bstr_strdup(b);
+    npriv_bstr_freep(&b);
     return ret;
 }
 

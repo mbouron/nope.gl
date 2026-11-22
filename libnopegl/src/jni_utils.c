@@ -24,14 +24,14 @@
 #include <stdint.h>
 
 #include "jni_utils.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/pthread_compat.h"
+#include "libnopeutil/string.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "nopegl/nopegl.h"
 #include "nopegl/nopegl_android.h"
-#include "utils/bstr.h"
-#include "utils/memory.h"
-#include "utils/pthread_compat.h"
-#include "utils/string.h"
-#include "utils/utils.h"
 
 static JavaVM *java_vm;
 static pthread_key_t current_env;
@@ -112,7 +112,7 @@ char *ngli_jni_jstring_to_utf_chars(JNIEnv *env, jstring string)
         return NULL;
     }
 
-    ret = ngli_strdup(utf_chars);
+    ret = npriv_strdup(utf_chars);
 
     (*env)->ReleaseStringUTFChars(env, string, utf_chars);
     if ((*env)->ExceptionCheck(env)) {
@@ -155,7 +155,7 @@ int ngli_jni_exception_get_summary(JNIEnv *env, jthrowable exception, char **err
 
     jstring string = NULL;
 
-    bstr = ngli_bstr_create();
+    bstr = npriv_bstr_create();
 
     exception_class = (*env)->GetObjectClass(env, exception);
     if ((*env)->ExceptionCheck(env)) {
@@ -218,22 +218,22 @@ int ngli_jni_exception_get_summary(JNIEnv *env, jthrowable exception, char **err
     }
 
     if (name && message) {
-        ngli_bstr_printf(bstr, "%s: %s", name, message);
+        npriv_bstr_printf(bstr, "%s: %s", name, message);
     } else if (name && !message) {
-        ngli_bstr_printf(bstr, "%s occurred", name);
+        npriv_bstr_printf(bstr, "%s occurred", name);
     } else if (!name && message) {
-        ngli_bstr_printf(bstr, "Exception: %s", message);
+        npriv_bstr_printf(bstr, "Exception: %s", message);
     } else {
         LOG(WARNING, "could not retrieve exception name and message");
-        ngli_bstr_print(bstr, "Exception occurred");
+        npriv_bstr_print(bstr, "Exception occurred");
     }
 
-    *error = ngli_bstr_strdup(bstr);
-    ngli_bstr_freep(&bstr);
+    *error = npriv_bstr_strdup(bstr);
+    npriv_bstr_freep(&bstr);
 done:
 
-    ngli_free(name);
-    ngli_free(message);
+    npriv_free(name);
+    npriv_free(message);
 
     (*env)->DeleteLocalRef(env, class_class);
     (*env)->DeleteLocalRef(env, exception_class);
@@ -270,7 +270,7 @@ int ngli_jni_exception_check(JNIEnv *env, int log)
     (*env)->DeleteLocalRef(env, exception);
 
     LOG(ERROR, "%s", message);
-    ngli_free(message);
+    npriv_free(message);
 
     return NGL_ERROR_EXTERNAL;
 }

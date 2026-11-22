@@ -23,18 +23,18 @@
 #include <string.h>
 
 #include "internal.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/string.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_graph.h"
 #include "params.h"
-#include "utils/darray.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
-#include "utils/string.h"
-#include "utils/utils.h"
 
-NGLI_RC_CHECK_STRUCT(ngl_scene);
+NPRIV_RC_CHECK_STRUCT(ngl_scene);
 
-static int check_node_unowned(void *user_arg, struct ngl_node *parent ngli_unused,
+static int check_node_unowned(void *user_arg, struct ngl_node *parent npriv_unused,
                               struct ngl_node *node)
 {
     const uint64_t traversal_id = *(const uint64_t *)user_arg;
@@ -74,13 +74,13 @@ static int reset_nodes(void *user_arg, struct ngl_node *parent, struct ngl_node 
     if (node->scene != s)
         return 0;
 
-    ngli_assert(!node->ctx);
+    npriv_assert(!node->ctx);
 
     int ret = ngli_node_graph_foreach_child(reset_nodes, s, node);
-    ngli_assert(ret == 0);
+    npriv_assert(ret == 0);
 
-    ngli_darray_reset(&node->children);
-    ngli_darray_reset(&node->parents);
+    npriv_darray_reset(&node->children);
+    npriv_darray_reset(&node->parents);
 
     node->scene = NULL;
     return 0;
@@ -91,13 +91,13 @@ static void detach_root(struct ngl_scene *s)
     if (!s->params.root)
         return;
 
-    ngli_darray_reset(&s->nodes);
+    npriv_darray_reset(&s->nodes);
 
-    ngli_darray_reset(&s->files);
-    ngli_darray_reset(&s->files_par);
+    npriv_darray_reset(&s->files);
+    npriv_darray_reset(&s->files_par);
 
     int ret = reset_nodes(s, NULL, s->params.root);
-    ngli_assert(ret == 0);
+    npriv_assert(ret == 0);
 
     ngl_node_unrefp(&s->params.root);
 }
@@ -105,7 +105,7 @@ static void detach_root(struct ngl_scene *s)
 static void add_scene_node(struct ngl_scene *s, struct ngl_node *node)
 {
     node->scene_index = s->nodes.count;
-    ngli_darray_push(&s->nodes, node);
+    npriv_darray_push(&s->nodes, node);
     node->scene = s;
 
     const struct node_param *par = node->cls->params;
@@ -115,18 +115,18 @@ static void add_scene_node(struct ngl_scene *s, struct ngl_node *node)
         uint8_t *parp = (uint8_t *)node->opts + par->offset;
         if (!(par->flags & NGLI_PARAM_FLAG_FILEPATH) || !*(char **)parp)
             continue;
-        ngli_darray_push(&s->files, *(char **)parp);
-        ngli_darray_push(&s->files_par, parp);
+        npriv_darray_push(&s->files, *(char **)parp);
+        npriv_darray_push(&s->files_par, parp);
     }
 }
 
 static void remove_scene_node(struct ngl_scene *s, struct ngl_node *node)
 {
     const size_t index = node->scene_index;
-    ngli_assert(index < s->nodes.count && s->nodes.data[index] == node);
+    npriv_assert(index < s->nodes.count && s->nodes.data[index] == node);
 
     /* Swap with the last node for an unordered O(1) removal. */
-    s->nodes.data[index] = *ngli_darray_pop(&s->nodes);
+    s->nodes.data[index] = *npriv_darray_pop(&s->nodes);
     s->nodes.data[index]->scene_index = index;
 
     const struct node_param *par = node->cls->params;
@@ -138,8 +138,8 @@ static void remove_scene_node(struct ngl_scene *s, struct ngl_node *node)
             for (size_t i = 0; i < s->files_par.count; i++) {
                 if (s->files_par.data[i] != parp)
                     continue;
-                ngli_darray_remove(&s->files, i);
-                ngli_darray_remove(&s->files_par, i);
+                npriv_darray_remove(&s->files, i);
+                npriv_darray_remove(&s->files_par, i);
                 break;
             }
         }
@@ -149,22 +149,22 @@ static void remove_scene_node(struct ngl_scene *s, struct ngl_node *node)
 
 static void add_runtime_edge(struct ngl_node *parent, struct ngl_node *child, size_t index)
 {
-    ngli_assert(index <= parent->children.count);
+    npriv_assert(index <= parent->children.count);
 
-    ngli_darray_insert(&parent->children, index, child);
-    ngli_darray_push(&child->parents, parent);
+    npriv_darray_insert(&parent->children, index, child);
+    npriv_darray_push(&child->parents, parent);
 }
 
 static struct ngl_node *remove_runtime_edge_at(struct ngl_node *parent, size_t index)
 {
-    ngli_assert(index < parent->children.count);
+    npriv_assert(index < parent->children.count);
     struct ngl_node *child = parent->children.data[index];
 
-    ngli_darray_remove(&parent->children, index);
+    npriv_darray_remove(&parent->children, index);
 
     const size_t parent_index = ngli_node_darray_find(&child->parents, parent);
-    ngli_assert(parent_index != SIZE_MAX);
-    ngli_darray_remove(&child->parents, parent_index);
+    npriv_assert(parent_index != SIZE_MAX);
+    npriv_darray_remove(&child->parents, parent_index);
 
     return child;
 }
@@ -172,7 +172,7 @@ static struct ngl_node *remove_runtime_edge_at(struct ngl_node *parent, size_t i
 static void remove_runtime_edge(struct ngl_node *parent, struct ngl_node *child)
 {
     const size_t index = ngli_node_darray_find(&parent->children, child);
-    ngli_assert(index != SIZE_MAX);
+    npriv_assert(index != SIZE_MAX);
     remove_runtime_edge_at(parent, index);
 }
 
@@ -181,7 +181,7 @@ static int add_scene_edge(void *user_arg, struct ngl_node *parent, struct ngl_no
 
 static void remove_scene_children(struct ngl_node *parent)
 {
-    while (!ngli_darray_is_empty(&parent->children))
+    while (!npriv_darray_is_empty(&parent->children))
         remove_scene_edge_at(parent, parent->children.count - 1);
 }
 
@@ -244,22 +244,22 @@ static void remove_scene_edge(struct ngl_node *parent, struct ngli_node_graph_ra
 static void remove_scene_edge_at(struct ngl_node *parent, size_t index)
 {
     struct ngl_scene *s = parent->scene;
-    ngli_assert(s);
+    npriv_assert(s);
 
     struct ngl_node *child = remove_runtime_edge_at(parent, index);
-    ngli_assert(child->scene == s);
-    if (!ngli_darray_is_empty(&child->parents))
+    npriv_assert(child->scene == s);
+    if (!npriv_darray_is_empty(&child->parents))
         return;
 
-    ngli_assert(child != s->params.root);
+    npriv_assert(child != s->params.root);
     remove_scene_children(child);
     remove_scene_node(s, child);
 }
 
 void ngli_scene_remove_edges_at(struct ngl_node *parent, size_t index, size_t nb_nodes)
 {
-    ngli_assert(index <= parent->children.count);
-    ngli_assert(nb_nodes <= parent->children.count - index);
+    npriv_assert(index <= parent->children.count);
+    npriv_assert(nb_nodes <= parent->children.count - index);
 
     for (size_t i = nb_nodes; i > 0; i--)
         remove_scene_edge_at(parent, index + i - 1);
@@ -269,7 +269,7 @@ int ngli_scene_add_edges(struct ngl_node *parent, size_t index,
                          size_t nb_nodes, struct ngl_node **nodes)
 {
     struct ngl_scene *s = parent->scene;
-    ngli_assert(s);
+    npriv_assert(s);
 
     for (size_t i = 0; i < nb_nodes; i++) {
         const int ret = add_scene_edge_at(s, parent, nodes[i], index + i);
@@ -284,8 +284,8 @@ int ngli_scene_add_edges(struct ngl_node *parent, size_t index,
 void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_node_graph_range range,
                              size_t nb_nodes, struct ngl_node * const *nodes)
 {
-    ngli_assert(range.index <= parent->children.count);
-    ngli_assert(range.count <= parent->children.count - range.index);
+    npriv_assert(range.index <= parent->children.count);
+    npriv_assert(range.count <= parent->children.count - range.index);
 
     for (size_t i = 0; i < nb_nodes; i++)
         remove_scene_edge(parent, &range, nodes[i]);
@@ -293,16 +293,16 @@ void ngli_scene_remove_edges(struct ngl_node *parent, struct ngli_node_graph_ran
 
 void ngli_scene_swap_edges(struct ngl_node *parent, size_t from, size_t to)
 {
-    ngli_assert(parent->scene);
-    ngli_assert(from < parent->children.count && to < parent->children.count);
+    npriv_assert(parent->scene);
+    npriv_assert(from < parent->children.count && to < parent->children.count);
 
-    NGLI_SWAP(parent->children.data[from], parent->children.data[to]);
+    NPRIV_SWAP(parent->children.data[from], parent->children.data[to]);
 }
 
 void ngli_scene_move_edge(struct ngl_node *parent, size_t from, size_t to)
 {
-    ngli_assert(parent->scene);
-    ngli_darray_move(&parent->children, from, to);
+    npriv_assert(parent->scene);
+    npriv_darray_move(&parent->children, from, to);
 }
 
 struct subtree_check_arg {
@@ -427,7 +427,7 @@ int ngl_scene_get_filepaths(struct ngl_scene *s, char ***filepathsp, size_t *nb_
 
 static void update_filepath_ref(struct ngl_scene *s, size_t index, char *str)
 {
-    char **filep = ngli_darray_get(&s->files, index);
+    char **filep = npriv_darray_get(&s->files, index);
     *filep = str;
 }
 
@@ -443,7 +443,7 @@ void ngli_scene_update_filepath_ref(struct ngl_node *node, const struct node_par
             return;
         }
     }
-    ngli_assert(0);
+    npriv_assert(0);
 }
 
 int ngl_scene_update_filepath(struct ngl_scene *s, size_t index, const char *filepath)
@@ -457,12 +457,12 @@ int ngl_scene_update_filepath(struct ngl_scene *s, size_t index, const char *fil
         return NGL_ERROR_INVALID_ARG;
 
     /* Update the node parameter with the new value */
-    char *new_str = ngli_strdup(filepath);
+    char *new_str = npriv_strdup(filepath);
     if (!new_str)
         return NGL_ERROR_MEMORY;
-    uint8_t **parpp = ngli_darray_get(&s->files_par, index);
+    uint8_t **parpp = npriv_darray_get(&s->files_par, index);
     char **dstp = (char **)*parpp;
-    ngli_freep(dstp);
+    npriv_freep(dstp);
     *dstp = new_str;
 
     update_filepath_ref(s, index, new_str);
@@ -476,15 +476,15 @@ static void scene_freep(void **sp)
     if (!s)
         return;
     detach_root(s);
-    ngli_freep(sp);
+    npriv_freep(sp);
 }
 
 struct ngl_scene *ngl_scene_create(void)
 {
-    struct ngl_scene *s = ngli_try_calloc(1, sizeof(*s));
+    struct ngl_scene *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-    s->rc = NGLI_RC_CREATE(scene_freep);
+    s->rc = NPRIV_RC_CREATE(scene_freep);
     return s;
 }
 
@@ -500,7 +500,7 @@ struct ngl_scene_params ngl_scene_default_params(struct ngl_node *root)
 
 struct ngl_scene *ngl_scene_ref(struct ngl_scene *s)
 {
-    return NGLI_RC_REF(s);
+    return NPRIV_RC_REF(s);
 }
 
 int ngl_scene_init(struct ngl_scene *s, const struct ngl_scene_params *params)
@@ -514,7 +514,7 @@ int ngl_scene_init(struct ngl_scene *s, const struct ngl_scene_params *params)
         return NGL_ERROR_INVALID_ARG;
     }
     if (params->framerate[0] <= 0 || params->framerate[1] <= 0) {
-        LOG(ERROR, "invalid framerate %d/%d", NGLI_ARG_VEC2(params->framerate));
+        LOG(ERROR, "invalid framerate %d/%d", NPRIV_ARG_VEC2(params->framerate));
         return NGL_ERROR_INVALID_ARG;
     }
     if (params->width < 0 || params->height < 0) {
@@ -576,16 +576,16 @@ static int find_livectls(struct ngl_scene *scene, struct hmap *hm)
         if (!ref_ctl->id)
             continue;
 
-        const struct ngl_node *ctl_node = ngli_hmap_get_str(hm, ref_ctl->id);
+        const struct ngl_node *ctl_node = npriv_hmap_get_str(hm, ref_ctl->id);
         if (ctl_node) {
             if (ctl_node != node) {
                 LOG(ERROR, "duplicated live control with name \"%s\"", ref_ctl->id);
                 return NGL_ERROR_INVALID_USAGE;
             }
-            ngli_assert(0); // scene->nodes is a set so each node is supposed to be present only once
+            npriv_assert(0); // scene->nodes is a set so each node is supposed to be present only once
         }
 
-        int ret = ngli_hmap_try_set_str(hm, ref_ctl->id, (void *)node);
+        int ret = npriv_hmap_try_set_str(hm, ref_ctl->id, (void *)node);
         if (ret < 0)
             return ret;
     }
@@ -602,7 +602,7 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
     if (!scene->params.root)
         return 0;
 
-    struct hmap *livectls_index = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    struct hmap *livectls_index = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!livectls_index)
         return NGL_ERROR_MEMORY;
 
@@ -610,12 +610,12 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
     if (ret < 0)
         goto end;
 
-    const size_t nb = ngli_hmap_count(livectls_index);
+    const size_t nb = npriv_hmap_count(livectls_index);
     if (!nb)
         goto end;
 
     /* +1 so that we know when to stop in ngli_node_livectls_freep() */
-    ctls = ngli_try_calloc(nb + 1, sizeof(*ctls));
+    ctls = npriv_try_calloc(nb + 1, sizeof(*ctls));
     if (!ctls) {
         ret = NGL_ERROR_MEMORY;
         goto end;
@@ -628,7 +628,7 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
      */
     size_t i = 0;
     const struct hmap_entry *entry = NULL;
-    while ((entry = ngli_hmap_next(livectls_index, entry))) {
+    while ((entry = npriv_hmap_next(livectls_index, entry))) {
         struct ngl_node *node = entry->data;
 
         struct ngl_livectl *ctl = &ctls[i++];
@@ -636,7 +636,7 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
         ctl->node = ngl_node_ref(node);
 
         const struct livectl *ref_ctl = get_internal_livectl(node);
-        ctl->id = ngli_strdup(ref_ctl->id);
+        ctl->id = npriv_strdup(ref_ctl->id);
         if (!ctl->id) {
             ret = NGL_ERROR_MEMORY;
             goto end;
@@ -646,9 +646,9 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
         memcpy(&ctl->max, &ref_ctl->max, sizeof(ctl->max));
 
         if (node->cls->id == NGL_NODE_TEXT) {
-            ngli_assert(ctl->val.s);
-            ngli_assert(!ctl->min.s && !ctl->max.s);
-            ctl->val.s = ngli_strdup(ctl->val.s);
+            npriv_assert(ctl->val.s);
+            npriv_assert(!ctl->min.s && !ctl->max.s);
+            ctl->val.s = npriv_strdup(ctl->val.s);
             if (!ctl->val.s) {
                 ret = NGL_ERROR_MEMORY;
                 goto end;
@@ -662,7 +662,7 @@ int ngl_livectls_get(struct ngl_scene *scene, size_t *nb_livectlsp, struct ngl_l
 end:
     if (ret < 0)
         ngl_livectls_freep(&ctls);
-    ngli_hmap_freep(&livectls_index);
+    npriv_hmap_freep(&livectls_index);
     return ret;
 }
 
@@ -674,11 +674,11 @@ void ngl_livectls_freep(struct ngl_livectl **livectlsp)
     for (size_t i = 0; livectls[i].node; i++) {
         struct ngl_livectl *ctl = &livectls[i];
         if (livectls[i].node->cls->id == NGL_NODE_TEXT)
-            ngli_freep(&livectls[i].val.s);
+            npriv_freep(&livectls[i].val.s);
         ngl_node_unrefp(&ctl->node);
-        ngli_freep(&ctl->id);
+        npriv_freep(&ctl->id);
     }
-    ngli_freep(livectlsp);
+    npriv_freep(livectlsp);
 }
 
 struct ngl_scene *ngl_scene_duplicate(const struct ngl_scene *s)
@@ -720,5 +720,5 @@ void ngl_scene_unrefp(struct ngl_scene **sp)
     struct ngl_scene *s = *sp;
     if (!s)
         return;
-    NGLI_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }

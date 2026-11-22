@@ -28,13 +28,13 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
 #include "rtt.h"
-#include "utils/utils.h"
 
 /* GLSL shaders */
 #include "blur_hexagonal_vert.h"
@@ -123,12 +123,12 @@ static enum ngpu_format get_preferred_format(struct ngpu_ctx *gpu_ctx)
         NGPU_FORMAT_R16G16B16A16_SFLOAT,
         NGPU_FORMAT_R8G8B8A8_UNORM,
     };
-    for (size_t i = 0; i < NGLI_ARRAY_NB(formats); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(formats); i++) {
         const uint32_t features = ngpu_ctx_get_format_features(gpu_ctx, formats[i]);
-        if (NGLI_HAS_ALL_FLAGS(features, RENDER_TEXTURE_FEATURES))
+        if (NPRIV_HAS_ALL_FLAGS(features, RENDER_TEXTURE_FEATURES))
             return formats[i];
     }
-    ngli_assert(0);
+    npriv_assert(0);
 }
 
 #define DUMMY_MAP_SIZE 2
@@ -227,11 +227,11 @@ static int setup_pass1_pipeline(struct ngl_node *node)
         .vert_base        = blur_hexagonal_vert,
         .frag_base        = blur_hexagonal_pass1_frag,
         .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .nb_textures      = NPRIV_ARRAY_NB(textures),
         .blocks           = blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(blocks),
+        .nb_blocks        = NPRIV_ARRAY_NB(blocks),
         .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars = NPRIV_ARRAY_NB(vert_out_vars),
         .nb_frag_output   = 2,
     };
 
@@ -319,11 +319,11 @@ static int setup_pass2_pipeline(struct ngl_node *node)
         .vert_base        = blur_hexagonal_vert,
         .frag_base        = blur_hexagonal_pass2_frag,
         .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .nb_textures      = NPRIV_ARRAY_NB(textures),
         .blocks           = crafter_blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(crafter_blocks),
+        .nb_blocks        = NPRIV_ARRAY_NB(crafter_blocks),
         .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     s->pass2.crafter = ngpu_pgcraft_create(gpu_ctx);
@@ -423,7 +423,7 @@ static int hblur_init(struct ngl_node *node)
     ngpu_block_desc_add_field(&s->blur_block_desc, "radius", NGPU_TYPE_I32, 0);
     ngpu_block_desc_add_field(&s->blur_block_desc, "nb_samples", NGPU_TYPE_I32, 0);
     s->blur_block_size = ngpu_block_desc_get_size(&s->blur_block_desc, 0);
-    ngli_assert(s->blur_block_size == sizeof(struct blur_params_block));
+    npriv_assert(s->blur_block_size == sizeof(struct blur_params_block));
 
     int ret;
 
@@ -514,7 +514,7 @@ static int resize(struct ngl_node *node)
 
     /* Assert that the destination texture format does not change */
     struct texture_info *dst_info = o->destination->priv_data;
-    ngli_assert(dst_info->params.format == s->pass2.layout.colors[0].format);
+    npriv_assert(dst_info->params.format == s->pass2.layout.colors[0].format);
 
     dst = dst_info->texture;
     if (s->dst_is_resizable) {
@@ -618,9 +618,9 @@ static void hblur_pre_draw(struct ngl_node *node)
         return;
 
     const float blurriness_raw = *(float *)ngli_node_get_data_ptr(o->blurriness_node, &o->blurriness);
-    float blurriness = NGLI_CLAMP(blurriness_raw, 0.f, 1.f);
+    float blurriness = NPRIV_CLAMP(blurriness_raw, 0.f, 1.f);
     const int32_t radius = (int32_t)(blurriness * s->diagonal * 0.05f);
-    const int32_t nb_samples = NGLI_MIN(radius, MAX_SAMPLES);
+    const int32_t nb_samples = NPRIV_MIN(radius, MAX_SAMPLES);
 
     const struct blur_params_block blur_data = {
         .radius = radius,

@@ -31,13 +31,13 @@
 #include "geometry.h"
 #include "graphics_state.h"
 #include "internal.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_block.h"
 #include "node_texture.h"
 #include "pipeline.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 #include "source_texture_frag.h"
 #include "source_texture_vert.h"
@@ -263,8 +263,8 @@ static int drawtexture_prepare(struct ngl_node *node,
 
     const size_t vert_size = ngpu_block_desc_get_size(&s->vert_block_desc, 0);
     const size_t frag_size = ngpu_block_desc_get_size(&s->frag_block_desc, 0);
-    ngli_assert(vert_size == sizeof(struct drawtexture_vert_block));
-    ngli_assert(frag_size >= sizeof(struct drawtexture_frag_block));
+    npriv_assert(vert_size == sizeof(struct drawtexture_vert_block));
+    npriv_assert(frag_size >= sizeof(struct drawtexture_frag_block));
 
     const struct ngl_node *texture_node = o->texture_node;
     struct texture_info *texture_info = texture_node->priv_data;
@@ -311,13 +311,13 @@ static int drawtexture_prepare(struct ngl_node *node,
         .vert_base                = source_texture_vert,
         .frag_base                = s->combined_fragment,
         .textures                 = textures,
-        .nb_textures              = NGLI_ARRAY_NB(textures),
+        .nb_textures              = NPRIV_ARRAY_NB(textures),
         .blocks                   = blocks,
-        .nb_blocks                = NGLI_ARRAY_NB(blocks),
+        .nb_blocks                = NPRIV_ARRAY_NB(blocks),
         .vertex_buffer_layouts    = vertex_buffer_layouts,
-        .nb_vertex_buffer_layouts = NGLI_ARRAY_NB(vertex_buffer_layouts),
+        .nb_vertex_buffer_layouts = NPRIV_ARRAY_NB(vertex_buffer_layouts),
         .vert_out_vars            = vert_out_vars,
-        .nb_vert_out_vars         = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars         = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
@@ -394,8 +394,8 @@ static void drawtexture_draw(struct ngl_node *node)
     struct pipeline_desc *desc = &s->pipeline_desc;
     struct ngli_pipeline *pl = desc->pipeline;
 
-    const struct ngli_mat4 *modelview_matrix  = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix  = npriv_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = npriv_darray_tail(&ctx->projection_matrix_stack);
 
     struct drawtexture_vert_block vert_data;
     vert_data.modelview_matrix = *modelview_matrix;
@@ -473,7 +473,7 @@ static void drawtexture_uninit(struct ngl_node *node)
     ngpu_block_desc_reset(&s->frag_block_desc);
 
     /* Free filter chain */
-    ngli_freep(&s->combined_fragment);
+    npriv_freep(&s->combined_fragment);
     ngli_filterschain_freep(&s->filterschain);
 
     /* Free owned geometry */

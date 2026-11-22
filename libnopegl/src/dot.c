@@ -25,11 +25,11 @@
 
 #include "internal.h"
 #include "nopegl/nopegl.h"
-#include "utils/bstr.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
-#include "utils/crc32.h"
-#include "utils/string.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/crc32.h"
+#include "libnopeutil/string.h"
 
 #define LB "<br align=\"left\"/>"
 #define HSLFMT "\"0.%u 0.6 0.9\""
@@ -40,14 +40,14 @@ extern const struct node_param ngli_base_node_params[];
 static int visited(struct hmap *ptr_set, const void *id)
 {
     const uint64_t key = (uint64_t)(uintptr_t)id;
-    if (ngli_hmap_get_u64(ptr_set, key))
+    if (npriv_hmap_get_u64(ptr_set, key))
         return 1;
-    return ngli_hmap_try_set_u64(ptr_set, key, "");
+    return npriv_hmap_try_set_u64(ptr_set, key, "");
 }
 
 static unsigned get_hue(const char *name)
 {
-    const uint32_t hash = ngli_crc32(name);
+    const uint32_t hash = npriv_crc32(name);
     const double hue = (double)hash / (double)0xffffffff;
     return (unsigned)(hue * 1000);
 }
@@ -148,9 +148,9 @@ static void print_custom_priv_options(struct bstr *b, const struct ngl_node *nod
             srcp += sizeof(struct ngl_node *);
         }
         if (should_print_par(srcp, par)) {
-            ngli_bstr_printf(b, "%s: ", par->key);
+            npriv_bstr_printf(b, "%s: ", par->key);
             ngli_params_bstr_print_val(b, priv, par);
-            ngli_bstr_print(b, LB);
+            npriv_bstr_print(b, LB);
         }
         par++;
     }
@@ -165,15 +165,15 @@ static void print_all_decls(struct bstr *b, const struct ngl_node *node, struct 
     if (visited(decls, node))
         return;
 
-    ngli_bstr_printf(b, "    %s_%p[label=<<b>%s</b><br/>",
+    npriv_bstr_printf(b, "    %s_%p[label=<<b>%s</b><br/>",
                     node->cls->name, node, node->cls->name);
     if (!ngli_is_default_label(node->cls->name, node->label) && *node->label)
-        ngli_bstr_printf(b, "<i>%s</i><br/>", node->label);
+        npriv_bstr_printf(b, "<i>%s</i><br/>", node->label);
     print_custom_priv_options(b, node);
     if (!node->ctx || node->is_active)
-        ngli_bstr_printf(b, ">,color="HSLFMT"]\n", get_hue(node->cls->name));
+        npriv_bstr_printf(b, ">,color="HSLFMT"]\n", get_hue(node->cls->name));
     else
-        ngli_bstr_print(b, ">,color="INACTIVE_COLOR"]\n");
+        npriv_bstr_print(b, ">,color="INACTIVE_COLOR"]\n");
 
     print_decls(b, node, ngli_base_node_params, (uint8_t *)node, decls);
     print_decls(b, node, node->cls->params, node->opts, decls);
@@ -181,37 +181,37 @@ static void print_all_decls(struct bstr *b, const struct ngl_node *node, struct 
 
 static void table_header(struct bstr *b, const char *label, int is_active, size_t colspan)
 {
-    ngli_bstr_print(b, "[shape=none,label=<<table border=\"0\" cellspacing=\"0\" cellborder=\"1\" bgcolor=");
+    npriv_bstr_print(b, "[shape=none,label=<<table border=\"0\" cellspacing=\"0\" cellborder=\"1\" bgcolor=");
     const unsigned hue = get_hue(label);
     if (is_active)
-        ngli_bstr_printf(b, "\"0.%u 0.2 0.8\"", hue); /* color of all the entries, more pale than HSLFMT */
+        npriv_bstr_printf(b, "\"0.%u 0.2 0.8\"", hue); /* color of all the entries, more pale than HSLFMT */
     else
-        ngli_bstr_print(b, INACTIVE_COLOR);
-    ngli_bstr_printf(b, "><tr><td colspan=\"%zu\" bgcolor=", colspan);
+        npriv_bstr_print(b, INACTIVE_COLOR);
+    npriv_bstr_printf(b, "><tr><td colspan=\"%zu\" bgcolor=", colspan);
     if (is_active)
-        ngli_bstr_printf(b, HSLFMT, hue);
+        npriv_bstr_printf(b, HSLFMT, hue);
     else
-        ngli_bstr_print(b, INACTIVE_COLOR);
-    ngli_bstr_printf(b, "><b>%s</b></td></tr>", label);
+        npriv_bstr_print(b, INACTIVE_COLOR);
+    npriv_bstr_printf(b, "><b>%s</b></td></tr>", label);
 }
 
 static void table_footer(struct bstr *b)
 {
-    ngli_bstr_print(b, "</table>>,color=\"#222222\"]\n");
+    npriv_bstr_print(b, "</table>>,color=\"#222222\"]\n");
 }
 
 static void print_list_packed_decls(struct bstr *b, const char *key,
                                     struct ngl_node **children, size_t nb_children,
                                     int is_active)
 {
-    ngli_bstr_printf(b, "    %s_%p", key, children);
+    npriv_bstr_printf(b, "    %s_%p", key, children);
     table_header(b, key, is_active, 2);
     for (size_t i = 0; i < nb_children; i++) {
         const struct ngl_node *node = children[i];
         char *info_str = node->cls->info_str ? node->cls->info_str(node) : NULL;
-        ngli_bstr_printf(b, "<tr><td>#%zu</td><td align=\"left\">%s</td></tr>",
-                         i, info_str ? info_str : "?");
-        ngli_free(info_str);
+        npriv_bstr_printf(b, "<tr><td>#%zu</td><td align=\"left\">%s</td></tr>",
+                          i, info_str ? info_str : "?");
+        npriv_free(info_str);
     }
     table_footer(b);
 }
@@ -219,15 +219,15 @@ static void print_list_packed_decls(struct bstr *b, const char *key,
 static void print_dict_packed_decls(struct bstr *b, const char *key,
                                     struct hmap *hmap, int is_active)
 {
-    ngli_bstr_printf(b, "    %s_%p", key, hmap);
+    npriv_bstr_printf(b, "    %s_%p", key, hmap);
     table_header(b, key, is_active, 2);
     const struct hmap_entry *entry = NULL;
-    while ((entry = ngli_hmap_next(hmap, entry))) {
+    while ((entry = npriv_hmap_next(hmap, entry))) {
         const struct ngl_node *node = entry->data;
         char *info_str = node->cls->info_str ? node->cls->info_str(node) : NULL;
-        ngli_bstr_printf(b, "<tr><td align=\"left\">%s</td><td align=\"left\">%s</td></tr>",
-                         entry->key.str, info_str ? info_str : "?");
-        ngli_free(info_str);
+        npriv_bstr_printf(b, "<tr><td align=\"left\">%s</td><td align=\"left\">%s</td></tr>",
+                          entry->key.str, info_str ? info_str : "?");
+        npriv_free(info_str);
     }
     table_footer(b);
 }
@@ -274,13 +274,13 @@ static void print_decls(struct bstr *b, const struct ngl_node *node,
                 if (!hmap)
                     break;
 
-                if (ngli_hmap_count(hmap) && (p->flags & NGLI_PARAM_FLAG_DOT_DISPLAY_PACKED)) {
+                if (npriv_hmap_count(hmap) && (p->flags & NGLI_PARAM_FLAG_DOT_DISPLAY_PACKED)) {
                     print_dict_packed_decls(b, p->key, hmap, !node->ctx || node->is_active);
                     break;
                 }
 
                 const struct hmap_entry *entry = NULL;
-                while ((entry = ngli_hmap_next(hmap, entry)))
+                while ((entry = npriv_hmap_next(hmap, entry)))
                     print_all_decls(b, entry->data, decls);
                 break;
             }
@@ -295,7 +295,7 @@ static void print_link(struct bstr *b,
                        const struct ngl_node *x, const struct ngl_node *y,
                        const char *edge_attrs)
 {
-    ngli_bstr_printf(b, "    %s_%p -> %s_%p%s\n",
+    npriv_bstr_printf(b, "    %s_%p -> %s_%p%s\n",
                     x->cls->name, x, y->cls->name, y, edge_attrs);
 }
 
@@ -335,27 +335,27 @@ static void print_nodelist_links(struct bstr *b, const struct ngl_node *node,
         return;
 
     if (p->flags & NGLI_PARAM_FLAG_DOT_DISPLAY_PACKED) {
-        ngli_bstr_printf(b, "    %s_%p -> %s_%p%s\n", node->cls->name, node, p->key, children, edge_attrs);
+        npriv_bstr_printf(b, "    %s_%p -> %s_%p%s\n", node->cls->name, node, p->key, children, edge_attrs);
         return;
     }
 
     /* Declare the list as a dedicated table */
-    ngli_bstr_printf(b, "    %s_%p_%s", node->cls->name, node, p->key);
+    npriv_bstr_printf(b, "    %s_%p_%s", node->cls->name, node, p->key);
     table_header(b, p->key, !node->ctx || node->is_active, nb_children);
-    ngli_bstr_print(b, "<tr>");
+    npriv_bstr_print(b, "<tr>");
     for (size_t i = 0; i < nb_children; i++)
-        ngli_bstr_printf(b, "<td port=\"e%zu\">#%zu</td>", i, i);
-    ngli_bstr_print(b, "</tr>");
+        npriv_bstr_printf(b, "<td port=\"e%zu\">#%zu</td>", i, i);
+    npriv_bstr_print(b, "</tr>");
     table_footer(b);
 
     /* Link node to the list table */
-    ngli_bstr_printf(b, "    %s_%p -> %s_%p_%s\n",
-                     node->cls->name, node, node->cls->name, node, p->key);
+    npriv_bstr_printf(b, "    %s_%p -> %s_%p_%s\n",
+                      node->cls->name, node, node->cls->name, node, p->key);
 
     /* Link individual table cell to their dedicated nodes */
     for (size_t i = 0; i < nb_children; i++) {
         const struct ngl_node *child = children[i];
-        ngli_bstr_printf(b, "    %s_%p_%s:e%zu -> %s_%p\n", node->cls->name, node, p->key, i, child->cls->name, child);
+        npriv_bstr_printf(b, "    %s_%p_%s:e%zu -> %s_%p\n", node->cls->name, node, p->key, i, child->cls->name, child);
         print_all_links(b, child, links);
     }
 }
@@ -365,34 +365,34 @@ static void print_nodedict_links(struct bstr *b, const struct ngl_node *node,
                                  struct hmap *links, const char *edge_attrs)
 {
     struct hmap *hmap = *(struct hmap **)srcp;
-    if (!hmap || !ngli_hmap_count(hmap))
+    if (!hmap || !npriv_hmap_count(hmap))
         return;
 
     if (p->flags & NGLI_PARAM_FLAG_DOT_DISPLAY_PACKED) {
-        ngli_bstr_printf(b, "    %s_%p -> %s_%p%s\n", node->cls->name, node, p->key, hmap, edge_attrs);
+        npriv_bstr_printf(b, "    %s_%p -> %s_%p%s\n", node->cls->name, node, p->key, hmap, edge_attrs);
         return;
     }
 
     /* Declare the dictionary as a dedicated table */
-    ngli_bstr_printf(b, "    %s_%p_%s", node->cls->name, node, p->key);
-    table_header(b, p->key, !node->ctx || node->is_active, ngli_hmap_count(hmap));
-    ngli_bstr_print(b, "<tr>");
+    npriv_bstr_printf(b, "    %s_%p_%s", node->cls->name, node, p->key);
+    table_header(b, p->key, !node->ctx || node->is_active, npriv_hmap_count(hmap));
+    npriv_bstr_print(b, "<tr>");
     const struct hmap_entry *entry = NULL;
-    while ((entry = ngli_hmap_next(hmap, entry)))
-        ngli_bstr_printf(b, "<td port=\"%s\">%s</td>", entry->key.str, entry->key.str);
-    ngli_bstr_print(b, "</tr>");
+    while ((entry = npriv_hmap_next(hmap, entry)))
+        npriv_bstr_printf(b, "<td port=\"%s\">%s</td>", entry->key.str, entry->key.str);
+    npriv_bstr_print(b, "</tr>");
     table_footer(b);
 
     /* Link node to the dict table */
-    ngli_bstr_printf(b, "    %s_%p -> %s_%p_%s\n",
-                     node->cls->name, node, node->cls->name, node, p->key);
+    npriv_bstr_printf(b, "    %s_%p -> %s_%p_%s\n",
+                      node->cls->name, node, node->cls->name, node, p->key);
 
     /* Link individual table cell to their dedicated nodes */
     entry = NULL;
-    while ((entry = ngli_hmap_next(hmap, entry))) {
+    while ((entry = npriv_hmap_next(hmap, entry))) {
         const struct ngl_node *child = entry->data;
-        ngli_bstr_printf(b, "    %s_%p_%s:%s -> %s_%p\n",
-                         node->cls->name, node, p->key, entry->key.str, child->cls->name, child);
+        npriv_bstr_printf(b, "    %s_%p_%s:%s -> %s_%p\n",
+                          node->cls->name, node, p->key, entry->key.str, child->cls->name, child);
         print_all_links(b, child, links);
     }
 }
@@ -408,7 +408,7 @@ static void print_links(struct bstr *b, const struct ngl_node *node,
         const int print_label = !!(p->flags & (NGLI_PARAM_FLAG_DOT_DISPLAY_FIELDNAME | NGLI_PARAM_FLAG_ALLOW_NODE));
         char *edge_attrs = "";
         if (print_label) {
-            edge_attrs = ngli_asprintf("[label=\"%s\"]", p->key);
+            edge_attrs = npriv_asprintf("[label=\"%s\"]", p->key);
             if (!edge_attrs)
                 return;
         }
@@ -429,7 +429,7 @@ static void print_links(struct bstr *b, const struct ngl_node *node,
             break;
         }
         if (print_label)
-            ngli_free(edge_attrs);
+            npriv_free(edge_attrs);
         p++;
     }
 }
@@ -440,15 +440,15 @@ char *ngli_scene_dot(const struct ngl_scene *s)
         return NULL;
 
     char *graph = NULL;
-    struct hmap *decls = ngli_hmap_try_create(NGLI_HMAP_TYPE_U64);
-    struct hmap *links = ngli_hmap_try_create(NGLI_HMAP_TYPE_U64);
-    struct bstr *b = ngli_bstr_create();
+    struct hmap *decls = npriv_hmap_try_create(NPRIV_HMAP_TYPE_U64);
+    struct hmap *links = npriv_hmap_try_create(NPRIV_HMAP_TYPE_U64);
+    struct bstr *b = npriv_bstr_create();
     if (!decls || !links || !b)
         goto end;
 
     const char *font_settings="fontsize=9,fontname=Arial";
 
-    ngli_bstr_printf(b, "digraph G {\n"
+    npriv_bstr_printf(b, "digraph G {\n"
                     "    bgcolor=\"#222222\";\n"
                     "    edge [%s,color=\"#dddddd\",fontcolor=\"#dddddd\",arrowsize=0.7];\n"
                     "    node [style=filled,%s];\n",
@@ -458,14 +458,14 @@ char *ngli_scene_dot(const struct ngl_scene *s)
     print_all_decls(b, node, decls);
     print_all_links(b, node, links);
 
-    ngli_bstr_print(b, "}\n");
+    npriv_bstr_print(b, "}\n");
 
-    graph = ngli_bstr_strdup(b);
+    graph = npriv_bstr_strdup(b);
 
 end:
-    ngli_bstr_freep(&b);
-    ngli_hmap_freep(&decls);
-    ngli_hmap_freep(&links);
+    npriv_bstr_freep(&b);
+    npriv_hmap_freep(&decls);
+    npriv_hmap_freep(&links);
     return graph;
 }
 

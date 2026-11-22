@@ -28,9 +28,9 @@
 #include "log.h"
 #include "node_transform.h"
 #include "nopegl/nopegl.h"
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 #include "transforms.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 struct gridlayout_opts {
     struct ngli_node_darray children;
@@ -69,7 +69,7 @@ static int gridlayout_init(struct ngl_node *node)
         return NGL_ERROR_INVALID_ARG;
     }
 
-    ngli_assert((int32_t)n <= rows * cols);
+    npriv_assert((int32_t)n <= rows * cols);
 
     const float scale_x = 1.f / (float)cols;
     const float scale_y = 1.f / (float)rows;
@@ -86,7 +86,7 @@ static int gridlayout_init(struct ngl_node *node)
                 0, 0, 1, 0,
                 pos_x, pos_y, 0, 1,
             }};
-            if (ngli_darray_try_push(&s->matrices, matrix) < 0)
+            if (npriv_darray_try_push(&s->matrices, matrix) < 0)
                 return NGL_ERROR_MEMORY;
             if (++i == o->children.count)
                 return 0;
@@ -111,7 +111,7 @@ static void gridlayout_draw(struct ngl_node *node)
 static void gridlayout_uninit(struct ngl_node *node)
 {
     struct gridlayout_priv *s = node->priv_data;
-    ngli_darray_reset(&s->matrices);
+    npriv_darray_reset(&s->matrices);
 }
 
 const struct node_class ngli_gridlayout_class = {

@@ -26,8 +26,8 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/memory.h"
 #include "rtt.h"
-#include "utils/memory.h"
 
 struct rtt_ctx {
     struct ngl_ctx *ctx;
@@ -52,7 +52,7 @@ struct rtt_ctx {
 
 struct rtt_ctx *ngli_rtt_create(struct ngl_ctx *ctx)
 {
-    struct rtt_ctx *s = ngli_try_calloc(1, sizeof(*s));
+    struct rtt_ctx *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
@@ -228,13 +228,13 @@ void ngli_rtt_get_dimensions(struct rtt_ctx *s, uint32_t *width, uint32_t *heigh
 
 struct ngpu_texture *ngli_rtt_get_texture(struct rtt_ctx *s, size_t index)
 {
-    ngli_assert(index < s->params.nb_colors);
+    npriv_assert(index < s->params.nb_colors);
     return s->params.colors[index].attachment;
 }
 
 struct ngli_image *ngli_rtt_get_image(struct rtt_ctx *s, size_t index)
 {
-    ngli_assert(index < s->params.nb_colors);
+    npriv_assert(index < s->params.nb_colors);
     return s->images[index];
 }
 
@@ -243,7 +243,7 @@ void ngli_rtt_begin(struct rtt_ctx *s)
     struct ngl_ctx *ctx = s->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
-    ngli_assert(!s->started);
+    npriv_assert(!s->started);
     s->started = 1;
     s->prev_viewport = ctx->viewport;
     s->prev_scissor = ctx->scissor;
@@ -266,7 +266,7 @@ void ngli_rtt_end(struct rtt_ctx *s)
     struct ngl_ctx *ctx = s->ctx;
     struct ngpu_ctx *gpu_ctx = ctx->gpu_ctx;
 
-    ngli_assert(s->started);
+    npriv_assert(s->started);
     s->started = 0;
 
     if (!ngpu_ctx_is_render_pass_active(gpu_ctx)) {
@@ -301,7 +301,7 @@ void ngli_rtt_freep(struct rtt_ctx **sp)
     ngpu_texture_freep(&s->ms_depth);
     ngpu_texture_freep(&s->color);
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(s->images); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(s->images); i++)
         ngli_image_unrefp(&s->images[i]);
-    ngli_freep(sp);
+    npriv_freep(sp);
 }

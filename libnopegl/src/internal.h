@@ -49,19 +49,19 @@ struct nmd_frame;
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "timerange.h"
-#include "utils/darray.h"
-#include "utils/hmap.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/hmap.h"
 #include "utils/job_queue.h"
-#include "utils/pthread_compat.h"
-#include "utils/refcount.h"
-#include "utils/utils.h"
+#include "libnopeutil/pthread_compat.h"
+#include "libnopeutil/refcount.h"
+#include "libnopeutil/utils.h"
 
 struct node_class;
 
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_mat4_darray, struct ngli_mat4);
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_f64_darray, double);
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_node_darray, struct ngl_node *);
-NGLI_DEFINE_DARRAY_FIND(ngli_node_darray)
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_mat4_darray, struct ngli_mat4);
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_f64_darray, double);
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_node_darray, struct ngl_node *);
+NPRIV_DEFINE_DARRAY_FIND(ngli_node_darray)
 
 struct api_impl {
     int (*configure)(struct ngl_ctx *s, const struct ngl_config *config);
@@ -154,7 +154,7 @@ struct ngl_ctx {
 #endif
 #if defined(TARGET_ANDROID)
     struct android_ctx android_ctx;
-    NGLI_DARRAY(struct nmd_frame *) mc_frames;
+    NPRIV_DARRAY(struct nmd_frame *) mc_frames;
 #endif
     struct hud *hud;
     struct ngli_frame_stats frame_stats;
@@ -268,11 +268,11 @@ struct ngl_node {
     void *priv_data;
 };
 
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_str_darray, char *);
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_ptr_darray, uint8_t *);
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_str_darray, char *);
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_ptr_darray, uint8_t *);
 
 struct ngl_scene {
-    struct ngli_rc rc;
+    struct npriv_rc rc;
     struct ngl_ctx *ctx;
     struct ngl_scene_params params;
     struct ngli_node_darray nodes; // set of all the nodes in the graph

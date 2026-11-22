@@ -28,8 +28,8 @@
 #include "node2d.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
-#include "utils/darray.h"
-#include "utils/utils.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/utils.h"
 
 struct canvas2d_opts {
     struct ngli_node_darray children;

@@ -35,8 +35,8 @@
 
 #include <nopegpu/nopegpu.h>
 
+#include "libnopeutil/utils.h"
 #include "log.h"
-#include "utils/utils.h"
 #include "vaapi_ctx.h"
 
 int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s)
@@ -45,7 +45,7 @@ int ngli_vaapi_ctx_init(struct ngpu_ctx *gpu_ctx, struct vaapi_ctx *s)
     if (features & NGPU_FEATURE_SOFTWARE_BIT)
         return -1;
 
-    if (!NGLI_HAS_ALL_FLAGS(features, NGPU_FEATURE_IMPORT_DMA_BUF_BIT))
+    if (!NPRIV_HAS_ALL_FLAGS(features, NGPU_FEATURE_IMPORT_DMA_BUF_BIT))
         return -1;
 
     VADisplay va_display = NULL;

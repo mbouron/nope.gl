@@ -20,8 +20,8 @@
  * under the License.
  */
 
-#ifndef STRING_H
-#define STRING_H
+#ifndef NPRIV_STRING_H
+#define NPRIV_STRING_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -30,10 +30,10 @@
 
 #include "utils.h"
 
-char *ngli_strdup(const char *s);
-char *ngli_asprintf(const char *fmt, ...) ngli_printf_format(1, 2);
-char *ngli_numbered_lines(const char *s);
+char *npriv_strdup(const char *s);
+char *npriv_asprintf(const char *fmt, ...) npriv_printf_format(1, 2);
+char *npriv_numbered_lines(const char *s);
 
-bool ngli_str_is_empty(const char *s);
+bool npriv_str_is_empty(const char *s);
 
-#endif /* STRING_H */
+#endif /* NPRIV_STRING_H */

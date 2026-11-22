@@ -31,7 +31,7 @@
 
 #include "time.h"
 
-int64_t ngli_gettime_relative(void)
+int64_t npriv_gettime_relative(void)
 {
 #ifdef _WIN32
     // reference: https://github.com/mirror/mingw-w64/blob/master/mingw-w64-libraries/winpthreads/src/clock.c

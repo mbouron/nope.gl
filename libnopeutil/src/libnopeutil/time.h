@@ -1,5 +1,6 @@
 /*
  * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,28 +20,14 @@
  * under the License.
  */
 
-#ifndef REFCOUNT_H
-#define REFCOUNT_H
+#ifndef NPRIV_TIME_H
+#define NPRIV_TIME_H
 
-#include <assert.h>
-#include <stdatomic.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <stdint.h>
 
-typedef void (*ngli_freep_func)(void **sp);
+#define NPRIV_US_PER_SEC 1000000
+#define NPRIV_NS_PER_SEC 1000000000
 
-struct ngli_rc {
-    _Atomic(size_t) count;
-    ngli_freep_func freep;
-};
+int64_t npriv_gettime_relative(void);
 
-#define NGLI_RC_CHECK_STRUCT(name) static_assert(offsetof(struct name, rc) == 0, #name "_rc")
-#define NGLI_RC_CREATE(fn) (struct ngli_rc) { .count=1, .freep=(ngli_freep_func)fn }
-#define NGLI_RC_REF(s) ((__typeof__(s))ngli_rc_ref((struct ngli_rc *)(s)))
-#define NGLI_RC_UNREFP(sp) ngli_rc_unrefp((struct ngli_rc **)(sp))
-
-struct ngli_rc *ngli_rc_ref(struct ngli_rc *s);
-void ngli_rc_unrefp(struct ngli_rc **sp);
-
-#endif /* REFCOUNT_H */
+#endif /* NPRIV_TIME_H */

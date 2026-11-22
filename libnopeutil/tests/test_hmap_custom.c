@@ -23,31 +23,31 @@
 #include <string.h>
 
 #define HMAP_SIZE_NBIT 1
-#include "utils/crc32.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
-#include "utils/string.h"
-#include "utils/utils.h"
+#include "libnopeutil/crc32.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/string.h"
+#include "libnopeutil/utils.h"
 
-#define PRINT_HMAP(...) do {                                                 \
-    printf(__VA_ARGS__);                                                     \
-    const struct hmap_entry *e = NULL;                                       \
-    while ((e = ngli_hmap_next(hm, e))) {                                    \
-        const struct key *key = e->key.ptr;                                  \
-        printf("  %08X %s, %s: %s\n",                                        \
-            ngli_crc32_mem(e->key.ptr, sizeof(struct key), NGLI_CRC32_INIT), \
-            blend_factor_to_str[key->blend_dst_factor],                      \
-            blend_factor_to_str[key->blend_src_factor],                      \
-            (const char *)e->data);                                          \
-    }                                                                        \
-    printf("\n");                                                            \
+#define PRINT_HMAP(...) do {                                                   \
+    printf(__VA_ARGS__);                                                       \
+    const struct hmap_entry *e = NULL;                                         \
+    while ((e = npriv_hmap_next(hm, e))) {                                     \
+        const struct key *key = e->key.ptr;                                    \
+        printf("  %08X %s, %s: %s\n",                                          \
+            npriv_crc32_mem(e->key.ptr, sizeof(struct key), NPRIV_CRC32_INIT), \
+            blend_factor_to_str[key->blend_dst_factor],                        \
+            blend_factor_to_str[key->blend_src_factor],                        \
+            (const char *)e->data);                                            \
+    }                                                                          \
+    printf("\n");                                                              \
 } while (0)
 
 #define RSTR "replaced"
 
 static void free_func(void *arg, void *data)
 {
-    ngli_free(data);
+    npriv_free(data);
 }
 
 enum blend_factor {
@@ -100,7 +100,7 @@ static const struct {
 
 static size_t get_key_index(const struct key *key)
 {
-    for (size_t i = 0; i < NGLI_ARRAY_NB(kvs); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(kvs); i++)
         if (!memcmp(&kvs[i].key, key, sizeof(struct key)))
             return i;
     return SIZE_MAX;
@@ -110,16 +110,16 @@ static void check_order(const struct hmap *hm)
 {
     size_t last_index = SIZE_MAX;
     const struct hmap_entry *e = NULL;
-    while ((e = ngli_hmap_next(hm, e))) {
+    while ((e = npriv_hmap_next(hm, e))) {
         const size_t index = get_key_index(e->key.ptr);
-        ngli_assert(last_index == SIZE_MAX || index > last_index);
+        npriv_assert(last_index == SIZE_MAX || index > last_index);
         last_index = index;
     }
 }
 
 static uint32_t key_hash(union hmap_key x)
 {
-    return ngli_crc32_mem(x.ptr, sizeof(struct key), NGLI_CRC32_INIT);
+    return npriv_crc32_mem(x.ptr, sizeof(struct key), NPRIV_CRC32_INIT);
 }
 
 static int key_cmp(union hmap_key a, union hmap_key b)
@@ -129,7 +129,7 @@ static int key_cmp(union hmap_key a, union hmap_key b)
 
 static union hmap_key key_dup(union hmap_key x)
 {
-    return (union hmap_key){.ptr=ngli_try_memdup(x.ptr, sizeof(struct key))};
+    return (union hmap_key){.ptr=npriv_try_memdup(x.ptr, sizeof(struct key))};
 }
 
 static int key_check(union hmap_key x)
@@ -139,7 +139,7 @@ static int key_check(union hmap_key x)
 
 static void key_free(union hmap_key x)
 {
-    ngli_free(x.ptr);
+    npriv_free(x.ptr);
 }
 
 static const struct hmap_key_funcs key_funcs = {
@@ -152,41 +152,41 @@ static const struct hmap_key_funcs key_funcs = {
 
 int main(void)
 {
-    struct hmap *hm = ngli_hmap_try_create_ptr(&key_funcs);
-    ngli_hmap_set_free_func(hm, free_func, NULL);
+    struct hmap *hm = npriv_hmap_try_create_ptr(&key_funcs);
+    npriv_hmap_set_free_func(hm, free_func, NULL);
 
     /* Test addition */
-    for (size_t i = 0; i < NGLI_ARRAY_NB(kvs); i++) {
-        void *data = ngli_strdup(kvs[i].val);
-        ngli_assert(ngli_hmap_try_set_ptr(hm, &kvs[i].key, data) >= 0);
-        const char *val = ngli_hmap_get_ptr(hm, &kvs[i].key);
-        ngli_assert(val);
-        ngli_assert(!strcmp(val, kvs[i].val));
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(kvs); i++) {
+        void *data = npriv_strdup(kvs[i].val);
+        npriv_assert(npriv_hmap_try_set_ptr(hm, &kvs[i].key, data) >= 0);
+        const char *val = npriv_hmap_get_ptr(hm, &kvs[i].key);
+        npriv_assert(val);
+        npriv_assert(!strcmp(val, kvs[i].val));
         check_order(hm);
     }
 
-    PRINT_HMAP("init [%zu entries]:\n", ngli_hmap_count(hm));
+    PRINT_HMAP("init [%zu entries]:\n", npriv_hmap_count(hm));
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(kvs) - 1; i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(kvs) - 1; i++) {
         /* Test replace */
         if (i & 1) {
-            void *data = ngli_strdup(RSTR);
-            ngli_assert(ngli_hmap_try_set_ptr(hm, &kvs[i].key, data) == 0);
-            const char *val = ngli_hmap_get_ptr(hm, &kvs[i].key);
-            ngli_assert(val);
-            ngli_assert(strcmp(val, RSTR) == 0);
+            void *data = npriv_strdup(RSTR);
+            npriv_assert(npriv_hmap_try_set_ptr(hm, &kvs[i].key, data) == 0);
+            const char *val = npriv_hmap_get_ptr(hm, &kvs[i].key);
+            npriv_assert(val);
+            npriv_assert(strcmp(val, RSTR) == 0);
             PRINT_HMAP("replace %s:\n", kvs[i].val);
             check_order(hm);
         }
 
         /* Test delete */
-        ngli_assert(ngli_hmap_try_set_ptr(hm, &kvs[i].key, NULL) == 1);
-        ngli_assert(ngli_hmap_try_set_ptr(hm, &kvs[i].key, NULL) == 0);
-        PRINT_HMAP("drop %s (%zu remaining):\n", kvs[i].val, ngli_hmap_count(hm));
+        npriv_assert(npriv_hmap_try_set_ptr(hm, &kvs[i].key, NULL) == 1);
+        npriv_assert(npriv_hmap_try_set_ptr(hm, &kvs[i].key, NULL) == 0);
+        PRINT_HMAP("drop %s (%zu remaining):\n", kvs[i].val, npriv_hmap_count(hm));
         check_order(hm);
     }
 
-    ngli_hmap_freep(&hm);
+    npriv_hmap_freep(&hm);
 
     return 0;
 }

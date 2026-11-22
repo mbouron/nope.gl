@@ -19,26 +19,28 @@
  * under the License.
  */
 
-#ifndef BITS_H
-#define BITS_H
+#ifndef NPRIV_REFCOUNT_H
+#define NPRIV_REFCOUNT_H
 
+#include <assert.h>
+#include <stdatomic.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <stdint.h>
 
-/*
- * Returns the number of leading 0-bits in x, starting at the most significant
- * bit position. If x is 0, the result is undefined.
- */
-static inline uint32_t ngli_clz(uint32_t x)
-{
-    return (uint32_t)__builtin_clz(x);
-}
+typedef void (*npriv_freep_func)(void **sp);
 
-/*
- * Return the base-2 logarithm of x. If x is 0, the result is undefined.
- */
-static inline uint32_t ngli_log2(uint32_t x)
-{
-    return 31 - ngli_clz(x);
-}
+struct npriv_rc {
+    _Atomic(size_t) count;
+    npriv_freep_func freep;
+};
 
-#endif /* BITS_H */
+#define NPRIV_RC_CHECK_STRUCT(name) static_assert(offsetof(struct name, rc) == 0, #name "_rc")
+#define NPRIV_RC_CREATE(fn) (struct npriv_rc) { .count=1, .freep=(npriv_freep_func)fn }
+#define NPRIV_RC_REF(s) ((__typeof__(s))npriv_rc_ref((struct npriv_rc *)(s)))
+#define NPRIV_RC_UNREFP(sp) npriv_rc_unrefp((struct npriv_rc **)(sp))
+
+struct npriv_rc *npriv_rc_ref(struct npriv_rc *s);
+void npriv_rc_unrefp(struct npriv_rc **sp);
+
+#endif /* NPRIV_REFCOUNT_H */

@@ -20,39 +20,39 @@
  * under the License.
  */
 
-#ifndef MEMORY_H
-#define MEMORY_H
+#ifndef NPRIV_MEMORY_H
+#define NPRIV_MEMORY_H
 
 #include <stddef.h>
 
-void *ngli_malloc(size_t size);
-void *ngli_calloc(size_t n, size_t size);
+void *npriv_malloc(size_t size);
+void *npriv_calloc(size_t n, size_t size);
 /* alignment: power of two, size: multiple of alignment */
-void *ngli_malloc_aligned(size_t alignment, size_t size);
+void *npriv_malloc_aligned(size_t alignment, size_t size);
 
-void *ngli_realloc(void *ptr, size_t n, size_t size);
+void *npriv_realloc(void *ptr, size_t n, size_t size);
 
-void *ngli_try_malloc(size_t size);
-void *ngli_try_calloc(size_t n, size_t size);
+void *npriv_try_malloc(size_t size);
+void *npriv_try_calloc(size_t n, size_t size);
 /* alignment: power of two, size: multiple of alignment */
-void *ngli_try_malloc_aligned(size_t alignment, size_t size);
+void *npriv_try_malloc_aligned(size_t alignment, size_t size);
 
-void *ngli_try_realloc(void *ptr, size_t n, size_t size);
+void *npriv_try_realloc(void *ptr, size_t n, size_t size);
 
-void ngli_free(void *ptr);
-void ngli_free_aligned(void *ptr);
+void npriv_free(void *ptr);
+void npriv_free_aligned(void *ptr);
 
-#define NGLI_FREEP_(free_func, objp) do {       \
-    __typeof__(objp) ngli_freep_objp_ = (objp); \
-    free_func(*ngli_freep_objp_);               \
-    *ngli_freep_objp_ = NULL;                   \
+#define NPRIV_FREEP_(free_func, objp) do {       \
+    __typeof__(objp) npriv_freep_objp_ = (objp); \
+    free_func(*npriv_freep_objp_);               \
+    *npriv_freep_objp_ = NULL;                   \
 } while (0)
 
-#define ngli_freep(objp) NGLI_FREEP_(ngli_free, objp)
-#define ngli_freep_aligned(objp) NGLI_FREEP_(ngli_free_aligned, objp)
+#define npriv_freep(objp) NPRIV_FREEP_(npriv_free, objp)
+#define npriv_freep_aligned(objp) NPRIV_FREEP_(npriv_free_aligned, objp)
 
-void *ngli_try_memdup(const void *src, size_t n);
+void *npriv_try_memdup(const void *src, size_t n);
 
-_Noreturn void ngli_oom(void);
+_Noreturn void npriv_oom(void);
 
 #endif

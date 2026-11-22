@@ -31,11 +31,11 @@
 
 #include <nopegpu/nopegpu.h>
 
+#include "libnopeutil/memory.h"
 #include "log.h"
 #include "utils/error.h"
-#include "utils/memory.h"
 
-ngli_printf_format(6, 0)
+npriv_printf_format(6, 0)
 static void default_callback(void *arg, enum ngl_log_level level, const char *filename, int ln,
                              const char *fn, const char *fmt, va_list vl)
 {
@@ -59,7 +59,7 @@ static void default_callback(void *arg, enum ngl_log_level level, const char *fi
     /* handle the case where the line doesn't fit the stack buffer */
     if (len >= sizeof(logline)) {
         const size_t logbuf_size = (size_t)len + 1;
-        logbuf = ngli_try_malloc(logbuf_size);
+        logbuf = npriv_try_malloc(logbuf_size);
         if (!logbuf) {
             va_end(vl_copy);
             return;
@@ -87,7 +87,7 @@ static void default_callback(void *arg, enum ngl_log_level level, const char *fi
     printf("%s[%s] %s:%d %s: %s%s\n", color_start,
            log_strs[level], filename, ln, fn, logp,
            color_end);
-    ngli_free(logbuf);
+    npriv_free(logbuf);
     va_end(vl_copy);
     fflush(stdout);
 }
@@ -101,7 +101,7 @@ static struct {
     .min_level = NGL_LOG_WARNING,
 };
 
-ngli_printf_format(6, 0)
+npriv_printf_format(6, 0)
 static void default_ngpu_callback(void *arg, enum ngpu_log_level level, const char *filename, int ln,
                                   const char *fn, const char *fmt, va_list vl)
 {
@@ -112,7 +112,7 @@ static void default_ngpu_callback(void *arg, enum ngpu_log_level level, const ch
         [NGPU_LOG_WARNING] = NGL_LOG_WARNING,
         [NGPU_LOG_ERROR]   = NGL_LOG_ERROR,
     };
-    if (level >= NGLI_ARRAY_NB(log_levels))
+    if (level >= NPRIV_ARRAY_NB(log_levels))
         return;
 
     if (log_levels[level] < log_ctx.min_level)

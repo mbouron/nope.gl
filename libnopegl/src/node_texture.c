@@ -62,7 +62,7 @@ struct texture_priv {
     struct rtt_ctx *rtt_ctx;
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct texture_priv, texture_info) == 0, "texture_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct texture_priv, texture_info) == 0, "texture_info is first");
 
 struct texture_info *ngli_node_texture_get_texture_info(const struct ngl_node *node)
 {
@@ -92,7 +92,7 @@ enum ngpu_pgcraft_texture_type ngli_node_texture_get_pgcraft_texture_type(const 
     case NGL_NODE_TEXTURECUBE:
         return NGPU_PGCRAFT_TEXTURE_TYPE_CUBE;
     default:
-        ngli_assert(0);
+        npriv_assert(0);
     }
 }
 
@@ -108,7 +108,7 @@ enum ngpu_pgcraft_texture_type ngli_node_texture_get_pgcraft_image_type(const st
     case NGL_NODE_TEXTURECUBE:
         return NGPU_PGCRAFT_TEXTURE_TYPE_IMAGE_CUBE;
     default:
-        ngli_assert(0);
+        npriv_assert(0);
     }
 }
 
@@ -485,7 +485,7 @@ static int texture_prefetch(struct ngl_node *node)
                 .attachment = i->texture,
                 .load_op = NGPU_LOAD_OP_CLEAR,
                 .store_op = NGPU_STORE_OP_STORE,
-                .clear_value = {NGLI_ARG_VEC4(o->clear_color)},
+                .clear_value = {NPRIV_ARG_VEC4(o->clear_color)},
             },
             .depth_stencil_format = depth_format,
         };
@@ -696,8 +696,8 @@ static void texture_pre_draw(struct ngl_node *node)
     }
 
     if (!o->forward_transforms) {
-        if (ngli_darray_try_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) < 0 ||
-            ngli_darray_try_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix) < 0)
+        if (npriv_darray_try_push(&ctx->modelview_matrix_stack, ctx->default_modelview_matrix) < 0 ||
+            npriv_darray_try_push(&ctx->projection_matrix_stack, ctx->default_projection_matrix) < 0)
             return;
     }
 
@@ -708,8 +708,8 @@ static void texture_pre_draw(struct ngl_node *node)
     ngli_rtt_end(s->rtt_ctx);
 
     if (!o->forward_transforms) {
-        ngli_darray_pop(&ctx->modelview_matrix_stack);
-        ngli_darray_pop(&ctx->projection_matrix_stack);
+        npriv_darray_pop(&ctx->modelview_matrix_stack);
+        npriv_darray_pop(&ctx->projection_matrix_stack);
     }
 }
 

@@ -24,11 +24,11 @@
 #include <nopegpu/nopegpu.h>
 
 #include "image.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 /* Two entries cover the observed recurring staging-buffer binding sets. */
 #define BINDGROUP_CACHE_CAPACITY 2
@@ -103,7 +103,7 @@ struct ngli_pipeline {
 
 struct ngli_pipeline *ngli_pipeline_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngli_pipeline *s = ngli_try_calloc(1, sizeof(*s));
+    struct ngli_pipeline *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->gpu_ctx = gpu_ctx;
@@ -163,33 +163,33 @@ int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_param
 
     s->program = params->program;
 
-    NGLI_ARRAY_MEMDUP(&s->bindgroup_layout_desc, &params->layout_desc, textures);
-    NGLI_ARRAY_MEMDUP(&s->bindgroup_layout_desc, &params->layout_desc, buffers);
+    NPRIV_ARRAY_MEMDUP(&s->bindgroup_layout_desc, &params->layout_desc, textures);
+    NPRIV_ARRAY_MEMDUP(&s->bindgroup_layout_desc, &params->layout_desc, buffers);
 
     s->nb_buffers = params->layout_desc.nb_buffers;
     s->nb_textures = params->layout_desc.nb_textures;
     s->nb_vertex_buffers = params->graphics.vertex_state.nb_buffers;
     if (s->nb_buffers) {
-        s->buffer_slots = ngli_try_calloc(s->nb_buffers, sizeof(*s->buffer_slots));
-        s->buffers = ngli_try_calloc(s->nb_buffers, sizeof(*s->buffers));
+        s->buffer_slots = npriv_try_calloc(s->nb_buffers, sizeof(*s->buffer_slots));
+        s->buffers = npriv_try_calloc(s->nb_buffers, sizeof(*s->buffers));
         if (!s->buffer_slots || !s->buffers)
             return NGL_ERROR_MEMORY;
     }
     if (s->nb_textures) {
-        s->texture_slots = ngli_try_calloc(s->nb_textures, sizeof(*s->texture_slots));
-        s->textures = ngli_try_calloc(s->nb_textures, sizeof(*s->textures));
+        s->texture_slots = npriv_try_calloc(s->nb_textures, sizeof(*s->texture_slots));
+        s->textures = npriv_try_calloc(s->nb_textures, sizeof(*s->textures));
         if (!s->texture_slots || !s->textures)
             return NGL_ERROR_MEMORY;
     }
     if (s->nb_vertex_buffers) {
-        s->vertex_slots = ngli_try_calloc(s->nb_vertex_buffers, sizeof(*s->vertex_slots));
+        s->vertex_slots = npriv_try_calloc(s->nb_vertex_buffers, sizeof(*s->vertex_slots));
         if (!s->vertex_slots)
             return NGL_ERROR_MEMORY;
     }
 
     s->texture_infos = params->texture_infos;
     if (s->texture_infos.nb_infos) {
-        s->image_sources = ngli_try_calloc(s->texture_infos.nb_infos, sizeof(*s->image_sources));
+        s->image_sources = npriv_try_calloc(s->texture_infos.nb_infos, sizeof(*s->image_sources));
         if (!s->image_sources)
             return NGL_ERROR_MEMORY;
     }
@@ -206,7 +206,7 @@ int ngli_pipeline_init(struct ngli_pipeline *s, const struct ngli_pipeline_param
         if (type == NGPU_TYPE_UNIFORM_BUFFER_DYNAMIC || type == NGPU_TYPE_STORAGE_BUFFER_DYNAMIC)
             s->buffer_slots[i].dynamic_offset_index = (int32_t)dynamic_index++;
     }
-    ngli_assert(dynamic_index == s->nb_dynamic_offsets);
+    npriv_assert(dynamic_index == s->nb_dynamic_offsets);
 
     /* All images share one internally managed metadata binding. */
     if (s->texture_infos.nb_metadata && s->texture_infos.block_index >= 0) {
@@ -344,26 +344,26 @@ static int update_image_bindings(struct ngli_pipeline *s, int32_t index,
     if (index == -1)
         return 0;
 
-    ngli_assert(index >= 0 && index < s->texture_infos.nb_infos);
+    npriv_assert(index >= 0 && index < s->texture_infos.nb_infos);
     const struct ngli_image_params *params = ngli_image_get_params(image);
     const struct ngpu_pgcraft_texture_info *info = &s->texture_infos.infos[index];
 
     int32_t indices[4];
     get_image_texture_indices(info, indices);
 
-    struct ngpu_texture_binding bindings[NGLI_ARRAY_NB(indices)] = {0};
+    struct ngpu_texture_binding bindings[NPRIV_ARRAY_NB(indices)] = {0};
     if (params->layout == NGLI_IMAGE_LAYOUT_NONE) {
         bindings[0].texture = empty_texture;
     } else {
         const int8_t *slots = layout_plane_slots[params->layout];
-        for (size_t i = 0; i < NGLI_ARRAY_NB(params->planes) && slots[i] >= 0; i++)
+        for (size_t i = 0; i < NPRIV_ARRAY_NB(params->planes) && slots[i] >= 0; i++)
             bindings[slots[i]] = (struct ngpu_texture_binding) {
                 .texture           = params->planes[i],
                 .immutable_sampler = params->samplers[i],
             };
     }
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(indices); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(indices); i++) {
         const int ret = update_texture(s, indices[i], &bindings[i]);
         /* NOT_FOUND simply means this sampling variant was not generated */
         if (ret < 0 && ret != NGL_ERROR_NOT_FOUND)
@@ -624,7 +624,7 @@ int ngli_pipeline_set_image_source(struct ngli_pipeline *s, int32_t image_index,
     int32_t indices[4];
     get_image_texture_indices(info, indices);
     int used = info->metadata_index >= 0 && s->texture_infos.block_index >= 0;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(indices); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(indices); i++) {
         const int32_t index = indices[i];
         if (index < 0)
             continue;
@@ -636,7 +636,7 @@ int ngli_pipeline_set_image_source(struct ngli_pipeline *s, int32_t image_index,
         return NGL_ERROR_NOT_FOUND;
 
     const enum slot_mode mode = resource ? SLOT_IMAGE : SLOT_UNBOUND;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(indices); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(indices); i++) {
         if (indices[i] < 0)
             continue;
         s->texture_slots[indices[i]].mode = mode;
@@ -978,8 +978,8 @@ void ngli_pipeline_freep(struct ngli_pipeline **sp)
 
     ngpu_pipeline_graphics_reset(&s->graphics);
 
-    ngli_freep(&s->bindgroup_layout_desc.textures);
-    ngli_freep(&s->bindgroup_layout_desc.buffers);
+    npriv_freep(&s->bindgroup_layout_desc.textures);
+    npriv_freep(&s->bindgroup_layout_desc.buffers);
 
     for (size_t i = 0; s->buffer_slots && i < s->nb_buffers; i++)
         ngli_buffer_resource_unrefp(&s->buffer_slots[i].source);
@@ -991,11 +991,11 @@ void ngli_pipeline_freep(struct ngli_pipeline **sp)
         ngli_image_resource_unrefp(&s->image_sources[i]);
     ngli_buffer_resource_unrefp(&s->index_slot.source);
 
-    ngli_freep(&s->buffers);
-    ngli_freep(&s->textures);
-    ngli_freep(&s->buffer_slots);
-    ngli_freep(&s->vertex_slots);
-    ngli_freep(&s->texture_slots);
-    ngli_freep(&s->image_sources);
-    ngli_freep(sp);
+    npriv_freep(&s->buffers);
+    npriv_freep(&s->textures);
+    npriv_freep(&s->buffer_slots);
+    npriv_freep(&s->vertex_slots);
+    npriv_freep(&s->texture_slots);
+    npriv_freep(&s->image_sources);
+    npriv_freep(sp);
 }

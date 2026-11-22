@@ -81,9 +81,9 @@ static int update_matrices(struct ngl_node *node, double t)
     struct camera_priv *s = node->priv_data;
     const struct camera_opts *o = node->opts;
 
-    NGLI_ALIGNED_VEC(eye)    = {NGLI_ARG_VEC3(s->eye_data),    1.0f};
-    NGLI_ALIGNED_VEC(center) = {NGLI_ARG_VEC3(s->center_data), 1.0f};
-    NGLI_ALIGNED_VEC(up)     = {NGLI_ARG_VEC3(s->up_data),     1.0f};
+    NPRIV_ALIGNED_VEC(eye)    = {NPRIV_ARG_VEC3(s->eye_data),    1.0f};
+    NPRIV_ALIGNED_VEC(center) = {NPRIV_ARG_VEC3(s->center_data), 1.0f};
+    NPRIV_ALIGNED_VEC(up)     = {NPRIV_ARG_VEC3(s->up_data),     1.0f};
 
     ngli_vec3_norm(up, s->up_data);
 
@@ -256,14 +256,14 @@ static void camera_draw(struct ngl_node *node)
     struct camera_priv *s = node->priv_data;
     const struct camera_opts *o = node->opts;
 
-    if (ngli_darray_try_push(&ctx->modelview_matrix_stack, s->modelview_matrix) < 0 ||
-        ngli_darray_try_push(&ctx->projection_matrix_stack, s->projection_matrix) < 0)
+    if (npriv_darray_try_push(&ctx->modelview_matrix_stack, s->modelview_matrix) < 0 ||
+        npriv_darray_try_push(&ctx->projection_matrix_stack, s->projection_matrix) < 0)
         return;
 
     ngli_node_draw(o->child);
 
-    ngli_darray_pop(&ctx->modelview_matrix_stack);
-    ngli_darray_pop(&ctx->projection_matrix_stack);
+    npriv_darray_pop(&ctx->modelview_matrix_stack);
+    npriv_darray_pop(&ctx->projection_matrix_stack);
 }
 
 const struct node_class ngli_camera_class = {

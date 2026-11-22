@@ -89,7 +89,7 @@ static const struct node_param geometry_params[] = {
     {NULL}
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct geometry_priv, geom) == 0, "geom on top of geometry");
+NPRIV_STATIC_ASSERT(offsetof(struct geometry_priv, geom) == 0, "geom on top of geometry");
 
 #define GET_MAX_INDICES(type) do {                         \
     type *data = (type *)indices->data;                    \
@@ -151,7 +151,7 @@ static int geometry_init(struct ngl_node *node)
         case NGPU_FORMAT_R16_UNORM: GET_MAX_INDICES(uint16_t); break;
         case NGPU_FORMAT_R32_UINT:  GET_MAX_INDICES(uint32_t); break;
         default:
-            ngli_assert(0);
+            npriv_assert(0);
         }
 
         ngli_geometry_set_indices_buffer(s->geom, indices->resource, indices->layout, max_indices);

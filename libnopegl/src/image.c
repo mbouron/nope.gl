@@ -27,10 +27,10 @@
 
 #include "colorconv.h"
 #include "image.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/refcount.h"
+#include "libnopeutil/utils.h"
 #include "math_utils.h"
-#include "utils/memory.h"
-#include "utils/refcount.h"
-#include "utils/utils.h"
 
 /*
  * Assume BT.601 for the frames without color space information up to the
@@ -50,7 +50,7 @@ struct color_info ngli_color_info_from_nmd_frame(const struct nmd_frame *frame)
     /* The peak of the content (MaxCLL) cannot exceed the one of the mastering display */
     float max_luminance = frame->mastering_max_luminance;
     if (frame->max_cll > 0.f)
-        max_luminance = max_luminance > 0.f ? NGLI_MIN(frame->max_cll, max_luminance) : frame->max_cll;
+        max_luminance = max_luminance > 0.f ? NPRIV_MIN(frame->max_cll, max_luminance) : frame->max_cll;
 
     return (struct color_info){
         .space         = get_color_space(frame),
@@ -70,15 +70,15 @@ static const size_t nb_planes_map[] = {
     [NGLI_IMAGE_LAYOUT_YUV]            = 3,
 };
 
-NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(nb_planes_map) == NGLI_NB_IMAGE_LAYOUTS, "nb planes map");
+NPRIV_STATIC_ASSERT(NPRIV_ARRAY_NB(nb_planes_map) == NGLI_NB_IMAGE_LAYOUTS, "nb planes map");
 
 struct ngli_image {
-    struct ngli_rc rc;
+    struct npriv_rc rc;
     struct ngli_image_params params;
     size_t nb_planes;
 };
 
-NGLI_RC_CHECK_STRUCT(ngli_image);
+NPRIV_RC_CHECK_STRUCT(ngli_image);
 
 static const struct ngli_image empty_image = {
     .params = {
@@ -115,17 +115,17 @@ static void image_freep(void **sp)
     struct ngli_image *s = *sp;
     for (size_t i = 0; i < s->nb_planes; i++)
         ngpu_texture_freep(&s->params.planes[i]);
-    ngli_freep(sp);
+    npriv_freep(sp);
 }
 
 struct ngli_image *ngli_image_create(const struct ngli_image_params *params)
 {
-    ngli_assert(params->layout >= NGLI_IMAGE_LAYOUT_NONE && params->layout < NGLI_NB_IMAGE_LAYOUTS);
-    struct ngli_image *s = ngli_try_calloc(1, sizeof(*s));
+    npriv_assert(params->layout >= NGLI_IMAGE_LAYOUT_NONE && params->layout < NGLI_NB_IMAGE_LAYOUTS);
+    struct ngli_image *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
-    s->rc = NGLI_RC_CREATE(image_freep);
+    s->rc = NPRIV_RC_CREATE(image_freep);
     s->params = *params;
     s->nb_planes = nb_planes_map[params->layout];
     /*
@@ -134,9 +134,9 @@ struct ngli_image *ngli_image_create(const struct ngli_image_params *params)
      * the empty parameters carry NGLI_IMAGE_LAYOUT_NONE, so patching a plane
      * into them would otherwise yield a plane-less image without any hint.
      */
-    for (size_t i = s->nb_planes; i < NGLI_ARRAY_NB(params->planes); i++)
-        ngli_assert(!params->planes[i]);
-    for (size_t i = 0; i < NGLI_ARRAY_NB(s->params.planes); i++) {
+    for (size_t i = s->nb_planes; i < NPRIV_ARRAY_NB(params->planes); i++)
+        npriv_assert(!params->planes[i]);
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(s->params.planes); i++) {
         s->params.planes[i] = i < s->nb_planes && params->planes[i] ? ngpu_texture_ref(params->planes[i]) : NULL;
         s->params.samplers[i] = i < s->nb_planes ? params->samplers[i] : NULL;
     }
@@ -145,12 +145,12 @@ struct ngli_image *ngli_image_create(const struct ngli_image_params *params)
 
 struct ngli_image *ngli_image_ref(const struct ngli_image *s)
 {
-    return s ? NGLI_RC_REF((struct ngli_image *)s) : NULL;
+    return s ? NPRIV_RC_REF((struct ngli_image *)s) : NULL;
 }
 
 void ngli_image_unrefp(struct ngli_image **sp)
 {
-    NGLI_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }
 
 const struct ngli_image_params *ngli_image_get_params(const struct ngli_image *s)
@@ -160,14 +160,14 @@ const struct ngli_image_params *ngli_image_get_params(const struct ngli_image *s
 
 void ngli_image_set_coordinates_matrix(struct ngli_image *s, const struct ngli_mat4 *matrix)
 {
-    ngli_assert(s);
+    npriv_assert(s);
     s->params.coordinates_matrix = *matrix;
 }
 
 void ngli_image_get_coordinates_scale_offset(const struct ngli_image *s, float *scale, float *offset)
 {
     const float *m = ngli_image_get_params(s)->coordinates_matrix.m;
-    ngli_assert(m[1] == 0.f && m[4] == 0.f);
+    npriv_assert(m[1] == 0.f && m[4] == 0.f);
     scale[0] = m[0];
     scale[1] = m[5];
     offset[0] = m[12];

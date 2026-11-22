@@ -25,10 +25,10 @@
 #include "nopegl/nopegl.h"
 
 #include "job_queue.h"
-#include "memory.h"
-#include "thread.h"
-#include "time.h"
-#include "utils.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/thread.h"
+#include "libnopeutil/time.h"
+#include "libnopeutil/utils.h"
 
 void ngli_fence_init(struct ngli_fence *fence)
 {
@@ -42,7 +42,7 @@ void ngli_fence_destroy(struct ngli_fence *fence)
 {
 
     pthread_mutex_lock(&fence->mutex);
-    ngli_assert(fence->signalled);
+    npriv_assert(fence->signalled);
     pthread_mutex_unlock(&fence->mutex);
 
     pthread_cond_destroy(&fence->cond);
@@ -54,7 +54,7 @@ void ngli_fence_destroy(struct ngli_fence *fence)
 void ngli_fence_reset(struct ngli_fence *fence)
 {
     pthread_mutex_lock(&fence->mutex);
-    ngli_assert(fence->signalled);
+    npriv_assert(fence->signalled);
     fence->signalled = 0;
     pthread_mutex_unlock(&fence->mutex);
 }
@@ -99,11 +99,11 @@ int ngli_fence_wait_timeout(struct ngli_fence *fence, int64_t timeout)
     struct timespec ts;
     timespec_get(&ts, TIME_UTC);
 
-    ts.tv_sec += timeout / NGLI_NS_PER_SEC;
-    ts.tv_nsec += timeout % NGLI_NS_PER_SEC;
-    if (ts.tv_nsec >= NGLI_NS_PER_SEC) {
+    ts.tv_sec += timeout / NPRIV_NS_PER_SEC;
+    ts.tv_nsec += timeout % NPRIV_NS_PER_SEC;
+    if (ts.tv_nsec >= NPRIV_NS_PER_SEC) {
         ts.tv_sec++;
-        ts.tv_nsec -= NGLI_NS_PER_SEC;
+        ts.tv_nsec -= NPRIV_NS_PER_SEC;
     }
 
     int signaled = 0;
@@ -137,7 +137,7 @@ static void ngli_barrier_init(struct ngli_barrier *barrier, uint32_t count)
 
 static void ngli_barrier_destroy(struct ngli_barrier *barrier)
 {
-    ngli_assert(barrier->waiters == 0);
+    npriv_assert(barrier->waiters == 0);
     pthread_mutex_destroy(&barrier->mutex);
     pthread_cond_destroy(&barrier->cond);
 }
@@ -146,7 +146,7 @@ static void ngli_barrier_wait(struct ngli_barrier *barrier)
 {
     pthread_mutex_lock(&barrier->mutex);
 
-    ngli_assert(barrier->waiters < barrier->count);
+    npriv_assert(barrier->waiters < barrier->count);
     barrier->waiters++;
 
     if (barrier->waiters < barrier->count) {
@@ -183,18 +183,18 @@ static void *queue_thread(void *arg)
     struct ngli_queue *queue = thread_arg->queue;
     uint32_t thread_index = thread_arg->thread_index;
 
-    ngli_freep(&arg);
+    npriv_freep(&arg);
     thread_arg = NULL;
 
     if (strlen(queue->name) > 0) {
         char name[16];
         snprintf(name, sizeof(name), "%s-%u", queue->name, thread_index);
-        ngli_thread_set_name(name);
+        npriv_thread_set_name(name);
     }
 
     while (1) {
         pthread_mutex_lock(&queue->lock);
-        ngli_assert(queue->nb_jobs <= queue->max_jobs);
+        npriv_assert(queue->nb_jobs <= queue->max_jobs);
 
         while (!queue->stopped && queue->nb_jobs == 0)
             pthread_cond_wait(&queue->has_queued_cond, &queue->lock);
@@ -240,7 +240,7 @@ static void *queue_thread(void *arg)
 
 static int ngli_queue_create_thread(struct ngli_queue *queue, uint32_t index)
 {
-    struct thread_arg *arg = ngli_try_calloc(1, sizeof(*arg));
+    struct thread_arg *arg = npriv_try_calloc(1, sizeof(*arg));
     if (!arg)
         return NGL_ERROR_MEMORY;
 
@@ -249,7 +249,7 @@ static int ngli_queue_create_thread(struct ngli_queue *queue, uint32_t index)
 
     int ret = pthread_create(&queue->threads[index], NULL, queue_thread, arg);
     if (ret != 0) {
-        ngli_freep(&arg);
+        npriv_freep(&arg);
         return NGL_ERROR_MEMORY;
     }
 
@@ -269,7 +269,7 @@ int ngli_queue_init(struct ngli_queue *queue, const char *name, uint32_t max_job
     pthread_cond_init(&queue->has_queued_cond, NULL);
     pthread_cond_init(&queue->has_space_cond, NULL);
 
-    queue->jobs = ngli_try_calloc(max_jobs, sizeof(*queue->jobs));
+    queue->jobs = npriv_try_calloc(max_jobs, sizeof(*queue->jobs));
     if (!queue->jobs)
         goto fail;
     queue->max_jobs = max_jobs;
@@ -306,7 +306,7 @@ void ngli_queue_destroy(struct ngli_queue *queue)
     pthread_cond_destroy(&queue->has_space_cond);
     pthread_cond_destroy(&queue->has_queued_cond);
     pthread_mutex_destroy(&queue->lock);
-    ngli_free(queue->jobs);
+    npriv_free(queue->jobs);
     memset(queue, 0, sizeof(*queue));
 }
 
@@ -318,7 +318,7 @@ static void ngli_queue_add_job_unsafe(struct ngli_queue *queue, void *data, stru
     if (fence)
         ngli_fence_reset(fence);
 
-    ngli_assert(queue->nb_jobs <= queue->max_jobs);
+    npriv_assert(queue->nb_jobs <= queue->max_jobs);
 
     if (queue->nb_jobs >= queue->max_jobs) {
         while (queue->nb_jobs >= queue->max_jobs)
@@ -326,7 +326,7 @@ static void ngli_queue_add_job_unsafe(struct ngli_queue *queue, void *data, stru
     }
 
     struct ngli_queue_job *queue_job = &queue->jobs[queue->write_idx];
-    ngli_assert(queue_job->data == NULL);
+    npriv_assert(queue_job->data == NULL);
 
     queue_job->data        = data;
     queue_job->shared_data = queue->shared_data;

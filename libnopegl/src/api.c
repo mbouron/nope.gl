@@ -30,9 +30,10 @@
 #include <nopegpu/nopegpu.h>
 
 #include "config.h"
+#include "libnopeutil/error.h"
+#include "libnopeutil/time.h"
 #include "ngl_config.h"
 #include "utils/error.h"
-#include "utils/time.h"
 
 #include "distmap.h"
 #include "internal.h"
@@ -41,10 +42,10 @@
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
 #include "nopegl/nopegl_opengl.h"
-#include "utils/darray.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 #if defined(TARGET_ANDROID)
 #include <errno.h>
@@ -63,10 +64,15 @@
 #endif
 
 // Ensure public enums are stored on 32-bit
-NGLI_STATIC_ASSERT(sizeof(enum ngl_log_level)           == sizeof(int32_t), "32-bit loglevel enum");
-NGLI_STATIC_ASSERT(sizeof(enum ngl_platform_type)       == sizeof(int32_t), "32-bit platform enum");
-NGLI_STATIC_ASSERT(sizeof(enum ngl_backend_type)        == sizeof(int32_t), "32-bit backend enum");
-NGLI_STATIC_ASSERT(sizeof(enum ngl_capture_buffer_type) == sizeof(int32_t), "32-bit capture enum");
+NPRIV_STATIC_ASSERT(sizeof(enum ngl_log_level)           == sizeof(int32_t), "32-bit loglevel enum");
+NPRIV_STATIC_ASSERT(sizeof(enum ngl_platform_type)       == sizeof(int32_t), "32-bit platform enum");
+NPRIV_STATIC_ASSERT(sizeof(enum ngl_backend_type)        == sizeof(int32_t), "32-bit backend enum");
+NPRIV_STATIC_ASSERT(sizeof(enum ngl_capture_buffer_type) == sizeof(int32_t), "32-bit capture enum");
+
+// Ensure libnopeutil errors can be returned as is
+NPRIV_STATIC_ASSERT(NGL_ERROR_INVALID_ARG    == NPRIV_ERROR_INVALID_ARG,    "invalid argument error");
+NPRIV_STATIC_ASSERT(NGL_ERROR_LIMIT_EXCEEDED == NPRIV_ERROR_LIMIT_EXCEEDED, "limit exceeded error");
+NPRIV_STATIC_ASSERT(NGL_ERROR_MEMORY         == NPRIV_ERROR_MEMORY,         "memory error");
 
 #if defined(TARGET_ANDROID)
 # define DEFAULT_BACKEND NGL_BACKEND_OPENGLES
@@ -119,7 +125,7 @@ static enum ngl_platform_type get_default_platform(void)
 #elif defined(TARGET_WINDOWS)
     return NGL_PLATFORM_WINDOWS;
 #else
-    NGLI_STATIC_ASSERT(0, "no default platform");
+    NPRIV_STATIC_ASSERT(0, "no default platform");
 #endif
 }
 
@@ -132,7 +138,7 @@ static enum ngpu_platform_type ngl_platform_to_ngpu(enum ngl_platform_type platf
     case NGL_PLATFORM_IOS:     return NGPU_PLATFORM_IOS;
     case NGL_PLATFORM_WINDOWS: return NGPU_PLATFORM_WINDOWS;
     case NGL_PLATFORM_WAYLAND: return NGPU_PLATFORM_WAYLAND;
-    default: ngli_assert(0);
+    default: npriv_assert(0);
     }
 }
 
@@ -142,7 +148,7 @@ static enum ngpu_backend_type ngl_backend_type_to_ngpu(enum ngl_backend_type bac
     case NGL_BACKEND_OPENGL:   return NGPU_BACKEND_OPENGL;
     case NGL_BACKEND_OPENGLES: return NGPU_BACKEND_OPENGLES;
     case NGL_BACKEND_VULKAN:   return NGPU_BACKEND_VULKAN;
-    default: ngli_assert(0);
+    default: npriv_assert(0);
     }
 }
 
@@ -152,7 +158,7 @@ static enum ngl_backend_type ngpu_backend_type_to_ngl(enum ngpu_backend_type bac
     case NGPU_BACKEND_OPENGL:   return NGL_BACKEND_OPENGL;
     case NGPU_BACKEND_OPENGLES: return NGL_BACKEND_OPENGLES;
     case NGPU_BACKEND_VULKAN:   return NGL_BACKEND_VULKAN;
-    default: ngli_assert(0);
+    default: npriv_assert(0);
     }
 }
 
@@ -160,7 +166,7 @@ static enum ngpu_capture_buffer_type ngl_capture_buffer_type_to_ngpu(enum ngl_ca
 {
     switch (type) {
     case NGL_CAPTURE_BUFFER_TYPE_CPU:       return NGPU_CAPTURE_BUFFER_TYPE_CPU;
-    default: ngli_assert(0);
+    default: npriv_assert(0);
     }
 }
 
@@ -236,7 +242,7 @@ static const char *get_cap_string_id(unsigned cap_id)
     case NGL_CAP_MAX_TEXTURE_DIMENSION_3D:      return "max_texture_dimension_3d";
     case NGL_CAP_MAX_TEXTURE_DIMENSION_CUBE:    return "max_texture_dimension_cube";
     case NGL_CAP_TEXT_LIBRARIES:                return "text_libraries";
-    default:                                    ngli_assert(0);
+    default:                                    npriv_assert(0);
     }
 }
 
@@ -245,8 +251,8 @@ static const char *get_cap_string_id(unsigned cap_id)
 static int load_caps(struct ngl_backend *backend, const struct ngpu_ctx *gpu_ctx)
 {
     const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-    const uint32_t has_compute    = NGLI_HAS_ALL_FLAGS(features, NGPU_FEATURE_COMPUTE_BIT);
-    const uint32_t has_ds_resolve = NGLI_HAS_ALL_FLAGS(features, NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT);
+    const uint32_t has_compute    = NPRIV_HAS_ALL_FLAGS(features, NGPU_FEATURE_COMPUTE_BIT);
+    const uint32_t has_ds_resolve = NPRIV_HAS_ALL_FLAGS(features, NGPU_FEATURE_DEPTH_STENCIL_RESOLVE_BIT);
 
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
     const struct ngl_cap caps[] = {
@@ -270,8 +276,8 @@ static int load_caps(struct ngl_backend *backend, const struct ngpu_ctx *gpu_ctx
         CAP(NGL_CAP_TEXT_LIBRARIES,                HAVE_TEXT_LIBRARIES),
     };
 
-    backend->nb_caps = NGLI_ARRAY_NB(caps);
-    backend->caps = ngli_try_memdup(caps, sizeof(caps));
+    backend->nb_caps = NPRIV_ARRAY_NB(caps);
+    backend->caps = npriv_try_memdup(caps, sizeof(caps));
     if (!backend->caps)
         return NGL_ERROR_MEMORY;
 
@@ -302,7 +308,7 @@ static int backend_copy(struct ngl_backend *dst, const struct ngl_backend *src)
 {
     *dst = *src;
 
-    dst->caps = ngli_try_memdup(src->caps, src->nb_caps * sizeof(*src->caps));
+    dst->caps = npriv_try_memdup(src->caps, src->nb_caps * sizeof(*src->caps));
     if (!dst->caps)
         return NGL_ERROR_MEMORY;
 
@@ -311,7 +317,7 @@ static int backend_copy(struct ngl_backend *dst, const struct ngl_backend *src)
 
 static void backend_reset(struct ngl_backend *backend)
 {
-    ngli_free(backend->caps);
+    npriv_free(backend->caps);
     memset(backend, 0, sizeof(*backend));
 }
 
@@ -351,8 +357,8 @@ static void reset_scene(struct ngl_ctx *s, int action)
 
     ngli_queue_wait(&s->background_queue);
     ngli_hud_freep(&s->hud);
-    ngli_darray_clear(&s->bounding_box_nodes);
-    ngli_darray_clear(&s->intersecting_nodes);
+    npriv_darray_clear(&s->bounding_box_nodes);
+    npriv_darray_clear(&s->intersecting_nodes);
     ngli_ctx_release_resources(s);
     if (s->scene && s->scene->ctx == s)
         s->scene->ctx = NULL;
@@ -405,7 +411,7 @@ static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene
     if (canvas_w <= 0 || canvas_h <= 0)
         return vp;
 
-    const float scale = NGLI_MIN(width / (float)canvas_w, height / (float)canvas_h);
+    const float scale = NPRIV_MIN(width / (float)canvas_w, height / (float)canvas_h);
     vp.width  = (float)canvas_w * scale;
     vp.height = (float)canvas_h * scale;
     vp.x = (width  - vp.width)  * 0.5f;
@@ -426,7 +432,7 @@ void ngli_ctx_release_mc_frame(struct ngl_ctx *s, struct nmd_frame **framep)
         return;
     }
 
-    ngli_darray_push(&s->mc_frames, *framep);
+    npriv_darray_push(&s->mc_frames, *framep);
     *framep = NULL;
 }
 
@@ -450,7 +456,7 @@ static int wait_sync_file(int fd)
 
 static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
 {
-    if (ngli_darray_is_empty(&s->mc_frames))
+    if (npriv_darray_is_empty(&s->mc_frames))
         return;
 
     int fence_fd = -1;
@@ -481,7 +487,7 @@ static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
         }
         nmd_mc_frame_releasep(&frame, fd);
     }
-    ngli_darray_clear(&s->mc_frames);
+    npriv_darray_clear(&s->mc_frames);
 }
 #endif
 
@@ -573,12 +579,12 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
             if (s->frame_slots[i].frame) {
                 ngpu_texture_unrefp(&s->frame_slots[i].frame->texture);
                 ngpu_fence_freep(&s->frame_slots[i].frame->signal_fence);
-                ngli_freep(&s->frame_slots[i].frame);
+                npriv_freep(&s->frame_slots[i].frame);
             }
             if (s->frame_slots[i].release_fence)
                 ngpu_fence_freep(&s->frame_slots[i].release_fence);
         }
-        ngli_freep(&s->frame_slots);
+        npriv_freep(&s->frame_slots);
         s->nb_frame_slots = 0;
     }
     pthread_mutex_unlock(&s->frame_slots_lock);
@@ -588,7 +594,7 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
 #endif
 #if defined(TARGET_ANDROID)
     release_mc_frames(s, NULL);
-    ngli_darray_reset(&s->mc_frames);
+    npriv_darray_reset(&s->mc_frames);
     ngli_android_ctx_reset(&s->android_ctx);
 #endif
     if (s->gpu_ctx) {
@@ -602,10 +608,10 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
                 ngpu_staging_buffer_freep(&s->update_staging_buffers[i]);
         }
     }
-    ngli_freep(&s->draw_staging_buffers);
-    ngli_freep(&s->update_staging_buffers);
+    npriv_freep(&s->draw_staging_buffers);
+    npriv_freep(&s->update_staging_buffers);
     s->current_staging_buffer = NULL;
-    ngli_hmap_freep(&s->text_builtin_atlasses);
+    npriv_hmap_freep(&s->text_builtin_atlasses);
     ngpu_ctx_freep(&s->gpu_ctx);
     ngli_config_reset(&s->config);
     backend_reset(&s->backend);
@@ -615,7 +621,7 @@ void ngli_free_text_builtin_atlas(void *user_arg, void *data)
 {
     struct text_builtin_atlas *atlas = data;
     ngli_slug_freep(&atlas->slug);
-    ngli_freep(&atlas);
+    npriv_freep(&atlas);
 }
 
 int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
@@ -642,12 +648,12 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
         return ret;
     }
 
-    s->text_builtin_atlasses = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    s->text_builtin_atlasses = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!s->text_builtin_atlasses) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
     }
-    ngli_hmap_set_free_func(s->text_builtin_atlasses, ngli_free_text_builtin_atlas, NULL);
+    npriv_hmap_set_free_func(s->text_builtin_atlasses, ngli_free_text_builtin_atlas, NULL);
 
 #if defined(HAVE_VAAPI)
     ret = ngli_vaapi_ctx_init(s->gpu_ctx, &s->vaapi_ctx);
@@ -664,15 +670,15 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
 
     const uint32_t nb_in_flight_frames = ngpu_ctx_get_nb_in_flight_frames(s->gpu_ctx);
 
-    s->frame_slots = ngli_try_calloc(nb_in_flight_frames, sizeof(*s->frame_slots));
+    s->frame_slots = npriv_try_calloc(nb_in_flight_frames, sizeof(*s->frame_slots));
     if (!s->frame_slots) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
     }
     s->nb_frame_slots = nb_in_flight_frames;
 
-    s->update_staging_buffers = ngli_try_calloc(nb_in_flight_frames, sizeof(*s->update_staging_buffers));
-    s->draw_staging_buffers = ngli_try_calloc(nb_in_flight_frames, sizeof(*s->draw_staging_buffers));
+    s->update_staging_buffers = npriv_try_calloc(nb_in_flight_frames, sizeof(*s->update_staging_buffers));
+    s->draw_staging_buffers = npriv_try_calloc(nb_in_flight_frames, sizeof(*s->draw_staging_buffers));
     if (!s->update_staging_buffers || !s->draw_staging_buffers) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
@@ -690,8 +696,8 @@ int ngli_ctx_configure(struct ngl_ctx *s, const struct ngl_config *config)
     s->current_staging_buffer = s->update_staging_buffers[0];
 
     ngpu_ctx_get_projection_matrix(s->gpu_ctx, s->default_projection_matrix.m);
-    ngli_darray_clear(&s->projection_matrix_stack);
-    if (ngli_darray_try_push(&s->projection_matrix_stack, s->default_projection_matrix) < 0) {
+    npriv_darray_clear(&s->projection_matrix_stack);
+    if (npriv_darray_try_push(&s->projection_matrix_stack, s->default_projection_matrix) < 0) {
         ret = NGL_ERROR_MEMORY;
         goto fail;
     }
@@ -757,7 +763,7 @@ int ngli_ctx_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
 static int end_update(struct ngl_ctx *s, bool return_images)
 {
 #if defined(TARGET_ANDROID)
-    if (return_images && !ngli_darray_is_empty(&s->mc_frames)) {
+    if (return_images && !npriv_darray_is_empty(&s->mc_frames)) {
         struct ngpu_fence *fence = NULL;
         int ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, &fence);
         if (ret >= 0)
@@ -789,7 +795,7 @@ static int update_scene(struct ngl_ctx *s, double t)
 
 static int prepare_draw(struct ngl_ctx *s, double t, bool return_images)
 {
-    const int64_t start_time = s->hud ? ngli_gettime_relative() : 0;
+    const int64_t start_time = s->hud ? npriv_gettime_relative() : 0;
 
     uint32_t frame_index = ngpu_ctx_advance_frame(s->gpu_ctx);
     LOG(DEBUG, "start frame @ index=%u t=%f", frame_index, t);
@@ -814,7 +820,7 @@ static int prepare_draw(struct ngl_ctx *s, double t, bool return_images)
     if (end_ret < 0)
         return end_ret;
 
-    s->frame_stats.cpu_update_time = s->hud ? ngli_gettime_relative() - start_time : 0;
+    s->frame_stats.cpu_update_time = s->hud ? npriv_gettime_relative() - start_time : 0;
 
     return 0;
 }
@@ -846,7 +852,7 @@ static int draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, stru
     if (ret < 0)
         return ret;
 
-    const int64_t cpu_start_time = s->hud ? ngli_gettime_relative() : 0;
+    const int64_t cpu_start_time = s->hud ? npriv_gettime_relative() : 0;
 
     s->current_rendertarget = ngpu_ctx_get_default_rendertarget(s->gpu_ctx);
 
@@ -854,7 +860,7 @@ static int draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, stru
     s->current_staging_buffer = s->draw_staging_buffers[frame_index];
     ngpu_staging_buffer_reset(s->current_staging_buffer);
 
-    ngli_darray_clear(&s->bounding_box_nodes);
+    npriv_darray_clear(&s->bounding_box_nodes);
 
     ngli_node2d_apply_default_transform(s);
 
@@ -873,7 +879,7 @@ static int draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, stru
 
     if (s->hud) {
         struct ngli_frame_stats *stats = &s->frame_stats;
-        stats->cpu_draw_time = ngli_gettime_relative() - cpu_start_time;
+        stats->cpu_draw_time = npriv_gettime_relative() - cpu_start_time;
         stats->node_count = s->scene ? s->scene->nodes.count : 0;
         stats->active_node_count = get_active_node_count(s->scene);
         stats->gpu = *ngpu_ctx_get_frame_stats(s->gpu_ctx);
@@ -894,7 +900,7 @@ static int draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, stru
         return ret;
 
 #if defined(TARGET_ANDROID)
-    if (!ngli_darray_is_empty(&s->mc_frames)) {
+    if (!npriv_darray_is_empty(&s->mc_frames)) {
         struct ngpu_fence *fence = NULL;
         struct ngpu_fence **fencep = signal_fence ? signal_fence : &fence;
         ret = ngpu_ctx_end_draw(s->gpu_ctx, t, wait_fence, fencep);
@@ -957,12 +963,12 @@ static int backends_probe(const struct ngl_config *user_config, size_t *nb_backe
 
     const enum ngl_platform_type platform = get_platform(user_config->platform);
 
-    struct ngl_backend *backends = ngli_try_calloc(NGLI_ARRAY_NB(api_map), sizeof(*backends));
+    struct ngl_backend *backends = npriv_try_calloc(NPRIV_ARRAY_NB(api_map), sizeof(*backends));
     if (!backends)
         return NGL_ERROR_MEMORY;
     size_t nb_backends = 0;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(api_map); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(api_map); i++) {
         if (!api_map[i])
             continue;
         const enum ngl_backend_type backend_id = (enum ngl_backend_type)i;
@@ -1002,14 +1008,14 @@ void ngl_backends_freep(struct ngl_backend **backendsp)
     struct ngl_backend *backends = *backendsp;
     if (!backends)
         return;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(api_map); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(api_map); i++)
         backend_reset(&backends[i]);
-    ngli_freep(backendsp);
+    npriv_freep(backendsp);
 }
 
 struct ngl_ctx *ngl_create(void)
 {
-    struct ngl_ctx *s = ngli_try_calloc(1, sizeof(*s));
+    struct ngl_ctx *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
@@ -1024,8 +1030,8 @@ struct ngl_ctx *ngl_create(void)
     s->default_modelview_matrix = id_matrix;
     s->default_projection_matrix = id_matrix;
 
-    if (ngli_darray_try_push(&s->modelview_matrix_stack, id_matrix) < 0 ||
-        ngli_darray_try_push(&s->projection_matrix_stack, id_matrix) < 0)
+    if (npriv_darray_try_push(&s->modelview_matrix_stack, id_matrix) < 0 ||
+        npriv_darray_try_push(&s->projection_matrix_stack, id_matrix) < 0)
         goto fail;
 
     ngli_node2d_apply_default_transform(s);
@@ -1092,7 +1098,7 @@ int ngl_configure(struct ngl_ctx *s, const struct ngl_config *user_config)
         config.platform = get_default_platform();
 
     if (config.backend < 0 ||
-        config.backend >= NGLI_ARRAY_NB(api_map)) {
+        config.backend >= NPRIV_ARRAY_NB(api_map)) {
         LOG(ERROR, "unknown backend %u", config.backend);
         return NGL_ERROR_INVALID_ARG;
     }
@@ -1308,7 +1314,7 @@ void ngl_frame_release(struct ngl_frame *f, struct ngpu_fence *fence)
     slot->frame = NULL;
     pthread_mutex_unlock(&s->frame_slots_lock);
 
-    ngli_freep(&f);
+    npriv_freep(&f);
 }
 
 int ngl_draw(struct ngl_ctx *s, double t, struct ngl_draw_output *output)
@@ -1341,7 +1347,7 @@ int ngl_draw(struct ngl_ctx *s, double t, struct ngl_draw_output *output)
 
     struct ngl_frame *frame = NULL;
     if (output) {
-        frame = ngli_try_calloc(1, sizeof(*frame));
+        frame = npriv_try_calloc(1, sizeof(*frame));
         if (!frame) {
             ngpu_fence_freep(&release_fence);
             return NGL_ERROR_MEMORY;
@@ -1358,7 +1364,7 @@ int ngl_draw(struct ngl_ctx *s, double t, struct ngl_draw_output *output)
     if (ret < 0) {
         if (frame) {
             ngpu_fence_freep(&frame->signal_fence);
-            ngli_freep(&frame);
+            npriv_freep(&frame);
         }
         return ret;
     }
@@ -1386,9 +1392,9 @@ NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t
     *nb_nodesp = 0;
     *nodesp = NULL;
 
-    ngli_darray_clear(&s->intersecting_nodes);
+    npriv_darray_clear(&s->intersecting_nodes);
 
-    const NGLI_ALIGNED_VEC(pixel_point) = {point[0], point[1], 0.f, 1.f};
+    const NPRIV_ALIGNED_VEC(pixel_point) = {point[0], point[1], 0.f, 1.f};
 
     for (size_t i = 0; i < s->bounding_box_nodes.count; i++) {
         struct ngl_node *bounding_box_node = s->bounding_box_nodes.data[i];
@@ -1405,11 +1411,11 @@ NGL_API int ngl_get_nodes_at_point(struct ngl_ctx *s, const float *point, size_t
         /* Narrow phase: inverse-transform point into local space */
         struct ngli_mat4 inv;
         ngli_mat4_inverse(inv.m, node2d_info->transform_matrix.m);
-        NGLI_ALIGNED_VEC(local_point);
+        NPRIV_ALIGNED_VEC(local_point);
         ngli_mat4_mul_vec4(local_point, inv.m, pixel_point);
 
         if (ngli_aabb_intersect_point(&node2d_info->aabb, local_point)) {
-            if (ngli_darray_try_push(&s->intersecting_nodes, bounding_box_node) < 0)
+            if (npriv_darray_try_push(&s->intersecting_nodes, bounding_box_node) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -1487,17 +1493,17 @@ void ngl_freep(struct ngl_ctx **ss)
     ngli_queue_destroy(&s->background_queue);
     pthread_mutex_destroy(&s->frame_slots_lock);
 
-    ngli_darray_reset(&s->modelview_matrix_stack);
-    ngli_darray_reset(&s->projection_matrix_stack);
-    ngli_darray_reset(&s->activitycheck_nodes);
-    ngli_darray_reset(&s->bounding_box_nodes);
-    ngli_darray_reset(&s->intersecting_nodes);
+    npriv_darray_reset(&s->modelview_matrix_stack);
+    npriv_darray_reset(&s->projection_matrix_stack);
+    npriv_darray_reset(&s->activitycheck_nodes);
+    npriv_darray_reset(&s->bounding_box_nodes);
+    npriv_darray_reset(&s->intersecting_nodes);
     /*
      * Emptied by the context reset above, which an unconfigured context never
      * needed. Releasing here would be too late anyway: ngli_ctx_reset() has
      * freed the GPU context the uninit callbacks work against.
      */
-    ngli_assert(ngli_darray_is_empty(&s->resource_nodes));
-    ngli_darray_reset(&s->resource_nodes);
-    ngli_freep(ss);
+    npriv_assert(npriv_darray_is_empty(&s->resource_nodes));
+    npriv_darray_reset(&s->resource_nodes);
+    npriv_freep(ss);
 }

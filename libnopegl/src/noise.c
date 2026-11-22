@@ -22,9 +22,9 @@
 
 #include <math.h>
 
+#include "libnopeutil/utils.h"
 #include "math_utils.h"
 #include "noise.h"
-#include "utils/utils.h"
 
 static float curve_linear(float t)
 {
@@ -97,7 +97,7 @@ static float noise(const struct noise *s, float t)
 
 int ngli_noise_init(struct noise *s, const struct noise_params *params)
 {
-    ngli_assert(params->function >= 0 && params->function < NGLI_ARRAY_NB(interp_func_map));
+    npriv_assert(params->function >= 0 && params->function < NPRIV_ARRAY_NB(interp_func_map));
     s->interp_func = interp_func_map[params->function];
     s->params = *params;
     return 0;

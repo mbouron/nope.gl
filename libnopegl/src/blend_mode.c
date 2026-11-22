@@ -81,7 +81,7 @@ int ngli_blend_mode_apply(struct ngpu_graphics_state *state, enum ngli_blend_mod
 {
     if (mode == NGLI_BLEND_MODE_DISABLED)
         return 0;
-    if (mode < 0 || mode >= NGLI_ARRAY_NB(blend_modes))
+    if (mode < 0 || mode >= NPRIV_ARRAY_NB(blend_modes))
         return NGL_ERROR_INVALID_ARG;
     const enum ngpu_blend_factor srcf = blend_modes[mode].srcf;
     const enum ngpu_blend_factor dstf = blend_modes[mode].dstf;

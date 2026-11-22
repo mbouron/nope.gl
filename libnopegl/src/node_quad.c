@@ -27,9 +27,9 @@
 
 #include "geometry.h"
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
-#include "utils/utils.h"
 
 struct quad_opts {
     float corner[3];
@@ -61,7 +61,7 @@ static const struct node_param quad_params[] = {
     {NULL}
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct quad_priv, geom) == 0, "geom on top of quad");
+NPRIV_STATIC_ASSERT(offsetof(struct quad_priv, geom) == 0, "geom on top of quad");
 
 #define NB_VERTICES 4
 

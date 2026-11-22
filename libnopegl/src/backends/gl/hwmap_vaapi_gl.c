@@ -35,9 +35,9 @@
 #include "hwmap.h"
 #include "image.h"
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "nopegl/nopegl.h"
-#include "utils/utils.h"
 #include "vaapi_ctx.h"
 
 struct hwmap_vaapi {
@@ -53,7 +53,7 @@ static bool support_direct_rendering(struct hwmap *hwmap)
 {
     const struct hwmap_params *params = &hwmap->params;
 
-    bool direct_rendering = NGLI_HAS_ALL_FLAGS(params->image_layouts, NGLI_IMAGE_LAYOUT_NV12_BIT);
+    bool direct_rendering = NPRIV_HAS_ALL_FLAGS(params->image_layouts, NGLI_IMAGE_LAYOUT_NV12_BIT);
 
     if (direct_rendering && params->texture_mipmap_filter) {
         LOG(WARNING,
@@ -77,7 +77,7 @@ static void vaapi_release_frame_resources(struct hwmap *hwmap)
     struct hwmap_vaapi *vaapi = hwmap->hwmap_priv_data;
 
     if (vaapi->surface_acquired) {
-        for (size_t i = 0; i < NGLI_ARRAY_NB(vaapi->planes); i++) {
+        for (size_t i = 0; i < NPRIV_ARRAY_NB(vaapi->planes); i++) {
             ngpu_texture_freep(&vaapi->planes[i]);
         }
         for (uint32_t i = 0; i < vaapi->surface_descriptor.num_objects; i++) {
@@ -129,9 +129,9 @@ static int vaapi_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct 
     }
 
     size_t num_layers = vaapi->surface_descriptor.num_layers;
-    if (num_layers > NGLI_ARRAY_NB(vaapi->planes)) {
-        LOG(WARNING, "vaapi layer count (%zu) exceeds plane count (%zu)", num_layers, NGLI_ARRAY_NB(vaapi->planes));
-        num_layers = NGLI_ARRAY_NB(vaapi->planes);
+    if (num_layers > NPRIV_ARRAY_NB(vaapi->planes)) {
+        LOG(WARNING, "vaapi layer count (%zu) exceeds plane count (%zu)", num_layers, NPRIV_ARRAY_NB(vaapi->planes));
+        num_layers = NPRIV_ARRAY_NB(vaapi->planes);
     }
 
     for (size_t i = 0; i < num_layers; i++) {

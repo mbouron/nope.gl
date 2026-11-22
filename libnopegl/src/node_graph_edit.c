@@ -26,17 +26,17 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_graph.h"
 #include "node_graph_edit.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "renderpass.h"
-#include "utils/utils.h"
 
 static struct ngli_node_darray *get_node_list(const struct ngl_node *node, const struct node_param *par)
 {
-    ngli_assert(par->type == NGLI_PARAM_TYPE_NODELIST);
+    npriv_assert(par->type == NGLI_PARAM_TYPE_NODELIST);
     return (struct ngli_node_darray *)((uint8_t *)node->opts + par->offset);
 }
 
@@ -182,7 +182,7 @@ revert_edges:
     /* Rollback newly inserted edges */
     ngli_scene_remove_edges_at(node, range.index + index, nb_nodes);
     /* Rollback newly inserted nodes */
-    ngli_darray_remove_range(list, index, nb_nodes);
+    npriv_darray_remove_range(list, index, nb_nodes);
     /*
      * Re-prepare the restored scene as shared subgraphs could have been
      * prepared against a different render state
@@ -193,7 +193,7 @@ revert_edges:
 
 revert:
     /* Rollback newly inserted nodes */
-    ngli_darray_remove_range(list, index, nb_nodes);
+    npriv_darray_remove_range(list, index, nb_nodes);
     return ret;
 }
 
@@ -245,7 +245,7 @@ static void apply_swap_children(struct ngl_node *node, const struct node_param *
         const struct ngli_node_graph_range range = ngli_node_graph_get_param_range(node, par);
         ngli_scene_swap_edges(node, range.index + from, range.index + to);
     }
-    NGLI_SWAP(list->data[from], list->data[to]);
+    NPRIV_SWAP(list->data[from], list->data[to]);
 }
 
 static void apply_move_child(struct ngl_node *node, const struct node_param *par,
@@ -256,7 +256,7 @@ static void apply_move_child(struct ngl_node *node, const struct node_param *par
         const struct ngli_node_graph_range range = ngli_node_graph_get_param_range(node, par);
         ngli_scene_move_edge(node, range.index + from, range.index + to);
     }
-    ngli_darray_move(list, from, to);
+    npriv_darray_move(list, from, to);
 }
 
 static int apply_reparent_child(struct ngl_node *from, const struct node_param *from_par,

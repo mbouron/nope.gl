@@ -1,5 +1,6 @@
 /*
- * Copyright 2024-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
+ * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,16 +20,26 @@
  * under the License.
  */
 
-#define _GNU_SOURCE
+#ifndef NPRIV_BSTR_H
+#define NPRIV_BSTR_H
 
-#include "pthread_compat.h"
-#include "thread.h"
+#include <stdarg.h>
+#include <stddef.h>
 
-void ngli_thread_set_name(const char *name)
-{
-#if defined(__APPLE__)
-    pthread_setname_np(name);
-#elif ((defined(__linux__) && defined(__GLIBC__)) || defined(__ANDROID__))
-    pthread_setname_np(pthread_self(), name);
+#include "utils.h"
+
+struct bstr;
+
+struct bstr *npriv_bstr_create(void);
+void npriv_bstr_write(struct bstr *b, const char *str, size_t len);
+void npriv_bstr_print(struct bstr *b, const char *str);
+void npriv_bstr_printf(struct bstr *b, const char *fmt, ...) npriv_printf_format(2, 3);
+void npriv_bstr_clear(struct bstr *b);
+int npriv_bstr_truncate(struct bstr *b, size_t len);
+char *npriv_bstr_strdup(const struct bstr *b);
+const char *npriv_bstr_strptr(const struct bstr *b);
+size_t npriv_bstr_len(const struct bstr *b);
+int npriv_bstr_check(const struct bstr *b);
+void npriv_bstr_freep(struct bstr **bp);
+
 #endif
-}

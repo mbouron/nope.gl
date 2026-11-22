@@ -1,6 +1,5 @@
 /*
- * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
- * Copyright 2016-2022 GoPro Inc.
+ * Copyright 2024-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -20,26 +19,16 @@
  * under the License.
  */
 
-#ifndef BSTR_H
-#define BSTR_H
+#define _GNU_SOURCE
 
-#include <stdarg.h>
-#include <stddef.h>
+#include "pthread_compat.h"
+#include "thread.h"
 
-#include "utils.h"
-
-struct bstr;
-
-struct bstr *ngli_bstr_create(void);
-void ngli_bstr_write(struct bstr *b, const char *str, size_t len);
-void ngli_bstr_print(struct bstr *b, const char *str);
-void ngli_bstr_printf(struct bstr *b, const char *fmt, ...) ngli_printf_format(2, 3);
-void ngli_bstr_clear(struct bstr *b);
-int ngli_bstr_truncate(struct bstr *b, size_t len);
-char *ngli_bstr_strdup(const struct bstr *b);
-const char *ngli_bstr_strptr(const struct bstr *b);
-size_t ngli_bstr_len(const struct bstr *b);
-int ngli_bstr_check(const struct bstr *b);
-void ngli_bstr_freep(struct bstr **bp);
-
+void npriv_thread_set_name(const char *name)
+{
+#if defined(__APPLE__)
+    pthread_setname_np(name);
+#elif ((defined(__linux__) && defined(__GLIBC__)) || defined(__ANDROID__))
+    pthread_setname_np(pthread_self(), name);
 #endif
+}

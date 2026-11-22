@@ -25,7 +25,7 @@
 
 #include <stdint.h>
 
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 
 struct path;
 
@@ -76,7 +76,7 @@ int ngli_path_init(struct path *s, int32_t precision);
 /* Evaluate an initialized path */
 void ngli_path_evaluate(struct path *s, float *dst, float distance);
 
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_path_segment_darray, struct path_segment);
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_path_segment_darray, struct path_segment);
 
 /*
  * Read back every segment. Require the path to be initialized or at least

@@ -25,12 +25,12 @@
 #include <string.h>
 
 #include "internal.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/string.h"
 #include "log.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/string.h"
 
 static int parse_i32(const char *s, int32_t *valp)
 {
@@ -105,8 +105,8 @@ static int parse_func##s(const char *s, type **valsp, size_t *nb_valsp)     \
             consumed = -1;                                                  \
             break;                                                          \
         }                                                                   \
-        type *new_vals = ngli_try_realloc(vals,                             \
-                                          nb_vals + 1, sizeof(*new_vals));  \
+        type *new_vals = npriv_try_realloc(vals,                            \
+                                           nb_vals + 1, sizeof(*new_vals)); \
         if (!new_vals) {                                                    \
             consumed = -1;                                                  \
             break;                                                          \
@@ -121,7 +121,7 @@ static int parse_func##s(const char *s, type **valsp, size_t *nb_valsp)     \
         consumed++;                                                         \
     }                                                                       \
     if (consumed < 0) {                                                     \
-        ngli_freep(&vals);                                                  \
+        npriv_freep(&vals);                                                 \
         nb_vals = 0;                                                        \
     }                                                                       \
     *valsp = vals;                                                          \
@@ -137,9 +137,9 @@ DECLARE_PARSE_LIST_FUNC(uint32_t, parse_u32)
 
 #define FREE_KVS(count, keys, vals) do {                                    \
     for (size_t k = 0; k < (count); k++)                                    \
-        ngli_free((keys)[k]);                                               \
-    ngli_freep(&keys);                                                      \
-    ngli_freep(&vals);                                                      \
+        npriv_free((keys)[k]);                                              \
+    npriv_freep(&keys);                                                     \
+    npriv_freep(&vals);                                                     \
 } while (0)
 
 static int parse_kvs(const char *s, size_t *nb_kvsp, char ***keysp, size_t **valsp)
@@ -158,14 +158,14 @@ static int parse_kvs(const char *s, size_t *nb_kvsp, char ***keysp, size_t **val
             break;
         }
 
-        char **new_keys = ngli_try_realloc(keys, nb_vals + 1, sizeof(*new_keys));
+        char **new_keys = npriv_try_realloc(keys, nb_vals + 1, sizeof(*new_keys));
         if (!new_keys) {
             consumed = -1;
             break;
         }
         keys = new_keys;
 
-        size_t *new_vals = ngli_try_realloc(vals, nb_vals + 1, sizeof(*new_vals));
+        size_t *new_vals = npriv_try_realloc(vals, nb_vals + 1, sizeof(*new_vals));
         if (!new_vals) {
             consumed = -1;
             break;
@@ -174,7 +174,7 @@ static int parse_kvs(const char *s, size_t *nb_kvsp, char ***keysp, size_t **val
 
         s += len;
         consumed += len;
-        keys[nb_vals] = ngli_strdup(key);
+        keys[nb_vals] = npriv_strdup(key);
         vals[nb_vals] = val;
         nb_vals++;
         if (*s != ',')
@@ -237,11 +237,11 @@ static int parse_param_##set_type(struct ngli_node_darray *nodes_array, uint8_t 
     type *vals;                                                                     \
     const int len = parse_func(str, &vals, &nb_vals);                               \
     if (len < 0 || nb_vals != expected_nb_vals) {                                   \
-        ngli_free(vals);                                                            \
+        npriv_free(vals);                                                           \
         return NGL_ERROR_INVALID_DATA;                                              \
     }                                                                               \
     int ret = ngli_params_set_##set_type(dstp, par, vals);                          \
-    ngli_free(vals);                                                                \
+    npriv_free(vals);                                                               \
     if (ret < 0)                                                                    \
         return ret;                                                                 \
     return len;                                                                     \
@@ -278,13 +278,13 @@ static int parse_param_flags(struct ngli_node_darray *nodes_array, uint8_t *dstp
     const size_t len = strcspn(str, " \n");
     if (len > INT_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
-    char *s = ngli_try_malloc(len + 1);
+    char *s = npriv_try_malloc(len + 1);
     if (!s)
         return NGL_ERROR_MEMORY;
     memcpy(s, str, len);
     s[len] = 0;
     int ret = ngli_params_set_flags(dstp, par, s);
-    ngli_free(s);
+    npriv_free(s);
     if (ret < 0)
         return ret;
     return (int)len;
@@ -296,13 +296,13 @@ static int parse_param_select(struct ngli_node_darray *nodes_array, uint8_t *dst
     const size_t len = strcspn(str, " \n");
     if (len > INT_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
-    char *s = ngli_try_malloc(len + 1);
+    char *s = npriv_try_malloc(len + 1);
     if (!s)
         return NGL_ERROR_MEMORY;
     memcpy(s, str, len);
     s[len] = 0;
     int ret = ngli_params_set_select(dstp, par, s);
-    ngli_free(s);
+    npriv_free(s);
     if (ret < 0)
         return ret;
     return (int)len;
@@ -314,7 +314,7 @@ static int parse_param_str(struct ngli_node_darray *nodes_array, uint8_t *dstp,
     const size_t len = strcspn(str, " \n");
     if (len > INT_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
-    char *s = ngli_try_malloc(len + 1);
+    char *s = npriv_try_malloc(len + 1);
     if (!s)
         return NGL_ERROR_MEMORY;
     char *sstart = s;
@@ -328,7 +328,7 @@ static int parse_param_str(struct ngli_node_darray *nodes_array, uint8_t *dstp,
     }
     *s = 0;
     int ret = ngli_params_set_str(dstp, par, sstart);
-    ngli_free(sstart);
+    npriv_free(sstart);
     if (ret < 0)
         return ret;
     return (int)len;
@@ -345,19 +345,19 @@ static int parse_param_data(struct ngli_node_darray *nodes_array, uint8_t *dstp,
     if (ret != 1 || !size || cur >= end - consumed)
         return NGL_ERROR_INVALID_DATA;
     cur += consumed;
-    uint8_t *data = ngli_try_calloc(size, sizeof(*data));
+    uint8_t *data = npriv_try_calloc(size, sizeof(*data));
     if (!data)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < size; i++) {
         if (cur > end - 2) {
-            ngli_free(data);
+            npriv_free(data);
             return NGL_ERROR_INVALID_DATA;
         }
         data[i] = CHR_FROM_HEX(cur);
         cur += 2;
     }
     ret = ngli_params_set_data(dstp, par, size, data);
-    ngli_free(data);
+    npriv_free(data);
     if (ret < 0)
         return ret;
     return (int)(cur - str);
@@ -390,16 +390,16 @@ static int parse_param_nodelist(struct ngli_node_darray *nodes_array, uint8_t *d
     for (size_t i = 0; i < nb_node_ids; i++) {
         struct ngl_node **nodep = get_abs_node(nodes_array, node_ids[i]);
         if (!nodep) {
-            ngli_free(node_ids);
+            npriv_free(node_ids);
             return NGL_ERROR_INVALID_DATA;
         }
         int ret = ngli_params_add_nodes(dstp, par, 1, nodep);
         if (ret < 0) {
-            ngli_free(node_ids);
+            npriv_free(node_ids);
             return ret;
         }
     }
-    ngli_free(node_ids);
+    npriv_free(node_ids);
     return len;
 }
 
@@ -412,7 +412,7 @@ static int parse_param_f64list(struct ngli_node_darray *nodes_array, uint8_t *ds
     if (len < 0)
         return len;
     int ret = ngli_params_add_f64s(dstp, par, nb_dbls, dbls);
-    ngli_free(dbls);
+    npriv_free(dbls);
     if (ret < 0)
         return ret;
     return len;
@@ -530,7 +530,7 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str)
     struct ngli_node_darray nodes_array = {0};
     struct ngl_scene_params params = ngl_scene_default_params(NULL);
 
-    char *dupstr = ngli_strdup(str);
+    char *dupstr = npriv_strdup(str);
     if (!dupstr)
         return NGL_ERROR_MEMORY;
 
@@ -610,7 +610,7 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str)
             break;
         }
 
-        if (ngli_darray_try_push(&nodes_array, node) < 0) {
+        if (npriv_darray_try_push(&nodes_array, node) < 0) {
             ngl_node_unrefp(&node);
             ret = NGL_ERROR_MEMORY;
             break;
@@ -637,7 +637,7 @@ int ngli_scene_deserialize(struct ngl_scene *s, const char *str)
         ngl_node_unrefp(&nodes_array.data[i]);
 
 end:
-    ngli_darray_reset(&nodes_array);
-    ngli_free(sstart);
+    npriv_darray_reset(&nodes_array);
+    npriv_free(sstart);
     return ret;
 }

@@ -33,18 +33,18 @@
 #include "node_text.h"
 #include "node_texteffect.h"
 #include "node_uniform.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
 #include "text.h"
 #include "transforms.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 extern const struct text_cls ngli_text_builtin;
 extern const struct text_cls ngli_text_external;
 
 struct box_stats {
     enum writing_mode writing_mode;
-    NGLI_DARRAY(double) linelens; // length of each line (not necessarily horizontal)
+    NPRIV_DARRAY(double) linelens; // length of each line (not necessarily horizontal)
     double max_linelen;          // maximum value in the linelens array
     double linemin, linemax;     // current line min/max
     double xmin, xmax;           // current box min/max on x-axis
@@ -62,9 +62,9 @@ static void box_stats_init(struct box_stats *s, enum writing_mode writing_mode)
 static int box_stats_register_eol(struct box_stats *s)
 {
     const double len = s->linemax == -DBL_MAX ? 0.0 : s->linemax - s->linemin;
-    if (ngli_darray_try_push(&s->linelens, len) < 0)
+    if (npriv_darray_try_push(&s->linelens, len) < 0)
         return NGL_ERROR_MEMORY;
-    s->max_linelen = NGLI_MAX(s->max_linelen, len);
+    s->max_linelen = NPRIV_MAX(s->max_linelen, len);
     s->linemin = DBL_MAX;
     s->linemax = -DBL_MAX;
     return 0;
@@ -73,21 +73,21 @@ static int box_stats_register_eol(struct box_stats *s)
 static void box_stats_register_chr(struct box_stats *s, double x, double y, double w, double h)
 {
     if (s->writing_mode == NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB) {
-        s->linemin = NGLI_MIN(s->linemin, x);
-        s->linemax = NGLI_MAX(s->linemax, x + w);
+        s->linemin = NPRIV_MIN(s->linemin, x);
+        s->linemax = NPRIV_MAX(s->linemax, x + w);
     } else {
-        s->linemin = NGLI_MIN(s->linemin, y);
-        s->linemax = NGLI_MAX(s->linemax, y + h);
+        s->linemin = NPRIV_MIN(s->linemin, y);
+        s->linemax = NPRIV_MAX(s->linemax, y + h);
     }
-    s->xmin = NGLI_MIN(s->xmin, x);
-    s->xmax = NGLI_MAX(s->xmax, x + w);
-    s->ymin = NGLI_MIN(s->ymin, y);
-    s->ymax = NGLI_MAX(s->ymax, y + h);
+    s->xmin = NPRIV_MIN(s->xmin, x);
+    s->xmax = NPRIV_MAX(s->xmax, x + w);
+    s->ymin = NPRIV_MIN(s->ymin, y);
+    s->ymax = NPRIV_MAX(s->ymax, y + h);
 }
 
 static void box_stats_reset(struct box_stats *s)
 {
-    ngli_darray_reset(&s->linelens);
+    npriv_darray_reset(&s->linelens);
     memset(s, 0, sizeof(*s));
 }
 
@@ -118,7 +118,7 @@ static int build_stats(struct box_stats *stats, struct ngli_char_info_internal_d
 
 struct text *ngli_text_create(struct ngl_ctx *ctx)
 {
-    struct text *s = ngli_try_calloc(1, sizeof(*s));
+    struct text *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
@@ -135,13 +135,13 @@ int ngli_text_init(struct text *s, const struct text_config *cfg)
 {
     s->config = *cfg;
 
-    s->effects = ngli_try_calloc(cfg->nb_effect_nodes, sizeof(*s->effects));
+    s->effects = npriv_try_calloc(cfg->nb_effect_nodes, sizeof(*s->effects));
     if (!s->effects)
         return NGL_ERROR_MEMORY;
 
     s->cls = cfg->font_faces ? &ngli_text_external : &ngli_text_builtin;
     if (s->cls->priv_size) {
-        s->priv_data = ngli_try_calloc(1, s->cls->priv_size);
+        s->priv_data = npriv_try_calloc(1, s->cls->priv_size);
         if (!s->priv_data)
             return NGL_ERROR_MEMORY;
     }
@@ -232,7 +232,7 @@ static void set_geometry_data(struct text *s, struct text_char_data *chars_data)
         const float *eb = chr->slug.em_bounds;
         const float em_w = eb[2] - eb[0];
         const float em_h = eb[3] - eb[1];
-        const float effect_pad = EFFECT_PAD_RATIO * NGLI_MAX(em_w, em_h);
+        const float effect_pad = EFFECT_PAD_RATIO * NPRIV_MAX(em_w, em_h);
         const float pad_x = em_w > 0.f ? effect_pad * (chr_x1 - chr_x0) / em_w : 0.f;
         const float pad_y = em_h > 0.f ? effect_pad * (chr_y1 - chr_y0) / em_h : 0.f;
 
@@ -256,7 +256,7 @@ static void fill_default_data(struct text *s, size_t nb_chars)
     /* Default data for each character */
     const struct text_char_data default_data = {
         .transform = NGLI_MAT4_IDENTITY,
-        .color     = {NGLI_ARG_VEC3(s->config.defaults.color), s->config.defaults.opacity},
+        .color     = {NPRIV_ARG_VEC3(s->config.defaults.color), s->config.defaults.opacity},
         .outline   = {1.f, .7f, 0.f, 0.f},
         .glow      = {1.f, 1.f, 1.f, 0.f},
         .blur      = 0.f,
@@ -347,7 +347,7 @@ static int set_transform(float *dst, const struct texteffect_opts *effect_opts,
         anchor_x = effect_opts->anchor[0];
         anchor_y = effect_opts->anchor[1];
     } else {
-        ngli_assert(0);
+        npriv_assert(0);
     }
 
     struct ngli_mat4 tm;
@@ -380,7 +380,7 @@ static void segment_chars(const struct text *s, struct effect_segmentation *effe
             effect->positions[char_id++] = position;
         position++; // account for all the hidden characters as if they existed
     }
-    ngli_assert(char_id == s->chars.count);
+    npriv_assert(char_id == s->chars.count);
     effect->total_segments = position;
 }
 
@@ -415,7 +415,7 @@ static void segment_separator(const struct text *s, struct effect_segmentation *
 
         effect->positions[char_id++] = position;
     }
-    ngli_assert(char_id == s->chars.count);
+    npriv_assert(char_id == s->chars.count);
 }
 
 static void segment_words(const struct text *s, struct effect_segmentation *effect)
@@ -452,7 +452,7 @@ static void shuffle(uint64_t *rng_state, size_t *positions, size_t n)
 {
     for (size_t i = 0; i < n - 1; i++) {
         const size_t r = i + (size_t)prng64_next(rng_state) % (n - i);
-        NGLI_SWAP(positions[i], positions[r]);
+        NPRIV_SWAP(positions[i], positions[r]);
     }
 }
 
@@ -464,7 +464,7 @@ static int build_effects_segmentation(struct text *s)
         struct effect_segmentation *effect = &s->effects[i];
 
         const size_t nb_chars = s->chars.count;
-        size_t *new_positions = ngli_try_realloc(effect->positions, nb_chars, sizeof(*new_positions));
+        size_t *new_positions = npriv_try_realloc(effect->positions, nb_chars, sizeof(*new_positions));
         if (!new_positions)
             return NGL_ERROR_MEMORY;
         effect->positions = new_positions;
@@ -476,7 +476,7 @@ static int build_effects_segmentation(struct text *s)
         case NGLI_TEXT_EFFECT_LINE:         segment_lines(s, effect);         break;
         case NGLI_TEXT_EFFECT_TEXT:         segment_text(s, effect);          break;
         default:
-            ngli_assert(0);
+            npriv_assert(0);
         }
 
         /*
@@ -493,7 +493,7 @@ static int build_effects_segmentation(struct text *s)
 
         if (effect_opts->random) {
             /* Build a shuffle map associating a position with another one */
-            size_t *shuffle_map = ngli_try_calloc(effect->total_segments, sizeof(*shuffle_map));
+            size_t *shuffle_map = npriv_try_calloc(effect->total_segments, sizeof(*shuffle_map));
             if (!shuffle_map)
                 return NGL_ERROR_MEMORY;
             for (size_t j = 0; j < effect->total_segments; j++)
@@ -507,7 +507,7 @@ static int build_effects_segmentation(struct text *s)
             for (size_t j = 0; j < nb_chars; j++)
                 effect->positions[j] = shuffle_map[effect->positions[j]];
 
-            ngli_freep(&shuffle_map);
+            npriv_freep(&shuffle_map);
         }
     }
 
@@ -523,9 +523,9 @@ static void destroy_effects_data(struct text *s)
      */
     if (s->effects)
         for (size_t i = 0; i < s->config.nb_effect_nodes; i++)
-            ngli_freep(&s->effects[i].positions);
+            npriv_freep(&s->effects[i].positions);
 
-    ngli_freep(&s->chars_data_default);
+    npriv_freep(&s->chars_data_default);
     s->chars_data = NULL; // allocation is shared with chars_data_default
     s->chars_data_size = 0;
 }
@@ -542,8 +542,8 @@ int ngli_text_set_string(struct text *s, const char *str)
 {
     struct box_stats stats = {0};
 
-    ngli_darray_clear(&s->chars);
-    ngli_darray_clear(&s->chars_internal);
+    npriv_darray_clear(&s->chars);
+    npriv_darray_clear(&s->chars_internal);
 
     int ret = s->cls->set_string(s, str, &s->chars_internal);
     if (ret < 0)
@@ -624,7 +624,7 @@ int ngli_text_set_string(struct text *s, const char *str)
             .slug = chr_internal->slug,
         };
 
-        if (ngli_darray_try_push(&s->chars, chr) < 0) {
+        if (npriv_darray_try_push(&s->chars, chr) < 0) {
             ret = NGL_ERROR_MEMORY;
             goto end;
         }
@@ -649,7 +649,7 @@ int ngli_text_set_string(struct text *s, const char *str)
          * first for a more predictible read/write memory access in
          * reset_chars_data_to_defaults()
          */
-        struct text_char_data *new_chars_data_default = ngli_try_realloc(s->chars_data_default, 2, needed_size);
+        struct text_char_data *new_chars_data_default = npriv_try_realloc(s->chars_data_default, 2, needed_size);
         if (!new_chars_data_default)
             return NGL_ERROR_MEMORY;
         s->chars_data_default = new_chars_data_default;
@@ -725,7 +725,7 @@ int ngli_text_set_time(struct text *s, double t)
             const double target_t = NGLI_LINEAR_NORM(prev_t, next_t, effect_t);
 
             struct text_char_data *data = &s->chars_data[c];
-            const struct ngli_aabb chr_aabb = {NGLI_ARG_VEC4(data->vertices)};
+            const struct ngli_aabb chr_aabb = {NPRIV_ARG_VEC4(data->vertices)};
             const struct char_info *chr = &s->chars.data[i];
 
             if ((ret = set_transform( data->transform,   effect_opts, s->config.box, chr_aabb, chr,                   target_t)) < 0 ||
@@ -753,10 +753,10 @@ void ngli_text_freep(struct text **sp)
         s->cls->reset(s);
     ngli_texture_resource_releasep(&s->curve_texture);
     ngli_texture_resource_releasep(&s->band_texture);
-    ngli_freep(&s->priv_data);
+    npriv_freep(&s->priv_data);
     destroy_effects_data(s);
-    ngli_freep(&s->effects);
-    ngli_darray_reset(&s->chars);
-    ngli_darray_reset(&s->chars_internal);
-    ngli_freep(sp);
+    npriv_freep(&s->effects);
+    npriv_darray_reset(&s->chars);
+    npriv_darray_reset(&s->chars_internal);
+    npriv_freep(sp);
 }

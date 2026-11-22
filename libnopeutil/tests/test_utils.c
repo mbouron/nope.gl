@@ -19,28 +19,28 @@
  * under the License.
  */
 
-#include "utils/crc32.h"
-#include "utils/memory.h"
-#include "utils/string.h"
-#include "utils/utils.h"
+#include "libnopeutil/crc32.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/string.h"
+#include "libnopeutil/utils.h"
 
 static void test_numbered_line(uint32_t crc, const char *s)
 {
-    char *p = ngli_numbered_lines(s);
-    ngli_assert(p);
-    ngli_assert(ngli_crc32(p) == crc);
-    ngli_freep(&p);
+    char *p = npriv_numbered_lines(s);
+    npriv_assert(p);
+    npriv_assert(npriv_crc32(p) == crc);
+    npriv_freep(&p);
 }
 
 int main(void)
 {
-    ngli_assert(ngli_crc32("") == 0);
-    ngli_assert(ngli_crc32("Hello world !@#$%^&*()_+") == 0xDCEB8676);
+    npriv_assert(npriv_crc32("") == 0);
+    npriv_assert(npriv_crc32("Hello world !@#$%^&*()_+") == 0xDCEB8676);
 
     char buf[256];
     for (size_t i = 0; i <= 0xff; i++)
         buf[i] = (char)(0xff - i);
-    ngli_assert(ngli_crc32(buf) == 0x5473AA4D);
+    npriv_assert(npriv_crc32(buf) == 0x5473AA4D);
 
 #define X "x\n"
 #define S "foo\nbar\nhello\nworld\nbla\nxxx\nyyy\n"

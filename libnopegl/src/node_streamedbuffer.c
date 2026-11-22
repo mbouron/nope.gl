@@ -44,7 +44,7 @@ struct streamedbuffer_priv {
     size_t last_index;
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct streamedbuffer_priv, buf) == 0, "buffer_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct streamedbuffer_priv, buf) == 0, "buffer_info is first");
 
 #define OFFSET(x) offsetof(struct streamedbuffer_opts, x)
 

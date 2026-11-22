@@ -224,7 +224,7 @@ static enum ngli_image_layout target_to_layout(uint32_t target)
         case GL_TEXTURE_EXTERNAL_OES:
             return NGLI_IMAGE_LAYOUT_MEDIACODEC;
         default:
-            ngli_assert(0);
+            npriv_assert(0);
     }
 }
 

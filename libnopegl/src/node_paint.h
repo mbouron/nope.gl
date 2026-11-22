@@ -27,7 +27,7 @@
 
 #include <nopegpu/nopegpu.h>
 
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 
 struct bstr;
 struct ngl_node;
@@ -85,10 +85,10 @@ struct paint_info {
     uint32_t helper_flags;                                   /* PAINT_HELPER_* bitmask */
     const char *glsl;                                        /* built-in template or complete CustomPaint source */
     int custom;                                              /* CustomPaint: GLSL and resource names kept as written */
-    NGLI_DARRAY(struct paint_uniform_def) uniforms;
-    NGLI_DARRAY(struct paint_custom_uniform_def) custom_uniforms;
-    NGLI_DARRAY(struct paint_custom_texture_def) custom_textures;
-    NGLI_DARRAY(struct paint_custom_block_def) custom_blocks;
+    NPRIV_DARRAY(struct paint_uniform_def) uniforms;
+    NPRIV_DARRAY(struct paint_custom_uniform_def) custom_uniforms;
+    NPRIV_DARRAY(struct paint_custom_texture_def) custom_textures;
+    NPRIV_DARRAY(struct paint_custom_block_def) custom_blocks;
     struct ngl_node *texture;                                /* built-in paint texture */
     size_t color_output_count;
     const void *opts;                                        /* pointer to paint node opts struct */

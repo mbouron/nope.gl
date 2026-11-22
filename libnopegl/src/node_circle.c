@@ -25,11 +25,11 @@
 
 #include "geometry.h"
 #include "internal.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 struct circle_opts {
     float radius;
@@ -49,7 +49,7 @@ static const struct node_param circle_params[] = {
     {NULL}
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct circle_priv, geom) == 0, "geometry is first");
+NPRIV_STATIC_ASSERT(offsetof(struct circle_priv, geom) == 0, "geometry is first");
 
 static int circle_init(struct ngl_node *node)
 {
@@ -64,10 +64,10 @@ static int circle_init(struct ngl_node *node)
     const size_t nb_vertices = o->npoints + 1;
     const size_t nb_indices  = o->npoints * 3;
 
-    float *vertices  = ngli_try_calloc(nb_vertices, sizeof(*vertices)  * 3);
-    float *uvcoords  = ngli_try_calloc(nb_vertices, sizeof(*uvcoords)  * 2);
-    float *normals   = ngli_try_calloc(nb_vertices, sizeof(*normals)   * 3);
-    uint16_t *indices = ngli_try_calloc(nb_indices, sizeof(*indices));
+    float *vertices  = npriv_try_calloc(nb_vertices, sizeof(*vertices)  * 3);
+    float *uvcoords  = npriv_try_calloc(nb_vertices, sizeof(*uvcoords)  * 2);
+    float *normals   = npriv_try_calloc(nb_vertices, sizeof(*normals)   * 3);
+    uint16_t *indices = npriv_try_calloc(nb_indices, sizeof(*indices));
 
     if (!vertices || !uvcoords || !normals || !indices) {
         ret = NGL_ERROR_MEMORY;
@@ -115,10 +115,10 @@ static int circle_init(struct ngl_node *node)
         goto end;
 
 end:
-    ngli_free(vertices);
-    ngli_free(uvcoords);
-    ngli_free(normals);
-    ngli_free(indices);
+    npriv_free(vertices);
+    npriv_free(uvcoords);
+    npriv_free(normals);
+    npriv_free(indices);
 
     if (ret < 0)
         return ret;

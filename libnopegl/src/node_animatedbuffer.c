@@ -28,12 +28,12 @@
 
 #include "animation.h"
 #include "internal.h"
+#include "libnopeutil/memory.h"
 #include "log.h"
 #include "math_utils.h"
 #include "node_animkeyframe.h"
 #include "node_buffer.h"
 #include "nopegl/nopegl.h"
-#include "utils/memory.h"
 
 struct animatedbuffer_opts {
     struct ngli_node_darray animkf;
@@ -44,7 +44,7 @@ struct animatedbuffer_priv {
     struct animation anim;
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct animatedbuffer_priv, buf) == 0, "buffer_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct animatedbuffer_priv, buf) == 0, "buffer_info is first");
 
 #define OFFSET(x) offsetof(struct animatedbuffer_opts, x)
 static const struct node_param animatedbuffer_params[] = {
@@ -134,7 +134,7 @@ static int animatedbuffer_init(struct ngl_node *node)
     if (!layout->count)
         return NGL_ERROR_INVALID_ARG;
 
-    info->data = ngli_try_calloc(layout->count, layout->stride);
+    info->data = npriv_try_calloc(layout->count, layout->stride);
     if (!info->data)
         return NGL_ERROR_MEMORY;
     info->data_size = layout->count * layout->stride;
@@ -182,7 +182,7 @@ static void animatedbuffer_uninit(struct ngl_node *node)
     struct buffer_info *info = &s->buf;
 
     ngli_buffer_resource_unrefp(&info->resource);
-    ngli_freep(&info->data);
+    npriv_freep(&info->data);
     ngli_animation_reset(&s->anim);
 }
 

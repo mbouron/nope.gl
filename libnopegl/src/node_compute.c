@@ -27,12 +27,12 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_program.h"
 #include "nopegl/nopegl.h"
 #include "pass.h"
-#include "utils/hmap.h"
-#include "utils/utils.h"
 
 struct compute_opts {
     uint32_t workgroup_count[3];
@@ -133,8 +133,8 @@ static int check_params(const struct ngl_node *node)
         o->workgroup_count[2] > limits->max_compute_work_group_count[2]) {
         LOG(ERROR,
             "compute work group counts (%u, %u, %u) exceed device limits (%u, %u, %u)",
-            NGLI_ARG_VEC3(o->workgroup_count),
-            NGLI_ARG_VEC3(limits->max_compute_work_group_count));
+            NPRIV_ARG_VEC3(o->workgroup_count),
+            NPRIV_ARG_VEC3(limits->max_compute_work_group_count));
 
         return NGL_ERROR_GRAPHICS_LIMIT_EXCEEDED;
     }
@@ -159,8 +159,8 @@ static int compute_init(struct ngl_node *node)
         .comp_base = program->compute,
         .compute_resources = o->resources,
         .properties = program->properties,
-        .workgroup_count = {NGLI_ARG_VEC3(o->workgroup_count)},
-        .workgroup_size = {NGLI_ARG_VEC3(program->workgroup_size)},
+        .workgroup_count = {NPRIV_ARG_VEC3(o->workgroup_count)},
+        .workgroup_size = {NPRIV_ARG_VEC3(program->workgroup_size)},
     };
     return ngli_pass_init(&s->pass, ctx, &params);
 }

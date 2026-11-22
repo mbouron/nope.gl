@@ -36,10 +36,10 @@
 #include "hwmap.h"
 #include "image.h"
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
-#include "utils/utils.h"
 #include "vaapi_ctx.h"
 
 struct format_desc {
@@ -94,7 +94,7 @@ static bool support_direct_rendering(struct hwmap *hwmap)
 {
     const struct hwmap_params *params = &hwmap->params;
 
-    bool direct_rendering = NGLI_HAS_ALL_FLAGS(params->image_layouts, NGLI_IMAGE_LAYOUT_NV12_BIT);
+    bool direct_rendering = NPRIV_HAS_ALL_FLAGS(params->image_layouts, NGLI_IMAGE_LAYOUT_NV12_BIT);
 
     if (direct_rendering && params->texture_mipmap_filter) {
         LOG(WARNING,

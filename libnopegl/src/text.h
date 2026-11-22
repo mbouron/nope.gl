@@ -26,10 +26,10 @@
 #include <nopegpu/nopegpu.h>
 
 #include "box.h"
+#include "libnopeutil/darray.h"
 #include "nopegl/nopegl.h"
 #include "resource.h"
 #include "slug.h"
-#include "utils/darray.h"
 
 enum writing_mode {
     NGLI_TEXT_WRITING_MODE_HORIZONTAL_TB,
@@ -110,8 +110,8 @@ struct text;
 
 #define NGLI_TEXT_FLAG_MUTABLE_ATLAS (1 << 0) // whether set_string() can change the atlas texture or not
 
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_char_info_darray, struct char_info);
-NGLI_DECLARE_DARRAY_WITH_NAME(ngli_char_info_internal_darray, struct char_info_internal);
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_char_info_darray, struct char_info);
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngli_char_info_internal_darray, struct char_info_internal);
 
 /* structure reserved for internal implementations */
 struct text_cls {

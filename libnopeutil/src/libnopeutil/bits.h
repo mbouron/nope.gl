@@ -19,9 +19,26 @@
  * under the License.
  */
 
-#ifndef THREAD_H
-#define THREAD_H
+#ifndef NPRIV_BITS_H
+#define NPRIV_BITS_H
 
-void ngli_thread_set_name(const char *name);
+#include <stdint.h>
 
-#endif /* THREAD_H */
+/*
+ * Returns the number of leading 0-bits in x, starting at the most significant
+ * bit position. If x is 0, the result is undefined.
+ */
+static inline uint32_t npriv_clz(uint32_t x)
+{
+    return (uint32_t)__builtin_clz(x);
+}
+
+/*
+ * Return the base-2 logarithm of x. If x is 0, the result is undefined.
+ */
+static inline uint32_t npriv_log2(uint32_t x)
+{
+    return 31 - npriv_clz(x);
+}
+
+#endif /* NPRIV_BITS_H */

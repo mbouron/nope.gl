@@ -26,8 +26,8 @@
 #include <sys/stat.h>
 
 #include "drawutils.h"
-#include "utils/utils.h"
-#include "utils/crc32.h"
+#include "libnopeutil/utils.h"
+#include "libnopeutil/crc32.h"
 
 static int save_ppm(const char *filename, uint8_t *data, int32_t width, int32_t height)
 {
@@ -106,9 +106,9 @@ int main(int ac, char **av)
         }
     }
 
-    uint32_t crc = ngli_crc32_mem(c.buf, buf_size * 4, NGLI_CRC32_INIT);
+    uint32_t crc = npriv_crc32_mem(c.buf, buf_size * 4, NPRIV_CRC32_INIT);
     printf("CRC: 0x%08x\n", crc);
-    ngli_assert(crc == 0x2a07363c);
+    npriv_assert(crc == 0x2a07363c);
 
     int ret = save_ppm(av[1], c.buf, c.w, c.h) < 0 ? -1 : 0;
     free(c.buf);

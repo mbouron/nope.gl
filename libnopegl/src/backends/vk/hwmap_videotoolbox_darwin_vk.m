@@ -61,7 +61,7 @@ static MTLPixelFormat vt_get_mtl_format(enum ngpu_format format)
     case NGPU_FORMAT_R16_UNORM:       return MTLPixelFormatR16Unorm;
     case NGPU_FORMAT_R8G8_UNORM:      return MTLPixelFormatRG8Unorm;
     case NGPU_FORMAT_R16G16_UNORM:    return MTLPixelFormatRG16Unorm;
-    default: ngli_assert(0);
+    default: npriv_assert(0);
     }
 }
 
@@ -128,7 +128,7 @@ static int vt_darwin_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, str
         return NGL_ERROR_GRAPHICS_GENERIC;
     }
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(vt->planes); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(vt->planes); i++) {
         ngpu_texture_freep(&vt->planes[i]);
     }
 
@@ -201,7 +201,7 @@ static bool support_direct_rendering(struct hwmap *hwmap)
 {
     const struct hwmap_params *params = &hwmap->params;
 
-    bool direct_rendering = NGLI_HAS_ALL_FLAGS(params->image_layouts, NGLI_IMAGE_LAYOUT_NV12_BIT);
+    bool direct_rendering = NPRIV_HAS_ALL_FLAGS(params->image_layouts, NGLI_IMAGE_LAYOUT_NV12_BIT);
 
     if (direct_rendering && params->texture_mipmap_filter) {
         LOG(WARNING, "IOSurface buffers do not support mipmapping: "

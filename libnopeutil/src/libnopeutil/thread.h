@@ -1,6 +1,5 @@
 /*
  * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
- * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -20,14 +19,9 @@
  * under the License.
  */
 
-#ifndef TIME_H
-#define TIME_H
+#ifndef NPRIV_THREAD_H
+#define NPRIV_THREAD_H
 
-#include <stdint.h>
+void npriv_thread_set_name(const char *name);
 
-#define NGLI_US_PER_SEC 1000000
-#define NGLI_NS_PER_SEC 1000000000
-
-int64_t ngli_gettime_relative(void);
-
-#endif /* TIME_H */
+#endif /* NPRIV_THREAD_H */

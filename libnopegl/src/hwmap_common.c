@@ -176,7 +176,7 @@ static const struct format_desc {
 
 static const struct format_desc *common_get_format_desc(int pix_fmt)
 {
-    if (pix_fmt < 0 || pix_fmt >= NGLI_ARRAY_NB(format_descs))
+    if (pix_fmt < 0 || pix_fmt >= NPRIV_ARRAY_NB(format_descs))
         return NULL;
 
     const struct format_desc *desc = &format_descs[pix_fmt];
@@ -192,7 +192,7 @@ static bool support_direct_rendering(struct hwmap *hwmap, const struct format_de
 
     bool direct_rendering = true;
     if (desc->layout != NGLI_IMAGE_LAYOUT_DEFAULT) {
-        direct_rendering = NGLI_HAS_ALL_FLAGS(params->image_layouts, (1 << desc->layout));
+        direct_rendering = NPRIV_HAS_ALL_FLAGS(params->image_layouts, (1 << desc->layout));
         if (params->texture_mipmap_filter != NGPU_MIPMAP_FILTER_NONE)
             direct_rendering = false;
     }
@@ -212,7 +212,7 @@ static bool are_plane_formats_supported(struct hwmap *hwmap, const struct format
 
     for (size_t i = 0; i < desc->nb_planes; i++) {
         const uint32_t features = ngpu_ctx_get_format_features(gpu_ctx, desc->formats[i]);
-        if (!NGLI_HAS_ALL_FLAGS(features, required))
+        if (!NPRIV_HAS_ALL_FLAGS(features, required))
             return false;
     }
     return true;
@@ -282,7 +282,7 @@ static void common_uninit(struct hwmap *hwmap)
 {
     struct hwmap_common *common = hwmap->hwmap_priv_data;
 
-    for (size_t i = 0; i < NGLI_ARRAY_NB(common->planes); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(common->planes); i++)
         ngpu_texture_freep(&common->planes[i]);
 }
 

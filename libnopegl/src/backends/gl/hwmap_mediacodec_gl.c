@@ -34,10 +34,10 @@
 #include "hwmap.h"
 #include "image.h"
 #include "internal.h"
+#include "libnopeutil/darray.h"
 #include "log.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
-#include "utils/darray.h"
 
 /* Match the Android BufferQueue limit so every decoder buffer can be cached */
 #define MAX_AHB_TEXTURES 64
@@ -56,7 +56,7 @@ struct ahb_texture {
 struct hwmap_mc {
     struct ngli_image_color_cache color_cache;
     struct nmd_frame *frame;
-    NGLI_DARRAY(struct ahb_texture) textures;
+    NPRIV_DARRAY(struct ahb_texture) textures;
     uint64_t map_index;
 };
 
@@ -64,7 +64,7 @@ static bool support_direct_rendering(struct hwmap *hwmap)
 {
     const struct hwmap_params *params = &hwmap->params;
 
-    bool direct_rendering = NGLI_HAS_ALL_FLAGS(params->image_layouts, NGLI_IMAGE_LAYOUT_MEDIACODEC_BIT);
+    bool direct_rendering = NPRIV_HAS_ALL_FLAGS(params->image_layouts, NGLI_IMAGE_LAYOUT_MEDIACODEC_BIT);
 
     if (direct_rendering) {
         if (params->texture_mipmap_filter) {
@@ -104,9 +104,9 @@ static int get_ahb_texture(struct hwmap *hwmap, AHardwareBuffer *buffer, const A
     struct android_ctx *android_ctx = &ctx->android_ctx;
 
     mc->map_index++;
-    ngli_darray_remove_if(&mc->textures, is_stale_ahb_texture, mc);
+    npriv_darray_remove_if(&mc->textures, is_stale_ahb_texture, mc);
 
-    ngli_darray_foreach(ahb_texture, &mc->textures) {
+    npriv_darray_foreach(ahb_texture, &mc->textures) {
         if (ahb_texture->buffer == buffer) {
             ahb_texture->map_index = mc->map_index;
             *texturep = ahb_texture->texture;
@@ -116,7 +116,7 @@ static int get_ahb_texture(struct hwmap *hwmap, AHardwareBuffer *buffer, const A
 
     if (mc->textures.count == MAX_AHB_TEXTURES) {
         LOG(WARNING, "more than %d buffers in the image reader queue", MAX_AHB_TEXTURES);
-        ngli_darray_clear(&mc->textures);
+        npriv_darray_clear(&mc->textures);
     }
 
     struct ngpu_texture_params texture_params = {
@@ -148,7 +148,7 @@ static int get_ahb_texture(struct hwmap *hwmap, AHardwareBuffer *buffer, const A
 
     android_ctx->AHardwareBuffer_acquire(buffer);
     struct ahb_texture ahb_texture = {.buffer = buffer, .texture = texture, .map_index = mc->map_index};
-    if (ngli_darray_try_push(&mc->textures, ahb_texture) < 0) {
+    if (npriv_darray_try_push(&mc->textures, ahb_texture) < 0) {
         reset_ahb_texture(android_ctx, &ahb_texture);
         return NGL_ERROR_MEMORY;
     }
@@ -162,7 +162,7 @@ static int mc_init(struct hwmap *hwmap, struct nmd_frame *frame)
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
     struct ngl_ctx *ctx = hwmap->ctx;
 
-    ngli_darray_set_free_func(&mc->textures, reset_ahb_texture, &ctx->android_ctx);
+    npriv_darray_set_free_func(&mc->textures, reset_ahb_texture, &ctx->android_ctx);
     hwmap->require_hwconv = !support_direct_rendering(hwmap);
 
     return 0;
@@ -229,7 +229,7 @@ static void mc_uninit(struct hwmap *hwmap)
 {
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
 
-    ngli_darray_reset(&mc->textures);
+    npriv_darray_reset(&mc->textures);
     ngli_ctx_release_mc_frame(hwmap->ctx, &mc->frame);
 }
 

@@ -27,20 +27,20 @@
 #include "memory.h"
 #include "utils.h"
 
-void *ngli_try_malloc(size_t size)
+void *npriv_try_malloc(size_t size)
 {
     return malloc(size);
 }
 
-void *ngli_try_calloc(size_t n, size_t size)
+void *npriv_try_calloc(size_t n, size_t size)
 {
     return calloc(n, size);
 }
 
-void *ngli_try_malloc_aligned(size_t alignment, size_t size)
+void *npriv_try_malloc_aligned(size_t alignment, size_t size)
 {
-    ngli_assert(NGLI_IS_POW2(alignment));
-    ngli_assert(NGLI_IS_ALIGNED(size, alignment));
+    npriv_assert(NPRIV_IS_POW2(alignment));
+    npriv_assert(NPRIV_IS_ALIGNED(size, alignment));
 #ifdef _WIN32
     return _aligned_malloc(size, alignment);
 #else
@@ -48,7 +48,7 @@ void *ngli_try_malloc_aligned(size_t alignment, size_t size)
 #endif
 }
 
-void *ngli_try_realloc(void *ptr, size_t n, size_t size)
+void *npriv_try_realloc(void *ptr, size_t n, size_t size)
 {
     size_t bytes;
     if (ckd_mul(&bytes, n, size))
@@ -56,50 +56,50 @@ void *ngli_try_realloc(void *ptr, size_t n, size_t size)
     return realloc(ptr, bytes);
 }
 
-_Noreturn void ngli_oom(void)
+_Noreturn void npriv_oom(void)
 {
     fprintf(stderr, "Out of memory\n");
     abort();
 }
 
-void *ngli_malloc(size_t size)
+void *npriv_malloc(size_t size)
 {
-    void *ptr = ngli_try_malloc(size);
+    void *ptr = npriv_try_malloc(size);
     if (!ptr)
-        ngli_oom();
+        npriv_oom();
     return ptr;
 }
 
-void *ngli_calloc(size_t n, size_t size)
+void *npriv_calloc(size_t n, size_t size)
 {
-    void *ptr = ngli_try_calloc(n, size);
+    void *ptr = npriv_try_calloc(n, size);
     if (!ptr)
-        ngli_oom();
+        npriv_oom();
     return ptr;
 }
 
-void *ngli_malloc_aligned(size_t alignment, size_t size)
+void *npriv_malloc_aligned(size_t alignment, size_t size)
 {
-    void *ptr = ngli_try_malloc_aligned(alignment, size);
+    void *ptr = npriv_try_malloc_aligned(alignment, size);
     if (!ptr)
-        ngli_oom();
+        npriv_oom();
     return ptr;
 }
 
-void *ngli_realloc(void *ptr, size_t n, size_t size)
+void *npriv_realloc(void *ptr, size_t n, size_t size)
 {
-    void *new_ptr = ngli_try_realloc(ptr, n, size);
+    void *new_ptr = npriv_try_realloc(ptr, n, size);
     if (!new_ptr)
-        ngli_oom();
+        npriv_oom();
     return new_ptr;
 }
 
-void ngli_free(void *ptr)
+void npriv_free(void *ptr)
 {
     free(ptr);
 }
 
-void ngli_free_aligned(void *ptr)
+void npriv_free_aligned(void *ptr)
 {
 #ifdef _WIN32
     _aligned_free(ptr);
@@ -108,9 +108,9 @@ void ngli_free_aligned(void *ptr)
 #endif
 }
 
-void *ngli_try_memdup(const void *src, size_t n)
+void *npriv_try_memdup(const void *src, size_t n)
 {
-    void *dst = ngli_try_malloc(n);
+    void *dst = npriv_try_malloc(n);
     if (!dst)
         return NULL;
     memcpy(dst, src, n);

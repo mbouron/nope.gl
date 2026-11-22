@@ -24,11 +24,11 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/string.h"
 #include "node_io.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
 #include "precision.h"
-#include "utils/string.h"
 
 #define OFFSET(x) offsetof(struct io_opts, x)
 static const struct node_param io_params[] = {
@@ -51,7 +51,7 @@ static int io##type_id##_init(struct ngl_node *node)            \
                                                                 \
 static char *io##type_id##_info_str(const struct ngl_node *node)\
 {                                                               \
-    return ngli_asprintf("%s", #type_id);                       \
+    return npriv_asprintf("%s", #type_id);                      \
 }                                                               \
                                                                 \
 const struct node_class ngli_io##type_id##_class = {            \

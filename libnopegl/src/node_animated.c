@@ -127,7 +127,7 @@ struct animated_priv {
     struct animation anim;
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct animated_priv, var) == 0, "variable_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct animated_priv, var) == 0, "variable_info is first");
 
 static void mix_time(void *user_arg, void *dst,
                      const struct animkeyframe_opts *kf0,

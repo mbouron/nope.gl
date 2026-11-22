@@ -24,8 +24,8 @@
 
 #include "colorconv.h"
 #include "image.h"
+#include "libnopeutil/utils.h"
 #include "math_utils.h"
-#include "utils/utils.h"
 
 static const struct {
     int val;
@@ -91,11 +91,11 @@ static int compare_matrices(const float *a, const float *b)
 {
     int fail = 0;
     float diff[4 * 4];
-    for (size_t i = 0; i < NGLI_ARRAY_NB(diff); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(diff); i++) {
         diff[i] = fabsf(a[i] - b[i]);
         fail += diff[i] > 1e-6;
     }
-    printf("diff:\n" NGLI_FMT_MAT4 "\n\n", NGLI_ARG_MAT4(diff));
+    printf("diff:\n" NPRIV_FMT_MAT4 "\n\n", NPRIV_ARG_MAT4(diff));
     return fail ? -fail : 0;
 }
 
@@ -112,9 +112,9 @@ static int check_reference_levels(const struct color_info *cinfo, int depth)
 
     const struct ngli_mat4 mat = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(cinfo, depth, 1.f);
     int fail = 0;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(expected); i++) {
-        NGLI_ALIGNED_VEC(ycbcr) = {expected[i][0] / max, neutral / max, neutral / max, 1.f};
-        NGLI_ALIGNED_VEC(rgb);
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(expected); i++) {
+        NPRIV_ALIGNED_VEC(ycbcr) = {expected[i][0] / max, neutral / max, neutral / max, 1.f};
+        NPRIV_ALIGNED_VEC(rgb);
         ngli_mat4_mul_vec4(rgb, mat.m, ycbcr);
         for (int c = 0; c < 3; c++) {
             if (fabsf(rgb[c] - expected[i][1]) > 1e-5f) {
@@ -151,12 +151,12 @@ static const struct {
 static int check_primaries_matrices(void)
 {
     int fail = 0;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(to_bt2020); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(to_bt2020); i++) {
         const struct ngli_mat4 mat = ngli_colorconv_get_primaries_color_matrix(to_bt2020[i].src, NMD_COL_PRI_BT2020);
-        printf("%s to bt2020:\n" NGLI_FMT_MAT4 "\n\n", to_bt2020[i].name, NGLI_ARG_MAT4(mat.m));
+        printf("%s to bt2020:\n" NPRIV_FMT_MAT4 "\n\n", to_bt2020[i].name, NPRIV_ARG_MAT4(mat.m));
         for (int c = 0; c < 3; c++) {
-            NGLI_ALIGNED_VEC(src) = {0};
-            NGLI_ALIGNED_VEC(dst);
+            NPRIV_ALIGNED_VEC(src) = {0};
+            NPRIV_ALIGNED_VEC(dst);
             src[c] = 1.f;
             ngli_mat4_mul_vec4(dst, mat.m, src);
             for (int r = 0; r < 3; r++) {
@@ -177,18 +177,18 @@ int main(void)
     int fail = 0;
     struct color_info cinfo = NGLI_COLOR_INFO_DEFAULTS;
 
-    for (size_t r = 0; r < NGLI_ARRAY_NB(ranges); r++) {
+    for (size_t r = 0; r < NPRIV_ARRAY_NB(ranges); r++) {
         cinfo.range = ranges[r].val;
-        for (size_t s = 0; s < NGLI_ARRAY_NB(spaces); s++) {
+        for (size_t s = 0; s < NPRIV_ARRAY_NB(spaces); s++) {
             cinfo.space = spaces[s].val;
             const struct ngli_mat4 mat = ngli_colorconv_get_ycbcr_to_rgb_color_matrix(&cinfo, 8, 1.f);
-            printf("%s %s:\n" NGLI_FMT_MAT4 "\n\n", spaces[s].name, ranges[r].name, NGLI_ARG_MAT4(mat.m));
+            printf("%s %s:\n" NPRIV_FMT_MAT4 "\n\n", spaces[s].name, ranges[r].name, NPRIV_ARG_MAT4(mat.m));
             if (compare_matrices(mat.m, expected_colormatrices[r][s]) < 0) {
                 printf(">>>> DIFF IS TOO HIGH <<<<\n\n");
                 fail++;
             }
             static const int depths[] = {8, 10, 16};
-            for (size_t d = 0; d < NGLI_ARRAY_NB(depths); d++)
+            for (size_t d = 0; d < NPRIV_ARRAY_NB(depths); d++)
                 fail += check_reference_levels(&cinfo, depths[d]);
         }
     }

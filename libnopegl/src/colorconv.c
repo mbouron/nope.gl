@@ -27,7 +27,7 @@
 #include "log.h"
 #include "colorconv.h"
 #include "math_utils.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 enum {
     COLORMATRIX_UNDEFINED,
@@ -65,11 +65,11 @@ static const int color_space_map[] = {
     [NMD_COL_SPC_BT2020_CL]  = COLORMATRIX_BT2020,
 };
 
-NGLI_STATIC_ASSERT(COLORMATRIX_UNDEFINED == 0, "undefined colormatrix is 0");
+NPRIV_STATIC_ASSERT(COLORMATRIX_UNDEFINED == 0, "undefined colormatrix is 0");
 
 static const char *get_col_spc_str(int color_space)
 {
-    if (color_space < 0 || color_space >= NGLI_ARRAY_NB(nmd_col_spc_str))
+    if (color_space < 0 || color_space >= NPRIV_ARRAY_NB(nmd_col_spc_str))
         return NULL;
     return nmd_col_spc_str[color_space];
 }
@@ -91,7 +91,7 @@ static int get_colormatrix_from_nmd(int color_space)
         return DEFAULT_COLORMATRIX;
     }
 
-    if (color_space < 0 || color_space >= NGLI_ARRAY_NB(color_space_map))
+    if (color_space < 0 || color_space >= NPRIV_ARRAY_NB(color_space_map))
         return unsupported_colormatrix(color_space);
 
     const int colormatrix = color_space_map[color_space];
@@ -109,7 +109,7 @@ static const struct k_constants {
     [COLORMATRIX_BT2020] = {.r = 0.2627f, .g = 0.6780f, .b = 0.0593f},
 };
 
-NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(k_constants_infos) == COLORMATRIX_NB, "colormatrix size");
+NPRIV_STATIC_ASSERT(NPRIV_ARRAY_NB(k_constants_infos) == COLORMATRIX_NB, "colormatrix size");
 
 struct range_info {
     float max, y, uv, y_off, uv_off;
@@ -279,7 +279,7 @@ static const struct raw_primaries primaries_map[] = {
 
 static const struct raw_primaries *get_primaries(int primaries)
 {
-    ngli_assert(primaries >= 0 && primaries < NGLI_ARRAY_NB(primaries_map));
+    npriv_assert(primaries >= 0 && primaries < NPRIV_ARRAY_NB(primaries_map));
     return &primaries_map[primaries];
 }
 
@@ -419,7 +419,7 @@ void ngli_colorconv_linear2srgb(float *dst, const float *rgb)
 
 static inline float sat(float x)
 {
-    return NGLI_CLAMP(x, 0.f, 1.f);
+    return NPRIV_CLAMP(x, 0.f, 1.f);
 }
 
 void ngli_colorconv_hsl2srgb(float *dst, const float *hsl)

@@ -28,14 +28,14 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/bits.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
 #include "rtt.h"
-#include "utils/bits.h"
-#include "utils/utils.h"
 
 /* GLSL shaders */
 #include "blur_common_vert.h"
@@ -165,11 +165,11 @@ static int setup_down_up_pipeline(struct ngl_ctx *ctx,
         .vert_base        = blur_common_vert,
         .frag_base        = frag_base,
         .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .nb_textures      = NPRIV_ARRAY_NB(textures),
         .blocks           = blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(blocks),
+        .nb_blocks        = NPRIV_ARRAY_NB(blocks),
         .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     int ret = ngpu_pgcraft_craft(crafter, &crafter_params);
@@ -223,7 +223,7 @@ static int setup_interpolate_pipeline(struct ngl_node *node)
     ngpu_block_desc_init(gpu_ctx, &s->interpolate.block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_add_field(&s->interpolate.block_desc, "lod", NGPU_TYPE_F32, 0);
     s->interpolate.block_size = ngpu_block_desc_get_size(&s->interpolate.block_desc, 0);
-    ngli_assert(s->interpolate.block_size == sizeof(struct interpolate_block));
+    npriv_assert(s->interpolate.block_size == sizeof(struct interpolate_block));
 
     const struct ngpu_pgcraft_block crafter_blocks[] = {
         {
@@ -239,11 +239,11 @@ static int setup_interpolate_pipeline(struct ngl_node *node)
         .vert_base        = blur_common_vert,
         .frag_base        = blur_interpolate_frag,
         .textures         = interpolate_textures,
-        .nb_textures      = NGLI_ARRAY_NB(interpolate_textures),
+        .nb_textures      = NPRIV_ARRAY_NB(interpolate_textures),
         .blocks           = crafter_blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(crafter_blocks),
+        .nb_blocks        = NPRIV_ARRAY_NB(crafter_blocks),
         .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     int ret = ngpu_pgcraft_craft(s->interpolate.crafter, &crafter_params);
@@ -312,7 +312,7 @@ static int fgblur_init(struct ngl_node *node)
     ngpu_block_desc_init(gpu_ctx, &s->down_up_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_add_field(&s->down_up_block_desc, "offset", NGPU_TYPE_F32, 0);
     s->down_up_block_size = ngpu_block_desc_get_size(&s->down_up_block_desc, 0);
-    ngli_assert(s->down_up_block_size == sizeof(struct down_up_data_block));
+    npriv_assert(s->down_up_block_size == sizeof(struct down_up_data_block));
 
     int ret;
 
@@ -375,11 +375,11 @@ static int resize(struct ngl_node *node)
     }
 
     /* Assert that the source texture format does not change */
-    ngli_assert(src_info->params.format == s->mip_layout.colors[0].format);
+    npriv_assert(src_info->params.format == s->mip_layout.colors[0].format);
 
     /* Assert that the destination texture format does not change */
     struct texture_info *dst_info = o->destination->priv_data;
-    ngli_assert(dst_info->params.format == s->dst_layout.colors[0].format);
+    npriv_assert(dst_info->params.format == s->dst_layout.colors[0].format);
 
     struct ngpu_texture_params texture_params = (struct ngpu_texture_params) {
         .type          = NGPU_TEXTURE_TYPE_2D,
@@ -424,8 +424,8 @@ static int resize(struct ngl_node *node)
         if (ret < 0)
             goto fail;
 
-        mip_width = NGLI_MAX(mip_width >> 1, 1);
-        mip_height = NGLI_MAX(mip_height >> 1, 1);
+        mip_width = NPRIV_MAX(mip_width >> 1, 1);
+        mip_height = NPRIV_MAX(mip_height >> 1, 1);
     }
 
     dst = dst_info->texture;
@@ -499,14 +499,14 @@ static int resize(struct ngl_node *node)
 
     s->diagonal = hypotf((float)width, (float)height);
 
-    uint32_t nb_mips = ngli_log2(NGLI_MAX(width, height)) + 1;
+    uint32_t nb_mips = npriv_log2(NPRIV_MAX(width, height)) + 1;
     uint32_t max_lod = nb_mips - 1;
 
     /*
      * For a given lod, we need to generate mips[lod] and mips[lod+1], hence,
      * we need to make sure we do not exceed MAX_MIP_LEVELS - 2.
      */
-    s->max_lod = NGLI_MIN(max_lod, MAX_MIP_LEVELS - 2);
+    s->max_lod = NPRIV_MIN(max_lod, MAX_MIP_LEVELS - 2);
 
     return 0;
 
@@ -580,9 +580,9 @@ static void fgblur_pre_draw(struct ngl_node *node)
         return;
 
     const float blurriness_raw = *(float *)ngli_node_get_data_ptr(o->blurriness_node, &o->blurriness);
-    const float blurriness = NGLI_CLAMP(blurriness_raw, 0.f, 1.f);
+    const float blurriness = NPRIV_CLAMP(blurriness_raw, 0.f, 1.f);
     const float radius = blurriness * s->diagonal / 2.f;
-    const float lod = NGLI_MIN(compute_lod(radius), (float)s->max_lod);
+    const float lod = NPRIV_MIN(compute_lod(radius), (float)s->max_lod);
     const int32_t lod_i = (int32_t)lod;
     const float lod_f = lod - (float)lod_i;
 

@@ -25,12 +25,12 @@
 #include <stdint.h>
 
 #include "internal.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_graph.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
-#include "utils/hmap.h"
-#include "utils/utils.h"
 
 static atomic_uint_fast64_t traversal_id_counter;
 
@@ -69,7 +69,7 @@ int ngli_node_graph_foreach_child(ngli_node_graph_edge_func func, void *user_arg
         } else if (par->type == NGLI_PARAM_TYPE_NODEDICT) {
             const struct hmap *hmap = *(struct hmap **)parp;
             const struct hmap_entry *entry = NULL;
-            while (hmap && (entry = ngli_hmap_next(hmap, entry))) {
+            while (hmap && (entry = npriv_hmap_next(hmap, entry))) {
                 const int ret = func(user_arg, node, entry->data);
                 if (ret < 0)
                     return ret;
@@ -84,7 +84,7 @@ struct ngli_node_graph_range ngli_node_graph_get_param_range(const struct ngl_no
                                                              const struct node_param *par)
 {
     const struct node_param *cur_par = node->cls->params;
-    ngli_assert(cur_par != NULL);
+    npriv_assert(cur_par != NULL);
 
     struct ngli_node_graph_range range = {0};
     for (; cur_par->key; cur_par++) {
@@ -97,7 +97,7 @@ struct ngli_node_graph_range ngli_node_graph_get_param_range(const struct ngl_no
             count = array->count;
         } else if (cur_par->type == NGLI_PARAM_TYPE_NODEDICT) {
             const struct hmap *dict = *(struct hmap *const *)cur_parp;
-            count = dict ? ngli_hmap_count(dict) : 0;
+            count = dict ? npriv_hmap_count(dict) : 0;
         }
         if (cur_par == par) {
             range.count = count;
@@ -105,7 +105,7 @@ struct ngli_node_graph_range ngli_node_graph_get_param_range(const struct ngl_no
         }
         range.index += count;
     }
-    ngli_assert(0);
+    npriv_assert(0);
 }
 
 struct find_node_arg {
@@ -132,7 +132,7 @@ static int find_node(void *user_arg, struct ngl_node *parent, struct ngl_node *n
 
 bool ngli_node_graph_find_node(struct ngl_node *root, const struct ngl_node *target)
 {
-    ngli_assert(root && target);
+    npriv_assert(root && target);
 
     struct find_node_arg arg = {
         .traversal_id = ngli_node_graph_new_traversal_id(),
@@ -170,7 +170,7 @@ static int resolve_ctx(void *user_arg, struct ngl_node *parent, struct ngl_node 
 
 int ngli_node_graph_resolve_ctx(struct ngl_node *root, struct ngl_ctx **ctxp)
 {
-    ngli_assert(root && ctxp);
+    npriv_assert(root && ctxp);
 
     *ctxp = NULL;
 

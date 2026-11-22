@@ -42,7 +42,7 @@ struct uniform_priv {
     uint32_t uvector[4];
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct uniform_priv, var) == 0, "variable_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct uniform_priv, var) == 0, "variable_info is first");
 
 #define DECLARE_UPDATE_FUNCS(type, opt_val, opt_min, opt_max, fmt, n)                                       \
 static void live_boundaries_clamp_##type(struct ngl_node *node)                                             \
@@ -139,7 +139,7 @@ static int uniformcolor_update_func(struct ngl_node *node)
     case NGLI_COLORCONV_SPACE_HSL:   ngli_colorconv_hsl2srgb(s->var.data, o->live.val.f);   break;
     case NGLI_COLORCONV_SPACE_HSV:   ngli_colorconv_hsv2srgb(s->var.data, o->live.val.f);   break;
     default:
-        ngli_assert(0);
+        npriv_assert(0);
     }
     return 0;
 }

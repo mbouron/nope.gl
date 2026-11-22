@@ -23,8 +23,8 @@
 #ifndef ANIMATION_H
 #define ANIMATION_H
 
+#include "libnopeutil/darray.h"
 #include "nopegl/nopegl.h"
-#include "utils/darray.h"
 
 struct animkeyframe_opts;
 
@@ -54,8 +54,8 @@ struct animation {
     ngli_animation_mix_func_type mix_func;
     ngli_animation_cpy_func_type cpy_func;
     uint32_t flags;
-    NGLI_DARRAY(double) times;
-    NGLI_DARRAY(double) values;
+    NPRIV_DARRAY(double) times;
+    NPRIV_DARRAY(double) values;
 };
 
 int ngli_animation_init(struct animation *s, void *user_arg,

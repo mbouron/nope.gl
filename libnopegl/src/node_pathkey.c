@@ -23,9 +23,9 @@
 #include <stddef.h>
 
 #include "internal.h"
+#include "libnopeutil/bstr.h"
 #include "node_pathkey.h"
 #include "nopegl/nopegl.h"
-#include "utils/bstr.h"
 
 #define OFFSET_MOVE(x) offsetof(struct pathkey_move_opts, x)
 static const struct node_param pathkey_move_params[] = {
@@ -63,30 +63,30 @@ static const struct node_param pathkey_bezier3_params[] = {
 
 static char *pathkey_info_str(const struct ngl_node *node)
 {
-    struct bstr *b = ngli_bstr_create();
+    struct bstr *b = npriv_bstr_create();
     if (!b)
         return NULL;
     if (node->cls->id == NGL_NODE_PATHKEYMOVE) {
         const struct pathkey_move_opts *o = node->opts;
-        ngli_bstr_printf(b, "move to:%g,%g,%g", NGLI_ARG_VEC3(o->to));
+        npriv_bstr_printf(b, "move to:%g,%g,%g", NPRIV_ARG_VEC3(o->to));
     } else if (node->cls->id == NGL_NODE_PATHKEYLINE) {
         const struct pathkey_line_opts *o = node->opts;
-        ngli_bstr_printf(b, "line to:%g,%g,%g", NGLI_ARG_VEC3(o->to));
+        npriv_bstr_printf(b, "line to:%g,%g,%g", NPRIV_ARG_VEC3(o->to));
     } else if (node->cls->id == NGL_NODE_PATHKEYBEZIER2) {
         const struct pathkey_bezier2_opts *o = node->opts;
-        ngli_bstr_printf(b, "bezier2 ctl:%g,%g,%g to:%g,%g,%g",
-                         NGLI_ARG_VEC3(o->control), NGLI_ARG_VEC3(o->to));
+        npriv_bstr_printf(b, "bezier2 ctl:%g,%g,%g to:%g,%g,%g",
+                          NPRIV_ARG_VEC3(o->control), NPRIV_ARG_VEC3(o->to));
     } else if (node->cls->id == NGL_NODE_PATHKEYBEZIER3) {
         const struct pathkey_bezier3_opts *o = node->opts;
-        ngli_bstr_printf(b, "bezier3 ctl1:%g,%g,%g ctl2:%g,%g,%g to:%g,%g,%g",
-                         NGLI_ARG_VEC3(o->control1), NGLI_ARG_VEC3(o->control2), NGLI_ARG_VEC3(o->to));
+        npriv_bstr_printf(b, "bezier3 ctl1:%g,%g,%g ctl2:%g,%g,%g to:%g,%g,%g",
+                          NPRIV_ARG_VEC3(o->control1), NPRIV_ARG_VEC3(o->control2), NPRIV_ARG_VEC3(o->to));
     } else if (node->cls->id == NGL_NODE_PATHKEYCLOSE) {
-        ngli_bstr_print(b, "close sub-path");
+        npriv_bstr_print(b, "close sub-path");
     } else {
-        ngli_assert(0);
+        npriv_assert(0);
     }
-    char *ret = ngli_bstr_strdup(b);
-    ngli_bstr_freep(&b);
+    char *ret = npriv_bstr_strdup(b);
+    npriv_bstr_freep(&b);
     return ret;
 }
 

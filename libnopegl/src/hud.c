@@ -44,12 +44,12 @@
 #include "drawutils.h"
 #include "hud.h"
 #include "internal.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/time.h"
 #include "log.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
-#include "utils/memory.h"
-#include "utils/time.h"
 
 struct transforms_block {
     struct ngli_mat4 modelview_matrix;
@@ -131,7 +131,7 @@ struct widget_spec {
     void (*uninit)(struct hud *s, struct widget *widget);
 };
 
-NGLI_DECLARE_DARRAY_WITH_NAME(widget_darray, struct widget);
+NPRIV_DECLARE_DARRAY_WITH_NAME(widget_darray, struct widget);
 
 struct hud {
     struct ngl_ctx *ctx;
@@ -207,8 +207,8 @@ static const struct counter_spec {
     #undef COUNTER
 };
 
-NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(latency_specs) == NB_LATENCY, "hud nb latency");
-NGLI_STATIC_ASSERT(NGLI_ARRAY_NB(counter_specs) == NB_COUNTERS, "hud nb counters");
+NPRIV_STATIC_ASSERT(NPRIV_ARRAY_NB(latency_specs) == NB_LATENCY, "hud nb latency");
+NPRIV_STATIC_ASSERT(NPRIV_ARRAY_NB(counter_specs) == NB_COUNTERS, "hud nb counters");
 
 /* Widget init */
 
@@ -216,11 +216,11 @@ static int widget_latency_init(struct hud *s, struct widget *widget)
 {
     struct widget_latency *priv = widget->priv_data;
 
-    ngli_assert(NB_LATENCY == NGLI_ARRAY_NB(priv->measures));
+    npriv_assert(NB_LATENCY == NPRIV_ARRAY_NB(priv->measures));
 
-    s->measure_window = NGLI_MAX(s->measure_window, 1);
+    s->measure_window = NPRIV_MAX(s->measure_window, 1);
     for (size_t i = 0; i < NB_LATENCY; i++) {
-        int64_t *times = ngli_try_calloc((size_t)s->measure_window, sizeof(*times));
+        int64_t *times = npriv_try_calloc((size_t)s->measure_window, sizeof(*times));
         if (!times)
             return NGL_ERROR_MEMORY;
         priv->measures[i].times = times;
@@ -236,7 +236,7 @@ static void register_time(struct hud *s, struct latency_measure *m, int64_t t)
     m->total_times = m->total_times - m->times[m->pos] + t;
     m->times[m->pos] = t;
     m->pos = (m->pos + 1) % s->measure_window;
-    m->count = NGLI_MIN(m->count + 1, s->measure_window);
+    m->count = NPRIV_MIN(m->count + 1, s->measure_window);
 }
 
 /* Widget make stats */
@@ -286,7 +286,7 @@ static void get_counter(const struct hud *s, enum counter_id id, struct widget_c
     case NB_COUNTERS:
         break;
     }
-    ngli_assert(0);
+    npriv_assert(0);
 }
 
 static void widget_counter_make_stats(struct hud *s, struct widget *widget)
@@ -340,7 +340,7 @@ static void draw_block_graph(struct hud *s,
     for (size_t k = 0; k < d->count; k++) {
         const int64_t v = d->values[(start + k) % d->nb_values];
         const int h = (int)((float)(v - graph_min) * vscale);
-        const int y = NGLI_CLAMP(rect->h - h, 0, rect->h);
+        const int y = NPRIV_CLAMP(rect->h - h, 0, rect->h);
         set_color_at_column(s, rect->x + (int)k, rect->y + y, h, c);
     }
 }
@@ -359,7 +359,7 @@ static void draw_line_graph(struct hud *s,
     for (size_t k = 0; k < d->count; k++) {
         const int64_t v = d->values[(start + k) % d->nb_values];
         const int h = (int)((float)(v - graph_min) * vscale);
-        const int y = NGLI_CLAMP(rect->h - 1 - h, 0, rect->h - 1);
+        const int y = NPRIV_CLAMP(rect->h - 1 - h, 0, rect->h - 1);
 
         set_color_at(s, rect->x + (int)k, rect->y + y, c);
         if (k)
@@ -389,27 +389,27 @@ static void register_graph_value(struct data_graph *d, int64_t v)
 
     d->values[d->pos] = v;
     d->pos = (d->pos + 1) % d->nb_values;
-    d->count = NGLI_MIN(d->count + 1, d->nb_values);
+    d->count = NPRIV_MIN(d->count + 1, d->nb_values);
 
     /* update min */
     if (old_v == d->min) {
         d->min = d->values[0];
         for (int i = 1; i < d->nb_values; i++)
-            d->min = NGLI_MIN(d->min, d->values[i]);
+            d->min = NPRIV_MIN(d->min, d->values[i]);
     } else if (v < d->min) {
         d->min = v;
     }
-    d->amin = NGLI_MIN(d->amin, d->min);
+    d->amin = NPRIV_MIN(d->amin, d->min);
 
     /* update max */
     if (old_v == d->max) {
         d->max = d->values[0];
         for (int i = 1; i < d->nb_values; i++)
-            d->max = NGLI_MAX(d->max, d->values[i]);
+            d->max = NPRIV_MAX(d->max, d->values[i]);
     } else if (v > d->max) {
         d->max = v;
     }
-    d->amax = NGLI_MAX(d->amax, d->max);
+    d->amax = NPRIV_MAX(d->amax, d->max);
 }
 
 static int64_t get_latency_avg(const struct widget_latency *priv, size_t id)
@@ -434,8 +434,8 @@ static void widget_latency_draw(struct hud *s, struct widget *widget)
     int64_t graph_min = widget->data_graph[0].min;
     int64_t graph_max = widget->data_graph[0].max;
     for (size_t i = 1; i < NB_LATENCY; i++) {
-        graph_min = NGLI_MIN(graph_min, widget->data_graph[i].min);
-        graph_max = NGLI_MAX(graph_max, widget->data_graph[i].max);
+        graph_min = NPRIV_MIN(graph_min, widget->data_graph[i].min);
+        graph_max = NPRIV_MAX(graph_max, widget->data_graph[i].max);
     }
 
     const int64_t graph_h = graph_max - graph_min;
@@ -466,7 +466,7 @@ static void widget_counter_draw(struct hud *s, struct widget *widget)
     print_text(s, widget->text_x, widget->text_y + NGLI_FONT_H, buf, spec->color);
 
     struct data_graph *d = &widget->data_graph[0];
-    const int64_t value = (int64_t)NGLI_MIN(priv->value, INT64_MAX);
+    const int64_t value = (int64_t)NPRIV_MIN(priv->value, INT64_MAX);
     register_graph_value(d, value);
     if (d->amin != d->amax)
         draw_block_graph(s, d, &widget->graph_rect, d->amin, d->amax, spec->color);
@@ -477,16 +477,16 @@ static void widget_counter_draw(struct hud *s, struct widget *widget)
 static void widget_latency_csv_header(struct hud *s, struct widget *widget, struct bstr *dst)
 {
     for (size_t i = 0; i < NB_LATENCY; i++)
-        ngli_bstr_printf(dst, "%s%s", i ? "," : "", latency_specs[i].label);
+        npriv_bstr_printf(dst, "%s%s", i ? "," : "", latency_specs[i].label);
 }
 
 static void widget_counter_csv_header(struct hud *s, struct widget *widget, struct bstr *dst)
 {
     const struct counter_spec *spec = widget->user_data;
     if (spec->fmt == COUNTER_FMT_RATIO)
-        ngli_bstr_printf(dst, "%s active,%s total", spec->label, spec->label);
+        npriv_bstr_printf(dst, "%s active,%s total", spec->label, spec->label);
     else
-        ngli_bstr_print(dst, spec->label);
+        npriv_bstr_print(dst, spec->label);
 }
 
 /* Widget CSV report */
@@ -496,7 +496,7 @@ static void widget_latency_csv_report(struct hud *s, struct widget *widget, stru
     const struct widget_latency *priv = widget->priv_data;
     for (size_t i = 0; i < NB_LATENCY; i++) {
         const int64_t t = get_latency_avg(priv, i);
-        ngli_bstr_printf(dst, "%s%"PRId64, i ? "," : "", t);
+        npriv_bstr_printf(dst, "%s%"PRId64, i ? "," : "", t);
     }
 }
 
@@ -505,9 +505,9 @@ static void widget_counter_csv_report(struct hud *s, struct widget *widget, stru
     const struct counter_spec *spec = widget->user_data;
     const struct widget_counter *priv = widget->priv_data;
     if (spec->fmt == COUNTER_FMT_RATIO)
-        ngli_bstr_printf(dst, "%"PRIu64",%"PRIu64, priv->value, priv->total);
+        npriv_bstr_printf(dst, "%"PRIu64",%"PRIu64, priv->value, priv->total);
     else
-        ngli_bstr_printf(dst, "%"PRIu64, priv->value);
+        npriv_bstr_printf(dst, "%"PRIu64, priv->value);
 }
 
 /* Widget uninit */
@@ -516,7 +516,7 @@ static void widget_latency_uninit(struct hud *s, struct widget *widget)
 {
     struct widget_latency *priv = widget->priv_data;
     for (size_t i = 0; i < NB_LATENCY; i++)
-        ngli_free(priv->measures[i].times);
+        npriv_free(priv->measures[i].times);
 }
 
 static const struct widget_spec widget_specs[] = {
@@ -573,9 +573,9 @@ static int create_widget(struct hud *s, enum widget_type type, const void *user_
 
     const struct widget_spec *spec = &widget_specs[type];
 
-    ngli_assert(spec->text_cols && spec->text_rows);
-    ngli_assert(spec->graph_w ^ spec->graph_h);
-    ngli_assert(spec->nb_data_graph);
+    npriv_assert(spec->text_cols && spec->text_rows);
+    npriv_assert(spec->graph_w ^ spec->graph_h);
+    npriv_assert(spec->nb_data_graph);
 
     const int horizontal_layout = !spec->graph_h;
     struct widget widget = {
@@ -601,21 +601,21 @@ static int create_widget(struct hud *s, enum widget_type type, const void *user_
         widget.graph_rect.h = spec->graph_h;
     }
 
-    if (ngli_darray_try_push(&s->widgets, widget) < 0)
+    if (npriv_darray_try_push(&s->widgets, widget) < 0)
         return NGL_ERROR_MEMORY;
-    struct widget *widgetp = ngli_darray_tail(&s->widgets);
+    struct widget *widgetp = npriv_darray_tail(&s->widgets);
 
-    widgetp->priv_data = ngli_try_calloc(1, spec->priv_size);
+    widgetp->priv_data = npriv_try_calloc(1, spec->priv_size);
     if (!widgetp->priv_data)
         return NGL_ERROR_MEMORY;
 
-    widgetp->data_graph = ngli_try_calloc(spec->nb_data_graph, sizeof(*widgetp->data_graph));
+    widgetp->data_graph = npriv_try_calloc(spec->nb_data_graph, sizeof(*widgetp->data_graph));
     if (!widgetp->data_graph)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < spec->nb_data_graph; i++) {
         struct data_graph *d = &widgetp->data_graph[i];
         d->nb_values = (size_t)widgetp->graph_rect.w;
-        d->values = ngli_try_calloc(d->nb_values, sizeof(*d->values));
+        d->values = npriv_try_calloc(d->nb_values, sizeof(*d->values));
         if (!d->values)
             return NGL_ERROR_MEMORY;
     }
@@ -629,15 +629,15 @@ static void reset_widget(void *user_arg, void *data)
     struct widget *widget = data;
     if (widget_specs[widget->type].uninit)
         widget_specs[widget->type].uninit(s, widget);
-    ngli_free(widget->priv_data);
+    npriv_free(widget->priv_data);
     for (size_t i = 0; i < widget_specs[widget->type].nb_data_graph; i++)
-        ngli_free(widget->data_graph[i].values);
-    ngli_free(widget->data_graph);
+        npriv_free(widget->data_graph[i].values);
+    npriv_free(widget->data_graph);
 }
 
 static int widgets_init(struct hud *s)
 {
-    ngli_darray_set_free_func(&s->widgets, reset_widget, s);
+    npriv_darray_set_free_func(&s->widgets, reset_widget, s);
 
     /* Smallest dimensions possible (in pixels) */
     const int latency_width = get_widget_width(WIDGET_LATENCY);
@@ -646,7 +646,7 @@ static int widgets_init(struct hud *s)
                              + WIDGET_MARGIN * (COUNTERS_PER_ROW - 1);
 
     s->canvas.w = WIDGET_MARGIN * 2
-                + NGLI_MAX(latency_width, counters_width);
+                + NPRIV_MAX(latency_width, counters_width);
 
     s->canvas.h = WIDGET_MARGIN * 3
                 + get_widget_height(WIDGET_LATENCY)
@@ -714,24 +714,24 @@ static int widgets_csv_header(struct hud *s)
         return NGL_ERROR_IO;
     }
 
-    s->csv_line = ngli_bstr_create();
+    s->csv_line = npriv_bstr_create();
     if (!s->csv_line)
         return NGL_ERROR_MEMORY;
 
-    ngli_bstr_print(s->csv_line, "time,");
+    npriv_bstr_print(s->csv_line, "time,");
 
     struct widget_darray *widgets_array = &s->widgets;
     struct widget *widgets = widgets_array->data;
     for (size_t i = 0; i < widgets_array->count; i++) {
         struct widget *widget = &widgets[i];
-        ngli_bstr_print(s->csv_line, i ? "," : "");
+        npriv_bstr_print(s->csv_line, i ? "," : "");
         widget_specs[widget->type].csv_header(s, widget, s->csv_line);
     }
 
-    ngli_bstr_print(s->csv_line, "\n");
+    npriv_bstr_print(s->csv_line, "\n");
 
-    const size_t len = ngli_bstr_len(s->csv_line);
-    size_t n = fwrite(ngli_bstr_strptr(s->csv_line), 1, len, s->fp_export);
+    const size_t len = npriv_bstr_len(s->csv_line);
+    size_t n = fwrite(npriv_bstr_strptr(s->csv_line), 1, len, s->fp_export);
     if (n != len) {
         LOG(ERROR, "unable to write CSV header");
         return NGL_ERROR_IO;
@@ -758,20 +758,20 @@ static void widgets_csv_report(struct hud *s)
         LOG(ERROR, "unable to set C locale");
 #endif
 
-    ngli_bstr_clear(s->csv_line);
-    ngli_bstr_printf(s->csv_line, "%f", scene ? scene->last_update_time : 0);
+    npriv_bstr_clear(s->csv_line);
+    npriv_bstr_printf(s->csv_line, "%f", scene ? scene->last_update_time : 0);
 
     struct widget_darray *widgets_array = &s->widgets;
     struct widget *widgets = widgets_array->data;
     for (size_t i = 0; i < widgets_array->count; i++) {
-        ngli_bstr_print(s->csv_line, ",");
+        npriv_bstr_print(s->csv_line, ",");
         struct widget *widget = &widgets[i];
         widget_specs[widget->type].csv_report(s, widget, s->csv_line);
     }
-    ngli_bstr_print(s->csv_line, "\n");
+    npriv_bstr_print(s->csv_line, "\n");
 
-    const size_t len = ngli_bstr_len(s->csv_line);
-    fwrite(ngli_bstr_strptr(s->csv_line), 1, len, s->fp_export);
+    const size_t len = npriv_bstr_len(s->csv_line);
+    fwrite(npriv_bstr_strptr(s->csv_line), 1, len, s->fp_export);
 
 #if HAVE_USELOCALE
     uselocale(prev_locale);
@@ -782,7 +782,7 @@ static void widgets_csv_report(struct hud *s)
 
 static void widgets_uninit(struct hud *s)
 {
-    ngli_darray_reset(&s->widgets);
+    npriv_darray_reset(&s->widgets);
 }
 
 static const char * const vertex_data =
@@ -806,7 +806,7 @@ static const struct ngpu_pgcraft_iovar vert_out_vars[] = {
 
 struct hud *ngli_hud_create(struct ngl_ctx *ctx)
 {
-    struct hud *s = ngli_try_calloc(1, sizeof(*s));
+    struct hud *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
@@ -853,7 +853,7 @@ int ngli_hud_init(struct hud *s)
         return widgets_csv_header(s);
     }
 
-    s->canvas.buf = ngli_try_calloc((size_t)s->canvas.w * (size_t)s->canvas.h, 4);
+    s->canvas.buf = npriv_try_calloc((size_t)s->canvas.w * (size_t)s->canvas.h, 4);
     if (!s->canvas.buf)
         return NGL_ERROR_MEMORY;
 
@@ -902,7 +902,7 @@ int ngli_hud_init(struct hud *s)
     ngpu_block_desc_init(gpu_ctx, &transforms_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_add_field(&transforms_block_desc, "modelview_matrix", NGPU_TYPE_MAT4, 0);
     ngpu_block_desc_add_field(&transforms_block_desc, "projection_matrix", NGPU_TYPE_MAT4, 0);
-    ngli_assert(ngpu_block_desc_get_size(&transforms_block_desc, 0) == sizeof(struct transforms_block));
+    npriv_assert(ngpu_block_desc_get_size(&transforms_block_desc, 0) == sizeof(struct transforms_block));
 
     const struct ngpu_pgcraft_block blocks[] = {
         {
@@ -949,13 +949,13 @@ int ngli_hud_init(struct hud *s)
         .vert_base                = vertex_data,
         .frag_base                = fragment_data,
         .blocks                   = blocks,
-        .nb_blocks                = NGLI_ARRAY_NB(blocks),
+        .nb_blocks                = NPRIV_ARRAY_NB(blocks),
         .textures                 = textures,
-        .nb_textures              = NGLI_ARRAY_NB(textures),
+        .nb_textures              = NPRIV_ARRAY_NB(textures),
         .vertex_buffer_layouts    = vertex_buffer_layouts,
-        .nb_vertex_buffer_layouts = NGLI_ARRAY_NB(vertex_buffer_layouts),
+        .nb_vertex_buffer_layouts = NPRIV_ARRAY_NB(vertex_buffer_layouts),
         .vert_out_vars            = vert_out_vars,
-        .nb_vert_out_vars         = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars         = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
@@ -1018,7 +1018,7 @@ void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats)
         return;
     }
 
-    const double t = (double)ngli_gettime_relative() / 1000000.;
+    const double t = (double)npriv_gettime_relative() / 1000000.;
     const int need_refresh = fabs(t - s->last_refresh_time) >= s->refresh_rate_interval;
     if (need_refresh) {
         s->last_refresh_time = t;
@@ -1037,8 +1037,8 @@ void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats)
 
     const int int_ratio_w = (int)viewport.width  / s->canvas.w;
     const int int_ratio_h = (int)viewport.height / s->canvas.h;
-    const int max_scale = NGLI_MIN(int_ratio_w, int_ratio_h);
-    const int scale = NGLI_CLAMP(s->scale > 0 ? s->scale : 1, 1, max_scale);
+    const int max_scale = NPRIV_MIN(int_ratio_w, int_ratio_h);
+    const int scale = NPRIV_CLAMP(s->scale > 0 ? s->scale : 1, 1, max_scale);
     const float ratio_w = (float)(scale * s->canvas.w) / viewport.width;
     const float ratio_h = (float)(scale * s->canvas.h) / viewport.height;
     const float x =-1.0f + 2 * ratio_w;
@@ -1065,8 +1065,8 @@ void ngli_hud_draw(struct hud *s, const struct ngli_frame_stats *stats)
     ngpu_ctx_set_viewport(gpu_ctx, &viewport);
     ngpu_ctx_set_scissor(gpu_ctx, &ctx->scissor);
 
-    const struct ngli_mat4 *modelview_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
-    const struct ngli_mat4 *projection_matrix = ngli_darray_tail(&ctx->projection_matrix_stack);
+    const struct ngli_mat4 *modelview_matrix = npriv_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 *projection_matrix = npriv_darray_tail(&ctx->projection_matrix_stack);
     struct transforms_block transforms_data = {0};
     transforms_data.modelview_matrix = *modelview_matrix;
     transforms_data.projection_matrix = *projection_matrix;
@@ -1089,11 +1089,11 @@ void ngli_hud_freep(struct hud **sp)
     ngpu_texture_freep(&s->texture);
     ngpu_buffer_freep(&s->coords);
     widgets_uninit(s);
-    ngli_free(s->canvas.buf);
+    npriv_free(s->canvas.buf);
     if (s->fp_export) {
         fclose(s->fp_export);
-        ngli_bstr_freep(&s->csv_line);
+        npriv_bstr_freep(&s->csv_line);
     }
 
-    ngli_freep(sp);
+    npriv_freep(sp);
 }

@@ -24,8 +24,8 @@
 
 #include "aabb.h"
 #include "blend_mode.h"
+#include "libnopeutil/utils.h"
 #include "math_utils.h"
-#include "utils/utils.h"
 
 struct ngl_ctx;
 struct ngl_node;
@@ -55,9 +55,9 @@ struct ngli_node2d_opts {
  * node context for all nodes flagged with NGLI_NODE_FLAG_2D.
  */
 struct ngli_node2d_info {
-    NGLI_ATTR_ALIGNED struct aabb aabb;
+    NPRIV_ATTR_ALIGNED struct aabb aabb;
     struct ngli_mat4 transform_matrix;
-    NGLI_ATTR_ALIGNED struct aabb screen_aabb;
+    NPRIV_ATTR_ALIGNED struct aabb screen_aabb;
     float effect_margin;
 };
 

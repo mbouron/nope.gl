@@ -84,7 +84,7 @@ float ngli_node2d_scale_effect_margin(const struct ngli_mat4 *modelview, float e
     const float *m = modelview->m;
     const float expansion_x = fabsf(m[0]) + fabsf(m[4]);
     const float expansion_y = fabsf(m[1]) + fabsf(m[5]);
-    return effect_margin * NGLI_MAX(expansion_x, expansion_y);
+    return effect_margin * NPRIV_MAX(expansion_x, expansion_y);
 }
 
 bool ngli_node2d_compute_clip(const struct ngli_mat4 *modelview,
@@ -113,8 +113,8 @@ bool ngli_node2d_compute_clip(const struct ngli_mat4 *modelview,
     const float idet = 1.f / det;
 
     /* Corner radii, clamped to half the rectangle so they stay well-formed. */
-    const float rx = NGLI_MIN(NGLI_MAX(corner_radius[0], 0.f), half_w);
-    const float ry = NGLI_MIN(NGLI_MAX(corner_radius[1], 0.f), half_h);
+    const float rx = NPRIV_MIN(NPRIV_MAX(corner_radius[0], 0.f), half_w);
+    const float ry = NPRIV_MIN(NPRIV_MAX(corner_radius[1], 0.f), half_h);
 
     out->inv    = (struct ngli_vec4){.v = {d * idet, -b * idet, -c * idet, a * idet}};
     out->rect   = (struct ngli_vec4){.v = {center[0], center[1], half_w, half_h}};

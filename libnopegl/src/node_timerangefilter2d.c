@@ -43,7 +43,7 @@ struct timerangefilter2d_priv {
     int drawme;
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct timerangefilter2d_priv, node2d_info) == 0, "node2d_info must be first");
+NPRIV_STATIC_ASSERT(offsetof(struct timerangefilter2d_priv, node2d_info) == 0, "node2d_info must be first");
 
 static int update_params(struct ngl_node *node);
 

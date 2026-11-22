@@ -32,14 +32,14 @@
 #include "distmap_frag.h"
 #include "distmap_vert.h"
 #include "internal.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
 #include "path.h"
 #include "pipeline.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 /*
  * Padding percent is arbitrary: it represents how far an effect such as glowing
@@ -65,11 +65,11 @@ struct distmap {
     int32_t nb_rows, nb_cols;
     float scale;
 
-    NGLI_DARRAY(struct shape) shapes;
-    NGLI_DARRAY(struct bezier3) bezier_x;
-    NGLI_DARRAY(struct bezier3) bezier_y;
-    NGLI_DARRAY(int32_t) bezier_counts;
-    NGLI_DARRAY(int32_t) beziergroup_counts;
+    NPRIV_DARRAY(struct shape) shapes;
+    NPRIV_DARRAY(struct bezier3) bezier_x;
+    NPRIV_DARRAY(struct bezier3) bezier_y;
+    NPRIV_DARRAY(int32_t) bezier_counts;
+    NPRIV_DARRAY(int32_t) beziergroup_counts;
 
     struct ngpu_texture *texture;
     struct ngpu_rendertarget *rt;
@@ -85,7 +85,7 @@ struct distmap {
 
 struct distmap *ngli_distmap_create(struct ngl_ctx *ctx)
 {
-    struct distmap *s = ngli_try_calloc(1, sizeof(*s));
+    struct distmap *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
@@ -163,14 +163,14 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
             bezier_y = b3_from_bezier3(y[0], y[1], y[2], y[3]);
             break;
         default:
-            ngli_assert(0);
+            npriv_assert(0);
         }
 
         bezier_x = scaled_bezier(bezier_x, s->scale);
         bezier_y = scaled_bezier(bezier_y, s->scale);
 
-        if (ngli_darray_try_push(&s->bezier_x, bezier_x) < 0 ||
-            ngli_darray_try_push(&s->bezier_y, bezier_y) < 0)
+        if (npriv_darray_try_push(&s->bezier_x, bezier_x) < 0 ||
+            npriv_darray_try_push(&s->bezier_y, bezier_y) < 0)
             return NGL_ERROR_MEMORY;
 
         /* Artificially insert a closing segment if necessary */
@@ -180,8 +180,8 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
             const float *y0 = segment0->bezier_y;
             const struct bezier3 bezier_x_close = b3_from_line(bezier_x.p3, x0[0]);
             const struct bezier3 bezier_y_close = b3_from_line(bezier_y.p3, y0[0]);
-            if (ngli_darray_try_push(&s->bezier_x, bezier_x_close) < 0 ||
-                ngli_darray_try_push(&s->bezier_y, bezier_y_close) < 0)
+            if (npriv_darray_try_push(&s->bezier_x, bezier_x_close) < 0 ||
+                npriv_darray_try_push(&s->bezier_y, bezier_y_close) < 0)
                 return NGL_ERROR_MEMORY;
             nb_beziers++;
         }
@@ -193,22 +193,22 @@ int ngli_distmap_add_shape(struct distmap *s, int32_t shape_w, int32_t shape_h,
             const int closed = (segment->flags & NGLI_PATH_SEGMENT_FLAG_CLOSING) || (flags & NGLI_DISTMAP_FLAG_PATH_AUTO_CLOSE);
             /* Pass down the closing flag to the shader using negative integers */
             const int32_t bezier_count = (closed ? -1 : 1) * nb_beziers;
-            if (ngli_darray_try_push(&s->bezier_counts, bezier_count) < 0)
+            if (npriv_darray_try_push(&s->bezier_counts, bezier_count) < 0)
                 return NGL_ERROR_MEMORY;
             nb_beziergroups++;
             nb_beziers = 0;
         }
     }
 
-    ngli_assert(nb_beziers == 0);
+    npriv_assert(nb_beziers == 0);
 
     const struct shape shape = {.width=shape_w, .height=shape_h};
-    if (ngli_darray_try_push(&s->shapes, shape) < 0 ||
-        ngli_darray_try_push(&s->beziergroup_counts, nb_beziergroups) < 0)
+    if (npriv_darray_try_push(&s->shapes, shape) < 0 ||
+        npriv_darray_try_push(&s->beziergroup_counts, nb_beziergroups) < 0)
         return NGL_ERROR_MEMORY;
 
-    s->max_shape_w = NGLI_MAX(shape_w, s->max_shape_w);
-    s->max_shape_h = NGLI_MAX(shape_h, s->max_shape_h);
+    s->max_shape_w = NPRIV_MAX(shape_w, s->max_shape_w);
+    s->max_shape_h = NPRIV_MAX(shape_h, s->max_shape_h);
 
     *shape_id = (int32_t)s->shapes.count - 1;
     return 0;
@@ -247,7 +247,7 @@ static int32_t get_max_beziers_per_shape(const struct distmap *s)
             sum += abs(counts[j]);
         counts += group_count;
 
-        max_beziers = NGLI_MAX(max_beziers, sum);
+        max_beziers = NPRIV_MAX(max_beziers, sum);
     }
     return max_beziers;
 }
@@ -256,7 +256,7 @@ static int32_t get_max_beziergroups_per_shape(const struct distmap *s)
 {
     int32_t max_groups = 0;
     for (size_t i = 0; i < s->beziergroup_counts.count; i++)
-        max_groups = NGLI_MAX(max_groups, s->beziergroup_counts.data[i]);
+        max_groups = NPRIV_MAX(max_groups, s->beziergroup_counts.data[i]);
     return max_groups;
 }
 
@@ -392,10 +392,10 @@ static int draw_glyphs(struct distmap *s)
 
 static void reset_tmp_data(struct distmap *s)
 {
-    ngli_darray_reset(&s->bezier_x);
-    ngli_darray_reset(&s->bezier_y);
-    ngli_darray_reset(&s->bezier_counts);
-    ngli_darray_reset(&s->beziergroup_counts);
+    npriv_darray_reset(&s->bezier_x);
+    npriv_darray_reset(&s->bezier_y);
+    npriv_darray_reset(&s->bezier_counts);
+    npriv_darray_reset(&s->beziergroup_counts);
 
     ngli_pipeline_freep(&s->pipeline);
     ngpu_block_desc_reset(&s->vert_block);
@@ -419,12 +419,12 @@ static enum ngpu_format get_preferred_distmap_format(const struct distmap *s)
         NGPU_FORMAT_R16_SFLOAT,
         NGPU_FORMAT_R8_UNORM,
     };
-    for (size_t i = 0; i < NGLI_ARRAY_NB(formats); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(formats); i++) {
         const uint32_t features = ngpu_ctx_get_format_features(gpu_ctx, formats[i]);
-        if (NGLI_HAS_ALL_FLAGS(features, DISTMAP_FEATURES))
+        if (NPRIV_HAS_ALL_FLAGS(features, DISTMAP_FEATURES))
             return formats[i];
     }
-    ngli_assert(0);
+    npriv_assert(0);
 }
 
 int ngli_distmap_finalize(struct distmap *s)
@@ -445,14 +445,14 @@ int ngli_distmap_finalize(struct distmap *s)
      */
     s->nb_rows = (int32_t)lrintf(sqrtf((float)nb_shapes));
     s->nb_cols = (int32_t)ceilf((float)nb_shapes / (float)s->nb_rows);
-    ngli_assert(s->nb_rows * s->nb_cols >= nb_shapes);
+    npriv_assert(s->nb_rows * s->nb_cols >= nb_shapes);
 
     /*
      * Padding needs to be the same length in both directions and for all
      * shapes so that effects are consistent whatever the ratio or size of a
      * given shape.
      */
-    s->pad = NGLI_MAX(s->max_shape_w, s->max_shape_h) * PCENT_PADDING / 100;
+    s->pad = NPRIV_MAX(s->max_shape_w, s->max_shape_h) * PCENT_PADDING / 100;
 
     /*
      * +1 represents the extra half texel on each side used to prevent texture
@@ -526,8 +526,8 @@ int ngli_distmap_finalize(struct distmap *s)
     ngpu_block_desc_init(gpu_ctx, &s->vert_block, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_init(gpu_ctx, &s->frag_block, NGPU_BLOCK_LAYOUT_STD140);
 
-    if ((ret = ngpu_block_desc_add_fields(&s->vert_block, vert_fields, NGLI_ARRAY_NB(vert_fields))) < 0 ||
-        (ret = ngpu_block_desc_add_fields(&s->frag_block, frag_fields, NGLI_ARRAY_NB(frag_fields))))
+    if ((ret = ngpu_block_desc_add_fields(&s->vert_block, vert_fields, NPRIV_ARRAY_NB(vert_fields))) < 0 ||
+        (ret = ngpu_block_desc_add_fields(&s->frag_block, frag_fields, NPRIV_ARRAY_NB(frag_fields))))
         return ret;
 
     s->vert_buffer = ngpu_buffer_create(gpu_ctx);
@@ -567,9 +567,9 @@ int ngli_distmap_finalize(struct distmap *s)
         .vert_base        = distmap_vert,
         .frag_base        = distmap_frag,
         .blocks           = crafter_blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(crafter_blocks),
+        .nb_blocks        = NPRIV_ARRAY_NB(crafter_blocks),
         .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars = NPRIV_ARRAY_NB(vert_out_vars),
     };
 
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
@@ -626,7 +626,7 @@ struct ngpu_texture *ngli_distmap_get_texture(const struct distmap *s)
 // Return shape coordinates within atlas, in UV space
 struct ngli_aabb ngli_distmap_get_shape_coords(const struct distmap *s, int32_t shape_id)
 {
-    const struct shape *shape = ngli_darray_get(&s->shapes, (size_t)shape_id);
+    const struct shape *shape = npriv_darray_get(&s->shapes, (size_t)shape_id);
     const int32_t col = shape_id % s->nb_cols;
     const int32_t row = shape_id / s->nb_cols;
     const int32_t x0 = col * s->max_shape_padded_w;
@@ -641,7 +641,7 @@ struct ngli_aabb ngli_distmap_get_shape_coords(const struct distmap *s, int32_t 
 // How much a shape geometry needs to be scaled up to include all the padding
 void ngli_distmap_get_shape_scale(const struct distmap *s, int32_t shape_id, float *dst)
 {
-    const struct shape *shape = ngli_darray_get(&s->shapes, (size_t)shape_id);
+    const struct shape *shape = npriv_darray_get(&s->shapes, (size_t)shape_id);
     const float pad = (float)(2 * s->pad + 1); // +1 for the extra 2 half texel blending safeguards
     const float scale_x = 1.f + pad / (float)shape->width;
     const float scale_y = 1.f + pad / (float)shape->height;
@@ -656,7 +656,7 @@ void ngli_distmap_freep(struct distmap **dp)
         return;
     reset_tmp_data(s);
 
-    ngli_darray_reset(&s->shapes);
+    npriv_darray_reset(&s->shapes);
     ngpu_texture_freep(&s->texture);
-    ngli_freep(dp);
+    npriv_freep(dp);
 }

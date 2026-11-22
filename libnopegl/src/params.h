@@ -23,8 +23,8 @@
 #ifndef PARAMS_H
 #define PARAMS_H
 
+#include "libnopeutil/bstr.h"
 #include "nopegl/nopegl.h"
-#include "utils/bstr.h"
 
 #ifndef INCLUDE_DOCSTRINGS
 #define NGLI_DOCSTRING(s) (NULL)

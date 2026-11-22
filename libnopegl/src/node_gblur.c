@@ -28,14 +28,14 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "node_texture.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "pipeline.h"
 #include "rtt.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 /* GLSL shaders */
 #include "blur_gaussian_vert.h"
@@ -45,10 +45,10 @@
 #define CONSTANT_TO_STR(v) _CONSTANT_TO_STR(v)
 
 #define MAX_KERNEL_SIZE 127
-NGLI_STATIC_ASSERT(MAX_KERNEL_SIZE & 0x1, "kernel size is odd");
+NPRIV_STATIC_ASSERT(MAX_KERNEL_SIZE & 0x1, "kernel size is odd");
 
 #define MAX_RADIUS_SIZE 126
-NGLI_STATIC_ASSERT(MAX_RADIUS_SIZE == (MAX_KERNEL_SIZE - 1), "radius size");
+NPRIV_STATIC_ASSERT(MAX_RADIUS_SIZE == (MAX_KERNEL_SIZE - 1), "radius size");
 
 struct direction_block {
     float direction[2];
@@ -132,9 +132,9 @@ static int update_kernel(struct ngl_node *node)
 
     s->blurriness = blurriness;
 
-    const float radius_f = NGLI_CLAMP(blurriness, 0.f, 1.f) * (float)MAX_RADIUS_SIZE;
+    const float radius_f = NPRIV_CLAMP(blurriness, 0.f, 1.f) * (float)MAX_RADIUS_SIZE;
     const int32_t radius_i = (int32_t)ceil(radius_f);
-    const int32_t radius = NGLI_MIN(radius_i, MAX_RADIUS_SIZE);
+    const int32_t radius = NPRIV_MIN(radius_i, MAX_RADIUS_SIZE);
 
     /*
      * Compute sigma for a given precision (1e-3f should be fine for up to
@@ -189,7 +189,7 @@ static int update_kernel(struct ngl_node *node)
     kernel_data.nb_weights++;
 
     if (!s->kernel_staging_cache) {
-        s->kernel_staging_cache = ngli_try_calloc(1, s->kernel_block_size);
+        s->kernel_staging_cache = npriv_try_calloc(1, s->kernel_block_size);
         if (!s->kernel_staging_cache)
             return NGL_ERROR_MEMORY;
     }
@@ -276,7 +276,7 @@ static int gblur_init(struct ngl_node *node)
     ngpu_block_desc_init(gpu_ctx, &s->direction_block_desc, NGPU_BLOCK_LAYOUT_STD140);
     ngpu_block_desc_add_field(&s->direction_block_desc, "direction", NGPU_TYPE_VEC2, 0);
     s->direction_block_size = ngpu_block_desc_get_size(&s->direction_block_desc, 0);
-    ngli_assert(s->direction_block_size == sizeof(struct direction_block));
+    npriv_assert(s->direction_block_size == sizeof(struct direction_block));
     s->direction_block_aligned_size = ngpu_block_desc_get_aligned_size(&s->direction_block_desc, 0);
 
     ngpu_block_desc_init(gpu_ctx, &s->kernel_block_desc, NGPU_BLOCK_LAYOUT_STD140);
@@ -318,11 +318,11 @@ static int gblur_init(struct ngl_node *node)
         .vert_base        = blur_gaussian_vert,
         .frag_base        = blur_gaussian_frag,
         .textures         = textures,
-        .nb_textures      = NGLI_ARRAY_NB(textures),
+        .nb_textures      = NPRIV_ARRAY_NB(textures),
         .blocks           = crafter_blocks,
-        .nb_blocks        = NGLI_ARRAY_NB(crafter_blocks),
+        .nb_blocks        = NPRIV_ARRAY_NB(crafter_blocks),
         .vert_out_vars    = vert_out_vars,
-        .nb_vert_out_vars = NGLI_ARRAY_NB(vert_out_vars),
+        .nb_vert_out_vars = NPRIV_ARRAY_NB(vert_out_vars),
     };
     s->crafter = ngpu_pgcraft_create(gpu_ctx);
     if (!s->crafter)
@@ -374,11 +374,11 @@ static int resize(struct ngl_node *node)
     }
 
     /* Assert that the source texture format does not change */
-    ngli_assert(src_info->params.format == s->tmp_layout.colors[0].format);
+    npriv_assert(src_info->params.format == s->tmp_layout.colors[0].format);
 
     /* Assert that the destination texture format does not change */
     struct texture_info *dst_info = o->destination->priv_data;
-    ngli_assert(dst_info->params.format == s->dst_layout.colors[0].format);
+    npriv_assert(dst_info->params.format == s->dst_layout.colors[0].format);
 
     struct rtt_ctx *tmp = NULL;
 
@@ -549,7 +549,7 @@ static void gblur_uninit(struct ngl_node *node)
 {
     struct gblur_priv *s = node->priv_data;
 
-    ngli_freep(&s->kernel_staging_cache);
+    npriv_freep(&s->kernel_staging_cache);
     ngpu_block_desc_reset(&s->direction_block_desc);
     ngpu_block_desc_reset(&s->kernel_block_desc);
     ngli_pipeline_freep(&s->pl_blur_h);

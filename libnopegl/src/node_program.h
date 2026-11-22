@@ -24,7 +24,7 @@
 
 #include <stdint.h>
 
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 
 struct program_opts {
     const char *vertex;
@@ -37,7 +37,7 @@ struct program_opts {
 };
 
 struct program_priv {
-    NGLI_DARRAY(struct ngpu_pgcraft_iovar) vert_out_vars_array;
+    NPRIV_DARRAY(struct ngpu_pgcraft_iovar) vert_out_vars_array;
 };
 
 #endif

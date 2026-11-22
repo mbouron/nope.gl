@@ -146,7 +146,7 @@ float ngli_stroke2d_get_outer_edge(const struct stroke2d_info *info)
 
 const struct stroke2d_info *ngli_stroke2d_get_info(const struct ngl_node *node)
 {
-    ngli_assert(node->cls->id == NGL_NODE_STROKE2D);
+    npriv_assert(node->cls->id == NGL_NODE_STROKE2D);
     const struct stroke2d_priv *s = node->priv_data;
     return &s->info;
 }

@@ -29,17 +29,17 @@
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
 #include "params.h"
-#include "utils/bstr.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
-#include "utils/crc32.h"
-#include "utils/string.h"
-#include "utils/utils.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/crc32.h"
+#include "libnopeutil/string.h"
+#include "libnopeutil/utils.h"
 
-/* We depend on the monotonically incrementing by 1 property of these fields */
-NGLI_STATIC_ASSERT(NGLI_PARAM_TYPE_VEC4  - NGLI_PARAM_TYPE_VEC2 == 2, "param vec");
-NGLI_STATIC_ASSERT(NGLI_PARAM_TYPE_IVEC4 - NGLI_PARAM_TYPE_I32  == 3, "param ivec");
-NGLI_STATIC_ASSERT(NGLI_PARAM_TYPE_UVEC4 - NGLI_PARAM_TYPE_U32  == 3, "param uvec");
+/* We depend on the monotonically incrementing by 1 property of  these fields */
+NPRIV_STATIC_ASSERT(NGLI_PARAM_TYPE_VEC4  - NGLI_PARAM_TYPE_VEC2 == 2, "param vec");
+NPRIV_STATIC_ASSERT(NGLI_PARAM_TYPE_IVEC4 - NGLI_PARAM_TYPE_I32  == 3, "param ivec");
+NPRIV_STATIC_ASSERT(NGLI_PARAM_TYPE_UVEC4 - NGLI_PARAM_TYPE_U32  == 3, "param uvec");
 
 const struct param_specs ngli_params_specs[] = {
     [NGLI_PARAM_TYPE_I32] = {
@@ -167,7 +167,7 @@ const struct param_specs ngli_params_specs[] = {
 
 const struct param_specs *ngli_params_get_type_specs(enum param_type type)
 {
-    ngli_assert(type >= 0 && type < NGLI_ARRAY_NB(ngli_params_specs));
+    npriv_assert(type >= 0 && type < NPRIV_ARRAY_NB(ngli_params_specs));
     return &ngli_params_specs[type];
 }
 
@@ -236,18 +236,18 @@ int ngli_params_get_flags_val(const struct param_const *consts, const char *s, i
 char *ngli_params_get_flags_str(const struct param_const *consts, int val)
 {
     if (!val)
-        return ngli_strdup("0");
+        return npriv_strdup("0");
 
-    struct bstr *b = ngli_bstr_create();
+    struct bstr *b = npriv_bstr_create();
     if (!b)
         return NULL;
 
     for (size_t i = 0; consts[i].key; i++)
         if (val & consts[i].value)
-            ngli_bstr_printf(b, "%.1s%s", *ngli_bstr_strptr(b) ? FLAGS_SEP : "", consts[i].key);
+            npriv_bstr_printf(b, "%.1s%s", *npriv_bstr_strptr(b) ? FLAGS_SEP : "", consts[i].key);
 
-    char *ret = ngli_bstr_strdup(b);
-    ngli_bstr_freep(&b);
+    char *ret = npriv_bstr_strdup(b);
+    npriv_bstr_freep(&b);
     return ret;
 }
 
@@ -262,8 +262,8 @@ void ngli_params_bstr_print_val(struct bstr *b, uint8_t *base_ptr, const struct 
         case NGLI_PARAM_TYPE_SELECT: {
             const int v = *(const int *)srcp;
             const char *s = ngli_params_get_select_str(par->choices->consts, v);
-            ngli_assert(s);
-            ngli_bstr_print(b, s);
+            npriv_assert(s);
+            npriv_bstr_print(b, s);
             break;
         }
         case NGLI_PARAM_TYPE_FLAGS: {
@@ -271,55 +271,55 @@ void ngli_params_bstr_print_val(struct bstr *b, uint8_t *base_ptr, const struct 
             char *s = ngli_params_get_flags_str(par->choices->consts, v);
             if (!s)
                 break;
-            ngli_assert(*s);
-            ngli_bstr_print(b, s);
-            ngli_free(s);
+            npriv_assert(*s);
+            npriv_bstr_print(b, s);
+            npriv_free(s);
             break;
         }
         case NGLI_PARAM_TYPE_BOOL: {
             const int v = *(const int *)srcp;
             if (v == -1)
-                ngli_bstr_print(b, "unset");
+                npriv_bstr_print(b, "unset");
             else
-                ngli_bstr_printf(b, "%d", v);
+                npriv_bstr_printf(b, "%d", v);
             break;
         }
-        case NGLI_PARAM_TYPE_F32:    ngli_bstr_printf(b, "%g",            *(const float *)srcp);                  break;
-        case NGLI_PARAM_TYPE_F64:    ngli_bstr_printf(b, "%g",            *(const double *)srcp);                 break;
-        case NGLI_PARAM_TYPE_I32:    ngli_bstr_printf(b, "%d",            *(const int32_t *)srcp);                break;
-        case NGLI_PARAM_TYPE_U32:    ngli_bstr_printf(b, "%u",            *(const uint32_t *)srcp);               break;
-        case NGLI_PARAM_TYPE_IVEC2:  ngli_bstr_printf(b, "(%d,%d)",       NGLI_ARG_VEC2((const int32_t *)srcp));  break;
-        case NGLI_PARAM_TYPE_IVEC3:  ngli_bstr_printf(b, "(%d,%d,%d)",    NGLI_ARG_VEC3((const int32_t *)srcp));  break;
-        case NGLI_PARAM_TYPE_IVEC4:  ngli_bstr_printf(b, "(%d,%d,%d,%d)", NGLI_ARG_VEC4((const int32_t *)srcp));  break;
-        case NGLI_PARAM_TYPE_UVEC2:  ngli_bstr_printf(b, "(%u,%u)",       NGLI_ARG_VEC2((const uint32_t *)srcp)); break;
-        case NGLI_PARAM_TYPE_UVEC3:  ngli_bstr_printf(b, "(%u,%u,%u)",    NGLI_ARG_VEC3((const uint32_t *)srcp)); break;
-        case NGLI_PARAM_TYPE_UVEC4:  ngli_bstr_printf(b, "(%u,%u,%u,%u)", NGLI_ARG_VEC4((const uint32_t *)srcp)); break;
-        case NGLI_PARAM_TYPE_VEC2:   ngli_bstr_printf(b, "(%g,%g)",       NGLI_ARG_VEC2((const float *)srcp));    break;
-        case NGLI_PARAM_TYPE_VEC3:   ngli_bstr_printf(b, "(%g,%g,%g)",    NGLI_ARG_VEC3((const float *)srcp));    break;
-        case NGLI_PARAM_TYPE_VEC4:   ngli_bstr_printf(b, "(%g,%g,%g,%g)", NGLI_ARG_VEC4((const float *)srcp));    break;
+        case NGLI_PARAM_TYPE_F32:    npriv_bstr_printf(b, "%g",            *(const float *)srcp);                   break;
+        case NGLI_PARAM_TYPE_F64:    npriv_bstr_printf(b, "%g",            *(const double *)srcp);                  break;
+        case NGLI_PARAM_TYPE_I32:    npriv_bstr_printf(b, "%d",            *(const int32_t *)srcp);                 break;
+        case NGLI_PARAM_TYPE_U32:    npriv_bstr_printf(b, "%u",            *(const uint32_t *)srcp);                break;
+        case NGLI_PARAM_TYPE_IVEC2:  npriv_bstr_printf(b, "(%d,%d)",       NPRIV_ARG_VEC2((const int32_t *)srcp));  break;
+        case NGLI_PARAM_TYPE_IVEC3:  npriv_bstr_printf(b, "(%d,%d,%d)",    NPRIV_ARG_VEC3((const int32_t *)srcp));  break;
+        case NGLI_PARAM_TYPE_IVEC4:  npriv_bstr_printf(b, "(%d,%d,%d,%d)", NPRIV_ARG_VEC4((const int32_t *)srcp));  break;
+        case NGLI_PARAM_TYPE_UVEC2:  npriv_bstr_printf(b, "(%u,%u)",       NPRIV_ARG_VEC2((const uint32_t *)srcp)); break;
+        case NGLI_PARAM_TYPE_UVEC3:  npriv_bstr_printf(b, "(%u,%u,%u)",    NPRIV_ARG_VEC3((const uint32_t *)srcp)); break;
+        case NGLI_PARAM_TYPE_UVEC4:  npriv_bstr_printf(b, "(%u,%u,%u,%u)", NPRIV_ARG_VEC4((const uint32_t *)srcp)); break;
+        case NGLI_PARAM_TYPE_VEC2:   npriv_bstr_printf(b, "(%g,%g)",       NPRIV_ARG_VEC2((const float *)srcp));    break;
+        case NGLI_PARAM_TYPE_VEC3:   npriv_bstr_printf(b, "(%g,%g,%g)",    NPRIV_ARG_VEC3((const float *)srcp));    break;
+        case NGLI_PARAM_TYPE_VEC4:   npriv_bstr_printf(b, "(%g,%g,%g,%g)", NPRIV_ARG_VEC4((const float *)srcp));    break;
         case NGLI_PARAM_TYPE_MAT4:
-            ngli_bstr_printf(b, "(%g,%g,%g,%g %g,%g,%g,%g %g,%g,%g,%g %g,%g,%g,%g)", NGLI_ARG_MAT4((const float *)srcp));
+            npriv_bstr_printf(b, "(%g,%g,%g,%g %g,%g,%g,%g %g,%g,%g,%g %g,%g,%g,%g)", NPRIV_ARG_MAT4((const float *)srcp));
             break;
         case NGLI_PARAM_TYPE_STR: {
             const char *s = *(const char **)srcp;
             if (!s)
-                ngli_bstr_print(b, "\"\"");
+                npriv_bstr_print(b, "\"\"");
             else if (strchr(s, '\n')) // print a checksum when the string is multiline (typically, shaders)
-                ngli_bstr_printf(b, "%08X <i>(CRC32)</i>", ngli_crc32(s));
+                npriv_bstr_printf(b, "%08X <i>(CRC32)</i>", npriv_crc32(s));
             else if (strlen(s) > 32)
-                ngli_bstr_printf(b, "\"...%s\"", s + strlen(s) - 32);
+                npriv_bstr_printf(b, "\"...%s\"", s + strlen(s) - 32);
             else
-                ngli_bstr_printf(b, "\"%s\"", s);
+                npriv_bstr_printf(b, "\"%s\"", s);
             break;
         }
         case NGLI_PARAM_TYPE_F64LIST: {
             const struct ngli_f64_darray *array = (const struct ngli_f64_darray *)srcp;
             for (size_t i = 0; i < array->count; i++)
-                ngli_bstr_printf(b, "%s%g", i ? "," : "", array->data[i]);
+                npriv_bstr_printf(b, "%s%g", i ? "," : "", array->data[i]);
             break;
         }
         case NGLI_PARAM_TYPE_RATIONAL:
-            ngli_bstr_printf(b, "%d/%d", NGLI_ARG_VEC2((const int32_t *)srcp));
+            npriv_bstr_printf(b, "%d/%d", NPRIV_ARG_VEC2((const int32_t *)srcp));
             break;
         default:
             break;
@@ -389,9 +389,9 @@ int ngli_params_set_data(uint8_t *dstp, const struct node_param *par, size_t siz
     LOG(VERBOSE, "set %s to %p (of size %zu)", par->key, data, size);
     uint8_t **dst = (uint8_t **)dstp;
 
-    ngli_freep(dst);
+    npriv_freep(dst);
     if (data && size) {
-        *dst = ngli_try_memdup(data, size);
+        *dst = npriv_try_memdup(data, size);
         if (!*dst)
             return NGL_ERROR_MEMORY;
     } else {
@@ -415,13 +415,13 @@ int ngli_params_set_dict(uint8_t *dstp, const struct node_param *par, const char
     LOG(VERBOSE, "set %s to (%s,%p)", par->key, name, node);
     struct hmap **hmapp = (struct hmap **)dstp;
     if (!*hmapp) {
-        *hmapp = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+        *hmapp = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
         if (!*hmapp)
             return NGL_ERROR_MEMORY;
-        ngli_hmap_set_free_func(*hmapp, node_hmap_free, NULL);
+        npriv_hmap_set_free_func(*hmapp, node_hmap_free, NULL);
     }
 
-    ret = ngli_hmap_try_set_str(*hmapp, name, node);
+    ret = npriv_hmap_try_set_str(*hmapp, name, node);
     if (ret < 0)
         return ret;
     if (node)
@@ -497,7 +497,7 @@ int ngli_params_set_ivec2(uint8_t *dstp, const struct node_param *par, const int
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%d,%d)", par->key, NGLI_ARG_VEC2(value));
+    LOG(VERBOSE, "set %s to (%d,%d)", par->key, NPRIV_ARG_VEC2(value));
     memcpy(dstp, value, 2 * sizeof(*value));
     return 0;
 }
@@ -511,7 +511,7 @@ int ngli_params_set_ivec3(uint8_t *dstp, const struct node_param *par, const int
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%d,%d,%d)", par->key, NGLI_ARG_VEC3(value));
+    LOG(VERBOSE, "set %s to (%d,%d,%d)", par->key, NPRIV_ARG_VEC3(value));
     memcpy(dstp, value, 3 * sizeof(*value));
     return 0;
 }
@@ -525,7 +525,7 @@ int ngli_params_set_ivec4(uint8_t *dstp, const struct node_param *par, const int
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%d,%d,%d,%d)", par->key, NGLI_ARG_VEC4(value));
+    LOG(VERBOSE, "set %s to (%d,%d,%d,%d)", par->key, NPRIV_ARG_VEC4(value));
     memcpy(dstp, value, 4 * sizeof(*value));
     return 0;
 }
@@ -539,7 +539,7 @@ int ngli_params_set_mat4(uint8_t *dstp, const struct node_param *par, const floa
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%g,%g,%g,%g %g,%g,%g,%g %g,%g,%g,%g %g,%g,%g,%g)", par->key, NGLI_ARG_MAT4(value));
+    LOG(VERBOSE, "set %s to (%g,%g,%g,%g %g,%g,%g,%g %g,%g,%g,%g %g,%g,%g,%g)", par->key, NPRIV_ARG_MAT4(value));
     memcpy(dstp, value, 16 * sizeof(*value));
     return 0;
 }
@@ -664,9 +664,9 @@ int ngli_params_set_node(uint8_t *dstp, const struct node_param *par, struct ngl
          * code has the NGLI_PARAM_FLAG_ALLOW_NODE flag set but no remapping
          * actually exists.
          */
-        ngli_assert(par->type >= 0 && par->type < NGLI_ARRAY_NB(param_type_to_nodes));
+        npriv_assert(par->type >= 0 && par->type < NPRIV_ARRAY_NB(param_type_to_nodes));
         const uint32_t *node_types = param_type_to_nodes[par->type];
-        ngli_assert(node_types);
+        npriv_assert(node_types);
 
         if (!allowed_node(node, node_types)) {
             LOG(ERROR, "node of type %s is not allowed for parameter %s (type %s)",
@@ -734,14 +734,14 @@ int ngli_params_set_str(uint8_t *dstp, const struct node_param *par, const char 
     if (!value)
         value = par->def_value.str;
     if (value) {
-        s = ngli_strdup(value);
+        s = npriv_strdup(value);
         if (!s)
             return NGL_ERROR_MEMORY;
         LOG(VERBOSE, "set %s to \"%s\"", par->key, s);
     } else {
         LOG(VERBOSE, "set %s to NULL", par->key);
     }
-    ngli_free(*(char **)dstp);
+    npriv_free(*(char **)dstp);
     memcpy(dstp, &s, sizeof(s));
     return 0;
 }
@@ -769,7 +769,7 @@ int ngli_params_set_uvec2(uint8_t *dstp, const struct node_param *par, const uin
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%u,%u)", par->key, NGLI_ARG_VEC2(value));
+    LOG(VERBOSE, "set %s to (%u,%u)", par->key, NPRIV_ARG_VEC2(value));
     memcpy(dstp, value, 2 * sizeof(*value));
     return 0;
 }
@@ -783,7 +783,7 @@ int ngli_params_set_uvec3(uint8_t *dstp, const struct node_param *par, const uin
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%u,%u,%u)", par->key, NGLI_ARG_VEC3(value));
+    LOG(VERBOSE, "set %s to (%u,%u,%u)", par->key, NPRIV_ARG_VEC3(value));
     memcpy(dstp, value, 3 * sizeof(*value));
     return 0;
 }
@@ -797,7 +797,7 @@ int ngli_params_set_uvec4(uint8_t *dstp, const struct node_param *par, const uin
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%u,%u,%u,%u)", par->key, NGLI_ARG_VEC4(value));
+    LOG(VERBOSE, "set %s to (%u,%u,%u,%u)", par->key, NPRIV_ARG_VEC4(value));
     memcpy(dstp, value, 4 * sizeof(*value));
     return 0;
 }
@@ -811,7 +811,7 @@ int ngli_params_set_vec2(uint8_t *dstp, const struct node_param *par, const floa
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%g,%g)", par->key, NGLI_ARG_VEC2(value));
+    LOG(VERBOSE, "set %s to (%g,%g)", par->key, NPRIV_ARG_VEC2(value));
     memcpy(dstp, value, 2 * sizeof(*value));
     return 0;
 }
@@ -825,7 +825,7 @@ int ngli_params_set_vec3(uint8_t *dstp, const struct node_param *par, const floa
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%g,%g,%g)", par->key, NGLI_ARG_VEC3(value));
+    LOG(VERBOSE, "set %s to (%g,%g,%g)", par->key, NPRIV_ARG_VEC3(value));
     memcpy(dstp, value, 3 * sizeof(*value));
     return 0;
 }
@@ -839,7 +839,7 @@ int ngli_params_set_vec4(uint8_t *dstp, const struct node_param *par, const floa
     if (par->flags & NGLI_PARAM_FLAG_ALLOW_NODE)
         dstp += sizeof(struct ngl_node *);
 
-    LOG(VERBOSE, "set %s to (%g,%g,%g,%g)", par->key, NGLI_ARG_VEC4(value));
+    LOG(VERBOSE, "set %s to (%g,%g,%g,%g)", par->key, NPRIV_ARG_VEC4(value));
     memcpy(dstp, value, 4 * sizeof(*value));
     return 0;
 }
@@ -1045,7 +1045,7 @@ void ngli_params_init(uint8_t *base_ptr, const struct node_param *params)
     for (const struct node_param *par = params; par->key; par++) {
         if (par->type == NGLI_PARAM_TYPE_NODELIST) {
             struct ngli_node_darray *array = (struct ngli_node_darray *)(base_ptr + par->offset);
-            ngli_darray_set_free_func(array, node_darray_free, NULL);
+            npriv_darray_set_free_func(array, node_darray_free, NULL);
         }
     }
 }
@@ -1064,7 +1064,7 @@ int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
         // non-params much simpler in the node uninit.
         if (par->offset < last_offset) {
             LOG(ERROR, "offset inconsistency detected around %s", par->key);
-            ngli_assert(0);
+            npriv_assert(0);
         }
         last_offset = par->offset;
 
@@ -1074,7 +1074,7 @@ int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
             case NGLI_PARAM_TYPE_SELECT: {
                 const int v = par->def_value.i32;
                 const char *s = ngli_params_get_select_str(par->choices->consts, v);
-                ngli_assert(s);
+                npriv_assert(s);
                 ret = ngli_params_set_select(dstp, par, s);
                 break;
             }
@@ -1083,9 +1083,9 @@ int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
                 char *s = ngli_params_get_flags_str(par->choices->consts, v);
                 if (!s)
                     return NGL_ERROR_INVALID_ARG;
-                ngli_assert(*s);
+                npriv_assert(*s);
                 ret = ngli_params_set_flags(dstp, par, s);
-                ngli_free(s);
+                npriv_free(s);
                 break;
             }
             case NGLI_PARAM_TYPE_BOOL:
@@ -1185,7 +1185,7 @@ int ngli_params_insert_nodes(uint8_t *dstp, const struct node_param *par, size_t
 
     if (nb_nodes > SIZE_MAX - array->count)
         return NGL_ERROR_MEMORY;
-    ret = ngli_darray_try_reserve(array, array->count + nb_nodes);
+    ret = npriv_darray_try_reserve(array, array->count + nb_nodes);
     if (ret < 0)
         return ret;
 
@@ -1238,7 +1238,7 @@ int ngli_params_remove_nodes(uint8_t *dstp, const struct node_param *par,
         }
     }
 
-    ngli_darray_remove_if(dst_nodes, node_in_darray, &nodes_to_remove);
+    npriv_darray_remove_if(dst_nodes, node_in_darray, &nodes_to_remove);
     return 0;
 }
 
@@ -1256,7 +1256,7 @@ int ngli_params_add_f64s(uint8_t *dstp, const struct node_param *par,
     if (nb_f64s > SIZE_MAX - array->count)
         return NGL_ERROR_MEMORY;
     const size_t new_count = array->count + nb_f64s;
-    ret = ngli_darray_try_reserve(array, new_count);
+    ret = npriv_darray_try_reserve(array, new_count);
     if (ret < 0)
         return ret;
 
@@ -1275,14 +1275,14 @@ int ngli_params_swap_elem(uint8_t *base_ptr, const struct node_param *par,
         struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
         if (from >= array->count || to >= array->count)
             return NGL_ERROR_INVALID_ARG;
-        NGLI_SWAP(array->data[from], array->data[to]);
+        NPRIV_SWAP(array->data[from], array->data[to]);
         return 0;
     }
     if (par->type == NGLI_PARAM_TYPE_F64LIST) {
         struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
         if (from >= array->count || to >= array->count)
             return NGL_ERROR_INVALID_ARG;
-        NGLI_SWAP(array->data[from], array->data[to]);
+        NPRIV_SWAP(array->data[from], array->data[to]);
         return 0;
     }
 
@@ -1300,14 +1300,14 @@ int ngli_params_move_elem(uint8_t *base_ptr, const struct node_param *par,
         struct ngli_node_darray *array = (struct ngli_node_darray *)dstp;
         if (from >= array->count || to >= array->count)
             return NGL_ERROR_INVALID_ARG;
-        ngli_darray_move(array, from, to);
+        npriv_darray_move(array, from, to);
         return 0;
     }
     if (par->type == NGLI_PARAM_TYPE_F64LIST) {
         struct ngli_f64_darray *array = (struct ngli_f64_darray *)dstp;
         if (from >= array->count || to >= array->count)
             return NGL_ERROR_INVALID_ARG;
-        ngli_darray_move(array, from, to);
+        npriv_darray_move(array, from, to);
         return 0;
     }
 
@@ -1333,12 +1333,12 @@ void ngli_params_free(uint8_t *base_ptr, const struct node_param *params)
         switch (par->type) {
             case NGLI_PARAM_TYPE_STR: {
                 char *s = *(char **)parp;
-                ngli_free(s);
+                npriv_free(s);
                 break;
             }
             case NGLI_PARAM_TYPE_DATA: {
                 uint8_t *data = *(uint8_t **)parp;
-                ngli_free(data);
+                npriv_free(data);
                 break;
             }
             case NGLI_PARAM_TYPE_NODE: {
@@ -1347,16 +1347,16 @@ void ngli_params_free(uint8_t *base_ptr, const struct node_param *params)
                 break;
             }
             case NGLI_PARAM_TYPE_NODELIST:
-                ngli_darray_reset((struct ngli_node_darray *)parp);
+                npriv_darray_reset((struct ngli_node_darray *)parp);
                 break;
             case NGLI_PARAM_TYPE_F64LIST: {
                 struct ngli_f64_darray *array = (struct ngli_f64_darray *)parp;
-                ngli_darray_reset(array);
+                npriv_darray_reset(array);
                 break;
             }
             case NGLI_PARAM_TYPE_NODEDICT: {
                 struct hmap **hmapp = (struct hmap **)parp;
-                ngli_hmap_freep(hmapp);
+                npriv_hmap_freep(hmapp);
                 break;
             }
             default:

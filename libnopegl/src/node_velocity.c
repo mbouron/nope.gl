@@ -72,7 +72,7 @@ struct velocity_priv {
     struct animation anim;
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct velocity_priv, var) == 0, "variable_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct velocity_priv, var) == 0, "variable_info is first");
 
 static void velocity_invalidate(struct ngl_node *node)
 {

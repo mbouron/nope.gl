@@ -27,10 +27,10 @@
 
 #include "eval.h"
 #include "internal.h"
+#include "libnopeutil/hmap.h"
 #include "log.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "utils/hmap.h"
 
 struct eval_opts {
     char *expr[4];
@@ -127,16 +127,16 @@ static const struct node_param eval_vec4_params[] = {
     {NULL}
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct eval_priv, var) == 0, "variable_info is first");
+NPRIV_STATIC_ASSERT(offsetof(struct eval_priv, var) == 0, "variable_info is first");
 
 static const char * const comp_selectors[] = {"0123", "rgba", "xyzw", "stpq"};
 
 static int register_component_names(struct hmap *vars, const char *base_name, size_t nb_components, float *ptr)
 {
-    ngli_assert(nb_components > 1);
+    npriv_assert(nb_components > 1);
 
     char name[256];
-    for (size_t j = 0; j < NGLI_ARRAY_NB(comp_selectors); j++) {
+    for (size_t j = 0; j < NPRIV_ARRAY_NB(comp_selectors); j++) {
         const char *selectors = comp_selectors[j];
         for (size_t i = 0; i < nb_components; i++) {
             const char component = selectors[i];
@@ -145,7 +145,7 @@ static int register_component_names(struct hmap *vars, const char *base_name, si
                 LOG(ERROR, "resource name \"%s\" is too long", base_name);
                 return NGL_ERROR_LIMIT_EXCEEDED;
             }
-            int ret = ngli_hmap_try_set_str(vars, name, ptr + i);
+            int ret = npriv_hmap_try_set_str(vars, name, ptr + i);
             if (ret < 0)
                 return ret;
         }
@@ -159,18 +159,18 @@ static int eval_init(struct ngl_node *node)
     struct eval_priv *s = node->priv_data;
     const struct eval_opts *o = node->opts;
 
-    s->vars = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    s->vars = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!s->vars)
         return NGL_ERROR_MEMORY;
 
     if (o->resources) {
         struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(o->resources, entry))) {
+        while ((entry = npriv_hmap_next(o->resources, entry))) {
             struct ngl_node *res = entry->data;
             struct variable_info *var = res->priv_data;
             int ret;
             if (var->data_type == NGPU_TYPE_F32) {
-                ret = ngli_hmap_try_set_str(s->vars, entry->key.str, var->data);
+                ret = npriv_hmap_try_set_str(s->vars, entry->key.str, var->data);
             } else if (var->data_type == NGPU_TYPE_VEC2) {
                 ret = register_component_names(s->vars, entry->key.str, 2, var->data);
             } else if (var->data_type == NGPU_TYPE_VEC3) {
@@ -178,7 +178,7 @@ static int eval_init(struct ngl_node *node)
             } else if (var->data_type == NGPU_TYPE_VEC4) {
                 ret = register_component_names(s->vars, entry->key.str, 4, var->data);
             } else {
-                ngli_assert(0);
+                npriv_assert(0);
             }
             if (ret < 0)
                 return ret;
@@ -206,7 +206,7 @@ static int eval_update(struct ngl_node *node, double t)
 
     if (o->resources) {
         struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(o->resources, entry))) {
+        while ((entry = npriv_hmap_next(o->resources, entry))) {
             int ret = ngli_node_update(entry->data, t);
             if (ret < 0)
                 return ret;
@@ -217,7 +217,7 @@ static int eval_update(struct ngl_node *node, double t)
         if (!s->eval[i]) {
             // expr0 is always mandatory (NGLI_PARAM_FLAG_NON_NULL) while the
             // other expr* are optional
-            ngli_assert(i > 0);
+            npriv_assert(i > 0);
 
             s->vector[i] = s->vector[i - 1];
             continue;
@@ -236,7 +236,7 @@ static void eval_uninit(struct ngl_node *node)
 
     for (size_t i = 0; i < s->nb_expr; i++)
         ngli_eval_freep(&s->eval[i]);
-    ngli_hmap_freep(&s->vars);
+    npriv_hmap_freep(&s->vars);
 }
 
 #define DEFINE_EVAL_CLASS(class_id, class_name, type, dtype, count) \

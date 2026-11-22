@@ -27,9 +27,9 @@
 
 #include "geometry.h"
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
-#include "utils/utils.h"
 
 struct triangle_opts {
     float edges[9];
@@ -60,7 +60,7 @@ static const struct node_param triangle_params[] = {
     {NULL}
 };
 
-NGLI_STATIC_ASSERT(offsetof(struct triangle_priv, geom) == 0, "geom on top of triangle");
+NPRIV_STATIC_ASSERT(offsetof(struct triangle_priv, geom) == 0, "geom on top of triangle");
 
 #define NB_VERTICES 3
 

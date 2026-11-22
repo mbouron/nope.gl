@@ -31,8 +31,8 @@
 
 #include "android_ctx.h"
 #include "internal.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
-#include "utils/utils.h"
 
 
 #define NDK_LOAD_FUNC(handle, name) do {       \
@@ -84,7 +84,7 @@ int ngli_android_ctx_init(struct ngpu_ctx *gpu_ctx, struct android_ctx *s)
     }
 
     const uint64_t features = ngpu_ctx_get_features(gpu_ctx);
-    if (!NGLI_HAS_ALL_FLAGS(features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
+    if (!NPRIV_HAS_ALL_FLAGS(features, NGPU_FEATURE_IMPORT_AHARDWARE_BUFFER_BIT)) {
         LOG(ERROR, "device is missing required functions/extensions available since Android 9.0");
         return NGL_ERROR_UNSUPPORTED;
     }

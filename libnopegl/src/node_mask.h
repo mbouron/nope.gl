@@ -26,8 +26,8 @@
 
 #include <nopegpu/nopegpu.h>
 
+#include "libnopeutil/darray.h"
 #include "params.h"
-#include "utils/darray.h"
 
 #define MASK_BLUR_NORMAL 0
 #define MASK_BLUR_SOLID  1
@@ -51,7 +51,7 @@ struct mask_uniform_def {
 
 struct mask_info {
     const char *glsl;                                   /* ngl_mask_alpha() function */
-    NGLI_DARRAY(struct mask_uniform_def) uniforms;
+    NPRIV_DARRAY(struct mask_uniform_def) uniforms;
     float dilation;                                     /* extra margin expansion in pixels */
     struct ngl_node *texture_node;                      /* non-NULL for MaskTexture */
     const void *opts;                                   /* pointer to mask node opts */

@@ -22,8 +22,8 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include "libnopeutil/utils.h"
 #include "nopegl/nopegl.h"
-#include "utils/utils.h"
 
 #ifndef __PRETTY_FUNCTION__
 #define __PRETTY_FUNCTION__ __func__
@@ -41,7 +41,7 @@ void ngli_log_set_callback(void *arg, ngl_log_callback_type callback);
 void ngli_log_set_min_level(enum ngl_log_level level);
 
 void ngli_log_print(enum ngl_log_level log_level, const char *filename,
-                    int ln, const char *fn, const char *fmt, ...) ngli_printf_format(5, 6);
+                    int ln, const char *fn, const char *fmt, ...) npriv_printf_format(5, 6);
 
 #define NGLI_RET_STR(ret) ngli_log_ret_str((char[128]){0}, 128, ret)
 

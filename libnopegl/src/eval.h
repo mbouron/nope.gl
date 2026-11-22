@@ -23,7 +23,7 @@
 #ifndef EVAL_H
 #define EVAL_H
 
-#include "utils/hmap.h"
+#include "libnopeutil/hmap.h"
 
 struct eval;
 

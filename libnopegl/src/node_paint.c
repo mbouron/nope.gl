@@ -29,7 +29,7 @@
 #include "shader2d.h"
 #include "node_texture.h"
 #include "node_uniform.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 #include "nopegl/nopegl.h"
 
 #include <nopegpu/nopegpu.h>
@@ -126,10 +126,10 @@ int ngli_paint_glsl_write(struct bstr *b, const struct paint_info *paint,
 
 void ngli_paint_info_reset(struct paint_info *info)
 {
-    ngli_darray_reset(&info->uniforms);
-    ngli_darray_reset(&info->custom_uniforms);
-    ngli_darray_reset(&info->custom_textures);
-    ngli_darray_reset(&info->custom_blocks);
+    npriv_darray_reset(&info->uniforms);
+    npriv_darray_reset(&info->custom_uniforms);
+    npriv_darray_reset(&info->custom_textures);
+    npriv_darray_reset(&info->custom_blocks);
 }
 
 #define REGISTER_UNIFORM(info_, name_, type_, opts_struct_, field_) do {    \
@@ -137,9 +137,9 @@ void ngli_paint_info_reset(struct paint_info *info)
         .type = (type_),                                                    \
         .data = (const uint8_t *)(info_)->opts + offsetof(opts_struct_, field_), \
     };                                                                      \
-    if (ngli_darray_try_push(&(info_)->uniforms, _ud) < 0)                  \
+    if (npriv_darray_try_push(&(info_)->uniforms, _ud) < 0)                 \
         return NGL_ERROR_MEMORY;                                            \
-    struct paint_uniform_def *_p = ngli_darray_tail(&(info_)->uniforms);    \
+    struct paint_uniform_def *_p = npriv_darray_tail(&(info_)->uniforms);   \
     snprintf(_p->name, sizeof(_p->name), "%s", (name_));                    \
 } while (0)
 
@@ -172,8 +172,8 @@ static void paint_uninit(struct ngl_node *node)
     ngli_paint_info_reset(info);
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct colorpaint_priv, info) == 0,
-                   "paint_info must be first in colorpaint_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct colorpaint_priv, info) == 0,
+                    "paint_info must be first in colorpaint_priv");
 
 #define OFFSET(x) offsetof(struct colorpaint_opts, x)
 static const struct node_param colorpaint_params[] = {
@@ -288,8 +288,8 @@ static int texturepaint_init(struct ngl_node *node)
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct texturepaint_priv, info) == 0,
-                   "paint_info must be first in texturepaint_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct texturepaint_priv, info) == 0,
+                    "paint_info must be first in texturepaint_priv");
 
 #define OFFSET(x) offsetof(struct texturepaint_opts, x)
 static const struct node_param texturepaint_params[] = {
@@ -429,8 +429,8 @@ static int gradientpaint_init(struct ngl_node *node)
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct gradientpaint_priv, info) == 0,
-                   "paint_info must be first in gradientpaint_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct gradientpaint_priv, info) == 0,
+                    "paint_info must be first in gradientpaint_priv");
 
 #define OFFSET(x) offsetof(struct gradientpaint_opts, x)
 static const struct node_param gradientpaint_params[] = {
@@ -589,8 +589,8 @@ static int gradient4paint_init(struct ngl_node *node)
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct gradient4paint_priv, info) == 0,
-                   "paint_info must be first in gradient4paint_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct gradient4paint_priv, info) == 0,
+                    "paint_info must be first in gradient4paint_priv");
 
 #define OFFSET(x) offsetof(struct gradient4paint_opts, x)
 static const struct node_param gradient4paint_params[] = {
@@ -758,8 +758,8 @@ static int noisepaint_init(struct ngl_node *node)
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct noisepaint_priv, info) == 0,
-                   "paint_info must be first in noisepaint_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct noisepaint_priv, info) == 0,
+                    "paint_info must be first in noisepaint_priv");
 
 #define OFFSET(x) offsetof(struct noisepaint_opts, x)
 static const struct node_param noisepaint_params[] = {
@@ -874,7 +874,7 @@ static int register_uniform(struct paint_info *info, const char *name, struct ng
         .node = res,
     };
     snprintf(cu.name, sizeof(cu.name), "%s", name);
-    return ngli_darray_try_push(&info->custom_uniforms, cu);
+    return npriv_darray_try_push(&info->custom_uniforms, cu);
 }
 
 static int register_texture(struct paint_info *info, const char *name, struct ngl_node *res)
@@ -883,7 +883,7 @@ static int register_texture(struct paint_info *info, const char *name, struct ng
         .texture_node = res,
     };
     snprintf(ct.name, sizeof(ct.name), "%s", name);
-    return ngli_darray_try_push(&info->custom_textures, ct);
+    return npriv_darray_try_push(&info->custom_textures, ct);
 }
 
 static int register_block(struct paint_info *info, const char *name, struct ngl_node *res)
@@ -892,7 +892,7 @@ static int register_block(struct paint_info *info, const char *name, struct ngl_
         .node = res,
     };
     snprintf(cb.name, sizeof(cb.name), "%s", name);
-    return ngli_darray_try_push(&info->custom_blocks, cb);
+    return npriv_darray_try_push(&info->custom_blocks, cb);
 }
 
 static int register_resource(struct paint_info *info, const char *name, struct ngl_node *res)
@@ -902,7 +902,7 @@ static int register_resource(struct paint_info *info, const char *name, struct n
     case NGLI_NODE_CATEGORY_TEXTURE:  return register_texture(info, name, res);
     case NGLI_NODE_CATEGORY_BLOCK:    return register_block(info, name, res);
     default:
-        ngli_assert(0);
+        npriv_assert(0);
     }
 }
 
@@ -926,7 +926,7 @@ static int custompaint_init(struct ngl_node *node)
 
     if (o->resources) {
         const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(o->resources, entry))) {
+        while ((entry = npriv_hmap_next(o->resources, entry))) {
             int ret = ngli_shader2d_check_key(entry->key.str, "CustomPaint");
             if (ret < 0)
                 return ret;
@@ -939,8 +939,8 @@ static int custompaint_init(struct ngl_node *node)
     return 0;
 }
 
-NGLI_STATIC_ASSERT(offsetof(struct custompaint_priv, info) == 0,
-                   "paint_info must be first in custompaint_priv");
+NPRIV_STATIC_ASSERT(offsetof(struct custompaint_priv, info) == 0,
+                    "paint_info must be first in custompaint_priv");
 
 #define OFFSET(x) offsetof(struct custompaint_opts, x)
 static const struct node_param custompaint_params[] = {

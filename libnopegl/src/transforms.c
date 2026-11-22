@@ -44,7 +44,7 @@ int ngli_transform_chain_check(const struct ngl_node *node)
     const struct ngl_node *leaf = ngli_transform_get_leaf_node(node);
 
     // All transform nodes are expected to have a non-null child parameter
-    ngli_assert(leaf);
+    npriv_assert(leaf);
 
     if (leaf->cls->id != NGL_NODE_IDENTITY) {
         LOG(ERROR, "%s (%s) is not an allowed type for a transformation chain",
@@ -73,13 +73,13 @@ void ngli_transform_draw(struct ngl_node *node)
     struct ngl_node *child = s->child;
 
     /* Capture prev before push (push can reallocate) */
-    const struct ngli_mat4 prev_matrix = *ngli_darray_tail(&ctx->modelview_matrix_stack);
+    const struct ngli_mat4 prev_matrix = *npriv_darray_tail(&ctx->modelview_matrix_stack);
 
-    if (ngli_darray_try_push(&ctx->modelview_matrix_stack, (struct ngli_mat4){0}) < 0)
+    if (npriv_darray_try_push(&ctx->modelview_matrix_stack, (struct ngli_mat4){0}) < 0)
         return;
-    struct ngli_mat4 *next_matrix = ngli_darray_tail(&ctx->modelview_matrix_stack);
+    struct ngli_mat4 *next_matrix = npriv_darray_tail(&ctx->modelview_matrix_stack);
 
     ngli_mat4_mul(next_matrix->m, prev_matrix.m, s->matrix.m);
     ngli_node_draw(child);
-    ngli_darray_pop(&ctx->modelview_matrix_stack);
+    npriv_darray_pop(&ctx->modelview_matrix_stack);
 }

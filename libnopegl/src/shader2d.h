@@ -24,7 +24,7 @@
 
 #include <nopegpu/nopegpu.h>
 
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 
 #define NGLI_SHADER2D_NAME_LEN 64
 
@@ -35,8 +35,8 @@ int ngli_shader2d_check_key(const char *key, const char *label);
 /* Owns copied texture names and generated varying declarations.
  * Callers manage the corresponding resources and bindings. */
 struct shader2d {
-    NGLI_DARRAY(char *) textures;
-    NGLI_DARRAY(struct ngpu_pgcraft_iovar) varyings;
+    NPRIV_DARRAY(char *) textures;
+    NPRIV_DARRAY(struct ngpu_pgcraft_iovar) varyings;
 };
 
 /* Initialize fresh storage to an empty assembly state. Reset before reinitializing

@@ -1,6 +1,5 @@
 /*
  * Copyright 2023-2025 Matthieu Bouron <matthieu.bouron@gmail.com>
- * Copyright 2016-2022 GoPro Inc.
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -20,15 +19,24 @@
  * under the License.
  */
 
-#ifndef CRC32_H
-#define CRC32_H
+#include "refcount.h"
 
-#include <stddef.h>
-#include <stdint.h>
+struct npriv_rc *npriv_rc_ref(struct npriv_rc *s)
+{
+    atomic_fetch_add_explicit(&s->count, 1, memory_order_relaxed);
+    return s;
+}
 
-#define NGLI_CRC32_INIT (~0U)
+void npriv_rc_unrefp(struct npriv_rc **sp)
+{
+    struct npriv_rc *s = *sp;
+    if (!s)
+        return;
 
-uint32_t ngli_crc32(const char *s);
-uint32_t ngli_crc32_mem(const uint8_t *s, size_t size, uint32_t state);
+    if (atomic_fetch_sub_explicit(&s->count, 1, memory_order_release) == 1) {
+        atomic_thread_fence(memory_order_acquire);
+        s->freep((void **)sp);
+    }
 
-#endif /* CRC32_H */
+    *sp = NULL;
+}

@@ -28,12 +28,12 @@
 #include <nopegpu/nopegpu.h> // for NGPU_ID_LEN
 
 #include "eval.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "math_utils.h"
 #include "nopegl/nopegl.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 #define WHITESPACES " \r\n\t"
 
@@ -59,7 +59,7 @@ static void *get_binary_operator_func(char c)
     case '*': return f_mul;
     case '/': return f_div;
     }
-    ngli_assert(0);
+    npriv_assert(0);
 }
 
 static float f_negate(float x) { return -x; }
@@ -67,7 +67,7 @@ static float f_noop(float x) { return x; }
 
 static float f_clamp(float x, float min, float max)
 {
-    return NGLI_CLAMP(x, min, max);
+    return NPRIV_CLAMP(x, min, max);
 }
 
 static float f_sign(float x)
@@ -81,8 +81,8 @@ static float f_print(float x) { fprintf(stdout, "%g\n", x); return x; }
 static float f_fract(float x) { return x - truncf(x); }
 static float f_sqr(float x) { return x * x; }
 static float f_cube(float x) { return x * x * x; }
-static float f_max(float a, float b) { return NGLI_MAX(a, b); }
-static float f_min(float a, float b) { return NGLI_MIN(a, b); }
+static float f_max(float a, float b) { return NPRIV_MAX(a, b); }
+static float f_min(float a, float b) { return NPRIV_MIN(a, b); }
 static float f_sat(float x) { return f_clamp(x, 0.f, 1.f); }
 static float f_mla(float a, float b, float c) { return a*b + c; }
 static float f_mod_e(float a, float b) { return a - b * f_sign(b) * floorf(a / fabsf(b)); }
@@ -228,7 +228,7 @@ struct token {
     int nb_args;
 };
 
-NGLI_DECLARE_DARRAY_WITH_NAME(token_darray, struct token);
+NPRIV_DECLARE_DARRAY_WITH_NAME(token_darray, struct token);
 
 struct eval {
     struct token_darray tokens;       // user input, infix notation
@@ -241,7 +241,7 @@ struct eval {
 
 struct eval *ngli_eval_create(void)
 {
-    struct eval *s = ngli_try_calloc(1, sizeof(*s));
+    struct eval *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     return s;
@@ -258,9 +258,9 @@ static int get_binary_operator_precedence(char operator)
     return 0;
 }
 
-#define PUSH(dst, token) do {                    \
-    if (ngli_darray_try_push(dst, *(token)) < 0) \
-        return NGL_ERROR_MEMORY;                 \
+#define PUSH(dst, token) do {                     \
+    if (npriv_darray_try_push(dst, *(token)) < 0) \
+        return NGL_ERROR_MEMORY;                  \
 } while (0)
 
 /*
@@ -344,7 +344,7 @@ static int parse_subexpr(struct eval *s, const char *expr, const char *p)
 
     /* Lookup name in variables map */
     if (s->vars) {
-        void *data = ngli_hmap_get_str(s->vars, name);
+        void *data = npriv_hmap_get_str(s->vars, name);
         if (data) {
             const struct token token = {.type=TOKEN_VARIABLE, .pos=pos, .ptr=data};
             PUSH(&s->tokens, &token);
@@ -353,7 +353,7 @@ static int parse_subexpr(struct eval *s, const char *expr, const char *p)
     }
 
     /* Lookup name in constants map */
-    void *data = ngli_hmap_get_str(s->consts, name);
+    void *data = npriv_hmap_get_str(s->consts, name);
     if (data) {
         const struct constant *c = data;
         const struct token token = {.type=TOKEN_CONSTANT, .pos=pos, .value=c->value};
@@ -362,7 +362,7 @@ static int parse_subexpr(struct eval *s, const char *expr, const char *p)
     }
 
     /* Lookup name in functions map */
-    data = ngli_hmap_get_str(s->funcs, name);
+    data = npriv_hmap_get_str(s->funcs, name);
     if (data) {
         const struct function *f = data;
         const struct token token = {
@@ -422,21 +422,21 @@ static int parse_post_subexpr(struct eval *s, const char *expr, const char *p)
 static int tokenize(struct eval *s, const char *expr)
 {
     /* Build temporary hash map for fast function lookups */
-    s->funcs = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    s->funcs = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!s->funcs)
         return NGL_ERROR_MEMORY;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(functions_map); i++) {
-        int ret = ngli_hmap_try_set_str(s->funcs, functions_map[i].name, (void *)&functions_map[i]);
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(functions_map); i++) {
+        int ret = npriv_hmap_try_set_str(s->funcs, functions_map[i].name, (void *)&functions_map[i]);
         if (ret < 0)
             return ret;
     }
 
     /* Build temporary hash map for fast constant lookups */
-    s->consts = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    s->consts = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!s->consts)
         return NGL_ERROR_MEMORY;
-    for (size_t i = 0; i < NGLI_ARRAY_NB(constants_map); i++) {
-        int ret = ngli_hmap_try_set_str(s->consts, constants_map[i].name, (void *)&constants_map[i]);
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(constants_map); i++) {
+        int ret = npriv_hmap_try_set_str(s->consts, constants_map[i].name, (void *)&constants_map[i]);
         if (ret < 0)
             return ret;
     }
@@ -448,8 +448,8 @@ static int tokenize(struct eval *s, const char *expr)
 
     /* Pointers and values have been transfered into the tokens so we don't
      * need them anymore */
-    ngli_hmap_freep(&s->funcs);
-    ngli_hmap_freep(&s->consts);
+    npriv_hmap_freep(&s->funcs);
+    npriv_hmap_freep(&s->consts);
 
     return 0;
 }
@@ -473,12 +473,12 @@ static int missing_argument(const struct token *token, int got)
  */
 static int check_operator_pop(struct token_darray *stack, const struct token *token)
 {
-    ngli_assert(token->nb_args >= 1 && token->nb_args <= 3);
+    npriv_assert(token->nb_args >= 1 && token->nb_args <= 3);
 
     for (int i = 0; i < token->nb_args; i++) {
-        if (ngli_darray_is_empty(stack))
+        if (npriv_darray_is_empty(stack))
             return missing_argument(token, i);
-        ngli_darray_pop(stack);
+        npriv_darray_pop(stack);
     }
 
     return 0;
@@ -497,7 +497,7 @@ static int prepare_eval_run(struct eval *s)
 {
     struct token_darray *stack = &s->tmp_stack;
 
-    ngli_darray_clear(stack);
+    npriv_darray_clear(stack);
 
     for (size_t i = 0; i < s->output.count; i++) {
         const struct token *token = &s->output.data[i];
@@ -556,11 +556,11 @@ static int infix_to_rpn(struct eval *s, const char *expr)
 
         if (token->chr == ')') {
             for (;;) {
-                if (ngli_darray_is_empty(operators)) {
+                if (npriv_darray_is_empty(operators)) {
                     LOG(ERROR, "expected opening '(' not found for closing ')' at position %zu", token->pos);
                     return NGL_ERROR_INVALID_DATA;
                 }
-                const struct token *o = ngli_darray_pop(operators);
+                const struct token *o = npriv_darray_pop(operators);
                 if (o->chr == '(')
                     break;
                 PUSH(&s->output, o);
@@ -570,14 +570,14 @@ static int infix_to_rpn(struct eval *s, const char *expr)
 
         if (token->chr == ',') {
             for (;;) {
-                if (ngli_darray_is_empty(operators)) {
+                if (npriv_darray_is_empty(operators)) {
                     LOG(ERROR, "unexpected comma outside a function call (at position %zu)", token->pos);
                     return NGL_ERROR_INVALID_DATA;
                 }
-                const struct token *o = ngli_darray_tail(operators);
+                const struct token *o = npriv_darray_tail(operators);
                 if (o->chr == '(')
                     break;
-                PUSH(&s->output, ngli_darray_pop(operators));
+                PUSH(&s->output, npriv_darray_pop(operators));
             }
             continue;
         }
@@ -586,16 +586,16 @@ static int infix_to_rpn(struct eval *s, const char *expr)
          * As long as the operators tail contains token that must be evaluated
          * before the current one, we transfer them to the output stack
          */
-        while (!ngli_darray_is_empty(operators) && must_be_processed_first(ngli_darray_tail(operators), token)) {
-            const struct token *o = ngli_darray_pop(operators);
+        while (!npriv_darray_is_empty(operators) && must_be_processed_first(npriv_darray_tail(operators), token)) {
+            const struct token *o = npriv_darray_pop(operators);
             PUSH(&s->output, o);
         }
         PUSH(operators, token);
     }
 
     /* Flush remaining operators into the output */
-    while (!ngli_darray_is_empty(operators)) {
-        const struct token *token = ngli_darray_pop(operators);
+    while (!npriv_darray_is_empty(operators)) {
+        const struct token *token = npriv_darray_pop(operators);
         if (token->chr == '(' || token->chr == ')') {
             LOG(ERROR, "unexpected '%c' at position %zu", token->chr, token->pos);
             return NGL_ERROR_INVALID_DATA;
@@ -604,7 +604,7 @@ static int infix_to_rpn(struct eval *s, const char *expr)
     }
 
     /* Output has been generated so we don't need the input tokens anymore */
-    ngli_darray_reset(&s->tokens);
+    npriv_darray_reset(&s->tokens);
 
     return prepare_eval_run(s);
 }
@@ -629,26 +629,26 @@ int ngli_eval_init(struct eval *s, const char *expr, const struct hmap *vars)
  */
 static float eval_operator_pop(struct token_darray *stack, const struct token *token)
 {
-    const struct token *o1 = ngli_darray_pop_unsafe(stack);
+    const struct token *o1 = npriv_darray_pop_unsafe(stack);
     if (token->nb_args == 1)
         return token->func.f1(o1->value);
 
-    const struct token *o2 = ngli_darray_pop_unsafe(stack);
+    const struct token *o2 = npriv_darray_pop_unsafe(stack);
     if (token->nb_args == 2)
         return token->func.f2(o2->value, o1->value);
 
-    const struct token *o3 = ngli_darray_pop_unsafe(stack);
+    const struct token *o3 = npriv_darray_pop_unsafe(stack);
     if (token->nb_args == 3)
         return token->func.f3(o3->value, o2->value, o1->value);
 
-    ngli_assert(0);
+    npriv_assert(0);
 }
 
 int ngli_eval_run(struct eval *s, float *dst)
 {
     struct token_darray *stack = &s->tmp_stack;
 
-    ngli_darray_clear(stack);
+    npriv_darray_clear(stack);
 
     for (size_t i = 0; i < s->output.count; i++) {
         const struct token *token = &s->output.data[i];
@@ -663,8 +663,8 @@ int ngli_eval_run(struct eval *s, float *dst)
         }
     }
 
-    ngli_assert(stack->count <= 1);
-    *dst = stack->count ? ngli_darray_pop(stack)->value : 0.f;
+    npriv_assert(stack->count <= 1);
+    *dst = stack->count ? npriv_darray_pop(stack)->value : 0.f;
     return 0;
 }
 
@@ -673,10 +673,10 @@ void ngli_eval_freep(struct eval **sp)
     struct eval *s = *sp;
     if (!s)
         return;
-    ngli_darray_reset(&s->tokens);
-    ngli_darray_reset(&s->tmp_stack);
-    ngli_darray_reset(&s->output);
-    ngli_hmap_freep(&s->funcs);
-    ngli_hmap_freep(&s->consts);
-    ngli_freep(sp);
+    npriv_darray_reset(&s->tokens);
+    npriv_darray_reset(&s->tmp_stack);
+    npriv_darray_reset(&s->output);
+    npriv_hmap_freep(&s->funcs);
+    npriv_hmap_freep(&s->consts);
+    npriv_freep(sp);
 }

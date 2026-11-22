@@ -26,11 +26,11 @@
 
 #include "atlas.h"
 #include "internal.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "log.h"
 #include "nopegl/nopegl.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 struct atlas {
     struct ngl_ctx *ctx;
@@ -40,22 +40,22 @@ struct atlas {
     int32_t nb_rows, nb_cols;
 
     struct ngpu_texture *texture;
-    NGLI_DARRAY(struct bitmap) bitmaps;
+    NPRIV_DARRAY(struct bitmap) bitmaps;
 };
 
 static void free_bitmap(void *user_arg, void *data)
 {
     struct bitmap *bitmap = data;
-    ngli_freep(&bitmap->buffer);
+    npriv_freep(&bitmap->buffer);
 }
 
 struct atlas *ngli_atlas_create(struct ngl_ctx *ctx)
 {
-    struct atlas *s = ngli_try_calloc(1, sizeof(*s));
+    struct atlas *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->ctx = ctx;
-    ngli_darray_set_free_func(&s->bitmaps, free_bitmap, NULL);
+    npriv_darray_set_free_func(&s->bitmaps, free_bitmap, NULL);
     return s;
 }
 
@@ -69,7 +69,7 @@ int ngli_atlas_add_bitmap(struct atlas *s, const struct bitmap *bitmap, int32_t 
     if (s->bitmaps.count == INT32_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
 
-    uint8_t *buffer = ngli_try_memdup(bitmap->buffer, (size_t)bitmap->height * bitmap->stride);
+    uint8_t *buffer = npriv_try_memdup(bitmap->buffer, (size_t)bitmap->height * bitmap->stride);
     if (!buffer)
         return NGL_ERROR_MEMORY;
 
@@ -80,13 +80,13 @@ int ngli_atlas_add_bitmap(struct atlas *s, const struct bitmap *bitmap, int32_t 
         .height = bitmap->height,
     };
 
-    if (ngli_darray_try_push(&s->bitmaps, copy) < 0) {
-        ngli_freep(&buffer);
+    if (npriv_darray_try_push(&s->bitmaps, copy) < 0) {
+        npriv_freep(&buffer);
         return NGL_ERROR_MEMORY;
     }
 
-    s->max_bitmap_w = NGLI_MAX(s->max_bitmap_w, bitmap->width);
-    s->max_bitmap_h = NGLI_MAX(s->max_bitmap_h, bitmap->height);
+    s->max_bitmap_w = NPRIV_MAX(s->max_bitmap_w, bitmap->width);
+    s->max_bitmap_h = NPRIV_MAX(s->max_bitmap_h, bitmap->height);
 
     *bitmap_id = (int32_t)s->bitmaps.count - 1;
     return 0;
@@ -131,7 +131,7 @@ int ngli_atlas_finalize(struct atlas *s)
      */
     s->nb_rows = (int32_t)lrintf(sqrtf((float)nb_bitmaps));
     s->nb_cols = (int32_t)ceilf((float)nb_bitmaps / (float)s->nb_rows);
-    ngli_assert(s->nb_rows * s->nb_cols >= nb_bitmaps);
+    npriv_assert(s->nb_rows * s->nb_cols >= nb_bitmaps);
 
     s->texture_w = s->max_bitmap_w * s->nb_cols;
     s->texture_h = s->max_bitmap_h * s->nb_rows;
@@ -160,13 +160,13 @@ int ngli_atlas_finalize(struct atlas *s)
     const size_t linesize = (size_t)(s->nb_cols * s->max_bitmap_w);
     if (linesize > INT32_MAX)
         return NGL_ERROR_LIMIT_EXCEEDED;
-    void *data = ngli_try_calloc((size_t)(s->nb_rows * s->max_bitmap_h), linesize);
+    void *data = npriv_try_calloc((size_t)(s->nb_rows * s->max_bitmap_h), linesize);
     if (!data)
         return NGL_ERROR_MEMORY;
 
     blend_bitmaps(s, data, linesize);
     ret = ngpu_texture_upload(s->texture, data, (uint32_t)linesize);
-    ngli_freep(&data);
+    npriv_freep(&data);
 
     return ret;
 }
@@ -178,8 +178,8 @@ struct ngpu_texture *ngli_atlas_get_texture(const struct atlas *s)
 
 void ngli_atlas_get_bitmap_coords(const struct atlas *s, int32_t bitmap_id, int32_t *dst)
 {
-    const struct bitmap *bitmap = ngli_darray_get(&s->bitmaps, (size_t)bitmap_id);
-    ngli_assert(bitmap);
+    const struct bitmap *bitmap = npriv_darray_get(&s->bitmaps, (size_t)bitmap_id);
+    npriv_assert(bitmap);
     const int32_t col = bitmap_id % s->nb_cols;
     const int32_t row = bitmap_id / s->nb_cols;
     const int32_t x0 = col * s->max_bitmap_w;
@@ -195,7 +195,7 @@ void ngli_atlas_freep(struct atlas **sp)
     struct atlas *s = *sp;
     if (!s)
         return;
-    ngli_darray_reset(&s->bitmaps);
+    npriv_darray_reset(&s->bitmaps);
     ngpu_texture_freep(&s->texture);
-    ngli_freep(sp);
+    npriv_freep(sp);
 }

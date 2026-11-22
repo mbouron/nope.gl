@@ -22,8 +22,8 @@
 #include <math.h>
 
 #include "aabb.h"
+#include "libnopeutil/utils.h"
 #include "math_utils.h"
-#include "utils/utils.h"
 
 void ngli_aabb_get_min_max(const struct aabb *aabb, float *min, float *max)
 {
@@ -33,23 +33,23 @@ void ngli_aabb_get_min_max(const struct aabb *aabb, float *min, float *max)
 
 struct aabb ngli_aabb_union(const struct aabb *a, const struct aabb *b)
 {
-    NGLI_ALIGNED_VEC(a_min);
-    NGLI_ALIGNED_VEC(a_max);
-    NGLI_ALIGNED_VEC(b_min);
-    NGLI_ALIGNED_VEC(b_max);
+    NPRIV_ALIGNED_VEC(a_min);
+    NPRIV_ALIGNED_VEC(a_max);
+    NPRIV_ALIGNED_VEC(b_min);
+    NPRIV_ALIGNED_VEC(b_max);
     ngli_aabb_get_min_max(a, a_min, a_max);
     ngli_aabb_get_min_max(b, b_min, b_max);
 
-    const NGLI_ALIGNED_VEC(min) = {
-        NGLI_MIN(a_min[0], b_min[0]),
-        NGLI_MIN(a_min[1], b_min[1]),
-        NGLI_MIN(a_min[2], b_min[2]),
+    const NPRIV_ALIGNED_VEC(min) = {
+        NPRIV_MIN(a_min[0], b_min[0]),
+        NPRIV_MIN(a_min[1], b_min[1]),
+        NPRIV_MIN(a_min[2], b_min[2]),
         1.f,
     };
-    const NGLI_ALIGNED_VEC(max) = {
-        NGLI_MAX(a_max[0], b_max[0]),
-        NGLI_MAX(a_max[1], b_max[1]),
-        NGLI_MAX(a_max[2], b_max[2]),
+    const NPRIV_ALIGNED_VEC(max) = {
+        NPRIV_MAX(a_max[0], b_max[0]),
+        NPRIV_MAX(a_max[1], b_max[1]),
+        NPRIV_MAX(a_max[2], b_max[2]),
         1.f,
     };
 
@@ -86,7 +86,7 @@ struct point {
 
 int ngli_aabb_intersect_point(const struct aabb *aabb, const float *p)
 {
-    NGLI_ALIGNED_VEC(d);
+    NPRIV_ALIGNED_VEC(d);
     ngli_vec4_sub(d, aabb->center, p);
     ngli_vec4_abs(d, d);
 
@@ -97,11 +97,11 @@ int ngli_aabb_intersect_point(const struct aabb *aabb, const float *p)
 
 int ngli_aabb_intersect_aabb(const struct aabb *aabb1, const struct aabb *aabb2)
 {
-    NGLI_ALIGNED_VEC(c);
+    NPRIV_ALIGNED_VEC(c);
     ngli_vec4_sub(c, aabb1->center, aabb2->center);
     ngli_vec4_abs(c, c);
 
-    NGLI_ALIGNED_VEC(r);
+    NPRIV_ALIGNED_VEC(r);
     ngli_vec4_add(r, aabb1->extent, aabb2->extent);
 
     return (c[0] <= r[0] &&
@@ -111,8 +111,8 @@ int ngli_aabb_intersect_aabb(const struct aabb *aabb1, const struct aabb *aabb2)
 
 int ngli_aabb_intersect_ray(const struct aabb *aabb, const struct ray *ray)
 {
-    NGLI_ALIGNED_VEC(min);
-    NGLI_ALIGNED_VEC(max);
+    NPRIV_ALIGNED_VEC(min);
+    NPRIV_ALIGNED_VEC(max);
     ngli_aabb_get_min_max(aabb, min, max);
 
     float tmin = 0.0f, tmax = INFINITY;
@@ -120,8 +120,8 @@ int ngli_aabb_intersect_ray(const struct aabb *aabb, const struct ray *ray)
         const float t1 = (min[d] - ray->origin[d]) * ray->direction_inv[d];
         const float t2 = (max[d] - ray->origin[d]) * ray->direction_inv[d];
 
-        tmin = NGLI_MIN(NGLI_MAX(t1, tmin), NGLI_MAX(t2, tmin));
-        tmax = NGLI_MAX(NGLI_MIN(t1, tmax), NGLI_MIN(t2, tmax));
+        tmin = NPRIV_MIN(NPRIV_MAX(t1, tmin), NPRIV_MAX(t2, tmin));
+        tmax = NPRIV_MAX(NPRIV_MIN(t1, tmax), NPRIV_MIN(t2, tmax));
     }
     return tmin <= tmax;
 }

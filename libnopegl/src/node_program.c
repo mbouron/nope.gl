@@ -24,10 +24,10 @@
 #include <nopegpu/nopegpu.h>
 
 #include "internal.h"
+#include "libnopeutil/darray.h"
 #include "node_io.h"
 #include "node_program.h"
 #include "nopegl/nopegl.h"
-#include "utils/darray.h"
 
 #define IO_NODES (const uint32_t[]){NGL_NODE_IOINT,        \
                                     NGL_NODE_IOIVEC2,      \
@@ -74,7 +74,7 @@ static int program_init(struct ngl_node *node)
 
     if (o->vert_out_vars) {
         const struct hmap_entry *e = NULL;
-        while ((e = ngli_hmap_next(o->vert_out_vars, e))) {
+        while ((e = npriv_hmap_next(o->vert_out_vars, e))) {
             const struct ngl_node *iovar_node = e->data;
             const struct io_priv *iovar_priv = iovar_node->priv_data;
             const struct io_opts *iovar_opts = iovar_node->opts;
@@ -84,7 +84,7 @@ static int program_init(struct ngl_node *node)
                 .precision_out = iovar_opts->precision_out,
             };
             snprintf(iovar.name, sizeof(iovar.name), "%s", e->key.str);
-            if (ngli_darray_try_push(&s->vert_out_vars_array, iovar) < 0)
+            if (npriv_darray_try_push(&s->vert_out_vars_array, iovar) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -95,7 +95,7 @@ static int program_init(struct ngl_node *node)
 static void program_uninit(struct ngl_node *node)
 {
     struct program_priv *s = node->priv_data;
-    ngli_darray_reset(&s->vert_out_vars_array);
+    npriv_darray_reset(&s->vert_out_vars_array);
 }
 
 const struct node_class ngli_program_class = {

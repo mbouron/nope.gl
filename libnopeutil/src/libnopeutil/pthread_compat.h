@@ -20,8 +20,8 @@
  * under the License.
  */
 
-#ifndef PTHREAD_COMPAT_H
-#define PTHREAD_COMPAT_H
+#ifndef NPRIV_PTHREAD_COMPAT_H
+#define NPRIV_PTHREAD_COMPAT_H
 
 #ifndef _WIN32
 #include <pthread.h>

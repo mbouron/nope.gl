@@ -129,6 +129,7 @@ add_project_arguments(project_args, language: 'c', native: true)
 inc_dir = include_directories(
   'src',
   'src/include',
+  '../libnopeutil/src',
 )
 
 #
@@ -256,21 +257,25 @@ lib_src = files(
   'src/text_external.c',
   'src/timerange.c',
   'src/transforms.c',
-  'src/utils/bstr.c',
   'src/utils/conic.c',
   'src/utils/cubic_to_quad.c',
-  'src/utils/crc32.c',
-  'src/utils/darray.c',
   'src/utils/error.c',
   'src/utils/file.c',
-  'src/utils/hmap.c',
   'src/utils/job_queue.c',
-  'src/utils/memory.c',
-  'src/utils/refcount.c',
-  'src/utils/string.c',
-  'src/utils/thread.c',
-  'src/utils/time.c',
 )
+
+libnopeutil_src = files(
+  '../libnopeutil/src/libnopeutil/bstr.c',
+  '../libnopeutil/src/libnopeutil/crc32.c',
+  '../libnopeutil/src/libnopeutil/darray.c',
+  '../libnopeutil/src/libnopeutil/hmap.c',
+  '../libnopeutil/src/libnopeutil/memory.c',
+  '../libnopeutil/src/libnopeutil/refcount.c',
+  '../libnopeutil/src/libnopeutil/string.c',
+  '../libnopeutil/src/libnopeutil/thread.c',
+  '../libnopeutil/src/libnopeutil/time.c',
+)
+lib_src += libnopeutil_src
 
 math_utils_src = files('src/math_utils.c')
 if host_machine.cpu_family() == 'aarch64'
@@ -718,15 +723,7 @@ endif
 # Tests
 #
 
-utils_src = files(
-  'src/utils/bstr.c',
-  'src/utils/crc32.c',
-  'src/utils/darray.c',
-  'src/utils/error.c',
-  'src/utils/hmap.c',
-  'src/utils/memory.c',
-  'src/utils/string.c',
-)
+utils_src = files('src/utils/error.c') + libnopeutil_src
 
 test_progs = {
   'Assembly': {
@@ -739,7 +736,7 @@ test_progs = {
   },
   'Dynamic array': {
     'exe': 'test_darray',
-    'src': files('src/test_darray.c') + utils_src,
+    'src': files('../libnopeutil/tests/test_darray.c') + utils_src,
   },
   'Draw utils': {
     'exe': 'test_draw',
@@ -756,11 +753,11 @@ test_progs = {
   },
   'Hash map': {
     'exe': 'test_hmap',
-    'src': files('src/test_hmap.c', 'src/log.c') + utils_src,
+    'src': files('../libnopeutil/tests/test_hmap.c') + utils_src,
   },
   'Hash map - custom': {
     'exe': 'test_hmap_custom',
-    'src': files('src/test_hmap_custom.c', 'src/log.c') + utils_src,
+    'src': files('../libnopeutil/tests/test_hmap_custom.c') + utils_src,
   },
   'Noise': {
     'exe': 'test_noise',
@@ -790,7 +787,7 @@ test_progs = {
   },
   'Utils': {
     'exe': 'test_utils',
-    'src': files('src/test_utils.c', 'src/log.c') + utils_src,
+    'src': files('../libnopeutil/tests/test_utils.c') + utils_src,
   },
 }
 

@@ -24,7 +24,7 @@
 
 #include <stdint.h>
 
-#include "utils/pthread_compat.h"
+#include "libnopeutil/pthread_compat.h"
 
 struct ngli_fence {
     pthread_mutex_t mutex;

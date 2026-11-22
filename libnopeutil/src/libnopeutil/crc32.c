@@ -73,7 +73,7 @@ static const uint32_t crc_table[256] = {
     0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
 };
 
-uint32_t ngli_crc32(const char *s)
+uint32_t npriv_crc32(const char *s)
 {
     uint32_t crc = ~0U;
     for (size_t i = 0; s[i]; i++)
@@ -81,7 +81,7 @@ uint32_t ngli_crc32(const char *s)
     return ~crc;
 }
 
-uint32_t ngli_crc32_mem(const uint8_t *buf, size_t size, uint32_t state)
+uint32_t npriv_crc32_mem(const uint8_t *buf, size_t size, uint32_t state)
 {
     uint32_t crc = state;
     for (size_t i = 0; i < size; i++)

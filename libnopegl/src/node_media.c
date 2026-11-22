@@ -31,12 +31,12 @@
 
 #include "animation.h"
 #include "internal.h"
+#include "libnopeutil/memory.h"
 #include "log.h"
 #include "node_animkeyframe.h"
 #include "node_media.h"
 #include "node_uniform.h"
 #include "nopegl/nopegl.h"
-#include "utils/memory.h"
 
 struct media_opts {
     const char *filename;
@@ -124,11 +124,11 @@ static const enum ngl_log_level log_levels[] = {
     [NMD_LOG_ERROR]   = NGL_LOG_ERROR,
 };
 
-ngli_printf_format(6, 0)
+npriv_printf_format(6, 0)
 static void callback_nmd_log(void *arg, int level, const char *filename, int ln,
                              const char *fn, const char *fmt, va_list vl)
 {
-    if (level < 0 || level >= NGLI_ARRAY_NB(log_levels))
+    if (level < 0 || level >= NPRIV_ARRAY_NB(log_levels))
         return;
 
     const struct media_opts *o = arg;
@@ -148,7 +148,7 @@ static void callback_nmd_log(void *arg, int level, const char *filename, int ln,
     /* handle the case where the line doesn't fit the stack buffer */
     if (len >= sizeof(logline)) {
         const size_t logbuf_size = (size_t)len + 1;
-        logbuf = ngli_try_malloc(logbuf_size);
+        logbuf = npriv_try_malloc(logbuf_size);
         if (!logbuf) {
             va_end(vl_copy);
             return;
@@ -161,7 +161,7 @@ static void callback_nmd_log(void *arg, int level, const char *filename, int ln,
         ngli_log_print(log_levels[level], __FILE__, __LINE__, __func__,
                        "[NOPE.MEDIA %s:%d %s] %s", filename, ln, fn, logp);
 
-    ngli_free(logbuf);
+    npriv_free(logbuf);
     va_end(vl_copy);
 }
 
@@ -223,13 +223,13 @@ static int get_media_time(struct ngl_node *node, double t, double *dst_time)
 
         double anim_t = t;
         if (o->loop && times[1] > times[0])
-            anim_t = time_origin + fmod(NGLI_MAX(0.0, t - time_origin), times[1] - times[0]);
+            anim_t = time_origin + fmod(NPRIV_MAX(0.0, t - time_origin), times[1] - times[0]);
 
         int ret = ngli_node_update(anim_node, anim_t);
         if (ret < 0)
             return ret;
         const double dval = *(double *)anim->data;
-        media_time = NGLI_MAX(0, dval - initial_seek);
+        media_time = NPRIV_MAX(0, dval - initial_seek);
 
         TRACE("remapped time f(%g)=%g", t, media_time);
     }
@@ -242,7 +242,7 @@ static int get_media_time(struct ngl_node *node, double t, double *dst_time)
         }
         const double loop_duration = s->duration - initial_seek;
         if (loop_duration > 0.0)
-            media_time = fmod(NGLI_MAX(0.0, t - time_origin), loop_duration);
+            media_time = fmod(NPRIV_MAX(0.0, t - time_origin), loop_duration);
     }
 
     *dst_time = media_time;
@@ -309,7 +309,7 @@ static bool has_time_mapping_reached_media_time(const struct ngl_node *node, dou
     double times[2], values[2];
     ngli_animation_get_bounds(anim_o->animkf.data, count,
                               NGLI_ANIMATION_FLAG_TIME_VALUES, times, values);
-    return NGLI_MAX(0.0, values[1] - s->start_time) == media_time;
+    return NPRIV_MAX(0.0, values[1] - s->start_time) == media_time;
 }
 
 /**
@@ -339,7 +339,7 @@ static int get_loop_range(struct ngl_node *node, struct ngli_timerange *dst)
 
     /* Changes to time remapping invalidate this cache in media_invalidate(). */
     const struct ngli_timerange inputs[] = {*loop, *update};
-    NGLI_STATIC_ASSERT(sizeof(inputs) == sizeof(s->loop_inputs), "loop inputs");
+    NPRIV_STATIC_ASSERT(sizeof(inputs) == sizeof(s->loop_inputs), "loop inputs");
     if (!memcmp(inputs, s->loop_inputs, sizeof(inputs))) {
         *dst = s->next_loop_range;
         return 0;
@@ -349,11 +349,11 @@ static int get_loop_range(struct ngl_node *node, struct ngli_timerange *dst)
     if (o->loop) {
         range.end = s->end_time != -DBL_MAX ? s->end_time - s->start_time : INFINITY;
     } else if (loop->end > loop->start &&
-               NGLI_MAX(loop->start, update->start) < get_time_mapping_end(node)) {
-        ret = get_media_time(node, NGLI_MAX(loop->start, update->start), &range.start);
+               NPRIV_MAX(loop->start, update->start) < get_time_mapping_end(node)) {
+        ret = get_media_time(node, NPRIV_MAX(loop->start, update->start), &range.start);
         if (ret < 0)
             return ret;
-        const double loop_end = NGLI_MIN(loop->end, update->end);
+        const double loop_end = NPRIV_MIN(loop->end, update->end);
         if (loop_end > get_time_mapping_end(node)) {
             /* Leave the end open to include the final mapped frame while playback holds it. */
             range.end = INFINITY;
@@ -377,14 +377,14 @@ static int get_loop_range(struct ngl_node *node, struct ngli_timerange *dst)
                  * known, leave the end open so prefetch does not discard the
                  * held frame.
                  */
-                range.end = nextafter(range.end + NGLI_MAX(s->timebase, 1e-6), INFINITY);
+                range.end = nextafter(range.end + NPRIV_MAX(s->timebase, 1e-6), INFINITY);
             } else if (update->end < loop->end) {
                 /*
                  * Rounding a request just before the parent range ends can
                  * select a frame at or past range.end. Extend range.end as
                  * for held frames so the player includes that frame.
                  */
-                range.end = nextafter(range.end + NGLI_MAX(s->timebase, 1e-6), INFINITY);
+                range.end = nextafter(range.end + NPRIV_MAX(s->timebase, 1e-6), INFINITY);
             }
         }
         if (range.end <= range.start)
@@ -524,7 +524,7 @@ static const char * const pix_fmt_names[] = {
 
 static const char *get_pix_fmt_name(int pix_fmt)
 {
-    if (pix_fmt < 0 || pix_fmt >= NGLI_ARRAY_NB(pix_fmt_names))
+    if (pix_fmt < 0 || pix_fmt >= NPRIV_ARRAY_NB(pix_fmt_names))
         return NULL;
 
     return pix_fmt_names[pix_fmt];

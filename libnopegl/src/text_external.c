@@ -35,14 +35,14 @@
 #include "nopegl/nopegl.h"
 #include "path.h"
 #include "slug.h"
-#include "utils/darray.h"
-#include "utils/hmap.h"
-#include "utils/memory.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/hmap.h"
+#include "libnopeutil/memory.h"
 #include "text.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 #if HAVE_TEXT_LIBRARIES
-NGLI_DECLARE_DARRAY_WITH_NAME(hb_font_darray, hb_font_t *);
+NPRIV_DECLARE_DARRAY_WITH_NAME(hb_font_darray, hb_font_t *);
 
 struct text_external {
     struct hb_font_darray hb_fonts; // hb_font_t*
@@ -60,7 +60,7 @@ static int face_has_outlines(hb_face_t *face)
         HB_TAG('V', 'A', 'R', 'C'),
         HB_TAG('G', 'L', 'Y', 'F'),
     };
-    for (size_t i = 0; i < NGLI_ARRAY_NB(tags); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(tags); i++) {
         hb_blob_t *table = hb_face_reference_table(face, tags[i]);
         const unsigned length = hb_blob_get_length(table);
         hb_blob_destroy(table);
@@ -100,13 +100,13 @@ static int load_font(struct text *text, const char *font_file, int32_t face_inde
     /* Leave the scale at the default upem so shaping and outlines use design units. */
     const unsigned ppem = (unsigned)round(s->px_size);
     hb_font_set_ppem(hb_font, ppem, ppem);
-    hb_font_set_ptem(hb_font, (float)NGLI_MAX(text->config.pt_size, 1));
+    hb_font_set_ptem(hb_font, (float)NPRIV_MAX(text->config.pt_size, 1));
 
     LOG(DEBUG, "loaded font %s face %d", font_file, face_index);
     LOG(DEBUG, "* num glyphs: %u", hb_face_get_glyph_count(hb_font_get_face(hb_font)));
     LOG(DEBUG, "* units_per_EM: %u", hb_face_get_upem(hb_font_get_face(hb_font)));
 
-    if (ngli_darray_try_push(&s->hb_fonts, hb_font) < 0) {
+    if (npriv_darray_try_push(&s->hb_fonts, hb_font) < 0) {
         hb_font_destroy(hb_font);
         return NGL_ERROR_MEMORY;
     }
@@ -126,9 +126,9 @@ static int text_external_init(struct text *text)
 {
     struct text_external *s = text->priv_data;
 
-    ngli_darray_set_free_func(&s->hb_fonts, free_hb_font, NULL);
+    npriv_darray_set_free_func(&s->hb_fonts, free_hb_font, NULL);
 
-    const int32_t pt_size = NGLI_MAX(text->config.pt_size, 1);
+    const int32_t pt_size = NPRIV_MAX(text->config.pt_size, 1);
     const int32_t dpi = text->config.dpi ? text->config.dpi : 72;
     s->px_size = (double)pt_size * dpi / 72.0;
     /* Keep the previous 16-bit ppem limit. */
@@ -152,10 +152,10 @@ static int text_external_init(struct text *text)
     if (ret < 0)
         return ret;
 
-    s->glyph_index = ngli_hmap_try_create(NGLI_HMAP_TYPE_STR);
+    s->glyph_index = npriv_hmap_try_create(NPRIV_HMAP_TYPE_STR);
     if (!s->glyph_index)
         return NGL_ERROR_MEMORY;
-    ngli_hmap_set_free_func(s->glyph_index, free_glyph, NULL);
+    npriv_hmap_set_free_func(s->glyph_index, free_glyph, NULL);
 
     return 0;
 }
@@ -196,12 +196,12 @@ struct glyph {
 static void free_glyph(void *user_arg, void *data)
 {
     struct glyph *glyph = data;
-    ngli_freep(&glyph);
+    npriv_freep(&glyph);
 }
 
 static struct glyph *create_glyph(void)
 {
-    struct glyph *glyph = ngli_try_calloc(1, sizeof(*glyph));
+    struct glyph *glyph = npriv_try_calloc(1, sizeof(*glyph));
     return glyph;
 }
 
@@ -237,7 +237,7 @@ struct text_run {
     const hb_glyph_position_t *glyph_positions;
 };
 
-NGLI_DECLARE_DARRAY_WITH_NAME(text_run_darray, struct text_run);
+NPRIV_DECLARE_DARRAY_WITH_NAME(text_run_darray, struct text_run);
 
 struct outline_ctx {
     struct path *path;
@@ -334,7 +334,7 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
              */
             const hb_codepoint_t glyph_id = glyph_infos[j].codepoint;
             const char glyph_uid[] = GLYPH_UID_STRING(run->face_id, glyph_id);
-            if (ngli_hmap_get_str(glyph_index, glyph_uid))
+            if (npriv_hmap_get_str(glyph_index, glyph_uid))
                 continue;
 
             hb_glyph_extents_t extents;
@@ -391,7 +391,7 @@ static int build_glyph_index(struct text *text, struct hmap *glyph_index, const 
             glyph->bearing_x = outline.x_min;
             glyph->bearing_y = outline.y_min;
 
-            ret = ngli_hmap_try_set_str(glyph_index, glyph_uid, glyph);
+            ret = npriv_hmap_try_set_str(glyph_index, glyph_uid, glyph);
             if (ret < 0) {
                 free_glyph(NULL, glyph);
                 goto end;
@@ -410,11 +410,11 @@ static void reset_runs(struct text_run_darray *runs_array)
     struct text_run *runs = runs_array->data;
     for (size_t i = 0; i < runs_array->count; i++)
         hb_buffer_destroy(runs[i].buffer);
-    ngli_darray_reset(runs_array);
+    npriv_darray_reset(runs_array);
 }
 
 /* Make sure we can hold the whole Unicode codepoints */
-NGLI_STATIC_ASSERT(sizeof(FriBidiChar) == 4, "fribidi chars are 32bit");
+NPRIV_STATIC_ASSERT(sizeof(FriBidiChar) == 4, "fribidi chars are 32bit");
 
 static int char_is_linebreak(FriBidiChar ch)
 {
@@ -462,7 +462,7 @@ static int append_run(struct text *text, struct text_run_darray *runs_array,
         /* FriBidi changes the codepoints order from right-to-left where appropriate */
         hb_buffer_set_direction(buffer, HB_DIRECTION_LTR);
     } else {
-        ngli_assert(0);
+        npriv_assert(0);
     }
 
     // TODO: expose to the user? The precise knowledge of the language and/or
@@ -475,7 +475,7 @@ static int append_run(struct text *text, struct text_run_darray *runs_array,
     hb_buffer_guess_segment_properties(buffer);
 
     const struct text_run run = {.type=type, .face_id=face_id, .buffer=buffer};
-    if (ngli_darray_try_push(runs_array, run) < 0) {
+    if (npriv_darray_try_push(runs_array, run) < 0) {
         hb_buffer_reset(buffer);
         return NGL_ERROR_MEMORY;
     }
@@ -502,7 +502,7 @@ static int split_into_runs(struct text *text, struct text_run_darray *runs_array
 {
     struct text_external *s = text->priv_data;
 
-    ngli_assert(start < end);
+    npriv_assert(start < end);
 
     size_t prev_face_id = find_face_with_codepoint(&s->hb_fonts, str[start]);
     size_t pos = start;
@@ -596,9 +596,9 @@ static int log2vis(const FriBidiChar *str, int len, FriBidiParType *pbase_dir, F
 
     const int use_local = len <= STACK_LIST_SIZE;
 
-    FriBidiCharType *bidi_types       = use_local ? bidi_types_stack       : ngli_try_malloc((size_t)len * sizeof(*bidi_types));
-    FriBidiBracketType *bracket_types = use_local ? bracket_types_stack    : ngli_try_malloc((size_t)len * sizeof(*bracket_types));
-    FriBidiLevel *embedding_levels    = use_local ? embedding_levels_stack : ngli_try_malloc((size_t)len * sizeof(*embedding_levels));
+    FriBidiCharType *bidi_types       = use_local ? bidi_types_stack       : npriv_try_malloc((size_t)len * sizeof(*bidi_types));
+    FriBidiBracketType *bracket_types = use_local ? bracket_types_stack    : npriv_try_malloc((size_t)len * sizeof(*bracket_types));
+    FriBidiLevel *embedding_levels    = use_local ? embedding_levels_stack : npriv_try_malloc((size_t)len * sizeof(*embedding_levels));
     if (!bidi_types || !bracket_types || !embedding_levels) {
         ret = NGL_ERROR_MEMORY;
         goto end;
@@ -619,9 +619,9 @@ static int log2vis(const FriBidiChar *str, int len, FriBidiParType *pbase_dir, F
 
 end:
     if (!use_local) {
-        ngli_freep(&bidi_types);
-        ngli_freep(&bracket_types);
-        ngli_freep(&embedding_levels);
+        npriv_freep(&bidi_types);
+        npriv_freep(&bracket_types);
+        npriv_freep(&embedding_levels);
     }
     return ret;
 }
@@ -639,11 +639,11 @@ static int build_text_runs(struct text *text, const char *str_orig, struct text_
         return NGL_ERROR_LIMIT_EXCEEDED;
 
     /* Convert the full string in UTF-8 to Unicode codepoints */
-    FriBidiChar *codepoints = ngli_try_calloc(full_len, sizeof(*codepoints));
+    FriBidiChar *codepoints = npriv_try_calloc(full_len, sizeof(*codepoints));
     if (!codepoints)
         return NGL_ERROR_MEMORY;
     FriBidiStrIndex unicode_len = fribidi_charset_to_unicode(FRIBIDI_CHAR_SET_UTF8, str_orig, (FriBidiStrIndex)full_len, codepoints);
-    ngli_assert(unicode_len <= full_len);
+    npriv_assert(unicode_len <= full_len);
 
     /* Split input into lines and re-order codepoints of each line for bidirectionnal */
     FriBidiParType pbase_dir = FRIBIDI_PAR_ON;
@@ -661,21 +661,21 @@ static int build_text_runs(struct text *text, const char *str_orig, struct text_
          */
         size_t end = find_line_end(codepoints, (size_t)unicode_len, pos);
         if (end == pos) {
-            ngli_assert(end == unicode_len);
+            npriv_assert(end == unicode_len);
             break;
         }
-        ngli_assert(end > pos);
+        npriv_assert(end > pos);
         const size_t len = end - pos;
 
         /* Transform codepoints array from logical to visual order */
-        FriBidiChar *visual_str = ngli_try_calloc(len, sizeof(*visual_str));
+        FriBidiChar *visual_str = npriv_try_calloc(len, sizeof(*visual_str));
         if (!visual_str) {
             ret = NGL_ERROR_MEMORY;
             goto end;
         }
         ret = log2vis(&codepoints[pos], (int)len, &pbase_dir, visual_str);
         if (ret < 0) {
-            ngli_freep(&visual_str);
+            npriv_freep(&visual_str);
             goto end;
         }
 
@@ -685,7 +685,7 @@ static int build_text_runs(struct text *text, const char *str_orig, struct text_
          * linebreak, etc. This our 2nd level of segmentation.
          */
         ret = handle_words_and_wordseps(text, runs_array, visual_str, len);
-        ngli_freep(&visual_str);
+        npriv_freep(&visual_str);
         if (ret < 0)
             goto end;
 
@@ -708,7 +708,7 @@ static int build_text_runs(struct text *text, const char *str_orig, struct text_
     }
 
 end:
-    ngli_freep(&codepoints);
+    npriv_freep(&codepoints);
     return ret;
 }
 
@@ -733,7 +733,7 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
 
     const int32_t adv_sign = text->config.writing_mode == NGLI_TEXT_WRITING_MODE_VERTICAL_LR ? 1 : -1;
 
-    ngli_assert(s->hb_fonts.count > 0);
+    npriv_assert(s->hb_fonts.count > 0);
     hb_font_t * const *fonts = s->hb_fonts.data;
 
     const double default_line_advance = get_line_advance(fonts[0], get_font_scale(s, fonts[0]));
@@ -750,7 +750,7 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
         /* Update line advance in case there was a font change in the middle of the line */
         if (run->face_id != SIZE_MAX) {
             const double run_line_advance = get_line_advance(font, scale);
-            line_advance = NGLI_MAX(line_advance, run_line_advance);
+            line_advance = NPRIV_MAX(line_advance, run_line_advance);
         }
 
         for (size_t j = 0; j < len; j++) {
@@ -771,7 +771,7 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
                 line_advance = default_line_advance;
 
                 /* We assume the linebreak is never displayable */
-                if (ngli_darray_try_push(chars_dst, chr) < 0)
+                if (npriv_darray_try_push(chars_dst, chr) < 0)
                     return NGL_ERROR_MEMORY;
                 continue;
 
@@ -781,7 +781,7 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
 
             const hb_codepoint_t glyph_id = run->glyph_infos[j].codepoint;
             const char glyph_uid[] = GLYPH_UID_STRING(run->face_id, glyph_id);
-            const struct glyph *glyph = ngli_hmap_get_str(glyph_index, glyph_uid);
+            const struct glyph *glyph = npriv_hmap_get_str(glyph_index, glyph_uid);
             if (glyph) {
                 chr.tags |= NGLI_TEXT_CHAR_TAG_GLYPH;
                 chr.x = x_cur + scale * ((double)glyph->bearing_x + pos->x_offset);
@@ -794,7 +794,7 @@ static int register_chars(struct text *text, const char *str, struct ngli_char_i
                 ngli_slug_get_glyph_data(s->slug, glyph->slug_index, &chr.slug);
             }
 
-            if (ngli_darray_try_push(chars_dst, chr) < 0)
+            if (npriv_darray_try_push(chars_dst, chr) < 0)
                 return NGL_ERROR_MEMORY;
 
             x_cur += scale * pos->x_advance;
@@ -841,8 +841,8 @@ static void text_external_reset(struct text *text)
 {
     struct text_external *s = text->priv_data;
 
-    ngli_hmap_freep(&s->glyph_index);
-    ngli_darray_reset(&s->hb_fonts);
+    npriv_hmap_freep(&s->glyph_index);
+    npriv_darray_reset(&s->hb_fonts);
     ngli_slug_freep(&s->slug);
 }
 

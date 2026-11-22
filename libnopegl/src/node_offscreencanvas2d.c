@@ -32,8 +32,8 @@
 #include "node_textureview.h"
 #include "nopegl/nopegl.h"
 #include "rtt.h"
-#include "utils/darray.h"
-#include "utils/utils.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/utils.h"
 
 struct offscreencanvas2d_opts {
     struct ngli_node_darray children;
@@ -240,7 +240,7 @@ static int offscreencanvas2d_prefetch(struct ngl_node *node)
                 .attachment       = texture,
                 .attachment_layer = j,
                 .load_op          = NGPU_LOAD_OP_CLEAR,
-                .clear_value      = {NGLI_ARG_VEC4(o->clear_color)},
+                .clear_value      = {NPRIV_ARG_VEC4(o->clear_color)},
                 .store_op         = NGPU_STORE_OP_STORE,
             };
         }
@@ -400,7 +400,7 @@ static int offscreencanvas2d_resize(struct ngl_node *node)
     return 0;
 
 fail:
-    for (size_t i = 0; i < NGLI_ARRAY_NB(images); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(images); i++)
         ngli_image_unrefp(&images[i]);
     ngli_image_unrefp(&depth_image);
     for (size_t i = 0; i < o->color_textures.count; i++)

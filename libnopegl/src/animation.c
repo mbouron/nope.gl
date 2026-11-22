@@ -114,8 +114,8 @@ static const struct keyframe keyframe_origin = {.time = -DBL_MAX, .value = 0.0};
 static struct keyframe sanitize_keyframe(const struct animkeyframe_opts *kf, struct keyframe prev, uint32_t flags)
 {
     return (struct keyframe){
-        .time  = NGLI_MAX(kf->time, prev.time),
-        .value = (flags & NGLI_ANIMATION_FLAG_TIME_VALUES) ? NGLI_MAX(kf->scalar, prev.value) : prev.value,
+        .time  = NPRIV_MAX(kf->time, prev.time),
+        .value = (flags & NGLI_ANIMATION_FLAG_TIME_VALUES) ? NPRIV_MAX(kf->scalar, prev.value) : prev.value,
     };
 }
 
@@ -130,7 +130,7 @@ int ngli_animation_init(struct animation *s, void *user_arg,
         return NGL_ERROR_INVALID_ARG;
     }
 
-    ngli_assert(mix_func && cpy_func);
+    npriv_assert(mix_func && cpy_func);
 
     ngli_animation_reset(s);
     *s = (struct animation){
@@ -151,14 +151,14 @@ int ngli_animation_init(struct animation *s, void *user_arg,
         if (kf->time < prev.time)
             LOG(DEBUG, "key frame times must be monotonically increasing: %g < %g, evaluated as %g",
                 kf->time, prev.time, k.time);
-        if (ngli_darray_try_push(&s->times, k.time) < 0)
+        if (npriv_darray_try_push(&s->times, k.time) < 0)
             goto fail;
 
         if (flags & NGLI_ANIMATION_FLAG_TIME_VALUES) {
             if (kf->scalar < prev.value)
                 LOG(DEBUG, "times must be positive and monotonically increasing: %g < %g, evaluated as %g",
                     kf->scalar, prev.value, k.value);
-            if (ngli_darray_try_push(&s->values, k.value) < 0)
+            if (npriv_darray_try_push(&s->values, k.value) < 0)
                 goto fail;
         }
     }
@@ -173,7 +173,7 @@ fail:
 void ngli_animation_get_bounds(struct ngl_node * const *kfs, size_t nb_kfs, uint32_t flags,
                                double *times, double *values)
 {
-    ngli_assert(nb_kfs > 0);
+    npriv_assert(nb_kfs > 0);
 
     struct keyframe k = keyframe_origin;
     for (size_t i = 0; i < nb_kfs; i++) {
@@ -189,7 +189,7 @@ void ngli_animation_get_bounds(struct ngl_node * const *kfs, size_t nb_kfs, uint
 
 void ngli_animation_reset(struct animation *s)
 {
-    ngli_darray_reset(&s->times);
-    ngli_darray_reset(&s->values);
+    npriv_darray_reset(&s->times);
+    npriv_darray_reset(&s->values);
     *s = (struct animation){0};
 }

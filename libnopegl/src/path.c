@@ -22,11 +22,11 @@
 
 #include <string.h>
 
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
 #include "log.h"
 #include "math_utils.h"
 #include "path.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
 
 #define STEP_FLAG_DISCONTINUITY (1U << 0) /* a discontinuity happens after this step */
 
@@ -36,8 +36,8 @@ struct path_step {
     uint32_t flags;
 };
 
-NGLI_DECLARE_DARRAY_WITH_NAME(path_step_darray, struct path_step);
-NGLI_DECLARE_DARRAY_WITH_NAME(path_f32_darray, float);
+NPRIV_DECLARE_DARRAY_WITH_NAME(path_step_darray, struct path_step);
+NPRIV_DECLARE_DARRAY_WITH_NAME(path_f32_darray, float);
 
 enum path_state {
     PATH_STATE_DEFAULT,
@@ -60,7 +60,7 @@ struct path {
 
 struct path *ngli_path_create(void)
 {
-    struct path *s = ngli_try_calloc(1, sizeof(*s));
+    struct path *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->state = PATH_STATE_DEFAULT;
@@ -105,8 +105,8 @@ static void poly_from_bezier3(float *dst, float p0, float p1, float p2, float p3
 
 static int add_segment_and_move(struct path *s, const struct path_segment *segment, const float *to)
 {
-    ngli_assert(s->state == PATH_STATE_DEFAULT);
-    if (ngli_darray_try_push(&s->segments, *segment) < 0)
+    npriv_assert(s->state == PATH_STATE_DEFAULT);
+    if (npriv_darray_try_push(&s->segments, *segment) < 0)
         return NGL_ERROR_MEMORY;
     memcpy(s->cursor, to, sizeof(s->cursor));
     s->segment_flags &= ~NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN;
@@ -115,9 +115,9 @@ static int add_segment_and_move(struct path *s, const struct path_segment *segme
 
 static void set_segment_closing_flag(struct path *s)
 {
-    if (ngli_darray_is_empty(&s->segments))
+    if (npriv_darray_is_empty(&s->segments))
         return;
-    struct path_segment *last = ngli_darray_tail(&s->segments);
+    struct path_segment *last = npriv_darray_tail(&s->segments);
 
     /*
      * The flag check prevents the case where 2 successive moves would set the
@@ -190,14 +190,14 @@ int ngli_path_bezier3_to(struct path *s, const float *ctl0, const float *ctl1, c
 int ngli_path_close(struct path *s)
 {
     /* A sub-path without any segment has nothing to close */
-    if (ngli_darray_is_empty(&s->segments) || (s->segment_flags & NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN))
+    if (npriv_darray_is_empty(&s->segments) || (s->segment_flags & NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN))
         return 0;
 
     int ret = ngli_path_line_to(s, s->origin);
     if (ret < 0)
         return ret;
 
-    struct path_segment *last = ngli_darray_tail(&s->segments);
+    struct path_segment *last = npriv_darray_tail(&s->segments);
     last->flags |= NGLI_PATH_SEGMENT_FLAG_CLOSING;
     return 0;
 }
@@ -297,7 +297,7 @@ int ngli_path_add_svg_path(struct path *s, const char *str)
             const float to[]   = {coords[4] + off_x, coords[5] + off_y, 0.f};
             ret = ngli_path_bezier3_to(s, ctl1, ctl2, to);
         } else {
-            ngli_assert(0);
+            npriv_assert(0);
         }
         if (ret < 0)
             return ret;
@@ -308,11 +308,11 @@ int ngli_path_add_svg_path(struct path *s, const char *str)
 
 int ngli_path_add_path(struct path *s, const struct path *path)
 {
-    ngli_assert(s->state == PATH_STATE_DEFAULT);
+    npriv_assert(s->state == PATH_STATE_DEFAULT);
 
     for (size_t i = 0; i < path->segments.count; i++) {
         const struct path_segment *segment = &path->segments.data[i];
-        if (ngli_darray_try_push(&s->segments, *segment) < 0)
+        if (npriv_darray_try_push(&s->segments, *segment) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -343,7 +343,7 @@ void ngli_path_transform(struct path *s, const float *matrix)
      * actually fine to do the transformation after the finalization as well because
      * the polynomials are not yet derived from the bezier points.
      */
-    ngli_assert(s->state != PATH_STATE_INITIALIZED);
+    npriv_assert(s->state != PATH_STATE_INITIALIZED);
 
     for (size_t i = 0; i < s->segments.count; i++) {
         struct path_segment *segment = &s->segments.data[i];
@@ -352,10 +352,10 @@ void ngli_path_transform(struct path *s, const float *matrix)
         const float *y = segment->bezier_y;
         const float *z = segment->bezier_z;
 
-        NGLI_ALIGNED_VEC(p0) = {x[0], y[0], z[0], 1.f};
-        NGLI_ALIGNED_VEC(p1) = {x[1], y[1], z[1], 1.f};
-        NGLI_ALIGNED_VEC(p2) = {x[2], y[2], z[2], 1.f};
-        NGLI_ALIGNED_VEC(p3) = {x[3], y[3], z[3], 1.f};
+        NPRIV_ALIGNED_VEC(p0) = {x[0], y[0], z[0], 1.f};
+        NPRIV_ALIGNED_VEC(p1) = {x[1], y[1], z[1], 1.f};
+        NPRIV_ALIGNED_VEC(p2) = {x[2], y[2], z[2], 1.f};
+        NPRIV_ALIGNED_VEC(p3) = {x[3], y[3], z[3], 1.f};
 
         ngli_mat4_mul_vec4(p0, matrix, p0);
         ngli_mat4_mul_vec4(p1, matrix, p1);
@@ -374,7 +374,7 @@ void ngli_path_transform(struct path *s, const float *matrix)
 
 int ngli_path_finalize(struct path *s)
 {
-    ngli_assert(s->state == PATH_STATE_DEFAULT);
+    npriv_assert(s->state == PATH_STATE_DEFAULT);
     set_segment_closing_flag(s);
     s->state = PATH_STATE_FINALIZED;
     return 0;
@@ -405,7 +405,7 @@ int ngli_path_finalize(struct path *s)
  */
 int ngli_path_init(struct path *s, int32_t precision)
 {
-    ngli_assert(s->state == PATH_STATE_FINALIZED);
+    npriv_assert(s->state == PATH_STATE_FINALIZED);
 
     if (precision < 1) {
         LOG(ERROR, "precision must be 1 or superior");
@@ -444,7 +444,7 @@ int ngli_path_init(struct path *s, int32_t precision)
             poly_from_bezier3(segment->poly_z, z[0], z[1], z[2], z[3]);
             break;
         default:
-            ngli_assert(0);
+            npriv_assert(0);
         }
     }
 
@@ -479,7 +479,7 @@ int ngli_path_init(struct path *s, int32_t precision)
             const float t = (float)k * segment->time_scale;
             struct path_step step = {.segment_id=(int)i};
             poly_eval(step.position, segment, t);
-            if (ngli_darray_try_push(&s->steps, step) < 0)
+            if (npriv_darray_try_push(&s->steps, step) < 0)
                 return NGL_ERROR_MEMORY;
         }
 
@@ -493,7 +493,7 @@ int ngli_path_init(struct path *s, int32_t precision)
         if (i == nb_segments - 1 || (segments[i + 1].flags & NGLI_PATH_SEGMENT_FLAG_NEW_ORIGIN)) {
             struct path_step step = {.segment_id=(int)i, .flags = STEP_FLAG_DISCONTINUITY};
             poly_eval(step.position, segment, 1.f);
-            if (ngli_darray_try_push(&s->steps, step) < 0)
+            if (npriv_darray_try_push(&s->steps, step) < 0)
                 return NGL_ERROR_MEMORY;
         }
     }
@@ -503,7 +503,7 @@ int ngli_path_init(struct path *s, int32_t precision)
      */
     float total_length = 0.f;
 
-    if (ngli_darray_try_push(&s->steps_dist, total_length) < 0)
+    if (npriv_darray_try_push(&s->steps_dist, total_length) < 0)
         return NGL_ERROR_MEMORY;
 
     const struct path_step *steps = s->steps.data;
@@ -511,13 +511,13 @@ int ngli_path_init(struct path *s, int32_t precision)
         const struct path_step *prv_step = &steps[i - 1];
         const struct path_step *cur_step = &steps[i];
 
-        const bool skip_distance = NGLI_HAS_ALL_FLAGS(prv_step->flags, STEP_FLAG_DISCONTINUITY);
+        const bool skip_distance = NPRIV_HAS_ALL_FLAGS(prv_step->flags, STEP_FLAG_DISCONTINUITY);
         if (!skip_distance) {
             const float arc_vec[3] = NGLI_VEC3_SUB(cur_step->position, prv_step->position);
             const float arc_length = ngli_vec3_length(arc_vec);
             total_length += arc_length;
         }
-        if (ngli_darray_try_push(&s->steps_dist, total_length) < 0)
+        if (npriv_darray_try_push(&s->steps_dist, total_length) < 0)
             return NGL_ERROR_MEMORY;
     }
 
@@ -525,13 +525,13 @@ int ngli_path_init(struct path *s, int32_t precision)
      * We have the same number of steps and distances between these steps
      * because the first step starts with a distance of 0.
      */
-    ngli_assert(s->steps.count == s->steps_dist.count);
+    npriv_assert(s->steps.count == s->steps_dist.count);
 
     /*
      * Sanity check for get_vector_id(). We have it here to avoid having the
      * assert called redundantly in the inner loop.
      */
-    ngli_assert(s->steps_dist.count > 1); // checks if number of arcs >= 1
+    npriv_assert(s->steps_dist.count > 1); // checks if number of arcs >= 1
 
     /* Normalize distances (relative to the total length of the path) */
     const float scale = total_length != 0.f ? 1.f / total_length : 0.f;
@@ -540,14 +540,14 @@ int ngli_path_init(struct path *s, int32_t precision)
 
     /* Build a lookup table associating an arc to its segment */
     const size_t nb_arcs = s->steps.count - 1;
-    s->arc_to_segment = ngli_try_calloc(nb_arcs, sizeof(*s->arc_to_segment));
+    s->arc_to_segment = npriv_try_calloc(nb_arcs, sizeof(*s->arc_to_segment));
     if (!s->arc_to_segment)
         return NGL_ERROR_MEMORY;
     for (size_t i = 0; i < nb_arcs; i++)
         s->arc_to_segment[i] = steps[i].segment_id;
 
     /* We don't need to store all the intermediate positions anymore */
-    ngli_darray_reset(&s->steps);
+    npriv_darray_reset(&s->steps);
 
     s->state = PATH_STATE_INITIALIZED;
     return 0;
@@ -595,7 +595,7 @@ static int get_vector_id(const float *values, int nb_values, int *cache, float v
      * We only need to clamp the negative boundary because ret can never reach
      * nb_indexes, meaning the maximum value is nb_indexes-1, or nb_values-2.
      */
-    ret = NGLI_MAX(ret, 0);
+    ret = NPRIV_MAX(ret, 0);
     *cache = ret;
     return ret;
 }
@@ -644,7 +644,7 @@ void ngli_path_evaluate(struct path *s, float *dst, float distance)
 
 const struct ngli_path_segment_darray *ngli_path_get_segments(const struct path *s)
 {
-    ngli_assert(s->state == PATH_STATE_INITIALIZED || s->state == PATH_STATE_FINALIZED);
+    npriv_assert(s->state == PATH_STATE_INITIALIZED || s->state == PATH_STATE_FINALIZED);
     return &s->segments;
 }
 
@@ -653,10 +653,10 @@ void ngli_path_clear(struct path *s)
     s->state = PATH_STATE_DEFAULT;
     s->precision = 0;
     s->current_arc = 0;
-    ngli_freep(&s->arc_to_segment);
-    ngli_darray_clear(&s->segments);
-    ngli_darray_clear(&s->steps);
-    ngli_darray_clear(&s->steps_dist);
+    npriv_freep(&s->arc_to_segment);
+    npriv_darray_clear(&s->segments);
+    npriv_darray_clear(&s->steps);
+    npriv_darray_clear(&s->steps_dist);
     memset(s->origin, 0, sizeof(*s->origin));
     memset(s->cursor, 0, sizeof(*s->cursor));
     s->segment_flags = 0;
@@ -668,8 +668,8 @@ void ngli_path_freep(struct path **sp)
     if (!s)
         return;
     ngli_path_clear(s);
-    ngli_darray_reset(&s->segments);
-    ngli_darray_reset(&s->steps);
-    ngli_darray_reset(&s->steps_dist);
-    ngli_freep(sp);
+    npriv_darray_reset(&s->segments);
+    npriv_darray_reset(&s->steps);
+    npriv_darray_reset(&s->steps_dist);
+    npriv_freep(sp);
 }

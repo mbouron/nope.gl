@@ -56,7 +56,7 @@ static const struct node_param path_params[] = {
 };
 
 /* We must have the struct path in 1st position for AnimatedPath */
-NGLI_STATIC_ASSERT(offsetof(struct path_priv, path) == 0, "path 1st field");
+NPRIV_STATIC_ASSERT(offsetof(struct path_priv, path) == 0, "path 1st field");
 
 static int path_init(struct ngl_node *node)
 {
@@ -85,7 +85,7 @@ static int path_init(struct ngl_node *node)
         } else if (kf->cls->id == NGL_NODE_PATHKEYCLOSE) {
             ret = ngli_path_close(s->path);
         } else {
-            ngli_assert(0);
+            npriv_assert(0);
         }
         if (ret < 0)
             return ret;
