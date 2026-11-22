@@ -27,7 +27,7 @@
 #include <stdint.h>
 
 #include "ctx.h"
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 #include "vulkan/cmd_buffer_vk.h"
 #include "vulkan/vkcontext.h"
 
@@ -95,8 +95,8 @@ struct ngpu_ctx_vk {
 
     struct ngpu_cmd_buffer_vk **cmd_buffers;
     struct ngpu_cmd_buffer_vk **update_cmd_buffers;
-    NGPU_DARRAY(struct ngpu_cmd_buffer_vk *) pending_cmd_buffers;
-    NGPU_DARRAY(struct ngpu_export_sem_vk) export_sems;
+    NPRIV_DARRAY(struct ngpu_cmd_buffer_vk *) pending_cmd_buffers;
+    NPRIV_DARRAY(struct ngpu_export_sem_vk) export_sems;
     pthread_mutex_t export_sems_lock;
     struct ngpu_cmd_buffer_vk *cur_cmd_buffer;
     int cur_cmd_buffer_is_transient;
@@ -115,10 +115,10 @@ struct ngpu_ctx_vk {
     uint32_t cur_image_index;
     int64_t present_time_offset;
 
-    NGPU_DARRAY(struct ngpu_texture *) colors;
-    NGPU_DARRAY(struct ngpu_texture *) ms_colors;
-    NGPU_DARRAY(struct ngpu_texture *) depth_stencils;
-    NGPU_DARRAY(struct ngpu_rendertarget *) rts;
+    NPRIV_DARRAY(struct ngpu_texture *) colors;
+    NPRIV_DARRAY(struct ngpu_texture *) ms_colors;
+    NPRIV_DARRAY(struct ngpu_texture *) depth_stencils;
+    NPRIV_DARRAY(struct ngpu_rendertarget *) rts;
 
     struct ngpu_rendertarget *default_rt;
     struct ngpu_rendertarget_layout default_rt_layout;

@@ -23,23 +23,23 @@
 
 #include "buffer.h"
 #include "ctx.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 #include "pipeline.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
 
 int ngpu_pipeline_graphics_copy(struct ngpu_pipeline_graphics *dst, const struct ngpu_pipeline_graphics *src)
 {
     dst->topology = src->topology;
     dst->state    = src->state;
     dst->rt_layout  = src->rt_layout;
-    NGPU_ARRAY_MEMDUP(&dst->vertex_state, &src->vertex_state, buffers);
+    NPRIV_ARRAY_MEMDUP(&dst->vertex_state, &src->vertex_state, buffers);
 
     return 0;
 }
 
 void ngpu_pipeline_graphics_reset(struct ngpu_pipeline_graphics *graphics)
 {
-    ngpu_freep(&graphics->vertex_state.buffers);
+    npriv_freep(&graphics->vertex_state.buffers);
     memset(graphics, 0, sizeof(*graphics));
 }
 
@@ -51,7 +51,7 @@ static void pipeline_freep(void **pipelinep)
 
     struct ngpu_pipeline *s = *sp;
     ngpu_pipeline_graphics_reset(&s->graphics);
-    NGPU_RC_UNREFP(&s->program);
+    NPRIV_RC_UNREFP(&s->program);
 
     (*sp)->gpu_ctx->cls->pipeline_freep(sp);
 }
@@ -61,7 +61,7 @@ struct ngpu_pipeline *ngpu_pipeline_create(struct ngpu_ctx *gpu_ctx)
     struct ngpu_pipeline *s = gpu_ctx->cls->pipeline_create(gpu_ctx);
     if (!s)
         return NULL;
-    s->rc = NGPU_RC_CREATE(pipeline_freep);
+    s->rc = NPRIV_RC_CREATE(pipeline_freep);
     return s;
 }
 
@@ -73,7 +73,7 @@ int ngpu_pipeline_init(struct ngpu_pipeline *s, const struct ngpu_pipeline_param
     if (ret < 0)
         return ret;
 
-    s->program  = NGPU_RC_REF(params->program);
+    s->program  = NPRIV_RC_REF(params->program);
     s->layout = params->layout;
 
     return s->gpu_ctx->cls->pipeline_init(s);
@@ -81,5 +81,5 @@ int ngpu_pipeline_init(struct ngpu_pipeline *s, const struct ngpu_pipeline_param
 
 void ngpu_pipeline_freep(struct ngpu_pipeline **sp)
 {
-    NGPU_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }

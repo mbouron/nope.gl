@@ -25,20 +25,20 @@
 #include <stdint.h>
 #include <vulkan/vulkan.h>
 
+#include "libnopeutil/refcount.h"
 #include "nopegpu/nopegpu.h"
 #include "nopegpu/nopegpu_vulkan.h"
-#include "utils/refcount.h"
 
 struct AHardwareBuffer;
 
 struct ngpu_ycbcr_sampler_vk {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_ycbcr_sampler_vk_params params;
     VkSamplerYcbcrConversion conv;
     VkSampler sampler;
 };
 
-NGPU_RC_CHECK_STRUCT(ngpu_ycbcr_sampler_vk);
+NPRIV_RC_CHECK_STRUCT(ngpu_ycbcr_sampler_vk);
 
 #endif

@@ -30,9 +30,9 @@
 #include "opengl/glincludes.h"
 #include "opengl/priv_gl.h"
 #include "opengl/program_gl.h"
-#include "utils/bstr.h"
-#include "utils/memory.h"
-#include "utils/string.h"
+#include "libnopeutil/bstr.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/string.h"
 
 static int program_check_status(const struct glcontext *gl, GLuint shader, GLenum status)
 {
@@ -52,7 +52,7 @@ static int program_check_status(const struct glcontext *gl, GLuint shader, GLenu
         get_info = gl->funcs.GetProgramiv;
         get_log  = gl->funcs.GetProgramInfoLog;
     } else {
-        ngpu_assert(0);
+        npriv_assert(0);
     }
 
     GLint result = GL_FALSE;
@@ -64,7 +64,7 @@ static int program_check_status(const struct glcontext *gl, GLuint shader, GLenu
     if (!info_log_length)
         return NGPU_ERROR_BUG;
 
-    info_log = ngpu_try_malloc((size_t)info_log_length);
+    info_log = npriv_try_malloc((size_t)info_log_length);
     if (!info_log)
         return NGPU_ERROR_MEMORY;
 
@@ -73,13 +73,13 @@ static int program_check_status(const struct glcontext *gl, GLuint shader, GLenu
         info_log_length--;
 
     LOG(ERROR, "could not %s shader: %.*s", type_str, info_log_length, info_log);
-    ngpu_free(info_log);
+    npriv_free(info_log);
     return NGPU_ERROR_INVALID_DATA;
 }
 
 struct ngpu_program *ngpu_program_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_program_gl *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_program_gl *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -113,7 +113,7 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
 
     s_priv->program = gl->funcs.CreateProgram();
 
-    for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(shaders); i++) {
         if (!shaders[i].src)
             continue;
         GLuint shader = gl->funcs.CreateShader(shaders[i].type);
@@ -122,11 +122,11 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
         gl->funcs.CompileShader(shader);
         ret = program_check_status(gl, shader, GL_COMPILE_STATUS);
         if (ret < 0) {
-            char *s_with_numbers = ngpu_numbered_lines(shaders[i].src);
+            char *s_with_numbers = npriv_numbered_lines(shaders[i].src);
             if (s_with_numbers) {
                 LOG(ERROR, "failed to compile shader \"%s\":\n%s",
                     params->label ? params->label : "", s_with_numbers);
-                ngpu_free(s_with_numbers);
+                npriv_free(s_with_numbers);
             }
             goto fail;
         }
@@ -136,33 +136,33 @@ int ngpu_program_gl_init(struct ngpu_program *s, const struct ngpu_program_param
     gl->funcs.LinkProgram(s_priv->program);
     ret = program_check_status(gl, s_priv->program, GL_LINK_STATUS);
     if (ret < 0) {
-        struct bstr *bstr = ngpu_bstr_create();
+        struct bstr *bstr = npriv_bstr_create();
         if (bstr) {
-            ngpu_bstr_printf(bstr, "failed to link shaders \"%s\":",
-                             params->label ? params->label : "");
-            for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++) {
+            npriv_bstr_printf(bstr, "failed to link shaders \"%s\":",
+                              params->label ? params->label : "");
+            for (size_t i = 0; i < NPRIV_ARRAY_NB(shaders); i++) {
                 if (!shaders[i].src)
                     continue;
-                char *s_with_numbers = ngpu_numbered_lines(shaders[i].src);
+                char *s_with_numbers = npriv_numbered_lines(shaders[i].src);
                 if (s_with_numbers) {
-                    ngpu_bstr_printf(bstr, "\n\n%s shader:\n%s", shaders[i].name, s_with_numbers);
-                    ngpu_free(s_with_numbers);
+                    npriv_bstr_printf(bstr, "\n\n%s shader:\n%s", shaders[i].name, s_with_numbers);
+                    npriv_free(s_with_numbers);
                 }
             }
-            LOG(ERROR, "%s", ngpu_bstr_strptr(bstr));
-            ngpu_bstr_freep(&bstr);
+            LOG(ERROR, "%s", npriv_bstr_strptr(bstr));
+            npriv_bstr_freep(&bstr);
         }
         goto fail;
     }
 
-    for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(shaders); i++)
         if (shaders[i].shader != 0)
             gl->funcs.DeleteShader(shaders[i].shader);
 
     return 0;
 
 fail:
-    for (size_t i = 0; i < NGPU_ARRAY_NB(shaders); i++)
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(shaders); i++)
         gl->funcs.DeleteShader(shaders[i].shader);
 
     return ret;
@@ -177,5 +177,5 @@ void ngpu_program_gl_freep(struct ngpu_program **sp)
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     gl->funcs.DeleteProgram(s_priv->program);
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }

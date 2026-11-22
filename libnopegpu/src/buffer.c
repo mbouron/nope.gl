@@ -23,8 +23,8 @@
 
 #include "buffer.h"
 #include "ctx.h"
+#include "libnopeutil/utils.h"
 #include "utils/log.h"
-#include "utils/utils.h"
 
 static void buffer_freep(void **bufferp)
 {
@@ -37,8 +37,8 @@ static void buffer_freep(void **bufferp)
 
     if (s->size_accounted) {
         struct ngpu_memory_stats *stats = &s->gpu_ctx->memory_stats;
-        stats->buffer_count -= NGPU_MIN(stats->buffer_count, 1);
-        stats->buffer_bytes -= NGPU_MIN(stats->buffer_bytes, s->size);
+        stats->buffer_count -= NPRIV_MIN(stats->buffer_count, 1);
+        stats->buffer_bytes -= NPRIV_MIN(stats->buffer_bytes, s->size);
     }
 
     s->gpu_ctx->cls->buffer_freep(sp);
@@ -49,7 +49,7 @@ struct ngpu_buffer *ngpu_buffer_create(struct ngpu_ctx *gpu_ctx)
     struct ngpu_buffer *s = gpu_ctx->cls->buffer_create(gpu_ctx);
     if (!s)
         return NULL;
-    s->rc = NGPU_RC_CREATE(buffer_freep);
+    s->rc = NPRIV_RC_CREATE(buffer_freep);
     return s;
 }
 
@@ -117,7 +117,7 @@ void ngpu_buffer_unmap(struct ngpu_buffer *s)
 
 void ngpu_buffer_freep(struct ngpu_buffer **sp)
 {
-    NGPU_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }
 
 size_t ngpu_buffer_get_size(const struct ngpu_buffer *s)
@@ -132,5 +132,5 @@ uint32_t ngpu_buffer_get_usage(const struct ngpu_buffer *s)
 
 struct ngpu_buffer *ngpu_buffer_ref(const struct ngpu_buffer *s)
 {
-    return s ? NGPU_RC_REF((struct ngpu_buffer *)s) : NULL;
+    return s ? NPRIV_RC_REF((struct ngpu_buffer *)s) : NULL;
 }

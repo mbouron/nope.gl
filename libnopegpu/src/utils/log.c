@@ -28,11 +28,11 @@
 #include <unistd.h>
 #endif
 
+#include "libnopeutil/memory.h"
 #include "nopegpu/nopegpu.h"
 #include "utils/log.h"
-#include "utils/memory.h"
 
-ngpu_printf_format(6, 0)
+npriv_printf_format(6, 0)
 static void default_callback(void *arg, enum ngpu_log_level level, const char *filename, int ln,
                              const char *fn, const char *fmt, va_list vl)
 {
@@ -56,7 +56,7 @@ static void default_callback(void *arg, enum ngpu_log_level level, const char *f
     /* handle the case where the line doesn't fit the stack buffer */
     if (len >= sizeof(logline)) {
         const size_t logbuf_size = (size_t)len + 1;
-        logbuf = ngpu_try_malloc(logbuf_size);
+        logbuf = npriv_try_malloc(logbuf_size);
         if (!logbuf) {
             va_end(vl_copy);
             return;
@@ -84,7 +84,7 @@ static void default_callback(void *arg, enum ngpu_log_level level, const char *f
     printf("%s[%s] %s:%d %s: %s%s\n", color_start,
            log_strs[level], filename, ln, fn, logp,
            color_end);
-    ngpu_free(logbuf);
+    npriv_free(logbuf);
     va_end(vl_copy);
     fflush(stdout);
 }

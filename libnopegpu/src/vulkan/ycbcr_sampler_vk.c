@@ -35,7 +35,7 @@
 #include "vulkan/vkutils.h"
 #include "vulkan/texture_vk.h"
 #include "vulkan/ycbcr_sampler_vk.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 
 int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHardwareBuffer *ahb, enum ngpu_filter filter, struct ngpu_ycbcr_sampler_vk_params *params)
 {
@@ -97,15 +97,15 @@ static void ycbcr_sampler_freep(void **texturep)
     vk->funcs.DestroySampler(vk->device, s->sampler, NULL);
     vk->funcs.DestroySamplerYcbcrConversion(vk->device, s->conv, NULL);
 
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }
 
 struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_ycbcr_sampler_vk *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_ycbcr_sampler_vk *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-    s->rc = NGPU_RC_CREATE(ycbcr_sampler_freep);
+    s->rc = NPRIV_RC_CREATE(ycbcr_sampler_freep);
     s->gpu_ctx = gpu_ctx;
     return s;
 }
@@ -200,10 +200,10 @@ int ngpu_ycbcr_sampler_vk_is_compat(const struct ngpu_ycbcr_sampler_vk *s,
 
 struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ngpu_ycbcr_sampler_vk *s)
 {
-    return NGPU_RC_REF(s);
+    return NPRIV_RC_REF(s);
 }
 
 void ngpu_ycbcr_sampler_vk_unrefp(struct ngpu_ycbcr_sampler_vk **sp)
 {
-    NGPU_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }

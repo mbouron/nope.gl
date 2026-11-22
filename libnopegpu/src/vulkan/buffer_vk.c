@@ -24,14 +24,14 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 #include "utils/log.h"
 #include "vulkan/buffer_vk.h"
 #include "vulkan/ctx_vk.h"
 #include "vulkan/priv_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 
 static VkResult create_vk_buffer(struct vkcontext *vk,
                                  VkDeviceSize size,
@@ -103,7 +103,7 @@ static VkBufferUsageFlags get_vk_buffer_usage_flags(uint32_t usage)
 
 struct ngpu_buffer *ngpu_buffer_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_buffer_vk *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_buffer_vk *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -122,7 +122,7 @@ static VkResult buffer_vk_init(struct ngpu_buffer *s)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
-    ngpu_darray_set_free_func(&s_priv->cmd_buffers, unref_cmd_buffer, NULL);
+    npriv_darray_set_free_func(&s_priv->cmd_buffers, unref_cmd_buffer, NULL);
 
     VkMemoryPropertyFlags mem_props;
     if (s->usage & NGPU_BUFFER_USAGE_MAP_READ) {
@@ -166,7 +166,7 @@ int ngpu_buffer_vk_wait(struct ngpu_buffer *s)
     struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
     while (s_priv->cmd_buffers.count) {
-        struct ngpu_cmd_buffer_vk *cmd = *ngpu_darray_tail(&s_priv->cmd_buffers);
+        struct ngpu_cmd_buffer_vk *cmd = *npriv_darray_tail(&s_priv->cmd_buffers);
         if (!cmd->submitted)
             return NGPU_ERROR_INVALID_USAGE;
         const VkResult res = ngpu_cmd_buffer_vk_wait(cmd);
@@ -287,8 +287,8 @@ void ngpu_buffer_vk_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer
     if (index != SIZE_MAX)
         return;
 
-    ngpu_darray_push(&s_priv->cmd_buffers, cmd_buffer);
-    NGPU_RC_REF(cmd_buffer);
+    npriv_darray_push(&s_priv->cmd_buffers, cmd_buffer);
+    NPRIV_RC_REF(cmd_buffer);
 }
 
 int ngpu_buffer_vk_unref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_vk *cmd_buffer)
@@ -299,7 +299,7 @@ int ngpu_buffer_vk_unref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffe
     if (index == SIZE_MAX)
         return 0;
 
-    ngpu_darray_remove(&s_priv->cmd_buffers, index);
+    npriv_darray_remove(&s_priv->cmd_buffers, index);
 
     return 0;
 }
@@ -314,7 +314,7 @@ void ngpu_buffer_vk_freep(struct ngpu_buffer **sp)
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
     struct ngpu_buffer_vk *s_priv = NGPU_PRIV_VK(s);
 
-    ngpu_darray_reset(&s_priv->cmd_buffers);
+    npriv_darray_reset(&s_priv->cmd_buffers);
 
     if (s_priv->mapped_data)
         vk->funcs.UnmapMemory(vk->device, s_priv->memory);
@@ -323,5 +323,5 @@ void ngpu_buffer_vk_freep(struct ngpu_buffer **sp)
     vk->funcs.FreeMemory(vk->device, s_priv->memory, NULL);
     vk->funcs.DestroyBuffer(vk->device, s_priv->staging_buffer, NULL);
     vk->funcs.FreeMemory(vk->device, s_priv->staging_memory, NULL);
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }

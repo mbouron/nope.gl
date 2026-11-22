@@ -38,9 +38,9 @@
 #include "opengl/program_gl.h"
 #include "opengl/rendertarget_gl.h"
 #include "opengl/texture_gl.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 #if DEBUG_GPU_CAPTURE
 #include "capture.h"
@@ -156,10 +156,10 @@ static int offscreen_rendertarget_init(struct ngpu_ctx *s)
         return ret;
 
     const uint32_t nb_frames = s->nb_in_flight_frames;
-    s_priv->colors         = ngpu_try_calloc(nb_frames, sizeof(*s_priv->colors));
-    s_priv->ms_colors      = ngpu_try_calloc(nb_frames, sizeof(*s_priv->ms_colors));
-    s_priv->depth_stencils = ngpu_try_calloc(nb_frames, sizeof(*s_priv->depth_stencils));
-    s_priv->rts            = ngpu_try_calloc(nb_frames, sizeof(*s_priv->rts));
+    s_priv->colors         = npriv_try_calloc(nb_frames, sizeof(*s_priv->colors));
+    s_priv->ms_colors      = npriv_try_calloc(nb_frames, sizeof(*s_priv->ms_colors));
+    s_priv->depth_stencils = npriv_try_calloc(nb_frames, sizeof(*s_priv->depth_stencils));
+    s_priv->rts            = npriv_try_calloc(nb_frames, sizeof(*s_priv->rts));
     if (!s_priv->colors || !s_priv->ms_colors || !s_priv->depth_stencils || !s_priv->rts)
         return NGPU_ERROR_MEMORY;
 
@@ -216,10 +216,10 @@ static void rendertarget_reset(struct ngpu_ctx *s)
         if (s_priv->depth_stencils)
             ngpu_texture_freep(&s_priv->depth_stencils[i]);
     }
-    ngpu_freep(&s_priv->rts);
-    ngpu_freep(&s_priv->colors);
-    ngpu_freep(&s_priv->ms_colors);
-    ngpu_freep(&s_priv->depth_stencils);
+    npriv_freep(&s_priv->rts);
+    npriv_freep(&s_priv->colors);
+    npriv_freep(&s_priv->ms_colors);
+    npriv_freep(&s_priv->depth_stencils);
     s_priv->default_rt = NULL;
 
     ngpu_rendertarget_freep(&s_priv->capture_rt);
@@ -249,7 +249,7 @@ static void timer_reset(struct ngpu_ctx *s)
 
 static struct ngpu_ctx *gl_create(const struct ngpu_ctx_params *params)
 {
-    struct ngpu_ctx_gl *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_ctx_gl *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     return (struct ngpu_ctx *)s;
@@ -331,7 +331,7 @@ static void NGPU_GL_APIENTRY gl_debug_message_callback(GLenum source,
     // Do not abort if the source is the shader compiler as we want the error to
     // be properly reported and propagated to the user (with proper error messages)
     if (log_level == NGPU_LOG_ERROR && source != GL_DEBUG_SOURCE_SHADER_COMPILER && DEBUG_GL)
-        ngpu_assert(0);
+        npriv_assert(0);
 }
 
 static const struct {
@@ -358,10 +358,10 @@ static void ngpu_ctx_info_init(struct ngpu_ctx *s)
     s->version = gl->version;
     s->language_version = gl->glsl_version;
 
-    for (size_t i = 0; i < NGPU_ARRAY_NB(feature_map); i++) {
+    for (size_t i = 0; i < NPRIV_ARRAY_NB(feature_map); i++) {
         const uint64_t feature = feature_map[i].feature;
         const uint64_t feature_gl = feature_map[i].feature_gl;
-        if (NGPU_HAS_ALL_FLAGS(gl->features, feature_gl))
+        if (NPRIV_HAS_ALL_FLAGS(gl->features, feature_gl))
             s->features |= feature;
     }
 
@@ -375,8 +375,8 @@ static int create_command_buffers(struct ngpu_ctx *s)
 {
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
 
-    s_priv->update_cmd_buffers = ngpu_try_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
-    s_priv->draw_cmd_buffers = ngpu_try_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
+    s_priv->update_cmd_buffers = npriv_try_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
+    s_priv->draw_cmd_buffers = npriv_try_calloc(s->nb_in_flight_frames, sizeof(struct ngpu_cmd_buffer_gl *));
     if (!s_priv->update_cmd_buffers || !s_priv->draw_cmd_buffers)
         return NGPU_ERROR_MEMORY;
 
@@ -408,13 +408,13 @@ static void destroy_command_buffers(struct ngpu_ctx *s)
     if (s_priv->update_cmd_buffers) {
         for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
             ngpu_cmd_buffer_gl_freep(&s_priv->update_cmd_buffers[i]);
-        ngpu_freep(&s_priv->update_cmd_buffers);
+        npriv_freep(&s_priv->update_cmd_buffers);
     }
 
     if (s_priv->draw_cmd_buffers) {
         for (uint32_t i = 0; i < s->nb_in_flight_frames; i++)
             ngpu_cmd_buffer_gl_freep(&s_priv->draw_cmd_buffers[i]);
-        ngpu_freep(&s_priv->draw_cmd_buffers);
+        npriv_freep(&s_priv->draw_cmd_buffers);
     }
 
 }
@@ -792,7 +792,7 @@ static enum ngpu_cull_mode gl_get_cull_mode(struct ngpu_ctx *s, enum ngpu_cull_m
 
 static void gl_get_projection_matrix(struct ngpu_ctx *s, float *dst)
 {
-    static const NGPU_ALIGNED_MAT(matrix) = {
+    static const NPRIV_ALIGNED_MAT(matrix) = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
@@ -803,7 +803,7 @@ static void gl_get_projection_matrix(struct ngpu_ctx *s, float *dst)
 
 static void gl_get_projection_matrix_inverse(struct ngpu_ctx *s, float *dst)
 {
-    static const NGPU_ALIGNED_MAT(matrix) = {
+    static const NPRIV_ALIGNED_MAT(matrix) = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
@@ -814,7 +814,7 @@ static void gl_get_projection_matrix_inverse(struct ngpu_ctx *s, float *dst)
 
 static void gl_get_rendertarget_uvcoord_matrix(struct ngpu_ctx *s, float *dst)
 {
-    static const NGPU_ALIGNED_MAT(matrix) = {
+    static const NPRIV_ALIGNED_MAT(matrix) = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f,-1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
@@ -912,7 +912,7 @@ static uint32_t gl_get_format_features(struct ngpu_ctx *s, enum ngpu_format form
     struct ngpu_ctx_gl *s_priv = NGPU_PRIV_GL(s);
     struct glcontext *gl = s_priv->glcontext;
 
-    ngpu_assert(format >= 0 && format < NGPU_FORMAT_NB);
+    npriv_assert(format >= 0 && format < NGPU_FORMAT_NB);
     return gl->formats[format].features;
 }
 
@@ -937,10 +937,10 @@ static void gl_set_bindgroup(struct ngpu_ctx *s, struct ngpu_bindgroup *bindgrou
     NGPU_CMD_BUFFER_GL_REF(cmd_buffer, bindgroup);
 
     struct ngpu_bindgroup_gl *bindgroup_gl = NGPU_PRIV_GL(bindgroup);
-    ngpu_darray_foreach(binding, &bindgroup_gl->buffer_bindings)
+    npriv_darray_foreach(binding, &bindgroup_gl->buffer_bindings)
         if (binding->buffer)
             ngpu_cmd_buffer_gl_ref_buffer(cmd_buffer, (struct ngpu_buffer *)binding->buffer);
-    ngpu_darray_foreach(binding, &bindgroup_gl->texture_bindings)
+    npriv_darray_foreach(binding, &bindgroup_gl->texture_bindings)
         if (binding->texture)
             ngpu_cmd_buffer_gl_ref_texture(cmd_buffer, (struct ngpu_texture *)binding->texture);
 

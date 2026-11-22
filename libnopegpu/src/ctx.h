@@ -30,11 +30,11 @@
 
 #include "bindgroup.h"
 #include "buffer.h"
+#include "libnopeutil/refcount.h"
 #include "pgcache.h"
 #include "pipeline.h"
 #include "rendertarget.h"
 #include "texture.h"
-#include "utils/refcount.h"
 
 struct ngpu_ctx_class {
     enum ngpu_backend_type id;
@@ -128,7 +128,7 @@ struct ngpu_ctx_class {
 };
 
 struct ngpu_ctx {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx_params params;
     const struct ngpu_ctx_class *cls;
 
@@ -158,6 +158,6 @@ struct ngpu_ctx {
     enum ngpu_format index_format;
 };
 
-NGPU_RC_CHECK_STRUCT(ngpu_ctx);
+NPRIV_RC_CHECK_STRUCT(ngpu_ctx);
 
 #endif

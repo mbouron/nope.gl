@@ -20,7 +20,7 @@
  */
 
 #include "bindgroup.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 
 struct cache_entry {
     struct ngpu_bindgroup *bindgroup;
@@ -40,7 +40,7 @@ struct ngpu_bindgroup_cache *ngpu_bindgroup_cache_create(struct ngpu_ctx *gpu_ct
         capacity > (SIZE_MAX - sizeof(struct ngpu_bindgroup_cache)) / sizeof(struct cache_entry))
         return NULL;
     const size_t size = sizeof(struct ngpu_bindgroup_cache) + capacity * sizeof(struct cache_entry);
-    struct ngpu_bindgroup_cache *s = ngpu_try_calloc(1, size);
+    struct ngpu_bindgroup_cache *s = npriv_try_calloc(1, size);
     if (!s)
         return NULL;
     s->gpu_ctx = gpu_ctx;
@@ -83,7 +83,7 @@ struct ngpu_bindgroup *ngpu_bindgroup_cache_get(struct ngpu_bindgroup_cache *s, 
         struct cache_entry *entry = &s->entries[i];
         if (entry->bindgroup && matches(entry->bindgroup, desc)) {
             entry->last_used = ++s->serial;
-            return NGPU_RC_REF(entry->bindgroup);
+            return NPRIV_RC_REF(entry->bindgroup);
         }
         if ((!entry->bindgroup && victim->bindgroup) ||
             (entry->bindgroup && victim->bindgroup && entry->last_used < victim->last_used))
@@ -95,7 +95,7 @@ struct ngpu_bindgroup *ngpu_bindgroup_cache_get(struct ngpu_bindgroup_cache *s, 
     if (!bindgroup)
         return NULL;
     ngpu_bindgroup_freep(&victim->bindgroup);
-    victim->bindgroup = NGPU_RC_REF(bindgroup);
+    victim->bindgroup = NPRIV_RC_REF(bindgroup);
     victim->last_used = ++s->serial;
     return bindgroup;
 }
@@ -116,5 +116,5 @@ void ngpu_bindgroup_cache_freep(struct ngpu_bindgroup_cache **sp)
     if (!*sp)
         return;
     ngpu_bindgroup_cache_clear(*sp);
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }

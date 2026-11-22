@@ -33,7 +33,7 @@
 struct ngpu_ctx;
 
 struct ngpu_bindgroup_layout {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_bindgroup_layout_entry *textures;
     size_t nb_textures;
@@ -43,10 +43,10 @@ struct ngpu_bindgroup_layout {
     struct ngpu_bindgroup *available_bindgroups;
 };
 
-NGPU_RC_CHECK_STRUCT(ngpu_bindgroup_layout);
+NPRIV_RC_CHECK_STRUCT(ngpu_bindgroup_layout);
 
 struct ngpu_bindgroup {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_bindgroup_layout *layout;
     struct ngpu_texture_binding *textures;
@@ -54,6 +54,6 @@ struct ngpu_bindgroup {
     struct ngpu_bindgroup *next_available;
 };
 
-NGPU_RC_CHECK_STRUCT(ngpu_bindgroup);
+NPRIV_RC_CHECK_STRUCT(ngpu_bindgroup);
 
 #endif

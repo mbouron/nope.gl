@@ -23,9 +23,9 @@
 #ifndef NGPU_PIPELINE_GL_H
 #define NGPU_PIPELINE_GL_H
 
+#include "libnopeutil/darray.h"
 #include "opengl/glincludes.h"
 #include "pipeline.h"
-#include "utils/darray.h"
 
 struct ngpu_ctx;
 struct glcontext;
@@ -34,7 +34,7 @@ struct attribute_binding_gl;
 struct ngpu_pipeline_gl {
     struct ngpu_pipeline parent;
 
-    NGPU_DARRAY(struct attribute_binding_gl) attribute_bindings;
+    NPRIV_DARRAY(struct attribute_binding_gl) attribute_bindings;
 
     GLuint vao;
 };

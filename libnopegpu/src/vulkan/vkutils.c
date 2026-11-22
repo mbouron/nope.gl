@@ -21,7 +21,7 @@
 
 #include "nopegpu/nopegpu.h"
 #include "vulkan/vkutils.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 const char *ngpu_vk_res2str(VkResult res)
 {
@@ -98,7 +98,7 @@ VkSampleCountFlagBits ngpu_ngl_samples_to_vk(uint32_t samples)
     case 32: return VK_SAMPLE_COUNT_32_BIT;
     case 64: return VK_SAMPLE_COUNT_64_BIT;
     default:
-        ngpu_assert(0);
+        npriv_assert(0);
     }
 }
 

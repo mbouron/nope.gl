@@ -26,7 +26,7 @@
 #include <vulkan/vulkan.h>
 
 #include "bindgroup.h"
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 
 struct ngpu_ctx;
 struct ngpu_ycbcr_sampler_vk;
@@ -47,13 +47,13 @@ struct buffer_binding_vk {
 
 struct ngpu_bindgroup_layout_vk {
     struct ngpu_bindgroup_layout parent;
-    NGPU_DARRAY(VkDescriptorSetLayoutBinding) desc_set_layout_bindings;
-    NGPU_DARRAY(struct ngpu_ycbcr_sampler_vk *) immutable_samplers;
+    NPRIV_DARRAY(VkDescriptorSetLayoutBinding) desc_set_layout_bindings;
+    NPRIV_DARRAY(struct ngpu_ycbcr_sampler_vk *) immutable_samplers;
     VkDescriptorSetLayout desc_set_layout;
     uint32_t desc_pool_size_count;
     VkDescriptorPoolSize desc_pool_sizes[NGPU_TYPE_NB];
     uint32_t max_desc_sets;
-    NGPU_DARRAY(VkDescriptorPool) desc_pools;
+    NPRIV_DARRAY(VkDescriptorPool) desc_pools;
     size_t desc_pool_index;
     /*
      * Sets of destroyed bindgroups, handed back out by allocate_set(). The
@@ -63,17 +63,17 @@ struct ngpu_bindgroup_layout_vk {
      * A recycled set keeps the descriptors written by its previous owner, so
      * every binding must be written before it is used again.
      */
-    NGPU_DARRAY(VkDescriptorSet) free_desc_sets;
+    NPRIV_DARRAY(VkDescriptorSet) free_desc_sets;
 };
 
 struct ngpu_bindgroup_vk {
     struct ngpu_bindgroup parent;
-    NGPU_DARRAY(struct texture_binding_vk) texture_bindings;
-    NGPU_DARRAY(struct buffer_binding_vk) buffer_bindings;
+    NPRIV_DARRAY(struct texture_binding_vk) texture_bindings;
+    NPRIV_DARRAY(struct buffer_binding_vk) buffer_bindings;
     VkDescriptorSet desc_set;
-    NGPU_DARRAY(VkWriteDescriptorSet) write_desc_sets;
-    NGPU_DARRAY(VkDescriptorImageInfo) image_infos;
-    NGPU_DARRAY(VkDescriptorBufferInfo) buffer_infos;
+    NPRIV_DARRAY(VkWriteDescriptorSet) write_desc_sets;
+    NPRIV_DARRAY(VkDescriptorImageInfo) image_infos;
+    NPRIV_DARRAY(VkDescriptorBufferInfo) buffer_infos;
 };
 
 struct ngpu_bindgroup_layout *ngpu_bindgroup_layout_vk_create(struct ngpu_ctx *gpu_ctx);

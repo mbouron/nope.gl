@@ -27,9 +27,9 @@
 #include "vulkan/priv_vk.h"
 #include "vulkan/texture_vk.h"
 #include "vulkan/vkutils.h"
-#include "utils/darray.h"
+#include "libnopeutil/darray.h"
 #include "utils/log.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 
 static void cmd_buffer_vk_freep(void **sp)
 {
@@ -40,35 +40,35 @@ static void cmd_buffer_vk_freep(void **sp)
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
-    ngpu_darray_reset(&s->refs);
-    ngpu_darray_reset(&s->buffer_refs);
-    ngpu_darray_reset(&s->texture_refs);
+    npriv_darray_reset(&s->refs);
+    npriv_darray_reset(&s->buffer_refs);
+    npriv_darray_reset(&s->texture_refs);
 
-    ngpu_darray_reset(&s->wait_sems);
-    ngpu_darray_reset(&s->wait_stages);
-    ngpu_darray_reset(&s->wait_values);
-    ngpu_darray_reset(&s->signal_sems);
-    ngpu_darray_reset(&s->signal_values);
+    npriv_darray_reset(&s->wait_sems);
+    npriv_darray_reset(&s->wait_stages);
+    npriv_darray_reset(&s->wait_values);
+    npriv_darray_reset(&s->signal_sems);
+    npriv_darray_reset(&s->signal_values);
 
     vk->funcs.FreeCommandBuffers(vk->device, s->pool, 1, &s->cmd_buf);
 
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }
 
 struct ngpu_cmd_buffer_vk *ngpu_cmd_buffer_vk_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_cmd_buffer_vk *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_cmd_buffer_vk *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-    s->rc = NGPU_RC_CREATE(cmd_buffer_vk_freep);
+    s->rc = NPRIV_RC_CREATE(cmd_buffer_vk_freep);
     s->gpu_ctx = gpu_ctx;
     return s;
 }
 
 static void unref_rc(void *user_arg, void *data)
 {
-    struct ngpu_rc **rcp = data;
-    NGPU_RC_UNREFP(rcp);
+    struct npriv_rc **rcp = data;
+    NPRIV_RC_UNREFP(rcp);
 }
 
 static void unref_buffer(void *user_arg, void *data)
@@ -97,7 +97,7 @@ static void unref_texture(void *user_arg, void *data)
 
 void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp)
 {
-    NGPU_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }
 
 VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
@@ -119,9 +119,9 @@ VkResult ngpu_cmd_buffer_vk_init(struct ngpu_cmd_buffer_vk *s, int type)
     if (res != VK_SUCCESS)
         return res;
 
-    ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
-    ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
-    ngpu_darray_set_free_func(&s->texture_refs, unref_texture, s);
+    npriv_darray_set_free_func(&s->refs, unref_rc, NULL);
+    npriv_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
+    npriv_darray_set_free_func(&s->texture_refs, unref_texture, s);
 
     return VK_SUCCESS;
 }
@@ -133,9 +133,9 @@ void ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore s
 
 void ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value)
 {
-    ngpu_darray_push(&s->wait_sems, sem);
-    ngpu_darray_push(&s->wait_stages, stage);
-    ngpu_darray_push(&s->wait_values, value);
+    npriv_darray_push(&s->wait_sems, sem);
+    npriv_darray_push(&s->wait_stages, stage);
+    npriv_darray_push(&s->wait_values, value);
 }
 
 void ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem)
@@ -145,32 +145,32 @@ void ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore
 
 void ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value)
 {
-    ngpu_darray_push(&s->signal_sems, sem);
-    ngpu_darray_push(&s->signal_values, value);
+    npriv_darray_push(&s->signal_sems, sem);
+    npriv_darray_push(&s->signal_values, value);
 }
 
-void ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc)
+void ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct npriv_rc *rc)
 {
-    ngpu_darray_push(&s->refs, rc);
-    NGPU_RC_REF(rc);
+    npriv_darray_push(&s->refs, rc);
+    NPRIV_RC_REF(rc);
 }
 
 void ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buffer *buffer)
 {
-    ngpu_cmd_buffer_vk_ref(s, (struct ngpu_rc *)buffer);
+    ngpu_cmd_buffer_vk_ref(s, (struct npriv_rc *)buffer);
 
-    ngpu_darray_push(&s->buffer_refs, buffer);
-    NGPU_RC_REF(buffer);
+    npriv_darray_push(&s->buffer_refs, buffer);
+    NPRIV_RC_REF(buffer);
 
     ngpu_buffer_vk_ref_cmd_buffer(buffer, s);
 }
 
 void ngpu_cmd_buffer_vk_ref_texture(struct ngpu_cmd_buffer_vk *s, struct ngpu_texture *texture)
 {
-    ngpu_cmd_buffer_vk_ref(s, (struct ngpu_rc *)texture);
+    ngpu_cmd_buffer_vk_ref(s, (struct npriv_rc *)texture);
 
-    ngpu_darray_push(&s->texture_refs, texture);
-    NGPU_RC_REF(texture);
+    npriv_darray_push(&s->texture_refs, texture);
+    NPRIV_RC_REF(texture);
 
     ngpu_texture_vk_ref_cmd_buffer(texture, s);
 }
@@ -179,15 +179,15 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
 {
     s->applied_bindgroup = NULL;
     s->applied_bindgroup_pipeline = NULL;
-    ngpu_darray_clear(&s->refs);
-    ngpu_darray_clear(&s->buffer_refs);
-    ngpu_darray_clear(&s->texture_refs);
+    npriv_darray_clear(&s->refs);
+    npriv_darray_clear(&s->buffer_refs);
+    npriv_darray_clear(&s->texture_refs);
 
-    ngpu_darray_clear(&s->wait_sems);
-    ngpu_darray_clear(&s->wait_stages);
-    ngpu_darray_clear(&s->wait_values);
-    ngpu_darray_clear(&s->signal_sems);
-    ngpu_darray_clear(&s->signal_values);
+    npriv_darray_clear(&s->wait_sems);
+    npriv_darray_clear(&s->wait_stages);
+    npriv_darray_clear(&s->wait_values);
+    npriv_darray_clear(&s->signal_sems);
+    npriv_darray_clear(&s->signal_values);
 
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
@@ -205,7 +205,7 @@ VkResult ngpu_cmd_buffer_vk_begin(struct ngpu_cmd_buffer_vk *s)
 static VkResult abort_on_oom(VkResult res)
 {
     if (res == VK_ERROR_OUT_OF_HOST_MEMORY || res == VK_ERROR_OUT_OF_DEVICE_MEMORY)
-        ngpu_oom();
+        npriv_oom();
     return res;
 }
 
@@ -274,13 +274,13 @@ VkResult ngpu_cmd_buffer_vk_submit(struct ngpu_cmd_buffer_vk *s, struct ngpu_fen
 
     s->submitted = VK_TRUE;
 
-    ngpu_darray_push(&gpu_ctx_vk->pending_cmd_buffers, s);
+    npriv_darray_push(&gpu_ctx_vk->pending_cmd_buffers, s);
 
-    ngpu_darray_clear(&s->wait_sems);
-    ngpu_darray_clear(&s->wait_stages);
-    ngpu_darray_clear(&s->wait_values);
-    ngpu_darray_clear(&s->signal_sems);
-    ngpu_darray_clear(&s->signal_values);
+    npriv_darray_clear(&s->wait_sems);
+    npriv_darray_clear(&s->wait_stages);
+    npriv_darray_clear(&s->wait_values);
+    npriv_darray_clear(&s->signal_sems);
+    npriv_darray_clear(&s->signal_values);
 
     return VK_SUCCESS;
 }
@@ -305,14 +305,14 @@ VkResult ngpu_cmd_buffer_vk_wait(struct ngpu_cmd_buffer_vk *s)
     }
     s->submitted = VK_FALSE;
 
-    ngpu_darray_clear(&s->refs);
-    ngpu_darray_clear(&s->buffer_refs);
-    ngpu_darray_clear(&s->texture_refs);
+    npriv_darray_clear(&s->refs);
+    npriv_darray_clear(&s->buffer_refs);
+    npriv_darray_clear(&s->texture_refs);
 
     size_t i = 0;
     while (i < gpu_ctx_vk->pending_cmd_buffers.count) {
         if (gpu_ctx_vk->pending_cmd_buffers.data[i] == s) {
-            ngpu_darray_remove(&gpu_ctx_vk->pending_cmd_buffers, i);
+            npriv_darray_remove(&gpu_ctx_vk->pending_cmd_buffers, i);
             continue;
         }
         i++;

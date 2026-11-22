@@ -31,8 +31,8 @@
 #include "opengl/priv_gl.h"
 #include "opengl/rendertarget_gl.h"
 #include "opengl/texture_gl.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 static GLenum get_gl_attachment_index(GLenum format)
 {
@@ -113,8 +113,8 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
 
         const struct ngpu_texture_gl *texture_gl = NGPU_PRIV_GL(texture);
         GLenum attachment_index = get_gl_attachment_index(texture_gl->format);
-        ngpu_assert(attachment_index == GL_COLOR_ATTACHMENT0);
-        ngpu_assert(nb_color_attachments < limits->max_color_attachments);
+        npriv_assert(attachment_index == GL_COLOR_ATTACHMENT0);
+        npriv_assert(nb_color_attachments < limits->max_color_attachments);
         attachment_index = attachment_index + nb_color_attachments++;
 
         switch (texture_gl->target) {
@@ -134,7 +134,7 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
             gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer, texture_gl->texture, 0);
             break;
         default:
-            ngpu_assert(0);
+            npriv_assert(0);
         }
     }
 
@@ -143,7 +143,7 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
     if (texture) {
         const struct ngpu_texture_gl *texture_gl = NGPU_PRIV_GL(texture);
         const GLenum attachment_index = get_gl_attachment_index(texture_gl->format);
-        ngpu_assert(attachment_index != GL_COLOR_ATTACHMENT0);
+        npriv_assert(attachment_index != GL_COLOR_ATTACHMENT0);
 
         switch (texture_gl->target) {
         case GL_RENDERBUFFER:
@@ -153,7 +153,7 @@ static int create_fbo(struct ngpu_rendertarget *s, int resolve, GLuint *idp)
             gl->funcs.FramebufferTexture2D(GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_2D, texture_gl->texture, 0);
             break;
         default:
-            ngpu_assert(0);
+            npriv_assert(0);
         }
     }
 
@@ -227,7 +227,7 @@ static void invalidate(struct ngpu_rendertarget *s)
 
 struct ngpu_rendertarget *ngpu_rendertarget_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_rendertarget_gl *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_rendertarget_gl *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -264,7 +264,7 @@ int ngpu_rendertarget_gl_init(struct ngpu_rendertarget *s)
     s_priv->clear = clear_buffers;
     s_priv->resolve = resolve_no_draw_buffers;
 
-    ngpu_assert(s->params.nb_colors <= limits->max_draw_buffers);
+    npriv_assert(s->params.nb_colors <= limits->max_draw_buffers);
     if (s->params.nb_colors > 1) {
         for (size_t i = 0; i < s->params.nb_colors; i++)
             s_priv->draw_buffers[i] = GL_COLOR_ATTACHMENT0 + (GLenum)i;
@@ -410,7 +410,7 @@ void ngpu_rendertarget_gl_freep(struct ngpu_rendertarget **sp)
         gl->funcs.DeleteFramebuffers(1, &s_priv->resolve_fbo);
     }
 
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }
 
 int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_rendertarget_params *params, GLuint fbo)
@@ -419,11 +419,11 @@ int ngpu_rendertarget_gl_wrap(struct ngpu_rendertarget *s, const struct ngpu_ren
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
-    ngpu_assert(params->nb_colors == 1);
-    ngpu_assert(!params->colors[0].attachment);
-    ngpu_assert(!params->colors[0].resolve_target);
-    ngpu_assert(!params->depth_stencil.attachment);
-    ngpu_assert(!params->depth_stencil.resolve_target);
+    npriv_assert(params->nb_colors == 1);
+    npriv_assert(!params->colors[0].attachment);
+    npriv_assert(!params->colors[0].resolve_target);
+    npriv_assert(!params->depth_stencil.attachment);
+    npriv_assert(!params->depth_stencil.resolve_target);
 
     s->params = *params;
     s->width = params->width;

@@ -26,7 +26,7 @@
 #include "opengl/fence_gl.h"
 #include "nopegpu/nopegpu_opengl.h"
 #include "opengl/priv_gl.h"
-#include "utils/memory.h"
+#include "libnopeutil/memory.h"
 
 #if defined(TARGET_ANDROID)
 #include "opengl/egl.h"
@@ -40,16 +40,16 @@ static void fence_gl_release(void **sp)
 
     ngpu_fence_reset(s);
 
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }
 
 struct ngpu_fence *ngpu_fence_gl_create(struct ngpu_ctx *ctx)
 {
-    struct ngpu_fence_gl *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_fence_gl *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
-    s->parent.rc = NGPU_RC_CREATE(fence_gl_release);
+    s->parent.rc = NPRIV_RC_CREATE(fence_gl_release);
     s->parent.gpu_ctx = ctx;
 
     return (struct ngpu_fence *)s;
@@ -75,7 +75,7 @@ int ngpu_fence_gl_insert(struct ngpu_fence *s)
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
-    ngpu_assert(s_priv->fence == 0);
+    npriv_assert(s_priv->fence == 0);
     s_priv->fence = gl->funcs.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
     /*
@@ -167,7 +167,7 @@ int ngpu_fence_gl_export_sync_file(struct ngpu_fence *s, int *fdp)
 #endif
 }
 
-void ngpu_fence_gl_freep(struct ngpu_fence **sp) { NGPU_RC_UNREFP(sp); }
+void ngpu_fence_gl_freep(struct ngpu_fence **sp) { NPRIV_RC_UNREFP(sp); }
 
 void *ngpu_fence_gl_get_sync(const struct ngpu_fence *s)
 {

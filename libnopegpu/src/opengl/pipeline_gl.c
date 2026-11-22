@@ -31,8 +31,8 @@
 #include "opengl/pipeline_gl.h"
 #include "opengl/priv_gl.h"
 #include "opengl/program_gl.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
 
 struct attribute_binding_gl {
     size_t binding;
@@ -65,7 +65,7 @@ static int build_attribute_bindings(struct ngpu_pipeline *s)
                 .stride   = buffer->stride,
                 .offset   = attribute->offset,
             };
-            if (ngpu_darray_try_push(&s_priv->attribute_bindings, binding) < 0)
+            if (npriv_darray_try_push(&s_priv->attribute_bindings, binding) < 0)
                 return NGPU_ERROR_MEMORY;
 
             const GLuint location = attribute->location;
@@ -187,7 +187,7 @@ static void bind_vertex_attribs(const struct ngpu_pipeline *s)
     gl->funcs.BindVertexArray(s_priv->vao);
 
     const struct ngpu_buffer **vertex_buffers = gpu_ctx->vertex_buffers;
-    ngpu_darray_foreach(attribute_binding, &s_priv->attribute_bindings) {
+    npriv_darray_foreach(attribute_binding, &s_priv->attribute_bindings) {
         const size_t binding = attribute_binding->binding;
         const GLuint location = attribute_binding->location;
         const GLint size = (GLint)ngpu_format_get_nb_comp(attribute_binding->format);
@@ -218,14 +218,14 @@ static int pipeline_compute_init(struct ngpu_pipeline *s)
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(s->gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
 
-    ngpu_assert(NGPU_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_COMPUTE_SHADER_ALL));
+    npriv_assert(NPRIV_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_COMPUTE_SHADER_ALL));
 
     return 0;
 }
 
 struct ngpu_pipeline *ngpu_pipeline_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_pipeline_gl *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_pipeline_gl *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -243,7 +243,7 @@ int ngpu_pipeline_gl_init(struct ngpu_pipeline *s)
         if (ret < 0)
             return ret;
     } else {
-        ngpu_assert(0);
+        npriv_assert(0);
     }
 
     return 0;
@@ -331,7 +331,7 @@ void ngpu_pipeline_gl_dispatch(struct ngpu_pipeline *s, uint32_t nb_group_x, uin
     if (barriers)
         gl->funcs.MemoryBarrier(barriers);
 
-    ngpu_assert(gl->features & NGPU_FEATURE_GL_COMPUTE_SHADER);
+    npriv_assert(gl->features & NGPU_FEATURE_GL_COMPUTE_SHADER);
     gl->funcs.DispatchCompute(nb_group_x, nb_group_y, nb_group_z);
 
     if (barriers)
@@ -346,12 +346,12 @@ void ngpu_pipeline_gl_freep(struct ngpu_pipeline **sp)
     struct ngpu_pipeline *s = *sp;
     struct ngpu_pipeline_gl *s_priv = NGPU_PRIV_GL(s);
 
-    ngpu_darray_reset(&s_priv->attribute_bindings);
+    npriv_darray_reset(&s_priv->attribute_bindings);
 
     struct ngpu_ctx *gpu_ctx = s->gpu_ctx;
     struct ngpu_ctx_gl *gpu_ctx_gl = NGPU_PRIV_GL(gpu_ctx);
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     gl->funcs.DeleteVertexArrays(1, &s_priv->vao);
 
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }

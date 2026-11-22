@@ -23,9 +23,9 @@
 
 #include <nopegpu/nopegpu.h>
 
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/utils.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/utils.h"
 
 #define INITIAL_CAPACITY 65536U
 
@@ -35,7 +35,7 @@ struct ngpu_staging_buffer {
     uint8_t *mapped_data;
     size_t offset;
     size_t capacity;
-    NGPU_DARRAY(struct ngpu_buffer *) prev_buffers;
+    NPRIV_DARRAY(struct ngpu_buffer *) prev_buffers;
     size_t alignment;
     bool persistent;
 };
@@ -68,15 +68,15 @@ static int create_buffer(struct ngpu_staging_buffer *s, size_t capacity)
 
 struct ngpu_staging_buffer *ngpu_staging_buffer_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_staging_buffer *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_staging_buffer *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
     s->gpu_ctx = gpu_ctx;
 
     const struct ngpu_limits *limits = ngpu_ctx_get_limits(gpu_ctx);
-    s->alignment = NGPU_MAX(limits->min_uniform_block_offset_alignment,
-                            limits->min_storage_block_offset_alignment);
+    s->alignment = NPRIV_MAX(limits->min_uniform_block_offset_alignment,
+                             limits->min_storage_block_offset_alignment);
     if (!s->alignment)
         s->alignment = 256; /* safe default */
 
@@ -84,11 +84,11 @@ struct ngpu_staging_buffer *ngpu_staging_buffer_create(struct ngpu_ctx *gpu_ctx)
     s->persistent = (features & NGPU_FEATURE_BUFFER_MAP_PERSISTENT_BIT) != 0;
 
     s->offset = 0;
-    s->capacity = NGPU_ALIGN(INITIAL_CAPACITY, s->alignment);
+    s->capacity = NPRIV_ALIGN(INITIAL_CAPACITY, s->alignment);
 
     int ret = create_buffer(s, s->capacity);
     if (ret < 0) {
-        ngpu_freep(&s);
+        npriv_freep(&s);
         return NULL;
     }
 
@@ -100,14 +100,14 @@ static int grow(struct ngpu_staging_buffer *s, size_t min_capacity)
     size_t new_capacity = s->capacity;
     while (new_capacity < min_capacity)
         new_capacity *= 2;
-    new_capacity = NGPU_ALIGN(new_capacity, s->alignment);
+    new_capacity = NPRIV_ALIGN(new_capacity, s->alignment);
 
     /*
      * Keep the old buffer alive so that buffer pointers returned by
      * get_buffer() earlier remain valid until next reset().
      */
     ngpu_buffer_unmap(s->buffer);
-    if (ngpu_darray_try_push(&s->prev_buffers, s->buffer) < 0)
+    if (npriv_darray_try_push(&s->prev_buffers, s->buffer) < 0)
         return NGPU_ERROR_MEMORY;
     s->buffer = NULL;
     s->mapped_data = NULL;
@@ -124,13 +124,13 @@ static int grow(struct ngpu_staging_buffer *s, size_t min_capacity)
 
 void *ngpu_staging_buffer_reserve(struct ngpu_staging_buffer *s, size_t size, size_t *offsetp)
 {
-    size_t aligned_offset = NGPU_ALIGN(s->offset, s->alignment);
+    size_t aligned_offset = NPRIV_ALIGN(s->offset, s->alignment);
     size_t end = aligned_offset + size;
 
     if (end > s->capacity) {
         int ret = grow(s, end);
-        ngpu_assert(ret == 0);
-        aligned_offset = NGPU_ALIGN(s->offset, s->alignment);
+        npriv_assert(ret == 0);
+        aligned_offset = NPRIV_ALIGN(s->offset, s->alignment);
         end = aligned_offset + size;
     }
 
@@ -163,11 +163,11 @@ int ngpu_staging_buffer_flush(struct ngpu_staging_buffer *s)
 
 static void ngpu_staging_buffer_free_prev_buffers(struct ngpu_staging_buffer *s)
 {
-    ngpu_darray_foreach(p, &s->prev_buffers) {
+    npriv_darray_foreach(p, &s->prev_buffers) {
         ngpu_buffer_wait(*p);
         ngpu_buffer_freep(p);
     }
-    ngpu_darray_clear(&s->prev_buffers);
+    npriv_darray_clear(&s->prev_buffers);
 }
 
 void ngpu_staging_buffer_reset(struct ngpu_staging_buffer *s)
@@ -200,7 +200,7 @@ void ngpu_staging_buffer_freep(struct ngpu_staging_buffer **sp)
         s->mapped_data = NULL;
     }
     ngpu_buffer_freep(&s->buffer);
-    ngpu_darray_reset(&s->prev_buffers);
+    npriv_darray_reset(&s->prev_buffers);
 
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }

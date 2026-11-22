@@ -27,15 +27,16 @@
 
 #include <vulkan/vulkan.h>
 
-#include "utils/darray.h"
-#include "utils/refcount.h"
-#include "utils/utils.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/refcount.h"
+#include "libnopeutil/utils.h"
 
 struct ngpu_buffer;
+struct ngpu_fence;
 struct ngpu_texture;
 
 struct ngpu_cmd_buffer_vk {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
     int type;
     VkCommandPool pool;
@@ -44,18 +45,18 @@ struct ngpu_cmd_buffer_vk {
     VkBool32 submitted;
     struct ngpu_bindgroup *applied_bindgroup;
     struct ngpu_pipeline *applied_bindgroup_pipeline;
-    NGPU_DARRAY(VkSemaphore) wait_sems;
-    NGPU_DARRAY(VkPipelineStageFlags) wait_stages;
-    NGPU_DARRAY(uint64_t) wait_values;
-    NGPU_DARRAY(VkSemaphore) signal_sems;
-    NGPU_DARRAY(uint64_t) signal_values;
-    NGPU_DARRAY(struct ngpu_rc *) refs;
-    NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
-    NGPU_DARRAY(struct ngpu_texture *) texture_refs;
+    NPRIV_DARRAY(VkSemaphore) wait_sems;
+    NPRIV_DARRAY(VkPipelineStageFlags) wait_stages;
+    NPRIV_DARRAY(uint64_t) wait_values;
+    NPRIV_DARRAY(VkSemaphore) signal_sems;
+    NPRIV_DARRAY(uint64_t) signal_values;
+    NPRIV_DARRAY(struct npriv_rc *) refs;
+    NPRIV_DARRAY(struct ngpu_buffer *) buffer_refs;
+    NPRIV_DARRAY(struct ngpu_texture *) texture_refs;
 };
 
-NGPU_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_vk_darray, struct ngpu_cmd_buffer_vk *);
-NGPU_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_vk_darray)
+NPRIV_DECLARE_DARRAY_WITH_NAME(ngpu_cmd_buffer_vk_darray, struct ngpu_cmd_buffer_vk *);
+NPRIV_DEFINE_DARRAY_FIND(ngpu_cmd_buffer_vk_darray)
 
 struct ngpu_cmd_buffer_vk *ngpu_cmd_buffer_vk_create(struct ngpu_ctx *gpu_ctx);
 void ngpu_cmd_buffer_vk_freep(struct ngpu_cmd_buffer_vk **sp);
@@ -64,8 +65,8 @@ void ngpu_cmd_buffer_vk_add_wait_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore s
 void ngpu_cmd_buffer_vk_add_wait_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, VkPipelineStageFlags stage, uint64_t value);
 void ngpu_cmd_buffer_vk_add_signal_sem(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem);
 void ngpu_cmd_buffer_vk_add_signal_timeline(struct ngpu_cmd_buffer_vk *s, VkSemaphore sem, uint64_t value);
-#define NGPU_CMD_BUFFER_VK_REF(cmd, rc) ngpu_cmd_buffer_vk_ref((cmd), (struct ngpu_rc *)(rc))
-void ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct ngpu_rc *rc);
+#define NGPU_CMD_BUFFER_VK_REF(cmd, rc) ngpu_cmd_buffer_vk_ref((cmd), (struct npriv_rc *)(rc))
+void ngpu_cmd_buffer_vk_ref(struct ngpu_cmd_buffer_vk *s, struct npriv_rc *rc);
 void ngpu_cmd_buffer_vk_ref_buffer(struct ngpu_cmd_buffer_vk *s, struct ngpu_buffer *buffer);
 void ngpu_cmd_buffer_vk_ref_texture(struct ngpu_cmd_buffer_vk *s, struct ngpu_texture *texture);
 

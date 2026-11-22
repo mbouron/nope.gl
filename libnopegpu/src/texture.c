@@ -20,9 +20,9 @@
  */
 
 #include "ctx.h"
+#include "libnopeutil/bits.h"
+#include "libnopeutil/utils.h"
 #include "texture.h"
-#include "utils/bits.h"
-#include "utils/utils.h"
 
 static void texture_freep(void **texturep)
 {
@@ -33,8 +33,8 @@ static void texture_freep(void **texturep)
     struct ngpu_texture *s = *sp;
     if (s->memory_size_accounted) {
         struct ngpu_memory_stats *stats = &s->gpu_ctx->memory_stats;
-        stats->texture_count -= NGPU_MIN(stats->texture_count, 1);
-        stats->texture_bytes -= NGPU_MIN(stats->texture_bytes, s->memory_size);
+        stats->texture_count -= NPRIV_MIN(stats->texture_count, 1);
+        stats->texture_bytes -= NPRIV_MIN(stats->texture_bytes, s->memory_size);
     }
 
     s->gpu_ctx->cls->texture_freep(sp);
@@ -45,7 +45,7 @@ struct ngpu_texture *ngpu_texture_create(struct ngpu_ctx *gpu_ctx)
     struct ngpu_texture *s = gpu_ctx->cls->texture_create(gpu_ctx);
     if (!s)
         return NULL;
-    s->rc = NGPU_RC_CREATE(texture_freep);
+    s->rc = NPRIV_RC_CREATE(texture_freep);
     return s;
 }
 
@@ -60,7 +60,7 @@ uint32_t ngpu_texture_get_mipmap_levels(const struct ngpu_texture_params *params
 {
     if (params->mipmap_filter == NGPU_MIPMAP_FILTER_NONE)
         return 1;
-    return ngpu_log2(params->width | params->height | 1) + 1;
+    return npriv_log2(params->width | params->height | 1) + 1;
 }
 
 static uint64_t get_memory_size(const struct ngpu_texture_params *params)
@@ -88,10 +88,10 @@ static uint64_t get_memory_size(const struct ngpu_texture_params *params)
               * (uint64_t)samples
               * bytes_per_pixel;
 
-        width = NGPU_MAX(width >> 1, 1);
-        height = NGPU_MAX(height >> 1, 1);
+        width = NPRIV_MAX(width >> 1, 1);
+        height = NPRIV_MAX(height >> 1, 1);
         if (params->type == NGPU_TEXTURE_TYPE_3D)
-            depth = NGPU_MAX(depth >> 1, 1);
+            depth = NPRIV_MAX(depth >> 1, 1);
     }
     return size;
 }
@@ -100,7 +100,7 @@ int ngpu_texture_init(struct ngpu_texture *s, const struct ngpu_texture_params *
 {
     const enum ngpu_import_type import_type = params->import_params.type;
     if (import_type == NGPU_IMPORT_TYPE_NONE) {
-        ngpu_assert(NGPU_HAS_ALL_FLAGS(s->gpu_ctx->features, import_feature_map[import_type]));
+        npriv_assert(NPRIV_HAS_ALL_FLAGS(s->gpu_ctx->features, import_feature_map[import_type]));
         int ret = s->gpu_ctx->cls->texture_init(s, params);
         if (ret < 0)
             return ret;
@@ -129,7 +129,7 @@ int ngpu_texture_upload_with_params(struct ngpu_texture *s, const uint8_t *data,
 
 int ngpu_texture_read_pixels(struct ngpu_texture *s, uint8_t *data)
 {
-    ngpu_assert(s->params.type == NGPU_TEXTURE_TYPE_2D);
+    npriv_assert(s->params.type == NGPU_TEXTURE_TYPE_2D);
     return s->gpu_ctx->cls->texture_read_pixels(s, data);
 }
 
@@ -140,17 +140,17 @@ int ngpu_texture_generate_mipmap(struct ngpu_texture *s)
 
 struct ngpu_texture *ngpu_texture_ref(const struct ngpu_texture *s)
 {
-    return s ? NGPU_RC_REF((struct ngpu_texture *)s) : NULL;
+    return s ? NPRIV_RC_REF((struct ngpu_texture *)s) : NULL;
 }
 
 void ngpu_texture_unrefp(struct ngpu_texture **sp)
 {
-    NGPU_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }
 
 void ngpu_texture_freep(struct ngpu_texture **sp)
 {
-    NGPU_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }
 
 const struct ngpu_texture_params *ngpu_texture_get_params(const struct ngpu_texture *s)

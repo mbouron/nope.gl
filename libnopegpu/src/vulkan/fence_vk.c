@@ -22,15 +22,15 @@
 #include <vulkan/vulkan.h>
 
 #include "utils/log.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 #include "vulkan/cmd_buffer_vk.h"
 #include "vulkan/ctx_vk.h"
 #include "vulkan/fence_vk.h"
 #include "vulkan/priv_vk.h"
 #include "vulkan/vkcontext.h"
 #include "vulkan/vkutils.h"
-#include "utils/memory.h"
-#include "utils/refcount.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/refcount.h"
 
 static void release_export_sem(struct ngpu_fence *s)
 {
@@ -49,16 +49,16 @@ static void fence_vk_release(void **sp)
         return;
 
     release_export_sem(s);
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }
 
 struct ngpu_fence *ngpu_fence_vk_create(struct ngpu_ctx *ctx)
 {
-    struct ngpu_fence_vk *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_fence_vk *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
-    s->parent.rc = NGPU_RC_CREATE(fence_vk_release);
+    s->parent.rc = NPRIV_RC_CREATE(fence_vk_release);
     s->parent.gpu_ctx = ctx;
 
     return (struct ngpu_fence *)s;
@@ -108,7 +108,7 @@ VkResult ngpu_fence_vk_signal_export_sem(struct ngpu_fence *s, struct ngpu_cmd_b
 {
     struct ngpu_fence_vk *s_priv = NGPU_PRIV_VK(s);
 
-    ngpu_assert(s_priv->export_sem == VK_NULL_HANDLE);
+    npriv_assert(s_priv->export_sem == VK_NULL_HANDLE);
     VkResult res = ngpu_ctx_vk_get_export_sem(s->gpu_ctx, cmd_buffer->signal_value, &s_priv->export_sem);
     if (res != VK_SUCCESS)
         return res;
@@ -147,4 +147,4 @@ int ngpu_fence_vk_export_sync_file(struct ngpu_fence *s, int *fdp)
 #endif
 }
 
-void ngpu_fence_vk_freep(struct ngpu_fence **sp) { NGPU_RC_UNREFP(sp); }
+void ngpu_fence_vk_freep(struct ngpu_fence **sp) { NPRIV_RC_UNREFP(sp); }

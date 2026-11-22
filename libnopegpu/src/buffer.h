@@ -26,18 +26,18 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "utils/refcount.h"
+#include "libnopeutil/refcount.h"
 
 struct ngpu_ctx;
 
 struct ngpu_buffer {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
     size_t size;
     uint32_t usage;
     bool size_accounted;
 };
 
-NGPU_RC_CHECK_STRUCT(ngpu_buffer);
+NPRIV_RC_CHECK_STRUCT(ngpu_buffer);
 
 #endif

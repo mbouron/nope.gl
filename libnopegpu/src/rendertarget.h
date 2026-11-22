@@ -26,10 +26,10 @@
 
 #include "nopegpu/nopegpu.h"
 
-#include "utils/refcount.h"
+#include "libnopeutil/refcount.h"
 
 struct ngpu_rendertarget {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_rendertarget_params params;
     uint32_t width;
@@ -37,6 +37,6 @@ struct ngpu_rendertarget {
     struct ngpu_rendertarget_layout layout;
 };
 
-NGPU_RC_CHECK_STRUCT(ngpu_rendertarget);
+NPRIV_RC_CHECK_STRUCT(ngpu_rendertarget);
 
 #endif

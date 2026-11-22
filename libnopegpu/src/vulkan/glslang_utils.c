@@ -31,8 +31,8 @@
 #include "utils/log.h"
 #include "nopegpu/nopegpu.h"
 #include "vulkan/glslang_utils.h"
-#include "utils/memory.h"
-#include "utils/pthread_compat.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/pthread_compat.h"
 
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
 static int init_ret;
@@ -153,7 +153,7 @@ int ngpu_glslang_compile(enum ngpu_program_stage stage, const char *src, int deb
         LOG(WARNING, "%s", messages);
 
     const size_t size = glslang_program_SPIRV_get_size(program) * sizeof(unsigned int);
-    unsigned int *data = ngpu_try_malloc(size);
+    unsigned int *data = npriv_try_malloc(size);
     if (!data) {
         glslang_program_delete(program);
         glslang_shader_delete(shader);

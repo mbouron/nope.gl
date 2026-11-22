@@ -129,6 +129,7 @@ add_project_arguments(project_args, language: 'c', native: true)
 inc_dir = include_directories(
   'src',
   'src/include',
+  '../libnopeutil/src',
 )
 
 #
@@ -151,17 +152,19 @@ lib_src = files(
   'src/staging_buffer.c',
   'src/texture.c',
   'src/type.c',
-  'src/utils/bstr.c',
-  'src/utils/crc32.c',
-  'src/utils/darray.c',
-  'src/utils/hmap.c',
   'src/utils/log.c',
-  'src/utils/memory.c',
-  'src/utils/refcount.c',
-  'src/utils/string.c',
-  'src/utils/thread.c',
-  'src/utils/time.c',
 )
+
+libnopeutil_src = files(
+  '../libnopeutil/src/libnopeutil/bstr.c',
+  '../libnopeutil/src/libnopeutil/darray.c',
+  '../libnopeutil/src/libnopeutil/hmap.c',
+  '../libnopeutil/src/libnopeutil/memory.c',
+  '../libnopeutil/src/libnopeutil/refcount.c',
+  '../libnopeutil/src/libnopeutil/string.c',
+  '../libnopeutil/src/libnopeutil/time.c',
+)
+lib_src += libnopeutil_src
 
 hosts_cfg = {
   'linux': {
@@ -569,20 +572,12 @@ pkg.generate(
 #
 
 if get_option('tests')
-  test_utils_src = files(
-    'src/utils/darray.c',
-    'src/utils/memory.c',
-  )
   test_progs = {
     'Shader interface limits': {
       'exe': 'test_pgcraft',
       'src': files('src/test_pgcraft.c'),
       'objects': libnopegpu.extract_all_objects(recursive: true),
       'c_args': lib_c_args,
-    },
-    'Dynamic array': {
-      'exe': 'test_darray',
-      'src': files('src/test_darray.c') + test_utils_src,
     },
   }
   foreach test_key, test_data : test_progs

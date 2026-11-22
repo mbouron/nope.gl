@@ -23,8 +23,8 @@
 #ifndef NGPU_LOG_H
 #define NGPU_LOG_H
 
+#include "libnopeutil/utils.h"
 #include "nopegpu/nopegpu.h"
-#include "utils/utils.h"
 
 #ifndef __PRETTY_FUNCTION__
 #define __PRETTY_FUNCTION__ __func__
@@ -39,7 +39,7 @@
 #endif
 
 void ngpu_log_print(enum ngpu_log_level log_level, const char *filename,
-                    int ln, const char *fn, const char *fmt, ...) ngpu_printf_format(5, 6);
+                    int ln, const char *fn, const char *fmt, ...) npriv_printf_format(5, 6);
 
 #define NGPU_RET_STR(ret) ngpu_log_ret_str((char[128]){0}, 128, ret)
 

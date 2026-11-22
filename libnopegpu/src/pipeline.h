@@ -29,12 +29,12 @@
 #include "program.h"
 #include "texture.h"
 
-#include "utils/refcount.h"
+#include "libnopeutil/refcount.h"
 
 struct ngpu_ctx;
 
 struct ngpu_pipeline {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
 
     enum ngpu_pipeline_type type;
@@ -43,6 +43,6 @@ struct ngpu_pipeline {
     struct ngpu_pipeline_layout layout;
 };
 
-NGPU_RC_CHECK_STRUCT(ngpu_pipeline);
+NPRIV_RC_CHECK_STRUCT(ngpu_pipeline);
 
 #endif

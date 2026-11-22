@@ -28,8 +28,8 @@
 #include "opengl/glcontext.h"
 #include "opengl/priv_gl.h"
 #include "opengl/glincludes.h"
-#include "utils/darray.h"
-#include "utils/memory.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
 
 static GLbitfield get_gl_barriers(uint32_t usage)
 {
@@ -76,7 +76,7 @@ static GLbitfield get_gl_map_flags(uint32_t usage)
 
 struct ngpu_buffer *ngpu_buffer_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_buffer_gl *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_buffer_gl *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
     s->parent.gpu_ctx = gpu_ctx;
@@ -95,7 +95,7 @@ int ngpu_buffer_gl_init(struct ngpu_buffer *s)
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
-    ngpu_darray_set_free_func(&s_priv->cmd_buffers, unref_cmd_buffer, NULL);
+    npriv_darray_set_free_func(&s_priv->cmd_buffers, unref_cmd_buffer, NULL);
 
     s_priv->map_flags = get_gl_map_flags(s->usage);
     s_priv->barriers = get_gl_barriers(s->usage);
@@ -111,7 +111,7 @@ int ngpu_buffer_gl_init(struct ngpu_buffer *s)
         const GLbitfield storage_flags = GL_DYNAMIC_STORAGE_BIT;
         gl->funcs.BufferStorageEXT(GL_ARRAY_BUFFER, size, NULL, storage_flags | s_priv->map_flags);
     } else {
-        ngpu_assert(!NGPU_HAS_ALL_FLAGS(s->usage, NGPU_BUFFER_USAGE_MAP_PERSISTENT));
+        npriv_assert(!NPRIV_HAS_ALL_FLAGS(s->usage, NGPU_BUFFER_USAGE_MAP_PERSISTENT));
         gl->funcs.BufferData(GL_ARRAY_BUFFER, size, NULL, get_gl_usage(s->usage));
     }
 
@@ -123,7 +123,7 @@ int ngpu_buffer_gl_wait(struct ngpu_buffer *s)
     struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
     while (s_priv->cmd_buffers.count) {
-        struct ngpu_cmd_buffer_gl *cmd = *ngpu_darray_tail(&s_priv->cmd_buffers);
+        struct ngpu_cmd_buffer_gl *cmd = *npriv_darray_tail(&s_priv->cmd_buffers);
         if (!ngpu_cmd_buffer_gl_is_submitted(cmd))
             return NGPU_ERROR_INVALID_USAGE;
         const int ret = ngpu_cmd_buffer_gl_wait(cmd);
@@ -174,10 +174,10 @@ int ngpu_buffer_gl_ref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffer_
     if (index != SIZE_MAX)
         return 0;
 
-    if (ngpu_darray_try_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
+    if (npriv_darray_try_push(&s_priv->cmd_buffers, cmd_buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
-    NGPU_RC_REF(cmd_buffer);
+    NPRIV_RC_REF(cmd_buffer);
 
     return 0;
 }
@@ -190,7 +190,7 @@ int ngpu_buffer_gl_unref_cmd_buffer(struct ngpu_buffer *s, struct ngpu_cmd_buffe
     if (index == SIZE_MAX)
         return 0;
 
-    ngpu_darray_remove(&s_priv->cmd_buffers, index);
+    npriv_darray_remove(&s_priv->cmd_buffers, index);
 
     return 0;
 }
@@ -205,8 +205,8 @@ void ngpu_buffer_gl_freep(struct ngpu_buffer **sp)
     struct glcontext *gl = gpu_ctx_gl->glcontext;
     struct ngpu_buffer_gl *s_priv = NGPU_PRIV_GL(s);
 
-    ngpu_darray_reset(&s_priv->cmd_buffers);
+    npriv_darray_reset(&s_priv->cmd_buffers);
 
     gl->funcs.DeleteBuffers(1, &s_priv->buffer);
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }

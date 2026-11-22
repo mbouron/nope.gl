@@ -22,7 +22,7 @@
  */
 
 #include "vulkan/format_vk.h"
-#include "utils/utils.h"
+#include "libnopeutil/utils.h"
 
 VkFormat ngpu_format_ngl_to_vk(enum ngpu_format format)
 {
@@ -94,9 +94,9 @@ VkFormat ngpu_format_ngl_to_vk(enum ngpu_format format)
         [NGPU_FORMAT_S8_UINT]              = VK_FORMAT_S8_UINT,
     };
 
-    ngpu_assert(format >= 0 && format < NGPU_ARRAY_NB(format_map));
+    npriv_assert(format >= 0 && format < NPRIV_ARRAY_NB(format_map));
     const VkFormat ret = format_map[format];
-    ngpu_assert(format == NGPU_FORMAT_UNDEFINED || ret);
+    npriv_assert(format == NGPU_FORMAT_UNDEFINED || ret);
     return ret;
 }
 
@@ -163,7 +163,7 @@ enum ngpu_format ngpu_format_vk_to_ngl(VkFormat format)
     case VK_FORMAT_D24_UNORM_S8_UINT:   return NGPU_FORMAT_D24_UNORM_S8_UINT;
     case VK_FORMAT_D32_SFLOAT_S8_UINT:  return NGPU_FORMAT_D32_SFLOAT_S8_UINT;
     case VK_FORMAT_S8_UINT:             return NGPU_FORMAT_S8_UINT;
-    default:                            ngpu_assert(0);
+    default:                            npriv_assert(0);
     }
 }
 

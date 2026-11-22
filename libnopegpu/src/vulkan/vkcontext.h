@@ -27,8 +27,8 @@
 #include <vulkan/vulkan_android.h>
 
 #include "ctx.h"
+#include "libnopeutil/pthread_compat.h"
 #include "nopegpu/nopegpu.h"
-#include "utils/pthread_compat.h"
 #include "vulkan/vkfunctions.h"
 
 struct vkcontext {

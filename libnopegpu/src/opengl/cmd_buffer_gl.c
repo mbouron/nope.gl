@@ -34,19 +34,19 @@
 #include "opengl/rendertarget_gl.h"
 #include "opengl/texture_gl.h"
 
-#include "utils/darray.h"
-#include "utils/memory.h"
-#include "utils/refcount.h"
+#include "libnopeutil/darray.h"
+#include "libnopeutil/memory.h"
+#include "libnopeutil/refcount.h"
 
 struct ngpu_cmd_buffer_gl {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_fence *fence;
     bool submitted;
-    NGPU_DARRAY(struct ngpu_cmd_gl) cmds;
-    NGPU_DARRAY(struct ngpu_rc *) refs;
-    NGPU_DARRAY(struct ngpu_buffer *) buffer_refs;
-    NGPU_DARRAY(struct ngpu_texture *) texture_refs;
+    NPRIV_DARRAY(struct ngpu_cmd_gl) cmds;
+    NPRIV_DARRAY(struct npriv_rc *) refs;
+    NPRIV_DARRAY(struct ngpu_buffer *) buffer_refs;
+    NPRIV_DARRAY(struct ngpu_texture *) texture_refs;
 };
 
 static void cmd_buffer_gl_freep(void **sp)
@@ -57,30 +57,30 @@ static void cmd_buffer_gl_freep(void **sp)
 
     ngpu_cmd_buffer_gl_wait(s);
 
-    NGPU_RC_UNREFP(&s->fence);
+    NPRIV_RC_UNREFP(&s->fence);
 
-    ngpu_darray_reset(&s->refs);
-    ngpu_darray_reset(&s->buffer_refs);
-    ngpu_darray_reset(&s->texture_refs);
-    ngpu_darray_reset(&s->cmds);
+    npriv_darray_reset(&s->refs);
+    npriv_darray_reset(&s->buffer_refs);
+    npriv_darray_reset(&s->texture_refs);
+    npriv_darray_reset(&s->cmds);
 
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }
 
 struct ngpu_cmd_buffer_gl *ngpu_cmd_buffer_gl_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_cmd_buffer_gl *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_cmd_buffer_gl *s = npriv_try_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
-    s->rc = NGPU_RC_CREATE(cmd_buffer_gl_freep);
+    s->rc = NPRIV_RC_CREATE(cmd_buffer_gl_freep);
     s->gpu_ctx = gpu_ctx;
     return s;
 }
 
 static void unref_rc(void *user_arg, void *data)
 {
-    struct ngpu_rc **rcp = data;
-    NGPU_RC_UNREFP(rcp);
+    struct npriv_rc **rcp = data;
+    NPRIV_RC_UNREFP(rcp);
 }
 
 static void unref_buffer(void *user_arg, void *data)
@@ -109,7 +109,7 @@ static void unref_texture(void *user_arg, void *data)
 
 void ngpu_cmd_buffer_gl_freep(struct ngpu_cmd_buffer_gl **sp)
 {
-    NGPU_RC_UNREFP(sp);
+    NPRIV_RC_UNREFP(sp);
 }
 
 int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s)
@@ -118,33 +118,33 @@ int ngpu_cmd_buffer_gl_init(struct ngpu_cmd_buffer_gl *s)
     if (!s->fence)
         return NGPU_ERROR_MEMORY;
 
-    ngpu_darray_set_free_func(&s->refs, unref_rc, NULL);
-    ngpu_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
-    ngpu_darray_set_free_func(&s->texture_refs, unref_texture, s);
+    npriv_darray_set_free_func(&s->refs, unref_rc, NULL);
+    npriv_darray_set_free_func(&s->buffer_refs, unref_buffer, s);
+    npriv_darray_set_free_func(&s->texture_refs, unref_texture, s);
 
     return 0;
 }
 
-int ngpu_cmd_buffer_gl_ref(struct ngpu_cmd_buffer_gl *s, struct ngpu_rc *rc)
+int ngpu_cmd_buffer_gl_ref(struct ngpu_cmd_buffer_gl *s, struct npriv_rc *rc)
 {
-    if (ngpu_darray_try_push(&s->refs, rc) < 0)
+    if (npriv_darray_try_push(&s->refs, rc) < 0)
         return NGPU_ERROR_MEMORY;
 
-    NGPU_RC_REF(rc);
+    NPRIV_RC_REF(rc);
 
     return 0;
 }
 
 int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buffer *buffer)
 {
-    int ret = ngpu_cmd_buffer_gl_ref(s, (struct ngpu_rc *)buffer);
+    int ret = ngpu_cmd_buffer_gl_ref(s, (struct npriv_rc *)buffer);
     if (ret < 0)
         return ret;
 
-    if (ngpu_darray_try_push(&s->buffer_refs, buffer) < 0)
+    if (npriv_darray_try_push(&s->buffer_refs, buffer) < 0)
         return NGPU_ERROR_MEMORY;
 
-    NGPU_RC_REF(buffer);
+    NPRIV_RC_REF(buffer);
 
     ngpu_buffer_gl_ref_cmd_buffer(buffer, s);
 
@@ -153,14 +153,14 @@ int ngpu_cmd_buffer_gl_ref_buffer(struct ngpu_cmd_buffer_gl *s, struct ngpu_buff
 
 int ngpu_cmd_buffer_gl_ref_texture(struct ngpu_cmd_buffer_gl *s, struct ngpu_texture *texture)
 {
-    int ret = ngpu_cmd_buffer_gl_ref(s, (struct ngpu_rc *)texture);
+    int ret = ngpu_cmd_buffer_gl_ref(s, (struct npriv_rc *)texture);
     if (ret < 0)
         return ret;
 
-    if (ngpu_darray_try_push(&s->texture_refs, texture) < 0)
+    if (npriv_darray_try_push(&s->texture_refs, texture) < 0)
         return NGPU_ERROR_MEMORY;
 
-    NGPU_RC_REF(texture);
+    NPRIV_RC_REF(texture);
 
     ngpu_texture_gl_ref_cmd_buffer(texture, s);
 
@@ -169,15 +169,15 @@ int ngpu_cmd_buffer_gl_ref_texture(struct ngpu_cmd_buffer_gl *s, struct ngpu_tex
 
 int ngpu_cmd_buffer_gl_begin(struct ngpu_cmd_buffer_gl *s)
 {
-    ngpu_darray_clear(&s->refs);
-    ngpu_darray_clear(&s->cmds);
+    npriv_darray_clear(&s->refs);
+    npriv_darray_clear(&s->cmds);
 
     return 0;
 }
 
 int ngpu_cmd_buffer_gl_push(struct ngpu_cmd_buffer_gl *s, const struct ngpu_cmd_gl *cmd)
 {
-    if (ngpu_darray_try_push(&s->cmds, *cmd) < 0)
+    if (npriv_darray_try_push(&s->cmds, *cmd) < 0)
         return NGPU_ERROR_MEMORY;
 
     return 0;
@@ -230,7 +230,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
     bool bindgroup_dirty = true;
     bool bindgroup_has_egl_images = true;
 
-    ngpu_darray_foreach(cmd, &s->cmds) {
+    npriv_darray_foreach(cmd, &s->cmds) {
         switch (cmd->type) {
         case NGPU_CMD_TYPE_GL_SET_INDEX_BUFFER: {
             gpu_ctx->index_buffer = cmd->set_index_buffer.buffer;
@@ -258,7 +258,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
         }
         case NGPU_CMD_TYPE_GL_END_RENDER_PASS: {
             bindgroup_dirty = true;
-            ngpu_assert(cur_rendertarget != NULL);
+            npriv_assert(cur_rendertarget != NULL);
             ngpu_rendertarget_gl_end_pass(cur_rendertarget);
             cur_rendertarget = NULL;
             break;
@@ -288,7 +288,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
                 apply_bindgroup(bindgroup_cmd, &bindgroup_has_egl_images);
                 bindgroup_dirty = false;
             }
-            ngpu_assert(cur_pipeline != NULL);
+            npriv_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_draw(cur_pipeline,
                                   cmd->draw.nb_vertices,
                                   cmd->draw.nb_instances,
@@ -300,7 +300,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
                 apply_bindgroup(bindgroup_cmd, &bindgroup_has_egl_images);
                 bindgroup_dirty = false;
             }
-            ngpu_assert(cur_pipeline != NULL);
+            npriv_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_draw_indexed(cur_pipeline,
                                           cmd->draw_indexed.nb_indices,
                                           cmd->draw_indexed.nb_instances,
@@ -312,7 +312,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
                 apply_bindgroup(bindgroup_cmd, &bindgroup_has_egl_images);
                 bindgroup_dirty = false;
             }
-            ngpu_assert(cur_pipeline != NULL);
+            npriv_assert(cur_pipeline != NULL);
             ngpu_pipeline_gl_dispatch(cur_pipeline,
                                       cmd->dispatch.nb_group_x,
                                       cmd->dispatch.nb_group_y,
@@ -320,7 +320,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
             break;
         }
         default:
-            ngpu_assert(0);
+            npriv_assert(0);
         }
     }
 
@@ -336,7 +336,7 @@ int ngpu_cmd_buffer_gl_submit(struct ngpu_cmd_buffer_gl *s, struct ngpu_fence *w
             return ret;
     }
 
-    ngpu_darray_clear(&s->cmds);
+    npriv_darray_clear(&s->cmds);
 
     return ngpu_glcontext_check_gl_error(gl, __func__);
 }
@@ -351,9 +351,9 @@ int ngpu_cmd_buffer_gl_wait(struct ngpu_cmd_buffer_gl *s)
         return ret;
     s->submitted = false;
 
-    ngpu_darray_clear(&s->refs);
-    ngpu_darray_clear(&s->buffer_refs);
-    ngpu_darray_clear(&s->texture_refs);
+    npriv_darray_clear(&s->refs);
+    npriv_darray_clear(&s->buffer_refs);
+    npriv_darray_clear(&s->texture_refs);
 
     return ret;
 }

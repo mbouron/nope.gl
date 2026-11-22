@@ -31,9 +31,9 @@
 #include "renderdoc_app.h"
 
 #include "capture.h"
+#include "libnopeutil/memory.h"
 #include "nopegpu/nopegpu.h"
 #include "utils/log.h"
-#include "utils/memory.h"
 
 struct ngpu_capture_ctx {
     RENDERDOC_API_1_4_0 *rdoc_api;
@@ -46,7 +46,7 @@ struct ngpu_capture_ctx {
 
 struct ngpu_capture_ctx *ngpu_capture_ctx_create(struct ngpu_ctx *gpu_ctx)
 {
-    struct ngpu_capture_ctx *s = ngpu_try_calloc(1, sizeof(*s));
+    struct ngpu_capture_ctx *s = npriv_try_calloc(1, sizeof(*s));
     return s;
 }
 
@@ -106,5 +106,5 @@ void ngpu_capture_freep(struct ngpu_capture_ctx **sp)
 #else
         dlclose(s->mod);
 #endif
-    ngpu_freep(sp);
+    npriv_freep(sp);
 }

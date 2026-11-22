@@ -24,19 +24,19 @@
 
 #include "nopegpu/nopegpu.h"
 
-#include "utils/refcount.h"
+#include "libnopeutil/refcount.h"
 
 struct ngpu_ctx;
 
 struct ngpu_texture {
-    struct ngpu_rc rc;
+    struct npriv_rc rc;
     struct ngpu_ctx *gpu_ctx;
     struct ngpu_texture_params params;
     uint64_t memory_size;
     bool memory_size_accounted;
 };
 
-NGPU_RC_CHECK_STRUCT(ngpu_texture);
+NPRIV_RC_CHECK_STRUCT(ngpu_texture);
 
 uint32_t ngpu_texture_get_mipmap_levels(const struct ngpu_texture_params *params);
 
