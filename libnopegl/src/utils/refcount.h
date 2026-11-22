@@ -23,6 +23,7 @@
 #define REFCOUNT_H
 
 #include <assert.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -30,7 +31,7 @@
 typedef void (*ngli_freep_func)(void **sp);
 
 struct ngli_rc {
-    size_t count;
+    _Atomic(size_t) count;
     ngli_freep_func freep;
 };
 
