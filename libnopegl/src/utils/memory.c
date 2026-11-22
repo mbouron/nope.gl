@@ -41,12 +41,12 @@ void *ngli_try_calloc(size_t n, size_t size)
 
 void *ngli_try_malloc_aligned(size_t alignment, size_t size)
 {
+    ngli_assert(NGLI_IS_POW2(alignment));
+    ngli_assert(NGLI_IS_ALIGNED(size, alignment));
 #ifdef _WIN32
     return _aligned_malloc(size, alignment);
 #else
-    /* aligned_alloc() requires size to be a multiple of alignment */
-    size_t aligned_size = NGLI_ALIGN(size, alignment);
-    return aligned_alloc(alignment, aligned_size);
+    return aligned_alloc(alignment, size);
 #endif
 }
 
