@@ -56,7 +56,7 @@ static void *resource_create(size_t size, ngli_freep_func freep)
 
 static void *resource_ref(const void *s)
 {
-    return s ? NGLI_RC_REF(s) : NULL;
+    return s ? NGLI_RC_REF((void *)s) : NULL;
 }
 
 static void buffer_resource_freep(void **sp)

@@ -37,7 +37,7 @@ struct ngli_rc {
 
 #define NGLI_RC_CHECK_STRUCT(name) static_assert(offsetof(struct name, rc) == 0, #name "_rc")
 #define NGLI_RC_CREATE(fn) (struct ngli_rc) { .count=1, .freep=(ngli_freep_func)fn }
-#define NGLI_RC_REF(s) (void *)ngli_rc_ref((struct ngli_rc *)(s))
+#define NGLI_RC_REF(s) ((__typeof__(s))ngli_rc_ref((struct ngli_rc *)(s)))
 #define NGLI_RC_UNREFP(sp) ngli_rc_unrefp((struct ngli_rc **)(sp))
 
 struct ngli_rc *ngli_rc_ref(struct ngli_rc *s);

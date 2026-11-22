@@ -145,7 +145,7 @@ struct ngli_image *ngli_image_create(const struct ngli_image_params *params)
 
 struct ngli_image *ngli_image_ref(const struct ngli_image *s)
 {
-    return s ? NGLI_RC_REF(s) : NULL;
+    return s ? NGLI_RC_REF((struct ngli_image *)s) : NULL;
 }
 
 void ngli_image_unrefp(struct ngli_image **sp)
