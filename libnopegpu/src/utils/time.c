@@ -20,6 +20,8 @@
  * under the License.
  */
 
+#define _POSIX_C_SOURCE 200809L  /* clock_gettime() */
+
 #include <stdint.h>
 
 #ifdef _WIN32
