@@ -22,7 +22,7 @@ Some simple checks to greatly improve the basic functionality of your
 submission:
 
 - Make sure the build and **tests pass for every commits**: `git rebase main
-  --exec "make clean && make test"`
+  --exec "make clean && make tests"`
 - Can the same changes be **applied elsewhere** in the codebase?
 - Avoid at all cost **glob-like code** such as `import *` or `*.ext` file
   references: this kind of code leads to dangling references because they break
