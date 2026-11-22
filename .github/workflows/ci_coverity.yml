@@ -54,8 +54,12 @@ jobs:
         . venv/bin/activate
         make nopegl-setup
         ninja -C builddir/libnopemedia -t clean
+        ninja -C builddir/libnopegpu -t clean
         cov-build --dir cov-int ninja -C builddir/libnopemedia
+        cov-build --dir cov-int ninja -C builddir/libnopegpu
         cov-build --dir cov-int ninja -C builddir/libnopegl
+        make nopeaudio-setup
+        cov-build --dir cov-int ninja -C builddir/libnopeaudio
         make ngl-tools-setup
         cov-build --dir cov-int ninja -C builddir/ngl-tools
 
