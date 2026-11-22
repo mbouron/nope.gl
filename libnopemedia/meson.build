@@ -94,6 +94,7 @@ endif
 inc_dir = include_directories(
   'src',
   'src/include',
+  '../libnopeutil/src',
 )
 
 lib_src = files(
@@ -109,6 +110,9 @@ lib_src = files(
   'src/msg.c',
   'src/utils.c',
 )
+
+libnopeutil_src = files('../libnopeutil/src/libnopeutil/thread.c')
+lib_src += libnopeutil_src
 
 if host_system == 'android'
   lib_src += files(

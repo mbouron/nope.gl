@@ -18,11 +18,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#define _GNU_SOURCE // pthread_setname_np on Linux
-
 #include "nopemedia/nopemedia.h"
 #include "internal.h"
-#include "pthread_compat.h"
 
 static const struct {
     enum AVPixelFormat ff;
@@ -77,14 +74,6 @@ enum nmd_pixel_format nmdi_smp_fmts_ff2nmd(enum AVSampleFormat smp_fmt)
     return -1;
 }
 
-void nmdi_set_thread_name(const char *name)
-{
-#if defined(__APPLE__)
-    pthread_setname_np(name);
-#elif (defined(__linux__) && defined(__GLIBC__)) || defined(__ANDROID__)
-    pthread_setname_np(pthread_self(), name);
-#endif
-}
 
 void nmdi_update_dimensions(int *width, int *height, int max_pixels)
 {

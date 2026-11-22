@@ -24,8 +24,8 @@
 #include <libavutil/mem.h>
 #include <libavutil/time.h>
 
+#include "libnopeutil/pthread_compat.h"
 #include "log.h"
-#include "pthread_compat.h"
 
 struct log_ctx {
     int64_t last_time;

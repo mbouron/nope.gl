@@ -52,7 +52,6 @@ struct media_info {
 enum AVPixelFormat nmdi_pix_fmts_nmd2ff(enum nmd_pixel_format pix_fmt);
 enum nmd_pixel_format nmdi_pix_fmts_ff2nmd(enum AVPixelFormat pix_fmt);
 enum nmd_pixel_format nmdi_smp_fmts_ff2nmd(enum AVSampleFormat smp_fmt);
-void nmdi_set_thread_name(const char *name);
 void nmdi_update_dimensions(int *width, int *height, int max_pixels);
 
 #define TIME2INT64(d) llrint((d) * av_q2d(av_inv_q(AV_TIME_BASE_Q)))

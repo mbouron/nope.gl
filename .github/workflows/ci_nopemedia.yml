@@ -7,10 +7,12 @@ on:
       - 'staging'
     paths:
       - 'libnopemedia/**'
+      - 'libnopeutil/**'
       - '.github/workflows/ci_nopemedia.yml'
   pull_request:
     paths:
       - 'libnopemedia/**'
+      - 'libnopeutil/**'
       - '.github/workflows/ci_nopemedia.yml'
 
 jobs:

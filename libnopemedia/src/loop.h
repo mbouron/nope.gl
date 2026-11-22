@@ -15,7 +15,7 @@
 
 #include <libavformat/avformat.h>
 
-#include "pthread_compat.h"
+#include "libnopeutil/pthread_compat.h"
 
 /*
  * A pass is one traversal of the media up to the loop end. Pass 0 starts at

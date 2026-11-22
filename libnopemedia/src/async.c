@@ -31,7 +31,8 @@
 #include "async.h"
 #include "log.h"
 #include "loop.h"
-#include "pthread_compat.h"
+#include "libnopeutil/pthread_compat.h"
+#include "libnopeutil/thread.h"
 
 #include "mod_demuxing.h"
 #include "mod_decoding.h"
@@ -383,7 +384,7 @@ static int alloc_msg_queue(AVThreadMessageQueue **q, int n)
 static void *name##_thread(void *arg)                                           \
 {                                                                               \
     struct async_context *actx = arg;                                           \
-    nmdi_set_thread_name("nmd/" AV_STRINGIFY(name));                            \
+    npriv_thread_set_name("nmd/" AV_STRINGIFY(name));                           \
     TRACE(actx, "[>] " AV_STRINGIFY(action) " thread starting");                \
     nmdi_##action##_run(actx->name);                                            \
     TRACE(actx, "[<] " AV_STRINGIFY(action) " thread ending");                  \
@@ -669,7 +670,7 @@ static void *control_thread(void *arg)
 
     LOG(actx, INFO, "starting");
 
-    nmdi_set_thread_name("nmd/control");
+    npriv_thread_set_name("nmd/control");
 
     for (;;) {
         struct message msg;
