@@ -26,6 +26,12 @@
 #include "nopegl/nopegl.h"
 #include "utils/bstr.h"
 
+#ifndef INCLUDE_DOCSTRINGS
+#define NGLI_DOCSTRING(s) (NULL)
+#else
+#define NGLI_DOCSTRING(s) (s)
+#endif
+
 enum param_type {
     NGLI_PARAM_TYPE_I32      = NGL_PARAM_TYPE_I32,
     NGLI_PARAM_TYPE_IVEC2    = NGL_PARAM_TYPE_IVEC2,

@@ -100,12 +100,6 @@
 #define NGLI_ALIGNED_VEC(vname) float NGLI_ATTR_ALIGNED vname[4]
 #define NGLI_ALIGNED_MAT(mname) float NGLI_ATTR_ALIGNED mname[4*4]
 
-#ifndef INCLUDE_DOCSTRINGS
-#define NGLI_DOCSTRING(s) (NULL)
-#else
-#define NGLI_DOCSTRING(s) (s)
-#endif
-
 /* Format printf helpers */
 #define NGLI_FMT_F    "%12g"
 #define NGLI_FMT_VEC2 NGLI_FMT_F " " NGLI_FMT_F
