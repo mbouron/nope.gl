@@ -628,6 +628,7 @@ static void init_multi_list(struct ngl_node *node, struct multi_list_opts *opts)
     *node = (struct ngl_node){
         .cls = &multi_list_class,
         .opts = opts,
+        .priv_data = opts + 1, /* empty, right after the options as in node_create() */
         .label = "multi-list",
         .refcount = 1,
         .visit_time = -1.,
