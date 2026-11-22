@@ -44,11 +44,12 @@ int main(void)
 
 #define X "x\n"
 #define S "foo\nbar\nhello\nworld\nbla\nxxx\nyyy\n"
-    test_numbered_line(0x2d7f40af, S S S S S S S S);
-    test_numbered_line(0xbcea3585, "\n");
-    test_numbered_line(0xc58462d3, "foo\nbar");
+    test_numbered_line(0xbf0d2015, S S S S S S S S);
+    test_numbered_line(0x05a06081, "\n");
+    test_numbered_line(0xd5331289, "foo\nbar");
     test_numbered_line(0x00000000, "");
-    test_numbered_line(0x25b15360, X X X X X X X X X);
-    test_numbered_line(0x759455a5, X X X X X X X X X X);
+    test_numbered_line(0x50d91f83, X X X X X X X X X);
+    test_numbered_line(0x0eadb173, X X X X X X X X X X);
+    test_numbered_line(0xd5af067e, "#version 450\n#line 1 2\nfoo\nbar\n#line 10\nbaz\n");
     return 0;
 }
