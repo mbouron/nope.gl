@@ -30,12 +30,10 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "config.h"
-
 #include "nopegl/nopegl.h"
 
 #if defined(__GNUC__) || defined(__clang__)
-# ifdef TARGET_MINGW_W64
+# ifdef __MINGW32__
 #  define ngli_printf_format(fmtpos, attrpos) __attribute__((__format__(__MINGW_PRINTF_FORMAT, fmtpos, attrpos)))
 # else
 #  define ngli_printf_format(fmtpos, attrpos) __attribute__((__format__(__printf__, fmtpos, attrpos)))

@@ -20,8 +20,6 @@
  * under the License.
  */
 
-#include "config.h"
-
 #include <stdckdint.h>
 #include <stdlib.h>
 #include <string.h>
