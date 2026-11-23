@@ -55,8 +55,7 @@ private fun SyncFence.extractFenceFd(): Int {
         writeToParcel(parcel, 0)
         parcel.setDataPosition(0)
         if (parcel.readInt() == 0) return -1
-        val pfd = parcel.readFileDescriptor() ?: return -1
-        return pfd.detachFd()
+        return checkNotNull(parcel.readFileDescriptor()).detachFd()
     } finally {
         parcel.recycle()
     }
