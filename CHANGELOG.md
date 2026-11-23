@@ -18,6 +18,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 - Crash affecting `OffscreenCanvas2D`, `RenderToTexture` and `Texture2D` when
   rendering to a resizable texture with a viewport less than one pixel wide or
   high
+- OpenGL ES context creation failing on the Android emulator
 
 ## [2026.8 / libnopegl 0.19.1 / libnopemedia 15.0.0 / libnopegpu 0.1.1 / libnopeaudio 0.1.0][2026.8] - 2026-11-20
 

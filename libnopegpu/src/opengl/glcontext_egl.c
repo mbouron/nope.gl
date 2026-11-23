@@ -499,13 +499,18 @@ try_again:;
 
     if (egl->has_create_context_ext) {
         const EGLint context_flags = ctx->debug ? EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR : 0;
+        /*
+         * Work around an Android emulator issue where eglCreateContext() fails
+         * with EGL_BAD_ATTRIBUTE when EGL_CONTEXT_FLAGS_KHR is set to 0.
+         */
+        const EGLint context_flags_attrib = context_flags ? EGL_CONTEXT_FLAGS_KHR : EGL_NONE;
 
         if (ctx->backend == NGPU_BACKEND_OPENGL) {
             const EGLint ctx_attribs[] = {
                 EGL_CONTEXT_MAJOR_VERSION_KHR, 4,
                 EGL_CONTEXT_MINOR_VERSION_KHR, 5,
                 EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR,
-                EGL_CONTEXT_FLAGS_KHR, context_flags,
+                context_flags_attrib, context_flags,
                 EGL_NONE
             };
 
@@ -516,7 +521,7 @@ try_again:;
             const EGLint ctx_attribs[] = {
                 EGL_CONTEXT_MAJOR_VERSION_KHR, 2,
                 EGL_CONTEXT_MINOR_VERSION_KHR, 0,
-                EGL_CONTEXT_FLAGS_KHR, context_flags,
+                context_flags_attrib, context_flags,
                 EGL_NONE,
             };
 
