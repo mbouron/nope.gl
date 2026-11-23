@@ -604,8 +604,8 @@ static int rtt_resize(struct ngl_node *node)
     struct texture_priv *s = node->priv_data;
     struct texture_info *i = node->priv_data;
 
-    const uint32_t width = (uint32_t)ctx->viewport.width;
-    const uint32_t height = (uint32_t)ctx->viewport.height;
+    const uint32_t width = NGLI_MAX((uint32_t)ctx->viewport.width, 1);
+    const uint32_t height = NGLI_MAX((uint32_t)ctx->viewport.height, 1);
     if (s->rtt_ctx) {
         uint32_t current_width, current_height;
         ngli_rtt_get_dimensions(s->rtt_ctx, &current_width, &current_height);
