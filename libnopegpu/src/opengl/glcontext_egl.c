@@ -228,6 +228,10 @@ static int egl_probe_extensions(struct glcontext *ctx)
             LOG(ERROR, "could not retrieve egl{Create,Destroy,Wait}SyncKHR()");
             return NGPU_ERROR_EXTERNAL;
         }
+#if defined(TARGET_ANDROID)
+        if (egl->DupNativeFenceFDANDROID)
+            ctx->features |= NGPU_FEATURE_GL_EGL_ANDROID_NATIVE_FENCE_SYNC;
+#endif
     }
 
     if (ngpu_glcontext_check_extension("EGL_EXT_image_dma_buf_import", egl->extensions)) {

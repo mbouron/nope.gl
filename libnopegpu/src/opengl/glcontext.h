@@ -62,6 +62,7 @@
 #define NGPU_FEATURE_GL_TEXTURE_SRGB_R8                            (1ULL << 47)
 #define NGPU_FEATURE_GL_TEXTURE_SRGB_RG8                           (1ULL << 48)
 #define NGPU_FEATURE_GL_TEXTURE_STENCIL8                           (1ULL << 49)
+#define NGPU_FEATURE_GL_EGL_ANDROID_NATIVE_FENCE_SYNC              (1ULL << 50)
 
 #define NGPU_FEATURE_GL_COMPUTE_SHADER_ALL (NGPU_FEATURE_GL_COMPUTE_SHADER | \
                                             NGPU_FEATURE_GL_PROGRAM_INTERFACE_QUERY | \

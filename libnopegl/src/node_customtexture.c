@@ -30,6 +30,8 @@
 #include "params.h"
 
 #if defined(TARGET_ANDROID)
+#include <unistd.h>
+
 #include "jni_utils.h"
 #include "nopegl/nopegl_android.h"
 #endif
@@ -397,7 +399,7 @@ static int import_texture_ahb(struct ngl_node *node, const struct ngl_custom_tex
     return 0;
 }
 
-int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct ngl_custom_texture_info_ahb *info)
+static int custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct ngl_custom_texture_info_ahb *info)
 {
     if (!node)
         return NGL_ERROR_INVALID_ARG;
@@ -425,6 +427,14 @@ int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct 
 
     ngli_node_invalidate_branch(node);
     return 0;
+}
+
+int ngl_custom_texture_set_texture_info_ahb(struct ngl_node *node, const struct ngl_custom_texture_info_ahb *info)
+{
+    int ret = custom_texture_set_texture_info_ahb(node, info);
+    if (info && info->acquire_fence_fd >= 0)
+        close(info->acquire_fence_fd);
+    return ret;
 }
 #endif
 

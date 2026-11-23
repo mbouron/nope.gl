@@ -479,18 +479,30 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
         gl->funcs.EGLImageTargetTexture2DOES(s_priv->target, s_priv->egl_image);
 
     if (ahb_params->acquire_fence_fd >= 0) {
+        if (!NGPU_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_EGL_ANDROID_NATIVE_FENCE_SYNC)) {
+            LOG(ERROR, "fence import is not supported");
+            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+        }
+
+        const int fd = dup(ahb_params->acquire_fence_fd);
+        if (fd == -1) {
+            LOG(ERROR, "could not dup file descriptor (fd=%d)", ahb_params->acquire_fence_fd);
+            return NGPU_ERROR_EXTERNAL;
+        }
+
         const EGLint sync_attrs[] = {
-            EGL_SYNC_NATIVE_FENCE_FD_ANDROID, ahb_params->acquire_fence_fd,
+            EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fd,
             EGL_NONE,
         };
         EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, sync_attrs);
         if (sync == EGL_NO_SYNC_KHR) {
             LOG(ERROR, "could not create native fence EGLSync from acquire fd");
-            close(ahb_params->acquire_fence_fd);
             return NGPU_ERROR_EXTERNAL;
         }
-        ngpu_eglWaitSyncKHR(gl, sync, 0);
+        EGLint ret = ngpu_eglWaitSyncKHR(gl, sync, 0);
         ngpu_eglDestroySyncKHR(gl, sync);
+        if (ret != EGL_TRUE)
+            return NGPU_ERROR_EXTERNAL;
     }
 
     return 0;
