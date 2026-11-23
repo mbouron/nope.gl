@@ -10,6 +10,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 
 ## [Unreleased]
 
+### Changed
+- If no size is requested, the Vulkan swapchain now uses the surface size when
+  available
+
 ## [2026.8 / libnopegl 0.19.1 / libnopemedia 15.0.0 / libnopegpu 0.1.1 / libnopeaudio 0.1.0][2026.8] - 2026-11-20
 
 ### Fixed

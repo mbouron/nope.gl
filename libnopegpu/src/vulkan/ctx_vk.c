@@ -632,6 +632,20 @@ static VkResult create_swapchain(struct ngpu_ctx *s)
 
     const VkSurfaceCapabilitiesKHR caps = s_priv->surface_caps;
     s_priv->present_mode = select_swapchain_present_mode(s_priv->present_modes, s_priv->nb_present_modes, ctx_params->swap_interval);
+
+    /*
+     * If no size is requested, use the surface size when possible, as the
+     * OpenGL backend does. The Vulkan specification reserves a current extent
+     * of 0xFFFFFFFF for surfaces whose size is determined by the extent of the
+     * swapchain (e.g. Wayland): in this case, the surface size is unknown and
+     * a size must be requested.
+     * See: https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html
+     */
+    if (!ctx_params->width && !ctx_params->height && caps.currentExtent.width != UINT32_MAX) {
+        ctx_params->width  = caps.currentExtent.width;
+        ctx_params->height = caps.currentExtent.height;
+    }
+
     ctx_params->width  = NGPU_CLAMP(ctx_params->width,  caps.minImageExtent.width,  caps.maxImageExtent.width);
     ctx_params->height = NGPU_CLAMP(ctx_params->height, caps.minImageExtent.height, caps.maxImageExtent.height);
     LOG(DEBUG, "current extent: %ux%u", ctx_params->width, ctx_params->height);
