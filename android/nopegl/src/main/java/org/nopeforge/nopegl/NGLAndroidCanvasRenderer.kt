@@ -271,9 +271,7 @@ internal constructor(
             latch.countDown()
         }
         latch.await()
-        val fence = fenceReference.get()
-        val fenceFd = fence?.extractFenceFd() ?: -1
-        fence?.close()
+        val fenceFd = fenceReference.get()?.use { it.extractFenceFd() } ?: -1
         return NGLAndroidCanvasBuffer(hardwareBuffer, fenceFd)
     }
 
