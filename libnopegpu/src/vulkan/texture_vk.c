@@ -799,7 +799,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
 
     if (ahb_params->acquire_fence_fd >= 0) {
         if (!vk->funcs.ImportSemaphoreFdKHR) {
-            LOG(ERROR, "VK_KHR_external_semaphore_fd is required to import a fence");
+            LOG(ERROR, "fence import is not supported");
             return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
         }
 
@@ -812,16 +812,25 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
             return NGPU_ERROR_GRAPHICS_GENERIC;
         }
 
+        const int fd = dup(ahb_params->acquire_fence_fd);
+        if (fd == -1) {
+            LOG(ERROR, "could not dup file descriptor (fd=%d)", ahb_params->acquire_fence_fd);
+            vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
+            s_priv->acquire_sem = VK_NULL_HANDLE;
+            return NGPU_ERROR_EXTERNAL;
+        }
+
         const VkImportSemaphoreFdInfoKHR import_info = {
             .sType      = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
             .semaphore  = s_priv->acquire_sem,
             .flags      = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
             .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
-            .fd         = ahb_params->acquire_fence_fd,
+            .fd         = fd,
         };
         res = vk->funcs.ImportSemaphoreFdKHR(vk->device, &import_info);
         if (res != VK_SUCCESS) {
             LOG(ERROR, "could not import semaphore fd: %s", ngpu_vk_res2str(res));
+            close(fd);
             vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
             s_priv->acquire_sem = VK_NULL_HANDLE;
             return NGPU_ERROR_GRAPHICS_GENERIC;
