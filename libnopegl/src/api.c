@@ -449,15 +449,25 @@ static int wait_sync_file(int fd)
     return 0;
 }
 
+static void wait_gpu_fence_or_idle(struct ngl_ctx *s, struct ngpu_fence *fence)
+{
+    int ret = ngpu_fence_wait(fence);
+    if (ret < 0)
+        ngpu_ctx_wait_idle(s->gpu_ctx);
+}
+
 static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
 {
     if (ngli_darray_is_empty(&s->mc_frames))
         return;
 
     int fence_fd = -1;
-    if (!fence || ngpu_fence_export_sync_file(fence, &fence_fd) < 0) {
+    if (fence) {
+        int ret = ngpu_fence_export_sync_file(fence, &fence_fd);
+        if (ret < 0)
+            wait_gpu_fence_or_idle(s, fence);
+    } else {
         ngpu_ctx_wait_idle(s->gpu_ctx);
-        fence_fd = -1;
     }
 
     /*
