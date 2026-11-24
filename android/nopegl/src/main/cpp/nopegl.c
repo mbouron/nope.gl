@@ -1562,10 +1562,28 @@ Java_org_nopeforge_nopegl_NGLCustomTexture_00024Callback_nativeSetTextureInfo(
     }
 }
 
+static void release_hardware_buffer(void *arg, int fence_fd)
+{
+    JNIEnv *env = ngl_jni_get_env();
+    jobject listener = arg;
+    jclass cls = (*env)->GetObjectClass(env, listener);
+    jmethodID accept = cls ? (*env)->GetMethodID(env, cls, "accept", "(I)V") : NULL;
+    if (accept)
+        (*env)->CallVoidMethod(env, listener, accept, fence_fd);
+    else if (fence_fd >= 0)
+        close(fence_fd);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionDescribe(env);
+        (*env)->ExceptionClear(env);
+    }
+    (*env)->DeleteLocalRef(env, cls);
+    (*env)->DeleteGlobalRef(env, listener);
+}
+
 JNIEXPORT jint JNICALL
 Java_org_nopeforge_nopegl_NGLCustomTexture_00024Callback_nativeSetHardwareBufferInfo(
     JNIEnv *env, jobject object, jlong native_context_ptr,
-    jobject hardware_buffer, jint width, jint height, jint fence_fd)
+    jobject hardware_buffer, jint width, jint height, jint fence_fd, jobject on_release)
 {
     struct custom_texture_ctx *ctx =
         (struct custom_texture_ctx *)(uintptr_t)native_context_ptr;
@@ -1584,13 +1602,26 @@ Java_org_nopeforge_nopegl_NGLCustomTexture_00024Callback_nativeSetHardwareBuffer
         return NGL_ERROR_EXTERNAL;
     }
 
-    const struct ngl_custom_texture_info_ahb info = {
+    struct ngl_custom_texture_info_ahb info = {
         .hardware_buffer  = buffer,
         .width            = (uint32_t)width,
         .height           = (uint32_t)height,
         .acquire_fence_fd = fence_fd,
     };
-    return ngl_custom_texture_set_texture_info_ahb(ctx->node, &info);
+    if (on_release) {
+        info.release_user_data = (*env)->NewGlobalRef(env, on_release);
+        if (!info.release_user_data) {
+            if (fence_fd >= 0)
+                close(fence_fd);
+            return NGL_ERROR_MEMORY;
+        }
+        info.release = release_hardware_buffer;
+    }
+
+    int ret = ngl_custom_texture_set_texture_info_ahb(ctx->node, &info);
+    if (ret < 0 && info.release_user_data)
+        (*env)->DeleteGlobalRef(env, info.release_user_data);
+    return ret;
 }
 
 struct logger_ctx {

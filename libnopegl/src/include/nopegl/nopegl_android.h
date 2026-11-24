@@ -78,12 +78,26 @@ struct ngl_custom_texture_info_ahb {
     uint32_t width;
     uint32_t height;
     /*
-     * sync_file fd signalling completion of the producer's GPU writes. The
-     * backend takes ownership: the fd is imported into a VkSemaphore (Vulkan)
-     * or an EGLSync (OpenGL/OpenGLES) and consumed in the process. Set to -1
-     * if no fence is available.
+     * sync_file fd that signals when the buffer producer's GPU writes are
+     * complete. The backend takes ownership of the fd and consumes it on
+     * import into a VkSemaphore (Vulkan) or an EGLSync (OpenGL/OpenGLES).
+     * Set to -1 if no fence is available.
      */
     int acquire_fence_fd;
+    /*
+     * If set, release() is called when the node replaces or releases the
+     * buffer. The callback is registered only if the import succeeds.
+     *
+     * If fence_fd >= 0, the callback takes ownership of the sync_file fd
+     * and the buffer producer may reuse the buffer once the fence signals.
+     * If fence_fd == -1, the producer may reuse the buffer immediately.
+     * If fence_fd < -1, the producer must discard the buffer.
+     *
+     * It is not allowed to call the `ngl_ctx` API or to modify the graph
+     * associated with the context from these callbacks.
+     */
+    void (*release)(void *user_data, int fence_fd);
+    void *release_user_data;
 };
 
 /**

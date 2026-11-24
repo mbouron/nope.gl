@@ -51,6 +51,10 @@
 #include <unistd.h>
 
 #include <nopemedia/nopemedia.h>
+
+#if defined(BACKEND_VK)
+#include <nopegpu/nopegpu_vulkan.h>
+#endif
 #endif
 
 #if defined(BACKEND_GL) || defined(BACKEND_GLES)
@@ -414,23 +418,52 @@ static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene
 }
 
 #if defined(TARGET_ANDROID)
-static void release_ahardware_buffer(struct ngli_ahardware_buffer *buffer, int fence_fd)
+static void release_ahardware_buffer(struct ngl_ctx *s, struct ngli_ahardware_buffer *buffer, int fence_fd)
 {
     switch (buffer->type) {
     case NGLI_AHARDWARE_BUFFER_TYPE_MEDIACODEC_FRAME:
-        nmd_mc_frame_releasep(&buffer->mediacodec_frame, fence_fd);
+        nmd_mc_frame_releasep(&buffer->mediacodec_frame, fence_fd >= 0 ? fence_fd : -1);
         break;
+    case NGLI_AHARDWARE_BUFFER_TYPE_CUSTOM_TEXTURE: {
+        const bool previous = ctx_enter(s);
+        buffer->custom_texture.release(buffer->custom_texture.arg, fence_fd);
+        ctx_leave(s, previous);
+        break;
+    }
     }
 }
 
 void ngli_ctx_release_ahardware_buffer(struct ngl_ctx *s, struct ngli_ahardware_buffer buffer)
 {
+    struct ngpu_texture *texture = NULL;
+    if (buffer.type == NGLI_AHARDWARE_BUFFER_TYPE_CUSTOM_TEXTURE)
+        texture = buffer.custom_texture.texture;
+
     if (!s->in_frame) {
+        int fd = -1;
+#if defined(BACKEND_VK)
+        if (texture && ngpu_texture_vk_release_external(texture) < 0)
+            fd = NGL_ERROR_EXTERNAL;
+#endif
         ngpu_ctx_wait_idle(s->gpu_ctx);
-        release_ahardware_buffer(&buffer, -1);
+        release_ahardware_buffer(s, &buffer, fd);
         return;
     }
+    if (texture)
+        buffer.custom_texture.texture = ngpu_texture_ref(texture);
     ngli_darray_push(&s->ahardware_buffers, buffer);
+}
+
+static void release_ahardware_buffers_ownership(struct ngl_ctx *s)
+{
+#if defined(BACKEND_VK)
+    ngli_darray_foreach(buffer, &s->ahardware_buffers) {
+        if (buffer->type == NGLI_AHARDWARE_BUFFER_TYPE_CUSTOM_TEXTURE && buffer->custom_texture.texture) {
+            ngpu_texture_vk_release_external(buffer->custom_texture.texture);
+            ngpu_texture_freep(&buffer->custom_texture.texture);
+        }
+    }
+#endif
 }
 
 static void wait_gpu_fence_or_idle(struct ngl_ctx *s, struct ngpu_fence *fence)
@@ -473,16 +506,18 @@ static void release_ahardware_buffers(struct ngl_ctx *s, struct ngpu_fence *fenc
                 fence_fd = -1;
             }
         }
-        release_ahardware_buffer(buffer, fd);
+        if (buffer->type == NGLI_AHARDWARE_BUFFER_TYPE_CUSTOM_TEXTURE)
+            ngpu_texture_freep(&buffer->custom_texture.texture);
+        release_ahardware_buffer(s, buffer, fence ? fd : NGL_ERROR_EXTERNAL);
     }
     ngli_darray_clear(&s->ahardware_buffers);
 }
 #endif
 
-/* Use the update fence to return the images when no draw follows. */
 static int end_update(struct ngl_ctx *s, bool return_images)
 {
 #if defined(TARGET_ANDROID)
+    release_ahardware_buffers_ownership(s);
     if (return_images && !ngli_darray_is_empty(&s->ahardware_buffers)) {
         struct ngpu_fence *fence = NULL;
         int ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, &fence);
@@ -514,23 +549,25 @@ int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
 
     s->default_rendertarget_layout = *ngpu_ctx_get_default_rendertarget_layout(s->gpu_ctx);
 
+    int end_ret;
     int ret = ngpu_ctx_begin_update(s->gpu_ctx);
     if (ret < 0) {
         ctx_leave(s, previous);
         return ret;
     }
 
+    s->in_frame = true;
     if (scene) {
         if (!scene->params.root) {
             LOG(ERROR, "specified scene doesn't contain a graph");
             ret = NGL_ERROR_INVALID_ARG;
-            goto fail;
+            goto end;
         }
 
         if (scene->ctx || scene->params.root->ctx) {
             LOG(ERROR, "the specified scene is already associated with a rendering context");
             ret = NGL_ERROR_INVALID_USAGE;
-            goto fail;
+            goto end;
         }
 
         s->scene = ngl_scene_ref(scene);
@@ -539,7 +576,7 @@ int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
         ret = ngli_node_attach_ctx(scene->params.root, s);
         if (ret < 0) {
             LOG(ERROR, "failed to attach scene");
-            goto fail;
+            goto end;
         }
     }
 
@@ -554,21 +591,21 @@ int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
         s->hud = ngli_hud_create(s);
         if (!s->hud) {
             ret = NGL_ERROR_MEMORY;
-            goto fail;
+            goto end;
         }
 
         ret = ngli_hud_init(s->hud);
         if (ret < 0)
-            goto fail;
+            goto end;
     }
 
-    ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
-    ctx_leave(s, previous);
-    return 0;
-
-fail:
-    ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
-    reset_scene(s, NGLI_ACTION_UNREF_SCENE);
+end:
+    end_ret = end_update(s, true);
+    end_frame(s);
+    if (ret >= 0)
+        ret = end_ret;
+    if (ret < 0)
+        reset_scene(s, NGLI_ACTION_UNREF_SCENE);
     ctx_leave(s, previous);
     return ret;
 }
@@ -889,6 +926,7 @@ static int draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, stru
 
 #if defined(TARGET_ANDROID)
     if (!ngli_darray_is_empty(&s->ahardware_buffers)) {
+        release_ahardware_buffers_ownership(s);
         struct ngpu_fence *fence = NULL;
         struct ngpu_fence **fencep = signal_fence ? signal_fence : &fence;
         ret = ngpu_ctx_end_draw(s->gpu_ctx, t, wait_fence, fencep);
