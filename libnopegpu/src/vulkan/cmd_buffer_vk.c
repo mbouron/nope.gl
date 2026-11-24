@@ -40,6 +40,12 @@ static void cmd_buffer_vk_freep(void **sp)
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
+    /*
+     * A transient command buffer can still be in flight when its last
+     * reference is dropped.
+     */
+    ngpu_cmd_buffer_vk_wait(s);
+
     ngpu_darray_reset(&s->refs);
     ngpu_darray_reset(&s->buffer_refs);
     ngpu_darray_reset(&s->texture_refs);
