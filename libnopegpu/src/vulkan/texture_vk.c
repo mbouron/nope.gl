@@ -932,13 +932,12 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
 #endif
 }
 
-static int transfer_external_ownership(struct ngpu_texture *s, bool acquire)
+static int transfer_external_ownership(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer_vk, bool acquire)
 {
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
 
-    struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
 
     /* The layout is kept, the foreign producer does not use it */
@@ -968,13 +967,28 @@ static int transfer_external_ownership(struct ngpu_texture *s, bool acquire)
 int ngpu_texture_vk_release_external(struct ngpu_texture *s)
 {
     ngpu_assert(s->params.import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER);
-    return transfer_external_ownership(s, false);
+    struct ngpu_ctx_vk *ctx = NGPU_PRIV_VK(s->gpu_ctx);
+    if (ctx->cur_cmd_buffer) {
+        ngpu_assert(!ngpu_ctx_is_render_pass_active(s->gpu_ctx));
+        return transfer_external_ownership(s, ctx->cur_cmd_buffer, false);
+    }
+
+    struct ngpu_cmd_buffer_vk *cmd = NULL;
+    VkResult res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &cmd);
+    if (res != VK_SUCCESS)
+        return ngpu_vk_res2ret(res);
+
+    transfer_external_ownership(s, cmd, false);
+
+    res = ngpu_cmd_buffer_vk_execute_transient(&cmd);
+    return ngpu_vk_res2ret(res);
 }
 
 int ngpu_texture_vk_acquire_external(struct ngpu_texture *s)
 {
     ngpu_assert(s->params.import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER);
-    return transfer_external_ownership(s, true);
+    struct ngpu_ctx_vk *ctx = NGPU_PRIV_VK(s->gpu_ctx);
+    return transfer_external_ownership(s, ctx->cur_cmd_buffer, true);
 }
 
 static int import_metal_texture(struct ngpu_texture *s)

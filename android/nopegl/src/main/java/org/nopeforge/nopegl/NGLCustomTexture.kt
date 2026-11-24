@@ -22,6 +22,7 @@
 package org.nopeforge.nopegl
 
 import android.hardware.HardwareBuffer
+import java.util.function.IntConsumer
 
 class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) {
 
@@ -78,8 +79,12 @@ class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) 
         }
 
         protected fun setHardwareBufferInfo(info: HardwareBufferInfo?) {
+            updateHardwareBufferInfo(info)
+        }
+
+        internal fun updateHardwareBufferInfo(info: HardwareBufferInfo?, onRelease: IntConsumer? = null): Int =
             if (info == null) {
-                nativeSetHardwareBufferInfo(nativePtr, null, 0, 0, -1)
+                nativeSetHardwareBufferInfo(nativePtr)
             } else {
                 nativeSetHardwareBufferInfo(
                     nativePtr,
@@ -87,9 +92,9 @@ class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) 
                     info.width,
                     info.height,
                     info.acquireFenceFd,
+                    onRelease,
                 )
             }
-        }
 
         private external fun nativeSetTextureInfo(
             nativeContextPtr: Long,
@@ -101,10 +106,11 @@ class NGLCustomTexture(callback: Callback) : NGLNode(NGLNodeType.CUSTOMTEXTURE) 
 
         private external fun nativeSetHardwareBufferInfo(
             nativeContextPtr: Long,
-            hardwareBuffer: HardwareBuffer?,
-            width: Int,
-            height: Int,
-            acquireFenceFd: Int,
+            hardwareBuffer: HardwareBuffer? = null,
+            width: Int = 0,
+            height: Int = 0,
+            acquireFenceFd: Int = -1,
+            onRelease: IntConsumer? = null,
         ): Int
 
     }

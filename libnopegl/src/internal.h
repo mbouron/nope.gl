@@ -39,12 +39,18 @@ struct nmd_frame;
 
 enum ngli_ahardware_buffer_type {
     NGLI_AHARDWARE_BUFFER_TYPE_MEDIACODEC_FRAME,
+    NGLI_AHARDWARE_BUFFER_TYPE_CUSTOM_TEXTURE,
 };
 
 struct ngli_ahardware_buffer {
     enum ngli_ahardware_buffer_type type;
     union {
         struct nmd_frame *mediacodec_frame;
+        struct {
+            struct ngpu_texture *texture;
+            void (*release)(void *arg, int fence_fd);
+            void *arg;
+        } custom_texture;
     };
 };
 #endif

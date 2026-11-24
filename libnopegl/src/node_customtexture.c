@@ -47,6 +47,9 @@ struct customtexture_opts {
 
 struct customtexture_priv {
     struct texture_info texture_info;
+#if defined(TARGET_ANDROID)
+    struct ngli_ahardware_buffer ahardware_buffer;
+#endif
 };
 
 #define OFFSET(x) offsetof(struct customtexture_opts, x)
@@ -146,12 +149,33 @@ static void customtexture_draw(struct ngl_node *node)
     funcs->draw(NULL, o->user_data);
 }
 
+#if defined(TARGET_ANDROID)
+static void release_ahardware_buffer(struct ngl_node *node)
+{
+    struct customtexture_priv *s = node->priv_data;
+    if (s->ahardware_buffer.custom_texture.release) {
+        struct ngli_ahardware_buffer buffer = s->ahardware_buffer;
+        s->ahardware_buffer = (struct ngli_ahardware_buffer){0};
+        if (node->ctx->config.backend == NGL_BACKEND_VULKAN)
+            buffer.custom_texture.texture = s->texture_info.texture;
+        ngli_ctx_release_ahardware_buffer(node->ctx, buffer);
+    }
+}
+#endif
+
 static void customtexture_release(struct ngl_node *node)
 {
     struct customtexture_priv *s = node->priv_data;
     const struct customtexture_opts *o = node->opts;
     const struct ngl_node_funcs *funcs = &o->funcs;
 
+#if defined(TARGET_ANDROID)
+    if (s->ahardware_buffer.custom_texture.release) {
+        release_ahardware_buffer(node);
+        ngli_image_unrefp(&s->texture_info.image);
+        ngpu_texture_freep(&s->texture_info.texture);
+    }
+#endif
     if (funcs->release)
         funcs->release(NULL, o->user_data);
     ngli_image_resource_set(s->texture_info.resource, NULL);
@@ -174,6 +198,9 @@ static void customtexture_uninit(struct ngl_node *node)
     const struct customtexture_opts *o = node->opts;
     const struct ngl_node_funcs *funcs = &o->funcs;
 
+#if defined(TARGET_ANDROID)
+    release_ahardware_buffer(node);
+#endif
     ngli_image_unrefp(&s->texture_info.image);
     ngpu_texture_freep(&s->texture_info.texture);
 
@@ -312,6 +339,9 @@ int ngl_custom_texture_set_texture_info_gl(struct ngl_node *node, const struct n
 
     struct customtexture_priv *s = node->priv_data;
 
+#if defined(TARGET_ANDROID)
+    release_ahardware_buffer(node);
+#endif
     /* Cleanup previous texture/image */
     ngli_image_resource_set(s->texture_info.resource, NULL);
     ngli_image_unrefp(&s->texture_info.image);
@@ -412,6 +442,7 @@ static int custom_texture_set_texture_info_ahb(struct ngl_node *node, const stru
 
     struct customtexture_priv *s = node->priv_data;
 
+    release_ahardware_buffer(node);
     /* Cleanup previous texture/image */
     ngli_image_resource_set(s->texture_info.resource, NULL);
     ngli_image_unrefp(&s->texture_info.image);
@@ -425,6 +456,10 @@ static int custom_texture_set_texture_info_ahb(struct ngl_node *node, const stru
     if (ret < 0)
         return ret;
 
+    s->ahardware_buffer = (struct ngli_ahardware_buffer){
+        .type           = NGLI_AHARDWARE_BUFFER_TYPE_CUSTOM_TEXTURE,
+        .custom_texture = {.release = info->release, .arg = info->release_user_data},
+    };
     ngli_node_invalidate_branch(node);
     return 0;
 }
