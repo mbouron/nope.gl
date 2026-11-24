@@ -1080,13 +1080,13 @@ void ngpu_texture_vk_transition_to_default_layout(struct ngpu_texture *s)
     ngpu_texture_vk_transition_layout(s, s_priv->default_image_layout);
 }
 
-void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *buffer)
+static void texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer_vk, struct ngpu_buffer *buffer)
 {
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     struct ngpu_buffer_vk *buffer_vk = NGPU_PRIV_VK(buffer);
 
-    ngpu_texture_vk_transition_layout(s, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    texture_vk_transition_layout(s, cmd_buffer_vk, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
     const VkBufferImageCopy region = {
         .bufferOffset      = 0,
@@ -1103,17 +1103,22 @@ void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *
     };
 
     struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    VkCommandBuffer cmd_buf = gpu_ctx_vk->cur_cmd_buffer->cmd_buf;
+    VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
     vk->funcs.CmdCopyImageToBuffer(cmd_buf, s_priv->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                            buffer_vk->buffer, 1, &region);
 
-    ngpu_texture_vk_transition_to_default_layout(s);
+    texture_vk_transition_layout(s, cmd_buffer_vk, s_priv->default_image_layout);
+}
+
+void ngpu_texture_vk_copy_to_buffer(struct ngpu_texture *s, struct ngpu_buffer *buffer)
+{
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    texture_vk_copy_to_buffer(s, gpu_ctx_vk->cur_cmd_buffer, buffer);
 }
 
 int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data)
 {
     struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
-    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
 
     const struct ngpu_texture_params *params = &s->params;
     ngpu_assert(params->samples == 0);
@@ -1142,10 +1147,7 @@ int ngpu_texture_vk_read_pixels(struct ngpu_texture *s, uint8_t *data)
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
-    struct ngpu_cmd_buffer_vk *saved_cmd = gpu_ctx_vk->cur_cmd_buffer;
-    gpu_ctx_vk->cur_cmd_buffer = transient;
-    ngpu_texture_vk_copy_to_buffer(s, s_priv->readback_buffer);
-    gpu_ctx_vk->cur_cmd_buffer = saved_cmd;
+    texture_vk_copy_to_buffer(s, transient, s_priv->readback_buffer);
 
     res = ngpu_cmd_buffer_vk_execute_transient(&transient);
     if (res != VK_SUCCESS)
