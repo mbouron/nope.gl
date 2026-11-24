@@ -797,9 +797,6 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
-    /* Keep the texture alive until the command buffer completes */
-    NGPU_CMD_BUFFER_VK_REF(gpu_ctx_vk->cur_cmd_buffer, s);
-
     if (ahb_params->acquire_fence_fd >= 0) {
         if (!vk->funcs.ImportSemaphoreFdKHR) {
             LOG(ERROR, "VK_KHR_external_semaphore_fd is required to import a fence");
@@ -829,10 +826,6 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
             s_priv->acquire_sem = VK_NULL_HANDLE;
             return NGPU_ERROR_GRAPHICS_GENERIC;
         }
-
-        ngpu_cmd_buffer_vk_add_wait_sem(gpu_ctx_vk->cur_cmd_buffer, s_priv->acquire_sem,
-                                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     }
 
     const VkImageSubresourceRange subres_range = {
@@ -871,6 +864,21 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         s_priv->format = ahb_format_props.format;
     }
 
+    struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
+    const bool cmd_is_transient = !cmd_buffer_vk || ngpu_ctx_is_render_pass_active(s->gpu_ctx);
+    if (cmd_is_transient) {
+        res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &cmd_buffer_vk);
+        if (res != VK_SUCCESS)
+            return ngpu_vk_res2ret(res);
+    }
+
+    /* Keep the texture alive until the command buffer completes */
+    NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
+
+    if (s_priv->acquire_sem != VK_NULL_HANDLE)
+        ngpu_cmd_buffer_vk_add_wait_sem(cmd_buffer_vk, s_priv->acquire_sem,
+                                        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
     const VkImageMemoryBarrier barrier = {
         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .srcAccessMask       = 0,
@@ -883,7 +891,7 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         .subresourceRange    = subres_range,
     };
 
-    VkCommandBuffer cmd_buf = gpu_ctx_vk->cur_cmd_buffer->cmd_buf;
+    VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
     vk->funcs.CmdPipelineBarrier(cmd_buf,
                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -893,7 +901,21 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
                          1, &barrier);
     s_priv->image_layout = barrier.newLayout;
 
-    ngpu_texture_vk_transition_to_default_layout(s);
+    texture_vk_transition_layout(s, cmd_buffer_vk, s_priv->default_image_layout);
+
+    if (cmd_is_transient) {
+        /*
+         * Keep the transient command buffer alive until the current command
+         * buffer completes.
+         */
+        res = ngpu_cmd_buffer_vk_submit(cmd_buffer_vk, NULL, NULL);
+        if (res == VK_SUCCESS && gpu_ctx_vk->cur_cmd_buffer)
+            NGPU_CMD_BUFFER_VK_REF(gpu_ctx_vk->cur_cmd_buffer, cmd_buffer_vk);
+
+        ngpu_cmd_buffer_vk_freep(&cmd_buffer_vk);
+        if (res != VK_SUCCESS)
+            return ngpu_vk_res2ret(res);
+    }
 
     return 0;
 #else
