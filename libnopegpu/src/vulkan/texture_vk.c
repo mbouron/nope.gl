@@ -216,6 +216,30 @@ static void transition_image_layout(const struct vk_functions *funcs,
     funcs->CmdPipelineBarrier(cmd_buf, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &barrier);
 }
 
+static void texture_vk_transition_layout(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer_vk, VkImageLayout layout)
+{
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+
+    if (s_priv->image_layout == layout)
+        return;
+
+    NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
+
+    VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
+    const VkImageSubresourceRange subres_range = {
+        .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
+        .baseMipLevel   = 0,
+        .levelCount     = VK_REMAINING_MIP_LEVELS,
+        .baseArrayLayer = 0,
+        .layerCount     = VK_REMAINING_ARRAY_LAYERS,
+    };
+    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
+    transition_image_layout(&vk->funcs, cmd_buf, s_priv->image, s_priv->image_layout, layout, &subres_range);
+
+    s_priv->image_layout = layout;
+}
+
 VkImageUsageFlags ngpu_vk_get_image_usage_flags(uint32_t usage)
 {
     return (usage & NGPU_TEXTURE_USAGE_TRANSFER_SRC_BIT             ? VK_IMAGE_USAGE_TRANSFER_SRC_BIT             : 0)
@@ -1047,26 +1071,7 @@ VkResult ngpu_texture_vk_wrap(struct ngpu_texture *s, const struct ngpu_texture_
 void ngpu_texture_vk_transition_layout(struct ngpu_texture *s, VkImageLayout layout)
 {
     struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
-    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
-
-    if (s_priv->image_layout == layout)
-        return;
-
-    struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
-    NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
-
-    VkCommandBuffer cmd_buf = cmd_buffer_vk->cmd_buf;
-    const VkImageSubresourceRange subres_range = {
-        .aspectMask     = ngpu_vk_get_image_aspect_flags(s_priv->format),
-        .baseMipLevel   = 0,
-        .levelCount     = VK_REMAINING_MIP_LEVELS,
-        .baseArrayLayer = 0,
-        .layerCount     = VK_REMAINING_ARRAY_LAYERS,
-    };
-    struct vkcontext *vk = gpu_ctx_vk->vkcontext;
-    transition_image_layout(&vk->funcs, cmd_buf, s_priv->image, s_priv->image_layout, layout, &subres_range);
-
-    s_priv->image_layout = layout;
+    texture_vk_transition_layout(s, gpu_ctx_vk->cur_cmd_buffer, layout);
 }
 
 void ngpu_texture_vk_transition_to_default_layout(struct ngpu_texture *s)
