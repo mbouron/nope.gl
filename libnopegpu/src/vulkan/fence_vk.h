@@ -27,6 +27,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include "config.h"
 #include "fence.h"
 
 struct ngpu_ctx;
@@ -38,6 +39,9 @@ struct ngpu_fence_vk {
     uint64_t value;
     VkSemaphore export_sem;
     bool exported;
+#if defined(TARGET_ANDROID)
+    int sync_fd;
+#endif
 };
 
 struct ngpu_fence *ngpu_fence_vk_create(struct ngpu_ctx *ctx);

@@ -47,8 +47,8 @@
  * before submission, whether or not the user eventually exports it.
  *
  * Exporting consumes the binary semaphore's signal, leaving it unsignaled. The
- * returned fd keeps that signal independently. A fence can only be exported
- * once per signal; waiting on the fence still uses the timeline semaphore.
+ * fence keeps the exported fd and duplicates it for each consumer. Waiting
+ * on the fence still uses the timeline semaphore.
  *
  * The context keeps these binary semaphores in a pool. When a semaphore is
  * associated with a fence, `in_use` is set and `value` records the
