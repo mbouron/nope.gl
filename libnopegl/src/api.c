@@ -48,6 +48,7 @@
 
 #if defined(TARGET_ANDROID)
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
 
@@ -470,7 +471,7 @@ static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
             fd = fence_fd;
             fence_fd = -1;
         } else if (fence_fd >= 0) {
-            fd = dup(fence_fd);
+            fd = fcntl(fence_fd, F_DUPFD_CLOEXEC, 0);
             if (fd < 0) {
                 LOG(ERROR, "could not duplicate the release fence");
                 if (wait_sync_file(fence_fd) < 0)
