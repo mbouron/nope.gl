@@ -32,6 +32,11 @@
 #include "utils/memory.h"
 #include "utils/refcount.h"
 
+#if defined(TARGET_ANDROID)
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 static void release_export_sem(struct ngpu_fence *s)
 {
     struct ngpu_fence_vk *s_priv = NGPU_PRIV_VK(s);
@@ -40,6 +45,11 @@ static void release_export_sem(struct ngpu_fence *s)
     ngpu_ctx_vk_release_export_sem(s->gpu_ctx, s_priv->export_sem, s_priv->exported);
     s_priv->export_sem = VK_NULL_HANDLE;
     s_priv->exported = false;
+#if defined(TARGET_ANDROID)
+    if (s_priv->sync_fd >= 0)
+        close(s_priv->sync_fd);
+    s_priv->sync_fd = -1;
+#endif
 }
 
 static void fence_vk_release(void **sp)
@@ -60,6 +70,9 @@ struct ngpu_fence *ngpu_fence_vk_create(struct ngpu_ctx *ctx)
 
     s->parent.rc = NGPU_RC_CREATE(fence_vk_release);
     s->parent.gpu_ctx = ctx;
+#if defined(TARGET_ANDROID)
+    s->sync_fd = -1;
+#endif
 
     return (struct ngpu_fence *)s;
 }
@@ -126,22 +139,37 @@ int ngpu_fence_vk_export_sync_file(struct ngpu_fence *s, int *fdp)
 
     if (!vk->funcs.GetSemaphoreFdKHR)
         return NGPU_ERROR_UNSUPPORTED;
-    if (s_priv->export_sem == VK_NULL_HANDLE || s_priv->exported)
+    if (s_priv->export_sem == VK_NULL_HANDLE)
         return NGPU_ERROR_INVALID_USAGE;
 
-    const VkSemaphoreGetFdInfoKHR fd_info = {
-        .sType      = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
-        .semaphore  = s_priv->export_sem,
-        .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
-    };
-    VkResult res = vk->funcs.GetSemaphoreFdKHR(vk->device, &fd_info, fdp);
-    if (res != VK_SUCCESS) {
-        LOG(ERROR, "could not export the fence: %s", ngpu_vk_res2str(res));
-        return ngpu_vk_res2ret(res);
+    int ret = 0;
+    pthread_mutex_lock(&ctx_vk->export_sems_lock);
+    if (!s_priv->exported) {
+        const VkSemaphoreGetFdInfoKHR fd_info = {
+            .sType      = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
+            .semaphore  = s_priv->export_sem,
+            .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+        };
+        int fd;
+        VkResult res = vk->funcs.GetSemaphoreFdKHR(vk->device, &fd_info, &fd);
+        if (res != VK_SUCCESS) {
+            LOG(ERROR, "could not export the fence: %s", ngpu_vk_res2str(res));
+            ret = ngpu_vk_res2ret(res);
+            goto end;
+        }
+        s_priv->sync_fd = fd;
+        s_priv->exported = true;
     }
-    s_priv->exported = true;
 
-    return 0;
+    /* Vulkan can return -1 if the fence is already signaled */
+    if (s_priv->sync_fd >= 0) {
+        *fdp = fcntl(s_priv->sync_fd, F_DUPFD_CLOEXEC, 0);
+        if (*fdp < 0)
+            ret = NGPU_ERROR_EXTERNAL;
+    }
+end:
+    pthread_mutex_unlock(&ctx_vk->export_sems_lock);
+    return ret;
 #else
     return NGPU_ERROR_UNSUPPORTED;
 #endif
