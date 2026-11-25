@@ -47,9 +47,7 @@
 #include "utils/utils.h"
 
 #if defined(TARGET_ANDROID)
-#include <errno.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <unistd.h>
 
 #include <nopemedia/nopemedia.h>
@@ -431,24 +429,6 @@ void ngli_ctx_release_mc_frame(struct ngl_ctx *s, struct nmd_frame **framep)
     *framep = NULL;
 }
 
-static int wait_sync_file(int fd)
-{
-    struct pollfd pfd = {.fd = fd, .events = POLLIN};
-    int ret;
-    do {
-        ret = poll(&pfd, 1, -1);
-    } while (ret < 0 && errno == EINTR);
-    if (ret < 0) {
-        LOG(ERROR, "could not wait for the release fence: %s", strerror(errno));
-        return NGL_ERROR_EXTERNAL;
-    }
-    if (!(pfd.revents & POLLIN) || (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))) {
-        LOG(ERROR, "unexpected release fence events: %#x", pfd.revents);
-        return NGL_ERROR_EXTERNAL;
-    }
-    return 0;
-}
-
 static void wait_gpu_fence_or_idle(struct ngl_ctx *s, struct ngpu_fence *fence)
 {
     int ret = ngpu_fence_wait(fence);
@@ -484,8 +464,7 @@ static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
             fd = fcntl(fence_fd, F_DUPFD_CLOEXEC, 0);
             if (fd < 0) {
                 LOG(ERROR, "could not duplicate the release fence");
-                if (wait_sync_file(fence_fd) < 0)
-                    ngpu_ctx_wait_idle(s->gpu_ctx);
+                wait_gpu_fence_or_idle(s, fence);
                 close(fence_fd);
                 fence_fd = -1;
             }
