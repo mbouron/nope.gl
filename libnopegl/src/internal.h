@@ -36,6 +36,17 @@
 #include "android_ctx.h"
 
 struct nmd_frame;
+
+enum ngli_ahardware_buffer_type {
+    NGLI_AHARDWARE_BUFFER_TYPE_MEDIACODEC_FRAME,
+};
+
+struct ngli_ahardware_buffer {
+    enum ngli_ahardware_buffer_type type;
+    union {
+        struct nmd_frame *mediacodec_frame;
+    };
+};
 #endif
 
 #include <nopegpu/nopegpu.h>
@@ -154,7 +165,7 @@ struct ngl_ctx {
 #endif
 #if defined(TARGET_ANDROID)
     struct android_ctx android_ctx;
-    NGLI_DARRAY(struct nmd_frame *) mc_frames;
+    NGLI_DARRAY(struct ngli_ahardware_buffer) ahardware_buffers;
 #endif
     struct hud *hud;
     struct ngli_frame_stats frame_stats;
@@ -204,12 +215,13 @@ int ngli_ctx_draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, st
 void ngli_ctx_reset(struct ngl_ctx *s, int action);
 #if defined(TARGET_ANDROID)
 /*
- * Prevent the decoder from reusing a frame while the GPU is reading it.
- * During an update or draw, queue the frame until submission and release it
- * with a fence. Otherwise wait for GPU idle. Takes ownership of *framep and
- * sets it to NULL.
+ * Prevent the buffer producer (decoder, HWUI, ...) from reusing a buffer while
+ * the GPU is reading it. During an update or draw, queue the buffer until
+ * submission and release it with a fence. Otherwise wait for GPU idle.
+ *
+ * Takes ownership of the buffer.
  */
-void ngli_ctx_release_mc_frame(struct ngl_ctx *s, struct nmd_frame **framep);
+void ngli_ctx_release_ahardware_buffer(struct ngl_ctx *s, struct ngli_ahardware_buffer buffer);
 #endif
 
 int ngli_ctx_dispatch(struct ngl_ctx *s, int (*fn)(struct ngl_ctx *, void *), void *arg);

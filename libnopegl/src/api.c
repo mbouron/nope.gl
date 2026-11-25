@@ -414,19 +414,23 @@ static struct ngpu_viewport compute_scene_viewport(const struct ngl_scene *scene
 }
 
 #if defined(TARGET_ANDROID)
-void ngli_ctx_release_mc_frame(struct ngl_ctx *s, struct nmd_frame **framep)
+static void release_ahardware_buffer(struct ngli_ahardware_buffer *buffer, int fence_fd)
 {
-    if (!*framep)
-        return;
+    switch (buffer->type) {
+    case NGLI_AHARDWARE_BUFFER_TYPE_MEDIACODEC_FRAME:
+        nmd_mc_frame_releasep(&buffer->mediacodec_frame, fence_fd);
+        break;
+    }
+}
 
+void ngli_ctx_release_ahardware_buffer(struct ngl_ctx *s, struct ngli_ahardware_buffer buffer)
+{
     if (!s->in_frame) {
         ngpu_ctx_wait_idle(s->gpu_ctx);
-        nmd_mc_frame_releasep(framep, -1);
+        release_ahardware_buffer(&buffer, -1);
         return;
     }
-
-    ngli_darray_push(&s->mc_frames, *framep);
-    *framep = NULL;
+    ngli_darray_push(&s->ahardware_buffers, buffer);
 }
 
 static void wait_gpu_fence_or_idle(struct ngl_ctx *s, struct ngpu_fence *fence)
@@ -436,9 +440,9 @@ static void wait_gpu_fence_or_idle(struct ngl_ctx *s, struct ngpu_fence *fence)
         ngpu_ctx_wait_idle(s->gpu_ctx);
 }
 
-static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
+static void release_ahardware_buffers(struct ngl_ctx *s, struct ngpu_fence *fence)
 {
-    if (ngli_darray_is_empty(&s->mc_frames))
+    if (ngli_darray_is_empty(&s->ahardware_buffers))
         return;
 
     int fence_fd = -1;
@@ -451,13 +455,13 @@ static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
     }
 
     /*
-     * Frame release takes ownership of the fence fd and closes it when done.
-     * Duplicate the fd for each frame except the last, which uses the original.
+     * Buffer release takes ownership of the fence fd and closes it when done.
+     * Duplicate the fd for each buffer except the last, which uses the original.
      */
-    for (size_t i = 0; i < s->mc_frames.count; i++) {
-        struct nmd_frame *frame = s->mc_frames.data[i];
+    for (size_t i = 0; i < s->ahardware_buffers.count; i++) {
+        struct ngli_ahardware_buffer *buffer = &s->ahardware_buffers.data[i];
         int fd = -1;
-        if (fence_fd >= 0 && i == s->mc_frames.count - 1) {
+        if (fence_fd >= 0 && i == s->ahardware_buffers.count - 1) {
             fd = fence_fd;
             fence_fd = -1;
         } else if (fence_fd >= 0) {
@@ -469,9 +473,9 @@ static void release_mc_frames(struct ngl_ctx *s, struct ngpu_fence *fence)
                 fence_fd = -1;
             }
         }
-        nmd_mc_frame_releasep(&frame, fd);
+        release_ahardware_buffer(buffer, fd);
     }
-    ngli_darray_clear(&s->mc_frames);
+    ngli_darray_clear(&s->ahardware_buffers);
 }
 #endif
 
@@ -577,8 +581,8 @@ void ngli_ctx_reset(struct ngl_ctx *s, int action)
     ngli_vaapi_ctx_reset(&s->vaapi_ctx);
 #endif
 #if defined(TARGET_ANDROID)
-    release_mc_frames(s, NULL);
-    ngli_darray_reset(&s->mc_frames);
+    release_ahardware_buffers(s, NULL);
+    ngli_darray_reset(&s->ahardware_buffers);
     ngli_android_ctx_reset(&s->android_ctx);
 #endif
     if (s->gpu_ctx) {
@@ -747,11 +751,11 @@ int ngli_ctx_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
 static int end_update(struct ngl_ctx *s, bool return_images)
 {
 #if defined(TARGET_ANDROID)
-    if (return_images && !ngli_darray_is_empty(&s->mc_frames)) {
+    if (return_images && !ngli_darray_is_empty(&s->ahardware_buffers)) {
         struct ngpu_fence *fence = NULL;
         int ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, &fence);
         if (ret >= 0)
-            release_mc_frames(s, fence);
+            release_ahardware_buffers(s, fence);
         ngpu_fence_freep(&fence);
         return ret;
     }
@@ -814,7 +818,7 @@ static void end_frame(struct ngl_ctx *s)
     s->in_frame = false;
 #if defined(TARGET_ANDROID)
     /* Release the frames left by a failed frame. */
-    release_mc_frames(s, NULL);
+    release_ahardware_buffers(s, NULL);
 #endif
 }
 
@@ -884,12 +888,12 @@ static int draw(struct ngl_ctx *s, double t, struct ngpu_fence *wait_fence, stru
         return ret;
 
 #if defined(TARGET_ANDROID)
-    if (!ngli_darray_is_empty(&s->mc_frames)) {
+    if (!ngli_darray_is_empty(&s->ahardware_buffers)) {
         struct ngpu_fence *fence = NULL;
         struct ngpu_fence **fencep = signal_fence ? signal_fence : &fence;
         ret = ngpu_ctx_end_draw(s->gpu_ctx, t, wait_fence, fencep);
         if (ret >= 0)
-            release_mc_frames(s, *fencep);
+            release_ahardware_buffers(s, *fencep);
         ngpu_fence_freep(&fence);
         return ret;
     }

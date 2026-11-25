@@ -63,6 +63,17 @@ struct hwmap_mc {
     uint64_t map_index;
 };
 
+static void release_frame(struct ngl_ctx *ctx, struct nmd_frame **framep)
+{
+    if (!*framep)
+        return;
+    ngli_ctx_release_ahardware_buffer(ctx, (struct ngli_ahardware_buffer){
+        .type             = NGLI_AHARDWARE_BUFFER_TYPE_MEDIACODEC_FRAME,
+        .mediacodec_frame = *framep,
+    });
+    *framep = NULL;
+}
+
 static bool support_direct_rendering(struct hwmap *hwmap)
 {
     const struct hwmap_params *params = &hwmap->params;
@@ -219,7 +230,7 @@ static int release_image(struct hwmap *hwmap)
         ret = ngpu_texture_vk_release_external(mc->texture);
         mc->texture = NULL;
     }
-    ngli_ctx_release_mc_frame(hwmap->ctx, &mc->frame);
+    release_frame(hwmap->ctx, &mc->frame);
     return ret;
 }
 
@@ -289,7 +300,7 @@ static void mc_uninit(struct hwmap *hwmap)
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
 
     ngli_darray_reset(&mc->textures);
-    ngli_ctx_release_mc_frame(hwmap->ctx, &mc->frame);
+    release_frame(hwmap->ctx, &mc->frame);
     ngpu_ycbcr_sampler_vk_unrefp(&mc->ycbcr_sampler);
 }
 

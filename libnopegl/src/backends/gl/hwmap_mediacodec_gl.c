@@ -60,6 +60,17 @@ struct hwmap_mc {
     uint64_t map_index;
 };
 
+static void release_frame(struct ngl_ctx *ctx, struct nmd_frame **framep)
+{
+    if (!*framep)
+        return;
+    ngli_ctx_release_ahardware_buffer(ctx, (struct ngli_ahardware_buffer){
+        .type             = NGLI_AHARDWARE_BUFFER_TYPE_MEDIACODEC_FRAME,
+        .mediacodec_frame = *framep,
+    });
+    *framep = NULL;
+}
+
 static bool support_direct_rendering(struct hwmap *hwmap)
 {
     const struct hwmap_params *params = &hwmap->params;
@@ -181,7 +192,7 @@ static int mc_map_frame(struct hwmap *hwmap, struct nmd_frame *frame, struct ngl
     const struct color_info color_info = ngli_color_info_from_nmd_frame(frame);
     const AImage *image = (const AImage *)frame->datap[0];
 
-    ngli_ctx_release_mc_frame(ctx, &mc->frame);
+    release_frame(ctx, &mc->frame);
     mc->frame = frame;
 
     AHardwareBuffer *hardware_buffer = NULL;
@@ -230,7 +241,7 @@ static void mc_uninit(struct hwmap *hwmap)
     struct hwmap_mc *mc = hwmap->hwmap_priv_data;
 
     ngli_darray_reset(&mc->textures);
-    ngli_ctx_release_mc_frame(hwmap->ctx, &mc->frame);
+    release_frame(hwmap->ctx, &mc->frame);
 }
 
 const struct hwmap_class ngli_hwmap_mc_gl_class = {
