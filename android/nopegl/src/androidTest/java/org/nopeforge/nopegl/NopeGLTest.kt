@@ -23,7 +23,7 @@ package org.nopeforge.nopegl
 
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.RenderNode
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
@@ -804,7 +804,7 @@ class NopeGLTest {
         canvasWith2DNodes(NGLConfig.BACKEND_VULKAN)
     }
 
-    private fun sharedCanvas(backend: Int) {
+    private fun sharedCanvas(backend: Int, rasterizer: NGLAndroidCanvas.Rasterizer) {
         NGLContext.init(InstrumentationRegistry.getInstrumentation().targetContext)
         val colors = listOf(Color.RED, Color.GREEN, Color.BLUE, Color.WHITE)
         val rgba = listOf(0xff0000ffu, 0x00ff00ffu, 0x0000ffffu, 0xffffffffu)
@@ -813,9 +813,10 @@ class NopeGLTest {
         val canvas = NGLAndroidCanvas(64, 64, object : NGLAndroidCanvas.Callback {
             override fun onPreDraw() = changed
             override fun onDraw(canvas: Canvas) {
+                assertEquals(rasterizer == NGLAndroidCanvas.Rasterizer.Hardware, canvas.isHardwareAccelerated)
                 canvas.drawColor(colors[draws++ % colors.size])
             }
-        })
+        }, rasterizer = rasterizer)
         val root = NGLCanvas2D(width = 256, height = 256, children = colors.indices.map { i ->
             NGLDrawRect2D(
                 rect = NGLVec4(i * 64f, 0f, 64f, 256f),
@@ -846,22 +847,35 @@ class NopeGLTest {
         }
     }
 
+    @SdkSuppress(minSdkVersion = 34)
     @Test
-    fun sharedHardwareCanvasGL() = sharedCanvas(NGLConfig.BACKEND_OPENGLES)
+    fun sharedSoftwareCanvasGL() = sharedCanvas(NGLConfig.BACKEND_OPENGLES, NGLAndroidCanvas.Rasterizer.Software)
+
+    @SdkSuppress(minSdkVersion = 34)
+    @Test
+    fun sharedSoftwareCanvasVK() = sharedCanvas(NGLConfig.BACKEND_VULKAN, NGLAndroidCanvas.Rasterizer.Software)
 
     @Test
-    fun sharedHardwareCanvasVK() = sharedCanvas(NGLConfig.BACKEND_VULKAN)
+    fun sharedHardwareCanvasGL() = sharedCanvas(NGLConfig.BACKEND_OPENGLES, NGLAndroidCanvas.Rasterizer.Hardware)
+
+    @Test
+    fun sharedHardwareCanvasVK() = sharedCanvas(NGLConfig.BACKEND_VULKAN, NGLAndroidCanvas.Rasterizer.Hardware)
 
     @SdkSuppress(minSdkVersion = 31)
     @Test
     fun canvasBufferReuse() {
-        val renderer = NGLAndroidCanvasRenderer.Builder(16, 16).setMaxBuffers(3).build()
-        val node = RenderNode(null).apply { setPosition(0, 0, 16, 16) }
-        renderer.setContentRoot(node)
+        canvasBufferReuse(software = false)
+        if (Build.VERSION.SDK_INT >= 34)
+            canvasBufferReuse(software = true)
+    }
+
+    private fun canvasBufferReuse(software: Boolean) {
+        val builder = NGLAndroidCanvasRenderer.Builder(16, 16).setMaxBuffers(3)
+        if (Build.VERSION.SDK_INT >= 34)
+            builder.setSoftware(software)
+        val renderer = builder.build()
         fun draw(): NGLAndroidCanvasBuffer {
-            node.beginRecording().drawColor(Color.RED)
-            node.endRecording()
-            val frame = checkNotNull(renderer.draw())
+            val frame = checkNotNull(renderer.draw { it.drawColor(Color.RED) })
             if (frame.acquireFenceFd >= 0)
                 ParcelFileDescriptor.adoptFd(frame.acquireFenceFd).close()
             return frame
@@ -878,7 +892,7 @@ class NopeGLTest {
             val discarded = draw()
             renderer.releaseBuffer(discarded.hardwareBuffer, -2)
             assertTrue(renderer.broken)
-            assertNull(renderer.draw())
+            assertNull(renderer.draw { it.drawColor(Color.RED) })
         } finally {
             renderer.close()
         }

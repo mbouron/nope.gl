@@ -22,11 +22,12 @@
 package org.nopeforge.nopegl
 
 import android.graphics.Canvas
-import android.graphics.RenderNode
 import android.hardware.HardwareBuffer
 import android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
 import android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 
 class NGLAndroidCanvas(
     width: Int,
@@ -35,7 +36,28 @@ class NGLAndroidCanvas(
     private val tag: String? = null,
     minFilter: NGLFilter = NGLFilter.Linear,
     magFilter: NGLFilter = NGLFilter.Linear,
+    private val rasterizer: Rasterizer = Rasterizer.Hardware,
 ) {
+
+    constructor(
+        width: Int,
+        height: Int,
+        callback: Callback,
+        tag: String? = null,
+        minFilter: NGLFilter = NGLFilter.Linear,
+        magFilter: NGLFilter = NGLFilter.Linear,
+    ) : this(width, height, callback, tag, minFilter, magFilter, Rasterizer.Hardware)
+
+    enum class Rasterizer {
+        Hardware,
+        @RequiresApi(34) Software,
+    }
+
+    init {
+        require(Build.VERSION.SDK_INT >= 34 || rasterizer == Rasterizer.Hardware) {
+            "The software canvas requires Android 14 or later"
+        }
+    }
 
     @Volatile
     private var pendingWidth: Int = width.coerceAtLeast(1)
@@ -57,7 +79,6 @@ class NGLAndroidCanvas(
 
     private val customTextureCallback: NGLCustomTexture.Callback = object : NGLCustomTexture.Callback() {
         private var renderer: NGLAndroidCanvasRenderer? = null
-        private var renderNode: RenderNode? = null
         private var hasImage = false
         private var currentWidth = 0
         private var currentHeight = 0
@@ -68,19 +89,16 @@ class NGLAndroidCanvas(
             if (renderer?.broken == false && w == currentWidth && h == currentHeight) return
 
             renderer?.close()
-            renderNode?.discardDisplayList()
             hasImage = false
 
-            renderer = NGLAndroidCanvasRenderer.Builder(w, h)
+            val builder = NGLAndroidCanvasRenderer.Builder(w, h)
                 .setBufferFormat(HardwareBuffer.RGBA_8888)
                 .setUsageFlags(USAGE_FLAGS)
                 .setMaxBuffers(MAX_BUFFERS)
-                .build()
-
-            renderNode = RenderNode(tag).also { node ->
-                node.setPosition(0, 0, w, h)
-                renderer?.setContentRoot(node)
-            }
+                .setName(tag)
+            if (Build.VERSION.SDK_INT >= 34)
+                builder.setSoftware(rasterizer == Rasterizer.Software)
+            renderer = builder.build()
 
             currentWidth = w
             currentHeight = h
@@ -115,13 +133,8 @@ class NGLAndroidCanvas(
             if (hasImage && !changed) return
 
             val renderer = renderer ?: return
-            val renderNode = renderNode ?: return
-            val canvas = renderNode.beginRecording()
-            callback.onDraw(canvas)
-            renderNode.endRecording()
-
             hasImage = false
-            val frame = renderer.draw()
+            val frame = renderer.draw { callback.onDraw(it) }
             if (frame == null) {
                 Log.w(TAG, "Could not draw the ${currentWidth}x${currentHeight} canvas")
                 return
@@ -150,8 +163,6 @@ class NGLAndroidCanvas(
             hasImage = false
             renderer?.close()
             renderer = null
-            renderNode?.discardDisplayList()
-            renderNode = null
             currentWidth = 0
             currentHeight = 0
         }

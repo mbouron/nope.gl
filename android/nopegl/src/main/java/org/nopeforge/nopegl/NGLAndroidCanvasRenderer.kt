@@ -21,12 +21,17 @@
 
 package org.nopeforge.nopegl
 
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.HardwareRenderer
+import android.graphics.PorterDuff
 import android.graphics.RenderNode
 import android.hardware.HardwareBuffer
 import android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
 import android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
+import android.os.Build
 import androidx.annotation.IntRange
+import androidx.annotation.RequiresApi
 
 internal data class NGLAndroidCanvasBuffer(
     val hardwareBuffer: HardwareBuffer,
@@ -40,12 +45,19 @@ internal constructor(
     format: Int,
     usage: Long,
     maxBuffers: Int,
+    software: Boolean,
+    name: String?,
 ) {
-    private val queue = NGLAndroidCanvasImageQueue(width, height, format, usage, maxBuffers)
-    private val hardwareRenderer = HardwareRenderer().apply {
-        isOpaque = false
-        setSurface(queue.surface)
-        start()
+    private val queue = NGLAndroidCanvasImageQueue(width, height, format,
+        if (software) USAGE_GPU_SAMPLED_IMAGE else usage, maxBuffers)
+    private val contentRoot = if (software) null else RenderNode(name).apply { setPosition(0, 0, width, height) }
+    private val hardwareRenderer = contentRoot?.let { root ->
+        HardwareRenderer().apply {
+            isOpaque = false
+            setSurface(queue.surface)
+            setContentRoot(root)
+            start()
+        }
     }
     private var nextDrawTime = 0L
 
@@ -53,17 +65,40 @@ internal constructor(
     val broken: Boolean get() = queue.broken
 
     fun close() {
-        hardwareRenderer.stop()
-        hardwareRenderer.destroy()
+        hardwareRenderer?.stop()
+        hardwareRenderer?.destroy()
+        contentRoot?.discardDisplayList()
         queue.close()
     }
 
-    fun setContentRoot(renderNode: RenderNode) {
-        hardwareRenderer.setContentRoot(renderNode)
+    fun draw(onDraw: (Canvas) -> Unit) : NGLAndroidCanvasBuffer? {
+        if (queue.broken) return null
+        val drawn = if (hardwareRenderer != null && contentRoot != null)
+            drawHardware(hardwareRenderer, contentRoot, onDraw)
+        else
+            drawSoftware(onDraw)
+        return if (drawn) queue.acquire() else null
     }
 
-    fun draw() : NGLAndroidCanvasBuffer? {
-        if (queue.broken) return null
+    /* Surface.lockCanvas() waits for the release fence of the buffer. */
+    private fun drawSoftware(onDraw: (Canvas) -> Unit): Boolean {
+        val canvas = queue.surface.lockCanvas(null)
+        try {
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+            onDraw(canvas)
+        } finally {
+            queue.surface.unlockCanvasAndPost(canvas)
+        }
+        return true
+    }
+
+    private fun drawHardware(hardwareRenderer: HardwareRenderer, contentRoot: RenderNode, onDraw: (Canvas) -> Unit): Boolean {
+        val canvas = contentRoot.beginRecording()
+        try {
+            onDraw(canvas)
+        } finally {
+            contentRoot.endRecording()
+        }
 
         /*
          * HWUI drops a frame if the latest vsync is less than 2ms after the
@@ -76,11 +111,8 @@ internal constructor(
             Thread.sleep(wait / 1_000_000, (wait % 1_000_000).toInt())
         val request = hardwareRenderer.createRenderRequest().setVsyncTime(System.nanoTime())
         val result = request.syncAndDraw()
-        if (result != HardwareRenderer.SYNC_OK && result != HardwareRenderer.SYNC_REDRAW_REQUESTED)
-            return null
-        val frame = queue.acquire()
         nextDrawTime = System.nanoTime() + MIN_FRAME_INTERVAL_NS
-        return frame
+        return result == HardwareRenderer.SYNC_OK || result == HardwareRenderer.SYNC_REDRAW_REQUESTED
     }
 
     /**
@@ -98,6 +130,8 @@ internal constructor(
         private var bufferFormat = HardwareBuffer.RGBA_8888
         private var maxBuffers = DEFAULT_NUM_BUFFERS
         private var usageFlags = DEFAULT_USAGE_FLAGS
+        private var software = false
+        private var name: String? = null
 
         init {
             if (width <= 0 || height <= 0) {
@@ -124,6 +158,17 @@ internal constructor(
             return this
         }
 
+        @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+        fun setSoftware(software: Boolean): Builder {
+            this.software = software
+            return this
+        }
+
+        fun setName(name: String?): Builder {
+            this.name = name
+            return this
+        }
+
         fun build(): NGLAndroidCanvasRenderer {
             return NGLAndroidCanvasRenderer(
                 width,
@@ -131,6 +176,8 @@ internal constructor(
                 bufferFormat,
                 usageFlags,
                 maxBuffers,
+                software,
+                name,
             )
         }
     }
