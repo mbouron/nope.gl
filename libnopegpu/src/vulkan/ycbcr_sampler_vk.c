@@ -36,6 +36,7 @@
 #include "vulkan/texture_vk.h"
 #include "vulkan/ycbcr_sampler_vk.h"
 #include "utils/memory.h"
+#include "utils/utils.h"
 
 int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHardwareBuffer *ahb, enum ngpu_filter filter, struct ngpu_ycbcr_sampler_vk_params *params)
 {
@@ -63,6 +64,12 @@ int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHard
     if (ahb_format_props.format == VK_FORMAT_UNDEFINED)
         external_format = ahb_format_props.externalFormat;
 
+    const VkFormatFeatureFlags format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
+                                                 VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT;
+    VkFilter vk_filter = ngpu_vk_get_filter(filter);
+    if (!NGPU_HAS_ALL_FLAGS(ahb_format_props.formatFeatures, format_features))
+        vk_filter = VK_FILTER_NEAREST;
+
     const struct ngpu_ycbcr_sampler_vk_params sampler_params = {
         /* Conversion params */
         .android_external_format = external_format,
@@ -73,7 +80,7 @@ int ngpu_ycbcr_sampler_vk_params_from_ahb(struct ngpu_ctx *gpu_ctx, struct AHard
         .x_chroma_offset         = ahb_format_props.suggestedXChromaOffset,
         .y_chroma_offset         = ahb_format_props.suggestedYChromaOffset,
         /* Sampler params */
-        .filter                  = ngpu_vk_get_filter(filter),
+        .filter                  = vk_filter,
     };
 
     *params = sampler_params;
