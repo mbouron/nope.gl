@@ -479,6 +479,32 @@ static void release_ahardware_buffers(struct ngl_ctx *s, struct ngpu_fence *fenc
 }
 #endif
 
+/* Use the update fence to return the images when no draw follows. */
+static int end_update(struct ngl_ctx *s, bool return_images)
+{
+#if defined(TARGET_ANDROID)
+    if (return_images && !ngli_darray_is_empty(&s->ahardware_buffers)) {
+        struct ngpu_fence *fence = NULL;
+        int ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, &fence);
+        if (ret >= 0)
+            release_ahardware_buffers(s, fence);
+        ngpu_fence_freep(&fence);
+        return ret;
+    }
+#endif
+
+    return ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
+}
+
+static void end_frame(struct ngl_ctx *s)
+{
+    s->in_frame = false;
+#if defined(TARGET_ANDROID)
+    /* Release the frames left by a failed frame. */
+    release_ahardware_buffers(s, NULL);
+#endif
+}
+
 int ngli_ctx_set_scene(struct ngl_ctx *s, struct ngl_scene *scene)
 {
     const bool previous = ctx_enter(s);
@@ -747,23 +773,6 @@ int ngli_ctx_set_capture_buffer(struct ngl_ctx *s, void *capture_buffer)
     return 0;
 }
 
-/* Use the update fence to return the images when no draw follows. */
-static int end_update(struct ngl_ctx *s, bool return_images)
-{
-#if defined(TARGET_ANDROID)
-    if (return_images && !ngli_darray_is_empty(&s->ahardware_buffers)) {
-        struct ngpu_fence *fence = NULL;
-        int ret = ngpu_ctx_end_update(s->gpu_ctx, NULL, &fence);
-        if (ret >= 0)
-            release_ahardware_buffers(s, fence);
-        ngpu_fence_freep(&fence);
-        return ret;
-    }
-#endif
-
-    return ngpu_ctx_end_update(s->gpu_ctx, NULL, NULL);
-}
-
 static int update_scene(struct ngl_ctx *s, double t)
 {
     struct ngl_scene *scene = s->scene;
@@ -811,15 +820,6 @@ static int prepare_draw(struct ngl_ctx *s, double t, bool return_images)
     s->frame_stats.cpu_update_time = s->hud ? ngli_gettime_relative() - start_time : 0;
 
     return 0;
-}
-
-static void end_frame(struct ngl_ctx *s)
-{
-    s->in_frame = false;
-#if defined(TARGET_ANDROID)
-    /* Release the frames left by a failed frame. */
-    release_ahardware_buffers(s, NULL);
-#endif
 }
 
 int ngli_ctx_prepare_draw(struct ngl_ctx *s, double t)
