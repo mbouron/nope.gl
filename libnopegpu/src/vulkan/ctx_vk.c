@@ -1175,10 +1175,11 @@ static int vk_begin_update(struct ngpu_ctx *s)
             return ngpu_vk_res2ret(res);
     }
 
-    s_priv->cur_cmd_buffer = s_priv->update_cmd_buffers[s->current_frame_index];
-    VkResult res = ngpu_cmd_buffer_vk_begin(s_priv->cur_cmd_buffer);
+    struct ngpu_cmd_buffer_vk *cmd_buffer = s_priv->update_cmd_buffers[s->current_frame_index];
+    VkResult res = ngpu_cmd_buffer_vk_begin(cmd_buffer);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
+    s_priv->cur_cmd_buffer = cmd_buffer;
 
     vk_add_pending_wait_value(s);
 
@@ -1196,6 +1197,7 @@ static int vk_end_update(struct ngpu_ctx *s, struct ngpu_fence *wait_fence, stru
 
     VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer, wait_fence, signal_fence);
     if (res != VK_SUCCESS) {
+        s_priv->cur_cmd_buffer = NULL;
         if (signal_fencep)
             ngpu_fence_freep(signal_fencep);
         return ngpu_vk_res2ret(res);
@@ -1216,14 +1218,15 @@ static int vk_begin_draw(struct ngpu_ctx *s)
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
     const struct ngpu_ctx_params *ctx_params = &s->params;
 
-    s_priv->cur_cmd_buffer = s_priv->cmd_buffers[s->current_frame_index];
-    VkResult res = ngpu_cmd_buffer_vk_wait(s_priv->cur_cmd_buffer);
+    struct ngpu_cmd_buffer_vk *cmd_buffer = s_priv->cmd_buffers[s->current_frame_index];
+    VkResult res = ngpu_cmd_buffer_vk_wait(cmd_buffer);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
 
-    res = ngpu_cmd_buffer_vk_begin(s_priv->cur_cmd_buffer);
+    res = ngpu_cmd_buffer_vk_begin(cmd_buffer);
     if (res != VK_SUCCESS)
         return ngpu_vk_res2ret(res);
+    s_priv->cur_cmd_buffer = cmd_buffer;
 
     vk_add_pending_wait_value(s);
 
@@ -1231,8 +1234,10 @@ static int vk_begin_draw(struct ngpu_ctx *s)
         s_priv->default_rt = s_priv->rts.data[s->current_frame_index];
     } else {
         res = swapchain_acquire_image(s, &s_priv->cur_image_index);
-        if (res != VK_SUCCESS)
+        if (res != VK_SUCCESS) {
+            s_priv->cur_cmd_buffer = NULL;
             return ngpu_vk_res2ret(res);
+        }
 
         s_priv->default_rt = s_priv->rts.data[s_priv->cur_image_index];
         s_priv->default_rt->width = ctx_params->width;
@@ -1289,15 +1294,17 @@ static int vk_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fen
     const struct ngpu_ctx_params *ctx_params = &s->params;
     struct ngpu_ctx_vk *s_priv = NGPU_PRIV_VK(s);
 
+    int ret = 0;
     if (signal_fencep) {
         *signal_fencep = ngpu_fence_create(s);
-        if (!*signal_fencep)
-            return NGPU_ERROR_MEMORY;
+        if (!*signal_fencep) {
+            ret = NGPU_ERROR_MEMORY;
+            goto fail;
+        }
     }
 
     struct ngpu_fence *signal_fence = signal_fencep ? *signal_fencep : NULL;
 
-    int ret = 0;
     if (ctx_params->offscreen) {
         VkResult res = ngpu_cmd_buffer_vk_submit(s_priv->cur_cmd_buffer, wait_fence, signal_fence);
         if (res != VK_SUCCESS) {
@@ -1337,6 +1344,7 @@ static int vk_end_draw(struct ngpu_ctx *s, double t, struct ngpu_fence *wait_fen
     return 0;
 
 fail:
+    s_priv->cur_cmd_buffer = NULL;
     if (signal_fencep)
         ngpu_fence_freep(signal_fencep);
     return ret;
