@@ -12,6 +12,7 @@ project("nope_jni")
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
         nope_jni.c
+        canvas.c
         nopegl.c
         nopemedia.c
         nopeaudio.c

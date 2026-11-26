@@ -26,6 +26,7 @@ import android.graphics.RenderNode
 import android.hardware.HardwareBuffer
 import android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
 import android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
+import android.util.Log
 
 class NGLAndroidCanvas(
     width: Int,
@@ -57,24 +58,23 @@ class NGLAndroidCanvas(
     private val customTextureCallback: NGLCustomTexture.Callback = object : NGLCustomTexture.Callback() {
         private var renderer: NGLAndroidCanvasRenderer? = null
         private var renderNode: RenderNode? = null
-        private var hardwareBuffer: HardwareBuffer? = null
+        private var hasImage = false
         private var currentWidth = 0
         private var currentHeight = 0
 
         private fun ensureRenderer() {
             val w = pendingWidth
             val h = pendingHeight
-            if (renderer != null && w == currentWidth && h == currentHeight) return
+            if (renderer?.broken == false && w == currentWidth && h == currentHeight) return
 
-            hardwareBuffer?.let { renderer?.releaseBuffer(it) }
-            hardwareBuffer = null
             renderer?.close()
             renderNode?.discardDisplayList()
+            hasImage = false
 
             renderer = NGLAndroidCanvasRenderer.Builder(w, h)
                 .setBufferFormat(HardwareBuffer.RGBA_8888)
                 .setUsageFlags(USAGE_FLAGS)
-                .setMaxBuffers(1)
+                .setMaxBuffers(MAX_BUFFERS)
                 .build()
 
             renderNode = RenderNode(tag).also { node ->
@@ -112,11 +112,7 @@ class NGLAndroidCanvas(
             ensureRenderer()
 
             val changed = callback.onPreDraw()
-            if (hardwareBuffer != null && !changed) return
-
-            setHardwareBufferInfo(null)
-            hardwareBuffer?.let { renderer?.releaseBuffer(it) }
-            hardwareBuffer = null
+            if (hasImage && !changed) return
 
             val renderer = renderer ?: return
             val renderNode = renderNode ?: return
@@ -124,24 +120,34 @@ class NGLAndroidCanvas(
             callback.onDraw(canvas)
             renderNode.endRecording()
 
-            val frame = renderer.draw() ?: return
-            hardwareBuffer = frame.hardwareBuffer
+            hasImage = false
+            val frame = renderer.draw()
+            if (frame == null) {
+                Log.w(TAG, "Could not draw the ${currentWidth}x${currentHeight} canvas")
+                return
+            }
 
-            setHardwareBufferInfo(
-                HardwareBufferInfo(
-                    width = currentWidth,
-                    height = currentHeight,
-                    hardwareBuffer = frame.hardwareBuffer,
-                    acquireFenceFd = frame.acquireFenceFd,
-                )
+            /*
+             * The GPU may still read the previous buffer, possibly within the
+             * current frame. nope.gl hands it back to the renderer with a fence
+             * once it is done with it.
+             */
+            val buffer = frame.hardwareBuffer
+            val info = HardwareBufferInfo(
+                width = currentWidth,
+                height = currentHeight,
+                hardwareBuffer = buffer,
+                acquireFenceFd = frame.acquireFenceFd,
             )
+            hasImage = updateHardwareBufferInfo(info) { fd -> renderer.releaseBuffer(buffer, fd) } >= 0
+            if (!hasImage)
+                renderer.releaseBuffer(buffer, -1)
         }
 
         override fun release() {
             callback.onRelease()
             setHardwareBufferInfo(null)
-            hardwareBuffer?.let { renderer?.releaseBuffer(it) }
-            hardwareBuffer = null
+            hasImage = false
             renderer?.close()
             renderer = null
             renderNode?.discardDisplayList()
@@ -180,6 +186,9 @@ class NGLAndroidCanvas(
     }
 
     companion object {
+        private const val TAG = "NGLAndroidCanvas"
         private const val USAGE_FLAGS = USAGE_GPU_SAMPLED_IMAGE or USAGE_GPU_COLOR_OUTPUT
+        // A canvas drawn by several nodes needs one buffer per draw until the frame is submitted.
+        private const val MAX_BUFFERS = 8
     }
 }

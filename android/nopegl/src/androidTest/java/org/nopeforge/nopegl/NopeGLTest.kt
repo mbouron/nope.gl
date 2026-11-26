@@ -23,7 +23,10 @@ package org.nopeforge.nopegl
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.RenderNode
+import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -799,6 +802,86 @@ class NopeGLTest {
     @Test
     fun canvasWith2DNodesVK() {
         canvasWith2DNodes(NGLConfig.BACKEND_VULKAN)
+    }
+
+    private fun sharedCanvas(backend: Int) {
+        NGLContext.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        val colors = listOf(Color.RED, Color.GREEN, Color.BLUE, Color.WHITE)
+        val rgba = listOf(0xff0000ffu, 0x00ff00ffu, 0x0000ffffu, 0xffffffffu)
+        var draws = 0
+        var changed = true
+        val canvas = NGLAndroidCanvas(64, 64, object : NGLAndroidCanvas.Callback {
+            override fun onPreDraw() = changed
+            override fun onDraw(canvas: Canvas) {
+                canvas.drawColor(colors[draws++ % colors.size])
+            }
+        })
+        val root = NGLCanvas2D(width = 256, height = 256, children = colors.indices.map { i ->
+            NGLDrawRect2D(
+                rect = NGLVec4(i * 64f, 0f, 64f, 256f),
+                fill = NGLTexturePaint(texture = canvas.node),
+            )
+        })
+        val pixels = ByteBuffer.allocateDirect(256 * 256 * 4)
+        val ctx = createContext(backend)
+        try {
+            assertEquals(0, ctx.setCaptureBuffer(pixels))
+            assertEquals(0, ctx.setScene(NGLScene(rootNode = root, duration = 2.0)))
+            repeat(3) {
+                assertEquals(0, ctx.draw(0.0))
+                for (i in colors.indices)
+                    assertEquals(rgba[i], pixels.getInt((128 * 256 + i * 64 + 32) * 4).toUInt())
+            }
+            assertEquals(12, draws)
+            changed = false
+            assertEquals(0, ctx.draw(0.0))
+            assertEquals(12, draws)
+            assertEquals(rgba.last(), pixels.getInt(32 * 4).toUInt())
+            canvas.resize(32, 128)
+            assertEquals(0, ctx.draw(0.0))
+            assertEquals(13, draws)
+            assertEquals(rgba.first(), pixels.getInt(32 * 4).toUInt())
+        } finally {
+            ctx.release()
+        }
+    }
+
+    @Test
+    fun sharedHardwareCanvasGL() = sharedCanvas(NGLConfig.BACKEND_OPENGLES)
+
+    @Test
+    fun sharedHardwareCanvasVK() = sharedCanvas(NGLConfig.BACKEND_VULKAN)
+
+    @SdkSuppress(minSdkVersion = 31)
+    @Test
+    fun canvasBufferReuse() {
+        val renderer = NGLAndroidCanvasRenderer.Builder(16, 16).setMaxBuffers(3).build()
+        val node = RenderNode(null).apply { setPosition(0, 0, 16, 16) }
+        renderer.setContentRoot(node)
+        fun draw(): NGLAndroidCanvasBuffer {
+            node.beginRecording().drawColor(Color.RED)
+            node.endRecording()
+            val frame = checkNotNull(renderer.draw())
+            if (frame.acquireFenceFd >= 0)
+                ParcelFileDescriptor.adoptFd(frame.acquireFenceFd).close()
+            return frame
+        }
+        try {
+            val ids = HashSet<Long>()
+            repeat(16) {
+                val frame = draw()
+                ids.add(frame.hardwareBuffer.id)
+                renderer.releaseBuffer(frame.hardwareBuffer, -1)
+            }
+            assertTrue("${ids.size} buffers allocated", ids.size <= 3)
+
+            val discarded = draw()
+            renderer.releaseBuffer(discarded.hardwareBuffer, -2)
+            assertTrue(renderer.broken)
+            assertNull(renderer.draw())
+        } finally {
+            renderer.close()
+        }
     }
 
     @Test
