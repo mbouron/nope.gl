@@ -19,6 +19,7 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
   rendering to a resizable texture with a viewport less than one pixel wide or
   high
 - OpenGL ES context creation failing on the Android emulator
+- `NGLAndroidCanvas` buffers being reused while still being read by the GPU
 
 ## [2026.8 / libnopegl 0.19.1 / libnopemedia 15.0.0 / libnopegpu 0.1.1 / libnopeaudio 0.1.0][2026.8] - 2026-11-20
 
