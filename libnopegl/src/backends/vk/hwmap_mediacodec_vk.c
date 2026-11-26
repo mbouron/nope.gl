@@ -131,7 +131,7 @@ static int get_ycbcr_sampler(struct hwmap *hwmap, AHardwareBuffer *buffer)
         VkResult res = ngpu_ycbcr_sampler_vk_init(mc->ycbcr_sampler, &sampler_params);
         if (res != VK_SUCCESS) {
             ngpu_ycbcr_sampler_vk_unrefp(&mc->ycbcr_sampler);
-            return res;
+            return NGL_ERROR_GRAPHICS_GENERIC;
         }
     }
 
