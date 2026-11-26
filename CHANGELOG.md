@@ -10,6 +10,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 
 ## [Unreleased]
 
+### Added
+- `NGLAndroidCanvas` support for software rendering on Android 14 and later
+  with `Rasterizer.Software`
+
 ### Changed
 - If no size is requested, the Vulkan swapchain now uses the surface size when
   available
