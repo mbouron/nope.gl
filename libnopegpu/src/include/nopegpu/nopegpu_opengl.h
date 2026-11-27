@@ -48,6 +48,7 @@ NGPU_API int ngpu_ctx_gl_release_current(struct ngpu_ctx *s);
 
 NGPU_API uint32_t ngpu_texture_gl_get_name(const struct ngpu_texture *s);
 NGPU_API uint32_t ngpu_texture_gl_get_target(const struct ngpu_texture *s);
+NGPU_API int ngpu_texture_gl_acquire_external(struct ngpu_texture *s, int acquire_fence_fd);
 
 NGPU_API void *ngpu_fence_gl_get_sync(const struct ngpu_fence *s);
 NGPU_API struct ngpu_fence *ngpu_fence_gl_create_from_sync(struct ngpu_ctx *ctx, void *sync);

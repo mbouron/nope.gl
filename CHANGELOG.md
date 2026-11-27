@@ -10,6 +10,10 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 
 ## [Unreleased]
 
+### Added
+- `ngpu_texture_gl_acquire_external()` to wait for the producer of an imported
+  `AHardwareBuffer` texture before using it again
+
 ### Changed
 - `ngpu_texture_vk_acquire_external()` has a new `acquire_fence_fd` argument to
   wait for the producer of the buffer, and can now be called outside of a frame

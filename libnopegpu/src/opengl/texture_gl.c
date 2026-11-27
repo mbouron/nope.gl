@@ -445,6 +445,40 @@ static int texture_import_dma_buf(struct ngpu_texture *s)
 #endif
 }
 
+#if defined(TARGET_ANDROID)
+/* The caller keeps the fd */
+static int wait_sync_file(struct glcontext *gl, int fence_fd)
+{
+    if (!NGPU_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_EGL_ANDROID_NATIVE_FENCE_SYNC)) {
+        LOG(ERROR, "fence import is not supported");
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+    }
+
+    const int fd = dup(fence_fd);
+    if (fd == -1) {
+        LOG(ERROR, "could not dup file descriptor (fd=%d)", fence_fd);
+        return NGPU_ERROR_EXTERNAL;
+    }
+
+    const EGLint sync_attrs[] = {
+        EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fd,
+        EGL_NONE,
+    };
+    EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, sync_attrs);
+    if (sync == EGL_NO_SYNC_KHR) {
+        LOG(ERROR, "could not create native fence EGLSync from acquire fd");
+        close(fd);
+        return NGPU_ERROR_EXTERNAL;
+    }
+    EGLint ret = ngpu_eglWaitSyncKHR(gl, sync, 0);
+    ngpu_eglDestroySyncKHR(gl, sync);
+    if (ret != EGL_TRUE)
+        return NGPU_ERROR_EXTERNAL;
+
+    return 0;
+}
+#endif
+
 static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
 {
 #if defined(TARGET_ANDROID)
@@ -478,33 +512,8 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
     else
         gl->funcs.EGLImageTargetTexture2DOES(s_priv->target, s_priv->egl_image);
 
-    if (ahb_params->acquire_fence_fd >= 0) {
-        if (!NGPU_HAS_ALL_FLAGS(gl->features, NGPU_FEATURE_GL_EGL_ANDROID_NATIVE_FENCE_SYNC)) {
-            LOG(ERROR, "fence import is not supported");
-            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
-        }
-
-        const int fd = dup(ahb_params->acquire_fence_fd);
-        if (fd == -1) {
-            LOG(ERROR, "could not dup file descriptor (fd=%d)", ahb_params->acquire_fence_fd);
-            return NGPU_ERROR_EXTERNAL;
-        }
-
-        const EGLint sync_attrs[] = {
-            EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fd,
-            EGL_NONE,
-        };
-        EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, sync_attrs);
-        if (sync == EGL_NO_SYNC_KHR) {
-            LOG(ERROR, "could not create native fence EGLSync from acquire fd");
-            close(fd);
-            return NGPU_ERROR_EXTERNAL;
-        }
-        EGLint ret = ngpu_eglWaitSyncKHR(gl, sync, 0);
-        ngpu_eglDestroySyncKHR(gl, sync);
-        if (ret != EGL_TRUE)
-            return NGPU_ERROR_EXTERNAL;
-    }
+    if (ahb_params->acquire_fence_fd >= 0)
+        return wait_sync_file(gl, ahb_params->acquire_fence_fd);
 
     return 0;
 #else
@@ -830,4 +839,18 @@ uint32_t ngpu_texture_gl_get_target(const struct ngpu_texture *s)
 {
     const struct ngpu_texture_gl *s_priv = (const struct ngpu_texture_gl *)s;
     return s_priv->target;
+}
+
+int ngpu_texture_gl_acquire_external(struct ngpu_texture *s, int acquire_fence_fd)
+{
+    ngpu_assert(s->params.import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER);
+#if defined(TARGET_ANDROID)
+    if (acquire_fence_fd < 0)
+        return 0;
+
+    struct glcontext *gl = NGPU_PRIV_GL(s->gpu_ctx)->glcontext;
+    return wait_sync_file(gl, acquire_fence_fd);
+#else
+    return NGPU_ERROR_UNSUPPORTED;
+#endif
 }
