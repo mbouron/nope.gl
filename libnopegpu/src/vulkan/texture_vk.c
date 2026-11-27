@@ -691,10 +691,28 @@ static int import_dma_buf(struct ngpu_texture *s)
 }
 
 #if defined(TARGET_ANDROID)
-/* The texture owns the semaphore, the caller keeps the fd */
+struct acquire_sem_vk {
+    struct ngpu_rc rc;
+    struct ngpu_ctx *gpu_ctx;
+    VkSemaphore sem;
+};
+
+NGPU_RC_CHECK_STRUCT(acquire_sem_vk);
+
+static void acquire_sem_vk_freep(void **sp)
+{
+    struct acquire_sem_vk *s = *sp;
+    if (!s)
+        return;
+
+    struct vkcontext *vk = NGPU_PRIV_VK(s->gpu_ctx)->vkcontext;
+    vk->funcs.DestroySemaphore(vk->device, s->sem, NULL);
+    ngpu_freep(sp);
+}
+
+/* The command buffer owns the semaphore, the caller keeps the fd */
 static int wait_sync_file(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer_vk, int fence_fd)
 {
-    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
     struct vkcontext *vk = NGPU_PRIV_VK(s->gpu_ctx)->vkcontext;
 
     if (!vk->funcs.ImportSemaphoreFdKHR) {
@@ -702,26 +720,30 @@ static int wait_sync_file(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd
         return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
     }
 
+    struct acquire_sem_vk *acquire_sem = ngpu_calloc(1, sizeof(*acquire_sem));
+    acquire_sem->rc = NGPU_RC_CREATE(acquire_sem_vk_freep);
+    acquire_sem->gpu_ctx = s->gpu_ctx;
+
     const VkSemaphoreCreateInfo sem_info = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     };
-    VkResult res = vk->funcs.CreateSemaphore(vk->device, &sem_info, NULL, &s_priv->acquire_sem);
+    VkResult res = vk->funcs.CreateSemaphore(vk->device, &sem_info, NULL, &acquire_sem->sem);
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not create semaphore: %s", ngpu_vk_res2str(res));
+        NGPU_RC_UNREFP(&acquire_sem);
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
     const int fd = dup(fence_fd);
     if (fd == -1) {
         LOG(ERROR, "could not dup file descriptor (fd=%d)", fence_fd);
-        vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
-        s_priv->acquire_sem = VK_NULL_HANDLE;
+        NGPU_RC_UNREFP(&acquire_sem);
         return NGPU_ERROR_EXTERNAL;
     }
 
     const VkImportSemaphoreFdInfoKHR import_info = {
         .sType      = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
-        .semaphore  = s_priv->acquire_sem,
+        .semaphore  = acquire_sem->sem,
         .flags      = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
         .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
         .fd         = fd,
@@ -730,12 +752,13 @@ static int wait_sync_file(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd
     if (res != VK_SUCCESS) {
         LOG(ERROR, "could not import semaphore fd: %s", ngpu_vk_res2str(res));
         close(fd);
-        vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
-        s_priv->acquire_sem = VK_NULL_HANDLE;
+        NGPU_RC_UNREFP(&acquire_sem);
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
-    ngpu_cmd_buffer_vk_add_wait_sem(cmd_buffer_vk, s_priv->acquire_sem, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, acquire_sem);
+    ngpu_cmd_buffer_vk_add_wait_sem(cmd_buffer_vk, acquire_sem->sem, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    NGPU_RC_UNREFP(&acquire_sem);
     return 0;
 }
 
@@ -1624,8 +1647,6 @@ void ngpu_texture_vk_freep(struct ngpu_texture **sp)
         vk->funcs.DestroyImageView(vk->device, s_priv->image_view, NULL);
     if (!s_priv->wrapped_image)
         vk->funcs.DestroyImage(vk->device, s_priv->image, NULL);
-    if (s_priv->acquire_sem != VK_NULL_HANDLE)
-        vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
     vk->funcs.FreeMemory(vk->device, s_priv->image_memory, NULL);
 
     destroy_staging_buffer(s);

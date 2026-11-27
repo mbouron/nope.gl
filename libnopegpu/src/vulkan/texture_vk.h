@@ -62,7 +62,6 @@ struct ngpu_texture_vk {
     struct ngpu_buffer *readback_buffer;
     void *readback_buffer_ptr;
     int fd;
-    VkSemaphore acquire_sem;
     struct ngpu_cmd_buffer_vk_darray cmd_buffers;
 };
 
