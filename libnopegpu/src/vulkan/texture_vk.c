@@ -690,6 +690,34 @@ static int import_dma_buf(struct ngpu_texture *s)
 #endif
 }
 
+#if defined(TARGET_ANDROID)
+/* Outside of a frame or during a render pass, external textures go through a transient command buffer */
+static VkResult begin_external_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk **cmd_bufferp)
+{
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    if (gpu_ctx_vk->cur_cmd_buffer && !ngpu_ctx_is_render_pass_active(s->gpu_ctx)) {
+        *cmd_bufferp = gpu_ctx_vk->cur_cmd_buffer;
+        return VK_SUCCESS;
+    }
+    return ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, cmd_bufferp);
+}
+
+static VkResult end_external_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer_vk)
+{
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    if (cmd_buffer_vk == gpu_ctx_vk->cur_cmd_buffer)
+        return VK_SUCCESS;
+
+    /* Keep the transient command buffer alive until the current command buffer completes */
+    VkResult res = ngpu_cmd_buffer_vk_submit(cmd_buffer_vk, NULL, NULL);
+    if (res == VK_SUCCESS && gpu_ctx_vk->cur_cmd_buffer)
+        NGPU_CMD_BUFFER_VK_REF(gpu_ctx_vk->cur_cmd_buffer, cmd_buffer_vk);
+
+    ngpu_cmd_buffer_vk_freep(&cmd_buffer_vk);
+    return res;
+}
+#endif
+
 static int import_android_hardware_buffer(struct ngpu_texture *s)
 {
 #if defined(TARGET_ANDROID)
@@ -873,13 +901,10 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         s_priv->format = ahb_format_props.format;
     }
 
-    struct ngpu_cmd_buffer_vk *cmd_buffer_vk = gpu_ctx_vk->cur_cmd_buffer;
-    const bool cmd_is_transient = !cmd_buffer_vk || ngpu_ctx_is_render_pass_active(s->gpu_ctx);
-    if (cmd_is_transient) {
-        res = ngpu_cmd_buffer_vk_begin_transient(s->gpu_ctx, 0, &cmd_buffer_vk);
-        if (res != VK_SUCCESS)
-            return ngpu_vk_res2ret(res);
-    }
+    struct ngpu_cmd_buffer_vk *cmd_buffer_vk;
+    res = begin_external_cmd_buffer(s, &cmd_buffer_vk);
+    if (res != VK_SUCCESS)
+        return ngpu_vk_res2ret(res);
 
     /* Keep the texture alive until the command buffer completes */
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
@@ -912,21 +937,8 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
 
     texture_vk_transition_layout(s, cmd_buffer_vk, s_priv->default_image_layout);
 
-    if (cmd_is_transient) {
-        /*
-         * Keep the transient command buffer alive until the current command
-         * buffer completes.
-         */
-        res = ngpu_cmd_buffer_vk_submit(cmd_buffer_vk, NULL, NULL);
-        if (res == VK_SUCCESS && gpu_ctx_vk->cur_cmd_buffer)
-            NGPU_CMD_BUFFER_VK_REF(gpu_ctx_vk->cur_cmd_buffer, cmd_buffer_vk);
-
-        ngpu_cmd_buffer_vk_freep(&cmd_buffer_vk);
-        if (res != VK_SUCCESS)
-            return ngpu_vk_res2ret(res);
-    }
-
-    return 0;
+    res = end_external_cmd_buffer(s, cmd_buffer_vk);
+    return ngpu_vk_res2ret(res);
 #else
     return NGPU_ERROR_UNSUPPORTED;
 #endif
