@@ -691,6 +691,54 @@ static int import_dma_buf(struct ngpu_texture *s)
 }
 
 #if defined(TARGET_ANDROID)
+/* The texture owns the semaphore, the caller keeps the fd */
+static int wait_sync_file(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer_vk, int fence_fd)
+{
+    struct ngpu_texture_vk *s_priv = NGPU_PRIV_VK(s);
+    struct vkcontext *vk = NGPU_PRIV_VK(s->gpu_ctx)->vkcontext;
+
+    if (!vk->funcs.ImportSemaphoreFdKHR) {
+        LOG(ERROR, "fence import is not supported");
+        return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
+    }
+
+    const VkSemaphoreCreateInfo sem_info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+    VkResult res = vk->funcs.CreateSemaphore(vk->device, &sem_info, NULL, &s_priv->acquire_sem);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not create semaphore: %s", ngpu_vk_res2str(res));
+        return NGPU_ERROR_GRAPHICS_GENERIC;
+    }
+
+    const int fd = dup(fence_fd);
+    if (fd == -1) {
+        LOG(ERROR, "could not dup file descriptor (fd=%d)", fence_fd);
+        vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
+        s_priv->acquire_sem = VK_NULL_HANDLE;
+        return NGPU_ERROR_EXTERNAL;
+    }
+
+    const VkImportSemaphoreFdInfoKHR import_info = {
+        .sType      = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
+        .semaphore  = s_priv->acquire_sem,
+        .flags      = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
+        .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+        .fd         = fd,
+    };
+    res = vk->funcs.ImportSemaphoreFdKHR(vk->device, &import_info);
+    if (res != VK_SUCCESS) {
+        LOG(ERROR, "could not import semaphore fd: %s", ngpu_vk_res2str(res));
+        close(fd);
+        vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
+        s_priv->acquire_sem = VK_NULL_HANDLE;
+        return NGPU_ERROR_GRAPHICS_GENERIC;
+    }
+
+    ngpu_cmd_buffer_vk_add_wait_sem(cmd_buffer_vk, s_priv->acquire_sem, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    return 0;
+}
+
 /* Outside of a frame or during a render pass, external textures go through a transient command buffer */
 static VkResult begin_external_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk **cmd_bufferp)
 {
@@ -715,6 +763,13 @@ static VkResult end_external_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_
 
     ngpu_cmd_buffer_vk_freep(&cmd_buffer_vk);
     return res;
+}
+
+static void discard_external_cmd_buffer(struct ngpu_texture *s, struct ngpu_cmd_buffer_vk *cmd_buffer_vk)
+{
+    struct ngpu_ctx_vk *gpu_ctx_vk = NGPU_PRIV_VK(s->gpu_ctx);
+    if (cmd_buffer_vk != gpu_ctx_vk->cur_cmd_buffer)
+        ngpu_cmd_buffer_vk_freep(&cmd_buffer_vk);
 }
 #endif
 
@@ -825,46 +880,6 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
         return NGPU_ERROR_GRAPHICS_GENERIC;
     }
 
-    if (ahb_params->acquire_fence_fd >= 0) {
-        if (!vk->funcs.ImportSemaphoreFdKHR) {
-            LOG(ERROR, "fence import is not supported");
-            return NGPU_ERROR_GRAPHICS_UNSUPPORTED;
-        }
-
-        const VkSemaphoreCreateInfo sem_info = {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        };
-        res = vk->funcs.CreateSemaphore(vk->device, &sem_info, NULL, &s_priv->acquire_sem);
-        if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not create semaphore: %s", ngpu_vk_res2str(res));
-            return NGPU_ERROR_GRAPHICS_GENERIC;
-        }
-
-        const int fd = dup(ahb_params->acquire_fence_fd);
-        if (fd == -1) {
-            LOG(ERROR, "could not dup file descriptor (fd=%d)", ahb_params->acquire_fence_fd);
-            vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
-            s_priv->acquire_sem = VK_NULL_HANDLE;
-            return NGPU_ERROR_EXTERNAL;
-        }
-
-        const VkImportSemaphoreFdInfoKHR import_info = {
-            .sType      = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
-            .semaphore  = s_priv->acquire_sem,
-            .flags      = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
-            .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
-            .fd         = fd,
-        };
-        res = vk->funcs.ImportSemaphoreFdKHR(vk->device, &import_info);
-        if (res != VK_SUCCESS) {
-            LOG(ERROR, "could not import semaphore fd: %s", ngpu_vk_res2str(res));
-            close(fd);
-            vk->funcs.DestroySemaphore(vk->device, s_priv->acquire_sem, NULL);
-            s_priv->acquire_sem = VK_NULL_HANDLE;
-            return NGPU_ERROR_GRAPHICS_GENERIC;
-        }
-    }
-
     const VkImageSubresourceRange subres_range = {
         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel   = 0,
@@ -909,9 +924,13 @@ static int import_android_hardware_buffer(struct ngpu_texture *s)
     /* Keep the texture alive until the command buffer completes */
     NGPU_CMD_BUFFER_VK_REF(cmd_buffer_vk, s);
 
-    if (s_priv->acquire_sem != VK_NULL_HANDLE)
-        ngpu_cmd_buffer_vk_add_wait_sem(cmd_buffer_vk, s_priv->acquire_sem,
-                                        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    if (ahb_params->acquire_fence_fd >= 0) {
+        int ret = wait_sync_file(s, cmd_buffer_vk, ahb_params->acquire_fence_fd);
+        if (ret < 0) {
+            discard_external_cmd_buffer(s, cmd_buffer_vk);
+            return ret;
+        }
+    }
 
     const VkImageMemoryBarrier barrier = {
         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
