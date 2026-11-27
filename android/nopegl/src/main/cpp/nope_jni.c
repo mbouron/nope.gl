@@ -19,7 +19,6 @@
  * under the License.
  */
 
-
 #include <pthread.h>
 
 #include <jni.h>
@@ -65,8 +64,9 @@ static int set_context(JNIEnv *env, jobject context)
     return 0;
 }
 
-JNIEXPORT jint JNICALL Java_org_nopeforge_Nope_nativeInit(
-    JNIEnv *env, jclass clazz, jobject context)
+JNIEXPORT jint JNICALL Java_org_nopeforge_Nope_nativeInit(JNIEnv *env,
+                                                          jclass clazz,
+                                                          jobject context)
 {
     pthread_mutex_lock(&lock);
     int ret = set_context(env, context);
