@@ -21,6 +21,8 @@
 #-renamesourcefileattribute SourceFile
 
 -keep class org.nopeforge.Nope { *; }
+-keep class org.nopeforge.nopegl.NGLAndroidCanvasImageQueue { *; }
+-keepclassmembers class org.nopeforge.nopegl.NGLAndroidCanvasImageQueue { *; }
 -keep class org.nopeforge.nopegl.NGLContext { *; }
 -keepclassmembers class org.nopeforge.nopegl.NGLContext { *; }
 -keep class org.nopeforge.nopegl.NGLContext$Companion { *; }
