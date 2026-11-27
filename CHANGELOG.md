@@ -10,6 +10,8 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 
 ## [Unreleased]
 
+## [2026.9 / libnopegl 0.20.0 / libnopemedia 15.0.0 / libnopegpu 0.2.0 / libnopeaudio 0.1.0][2026.9] - 2026-11-27
+
 ### Added
 - `NGLAndroidCanvas` support for software rendering on Android 14 and later
   with `Rasterizer.Software`
@@ -774,3 +776,4 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 [2026.6]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.6
 [2026.7]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.7
 [2026.8]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.8
+[2026.9]: https://github.com/NopeForge/nope.gl/releases/tag/v2026.9
