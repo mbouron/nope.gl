@@ -58,7 +58,7 @@ NGPU_API struct ngpu_ycbcr_sampler_vk *ngpu_ycbcr_sampler_vk_ref(struct ngpu_ycb
 NGPU_API void ngpu_ycbcr_sampler_vk_unrefp(struct ngpu_ycbcr_sampler_vk **sp);
 
 NGPU_API int ngpu_texture_vk_release_external(struct ngpu_texture *s);
-NGPU_API int ngpu_texture_vk_acquire_external(struct ngpu_texture *s);
+NGPU_API int ngpu_texture_vk_acquire_external(struct ngpu_texture *s, int acquire_fence_fd);
 
 
 #endif

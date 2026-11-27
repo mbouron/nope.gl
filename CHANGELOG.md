@@ -10,6 +10,11 @@ Versioning](https://semver.org/spec/v2.0.0.html) for `libnopegl`,
 
 ## [Unreleased]
 
+### Changed
+- `ngpu_texture_vk_acquire_external()` has a new `acquire_fence_fd` argument to
+  wait for the producer of the buffer, and can now be called outside of a frame
+  or during a render pass
+
 ## [2026.9 / libnopegl 0.20.0 / libnopemedia 15.0.0 / libnopegpu 0.2.0 / libnopeaudio 0.1.0][2026.9] - 2026-11-27
 
 ### Added

@@ -1038,11 +1038,30 @@ int ngpu_texture_vk_release_external(struct ngpu_texture *s)
     return ngpu_vk_res2ret(res);
 }
 
-int ngpu_texture_vk_acquire_external(struct ngpu_texture *s)
+int ngpu_texture_vk_acquire_external(struct ngpu_texture *s, int acquire_fence_fd)
 {
     ngpu_assert(s->params.import_params.type == NGPU_IMPORT_TYPE_AHARDWARE_BUFFER);
-    struct ngpu_ctx_vk *ctx = NGPU_PRIV_VK(s->gpu_ctx);
-    return transfer_external_ownership(s, ctx->cur_cmd_buffer, true);
+#if defined(TARGET_ANDROID)
+    struct ngpu_cmd_buffer_vk *cmd_buffer_vk;
+    VkResult res = begin_external_cmd_buffer(s, &cmd_buffer_vk);
+    if (res != VK_SUCCESS)
+        return ngpu_vk_res2ret(res);
+
+    if (acquire_fence_fd >= 0) {
+        int ret = wait_sync_file(s, cmd_buffer_vk, acquire_fence_fd);
+        if (ret < 0) {
+            discard_external_cmd_buffer(s, cmd_buffer_vk);
+            return ret;
+        }
+    }
+
+    transfer_external_ownership(s, cmd_buffer_vk, true);
+
+    res = end_external_cmd_buffer(s, cmd_buffer_vk);
+    return ngpu_vk_res2ret(res);
+#else
+    return NGPU_ERROR_UNSUPPORTED;
+#endif
 }
 
 static int import_metal_texture(struct ngpu_texture *s)

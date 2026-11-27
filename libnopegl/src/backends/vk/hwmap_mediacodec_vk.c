@@ -153,7 +153,7 @@ static int get_ahb_texture(struct hwmap *hwmap, AHardwareBuffer *buffer, const A
         if (ahb_texture->buffer == buffer) {
             ahb_texture->map_index = mc->map_index;
             *dst = *ahb_texture;
-            return ngpu_texture_vk_acquire_external(ahb_texture->texture);
+            return ngpu_texture_vk_acquire_external(ahb_texture->texture, -1);
         }
     }
 
