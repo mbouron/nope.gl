@@ -9,7 +9,7 @@ on:
 jobs:
   linux:
 
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
 
     if: ${{ github.repository_owner == 'mbouron' }}
     steps:

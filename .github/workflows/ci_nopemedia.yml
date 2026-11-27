@@ -16,7 +16,7 @@ on:
 jobs:
   linux:
 
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
 
     steps:
     - uses: actions/checkout@v7

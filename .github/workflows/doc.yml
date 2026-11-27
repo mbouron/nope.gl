@@ -22,7 +22,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
 
     steps:
     - name: Checkout sources
