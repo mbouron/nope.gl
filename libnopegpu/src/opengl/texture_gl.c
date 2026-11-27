@@ -497,6 +497,7 @@ static int texture_import_android_hardware_buffer(struct ngpu_texture *s)
         EGLSyncKHR sync = ngpu_eglCreateSyncKHR(gl, EGL_SYNC_NATIVE_FENCE_ANDROID, sync_attrs);
         if (sync == EGL_NO_SYNC_KHR) {
             LOG(ERROR, "could not create native fence EGLSync from acquire fd");
+            close(fd);
             return NGPU_ERROR_EXTERNAL;
         }
         EGLint ret = ngpu_eglWaitSyncKHR(gl, sync, 0);
